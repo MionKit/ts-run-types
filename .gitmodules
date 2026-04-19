@@ -1,0 +1,3 @@
+[submodule "third_party/tsgolint"]
+	path = third_party/tsgolint
+	url = https://github.com/oxc-project/tsgolint.git
