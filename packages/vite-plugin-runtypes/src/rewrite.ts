@@ -16,8 +16,9 @@ export const DEFAULT_MARKERS: readonly Marker[] = [
 
 export interface Rewritten {
   code: string;
-  // type ids resolved in this file — consumer uses these to populate the cache
-  sites: Array<{ pos: number; id: string; marker: string }>;
+  // type ids resolved in this file — consumer uses these to populate the cache.
+  // ids are numeric (matching deepkit's `TypeAnnotations.id` field).
+  sites: Array<{ pos: number; id: number; marker: string }>;
 }
 
 // findMarkerCalls locates call-site positions of the given markers by regex.
@@ -71,7 +72,8 @@ export async function rewrite(
             index: 0,
           });
 
-    if (resp.error || !resp.id) continue; // skip unresolvable sites
+    // resp.id may legitimately be 0 — treat only error/undefined as failure.
+    if (resp.error || resp.id === undefined) continue;
 
     sites.push({ pos: c.pos, id: resp.id, marker: c.marker.name });
 
@@ -79,7 +81,8 @@ export async function rewrite(
     const close = findCallClose(code, c.pos);
     if (close < 0) continue;
     const before = code[close - 1];
-    const insert = before === "(" ? `"${resp.id}"` : `, "${resp.id}"`;
+    // Numeric id passed directly so consumers do __runtypes.get(<id>).
+    const insert = before === "(" ? String(resp.id) : `, ${resp.id}`;
     patches.push({ start: close, end: close, text: insert });
   }
 
