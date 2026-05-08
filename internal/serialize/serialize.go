@@ -122,6 +122,13 @@ func (c *Cache) Serialize(t *checker.Type) *protocol.Type {
 	return protocol.NewRef(id)
 }
 
+// AssignID projects t into the cache (if new) and returns its hash id.
+// Public alias for the internal assignID used by callers — like the marker
+// scanner — that only need an id, not a Type sentinel.
+func (c *Cache) AssignID(t *checker.Type) string {
+	return c.assignID(t)
+}
+
 // SerializeTopLevel returns the canonical Type entry (not a ref). Used by
 // the resolver to record the top of a query result so callers see the full
 // shape rather than a sentinel.

@@ -1,5 +1,6 @@
 /// <reference path="./runtypes.d.ts" />
+import { getRuntypeId } from "@mionkit/runtypes";
 export {};
 type User = { id: number; name: string };
 const u = { id: 1, name: "m" } as User;
-isType<User>(u);
+getRuntypeId<User>(u);

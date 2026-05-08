@@ -174,13 +174,22 @@ func NewRef(id string) *Type {
 	return &Type{Kind: KindRef, ID: id}
 }
 
+// Op constants for the wire protocol. Stable string values — the TS side
+// references the same names.
+const (
+	// OpScanFile walks every CallExpression in a file and returns one Site
+	// per call whose resolved signature opts into transformer injection
+	// (trailing `RuntypeId<T>` parameter with a concretely-bound T).
+	OpScanFile = "scanFile"
+	// OpDump returns the full cache contents: every Type the resolver has
+	// projected so far + every Site recorded. Used at end-of-build.
+	OpDump = "dump"
+)
+
 // Request is the union of all query operations (see resolver/dispatch).
 type Request struct {
-	Op      string `json:"op"`
-	File    string `json:"file,omitempty"`
-	Pos     int    `json:"pos,omitempty"`
-	CallPos int    `json:"callPos,omitempty"`
-	Index   int    `json:"index,omitempty"`
+	Op   string `json:"op"`
+	File string `json:"file,omitempty"`
 }
 
 // Response is returned per request. ID is the hash key into the shared
@@ -196,10 +205,19 @@ type Response struct {
 	Error string  `json:"error,omitempty"`
 }
 
+// Site records one transformer-injection point. Pos is the byte offset of
+// the closing `)` of the call expression — the patcher inserts at that
+// offset. ParamIndex is the 0-based slot the injected id occupies in the
+// call's argument list; the runtime helper reads from that slot. ArgsCount
+// is the number of arguments the user already wrote — when it's less than
+// ParamIndex the patcher pads with `undefined` so the id lands in the
+// right slot.
 type Site struct {
-	File string `json:"file"`
-	Pos  int    `json:"pos"`
-	ID   string `json:"id"`
+	File       string `json:"file"`
+	Pos        int    `json:"pos"`
+	ID         string `json:"id"`
+	ParamIndex int    `json:"paramIndex,omitempty"`
+	ArgsCount  int    `json:"argsCount,omitempty"`
 }
 
 // Dump is the build-end manifest written to runtypes-cache.json.

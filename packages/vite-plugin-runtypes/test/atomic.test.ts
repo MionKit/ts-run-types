@@ -1,7 +1,8 @@
 // End-to-end atomic round-trip tests. For each atomic kind, this suite:
 //
 //   1. Spawns the Go binary against the atomic fixtures dir
-//   2. Asks the resolver for the type at every fixture's marker call
+//   2. Calls scanFile on every fixture (which triggers id resolution
+//      for the trailing-RuntypeId<T> call site in each)
 //   3. Renders a runtypes-cache JS module from the dump
 //   4. Evaluates that module and asserts the resulting deepkit-shape Type
 //      contains real runtime values where applicable (BigInt / Symbol /
@@ -15,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import fs from "node:fs";
 import { ResolverClient } from "../src/resolver-client.js";
-import { rewrite, DEFAULT_MARKERS } from "../src/rewrite.js";
+import { rewrite } from "../src/rewrite.js";
 import { renderCacheModule } from "../src/render-cache.js";
 import { ReflectionKind, type Site, type Type } from "../src/protocol.js";
 
@@ -52,8 +53,6 @@ interface Cache {
   __sites: Site[];
 }
 
-// buildAndEvalCache spawns the Go binary, walks every fixture, then evaluates
-// the rendered TS module so the test can poke at the in-memory Type graph.
 async function buildAndEvalCache(): Promise<Cache> {
   if (!fs.existsSync(BIN)) {
     throw new Error(`ts-run-types binary not built: ${BIN}`);
@@ -63,9 +62,9 @@ async function buildAndEvalCache(): Promise<Cache> {
     const sites: Site[] = [];
     for (const file of FIXTURE_FILES) {
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      const result = await rewrite(file, code, DEFAULT_MARKERS, client);
+      const result = await rewrite(file, code, client);
       for (const s of result.sites) {
-        sites.push({ file, pos: s.pos, id: s.id });
+        sites.push({ file, pos: s.pos, id: s.id, paramIndex: s.paramIndex });
       }
     }
     const dump = await client.dump();
@@ -81,7 +80,6 @@ async function buildAndEvalCache(): Promise<Cache> {
   }
 }
 
-// findSiteFor returns the resolved hash id for a given fixture file.
 function findSiteFor(cache: Cache, file: string): string {
   const site = cache.__sites.find((s) => s.file === file);
   if (!site) throw new Error(`no site recorded for ${file}`);
@@ -96,7 +94,6 @@ function getType(cache: Cache, file: string): Type {
 }
 
 describe("vite-plugin-runtypes / atomic round-trip", () => {
-  // Build the cache once and share across all sub-tests.
   const available = fs.existsSync(BIN);
   const runMaybe = available ? it : it.skip;
 
@@ -169,8 +166,6 @@ describe("vite-plugin-runtypes / atomic round-trip", () => {
     );
   });
 
-  // ---- regexp instance type --------------------------------------------
-
   runMaybe("regexp instance", async () => {
     const cache = await getCache();
     const t = getType(cache, "regexp.ts");
@@ -240,9 +235,6 @@ describe("vite-plugin-runtypes / atomic round-trip", () => {
     const cache = await getCache();
     const aSites = cache.__sites.filter((s) => s.file === "string.ts");
     expect(aSites.length).toBeGreaterThan(0);
-    // Re-resolving a structurally-equal type from a different fixture would
-    // share the id — but in our atomic suite each fixture's type is distinct,
-    // so we just assert the cache has exactly one `string` entry total.
     const stringEntries = Array.from(cache.__runtypes.values()).filter(
       (t) => t.kind === ReflectionKind.string,
     );

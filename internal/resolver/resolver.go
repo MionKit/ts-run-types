@@ -11,16 +11,22 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 	"github.com/mionkit/ts-run-types/internal/serialize"
 	"github.com/mionkit/ts-run-types/internal/walker"
 )
 
-// Options controls the resolver's hash budget. Forwarded to the serializer.
+// Options controls the resolver's hash budget and the marker-detection
+// parameters threaded through to scanFile.
 type Options struct {
 	HashLength        int
 	LiteralHashLength int
+	// Marker selects which type alias the scanner treats as the
+	// transformer's id-injection sentinel. Zero values default to
+	// `RuntypeId` from `@mionkit/runtypes`.
+	Marker marker.Options
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer
@@ -31,6 +37,7 @@ type Resolver struct {
 	checker *checker.Checker
 	done    func()
 	sites   []protocol.Site
+	marker  marker.Options
 }
 
 // New builds a Resolver against p. Defaults to hashid's default lengths when
@@ -52,6 +59,7 @@ func New(p *program.Program, opts Options) (*Resolver, error) {
 		}),
 		checker: c,
 		done:    done,
+		marker:  marker.WithDefaults(opts.Marker),
 	}, nil
 }
 
@@ -74,19 +82,13 @@ func (r *Resolver) Sites() []protocol.Site {
 func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 	before := r.cache.Size()
 	switch req.Op {
-	case "resolveAnnotation":
-		id, err := r.resolveAnnotation(req.File, req.Pos)
-		return respond(id, err, r.cache.Added(before))
-	case "resolveSymbol":
-		id, err := r.resolveSymbol(req.File, req.Pos)
-		return respond(id, err, r.cache.Added(before))
-	case "resolveTypeArgument":
-		id, err := r.resolveTypeArgument(req.File, req.CallPos, req.Index)
-		return respond(id, err, r.cache.Added(before))
-	case "resolveArgumentInferred":
-		id, err := r.resolveArgumentInferred(req.File, req.CallPos, req.Index)
-		return respond(id, err, r.cache.Added(before))
-	case "dump":
+	case protocol.OpScanFile:
+		sites, err := r.dispatchScanFile(req.File)
+		if err != nil {
+			return protocol.Response{Error: err.Error()}
+		}
+		return protocol.Response{Sites: sites, Added: r.cache.Added(before)}
+	case protocol.OpDump:
 		return protocol.Response{
 			Types: r.cache.Dump(),
 			Sites: r.Sites(),
@@ -94,13 +96,6 @@ func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 	default:
 		return protocol.Response{Error: "unknown op: " + req.Op}
 	}
-}
-
-func respond(id string, err error, added []*protocol.Type) protocol.Response {
-	if err != nil {
-		return protocol.Response{Error: err.Error()}
-	}
-	return protocol.Response{ID: id, HasID: true, Added: added}
 }
 
 func (r *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
@@ -112,74 +107,68 @@ func (r *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 	return sf, nil
 }
 
-// recordSite stores a resolved id under (file, pos) for the manifest.
-func (r *Resolver) recordSite(file string, pos int, ref *protocol.Type) string {
-	id := ref.ID
-	r.sites = append(r.sites, protocol.Site{File: file, Pos: pos, ID: id})
-	return id
-}
-
-func (r *Resolver) resolveAnnotation(file string, pos int) (string, error) {
+// dispatchScanFile walks every CallExpression in file and returns one Site
+// per call whose resolved signature has a trailing `RuntypeId<T>` parameter
+// (where T is concretely bound). The transformer reads the returned sites
+// and patches each call to pass the corresponding id at the trailing slot.
+func (r *Resolver) dispatchScanFile(file string) ([]protocol.Site, error) {
 	sf, err := r.sourceFile(file)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	node := walker.NodeAt(sf, pos)
-	if node == nil {
-		return "", fmt.Errorf("no node at %s:%d", file, pos)
-	}
-	t := r.checker.GetTypeFromTypeNode(node)
-	if t == nil {
-		return "", fmt.Errorf("node at %s:%d is not a type node", file, pos)
-	}
-	return r.recordSite(file, pos, r.cache.Serialize(t)), nil
+	var sites []protocol.Site
+	walker.ForEachCallExpression(sf, func(call *ast.Node) bool {
+		site, ok := r.scanCall(file, call)
+		if ok {
+			sites = append(sites, site)
+			r.sites = append(r.sites, site)
+		}
+		return true
+	})
+	return sites, nil
 }
 
-func (r *Resolver) resolveSymbol(file string, pos int) (string, error) {
-	sf, err := r.sourceFile(file)
-	if err != nil {
-		return "", err
+// scanCall inspects one call expression and returns a Site when its
+// resolved signature opts into transformer injection via a trailing
+// `RuntypeId<T>` parameter with a concretely-bound T.
+func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
+	sig := checker.Checker_getResolvedSignature(r.checker, call, nil, 0)
+	if sig == nil {
+		return protocol.Site{}, false
 	}
-	node := walker.NodeAt(sf, pos)
-	if node == nil {
-		return "", fmt.Errorf("no node at %s:%d", file, pos)
+	params := checker.Signature_parameters(sig)
+	if len(params) == 0 {
+		return protocol.Site{}, false
 	}
-	t := r.checker.GetTypeAtLocation(node)
-	return r.recordSite(file, pos, r.cache.Serialize(t)), nil
-}
-
-func (r *Resolver) resolveTypeArgument(file string, callPos, idx int) (string, error) {
-	sf, err := r.sourceFile(file)
-	if err != nil {
-		return "", err
+	lastIdx := len(params) - 1
+	last := params[lastIdx]
+	if last == nil {
+		return protocol.Site{}, false
 	}
-	call := walker.CallExpressionAt(sf, callPos)
-	if call == nil {
-		return "", fmt.Errorf("no CallExpression at %s:%d", file, callPos)
+	paramType := checker.Checker_getTypeOfSymbol(r.checker, last)
+	tArg, matched := marker.Detect(paramType, r.marker)
+	if !matched {
+		return protocol.Site{}, false
 	}
-	ce := call.AsCallExpression()
-	if ce.TypeArguments == nil || len(ce.TypeArguments.Nodes) <= idx {
-		return "", fmt.Errorf("no type argument %d at %s:%d", idx, file, callPos)
+	if marker.IsFreeTypeParameter(tArg) {
+		// Call inside a generic wrapper body — `T` is the wrapper's own
+		// free type parameter. Skip: no id to inject until the wrapper
+		// is itself instantiated at its own call sites.
+		return protocol.Site{}, false
 	}
-	typeNode := ce.TypeArguments.Nodes[idx]
-	t := r.checker.GetTypeFromTypeNode(typeNode)
-	return r.recordSite(file, callPos, r.cache.Serialize(t)), nil
-}
-
-func (r *Resolver) resolveArgumentInferred(file string, callPos, idx int) (string, error) {
-	sf, err := r.sourceFile(file)
-	if err != nil {
-		return "", err
+	id := r.cache.AssignID(tArg)
+	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
+	// the closing-paren offset where the TS-side patcher inserts.
+	pos := call.End() - 1
+	argsCount := 0
+	if ce := call.AsCallExpression(); ce != nil && ce.Arguments != nil {
+		argsCount = len(ce.Arguments.Nodes)
 	}
-	call := walker.CallExpressionAt(sf, callPos)
-	if call == nil {
-		return "", fmt.Errorf("no CallExpression at %s:%d", file, callPos)
-	}
-	ce := call.AsCallExpression()
-	if ce.Arguments == nil || len(ce.Arguments.Nodes) <= idx {
-		return "", fmt.Errorf("no argument %d at %s:%d", idx, file, callPos)
-	}
-	argNode := ce.Arguments.Nodes[idx]
-	t := r.checker.GetTypeAtLocation(argNode)
-	return r.recordSite(file, callPos, r.cache.Serialize(t)), nil
+	return protocol.Site{
+		File:       file,
+		Pos:        pos,
+		ID:         id,
+		ParamIndex: lastIdx,
+		ArgsCount:  argsCount,
+	}, true
 }
