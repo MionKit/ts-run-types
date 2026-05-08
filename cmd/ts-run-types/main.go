@@ -33,6 +33,8 @@ Options:
     --socket PATH       socket path (default: /tmp/ts-run-types.sock)
     --out-json PATH     after stdin is drained, write the cache as JSON to PATH
     --out-ts   PATH     after stdin is drained, write the runtime TS artifact to PATH
+    --hash-length N     short-id length for type hashes (default 6)
+    --literal-hash-length N  short-id length for literal-typed hashes (default 5)
     --single-threaded   force single-checker mode (useful for tests)
     -h, --help          show help
 `
@@ -41,15 +43,17 @@ func main() {
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
 	var (
-		tsconfigPath   string
-		cwdFlag        string
-		oneShot        bool
-		daemon         bool
-		socketPath     string
-		outJSON        string
-		outTS          string
-		singleThreaded bool
-		help           bool
+		tsconfigPath      string
+		cwdFlag           string
+		oneShot           bool
+		daemon            bool
+		socketPath        string
+		outJSON           string
+		outTS             string
+		hashLength        int
+		literalHashLength int
+		singleThreaded    bool
+		help              bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
 	flag.StringVar(&cwdFlag, "cwd", "", "working directory")
@@ -58,6 +62,8 @@ func main() {
 	flag.StringVar(&socketPath, "socket", "/tmp/ts-run-types.sock", "Unix socket path")
 	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
 	flag.StringVar(&outTS, "out-ts", "", "write runtime TS module to PATH after stdin EOF")
+	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 6)")
+	flag.IntVar(&literalHashLength, "literal-hash-length", 0, "short-id length for literal hashes (0 = default 5)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
@@ -90,7 +96,10 @@ func main() {
 		fatal("program: %v", err)
 	}
 
-	r, err := resolver.New(p)
+	r, err := resolver.New(p, resolver.Options{
+		HashLength:        hashLength,
+		LiteralHashLength: literalHashLength,
+	})
 	if err != nil {
 		fatal("resolver: %v", err)
 	}

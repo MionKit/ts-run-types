@@ -16,7 +16,8 @@ import (
 )
 
 // JSON writes the dump as pretty-printed JSON. Refs in child slots stay as
-// `{kind: -1, id: N}` sentinels — the consumer is responsible for re-knotting.
+// `{kind: -1, id: "<hash>"}` sentinels — the consumer is responsible for
+// re-knotting if it doesn't use the generated TS module.
 func JSON(w io.Writer, d protocol.Dump) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

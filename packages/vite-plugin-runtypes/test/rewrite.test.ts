@@ -37,7 +37,7 @@ describe("vite-plugin-runtypes / rewrite", () => {
   const available = hasBinary();
   const runMaybe = available ? it : it.skip;
 
-  runMaybe("F9: rewrites isType<User>(u) to pass a numeric site id", async () => {
+  runMaybe("F9: rewrites isType<User>(u) to pass a hash site id", async () => {
     await withResolver(async (client) => {
       const file = "f2_annotation_object.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
@@ -45,9 +45,11 @@ describe("vite-plugin-runtypes / rewrite", () => {
 
       expect(sites.length).toBe(1);
       expect(sites[0].marker).toBe("isType");
-      expect(typeof sites[0].id).toBe("number");
-      // The emitted call carries the numeric site id.
-      expect(out).toMatch(new RegExp(`isType<User>\\(u, ${sites[0].id}\\);`));
+      expect(typeof sites[0].id).toBe("string");
+      // Hash starts with a letter; followed by alphanumerics.
+      expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
+      // The emitted call carries the hash site id as a string literal.
+      expect(out).toContain(`isType<User>(u, ${JSON.stringify(sites[0].id)});`);
     });
   });
 
@@ -142,7 +144,7 @@ describe("vite-plugin-runtypes / generated module", () => {
     const js = renderCacheModule({ types, sites, language: "js" })
       .replace(/export const /g, "result.");
     const factory = new Function(`const result = {}; ${js}; return result;`);
-    const result = factory() as { __runtypes: Map<number, any>; __sites: any[] };
+    const result = factory() as { __runtypes: Map<string, any>; __sites: any[] };
     const runtypes = result.__runtypes;
     expect(runtypes).toBeInstanceOf(Map);
 
@@ -180,7 +182,7 @@ describe("vite-plugin-runtypes / generated module", () => {
     expect(out.status).toBe(0);
     const generated = fs.readFileSync(tmp, "utf8");
     expect(generated).toContain("export const __runtypes");
-    expect(generated).toMatch(/const t\d+: any/);
+    expect(generated).toMatch(/const t_[A-Za-z][A-Za-z0-9_]*: any/);
     fs.unlinkSync(tmp);
   });
 });

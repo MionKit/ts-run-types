@@ -5,13 +5,18 @@
 // shape — can consume our cache directly.
 //
 // Because JSON cannot carry cycles or live references, child Type slots in the
-// JSON wire format are ref sentinels: `{kind: -1, id: <id>}`. Two consumption
+// JSON wire format are ref sentinels: `{kind: -1, id: "<hash>"}`. Two consumption
 // paths exist:
 //
 //  1. The generated `.ts` runtime artifact resolves cycles via direct const
-//     assignment — consumers `import { __runtypes }` and call `Map.get(id)` to
+//     assignment — consumers `import { __runtypes }` and call `Map.get(hash)` to
 //     obtain a fully-knotted deepkit Type object.
 //  2. JSON-only consumers walk `Dump.Types` themselves to re-knot.
+//
+// IDs are short alphanumeric hash strings (default 6 chars, configurable). The
+// hash is derived from the type's structural id (mirroring mion's
+// `_createTypeId` algorithm) — two structurally-equal types share the same
+// hash regardless of declaration order or alias name.
 package protocol
 
 import "encoding/json"
@@ -62,8 +67,8 @@ const (
 	KindCallSignature
 )
 
-// KindRef is our sentinel for "this slot points at type id N, look it up in
-// the table". Not a deepkit kind — the value -1 is reserved for refs.
+// KindRef is our sentinel for "this slot points at type id <hash>, look it up
+// in the table". Not a deepkit kind — the value -1 is reserved for refs.
 const KindRef ReflectionKind = -1
 
 // Type is a JSON-friendly union of every deepkit Type variant. Optional
@@ -71,16 +76,17 @@ const KindRef ReflectionKind = -1
 // to its Kind; the rest stay zero/nil.
 //
 // Child Type slots (e.g. TypePropertySignature.type) are *Type so we can
-// emit sentinels (`{kind: -1, id: N}`) without inlining the referenced node.
+// emit sentinels (`{kind: -1, id: "<hash>"}`) without inlining the referenced
+// node.
 type Type struct {
 	// TypeAnnotations.
-	// ID is always emitted (no omitempty) because 0 is a valid id and the
-	// renderer needs an unambiguous numeric handle for every type.
-	ID            int     `json:"id"`
+	// ID is always emitted (even empty) because the renderer needs an
+	// unambiguous handle for every type.
+	ID            string         `json:"id"`
 	Kind          ReflectionKind `json:"kind"`
-	TypeName      string  `json:"typeName,omitempty"`
-	TypeArguments []*Type `json:"typeArguments,omitempty"`
-	Inlined       bool    `json:"inlined,omitempty"`
+	TypeName      string         `json:"typeName,omitempty"`
+	TypeArguments []*Type        `json:"typeArguments,omitempty"`
+	Inlined       bool           `json:"inlined,omitempty"`
 
 	// TypeLiteral
 	Literal any `json:"literal,omitempty"`
@@ -125,9 +131,9 @@ type Type struct {
 	Types []*Type `json:"types,omitempty"`
 
 	// TypeEnum
-	Enum    map[string]any `json:"enum,omitempty"`
-	Values  []any          `json:"values,omitempty"`
-	IndexT  *Type          `json:"indexType,omitempty"`
+	Enum   map[string]any `json:"enum,omitempty"`
+	Values []any          `json:"values,omitempty"`
+	IndexT *Type          `json:"indexType,omitempty"`
 
 	// TypeClass
 	ExtendsArguments []*Type `json:"extendsArguments,omitempty"`
@@ -141,7 +147,8 @@ type Type struct {
 	// TypeTemplateLiteral, TypeRegexp, TypeInfer — placeholder for v2.
 
 	// Flags carries free-form markers for things we couldn't bridge cleanly
-	// (e.g. "symbol" for symbol-keyed names, "nonLiteralDefault", "bigint").
+	// (e.g. "symbol" for symbol-keyed names, "nonLiteralDefault", "bigint",
+	// "regexp" for the literal-regexp encoding).
 	Flags []string `json:"flags,omitempty"`
 
 	// Description — JSDoc-style per-member comment. v2.
@@ -150,14 +157,20 @@ type Type struct {
 
 // ClassRef captures enough provenance for a v2 footer to wire up
 // `t.classType = ImportedConstructor` in the generated `.ts` artifact.
+//
+// For built-in classes recognised by mion (Date, Map, Set, RegExp), Builtin
+// is set to the constructor name and the footer emits
+// `t.classType = globalThis.<Name>`. For user classes, Module is the
+// originating module path and Name the exported symbol.
 type ClassRef struct {
-	Name   string `json:"name"`           // exported symbol name
-	Module string `json:"module,omitempty"` // module path the symbol comes from
+	Builtin string `json:"builtin,omitempty"` // "Date" | "Map" | "Set" | "RegExp"
+	Name    string `json:"name,omitempty"`    // user-class export name
+	Module  string `json:"module,omitempty"`  // originating module path
 }
 
 // NewRef returns a sentinel Type pointing at id. The TS artifact emitter
 // resolves these into direct const references.
-func NewRef(id int) *Type {
+func NewRef(id string) *Type {
 	return &Type{Kind: KindRef, ID: id}
 }
 
@@ -170,12 +183,12 @@ type Request struct {
 	Index   int    `json:"index,omitempty"`
 }
 
-// Response is returned per request. ID is a numeric type id keyed into the
-// shared dedup table. To distinguish "id 0" from "no id" without polluting
+// Response is returned per request. ID is the hash key into the shared
+// dedup table. To distinguish "no id" from an empty string without polluting
 // every payload, callers omit the field via HasID=false; we serialise via
 // MarshalJSON below so JSON consumers see the field only when it's set.
 type Response struct {
-	ID    int     `json:"-"`
+	ID    string  `json:"-"`
 	HasID bool    `json:"-"`
 	Added []*Type `json:"added,omitempty"`
 	Sites []Site  `json:"sites,omitempty"`
@@ -186,7 +199,7 @@ type Response struct {
 type Site struct {
 	File string `json:"file"`
 	Pos  int    `json:"pos"`
-	ID   int    `json:"id"`
+	ID   string `json:"id"`
 }
 
 // Dump is the build-end manifest written to runtypes-cache.json.
@@ -196,7 +209,7 @@ type Dump struct {
 }
 
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
-// dump responses (which don't resolve a single id) don't carry a misleading 0.
+// dump responses (which don't resolve a single id) don't carry a misleading "".
 func (r Response) MarshalJSON() ([]byte, error) {
 	out := make(map[string]any, 5)
 	if r.HasID {

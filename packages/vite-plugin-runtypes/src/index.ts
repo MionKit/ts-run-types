@@ -27,8 +27,8 @@ export default function runtypes(options: PluginOptions) {
 
   let resolver: ResolverClient | null = null;
   // Accumulated across all transform() calls — cleared on resolver restart.
-  // Keyed by numeric id (matching deepkit's `TypeAnnotations.id`).
-  const types = new Map<number, Type>();
+  // Keyed by hash id (mion's quickHash).
+  const types = new Map<string, Type>();
   const sites: Site[] = [];
 
   return {

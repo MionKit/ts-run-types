@@ -1,6 +1,9 @@
 // Renders the virtual runtypes-cache module from an in-memory Dump. Mirrors
 // internal/emit/tsmodule.go so plugin-emitted modules are identical to what
 // the Go binary writes via `--out-ts`.
+//
+// IDs are short alphanumeric hash strings; the const name prefix is `t_` so
+// the output is always a syntactically valid JS identifier.
 
 import { KIND_REF, type Site, type Type } from "./protocol.js";
 
@@ -26,37 +29,42 @@ export function renderCacheModule(input: RenderInput): string {
 
   const annot = ts ? ": any " : " ";
   for (const t of input.types) {
-    if (!t) continue;
-    lines.push(`const t${t.id ?? 0}${annot}= ${JSON.stringify(headerLiteral(t))};`);
+    if (!t || !t.id) continue;
+    lines.push(`const ${varName(t.id)}${annot}= ${JSON.stringify(headerLiteral(t))};`);
   }
 
   lines.push("");
-  lines.push("// --- knot refs and parents ---");
-
+  lines.push("// --- knot refs, parents, and runtime values ---");
   for (const t of input.types) {
-    if (!t) continue;
-    appendFooter(lines, t);
+    if (!t || !t.id) continue;
+    appendFooter(lines, t, ts);
   }
 
   lines.push("");
-  const mapAnnot = ts ? "<number, Type>" : "";
+  const mapAnnot = ts ? "<string, Type>" : "";
   lines.push(`export const __runtypes = new Map${mapAnnot}([`);
   for (const t of input.types) {
-    if (!t) continue;
-    lines.push(`  [${t.id ?? 0}, t${t.id ?? 0}],`);
+    if (!t || !t.id) continue;
+    lines.push(`  [${JSON.stringify(t.id)}, ${varName(t.id)}],`);
   }
   lines.push("]);");
   lines.push("");
-  const sitesAnnot = ts ? ": { file: string; pos: number; id: number }[]" : "";
+  const sitesAnnot = ts ? ": { file: string; pos: number; id: string }[]" : "";
   lines.push(`export const __sites${sitesAnnot} = ${JSON.stringify(input.sites)};`);
   return lines.join("\n") + "\n";
+}
+
+function varName(id: string): string {
+  // sanitise for JS identifier safety; hashes are already alphanumeric, but
+  // synthetic ids (`x_…`) might contain other characters.
+  return "t_" + id.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
 function headerLiteral(t: Type): Record<string, unknown> {
   const m: Record<string, unknown> = { kind: t.kind };
   if (t.typeName) m.typeName = t.typeName;
   if (t.name) m.name = t.name;
-  if (t.literal !== undefined) m.literal = t.literal;
+  if (t.literal !== undefined && !isFooterLiteral(t)) m.literal = t.literal;
   if (t.optional) m.optional = true;
   if (t.readonly) m.readonly = true;
   if (t.abstract) m.abstract = true;
@@ -65,55 +73,76 @@ function headerLiteral(t: Type): Record<string, unknown> {
   if (t.flags && t.flags.length) m.flags = t.flags;
   if (t.description) m.description = t.description;
   if (t.default !== undefined) m.default = t.default;
+  if (t.enum && Object.keys(t.enum).length) m.enum = t.enum;
+  if (t.values && t.values.length) m.values = t.values;
   return m;
 }
 
-function appendFooter(lines: string[], t: Type): void {
-  if (t.type) {
-    lines.push(`t${t.id}.type = ${derefExpr(t.type)};`);
-  }
-  if (t.index) {
-    lines.push(`t${t.id}.index = ${derefExpr(t.index)};`);
-  }
-  if (t.return) {
-    lines.push(`t${t.id}.return = ${derefExpr(t.return)};`);
-  }
-  if (t.indexType && t.indexType.id !== undefined && t.indexType.id >= 0) {
-    lines.push(`t${t.id}.indexType = ${derefExpr(t.indexType)};`);
-  }
+// isFooterLiteral mirrors the Go side: bigint/symbol/regexp literals are
+// emitted by the footer as expressions rather than inline JSON.
+function isFooterLiteral(t: Type): boolean {
+  if (t.literal === undefined || t.literal === null) return false;
+  if (t.flags?.includes("bigint") || t.flags?.includes("symbol")) return true;
+  if (typeof t.literal === "object" && (t.literal as any).regexp) return true;
+  return false;
+}
+
+function appendFooter(lines: string[], t: Type, ts: boolean): void {
+  const v = varName(t.id!);
+  if (t.type) lines.push(`${v}.type = ${derefExpr(t.type)};`);
+  if (t.index) lines.push(`${v}.index = ${derefExpr(t.index)};`);
+  if (t.return) lines.push(`${v}.return = ${derefExpr(t.return)};`);
+  if (t.indexType) lines.push(`${v}.indexType = ${derefExpr(t.indexType)};`);
   if (t.parameters && t.parameters.length) {
-    lines.push(`t${t.id}.parameters = [${t.parameters.map(derefExpr).join(", ")}];`);
+    lines.push(`${v}.parameters = [${t.parameters.map(derefExpr).join(", ")}];`);
     for (const p of t.parameters) {
-      if (p.kind === KIND_REF) lines.push(`t${p.id}.parent = t${t.id};`);
+      if (p.kind === KIND_REF) lines.push(`${varName(p.id!)}.parent = ${v};`);
     }
   }
   if (t.types && t.types.length) {
-    lines.push(`t${t.id}.types = [${t.types.map(derefExpr).join(", ")}];`);
+    lines.push(`${v}.types = [${t.types.map(derefExpr).join(", ")}];`);
     for (const m of t.types) {
-      if (m.kind === KIND_REF) lines.push(`t${m.id}.parent = t${t.id};`);
+      if (m.kind === KIND_REF) lines.push(`${varName(m.id!)}.parent = ${v};`);
     }
   }
   if (t.typeArguments && t.typeArguments.length) {
-    lines.push(`t${t.id}.typeArguments = [${t.typeArguments.map(derefExpr).join(", ")}];`);
+    lines.push(`${v}.typeArguments = [${t.typeArguments.map(derefExpr).join(", ")}];`);
   }
   if (t.arguments && t.arguments.length) {
-    lines.push(`t${t.id}.arguments = [${t.arguments.map(derefExpr).join(", ")}];`);
+    lines.push(`${v}.arguments = [${t.arguments.map(derefExpr).join(", ")}];`);
   }
   if (t.extendsArguments && t.extendsArguments.length) {
-    lines.push(
-      `t${t.id}.extendsArguments = [${t.extendsArguments.map(derefExpr).join(", ")}];`,
-    );
+    lines.push(`${v}.extendsArguments = [${t.extendsArguments.map(derefExpr).join(", ")}];`);
   }
   if (t.implements && t.implements.length) {
-    lines.push(`t${t.id}.implements = [${t.implements.map(derefExpr).join(", ")}];`);
+    lines.push(`${v}.implements = [${t.implements.map(derefExpr).join(", ")}];`);
   }
-  if (t.classRef) {
-    lines.push(`t${t.id}.classRef = ${JSON.stringify(t.classRef)};`);
+  if (t.classRef && t.classRef.builtin) {
+    const lookup = ts ? `(globalThis as any).${t.classRef.builtin}` : `globalThis.${t.classRef.builtin}`;
+    lines.push(`${v}.classType = ${lookup};`);
   }
+  if (isFooterLiteral(t)) {
+    lines.push(`${v}.literal = ${footerLiteralExpr(t)};`);
+  }
+}
+
+function footerLiteralExpr(t: Type): string {
+  if (t.flags?.includes("bigint")) {
+    return `BigInt(${JSON.stringify(t.literal)})`;
+  }
+  if (t.flags?.includes("symbol")) {
+    const m = t.literal as { symbol?: string };
+    return `Symbol(${JSON.stringify(m?.symbol ?? "")})`;
+  }
+  const m = t.literal as { regexp?: { source: string; flags: string } };
+  if (m?.regexp) {
+    return `new RegExp(${JSON.stringify(m.regexp.source)}, ${JSON.stringify(m.regexp.flags)})`;
+  }
+  return JSON.stringify(t.literal);
 }
 
 function derefExpr(t: Type | undefined): string {
   if (!t) return "undefined";
-  if (t.kind === KIND_REF) return `t${t.id}`;
+  if (t.kind === KIND_REF) return varName(t.id!);
   return JSON.stringify(t);
 }
