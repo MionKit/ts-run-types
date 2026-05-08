@@ -1,7 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface, type Interface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import type { Request, Response } from "./protocol.js";
+import type { Request, Response, Site } from "./protocol.js";
+
+export interface ResolverClientOptions {
+  // Optional marker overrides forwarded to the Go binary's CLI flags.
+  markerName?: string;
+  markerModule?: string;
+}
 
 // ResolverClient spawns the ts-run-types binary in one-shot mode and drives it
 // over its JSON-per-line stdio protocol. One binary invocation per build — the
@@ -19,8 +25,12 @@ export class ResolverClient {
     private readonly binary: string,
     private readonly cwd: string,
     tsconfigPath: string,
+    opts: ResolverClientOptions = {},
   ) {
-    this.child = spawn(binary, ["--one-shot", "--tsconfig", tsconfigPath, "--cwd", cwd], {
+    const args = ["--one-shot", "--tsconfig", tsconfigPath, "--cwd", cwd];
+    if (opts.markerName) args.push("--marker-name", opts.markerName);
+    if (opts.markerModule) args.push("--marker-module", opts.markerModule);
+    this.child = spawn(binary, args, {
       stdio: ["pipe", "pipe", "inherit"],
     });
     if (!this.child.stdin || !this.child.stdout) {
@@ -50,6 +60,18 @@ export class ResolverClient {
       this.queue.push(resolve);
       this.stdin.write(JSON.stringify(req) + "\n");
     });
+  }
+
+  // scanFile asks the resolver to walk a source file and return every
+  // CallExpression whose resolved signature has a trailing RuntypeId<T>
+  // parameter (with T concretely bound). Returns an empty array on error
+  // or when no sites are found.
+  async scanFile(file: string): Promise<Site[]> {
+    const resp = await this.request({ op: "scanFile", file });
+    if (resp.error) {
+      throw new Error(`scanFile ${file}: ${resp.error}`);
+    }
+    return resp.sites ?? [];
   }
 
   async dump(): Promise<Response> {

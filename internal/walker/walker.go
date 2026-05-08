@@ -48,3 +48,31 @@ func CallExpressionAt(sourceFile *ast.SourceFile, pos int) *ast.Node {
 	}
 	return nil
 }
+
+// ForEachCallExpression invokes cb for every CallExpression in sourceFile,
+// in depth-first source order. cb is also called for nested calls (an outer
+// call's arguments may contain inner calls — both visit). Stops descending
+// into a node if cb returns false.
+func ForEachCallExpression(sourceFile *ast.SourceFile, cb func(*ast.Node) bool) {
+	if sourceFile == nil {
+		return
+	}
+	root := sourceFile.AsNode()
+	if root == nil {
+		return
+	}
+	var visit ast.Visitor
+	visit = func(n *ast.Node) bool {
+		if n == nil {
+			return false
+		}
+		if n.Kind == ast.KindCallExpression {
+			if !cb(n) {
+				return false
+			}
+		}
+		n.ForEachChild(visit)
+		return false
+	}
+	root.ForEachChild(visit)
+}
