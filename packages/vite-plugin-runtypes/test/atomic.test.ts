@@ -1,258 +1,214 @@
-// End-to-end atomic round-trip tests. For each atomic kind, this suite:
+// End-to-end atomic round-trip tests. Each test owns its TypeScript source
+// inline so the reader can see exactly what shape produces what
+// `ReflectionKind`. Per-test sequence is:
 //
-//   1. Spawns the Go binary with inline sources for every atom
-//   2. Calls scanFile on every fixture (which triggers id resolution
-//      for the trailing-RuntypeId<T> call site in each)
-//   3. Renders a runtypes-cache JS module from the dump
-//   4. Evaluates that module and asserts the resulting reflection-shape Type
+//   1. Spawn the Go binary with this test's inline source(s)
+//   2. rewrite() to inject the trailing-RuntypeId<T> id
+//   3. Render a runtypes-cache JS module from the resolver dump
+//   4. Eval the module and assert the resulting reflection-shape Type
 //      contains real runtime values where applicable (BigInt / Symbol /
 //      RegExp / globalThis.Date instances)
 //
-// This is the "would mion's runType<X>() see what it expects?" gate. When all
-// of these pass, we can wire the cache module into mion's runType() and the
-// existing atomic *.spec.ts files should run unchanged.
+// This is the "would mion's runType<X>() see what it expects?" gate.
 
 import {describe, it, expect} from 'vitest';
-import {rewrite} from '../src/rewrite.js';
-import {renderCacheModule} from '../src/render-cache.js';
-import {ReflectionKind, type Site, type Type} from '../src/protocol.js';
-import {hasBinary, withInlineSources} from './helpers/inline.js';
-
-// Each entry is a self-contained .ts module. The `runtypes.d.ts` shim is
-// added by withInlineSources, so individual atoms just import + call.
-const ATOMIC_SOURCES: Record<string, string> = {
-  'string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: string = 'hello';
-getRuntypeId(v);
-`,
-  'number.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: number = 42;
-getRuntypeId(v);
-`,
-  'boolean.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-declare const v: boolean;
-getRuntypeId<boolean>(v);
-`,
-  'bigint.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: bigint = 1n;
-getRuntypeId<bigint>(v);
-`,
-  'symbol.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: symbol = Symbol('x');
-getRuntypeId<symbol>(v);
-`,
-  'null.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: null = null;
-getRuntypeId<null>(v);
-`,
-  'undefined.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: undefined = undefined;
-getRuntypeId<undefined>(v);
-`,
-  'void.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-declare const v: void;
-getRuntypeId<void>(v);
-`,
-  'any.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: any = 1;
-getRuntypeId<any>(v);
-`,
-  'unknown.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: unknown = 1;
-getRuntypeId<unknown>(v);
-`,
-  'never.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-declare const v: never;
-getRuntypeId<never>(v);
-`,
-  'object.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: object = {};
-getRuntypeId<object>(v);
-`,
-  'regexp.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: RegExp = /abc/i;
-getRuntypeId<RegExp>(v);
-`,
-  'literal_string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: 'hello' = 'hello';
-getRuntypeId<'hello'>(v);
-`,
-  'literal_number.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: 42 = 42;
-getRuntypeId<42>(v);
-`,
-  'literal_boolean.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: true = true;
-getRuntypeId<true>(v);
-`,
-  'literal_bigint.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: 1n = 1n;
-getRuntypeId<1n>(v);
-`,
-  'literal_symbol.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const sym: unique symbol = Symbol('sym');
-getRuntypeId<typeof sym>(sym);
-`,
-  'enum_numeric.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-enum Color {
-  Red = 0,
-  Green = 1,
-  Blue = 2,
-}
-const v: Color = Color.Red;
-getRuntypeId<Color>(v);
-`,
-  'enum_string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-enum Color {
-  Red = 'red',
-  Green = 'green',
-  Blue = 'blue',
-}
-const v: Color = Color.Red;
-getRuntypeId<Color>(v);
-`,
-  'date.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export {};
-const v: Date = new Date();
-getRuntypeId<Date>(v);
-`,
-};
-
-interface Cache {
-  __runtypes: Map<string, Type & Record<string, any>>;
-  __sites: Site[];
-}
-
-async function buildAndEvalCache(): Promise<Cache> {
-  return withInlineSources(ATOMIC_SOURCES, async ({client, sources}) => {
-    const sites: Site[] = [];
-    for (const [file, code] of Object.entries(sources)) {
-      if (file === 'runtypes.d.ts') continue; // shim, not a callsite
-      const result = await rewrite(file, code, client);
-      for (const s of result.sites) {
-        sites.push({file, pos: s.pos, id: s.id, paramIndex: s.paramIndex});
-      }
-    }
-    const dump = await client.dump();
-    const types = dump.types ?? [];
-    const js = renderCacheModule({types, sites, language: 'js'}).replace(/export const /g, 'result.');
-    const factory = new Function(`const result = {}; ${js}; return result;`);
-    return factory() as Cache;
-  });
-}
-
-function findSiteFor(cache: Cache, file: string): string {
-  const site = cache.__sites.find((s) => s.file === file);
-  if (!site) throw new Error(`no site recorded for ${file}`);
-  return site.id;
-}
-
-function getType(cache: Cache, file: string): Type {
-  const id = findSiteFor(cache, file);
-  const t = cache.__runtypes.get(id);
-  if (!t) throw new Error(`type ${id} not in cache for ${file}`);
-  return t;
-}
+import {ReflectionKind} from '../src/protocol.js';
+import {evalCacheFor, getTypeFor, hasBinary} from './helpers/inline.js';
 
 describe('vite-plugin-runtypes / atomic round-trip', () => {
   const runMaybe = hasBinary() ? it : it.skip;
 
-  let cachePromise: Promise<Cache> | null = null;
-  function getCache() {
-    cachePromise ??= buildAndEvalCache();
-    return cachePromise;
-  }
-
   // ---- primitives -------------------------------------------------------
 
   runMaybe('string', async () => {
-    expect((await getCache().then((c) => getType(c, 'string.ts'))).kind).toBe(ReflectionKind.string);
+    const cache = await evalCacheFor({
+      'string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: string = 'hello';
+getRuntypeId(v);
+`,
+    });
+    expect(getTypeFor(cache, 'string.ts').kind).toBe(ReflectionKind.string);
   });
+
   runMaybe('number', async () => {
-    expect((await getCache().then((c) => getType(c, 'number.ts'))).kind).toBe(ReflectionKind.number);
+    const cache = await evalCacheFor({
+      'number.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: number = 42;
+getRuntypeId(v);
+`,
+    });
+    expect(getTypeFor(cache, 'number.ts').kind).toBe(ReflectionKind.number);
   });
+
   runMaybe('boolean', async () => {
-    expect((await getCache().then((c) => getType(c, 'boolean.ts'))).kind).toBe(ReflectionKind.boolean);
+    const cache = await evalCacheFor({
+      'boolean.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const v: boolean;
+getRuntypeId<boolean>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'boolean.ts').kind).toBe(ReflectionKind.boolean);
   });
+
   runMaybe('bigint', async () => {
-    expect((await getCache().then((c) => getType(c, 'bigint.ts'))).kind).toBe(ReflectionKind.bigint);
+    const cache = await evalCacheFor({
+      'bigint.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: bigint = 1n;
+getRuntypeId<bigint>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'bigint.ts').kind).toBe(ReflectionKind.bigint);
   });
+
   runMaybe('symbol', async () => {
-    expect((await getCache().then((c) => getType(c, 'symbol.ts'))).kind).toBe(ReflectionKind.symbol);
+    const cache = await evalCacheFor({
+      'symbol.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: symbol = Symbol('x');
+getRuntypeId<symbol>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'symbol.ts').kind).toBe(ReflectionKind.symbol);
   });
+
   runMaybe('null', async () => {
-    expect((await getCache().then((c) => getType(c, 'null.ts'))).kind).toBe(ReflectionKind.null);
+    const cache = await evalCacheFor({
+      'null.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: null = null;
+getRuntypeId<null>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'null.ts').kind).toBe(ReflectionKind.null);
   });
+
   runMaybe('undefined', async () => {
-    expect((await getCache().then((c) => getType(c, 'undefined.ts'))).kind).toBe(ReflectionKind.undefined);
+    const cache = await evalCacheFor({
+      'undefined.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: undefined = undefined;
+getRuntypeId<undefined>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'undefined.ts').kind).toBe(ReflectionKind.undefined);
   });
+
   runMaybe('void', async () => {
-    expect((await getCache().then((c) => getType(c, 'void.ts'))).kind).toBe(ReflectionKind.void);
+    const cache = await evalCacheFor({
+      'void.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const v: void;
+getRuntypeId<void>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'void.ts').kind).toBe(ReflectionKind.void);
   });
+
   runMaybe('any', async () => {
-    expect((await getCache().then((c) => getType(c, 'any.ts'))).kind).toBe(ReflectionKind.any);
+    const cache = await evalCacheFor({
+      'any.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: any = 1;
+getRuntypeId<any>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'any.ts').kind).toBe(ReflectionKind.any);
   });
+
   runMaybe('unknown', async () => {
-    expect((await getCache().then((c) => getType(c, 'unknown.ts'))).kind).toBe(ReflectionKind.unknown);
+    const cache = await evalCacheFor({
+      'unknown.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: unknown = 1;
+getRuntypeId<unknown>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'unknown.ts').kind).toBe(ReflectionKind.unknown);
   });
+
   runMaybe('never', async () => {
-    expect((await getCache().then((c) => getType(c, 'never.ts'))).kind).toBe(ReflectionKind.never);
+    const cache = await evalCacheFor({
+      'never.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const v: never;
+getRuntypeId<never>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'never.ts').kind).toBe(ReflectionKind.never);
   });
+
   runMaybe('object primitive', async () => {
-    expect((await getCache().then((c) => getType(c, 'object.ts'))).kind).toBe(ReflectionKind.object);
+    const cache = await evalCacheFor({
+      'object.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: object = {};
+getRuntypeId<object>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'object.ts').kind).toBe(ReflectionKind.object);
   });
 
   runMaybe('regexp instance', async () => {
-    const cache = await getCache();
-    const t = getType(cache, 'regexp.ts');
-    expect(t.kind).toBe(ReflectionKind.regexp);
+    const cache = await evalCacheFor({
+      'regexp.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: RegExp = /abc/i;
+getRuntypeId<RegExp>(v);
+`,
+    });
+    expect(getTypeFor(cache, 'regexp.ts').kind).toBe(ReflectionKind.regexp);
   });
 
   // ---- literals ---------------------------------------------------------
 
   runMaybe('literal string "hello"', async () => {
-    const t = await getCache().then((c) => getType(c, 'literal_string.ts'));
+    const cache = await evalCacheFor({
+      'literal_string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 'hello' = 'hello';
+getRuntypeId<'hello'>(v);
+`,
+    });
+    const t = getTypeFor(cache, 'literal_string.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(t.literal).toBe('hello');
   });
+
   runMaybe('literal number 42', async () => {
-    const t = await getCache().then((c) => getType(c, 'literal_number.ts'));
+    const cache = await evalCacheFor({
+      'literal_number.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 42 = 42;
+getRuntypeId<42>(v);
+`,
+    });
+    const t = getTypeFor(cache, 'literal_number.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(t.literal).toBe(42);
   });
+
   runMaybe('literal boolean true', async () => {
-    const t = await getCache().then((c) => getType(c, 'literal_boolean.ts'));
+    const cache = await evalCacheFor({
+      'literal_boolean.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: true = true;
+getRuntypeId<true>(v);
+`,
+    });
+    const t = getTypeFor(cache, 'literal_boolean.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(t.literal).toBe(true);
   });
+
   runMaybe('literal bigint 1n -> real BigInt instance', async () => {
-    const t: any = await getCache().then((c) => getType(c, 'literal_bigint.ts'));
+    const cache = await evalCacheFor({
+      'literal_bigint.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 1n = 1n;
+getRuntypeId<1n>(v);
+`,
+    });
+    const t: any = getTypeFor(cache, 'literal_bigint.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(typeof t.literal).toBe('bigint');
     expect(t.literal).toBe(1n);
   });
+
   runMaybe('literal symbol -> real Symbol instance', async () => {
-    const t: any = await getCache().then((c) => getType(c, 'literal_symbol.ts'));
+    const cache = await evalCacheFor({
+      'literal_symbol.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const sym: unique symbol = Symbol('sym');
+getRuntypeId<typeof sym>(sym);
+`,
+    });
+    const t: any = getTypeFor(cache, 'literal_symbol.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(typeof t.literal).toBe('symbol');
     expect((t.literal as symbol).description).toBe('sym');
@@ -261,7 +217,18 @@ describe('vite-plugin-runtypes / atomic round-trip', () => {
   // ---- enums ------------------------------------------------------------
 
   runMaybe('numeric enum -> values + enum object + indexType=number', async () => {
-    const t = await getCache().then((c) => getType(c, 'enum_numeric.ts'));
+    const cache = await evalCacheFor({
+      'enum_numeric.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color {
+  Red = 0,
+  Green = 1,
+  Blue = 2,
+}
+const v: Color = Color.Red;
+getRuntypeId<Color>(v);
+`,
+    });
+    const t = getTypeFor(cache, 'enum_numeric.ts');
     expect(t.kind).toBe(ReflectionKind.enum);
     expect(t.typeName).toBe('Color');
     expect(t.enum).toEqual({Red: 0, Green: 1, Blue: 2});
@@ -270,7 +237,18 @@ describe('vite-plugin-runtypes / atomic round-trip', () => {
   });
 
   runMaybe('string enum -> values + indexType=string', async () => {
-    const t = await getCache().then((c) => getType(c, 'enum_string.ts'));
+    const cache = await evalCacheFor({
+      'enum_string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color {
+  Red = 'red',
+  Green = 'green',
+  Blue = 'blue',
+}
+const v: Color = Color.Red;
+getRuntypeId<Color>(v);
+`,
+    });
+    const t = getTypeFor(cache, 'enum_string.ts');
     expect(t.kind).toBe(ReflectionKind.enum);
     expect(t.enum).toEqual({Red: 'red', Green: 'green', Blue: 'blue'});
     expect(t.indexType?.kind).toBe(ReflectionKind.string);
@@ -279,7 +257,13 @@ describe('vite-plugin-runtypes / atomic round-trip', () => {
   // ---- Date — class with classType === globalThis.Date ----------------
 
   runMaybe('Date class -> classType === globalThis.Date', async () => {
-    const t: any = await getCache().then((c) => getType(c, 'date.ts'));
+    const cache = await evalCacheFor({
+      'date.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: Date = new Date();
+getRuntypeId<Date>(v);
+`,
+    });
+    const t: any = getTypeFor(cache, 'date.ts');
     expect(t.kind).toBe(ReflectionKind.class);
     expect(t.typeName).toBe('Date');
     expect(t.classType).toBe(Date);
@@ -287,11 +271,23 @@ describe('vite-plugin-runtypes / atomic round-trip', () => {
 
   // ---- structural dedup at the wire level -----------------------------
 
-  runMaybe('two `string` queries share the same cache id', async () => {
-    const cache = await getCache();
-    const aSites = cache.__sites.filter((s) => s.file === 'string.ts');
-    expect(aSites.length).toBeGreaterThan(0);
-    const stringEntries = Array.from(cache.__runtypes.values()).filter((t) => t.kind === ReflectionKind.string);
+  runMaybe('two `string` queries in one program share a single cache id', async () => {
+    // Two files both annotate `v: string` and call getRuntypeId(v). The
+    // resolver should emit only ONE entry of kind=string in the cache —
+    // structural dedup by hash id.
+    const cache = await evalCacheFor({
+      'string_a.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: string = 'a';
+getRuntypeId(v);
+`,
+      'string_b.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: string = 'b';
+getRuntypeId(v);
+`,
+    });
+    const stringEntries = Array.from(cache.__runtypes.values()).filter(
+      (t) => t.kind === ReflectionKind.string
+    );
     expect(stringEntries.length).toBe(1);
   });
 });
