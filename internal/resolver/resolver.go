@@ -116,13 +116,26 @@ func (r *Resolver) SetProgram(p *program.Program) error {
 	return nil
 }
 
-// ResetCache drops every interned Type plus the running sites list, leaving
-// the Program untouched. Tests that want isolation between scans call this.
-func (r *Resolver) ResetCache() {
-	r.cache.Clear()
-	if r.checker != nil {
-		r.cache.Rebind(r.checker)
+// Reset wipes ALL user-supplied resolver state: every interned Type, the
+// sites list, the Program, the checker lease, and (because the overlay
+// lives inside the Program) the in-memory source map. Equivalent to
+// throwing the Resolver away and replacing it with a fresh NewServer —
+// except the goroutine / connection stays open. After reset, the resolver
+// requires a new setSources before scanFile will work.
+//
+// Lib files (lib.d.ts, bundled tsgo declarations) live behind the
+// cachedvfs layer in program.New / program.NewInferred — they are byte-
+// cached at the FS level and are NOT re-read from disk on the next
+// setSources. Only the user's overlay + parsed-AST state is discarded here.
+func (r *Resolver) Reset() {
+	if r.done != nil {
+		r.done()
+		r.done = nil
 	}
+	r.Program = nil
+	r.checker = nil
+	r.cache.Clear()
+	r.cache.Rebind(nil)
 	r.sites = r.sites[:0]
 }
 
@@ -164,8 +177,8 @@ func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 			return protocol.Response{Error: err.Error()}
 		}
 		return protocol.Response{OK: true}
-	case protocol.OpResetCache:
-		r.ResetCache()
+	case protocol.OpReset:
+		r.Reset()
 		return protocol.Response{OK: true}
 	default:
 		return protocol.Response{Error: "unknown op: " + req.Op}

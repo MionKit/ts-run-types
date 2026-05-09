@@ -102,9 +102,17 @@ func (c *Cache) Clear() {
 // The pointer cache (byPtr) is cleared because keys are *checker.Type from
 // the old Program and can never match new lookups; structural dedup
 // (byStructural + nodes) survives — same shape, same id across Programs.
+//
+// Passing nil unbinds — the cache becomes safe-to-hold but unusable until a
+// subsequent Rebind installs a real checker. Used by resolver.ResetCache
+// when wiping the Program back to the NewServer state.
 func (c *Cache) Rebind(tc *checker.Checker) {
 	c.tc = tc
-	c.idc = typeid.New(tc)
+	if tc != nil {
+		c.idc = typeid.New(tc)
+	} else {
+		c.idc = nil
+	}
 	c.byPtr = make(map[*checker.Type]string)
 }
 
