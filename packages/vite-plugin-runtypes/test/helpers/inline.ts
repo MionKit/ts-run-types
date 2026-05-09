@@ -1,9 +1,17 @@
-// Test helpers for in-memory inline sources. Each vitest test FILE spawns
-// its own long-lived ts-go-run-types process in --inline-server mode, lazily
-// on first use. Every withInlineSources call sends a setSources op to the
-// SAME process — no per-test spawn, no shared-state races between files.
-// The process is killed by an afterAll hook registered on first use, so
-// vitest can run files in parallel without interference.
+// Test helpers for in-memory inline sources.
+//
+// Process model: one ts-go-run-types process per VITEST WORKER (not per
+// test file). Vitest's default `pool: 'forks'` spawns one Node child per
+// worker; each worker can run multiple test files sequentially. Within a
+// single worker we share one ts-go-run-types subprocess and clear its
+// state between test files via a `reset` op. Across workers, each worker
+// has its own subprocess — no inter-process shared state, parallel-file
+// execution stays safe.
+//
+// The singleton is stashed on `globalThis` because vitest's `isolate: true`
+// resets the module graph per file (so a module-scope `let` would re-spawn
+// the process every file). Module-scope state is fresh per file; the
+// global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
 import {afterAll, type TestAPI} from 'vitest';
@@ -27,38 +35,63 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 
 export type InlineSources = Record<string, string>;
 
-// Per-test-file lazy singleton. The module is re-evaluated per file by
-// vitest's isolation, so each file ends up with its own ResolverClient
-// (its own ts-go-run-types child process). The afterAll hook is registered
-// once on first use; it closes the client and kills the child.
-let _client: ResolverClient | null = null;
-let _afterAllRegistered = false;
+// Per-worker singleton stash. Survives vitest's per-file module isolation
+// because `globalThis` lives on the underlying Node process. Two slots:
+//   client      — the spawned ResolverClient (or null if not yet spawned).
+//   atExitWired — process-exit hook only registered once per worker.
+interface WorkerStash {
+  client: ResolverClient | null;
+  atExitWired: boolean;
+}
+const STASH_KEY = '__tsGoRunTypesWorkerStash' as const;
+type GlobalWithStash = typeof globalThis & {[STASH_KEY]?: WorkerStash};
+
+function workerStash(): WorkerStash {
+  const g = globalThis as GlobalWithStash;
+  if (!g[STASH_KEY]) {
+    g[STASH_KEY] = {client: null, atExitWired: false};
+  }
+  return g[STASH_KEY]!;
+}
 
 function getClient(): ResolverClient {
-  if (_client) return _client;
+  const stash = workerStash();
+  if (stash.client) return stash.client;
   if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
-  // --inline-server mode: no startup Program, no handshake. The first
-  // setSources call installs state. cwd is repo root so relative source
-  // paths in setSources resolve to <repo>/<file>.
-  _client = new ResolverClient(BIN, ROOT, '', {serverMode: true});
-  if (!_afterAllRegistered) {
-    _afterAllRegistered = true;
-    afterAll(() => {
-      if (_client) {
-        _client.close();
-        _client = null;
-      }
+  // --inline-server: no startup Program, no handshake. cwd = repo root so
+  // setSources keys like "user.ts" resolve to <repo>/user.ts.
+  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true});
+  if (!stash.atExitWired) {
+    stash.atExitWired = true;
+    // Best-effort cleanup if the worker exits without going through
+    // afterAll (uncaught throws, vitest forcing termination, etc).
+    process.once('exit', () => {
+      const s = (globalThis as GlobalWithStash)[STASH_KEY];
+      if (s?.client) s.client.close();
     });
   }
-  return _client;
+  return stash.client;
+}
+
+// Each test FILE registers one afterAll that wipes the worker's resolver
+// state between files. The subprocess STAYS ALIVE — only its
+// cache/sites/Program/overlay get cleared. This is the moment when
+// cross-file pollution would otherwise leak.
+let _afterAllRegistered = false;
+function ensureFileAfterAll(): void {
+  if (_afterAllRegistered) return;
+  _afterAllRegistered = true;
+  afterAll(async () => {
+    const {client} = workerStash();
+    if (client) await client.reset();
+  });
 }
 
 export interface WithInlineOpts {
   // When true, sends a `reset` op before installing the new sources.
-  // `reset` wipes EVERYTHING: cache, sites, Program, overlay. Useful for
-  // tests that assert specific dump shapes and want to be insensitive to
-  // earlier tests in the same file. Default is false — structural dedup
-  // makes shared cache state safe and faster.
+  // `reset` wipes EVERYTHING (cache, sites, Program, overlay). Useful for
+  // tests that assert specific dump shapes against earlier tests IN THE
+  // SAME FILE. Between-files reset is automatic via afterAll.
   reset?: boolean;
 }
 
@@ -67,6 +100,7 @@ export async function withInlineSources<T>(
   fn: (ctx: {client: ResolverClient; sources: InlineSources}) => Promise<T>,
   opts: WithInlineOpts = {}
 ): Promise<T> {
+  ensureFileAfterAll();
   const client = getClient();
   if (opts.reset) await client.reset();
   // runtypes.d.ts is always present so caller's fixtures stay terse. The
@@ -77,8 +111,7 @@ export async function withInlineSources<T>(
 }
 
 // Convenience: rewrite a single inline source and return both the patched
-// code and the recorded sites. Uses the shared per-file client — no
-// per-call spawn or teardown.
+// code and the recorded sites. Uses the shared per-worker client.
 export async function rewriteInline(
   file: string,
   code: string,
