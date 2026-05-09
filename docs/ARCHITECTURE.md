@@ -1,13 +1,13 @@
 # Architecture
 
-`ts-run-types` is a compile-time **type resolver** for [mion runtypes](https://github.com/mionkit) targeting **TypeScript 7 / tsgo**. It provides a native side-channel into tsgo's type checker for tools (Vite plugin, codegen, test harness) that need to know a TypeScript type at a specific call site without relying on the legacy custom-transformer API (which the Go port does not expose; see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)).
+`ts-go-run-types` is a compile-time **type resolver** for [mion runtypes](https://github.com/mionkit) targeting **TypeScript 7 / tsgo**. It provides a native side-channel into tsgo's type checker for tools (Vite plugin, codegen, test harness) that need to know a TypeScript type at a specific call site without relying on the legacy custom-transformer API (which the Go port does not expose; see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)).
 
 ## Big picture
 
 ```
   .ts source                   Go resolver                  JSON type table
   ┌─────────┐    scanFile    ┌──────────────┐   TypeNode   ┌───────────────┐
-  │  app.ts │ ─────────────▶ │  ts-run-types │ ───────────▶ │  site → id    │
+  │  app.ts │ ─────────────▶ │  ts-go-run-types │ ───────────▶ │  site → id    │
   └─────────┘                │  (typescript- │              │  id   → node  │
        ▲                     │   go checker) │              └───────────────┘
        │ rewrites calls      └──────┬───────┘                       │
@@ -35,7 +35,7 @@ Concretely, at build time:
 | -------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Type checking the project              | Whatever the user's tsconfig points at — `tsc`, `vue-tsc`, the editor, etc. | Unchanged. We don't type-check on the user's behalf.                                                                                                                    |
 | TS → JS emit                           | Vite's default (esbuild)                                                    | Unchanged. We never write `.js`.                                                                                                                                        |
-| Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-run-types** Go binary                       | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
+| Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-go-run-types** Go binary                    | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
 | Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full reflection-shape `Type` graph, keyed by hash.                                                                               |
 | Runtime metadata access                | **@mionjs/ts-go-run-types** (`getMeta(id)`)                                 | One `Map.get(id)` lookup against the virtual module.                                                                                                                    |
 
@@ -69,7 +69,7 @@ That leaves two choices for type-aware tooling against TypeScript 7:
                             spawn() one child   │
                                                 ▼
                                   ┌──────────────────────────┐
-                                  │  bin/ts-run-types  (Go)  │
+                                  │  bin/ts-go-run-types  (Go)  │
                                   │  ─────────────────────   │
                                   │  tsgo Program + Checker  │
                                   │  via shim/* imports      │
@@ -103,7 +103,7 @@ A call inside a generic body where the marker's `T` is the wrapper's own free ty
 ## Package layout
 
 ```
-cmd/ts-run-types/                CLI entry point
+cmd/ts-go-run-types/                CLI entry point
 internal/program/                tsconfig + VFS bootstrap
 internal/walker/                 position → AST node finder + call iterator
 internal/marker/                 RuntypeId<T> sentinel detection
@@ -293,7 +293,7 @@ git submodule update --init --recursive
   git am --3way --no-gpg-sign ../patches/*.patch)
 
 # Build the resolver:
-go build -o bin/ts-run-types ./cmd/ts-run-types
+go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 
 # Go test suite — covers atomic reflection kinds + scanFile detection over the
 # F1–F17 fixtures:

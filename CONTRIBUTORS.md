@@ -1,8 +1,8 @@
 # DEVS
 
-Contributor guide for `ts-run-types`. For the project overview, see [README.md](README.md). For the design deep-dive, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Contributor guide for `ts-go-run-types`. For the project overview, see [README.md](README.md). For the design deep-dive, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-The repository contains a **Go binary** (`cmd/ts-run-types`) and a **pnpm/Lerna workspace** of JS packages under [packages/](packages/). The monorepo setup mirrors [mion](https://github.com/MionKit/mion).
+The repository contains a **Go binary** (`cmd/ts-go-run-types`) and a **pnpm/Lerna workspace** of JS packages under [packages/](packages/). The monorepo setup mirrors [mion](https://github.com/MionKit/mion).
 
 ---
 
@@ -20,8 +20,8 @@ The repository contains a **Go binary** (`cmd/ts-run-types`) and a **pnpm/Lerna 
 ## Clone & bootstrap
 
 ```bash
-git clone git@github.com:mionkit/ts-run-types.git
-cd ts-run-types
+git clone git@github.com:mionkit/ts-go-run-types.git
+cd ts-go-run-types
 git submodule update --init --recursive
 (cd third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
 pnpm install --frozen-lockfile
@@ -40,7 +40,7 @@ The bootstrap does three things:
 ### Go binary
 
 ```bash
-go build -o bin/ts-run-types ./cmd/ts-run-types
+go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 ```
 
 The binary is consumed by the Vite plugin at JS test time and at build time. **Build the binary before running JS tests** — the plugin tests spawn it.
@@ -99,17 +99,17 @@ Feed line-delimited operations and read the JSON dump back:
 printf '%s\n%s\n' \
   '{"op":"scanFile","file":"examples/basic/src/app.ts"}' \
   '{"op":"dump"}' \
-  | bin/ts-run-types --one-shot --tsconfig examples/basic/tsconfig.json \
+  | bin/ts-go-run-types --one-shot --tsconfig examples/basic/tsconfig.json \
   > cache.json
 ```
 
 ### Daemon (Unix socket — used for HMR scenarios)
 
 ```bash
-bin/ts-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-run-types.sock
+bin/ts-go-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-go-run-types.sock
 ```
 
-Then send the same JSON ops to `/tmp/ts-run-types.sock` from another process.
+Then send the same JSON ops to `/tmp/ts-go-run-types.sock` from another process.
 
 ### Flags reference
 
@@ -138,7 +138,7 @@ To add a new patch:
 ```bash
 cd third_party/tsgolint/typescript-go
 # 1. Make changes and commit them in this nested repo.
-git commit -m "ts-run-types: <description>"
+git commit -m "ts-go-run-types: <description>"
 
 # 2. Produce a portable patch.
 git format-patch -1 -o ../patches
@@ -183,7 +183,7 @@ pnpm run npm-unpublish <version>
 | `git am` fails with `Patch does not apply`                     | tsgolint upstream moved                                                     | Resolve manually with `git am --show-current-patch=diff`, then `git am --continue`. Refresh the patch with `git format-patch`. |
 | `pnpm install` rejects a dependency with "minimum release age" | `pnpm-workspace.yaml` blocks packages <30 days old (supply-chain hardening) | Wait or add a targeted entry under `minimumReleaseAgeExclude`.                                                                 |
 | `pnpm install` fails on a peer dep                             | `strictPeerDependencies: true`                                              | Add the peer to the package's `peerDependencies` or `devDependencies`.                                                         |
-| JS plugin tests error spawning the resolver                    | `bin/ts-run-types` not built                                                | `go build -o bin/ts-run-types ./cmd/ts-run-types`.                                                                             |
+| JS plugin tests error spawning the resolver                    | `bin/ts-go-run-types` not built                                             | `go build -o bin/ts-go-run-types ./cmd/ts-go-run-types`.                                                                       |
 | ESLint errors `tsconfigRootDir` cannot find project            | New package missing from root `tsconfig.json` `references`                  | Add the package path to the root `tsconfig.json`.                                                                              |
 | Husky hook not firing                                          | `prepare` script did not run                                                | `pnpm install` again, or `pnpm exec husky` to force activation.                                                                |
 

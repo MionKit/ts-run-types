@@ -5,7 +5,7 @@ import {renderCacheModule} from './render-cache.js';
 import type {Site, Type} from './protocol.js';
 
 export interface PluginOptions {
-  // Absolute path to the compiled ts-run-types binary.
+  // Absolute path to the compiled ts-go-run-types binary.
   binary: string;
   // Project root (where tsconfig.json lives). Defaults to Vite's root.
   cwd?: string;
