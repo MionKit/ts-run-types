@@ -128,8 +128,10 @@ export interface Site {
 }
 
 export interface Request {
-  op: "scanFile" | "dump" | "setSources" | "reset";
+  op: 'scanFile' | 'dump' | 'setSources' | 'reset' | 'resolveId';
   file?: string;
+  // resolveId only — hash id of the Type to look up in the cache.
+  id?: string;
   // setSources only — { relpath: source-text }.
   sources?: Record<string, string>;
 }

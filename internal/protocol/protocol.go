@@ -194,12 +194,18 @@ const (
 	// and replacing it with a fresh one — the connection stays open. A
 	// subsequent setSources is required before scanFile will work.
 	OpReset = "reset"
+	// OpResolveID returns the canonical full Type for a given hash id.
+	// Child slots inside the returned Type stay as KindRef sentinels — the
+	// caller re-issues OpResolveID per id to drill in. Lets consumers walk
+	// member-type child refs without dumping the whole cache.
+	OpResolveID = "resolveId"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
 type Request struct {
 	Op      string            `json:"op"`
 	File    string            `json:"file,omitempty"`
+	ID      string            `json:"id,omitempty"`
 	Sources map[string]string `json:"sources,omitempty"`
 }
 
