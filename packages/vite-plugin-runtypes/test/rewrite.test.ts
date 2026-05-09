@@ -69,24 +69,31 @@ const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRuntypeId(routes);
 `;
-    await withInlineSources({'router.ts': code}, async ({client, sources}) => {
-      const {sites} = await rewrite('router.ts', sources['router.ts'], client);
+    // resetCache so the "first objectLiteral with members" probe below
+    // doesn't pick up a stale User type from F9/F10 sitting in the shared
+    // daemon's cache.
+    await withInlineSources(
+      {'router.ts': code},
+      async ({client, sources}) => {
+        const {sites} = await rewrite('router.ts', sources['router.ts'], client);
 
-      expect(sites.length).toBeGreaterThan(0);
+        expect(sites.length).toBeGreaterThan(0);
 
-      const dump = await client.dump();
-      const types = dump.types ?? [];
-      const root = types.find((t) => t.kind === ReflectionKind.objectLiteral && (t.types ?? []).length > 0);
-      expect(root).toBeDefined();
+        const dump = await client.dump();
+        const types = dump.types ?? [];
+        const root = types.find((t) => t.kind === ReflectionKind.objectLiteral && (t.types ?? []).length > 0);
+        expect(root).toBeDefined();
 
-      const sayHello = findMember(types, root!, 'sayHello');
-      expect(sayHello).toBeDefined();
-      let fn: Type | undefined = sayHello;
-      if (sayHello!.kind === ReflectionKind.propertySignature) {
-        fn = types.find((t) => t.id === sayHello!.type!.id);
-      }
-      expect(fn?.parameters?.length).toBe(1);
-    });
+        const sayHello = findMember(types, root!, 'sayHello');
+        expect(sayHello).toBeDefined();
+        let fn: Type | undefined = sayHello;
+        if (sayHello!.kind === ReflectionKind.propertySignature) {
+          fn = types.find((t) => t.id === sayHello!.type!.id);
+        }
+        expect(fn?.parameters?.length).toBe(1);
+      },
+      {resetCache: true}
+    );
   });
 
   runMaybe('dedup: re-resolving the same file adds no new types', async () => {
