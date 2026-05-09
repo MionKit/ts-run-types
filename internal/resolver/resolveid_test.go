@@ -8,15 +8,20 @@ import (
 
 // ---- OpResolveID -------------------------------------------------------------
 //
-// Round-trip through OpResolveID on f12_array.ts: the site id resolves to a
-// KindArray whose Type slot is a KindRef sentinel; resolving that ref in turn
-// yields the KindString leaf. Asserts the op's contract — child slots stay as
-// refs so payloads stay bounded — and that NodeByID returns nil for unknown
-// ids.
+// Round-trip through OpResolveID on an inline array snippet: the site id
+// resolves to a KindArray whose Type slot is a KindRef sentinel; resolving
+// that ref in turn yields the KindString leaf. Asserts the op's contract —
+// child slots stay as refs so payloads stay bounded — and that NodeByID
+// returns nil for unknown ids.
+
+const resolveIDArrayCode = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const xs: string[] = ['a', 'b'];
+getRuntypeId(xs);
+`
 
 func TestResolveID_ArrayRoundTrip(t *testing.T) {
-	r := setup(t)
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f12_array.ts"})
+	r := setupInline(t, map[string]string{"test.ts": resolveIDArrayCode})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
 	if resp.Error != "" {
 		t.Fatalf("scanFile: %s", resp.Error)
 	}
@@ -40,8 +45,8 @@ func TestResolveID_ArrayRoundTrip(t *testing.T) {
 }
 
 func TestResolveID_UnknownReturnsEmpty(t *testing.T) {
-	r := setup(t)
-	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f12_array.ts"})
+	r := setupInline(t, map[string]string{"test.ts": resolveIDArrayCode})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpResolveID, ID: "does-not-exist"})
 	if resp.Error != "" {
 		t.Fatalf("unexpected error: %s", resp.Error)
@@ -52,7 +57,7 @@ func TestResolveID_UnknownReturnsEmpty(t *testing.T) {
 }
 
 func TestResolveID_EmptyIDReturnsEmpty(t *testing.T) {
-	r := setup(t)
+	r := setupInline(t, map[string]string{})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpResolveID, ID: ""})
 	if resp.Error != "" {
 		t.Fatalf("unexpected error: %s", resp.Error)
