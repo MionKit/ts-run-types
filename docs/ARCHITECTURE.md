@@ -37,7 +37,7 @@ Concretely, at build time:
 | TS → JS emit                           | Vite's default (esbuild)                                                    | Unchanged. We never write `.js`.                                                                                                                                        |
 | Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-run-types** Go binary                       | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
 | Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full reflection-shape `Type` graph, keyed by hash.                                                                               |
-| Runtime metadata access                | **@mionjs/ts-run-types** (`getMeta(id)`)                                    | One `Map.get(id)` lookup against the virtual module.                                                                                                                    |
+| Runtime metadata access                | **@mionjs/ts-go-run-types** (`getMeta(id)`)                                 | One `Map.get(id)` lookup against the virtual module.                                                                                                                    |
 
 ### Why a separate Go binary
 
@@ -82,7 +82,7 @@ The user's tsconfig drives both worlds: the binary parses it to bootstrap the sa
 
 ## The sentinel marker
 
-Detection is anchored on a single TypeScript type alias exported from the `@mionjs/ts-run-types` package:
+Detection is anchored on a single TypeScript type alias exported from the `@mionjs/ts-go-run-types` package:
 
 ```ts
 export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
@@ -90,13 +90,13 @@ export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
 
 A function opts into compile-time id injection by declaring `id?: RuntypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
 
-- The canonical helper `getRuntypeId<T>(val?, id?)` shipped from `@mionjs/ts-run-types`.
+- The canonical helper `getRuntypeId<T>(val?, id?)` shipped from `@mionjs/ts-go-run-types`.
 - Any user-defined wrapper that propagates the marker — `function isType<T>(v, id?: RuntypeId<T>)`.
 
 Detection requires both:
 
 1. The trailing parameter type alias must be named `RuntypeId` (configurable via `--marker-name`).
-2. The alias must be declared in `@mionjs/ts-run-types` (configurable via `--marker-module`). Either inside `declare module "@mionjs/ts-run-types" { ... }` or in a file path containing `/@mionjs/ts-run-types/`. This rules out accidental collisions with same-named user types declared elsewhere.
+2. The alias must be declared in `@mionjs/ts-go-run-types` (configurable via `--marker-module`). Either inside `declare module "@mionjs/ts-go-run-types" { ... }` or in a file path containing `/@mionjs/ts-go-run-types/`. This rules out accidental collisions with same-named user types declared elsewhere.
 
 A call inside a generic body where the marker's `T` is the wrapper's own free type parameter is **skipped** — there's no concrete `T` to assign an id to yet. The wrapper must propagate the marker via its own signature, and the injection happens at the wrapper's call sites instead.
 
@@ -111,7 +111,7 @@ internal/resolver/               scanFile + dump dispatch
 internal/serialize/              *checker.Type → protocol.TypeNode (dedup by id)
 internal/protocol/               stdio JSON request/response types
 internal/testfixtures/           fixture .ts + shared tsconfig
-packages/runtypes/               @mionjs/ts-run-types — marker type + getRuntypeId
+packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRuntypeId
 packages/vite-plugin-runtypes/   JS side — drives scanFile, patches calls
 third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
@@ -164,7 +164,7 @@ Two output formats share the same in-memory `protocol.Dump`:
 - **`json.go`** — pretty-printed JSON. Child Type slots stay as `{kind: -1, id: "<hash>"}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
 - **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`type`, `return`, `parameters`, `types`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted reflection `Type` object — no rehydration step.
 
-### packages/runtypes (`@mionjs/ts-run-types`)
+### packages/runtypes (`@mionjs/ts-go-run-types`)
 
 Public marker package. Exports:
 

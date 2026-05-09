@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRuntypeId, type RuntypeId} from '@mionjs/ts-run-types';
+import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -34,7 +34,7 @@ function inner<T>(val: T): RuntypeId<T> {
 
 // 17f — collision: a user-defined type also named `RuntypeId`, declared
 // outside the marker module. The scanner must ignore this — only the
-// `@mionjs/ts-run-types` one counts.
+// `@mionjs/ts-go-run-types` one counts.
 type RuntypeId_Local<T> = {readonly localBrand?: T};
 function maskedWrapper<T>(_v: T, _id?: RuntypeId_Local<T>): void {}
 maskedWrapper('noop');

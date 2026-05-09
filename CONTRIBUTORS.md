@@ -49,7 +49,7 @@ The binary is consumed by the Vite plugin at JS test time and at build time. **B
 
 ```bash
 pnpm run build                              # all packages, lerna-orchestrated
-pnpm --filter @mionjs/ts-run-types run build   # single package
+pnpm --filter @mionjs/ts-go-run-types run build   # single package
 ```
 
 `pnpm run build` runs `lerna run build`, which respects topological order. Outputs land in `packages/*/dist/`.
@@ -62,7 +62,7 @@ pnpm --filter @mionjs/ts-run-types run build   # single package
 go test ./internal/...                          # Go suite
 pnpm test                                       # all JS packages (Vitest projects)
 pnpm --filter vite-plugin-runtypes test         # one package
-pnpm --filter @mionjs/ts-run-types test            # the other
+pnpm --filter @mionjs/ts-go-run-types test            # the other
 ```
 
 Go fixtures live in [internal/testfixtures](internal/testfixtures/) (F1–F17) and cover atomic reflection kinds (string, number, BigInt, Symbol, Date, RegExp, enums, literals), primitive/object/union annotations, inferred function signatures, generic inference, and `RuntypeId<T>` marker variants (direct calls, explicit type args, user wrappers, free type params, collision detection).
@@ -123,7 +123,7 @@ Then send the same JSON ops to `/tmp/ts-run-types.sock` from another process.
 --hash-length N               default 6 (types)
 --literal-hash-length N       default 5 (literals)
 --marker-name NAME            default RuntypeId
---marker-module MODULE        default @mionjs/ts-run-types
+--marker-module MODULE        default @mionjs/ts-go-run-types
 --single-threaded             disable parallel walk (debugging)
 ```
 
@@ -193,8 +193,8 @@ pnpm run npm-unpublish <version>
 
 ```bash
 pnpm exec lerna list                    # list workspace packages
-pnpm exec lerna run <script> --scope @mionjs/ts-run-types
-pnpm --filter @mionjs/ts-run-types <cmd>   # equivalent
+pnpm exec lerna run <script> --scope @mionjs/ts-go-run-types
+pnpm --filter @mionjs/ts-go-run-types <cmd>   # equivalent
 pnpm -r <cmd>                           # run in every workspace package
 pnpm exec nx reset                      # clear nx build cache
 ```

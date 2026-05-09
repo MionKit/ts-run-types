@@ -25,7 +25,7 @@ type Options struct {
 	LiteralHashLength int
 	// Marker selects which type alias the scanner treats as the
 	// transformer's id-injection sentinel. Zero values default to
-	// `RuntypeId` from `@mionjs/ts-run-types`.
+	// `RuntypeId` from `@mionjs/ts-go-run-types`.
 	Marker marker.Options
 }
 

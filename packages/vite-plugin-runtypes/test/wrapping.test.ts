@@ -67,7 +67,7 @@ describe('vite-plugin-runtypes / wrapping', () => {
       expect(out).toContain(`return getRuntypeId<T>(val);`);
 
       // Negative-case 17f: `maskedWrapper("noop")` references a local
-      // `RuntypeId_Local` type, not from `@mionjs/ts-run-types`. The call
+      // `RuntypeId_Local` type, not from `@mionjs/ts-go-run-types`. The call
       // must remain untouched.
       expect(out).toContain(`maskedWrapper("noop");`);
     });
