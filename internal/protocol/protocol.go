@@ -187,12 +187,13 @@ const (
 	// rebuilds the inferred Program against it. Sites are reset (their
 	// byte offsets are tied to the previous source text). The structural
 	// type cache survives across calls — same shape, same id — unless
-	// resetCache is explicitly invoked.
+	// reset is explicitly invoked.
 	OpSetSources = "setSources"
-	// OpResetCache clears the type cache and sites table without touching
-	// the Program. Independent of setSources so tests can opt into
-	// isolation only when they need it.
-	OpResetCache = "resetCache"
+	// OpReset wipes ALL resolver state: cache, sites, Program, checker,
+	// and the in-memory overlay. Equivalent to throwing the Resolver away
+	// and replacing it with a fresh one — the connection stays open. A
+	// subsequent setSources is required before scanFile will work.
+	OpReset = "reset"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).

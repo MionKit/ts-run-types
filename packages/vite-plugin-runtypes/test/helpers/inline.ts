@@ -1,13 +1,21 @@
-// Test helpers for in-memory inline sources. The Go binary runs as a
-// long-lived daemon spawned by vitest's globalSetup (scripts/vitest-global-setup.mjs),
-// listening on a Unix socket whose path is in TS_GO_RUN_TYPES_SOCKET. Each
-// withInlineSources call connects (or reuses the singleton connection),
-// sends `setSources` to swap the in-memory overlay, and the user's
-// callback then drives scanFile / dump as usual. No process spawn per test.
+// Test helpers for in-memory inline sources.
+//
+// Process model: one ts-go-run-types process per VITEST WORKER (not per
+// test file). Vitest's default `pool: 'forks'` spawns one Node child per
+// worker; each worker can run multiple test files sequentially. Within a
+// single worker we share one ts-go-run-types subprocess and clear its
+// state between test files via a `reset` op. Across workers, each worker
+// has its own subprocess — no inter-process shared state, parallel-file
+// execution stays safe.
+//
+// The singleton is stashed on `globalThis` because vitest's `isolate: true`
+// resets the module graph per file (so a module-scope `let` would re-spawn
+// the process every file). Module-scope state is fresh per file; the
+// global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
 import type {TestAPI} from 'vitest';
-import {ResolverSocketClient} from '../../src/resolver-client.js';
+import {ResolverClient} from '../../src/resolver-client.js';
 import {rewrite} from '../../src/rewrite.js';
 import {renderCacheModule} from '../../src/render-cache.js';
 import type {Site, Type} from '../../src/protocol.js';
@@ -27,44 +35,67 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 
 export type InlineSources = Record<string, string>;
 
-// Module-scope lazy singleton. Each vitest test FILE gets its own module
-// graph (isolate: true), so this lives once per file. The daemon process
-// itself is shared across files via the Unix socket exported by globalSetup.
-let _client: ResolverSocketClient | null = null;
-let _connecting: Promise<ResolverSocketClient> | null = null;
+// Per-worker singleton stash. Survives vitest's per-file module isolation
+// because `globalThis` lives on the underlying Node process. Two slots:
+//   client      — the spawned ResolverClient (or null if not yet spawned).
+//   atExitWired — process-exit hook only registered once per worker.
+interface WorkerStash {
+  client: ResolverClient | null;
+  atExitWired: boolean;
+}
+const STASH_KEY = '__tsGoRunTypesWorkerStash' as const;
+type GlobalWithStash = typeof globalThis & {[STASH_KEY]?: WorkerStash};
 
-async function getClient(): Promise<ResolverSocketClient> {
-  if (_client) return _client;
-  if (_connecting) return _connecting;
-  const sock = process.env.TS_GO_RUN_TYPES_SOCKET;
-  if (!sock) {
-    throw new Error(
-      'TS_GO_RUN_TYPES_SOCKET not set — vitest globalSetup did not spawn the daemon. Check scripts/vitest-global-setup.mjs.'
-    );
+function workerStash(): WorkerStash {
+  const g = globalThis as GlobalWithStash;
+  if (!g[STASH_KEY]) {
+    g[STASH_KEY] = {client: null, atExitWired: false};
   }
-  _connecting = ResolverSocketClient.connect(sock).then((c) => {
-    _client = c;
-    _connecting = null;
-    return c;
-  });
-  return _connecting;
+  return g[STASH_KEY]!;
+}
+
+function getClient(): ResolverClient {
+  const stash = workerStash();
+  if (stash.client) return stash.client;
+  if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
+  // --inline-server: no startup Program, no handshake. cwd = repo root so
+  // setSources keys like "user.ts" resolve to <repo>/user.ts.
+  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true});
+  if (!stash.atExitWired) {
+    stash.atExitWired = true;
+    // Best-effort cleanup if the worker exits without going through the
+    // setupFiles afterAll hook (uncaught throws, vitest forcing termination).
+    process.once('exit', () => {
+      const s = (globalThis as GlobalWithStash)[STASH_KEY];
+      if (s?.client) s.client.close();
+    });
+  }
+  return stash.client;
+}
+
+// resetSharedClient wipes resolver state between test files. Invoked by
+// the setupFiles entry's afterAll — kept here so the setup module doesn't
+// reach into the stash directly.
+export async function resetSharedClient(): Promise<void> {
+  const {client} = workerStash();
+  if (client) await client.reset();
 }
 
 export interface WithInlineOpts {
-  // When true, sends a `resetCache` op before installing the new sources.
-  // Useful for tests that assert specific dump shapes or want isolation
-  // from prior calls in the same suite. Defaults to false — the cache is
-  // structurally idempotent, so leaving it populated is safe and faster.
-  resetCache?: boolean;
+  // When true, sends a `reset` op before installing the new sources.
+  // `reset` wipes EVERYTHING (cache, sites, Program, overlay). Useful for
+  // tests that assert specific dump shapes against earlier tests IN THE
+  // SAME FILE. Between-files reset is automatic via afterAll.
+  reset?: boolean;
 }
 
 export async function withInlineSources<T>(
   sources: InlineSources,
-  fn: (ctx: {client: ResolverSocketClient; sources: InlineSources}) => Promise<T>,
+  fn: (ctx: {client: ResolverClient; sources: InlineSources}) => Promise<T>,
   opts: WithInlineOpts = {}
 ): Promise<T> {
-  const client = await getClient();
-  if (opts.resetCache) await client.resetCache();
+  const client = getClient();
+  if (opts.reset) await client.reset();
   // runtypes.d.ts is always present so caller's fixtures stay terse. The
   // caller can override by including their own "runtypes.d.ts" key.
   const augmented: InlineSources = {'runtypes.d.ts': RUNTYPES_DTS, ...sources};
@@ -73,8 +104,7 @@ export async function withInlineSources<T>(
 }
 
 // Convenience: rewrite a single inline source and return both the patched
-// code and the recorded sites. The shared client stays open — no per-call
-// teardown.
+// code and the recorded sites. Uses the shared per-worker client.
 export async function rewriteInline(
   file: string,
   code: string,
@@ -94,9 +124,9 @@ export interface EvaluatedCache {
 }
 
 // Full pipeline: rewrite every entry in `sources`, dump the resolver,
-// render the cache module, and eval it. Returns the live cache map.
-// The atomic suite uses this; pass {resetCache: true} when a test must see
-// a clean dump (the dedup test wants exactly one `string` entry).
+// render the cache module, and eval it. Pass {reset: true} when the test
+// must see a clean dump (atomic's "two strings share a cache id" wants
+// exactly one string entry).
 export async function evalCacheFor(
   sources: InlineSources,
   opts: WithInlineOpts = {}

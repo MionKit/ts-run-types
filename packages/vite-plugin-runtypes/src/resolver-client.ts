@@ -14,6 +14,12 @@ export interface ResolverClientOptions {
   // No on-disk tsconfig is needed in this mode — the Go side builds an
   // inferred Program whose root files are exactly the overlay keys.
   inlineSources?: Record<string, string>;
+  // When true, spawns with --inline-server: no startup Program, no
+  // handshake. The client is expected to install state via setSources
+  // before calling scanFile. The same connection persists across many
+  // setSources / reset cycles, so a single child process can serve every
+  // test in a vitest file.
+  serverMode?: boolean;
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -48,8 +54,9 @@ class MessageTransport {
     while (this.queue.length) this.queue.shift()!({error: reason});
   }
 
-  // writeUnframed writes raw bytes without queuing — used for the inline-sources
-  // handshake which the Go side reads before entering the request loop.
+  // writeUnframed writes raw bytes without queuing — used for the
+  // inline-sources handshake which the Go side reads before entering the
+  // request loop.
   writeUnframed(payload: string): void {
     this.stdin.write(payload);
   }
@@ -76,7 +83,7 @@ export interface ResolverConnection {
   scanFile(file: string): Promise<Site[]>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
-  resetCache(): Promise<void>;
+  reset(): Promise<void>;
   close(): void;
 }
 
@@ -101,9 +108,12 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (resp.error) throw new Error(`setSources: ${resp.error}`);
   }
 
-  async resetCache(): Promise<void> {
-    const resp = await this.transport.request({op: 'resetCache'});
-    if (resp.error) throw new Error(`resetCache: ${resp.error}`);
+  // reset wipes ALL resolver state (cache, sites, Program, overlay) — see
+  // internal/resolver/resolver.go:Reset for the contract. The caller must
+  // call setSources before the next scanFile.
+  async reset(): Promise<void> {
+    const resp = await this.transport.request({op: 'reset'});
+    if (resp.error) throw new Error(`reset: ${resp.error}`);
   }
 
   close(): void {
@@ -111,10 +121,17 @@ abstract class ResolverClientBase implements ResolverConnection {
   }
 }
 
-// ResolverClient spawns the ts-go-run-types binary in one-shot mode and drives it
-// over its JSON-per-line stdio protocol. One binary invocation per build — the
-// child process is kept alive until `close()` so Program + checker cache are
-// amortised across all queries.
+// ResolverClient spawns the ts-go-run-types binary and drives it over its
+// JSON-per-line stdio protocol. The child process is kept alive until
+// `close()` so the Program + checker pool are amortised across queries.
+//
+// Three modes:
+//   - default: --one-shot against an on-disk tsconfig.
+//   - opts.inlineSources: --one-shot --inline-sources-stdin, source map
+//     written as the handshake line before any request.
+//   - opts.serverMode: --one-shot --inline-server, no startup Program;
+//     the caller drives setSources / reset / scanFile / dump over stdin
+//     for the lifetime of the process.
 export class ResolverClient extends ResolverClientBase {
   private child: ChildProcess;
   protected readonly transport: MessageTransport;
@@ -122,14 +139,15 @@ export class ResolverClient extends ResolverClientBase {
   constructor(binary: string, cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}) {
     super();
     const args = ['--one-shot', '--cwd', cwd];
-    // The Go binary ignores --tsconfig when inline-sources mode is on, so
-    // skip the flag entirely in that case to keep the CLI honest.
-    if (!opts.inlineSources && tsconfigPath) {
+    // --tsconfig is meaningless in inline / server modes — the Go binary
+    // ignores it. Skip the flag to keep the CLI honest.
+    if (!opts.inlineSources && !opts.serverMode && tsconfigPath) {
       args.push('--tsconfig', tsconfigPath);
     }
     if (opts.markerName) args.push('--marker-name', opts.markerName);
     if (opts.markerModule) args.push('--marker-module', opts.markerModule);
     if (opts.inlineSources) args.push('--inline-sources-stdin');
+    if (opts.serverMode) args.push('--inline-server');
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');
@@ -152,8 +170,8 @@ export class ResolverClient extends ResolverClientBase {
 }
 
 // ResolverSocketClient connects to a daemon-mode `ts-go-run-types` process
-// over a Unix socket. The daemon is typically spawned once at vitest
-// globalSetup and shared across every test file in the run.
+// over a Unix socket. Kept for future use cases (shared daemon across
+// workers); the current vitest setup uses ResolverClient with serverMode.
 export class ResolverSocketClient extends ResolverClientBase {
   private socket: Socket;
   protected readonly transport: MessageTransport;
