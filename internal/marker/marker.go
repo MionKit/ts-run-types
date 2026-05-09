@@ -1,6 +1,6 @@
 // Package marker detects whether a TypeScript type matches the sentinel
 // `RuntypeId<T>` marker — the trailing-parameter type that opts a function
-// into compile-time type-id injection by the ts-run-types transformer.
+// into compile-time type-id injection by the ts-go-run-types transformer.
 //
 // The detection is two-layered:
 //  1. Name match — the type alias' symbol name must equal Options.Name
