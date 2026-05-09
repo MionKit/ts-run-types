@@ -27,10 +27,23 @@ type Options struct {
 	// transformer's id-injection sentinel. Zero values default to
 	// `RuntypeId` from `@mionjs/ts-go-run-types`.
 	Marker marker.Options
+	// Cwd is the working directory used when SetSources builds an inferred
+	// Program. Required for server-mode resolvers; ignored when a Program
+	// is supplied to New(). When unset, SetSources falls back to the
+	// existing Program's GetCurrentDirectory.
+	Cwd string
+	// SingleThreaded forces single-checker mode on Programs built by
+	// SetSources. Mirrors program.Options.SingleThreaded.
+	SingleThreaded bool
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer
 // cache is shared across queries so type ids stay stable in a single dump.
+//
+// Program-less resolvers (built via NewServer) are valid: they accept the
+// setSources op to install a Program, then serve scanFile / dump as normal.
+// Subsequent setSources calls swap the Program in place — the structural
+// type cache survives across swaps so dedup IDs stay stable.
 type Resolver struct {
 	Program *program.Program
 	cache   *serialize.Cache
@@ -38,6 +51,7 @@ type Resolver struct {
 	done    func()
 	sites   []protocol.Site
 	marker  marker.Options
+	opts    Options
 }
 
 // New builds a Resolver against p. Defaults to hashid's default lengths when
@@ -60,7 +74,56 @@ func New(p *program.Program, opts Options) (*Resolver, error) {
 		checker: c,
 		done:    done,
 		marker:  marker.WithDefaults(opts.Marker),
+		opts:    opts,
 	}, nil
+}
+
+// NewServer builds a Resolver with no Program. Callers (the --inline-server
+// CLI path) install one later via the setSources op. The cache is created
+// up front with a nil checker; Rebind is called on first SetProgram.
+func NewServer(opts Options) *Resolver {
+	return &Resolver{
+		cache: serialize.NewCache(nil, serialize.Options{
+			HashLength:        opts.HashLength,
+			LiteralHashLength: opts.LiteralHashLength,
+		}),
+		marker: marker.WithDefaults(opts.Marker),
+		opts:   opts,
+	}
+}
+
+// SetProgram swaps the underlying Program. Releases the previous checker,
+// leases a new one from p, rebinds the cache, and resets the sites slice
+// (positions are tied to the old source text). The cache's structural dedup
+// table survives the swap so equivalent types reuse their ids.
+func (r *Resolver) SetProgram(p *program.Program) error {
+	if p == nil || p.TS == nil {
+		return errors.New("resolver.SetProgram: program is nil")
+	}
+	c, done := p.TS.GetTypeChecker(context.Background())
+	if c == nil {
+		done()
+		return errors.New("resolver.SetProgram: no checker available")
+	}
+	if r.done != nil {
+		r.done()
+	}
+	r.Program = p
+	r.checker = c
+	r.done = done
+	r.cache.Rebind(c)
+	r.sites = r.sites[:0]
+	return nil
+}
+
+// ResetCache drops every interned Type plus the running sites list, leaving
+// the Program untouched. Tests that want isolation between scans call this.
+func (r *Resolver) ResetCache() {
+	r.cache.Clear()
+	if r.checker != nil {
+		r.cache.Rebind(r.checker)
+	}
+	r.sites = r.sites[:0]
 }
 
 func (r *Resolver) Close() {
@@ -83,6 +146,9 @@ func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 	before := r.cache.Size()
 	switch req.Op {
 	case protocol.OpScanFile:
+		if r.Program == nil {
+			return protocol.Response{Error: "scanFile: no Program loaded — call setSources first"}
+		}
 		sites, err := r.dispatchScanFile(req.File)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
@@ -93,9 +159,52 @@ func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 			Types: r.cache.Dump(),
 			Sites: r.Sites(),
 		}
+	case protocol.OpSetSources:
+		if err := r.dispatchSetSources(req.Sources); err != nil {
+			return protocol.Response{Error: err.Error()}
+		}
+		return protocol.Response{OK: true}
+	case protocol.OpResetCache:
+		r.ResetCache()
+		return protocol.Response{OK: true}
 	default:
 		return protocol.Response{Error: "unknown op: " + req.Op}
 	}
+}
+
+// dispatchSetSources builds an inferred Program from the supplied overlay
+// and swaps it into the resolver. Relative file names are resolved against
+// the working directory the resolver's previous Program had (or, on first
+// call before any Program exists, against os.Getwd at start — but we don't
+// have that here; main passes an absCwd via Options for server mode).
+func (r *Resolver) dispatchSetSources(sources map[string]string) error {
+	if sources == nil {
+		sources = map[string]string{}
+	}
+	cwd := r.opts.Cwd
+	if cwd == "" && r.Program != nil {
+		cwd = r.Program.TS.GetCurrentDirectory()
+	}
+	if cwd == "" {
+		return errors.New("setSources: no cwd configured")
+	}
+	cwd = tspath.NormalizePath(cwd)
+	overlay := make(map[string]string, len(sources))
+	fileNames := make([]string, 0, len(sources))
+	for rel, content := range sources {
+		abs := tspath.ResolvePath(cwd, rel)
+		overlay[abs] = content
+		fileNames = append(fileNames, abs)
+	}
+	p, err := program.NewInferred(program.Options{
+		Cwd:            cwd,
+		SingleThreaded: r.opts.SingleThreaded,
+		Overlay:        overlay,
+	}, fileNames)
+	if err != nil {
+		return fmt.Errorf("setSources: %w", err)
+	}
+	return r.SetProgram(p)
 }
 
 func (r *Resolver) sourceFile(file string) (*ast.SourceFile, error) {

@@ -128,12 +128,16 @@ export interface Site {
 }
 
 export interface Request {
-  op: "scanFile" | "dump";
+  op: "scanFile" | "dump" | "setSources" | "resetCache";
   file?: string;
+  // setSources only — { relpath: source-text }.
+  sources?: Record<string, string>;
 }
 
 export interface Response {
   id?: string;
+  // Acknowledgement for ops that don't return data (setSources / resetCache).
+  ok?: true;
   added?: Type[];
   sites?: Site[];
   types?: Type[];
