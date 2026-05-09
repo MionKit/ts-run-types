@@ -9,74 +9,33 @@ import {describe, expect} from 'vitest';
 import {KIND_REF, ReflectionKind, type RunType} from '../src/protocol.ts';
 import {evalCacheFor, getTypeFor, runTest} from './helpers/inline.ts';
 
-const arrayStringStaticSrc = {
-  'array.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+describe('vite-plugin-runtypes / member round-trip', () => {
+  runTest(
+    'array of string static',
+    {
+      'array.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 getRuntypeId<string[]>();
 `,
-};
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertArrayOfString(cache);
+    }
+  );
 
-const arrayStringReflectSrc = {
-  'array.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+  runTest(
+    'array of string reflect',
+    {
+      'array.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
 declare const xs: string[];
 reflectRuntypeId(xs);
 `,
-};
-
-const arrayObjectStaticSrc = {
-  'arrobj.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<{x: number}[]>();
-`,
-};
-
-const arrayObjectReflectSrc = {
-  'arrobj.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-declare const xs: {x: number}[];
-reflectRuntypeId(xs);
-`,
-};
-
-const arrayArrayStaticSrc = {
-  'arrarr.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string[][]>();
-`,
-};
-
-const arrayArrayReflectSrc = {
-  'arrarr.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-declare const xs: string[][];
-reflectRuntypeId(xs);
-`,
-};
-
-const recursiveTreeStaticSrc = {
-  'tree.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-interface Tree {
-  children: Tree[];
-}
-getRuntypeId<Tree>();
-`,
-};
-
-const recursiveTreeReflectSrc = {
-  'tree.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-interface Tree {
-  children: Tree[];
-}
-declare const t: Tree;
-reflectRuntypeId(t);
-`,
-};
-
-describe('vite-plugin-runtypes / member round-trip', () => {
-  runTest('array of string static', arrayStringStaticSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertArrayOfString(cache);
-  });
-
-  runTest('array of string reflect', arrayStringReflectSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertArrayOfString(cache);
-  });
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertArrayOfString(cache);
+    }
+  );
 
   function assertArrayOfString(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'array.ts');
@@ -86,15 +45,32 @@ describe('vite-plugin-runtypes / member round-trip', () => {
     expect(elem.kind).toBe(ReflectionKind.string);
   }
 
-  runTest('array of object literal static', arrayObjectStaticSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertArrayOfObject(cache);
-  });
+  runTest(
+    'array of object literal static',
+    {
+      'arrobj.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+getRuntypeId<{x: number}[]>();
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertArrayOfObject(cache);
+    }
+  );
 
-  runTest('array of object literal reflect', arrayObjectReflectSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertArrayOfObject(cache);
-  });
+  runTest(
+    'array of object literal reflect',
+    {
+      'arrobj.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+declare const xs: {x: number}[];
+reflectRuntypeId(xs);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertArrayOfObject(cache);
+    }
+  );
 
   function assertArrayOfObject(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'arrobj.ts');
@@ -107,15 +83,32 @@ describe('vite-plugin-runtypes / member round-trip', () => {
     expect((xProp!.child as RunType).kind).toBe(ReflectionKind.number);
   }
 
-  runTest('array of array of string static', arrayArrayStaticSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertArrayOfArray(cache);
-  });
+  runTest(
+    'array of array of string static',
+    {
+      'arrarr.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+getRuntypeId<string[][]>();
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertArrayOfArray(cache);
+    }
+  );
 
-  runTest('array of array of string reflect', arrayArrayReflectSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertArrayOfArray(cache);
-  });
+  runTest(
+    'array of array of string reflect',
+    {
+      'arrarr.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+declare const xs: string[][];
+reflectRuntypeId(xs);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertArrayOfArray(cache);
+    }
+  );
 
   function assertArrayOfArray(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'arrarr.ts');
@@ -128,15 +121,38 @@ describe('vite-plugin-runtypes / member round-trip', () => {
   // Cycle-safety proof for both forms. The footer emits
   // `t_<arrayId>.child = t_<treeId>;` so walking root → children → array →
   // element returns the SAME object as the root by reference.
-  runTest('recursive self type static closes cycle by reference', recursiveTreeStaticSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertRecursiveTreeCycle(cache);
-  });
+  runTest(
+    'recursive self type static closes cycle by reference',
+    {
+      'tree.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface Tree {
+  children: Tree[];
+}
+getRuntypeId<Tree>();
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertRecursiveTreeCycle(cache);
+    }
+  );
 
-  runTest('recursive self type reflect closes cycle by reference', recursiveTreeReflectSrc, async (sources) => {
-    const cache = await evalCacheFor(sources);
-    assertRecursiveTreeCycle(cache);
-  });
+  runTest(
+    'recursive self type reflect closes cycle by reference',
+    {
+      'tree.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+interface Tree {
+  children: Tree[];
+}
+declare const t: Tree;
+reflectRuntypeId(t);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertRecursiveTreeCycle(cache);
+    }
+  );
 
   function assertRecursiveTreeCycle(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'tree.ts');
