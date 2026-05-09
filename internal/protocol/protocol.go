@@ -1,8 +1,7 @@
 // Package protocol defines the wire types exchanged between the ts-run-types
-// resolver and its callers. The shape mirrors deepkit/type's `Type` discriminated
-// union (see https://github.com/marcj/deepkit/blob/master/packages/type/src/reflection/type.ts)
-// so the user's runtypes JIT — which already understands deepkit's runtime
-// shape — can consume our cache directly.
+// resolver and its callers. The shape is the canonical mion runtypes reflection
+// `Type` discriminated union so the user's runtypes JIT — which already
+// understands this runtime shape — can consume our cache directly.
 //
 // Because JSON cannot carry cycles or live references, child Type slots in the
 // JSON wire format are ref sentinels: `{kind: -1, id: "<hash>"}`. Two consumption
@@ -10,7 +9,7 @@
 //
 //  1. The generated `.ts` runtime artifact resolves cycles via direct const
 //     assignment — consumers `import { __runtypes }` and call `Map.get(hash)` to
-//     obtain a fully-knotted deepkit Type object.
+//     obtain a fully-knotted reflection Type object.
 //  2. JSON-only consumers walk `Dump.Types` themselves to re-knot.
 //
 // IDs are short alphanumeric hash strings (default 6 chars, configurable). The
@@ -23,9 +22,9 @@ import "encoding/json"
 
 func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
 
-// ReflectionKind matches deepkit/type's enum byte-for-byte. New values must
-// follow the same declaration order as
-// packages/type/src/reflection/type.ts.
+// ReflectionKind enumerates the discriminator values for every reflection
+// `Type` variant. New values must be appended in declaration order so the
+// integer values stay stable across releases.
 type ReflectionKind int
 
 const (
@@ -68,10 +67,10 @@ const (
 )
 
 // KindRef is our sentinel for "this slot points at type id <hash>, look it up
-// in the table". Not a deepkit kind — the value -1 is reserved for refs.
+// in the table". Not a reflection kind — the value -1 is reserved for refs.
 const KindRef ReflectionKind = -1
 
-// Type is a JSON-friendly union of every deepkit Type variant. Optional
+// Type is a JSON-friendly union of every reflection Type variant. Optional
 // fields are gated by `omitempty`. A given Type uses only the fields relevant
 // to its Kind; the rest stay zero/nil.
 //
@@ -96,8 +95,8 @@ type Type struct {
 
 	// TypeProperty / TypePropertySignature / TypeMethod / TypeMethodSignature
 	// / TypeParameter / TypeEnumMember — name is `string | number | symbol` in
-	// deepkit; we only emit string. Symbol-named props get a synthetic
-	// "@@<name>" string and Flags=["symbol"].
+	// the reflection model; we only emit string. Symbol-named props get a
+	// synthetic "@@<name>" string and Flags=["symbol"].
 	Name string `json:"name,omitempty"`
 
 	// TypeProperty / TypePropertySignature / TypeParameter etc.

@@ -36,12 +36,12 @@ Concretely, at build time:
 | Type checking the project              | Whatever the user's tsconfig points at — `tsc`, `vue-tsc`, the editor, etc. | Unchanged. We don't type-check on the user's behalf.                                                                                                                    |
 | TS → JS emit                           | Vite's default (esbuild)                                                    | Unchanged. We never write `.js`.                                                                                                                                        |
 | Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-run-types** Go binary                       | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
-| Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full deepkit-shape `Type` graph, keyed by hash.                                                                                  |
+| Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full reflection-shape `Type` graph, keyed by hash.                                                                               |
 | Runtime metadata access                | **@mionjs/ts-run-types** (`getMeta(id)`)                                    | One `Map.get(id)` lookup against the virtual module.                                                                                                                    |
 
 ### Why a separate Go binary
 
-`tsc` (the JavaScript build) shipped a [custom-transformer API](https://github.com/itsdouges/typescript-transformer-handbook) that runtime-type libraries (`ts-runtime`, `typia`, `deepkit/type`, etc.) hooked into. That API let a Node-side program walk the AST and rewrite source _with access to the checker_ before `tsc` emitted JS.
+`tsc` (the JavaScript build) shipped a [custom-transformer API](https://github.com/itsdouges/typescript-transformer-handbook) that runtime-type libraries (`ts-runtime`, `typia`, and others) hooked into. That API let a Node-side program walk the AST and rewrite source _with access to the checker_ before `tsc` emitted JS.
 
 `tsgo` — the Go port that will become TypeScript 7 — **does not currently expose any plugin or transformer API to user code**. The compiler is now a single statically-linked Go binary that runs as a CLI; you cannot load a Node plugin into it, and the checker's symbol-resolution machinery lives behind Go's `internal/` visibility wall (which Go enforces at the compiler level — see the "Shims" section below).
 
@@ -162,7 +162,7 @@ Pure struct definitions shared between the Go resolver and the TS plugin. Stdio 
 Two output formats share the same in-memory `protocol.Dump`:
 
 - **`json.go`** — pretty-printed JSON. Child Type slots stay as `{kind: -1, id: "<hash>"}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
-- **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`type`, `return`, `parameters`, `types`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted deepkit `Type` object — no rehydration step.
+- **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`type`, `return`, `parameters`, `types`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted reflection `Type` object — no rehydration step.
 
 ### packages/runtypes (`@mionjs/ts-run-types`)
 
@@ -170,7 +170,7 @@ Public marker package. Exports:
 
 - `type RuntypeId<T>` — the sentinel.
 - `function getRuntypeId<T>(val?, id?)` — canonical reflection helper. Throws at runtime if called without an injected id (i.e. the plugin isn't active).
-- `function getMeta(id: RuntypeId<unknown>)` — cache lookup. Returns the deepkit-shape Type for an id, or `undefined` if the cache hasn't been wired up.
+- `function getMeta(id: RuntypeId<unknown>)` — cache lookup. Returns the reflection-shape Type for an id, or `undefined` if the cache hasn't been wired up.
 - `function __setRuntypeMetaResolver(fn)` — the virtual cache module calls this on first import.
 
 ### packages/vite-plugin-runtypes
@@ -192,12 +192,12 @@ isType<T>(v)            →   isType<T>(v, "<hash>")
 
 The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` does the padding math.
 
-## Deepkit shape compatibility
+## Reflection shape
 
-The protocol's `Type` is byte-shape compatible with [deepkit/type's `Type` discriminated union](https://github.com/marcj/deepkit/blob/master/packages/type/src/reflection/type.ts). Specifically:
+The protocol's `Type` is the canonical mion runtypes reflection-shape discriminated union. Specifically:
 
-- **Numeric `ReflectionKind`** matches deepkit's enum declaration order exactly (never=0, any=1, …, callSignature=35). Sentinel `-1` is reserved for ref slots.
-- **Container shape** mirrors deepkit: `TypeObjectLiteral.types` is an array of `TypePropertySignature`/`TypeMethodSignature`/`TypeIndexSignature`/`TypeCallSignature` nodes; `TypeFunction.parameters` is an array of `TypeParameter` nodes; tuple elements are wrapped as `TypeTupleMember`.
+- **Numeric `ReflectionKind`** is declared in a stable order (never=0, any=1, …, callSignature=35) so the integer values are wire-safe across releases. Sentinel `-1` is reserved for ref slots.
+- **Container shape**: `TypeObjectLiteral.types` is an array of `TypePropertySignature`/`TypeMethodSignature`/`TypeIndexSignature`/`TypeCallSignature` nodes; `TypeFunction.parameters` is an array of `TypeParameter` nodes; tuple elements are wrapped as `TypeTupleMember`.
 - **Annotations carried**: `id`, `typeName`, `typeArguments`, `optional`, `readonly`, `abstract`, `static`, `inlined`, `flags`, `description`, `default` (literal-only), `classRef` (provenance for v0.3 lazy-import).
 - **Knotted output**: the `.ts` runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `__runtypes.get(id)` is a drop-in source of `Type` objects for the user's runtypes JIT — no adapter layer needed.
 
@@ -295,7 +295,7 @@ git submodule update --init --recursive
 # Build the resolver:
 go build -o bin/ts-run-types ./cmd/ts-run-types
 
-# Go test suite — covers atomic deepkit kinds + scanFile detection over the
+# Go test suite — covers atomic reflection kinds + scanFile detection over the
 # F1–F17 fixtures:
 go test ./internal/...
 

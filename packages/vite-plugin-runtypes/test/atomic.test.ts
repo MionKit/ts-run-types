@@ -4,7 +4,7 @@
 //   2. Calls scanFile on every fixture (which triggers id resolution
 //      for the trailing-RuntypeId<T> call site in each)
 //   3. Renders a runtypes-cache JS module from the dump
-//   4. Evaluates that module and asserts the resulting deepkit-shape Type
+//   4. Evaluates that module and asserts the resulting reflection-shape Type
 //      contains real runtime values where applicable (BigInt / Symbol /
 //      RegExp / globalThis.Date instances)
 //

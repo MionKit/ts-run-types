@@ -39,8 +39,8 @@ func TestScanFile_F17(t *testing.T) {
 	}{
 		{"getRuntypeId(u)", "17a: T inferred from val (object literal)"},
 		{"getRuntypeId<string>()", "17b: explicit type arg"},
-		{"isType<{ flag: boolean }>(true)", "17c: user wrapper, explicit T"},
-		{"nameOf({ kind: \"node\", value: 42 })", "17d: user wrapper, inferred T"},
+		{"isType<{flag: boolean}>(true)", "17c: user wrapper, explicit T"},
+		{"nameOf({kind: 'node', value: 42})", "17d: user wrapper, inferred T"},
 	}
 
 	if len(sites) < len(want) {
@@ -79,7 +79,7 @@ func TestScanFile_F17(t *testing.T) {
 	// `maskedWrapper("noop")` must NOT appear in sites.
 	for _, neg := range []string{
 		`getRuntypeId<T>(val)`, // 17e — free type parameter inside body
-		`maskedWrapper("noop")`, // 17f — non-@mionjs/ts-run-types RuntypeId
+		`maskedWrapper('noop')`, // 17f — non-@mionjs/ts-run-types RuntypeId
 	} {
 		start := strings.Index(src, neg)
 		if start < 0 {
