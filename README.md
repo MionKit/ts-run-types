@@ -159,7 +159,6 @@ packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design
 docs/ROADMAP.md                  scope + known lossy mappings
-examples/                        end-to-end sample projects
 scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening
 lerna.json                       lockstep version + publish config

@@ -115,7 +115,6 @@ packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRu
 packages/vite-plugin-runtypes/   JS side — drives scanFile, patches calls
 third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
-examples/                        runnable fixtures
 ```
 
 ### internal/program
