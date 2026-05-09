@@ -2,55 +2,68 @@
 // parameter is `RuntypeId<T>` get the same compile-time id injection as
 // `getRuntypeId` itself, and that a same-named-but-non-mion-package
 // `RuntypeId<T>` is correctly ignored.
-//
-// Driven against the f17 fixture in internal/testfixtures.
 
 import {describe, it, expect} from 'vitest';
-import path from 'node:path';
-import fs from 'node:fs';
-import {ResolverClient} from '../src/resolver-client.js';
 import {rewrite} from '../src/rewrite.js';
-
-const ROOT = path.resolve(__dirname, '../../..');
-const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
-const FIXTURES = path.resolve(ROOT, 'internal/testfixtures');
-
-function hasBinary() {
-  return fs.existsSync(BIN);
-}
-
-async function withResolver<T>(fn: (c: ResolverClient) => Promise<T>): Promise<T> {
-  if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
-  const client = new ResolverClient(BIN, FIXTURES, 'tsconfig.json');
-  try {
-    return await fn(client);
-  } finally {
-    client.close();
-  }
-}
+import {hasBinary, withInlineSources} from './helpers/inline.js';
 
 describe('vite-plugin-runtypes / wrapping', () => {
-  const available = hasBinary();
-  const runMaybe = available ? it : it.skip;
+  const runMaybe = hasBinary() ? it : it.skip;
 
   runMaybe('user-defined wrapper with RuntypeId<T> trailing param gets injected', async () => {
-    await withResolver(async (client) => {
-      const file = 'f17_runtype_id.ts';
-      const code = fs.readFileSync(path.join(FIXTURES, file), 'utf8');
-      const {code: out, sites} = await rewrite(file, code, client);
+    // Four positive sites (17a–17d) plus two negative cases (17e free-T
+    // body, 17f wrong-module collision). All in one module so the resolver
+    // sees every shape in one program.
+    const code = `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+export {};
 
-      // f17 has four directly rewritable sites (17a–17d). The two
-      // negative cases (17e free-T body, 17f wrong-module) are skipped.
+// 17a — direct call, T inferred from val.
+const u = {id: 1, name: 'm'} as {id: number; name: string};
+const a = getRuntypeId(u);
+
+// 17b — explicit type argument, no positional args.
+const b = getRuntypeId<string>();
+
+// 17c — user-defined wrapper. The trailing \`id?: RuntypeId<T>\` opts the
+// function into transformer injection at every call site, just like
+// getRuntypeId itself.
+function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+  if (!id) throw new Error('transformer not active');
+  return id;
+}
+const c = isType<{flag: boolean}>(true);
+
+// 17d — wrapper used with T inferred from an argument.
+function nameOf<T>(_val: T, id?: RuntypeId<T>): RuntypeId<T> {
+  if (!id) throw new Error('transformer not active');
+  return id;
+}
+const d = nameOf({kind: 'node', value: 42});
+
+// 17e — call inside a generic body. \`T\` is the *outer* free type parameter,
+// so this must be SKIPPED by the scanner — there's nothing to inject yet.
+function inner<T>(val: T): RuntypeId<T> {
+  return getRuntypeId<T>(val);
+}
+
+// 17f — collision: a user-defined type also named \`RuntypeId\`, declared
+// outside the marker module. The scanner must ignore this — only the
+// \`@mionjs/ts-go-run-types\` one counts.
+type RuntypeId_Local<T> = {readonly localBrand?: T};
+function maskedWrapper<T>(_v: T, _id?: RuntypeId_Local<T>): void {}
+maskedWrapper('noop');
+`;
+    await withInlineSources({'f17.ts': code}, async ({client, sources}) => {
+      const {code: out, sites} = await rewrite('f17.ts', sources['f17.ts'], client);
+
+      // f17 has four directly rewritable sites (17a–17d). The two negative
+      // cases (17e free-T body, 17f wrong-module) are skipped.
       expect(sites.length).toBe(4);
 
       for (const s of sites) {
         expect(s.id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
       }
 
-      // Verify each call site got the id appended right before the
-      // closing `)`. We don't assert exact positions — just that the
-      // emitted text contains the four ids in surrounding context that
-      // matches what the call should look like.
       const ids = sites.map((s) => JSON.stringify(s.id));
       // 17c — explicit type arg, wrapper. Argument was `true`.
       expect(out).toMatch(/isType<\{flag: boolean\}>\(true, "[A-Za-z0-9]+"\)/);
@@ -74,13 +87,14 @@ describe('vite-plugin-runtypes / wrapping', () => {
   });
 
   runMaybe('calls with zero args still get the id at the right slot', async () => {
-    await withResolver(async (client) => {
-      const file = 'f17_runtype_id.ts';
-      const code = fs.readFileSync(path.join(FIXTURES, file), 'utf8');
-      const {code: out} = await rewrite(file, code, client);
-      // 17b — `getRuntypeId<string>()` has zero args but the trailing slot
-      // is the second parameter (paramIndex 1). The patcher pads with
-      // `undefined` so the id lands at slot 1.
+    // 17b in isolation — `getRuntypeId<string>()` has zero args but the
+    // trailing slot is the second parameter (paramIndex 1). The patcher
+    // pads with `undefined` so the id lands at slot 1.
+    const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const b = getRuntypeId<string>();
+`;
+    await withInlineSources({'zero_args.ts': code}, async ({client, sources}) => {
+      const {code: out} = await rewrite('zero_args.ts', sources['zero_args.ts'], client);
       expect(out).toMatch(/getRuntypeId<string>\(undefined, "[A-Za-z0-9]+"\)/);
     });
   });
