@@ -12,8 +12,8 @@
 // This is the "would mion's runType<X>() see what it expects?" gate.
 
 import {describe, it, expect} from 'vitest';
-import {ReflectionKind} from '../src/protocol.js';
-import {evalCacheFor, getTypeFor, hasBinary} from './helpers/inline.js';
+import {ReflectionKind} from '../src/protocol.ts';
+import {evalCacheFor, getTypeFor, hasBinary} from './helpers/inline.ts';
 
 describe('vite-plugin-runtypes / atomic round-trip', () => {
   const runMaybe = hasBinary() ? it : it.skip;

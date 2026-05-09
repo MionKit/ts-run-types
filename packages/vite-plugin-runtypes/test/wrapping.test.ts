@@ -4,8 +4,8 @@
 // `RuntypeId<T>` is correctly ignored.
 
 import {describe, it, expect} from 'vitest';
-import {rewrite} from '../src/rewrite.js';
-import {hasBinary, withInlineSources} from './helpers/inline.js';
+import {rewrite} from '../src/rewrite.ts';
+import {hasBinary, withInlineSources} from './helpers/inline.ts';
 
 describe('vite-plugin-runtypes / wrapping', () => {
   const runMaybe = hasBinary() ? it : it.skip;

@@ -15,10 +15,10 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import type {TestAPI} from 'vitest';
-import {ResolverClient} from '../../src/resolver-client.js';
-import {rewrite} from '../../src/rewrite.js';
-import {renderCacheModule} from '../../src/render-cache.js';
-import type {Site, Type} from '../../src/protocol.js';
+import {ResolverClient} from '../../src/resolver-client.ts';
+import {rewrite} from '../../src/rewrite.ts';
+import {renderCacheModule} from '../../src/render-cache.ts';
+import type {Site, Type} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');

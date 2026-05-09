@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {Request, Response, Site} from './protocol.js';
+import type {Request, Response, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // Optional marker overrides forwarded to the Go binary's CLI flags.

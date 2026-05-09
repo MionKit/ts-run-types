@@ -5,7 +5,7 @@
 // IDs are short alphanumeric hash strings; the const name prefix is `t_` so
 // the output is always a syntactically valid JS identifier.
 
-import { KIND_REF, type Site, type Type } from "./protocol.js";
+import { KIND_REF, type Site, type Type } from "./protocol.ts";
 
 export interface RenderInput {
   types: Type[];
