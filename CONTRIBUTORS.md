@@ -81,6 +81,18 @@ pnpm check-format    # prettier --check (CI-safe)
 
 ESLint config is flat (`eslint.config.js`) and TypeScript-aware via `projectService`. Prettier rules live in `.prettierrc`.
 
+### Variable naming
+
+Use meaningful variable names in both Go and JS/TS — avoid one-letter abbreviations like `p`, `c`, `t`. When a struct field has a JSON tag, reuse that name for the local variable. Loop indices (`i`, `k`, `v`) and `err` are fine.
+
+```go
+// ❌ Bad
+func New(p *program.Program, c *checker.Checker) { ... }
+
+// ✅ Good
+func New(program *program.Program, checker *checker.Checker) { ... }
+```
+
 ---
 
 ## Pre-commit hooks

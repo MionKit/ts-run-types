@@ -46,36 +46,36 @@ type Options struct {
 // Subsequent setSources calls swap the Program in place — the structural
 // type cache survives across swaps so dedup IDs stay stable.
 type Resolver struct {
-	Program *program.Program
-	cache   *serialize.Cache
-	checker *checker.Checker
-	done    func()
-	sites   []protocol.Site
-	marker  marker.Options
-	opts    Options
+	Program     *program.Program
+	cache       *serialize.Cache
+	checker     *checker.Checker
+	releaseLease func()
+	sites       []protocol.Site
+	marker      marker.Options
+	opts        Options
 }
 
-// New builds a Resolver against p. Defaults to hashid's default lengths when
+// New builds a Resolver against prog. Defaults to hashid's default lengths when
 // HashLength / LiteralHashLength are zero.
-func New(p *program.Program, opts Options) (*Resolver, error) {
-	if p == nil || p.TS == nil {
+func New(prog *program.Program, opts Options) (*Resolver, error) {
+	if prog == nil || prog.TS == nil {
 		return nil, errors.New("resolver.New: program is nil")
 	}
-	c, done := p.TS.GetTypeChecker(context.Background())
-	if c == nil {
-		done()
+	typeChecker, releaseLease := prog.TS.GetTypeChecker(context.Background())
+	if typeChecker == nil {
+		releaseLease()
 		return nil, errors.New("resolver.New: no checker available")
 	}
 	return &Resolver{
-		Program: p,
-		cache: serialize.NewCache(c, serialize.Options{
+		Program: prog,
+		cache: serialize.NewCache(typeChecker, serialize.Options{
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		checker: c,
-		done:    done,
-		marker:  marker.WithDefaults(opts.Marker),
-		opts:    opts,
+		checker:      typeChecker,
+		releaseLease: releaseLease,
+		marker:       marker.WithDefaults(opts.Marker),
+		opts:         opts,
 	}, nil
 }
 
@@ -94,26 +94,26 @@ func NewServer(opts Options) *Resolver {
 }
 
 // SetProgram swaps the underlying Program. Releases the previous checker,
-// leases a new one from p, rebinds the cache, and resets the sites slice
+// leases a new one from prog, rebinds the cache, and resets the sites slice
 // (positions are tied to the old source text). The cache's structural dedup
 // table survives the swap so equivalent types reuse their ids.
-func (r *Resolver) SetProgram(p *program.Program) error {
-	if p == nil || p.TS == nil {
+func (resolver *Resolver) SetProgram(prog *program.Program) error {
+	if prog == nil || prog.TS == nil {
 		return errors.New("resolver.SetProgram: program is nil")
 	}
-	c, done := p.TS.GetTypeChecker(context.Background())
-	if c == nil {
-		done()
+	typeChecker, releaseLease := prog.TS.GetTypeChecker(context.Background())
+	if typeChecker == nil {
+		releaseLease()
 		return errors.New("resolver.SetProgram: no checker available")
 	}
-	if r.done != nil {
-		r.done()
+	if resolver.releaseLease != nil {
+		resolver.releaseLease()
 	}
-	r.Program = p
-	r.checker = c
-	r.done = done
-	r.cache.Rebind(c)
-	r.sites = r.sites[:0]
+	resolver.Program = prog
+	resolver.checker = typeChecker
+	resolver.releaseLease = releaseLease
+	resolver.cache.Rebind(typeChecker)
+	resolver.sites = resolver.sites[:0]
 	return nil
 }
 
@@ -128,78 +128,78 @@ func (r *Resolver) SetProgram(p *program.Program) error {
 // cachedvfs layer in program.New / program.NewInferred — they are byte-
 // cached at the FS level and are NOT re-read from disk on the next
 // setSources. Only the user's overlay + parsed-AST state is discarded here.
-func (r *Resolver) Reset() {
-	if r.done != nil {
-		r.done()
-		r.done = nil
+func (resolver *Resolver) Reset() {
+	if resolver.releaseLease != nil {
+		resolver.releaseLease()
+		resolver.releaseLease = nil
 	}
-	r.Program = nil
-	r.checker = nil
-	r.cache.Clear()
-	r.cache.Rebind(nil)
-	r.sites = r.sites[:0]
+	resolver.Program = nil
+	resolver.checker = nil
+	resolver.cache.Clear()
+	resolver.cache.Rebind(nil)
+	resolver.sites = resolver.sites[:0]
 }
 
-func (r *Resolver) Close() {
-	if r.done != nil {
-		r.done()
-		r.done = nil
+func (resolver *Resolver) Close() {
+	if resolver.releaseLease != nil {
+		resolver.releaseLease()
+		resolver.releaseLease = nil
 	}
 }
 
-func (r *Resolver) Cache() *serialize.Cache { return r.cache }
+func (resolver *Resolver) Cache() *serialize.Cache { return resolver.cache }
 
 // Sites returns the running list of resolved call-site ids. Callers (CLI,
 // plugin) read this at end-of-build to write out the manifest.
-func (r *Resolver) Sites() []protocol.Site {
-	return append([]protocol.Site(nil), r.sites...)
+func (resolver *Resolver) Sites() []protocol.Site {
+	return append([]protocol.Site(nil), resolver.sites...)
 }
 
 // Dispatch routes a request to the correct handler.
-func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
-	before := r.cache.Size()
-	switch req.Op {
+func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
+	before := resolver.cache.Size()
+	switch request.Op {
 	case protocol.OpScanFile:
-		if r.Program == nil {
+		if resolver.Program == nil {
 			return protocol.Response{Error: "scanFile: no Program loaded — call setSources first"}
 		}
-		sites, err := r.dispatchScanFile(req.File)
+		sites, err := resolver.dispatchScanFile(request.File)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
-		return protocol.Response{Sites: sites, Added: r.cache.Added(before)}
+		return protocol.Response{Sites: sites, Added: resolver.cache.Added(before)}
 	case protocol.OpDump:
 		return protocol.Response{
-			RunTypes: r.cache.Dump(),
-			Sites: r.Sites(),
+			RunTypes: resolver.cache.Dump(),
+			Sites:    resolver.Sites(),
 		}
 	case protocol.OpSetSources:
-		if err := r.dispatchSetSources(req.Sources); err != nil {
+		if err := resolver.dispatchSetSources(request.Sources); err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
 		return protocol.Response{OK: true}
 	case protocol.OpReset:
-		r.Reset()
+		resolver.Reset()
 		return protocol.Response{OK: true}
 	case protocol.OpResolveID:
-		t := r.ResolveID(req.ID)
-		if t == nil {
+		runType := resolver.ResolveID(request.ID)
+		if runType == nil {
 			return protocol.Response{}
 		}
-		return protocol.Response{RunTypes: []*protocol.RunType{t}}
+		return protocol.Response{RunTypes: []*protocol.RunType{runType}}
 	default:
-		return protocol.Response{Error: "unknown op: " + req.Op}
+		return protocol.Response{Error: "unknown op: " + request.Op}
 	}
 }
 
 // ResolveID returns the canonical full Type for id, or nil if no such id
 // has been interned. Child slots inside the returned Type remain KindRef
 // sentinels — callers re-issue ResolveID per id to drill in.
-func (r *Resolver) ResolveID(id string) *protocol.RunType {
+func (resolver *Resolver) ResolveID(id string) *protocol.RunType {
 	if id == "" {
 		return nil
 	}
-	return r.cache.NodeByID(id)
+	return resolver.cache.NodeByID(id)
 }
 
 // dispatchSetSources builds an inferred Program from the supplied overlay
@@ -207,13 +207,13 @@ func (r *Resolver) ResolveID(id string) *protocol.RunType {
 // the working directory the resolver's previous Program had (or, on first
 // call before any Program exists, against os.Getwd at start — but we don't
 // have that here; main passes an absCwd via Options for server mode).
-func (r *Resolver) dispatchSetSources(sources map[string]string) error {
+func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 	if sources == nil {
 		sources = map[string]string{}
 	}
-	cwd := r.opts.Cwd
-	if cwd == "" && r.Program != nil {
-		cwd = r.Program.TS.GetCurrentDirectory()
+	cwd := resolver.opts.Cwd
+	if cwd == "" && resolver.Program != nil {
+		cwd = resolver.Program.TS.GetCurrentDirectory()
 	}
 	if cwd == "" {
 		return errors.New("setSources: no cwd configured")
@@ -221,46 +221,46 @@ func (r *Resolver) dispatchSetSources(sources map[string]string) error {
 	cwd = tspath.NormalizePath(cwd)
 	overlay := make(map[string]string, len(sources))
 	fileNames := make([]string, 0, len(sources))
-	for rel, content := range sources {
-		abs := tspath.ResolvePath(cwd, rel)
-		overlay[abs] = content
-		fileNames = append(fileNames, abs)
+	for relativePath, content := range sources {
+		absolutePath := tspath.ResolvePath(cwd, relativePath)
+		overlay[absolutePath] = content
+		fileNames = append(fileNames, absolutePath)
 	}
-	p, err := program.NewInferred(program.Options{
+	prog, err := program.NewInferred(program.Options{
 		Cwd:            cwd,
-		SingleThreaded: r.opts.SingleThreaded,
+		SingleThreaded: resolver.opts.SingleThreaded,
 		Overlay:        overlay,
 	}, fileNames)
 	if err != nil {
 		return fmt.Errorf("setSources: %w", err)
 	}
-	return r.SetProgram(p)
+	return resolver.SetProgram(prog)
 }
 
-func (r *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
-	abs := tspath.ResolvePath(r.Program.TS.GetCurrentDirectory(), file)
-	sf := r.Program.SourceFile(abs)
-	if sf == nil {
-		return nil, fmt.Errorf("source file not in program: %s", abs)
+func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
+	absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
+	sourceFile := resolver.Program.SourceFile(absolutePath)
+	if sourceFile == nil {
+		return nil, fmt.Errorf("source file not in program: %s", absolutePath)
 	}
-	return sf, nil
+	return sourceFile, nil
 }
 
 // dispatchScanFile walks every CallExpression in file and returns one Site
 // per call whose resolved signature has a trailing `RuntypeId<T>` parameter
 // (where T is concretely bound). The transformer reads the returned sites
 // and patches each call to pass the corresponding id at the trailing slot.
-func (r *Resolver) dispatchScanFile(file string) ([]protocol.Site, error) {
-	sf, err := r.sourceFile(file)
+func (resolver *Resolver) dispatchScanFile(file string) ([]protocol.Site, error) {
+	sourceFile, err := resolver.sourceFile(file)
 	if err != nil {
 		return nil, err
 	}
 	var sites []protocol.Site
-	walker.ForEachCallExpression(sf, func(call *ast.Node) bool {
-		site, ok := r.scanCall(file, call)
+	walker.ForEachCallExpression(sourceFile, func(call *ast.Node) bool {
+		site, ok := resolver.scanCall(file, call)
 		if ok {
 			sites = append(sites, site)
-			r.sites = append(r.sites, site)
+			resolver.sites = append(resolver.sites, site)
 		}
 		return true
 	})
@@ -270,49 +270,49 @@ func (r *Resolver) dispatchScanFile(file string) ([]protocol.Site, error) {
 // scanCall inspects one call expression and returns a Site when its
 // resolved signature opts into transformer injection via a trailing
 // `RuntypeId<T>` parameter with a concretely-bound T.
-func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
-	sig := checker.Checker_getResolvedSignature(r.checker, call, nil, 0)
-	if sig == nil {
+func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
+	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
+	if signature == nil {
 		return protocol.Site{}, false
 	}
-	params := checker.Signature_parameters(sig)
-	if len(params) == 0 {
+	parameters := checker.Signature_parameters(signature)
+	if len(parameters) == 0 {
 		return protocol.Site{}, false
 	}
-	lastIdx := len(params) - 1
-	last := params[lastIdx]
-	if last == nil {
+	lastIndex := len(parameters) - 1
+	lastParam := parameters[lastIndex]
+	if lastParam == nil {
 		return protocol.Site{}, false
 	}
-	paramType := checker.Checker_getTypeOfSymbol(r.checker, last)
-	tArg, matched := marker.Detect(paramType, r.marker)
+	paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
+	typeArgument, matched := marker.Detect(paramType, resolver.marker)
 	if !matched {
 		return protocol.Site{}, false
 	}
-	if marker.IsFreeTypeParameter(tArg) {
+	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
 		// free type parameter. Skip: no id to inject until the wrapper
 		// is itself instantiated at its own call sites.
 		return protocol.Site{}, false
 	}
 	argsCount := 0
-	if ce := call.AsCallExpression(); ce != nil && ce.Arguments != nil {
-		argsCount = len(ce.Arguments.Nodes)
+	if callExpression := call.AsCallExpression(); callExpression != nil && callExpression.Arguments != nil {
+		argsCount = len(callExpression.Arguments.Nodes)
 	}
 	// Caller has already placed an argument at (or past) the id slot.
 	// Never override an explicit pass-through — leave the call untouched.
-	if argsCount > lastIdx {
+	if argsCount > lastIndex {
 		return protocol.Site{}, false
 	}
 	// Regex-literal harvest: if we can trace the call to a regex-literal
 	// source expression, synthesize a KindLiteral{regexp} entry instead of
-	// resolving tArg through the type system. TS has no regex-literal type,
+	// resolving typeArgument through the type system. TS has no regex-literal type,
 	// so this is the only path that produces literal-kind regex entries.
 	id := ""
-	if src, flags, ok := r.resolveRegexLiteralSource(call, lastIdx, argsCount); ok {
-		id = r.cache.SerializeRegexLiteral(src, flags)
+	if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
+		id = resolver.cache.SerializeRegexLiteral(source, flags)
 	} else {
-		id = r.cache.AssignID(tArg)
+		id = resolver.cache.AssignID(typeArgument)
 	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
@@ -321,7 +321,7 @@ func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
 		File:       file,
 		Pos:        pos,
 		ID:         id,
-		ParamIndex: lastIdx,
+		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
 	}, true
 }
@@ -338,28 +338,28 @@ func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
 // The trace itself: unwrap `as` / parenthesised expressions, then either
 // harvest a RegularExpressionLiteral directly, recurse through a TypeQuery,
 // or resolve an Identifier to its const variable declaration's initializer.
-func (r *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCount int) (string, string, bool) {
-	ce := call.AsCallExpression()
-	if ce == nil {
+func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCount int) (string, string, bool) {
+	callExpression := call.AsCallExpression()
+	if callExpression == nil {
 		return "", "", false
 	}
 	var node *ast.Node
 	switch {
 	case argsCount > 0 && argsCount == paramIndex:
 		// Reflect form: T is inferred from the value at slot 0.
-		if ce.Arguments != nil && len(ce.Arguments.Nodes) > 0 {
-			node = ce.Arguments.Nodes[0]
+		if callExpression.Arguments != nil && len(callExpression.Arguments.Nodes) > 0 {
+			node = callExpression.Arguments.Nodes[0]
 		}
 	case argsCount == 0 && paramIndex == 0:
 		// Static form: T is the first type argument.
-		if ce.TypeArguments != nil && len(ce.TypeArguments.Nodes) > 0 {
-			node = ce.TypeArguments.Nodes[0]
+		if callExpression.TypeArguments != nil && len(callExpression.TypeArguments.Nodes) > 0 {
+			node = callExpression.TypeArguments.Nodes[0]
 		}
 	}
 	if node == nil {
 		return "", "", false
 	}
-	return r.traceRegexLiteral(node, 0)
+	return resolver.traceRegexLiteral(node, 0)
 }
 
 // traceRegexLiteral walks through AST wrappers, typeof references, and const
@@ -367,7 +367,7 @@ func (r *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCou
 // to defend against pathological inputs the type checker would otherwise
 // reject (TS forbids self-referential initializers, but a defensive cap keeps
 // the resolver predictable).
-func (r *Resolver) traceRegexLiteral(node *ast.Node, depth int) (string, string, bool) {
+func (resolver *Resolver) traceRegexLiteral(node *ast.Node, depth int) (string, string, bool) {
 	if node == nil || depth > 16 {
 		return "", "", false
 	}
@@ -375,17 +375,17 @@ func (r *Resolver) traceRegexLiteral(node *ast.Node, depth int) (string, string,
 	for {
 		switch node.Kind {
 		case ast.KindAsExpression:
-			ae := node.AsAsExpression()
-			if ae == nil {
+			asExpression := node.AsAsExpression()
+			if asExpression == nil {
 				return "", "", false
 			}
-			node = ae.Expression
+			node = asExpression.Expression
 		case ast.KindParenthesizedExpression:
-			pe := node.AsParenthesizedExpression()
-			if pe == nil {
+			parenExpression := node.AsParenthesizedExpression()
+			if parenExpression == nil {
 				return "", "", false
 			}
-			node = pe.Expression
+			node = parenExpression.Expression
 		default:
 			goto unwrapped
 		}
@@ -396,39 +396,39 @@ func (r *Resolver) traceRegexLiteral(node *ast.Node, depth int) (string, string,
 unwrapped:
 	switch node.Kind {
 	case ast.KindRegularExpressionLiteral:
-		lit := node.AsRegularExpressionLiteral()
-		if lit == nil {
+		literal := node.AsRegularExpressionLiteral()
+		if literal == nil {
 			return "", "", false
 		}
-		src, flags := splitRegexLiteralText(lit.Text)
-		return src, flags, true
+		source, flags := splitRegexLiteralText(literal.Text)
+		return source, flags, true
 	case ast.KindTypeQuery:
-		tq := node.AsTypeQueryNode()
-		if tq == nil {
+		typeQuery := node.AsTypeQueryNode()
+		if typeQuery == nil {
 			return "", "", false
 		}
-		return r.traceRegexLiteral(tq.ExprName, depth+1)
+		return resolver.traceRegexLiteral(typeQuery.ExprName, depth+1)
 	case ast.KindIdentifier:
-		sym := r.checker.GetSymbolAtLocation(node)
-		if sym == nil {
+		symbol := resolver.checker.GetSymbolAtLocation(node)
+		if symbol == nil {
 			return "", "", false
 		}
-		for _, decl := range sym.Declarations {
-			if decl == nil || decl.Kind != ast.KindVariableDeclaration {
+		for _, declaration := range symbol.Declarations {
+			if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
 				continue
 			}
 			// Only `const` bindings are traceable: `let`/`var` can be
 			// reassigned, so the initializer no longer determines the value
 			// at the call site.
-			parent := decl.Parent
+			parent := declaration.Parent
 			if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
 				continue
 			}
-			vd := decl.AsVariableDeclaration()
-			if vd == nil || vd.Initializer == nil {
+			variableDecl := declaration.AsVariableDeclaration()
+			if variableDecl == nil || variableDecl.Initializer == nil {
 				continue
 			}
-			return r.traceRegexLiteral(vd.Initializer, depth+1)
+			return resolver.traceRegexLiteral(variableDecl.Initializer, depth+1)
 		}
 	}
 	return "", "", false
@@ -442,9 +442,9 @@ func splitRegexLiteralText(text string) (source, flags string) {
 		return text, ""
 	}
 	body := text[1:]
-	last := strings.LastIndex(body, "/")
-	if last < 0 {
+	lastSlash := strings.LastIndex(body, "/")
+	if lastSlash < 0 {
 		return body, ""
 	}
-	return body[:last], body[last+1:]
+	return body[:lastSlash], body[lastSlash+1:]
 }

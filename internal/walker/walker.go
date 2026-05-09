@@ -21,13 +21,13 @@ func NodeAt(sourceFile *ast.SourceFile, pos int) *ast.Node {
 	}
 	var best *ast.Node = root
 	var visit ast.Visitor
-	visit = func(n *ast.Node) bool {
-		if n == nil {
+	visit = func(node *ast.Node) bool {
+		if node == nil {
 			return false
 		}
-		if pos >= n.Pos() && pos < n.End() {
-			best = n
-			n.ForEachChild(visit)
+		if pos >= node.Pos() && pos < node.End() {
+			best = node
+			node.ForEachChild(visit)
 		}
 		return false
 	}
@@ -39,12 +39,12 @@ func NodeAt(sourceFile *ast.SourceFile, pos int) *ast.Node {
 // enclosing CallExpression, or nil if none exists. Useful when the caller
 // points at the call's opening paren, the callee, or any argument.
 func CallExpressionAt(sourceFile *ast.SourceFile, pos int) *ast.Node {
-	n := NodeAt(sourceFile, pos)
-	for n != nil {
-		if n.Kind == ast.KindCallExpression {
-			return n
+	node := NodeAt(sourceFile, pos)
+	for node != nil {
+		if node.Kind == ast.KindCallExpression {
+			return node
 		}
-		n = n.Parent
+		node = node.Parent
 	}
 	return nil
 }
@@ -62,16 +62,16 @@ func ForEachCallExpression(sourceFile *ast.SourceFile, cb func(*ast.Node) bool) 
 		return
 	}
 	var visit ast.Visitor
-	visit = func(n *ast.Node) bool {
-		if n == nil {
+	visit = func(node *ast.Node) bool {
+		if node == nil {
 			return false
 		}
-		if n.Kind == ast.KindCallExpression {
-			if !cb(n) {
+		if node.Kind == ast.KindCallExpression {
+			if !cb(node) {
 				return false
 			}
 		}
-		n.ForEachChild(visit)
+		node.ForEachChild(visit)
 		return false
 	}
 	root.ForEachChild(visit)

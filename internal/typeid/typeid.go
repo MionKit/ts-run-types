@@ -24,69 +24,69 @@ import (
 // to avoid re-walking. Stack tracks the active recursion path for cycle
 // detection (mirrors mion's `checkCircularAndGetRefId`).
 type Computer struct {
-	tc    *checker.Checker
-	cache map[*checker.Type]string
-	stack []*checker.Type
+	typeChecker *checker.Checker
+	cache       map[*checker.Type]string
+	stack       []*checker.Type
 }
 
 // New returns a fresh Computer bound to the supplied checker.
-func New(tc *checker.Checker) *Computer {
-	return &Computer{tc: tc, cache: make(map[*checker.Type]string)}
+func New(typeChecker *checker.Checker) *Computer {
+	return &Computer{typeChecker: typeChecker, cache: make(map[*checker.Type]string)}
 }
 
-// Compute returns the structural id of t. Safe to call repeatedly with the
-// same Computer — results are cached.
-func (c *Computer) Compute(t *checker.Type) string {
-	if t == nil {
+// Compute returns the structural id of tsType. Safe to call repeatedly with
+// the same Computer — results are cached.
+func (computer *Computer) Compute(tsType *checker.Type) string {
+	if tsType == nil {
 		return strconv.Itoa(int(protocol.KindNever))
 	}
-	if hit, ok := c.cache[t]; ok {
-		return hit
+	if cached, ok := computer.cache[tsType]; ok {
+		return cached
 	}
 	// Cycle: emit back-ref before pushing onto the stack.
-	if i := c.stackIndex(t); i >= 0 {
-		return c.cycleRef(t, i)
+	if index := computer.stackIndex(tsType); index >= 0 {
+		return computer.cycleRef(tsType, index)
 	}
-	c.stack = append(c.stack, t)
-	id := c.dispatch(t)
-	c.stack = c.stack[:len(c.stack)-1]
-	c.cache[t] = id
+	computer.stack = append(computer.stack, tsType)
+	id := computer.dispatch(tsType)
+	computer.stack = computer.stack[:len(computer.stack)-1]
+	computer.cache[tsType] = id
 	return id
 }
 
-func (c *Computer) stackIndex(t *checker.Type) int {
-	for i := len(c.stack) - 1; i >= 0; i-- {
-		if c.stack[i] == t {
+func (computer *Computer) stackIndex(tsType *checker.Type) int {
+	for i := len(computer.stack) - 1; i >= 0; i-- {
+		if computer.stack[i] == tsType {
 			return i
 		}
 	}
 	return -1
 }
 
-func (c *Computer) cycleRef(t *checker.Type, idx int) string {
-	kind := KindOf(c.tc, t)
-	name := aliasName(t)
-	return "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(idx) + name
+func (computer *Computer) cycleRef(tsType *checker.Type, index int) string {
+	kind := KindOf(computer.typeChecker, tsType)
+	name := aliasName(tsType)
+	return "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(index) + name
 }
 
-func (c *Computer) dispatch(t *checker.Type) string {
-	kind := KindOf(c.tc, t)
-	flags := t.Flags()
+func (computer *Computer) dispatch(tsType *checker.Type) string {
+	kind := KindOf(computer.typeChecker, tsType)
+	flags := tsType.Flags()
 
 	// Literal kinds carry the literal value directly.
 	if flags&checker.TypeFlagsStringLiteral != 0 ||
 		flags&checker.TypeFlagsNumberLiteral != 0 ||
 		flags&checker.TypeFlagsBooleanLiteral != 0 ||
 		flags&checker.TypeFlagsBigIntLiteral != 0 {
-		return strconv.Itoa(int(kind)) + ":" + literalString(t, c.tc)
+		return strconv.Itoa(int(kind)) + ":" + literalString(tsType, computer.typeChecker)
 	}
 
 	// Unique symbol literal — also a literal kind in the reflection model,
 	// but tsgo's flag is `UniqueESSymbol` not a `*Literal`.
 	if flags&checker.TypeFlagsUniqueESSymbol != 0 {
 		name := ""
-		if sym := t.Symbol(); sym != nil {
-			name = sym.Name
+		if symbol := tsType.Symbol(); symbol != nil {
+			name = symbol.Name
 		}
 		return strconv.Itoa(int(kind)) + ":sym:" + name
 	}
@@ -108,135 +108,135 @@ func (c *Computer) dispatch(t *checker.Type) string {
 	// bare-kind id because each enum is handed a distinct Type object per
 	// declaration at runtime — we have to dedup ourselves.)
 	if flags&checker.TypeFlagsEnum != 0 || flags&checker.TypeFlagsEnumLike != 0 || flags&checker.TypeFlagsEnumLiteral != 0 {
-		return strconv.Itoa(int(protocol.KindEnum)) + ":" + enumDiscriminator(t, c.tc)
+		return strconv.Itoa(int(protocol.KindEnum)) + ":" + enumDiscriminator(tsType, computer.typeChecker)
 	}
 
 	// Union / intersection — composition of distributed members.
 	if flags&checker.TypeFlagsUnion != 0 {
-		return collectionID(kind, c.childIDs(t.Distributed()), false)
+		return collectionID(kind, computer.childIDs(tsType.Distributed()), false)
 	}
 	if flags&checker.TypeFlagsIntersection != 0 {
-		members := t.AsUnionOrIntersectionType().Types()
-		return collectionID(kind, c.childIDs(members), false)
+		members := tsType.AsUnionOrIntersectionType().Types()
+		return collectionID(kind, computer.childIDs(members), false)
 	}
 
 	// Object-flavoured: tuple / array / promise / function / class / objectLiteral.
 	if flags&checker.TypeFlagsObject != 0 {
-		return c.objectID(t, kind)
+		return computer.objectID(tsType, kind)
 	}
 
 	// Fallback — kind only.
 	return strconv.Itoa(int(kind))
 }
 
-func (c *Computer) objectID(t *checker.Type, kind protocol.ReflectionKind) string {
-	if checker.IsTupleType(t) {
+func (computer *Computer) objectID(tsType *checker.Type, kind protocol.ReflectionKind) string {
+	if checker.IsTupleType(tsType) {
 		// Tuple — bracket-delimited child list per mion's algorithm.
-		args := c.tc.GetTypeArguments(t)
-		ids := make([]string, len(args))
-		for i, a := range args {
-			ids[i] = c.Compute(a)
+		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
+		ids := make([]string, len(typeArguments))
+		for i, typeArgument := range typeArguments {
+			ids[i] = computer.Compute(typeArgument)
 		}
 		return collectionID(protocol.KindTuple, ids, true)
 	}
 
 	// Array.
-	if c.tc.IsArrayLikeType(t) {
-		args := c.tc.GetTypeArguments(t)
-		if len(args) > 0 {
-			child := c.Compute(args[0])
+	if computer.typeChecker.IsArrayLikeType(tsType) {
+		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
+		if len(typeArguments) > 0 {
+			child := computer.Compute(typeArguments[0])
 			return memberID(protocol.KindArray, "0", false, child)
 		}
 	}
 
 	// Promise.
-	if sym := t.Symbol(); sym != nil && sym.Name == "Promise" {
-		args := c.tc.GetTypeArguments(t)
-		if len(args) > 0 {
-			child := c.Compute(args[0])
+	if symbol := tsType.Symbol(); symbol != nil && symbol.Name == "Promise" {
+		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
+		if len(typeArguments) > 0 {
+			child := computer.Compute(typeArguments[0])
 			return memberID(protocol.KindPromise, "0", false, child)
 		}
 	}
 
 	// Class (or built-in interface mion treats as class).
-	if sym := t.Symbol(); sym != nil {
-		switch sym.Name {
+	if symbol := tsType.Symbol(); symbol != nil {
+		switch symbol.Name {
 		case "Date":
 			return strconv.Itoa(int(protocol.KindClass)) + ":Date"
 		case "Map":
-			if t.ObjectFlags()&checker.ObjectFlagsReference != 0 {
-				args := c.tc.GetTypeArguments(t)
-				if len(args) == 2 {
+			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
+				typeArguments := computer.typeChecker.GetTypeArguments(tsType)
+				if len(typeArguments) == 2 {
 					return strconv.Itoa(int(protocol.KindClass)) + ":Map{" +
-						c.Compute(args[0]) + "," + c.Compute(args[1]) + "}"
+						computer.Compute(typeArguments[0]) + "," + computer.Compute(typeArguments[1]) + "}"
 				}
 			}
 			return strconv.Itoa(int(protocol.KindClass)) + ":Map"
 		case "Set":
-			if t.ObjectFlags()&checker.ObjectFlagsReference != 0 {
-				args := c.tc.GetTypeArguments(t)
-				if len(args) == 1 {
+			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
+				typeArguments := computer.typeChecker.GetTypeArguments(tsType)
+				if len(typeArguments) == 1 {
 					return strconv.Itoa(int(protocol.KindClass)) + ":Set{" +
-						c.Compute(args[0]) + "}"
+						computer.Compute(typeArguments[0]) + "}"
 				}
 			}
 			return strconv.Itoa(int(protocol.KindClass)) + ":Set"
 		}
 	}
-	if isClass(t) {
+	if isClass(tsType) {
 		// Generic user class — composition of property ids (sorted for determinism).
-		ids := c.memberIDs(t, true)
+		ids := computer.memberIDs(tsType, true)
 		return collectionID(protocol.KindClass, ids, false)
 	}
 
 	// Free function — bare callable with no own properties.
-	callSigs := c.tc.GetSignaturesOfType(t, checker.SignatureKindCall)
-	props := c.tc.GetPropertiesOfType(t)
-	if len(callSigs) > 0 && len(props) == 0 {
+	callSignatures := computer.typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall)
+	properties := computer.typeChecker.GetPropertiesOfType(tsType)
+	if len(callSignatures) > 0 && len(properties) == 0 {
 		return strconv.Itoa(int(protocol.KindFunction))
 	}
 
 	// objectLiteral — composition of property ids, sorted by name for stability.
-	ids := c.memberIDs(t, false)
-	if len(callSigs) > 0 {
+	ids := computer.memberIDs(tsType, false)
+	if len(callSignatures) > 0 {
 		// Embed call signatures alongside members.
-		for _, sig := range callSigs {
-			ids = append(ids, c.signatureID(sig, protocol.KindCallSignature, ""))
+		for _, signature := range callSignatures {
+			ids = append(ids, computer.signatureID(signature, protocol.KindCallSignature, ""))
 		}
 		sort.Strings(ids)
 	}
 	return collectionID(protocol.KindObjectLiteral, ids, false)
 }
 
-func (c *Computer) memberIDs(t *checker.Type, asClass bool) []string {
-	props := c.tc.GetPropertiesOfType(t)
-	out := make([]string, 0, len(props))
-	for _, sym := range props {
-		out = append(out, c.memberID(sym, asClass))
+func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string {
+	properties := computer.typeChecker.GetPropertiesOfType(tsType)
+	out := make([]string, 0, len(properties))
+	for _, propertySymbol := range properties {
+		out = append(out, computer.memberID(propertySymbol, asClass))
 	}
-	for _, info := range c.tc.GetIndexInfosOfType(t) {
-		key := c.Compute(info.KeyType())
-		val := c.Compute(info.ValueType())
-		out = append(out, strconv.Itoa(int(protocol.KindIndexSignature))+":"+key+":"+val)
+	for _, indexInfo := range computer.typeChecker.GetIndexInfosOfType(tsType) {
+		keyID := computer.Compute(indexInfo.KeyType())
+		valueID := computer.Compute(indexInfo.ValueType())
+		out = append(out, strconv.Itoa(int(protocol.KindIndexSignature))+":"+keyID+":"+valueID)
 	}
 	sort.Strings(out)
 	return out
 }
 
-func (c *Computer) memberID(sym *ast.Symbol, asClass bool) string {
-	propType := c.tc.GetTypeOfSymbol(sym)
-	isOpt := sym.Flags&ast.SymbolFlagsOptional != 0
+func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
+	propertyType := computer.typeChecker.GetTypeOfSymbol(symbol)
+	optional := symbol.Flags&ast.SymbolFlagsOptional != 0
 
 	// Method vs property: a property whose type is a single-call-signature
 	// function with no other members maps to the reflection `method` form.
-	if propType != nil {
-		sigs := c.tc.GetSignaturesOfType(propType, checker.SignatureKindCall)
-		if len(sigs) > 0 && len(c.tc.GetPropertiesOfType(propType)) == 0 {
+	if propertyType != nil {
+		signatures := computer.typeChecker.GetSignaturesOfType(propertyType, checker.SignatureKindCall)
+		if len(signatures) > 0 && len(computer.typeChecker.GetPropertiesOfType(propertyType)) == 0 {
 			kind := protocol.KindMethodSignature
 			if asClass {
 				kind = protocol.KindMethod
 			}
-			return c.signatureID(sigs[0], kind, sym.Name) + optBit(isOpt)
+			return computer.signatureID(signatures[0], kind, symbol.Name) + optBit(optional)
 		}
 	}
 
@@ -244,18 +244,18 @@ func (c *Computer) memberID(sym *ast.Symbol, asClass bool) string {
 	if asClass {
 		kind = protocol.KindProperty
 	}
-	child := c.Compute(propType)
-	return memberID(kind, sym.Name, isOpt, child)
+	child := computer.Compute(propertyType)
+	return memberID(kind, symbol.Name, optional, child)
 }
 
-func (c *Computer) signatureID(sig *checker.Signature, kind protocol.ReflectionKind, name string) string {
-	parts := make([]string, 0, len(sig.Parameters())+1)
-	for _, p := range sig.Parameters() {
-		paramType := c.tc.GetTypeOfSymbol(p)
-		isOpt := p.Flags&ast.SymbolFlagsOptional != 0
-		parts = append(parts, memberID(protocol.KindParameter, p.Name, isOpt, c.Compute(paramType)))
+func (computer *Computer) signatureID(signature *checker.Signature, kind protocol.ReflectionKind, name string) string {
+	parts := make([]string, 0, len(signature.Parameters())+1)
+	for _, paramSymbol := range signature.Parameters() {
+		paramType := computer.typeChecker.GetTypeOfSymbol(paramSymbol)
+		optional := paramSymbol.Flags&ast.SymbolFlagsOptional != 0
+		parts = append(parts, memberID(protocol.KindParameter, paramSymbol.Name, optional, computer.Compute(paramType)))
 	}
-	parts = append(parts, "->"+c.Compute(c.tc.GetReturnTypeOfSignature(sig)))
+	parts = append(parts, "->"+computer.Compute(computer.typeChecker.GetReturnTypeOfSignature(signature)))
 	body := "{" + strings.Join(parts, ",") + "}"
 	if name != "" {
 		return strconv.Itoa(int(kind)) + name + body
@@ -263,10 +263,10 @@ func (c *Computer) signatureID(sig *checker.Signature, kind protocol.ReflectionK
 	return strconv.Itoa(int(kind)) + body
 }
 
-func (c *Computer) childIDs(types []*checker.Type) []string {
+func (computer *Computer) childIDs(types []*checker.Type) []string {
 	out := make([]string, len(types))
-	for i, t := range types {
-		out[i] = c.Compute(t)
+	for i, tsType := range types {
+		out[i] = computer.Compute(tsType)
 	}
 	return out
 }
@@ -278,11 +278,11 @@ func (c *Computer) childIDs(types []*checker.Type) []string {
 // KindOf returns the ReflectionKind that best classifies a tsgo type.
 // Exported because the serializer needs the same classification logic to
 // produce the protocol.RunType.
-func KindOf(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
-	if t == nil {
+func KindOf(typeChecker *checker.Checker, tsType *checker.Type) protocol.ReflectionKind {
+	if tsType == nil {
 		return protocol.KindNever
 	}
-	flags := t.Flags()
+	flags := tsType.Flags()
 	switch {
 	case flags&checker.TypeFlagsAny != 0:
 		return protocol.KindAny
@@ -323,20 +323,20 @@ func KindOf(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
 	case flags&checker.TypeFlagsNonPrimitive != 0:
 		return protocol.KindObject
 	case flags&checker.TypeFlagsObject != 0:
-		return objectKind(tc, t)
+		return objectKind(typeChecker, tsType)
 	}
 	return protocol.KindUnknown
 }
 
-func objectKind(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
-	if checker.IsTupleType(t) {
+func objectKind(typeChecker *checker.Checker, tsType *checker.Type) protocol.ReflectionKind {
+	if checker.IsTupleType(tsType) {
 		return protocol.KindTuple
 	}
-	if tc.IsArrayLikeType(t) {
+	if typeChecker.IsArrayLikeType(tsType) {
 		return protocol.KindArray
 	}
-	if sym := t.Symbol(); sym != nil {
-		switch sym.Name {
+	if symbol := tsType.Symbol(); symbol != nil {
+		switch symbol.Name {
 		case "Promise":
 			return protocol.KindPromise
 		case "RegExp":
@@ -347,24 +347,24 @@ func objectKind(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
 			return protocol.KindClass
 		}
 	}
-	if isClass(t) {
+	if isClass(tsType) {
 		return protocol.KindClass
 	}
 	// Free callable with no own properties → reflection function kind.
-	if len(tc.GetSignaturesOfType(t, checker.SignatureKindCall)) > 0 &&
-		len(tc.GetPropertiesOfType(t)) == 0 {
+	if len(typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall)) > 0 &&
+		len(typeChecker.GetPropertiesOfType(tsType)) == 0 {
 		return protocol.KindFunction
 	}
 	return protocol.KindObjectLiteral
 }
 
-func isClass(t *checker.Type) bool {
-	flags := t.ObjectFlags()
+func isClass(tsType *checker.Type) bool {
+	flags := tsType.ObjectFlags()
 	if flags&checker.ObjectFlagsClass != 0 {
 		return true
 	}
 	if flags&checker.ObjectFlagsReference != 0 {
-		if target := t.Target(); target != nil && target.ObjectFlags()&checker.ObjectFlagsClass != 0 {
+		if target := tsType.Target(); target != nil && target.ObjectFlags()&checker.ObjectFlagsClass != 0 {
 			return true
 		}
 	}
@@ -382,15 +382,15 @@ func memberID(kind protocol.ReflectionKind, name string, optional bool, child st
 	return strconv.Itoa(int(kind)) + ":" + name + optBit(optional) + ":" + child
 }
 
-func optBit(b bool) string {
-	if b {
+func optBit(optional bool) string {
+	if optional {
 		return "?"
 	}
 	return ""
 }
 
-func aliasName(t *checker.Type) string {
-	if alias := checker.Type_alias(t); alias != nil && alias.Symbol() != nil {
+func aliasName(tsType *checker.Type) string {
+	if alias := checker.Type_alias(tsType); alias != nil && alias.Symbol() != nil {
 		return alias.Symbol().Name
 	}
 	return ""
@@ -400,27 +400,27 @@ func aliasName(t *checker.Type) string {
 // by name) so two enums with different shapes get different structural ids.
 // Reads literal values directly to avoid TypeToString collapsing both
 // numeric `0` and string `"red"` to the alias name `Color.Red`.
-func enumDiscriminator(t *checker.Type, tc *checker.Checker) string {
+func enumDiscriminator(tsType *checker.Type, typeChecker *checker.Checker) string {
 	name := ""
-	if sym := t.Symbol(); sym != nil {
-		name = sym.Name
+	if symbol := tsType.Symbol(); symbol != nil {
+		name = symbol.Name
 	}
 	parts := []string{name}
-	if sym := t.Symbol(); sym != nil && sym.Exports != nil {
-		members := make([]string, 0, len(sym.Exports))
-		for memName, memSym := range sym.Exports {
-			if memSym == nil || memSym.ValueDeclaration == nil {
+	if symbol := tsType.Symbol(); symbol != nil && symbol.Exports != nil {
+		members := make([]string, 0, len(symbol.Exports))
+		for memberName, memberSymbol := range symbol.Exports {
+			if memberSymbol == nil || memberSymbol.ValueDeclaration == nil {
 				continue
 			}
-			val := "?"
-			if memType := tc.GetTypeOfSymbol(memSym); memType != nil {
-				if memType.Flags()&checker.TypeFlagsLiteral != 0 {
-					val = stringifyLiteralValue(memType.AsLiteralType().Value())
+			value := "?"
+			if memberType := typeChecker.GetTypeOfSymbol(memberSymbol); memberType != nil {
+				if memberType.Flags()&checker.TypeFlagsLiteral != 0 {
+					value = stringifyLiteralValue(memberType.AsLiteralType().Value())
 				} else {
-					val = tc.TypeToString(memType)
+					value = typeChecker.TypeToString(memberType)
 				}
 			}
-			members = append(members, memName+"="+val)
+			members = append(members, memberName+"="+value)
 		}
 		sort.Strings(members)
 		parts = append(parts, members...)
@@ -430,31 +430,31 @@ func enumDiscriminator(t *checker.Type, tc *checker.Checker) string {
 
 // stringifyLiteralValue gives a canonical form for a reflection literal value
 // (string / number / bigint / bool). Used for structural id composition.
-func stringifyLiteralValue(v any) string {
-	switch x := v.(type) {
+func stringifyLiteralValue(value any) string {
+	switch typed := value.(type) {
 	case string:
-		return strconv.Quote(x)
+		return strconv.Quote(typed)
 	case bool:
-		if x {
+		if typed {
 			return "true"
 		}
 		return "false"
 	default:
-		return fmt.Sprintf("%v", v)
+		return fmt.Sprintf("%v", value)
 	}
 }
 
-func literalString(t *checker.Type, tc *checker.Checker) string {
-	flags := t.Flags()
+func literalString(tsType *checker.Type, typeChecker *checker.Checker) string {
+	flags := tsType.Flags()
 	if flags&checker.TypeFlagsBooleanLiteral != 0 {
-		return tc.TypeToString(t)
+		return typeChecker.TypeToString(tsType)
 	}
 	if flags&checker.TypeFlagsStringLiteral != 0 {
-		if v, ok := t.AsLiteralType().Value().(string); ok {
-			return v
+		if value, ok := tsType.AsLiteralType().Value().(string); ok {
+			return value
 		}
 	}
 	// Fall through: TypeToString gives a stable canonical form for
 	// number, bigint, and any other literal value.
-	return tc.TypeToString(t)
+	return typeChecker.TypeToString(tsType)
 }
