@@ -1,6 +1,6 @@
 // End-to-end atomic round-trip tests. For each atomic kind, this suite:
 //
-//   1. Spawns the Go binary against the atomic fixtures dir
+//   1. Spawns the Go binary with inline sources for every atom
 //   2. Calls scanFile on every fixture (which triggers id resolution
 //      for the trailing-RuntypeId<T> call site in each)
 //   3. Renders a runtypes-cache JS module from the dump
@@ -13,40 +13,130 @@
 // existing atomic *.spec.ts files should run unchanged.
 
 import {describe, it, expect} from 'vitest';
-import path from 'node:path';
-import fs from 'node:fs';
-import {ResolverClient} from '../src/resolver-client.js';
 import {rewrite} from '../src/rewrite.js';
 import {renderCacheModule} from '../src/render-cache.js';
 import {ReflectionKind, type Site, type Type} from '../src/protocol.js';
+import {hasBinary, withInlineSources} from './helpers/inline.js';
 
-const ROOT = path.resolve(__dirname, '../../..');
-const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
-const FIXTURES = path.resolve(ROOT, 'internal/testfixtures/atomic');
-
-const FIXTURE_FILES = [
-  'string.ts',
-  'number.ts',
-  'boolean.ts',
-  'bigint.ts',
-  'symbol.ts',
-  'null.ts',
-  'undefined.ts',
-  'void.ts',
-  'any.ts',
-  'unknown.ts',
-  'never.ts',
-  'object.ts',
-  'regexp.ts',
-  'literal_string.ts',
-  'literal_number.ts',
-  'literal_boolean.ts',
-  'literal_bigint.ts',
-  'literal_symbol.ts',
-  'enum_numeric.ts',
-  'enum_string.ts',
-  'date.ts',
-] as const;
+// Each entry is a self-contained .ts module. The `runtypes.d.ts` shim is
+// added by withInlineSources, so individual atoms just import + call.
+const ATOMIC_SOURCES: Record<string, string> = {
+  'string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: string = 'hello';
+getRuntypeId(v);
+`,
+  'number.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: number = 42;
+getRuntypeId(v);
+`,
+  'boolean.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+declare const v: boolean;
+getRuntypeId<boolean>(v);
+`,
+  'bigint.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: bigint = 1n;
+getRuntypeId<bigint>(v);
+`,
+  'symbol.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: symbol = Symbol('x');
+getRuntypeId<symbol>(v);
+`,
+  'null.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: null = null;
+getRuntypeId<null>(v);
+`,
+  'undefined.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: undefined = undefined;
+getRuntypeId<undefined>(v);
+`,
+  'void.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+declare const v: void;
+getRuntypeId<void>(v);
+`,
+  'any.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: any = 1;
+getRuntypeId<any>(v);
+`,
+  'unknown.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: unknown = 1;
+getRuntypeId<unknown>(v);
+`,
+  'never.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+declare const v: never;
+getRuntypeId<never>(v);
+`,
+  'object.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: object = {};
+getRuntypeId<object>(v);
+`,
+  'regexp.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: RegExp = /abc/i;
+getRuntypeId<RegExp>(v);
+`,
+  'literal_string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: 'hello' = 'hello';
+getRuntypeId<'hello'>(v);
+`,
+  'literal_number.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: 42 = 42;
+getRuntypeId<42>(v);
+`,
+  'literal_boolean.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: true = true;
+getRuntypeId<true>(v);
+`,
+  'literal_bigint.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: 1n = 1n;
+getRuntypeId<1n>(v);
+`,
+  'literal_symbol.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const sym: unique symbol = Symbol('sym');
+getRuntypeId<typeof sym>(sym);
+`,
+  'enum_numeric.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+enum Color {
+  Red = 0,
+  Green = 1,
+  Blue = 2,
+}
+const v: Color = Color.Red;
+getRuntypeId<Color>(v);
+`,
+  'enum_string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+enum Color {
+  Red = 'red',
+  Green = 'green',
+  Blue = 'blue',
+}
+const v: Color = Color.Red;
+getRuntypeId<Color>(v);
+`,
+  'date.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export {};
+const v: Date = new Date();
+getRuntypeId<Date>(v);
+`,
+};
 
 interface Cache {
   __runtypes: Map<string, Type & Record<string, any>>;
@@ -54,14 +144,10 @@ interface Cache {
 }
 
 async function buildAndEvalCache(): Promise<Cache> {
-  if (!fs.existsSync(BIN)) {
-    throw new Error(`ts-go-run-types binary not built: ${BIN}`);
-  }
-  const client = new ResolverClient(BIN, FIXTURES, 'tsconfig.json');
-  try {
+  return withInlineSources(ATOMIC_SOURCES, async ({client, sources}) => {
     const sites: Site[] = [];
-    for (const file of FIXTURE_FILES) {
-      const code = fs.readFileSync(path.join(FIXTURES, file), 'utf8');
+    for (const [file, code] of Object.entries(sources)) {
+      if (file === 'runtypes.d.ts') continue; // shim, not a callsite
       const result = await rewrite(file, code, client);
       for (const s of result.sites) {
         sites.push({file, pos: s.pos, id: s.id, paramIndex: s.paramIndex});
@@ -72,9 +158,7 @@ async function buildAndEvalCache(): Promise<Cache> {
     const js = renderCacheModule({types, sites, language: 'js'}).replace(/export const /g, 'result.');
     const factory = new Function(`const result = {}; ${js}; return result;`);
     return factory() as Cache;
-  } finally {
-    client.close();
-  }
+  });
 }
 
 function findSiteFor(cache: Cache, file: string): string {
@@ -91,8 +175,7 @@ function getType(cache: Cache, file: string): Type {
 }
 
 describe('vite-plugin-runtypes / atomic round-trip', () => {
-  const available = fs.existsSync(BIN);
-  const runMaybe = available ? it : it.skip;
+  const runMaybe = hasBinary() ? it : it.skip;
 
   let cachePromise: Promise<Cache> | null = null;
   function getCache() {
