@@ -8,7 +8,12 @@ allowBuilds:
   esbuild: true
 
 # ── Lockfile / install integrity ─────────────────────────
-preferFrozenLockfile: true
+# Strict mode: `pnpm install` never re-resolves or rewrites the lockfile.
+# If the lockfile drifts from package.json, install fails with
+# ERR_PNPM_OUTDATED_LOCKFILE. Devs must opt in explicitly via
+# `pnpm install --no-frozen-lockfile`, `pnpm update`, or `pnpm add`
+# to mutate the lockfile.
+frozenLockfile: true
 verifyStoreIntegrity: true
 
 # ── Version pinning (no auto-bumps) ──────────────────────
@@ -21,7 +26,10 @@ resolutionMode: highest
 # Refuse to install package versions younger than 30 days (43200 minutes).
 # Defeats fast-spreading malicious releases (TanStack-style).
 minimumReleaseAge: 43200
-# Applied to FUTURE bumps (lockfile-frozen entries are not re-checked).
+# Only enforced when the lockfile is being (re)resolved — i.e. on
+# `pnpm add`, `pnpm update`, or `pnpm install --no-frozen-lockfile`.
+# Locked entries already in pnpm-lock.yaml are NOT re-checked
+# (tracked upstream by pnpm PR #11583, currently unmerged).
 # Keep empty by default; add per-package entries only if a future bump is
 # blocked by a transitive we trust.
 minimumReleaseAgeExclude: []

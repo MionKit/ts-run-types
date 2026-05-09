@@ -47,6 +47,8 @@ importers:
 
   packages/runtypes: {}
 
+  packages/ts-go-run-types: {}
+
   packages/vite-plugin-runtypes:
     devDependencies:
       vite:
