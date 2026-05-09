@@ -202,11 +202,19 @@ const (
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
+//
+// IncludeRunTypes and IncludeCacheSource are scanFile-only opt-ins that
+// piggyback the full union of run types / a pre-rendered cache module
+// for every file scanned since the last reset/setSources. Callers that
+// want everything in one round-trip set both; the rewrite pipeline
+// (which only needs site offsets) leaves them off.
 type Request struct {
-	Op      string            `json:"op"`
-	File    string            `json:"file,omitempty"`
-	ID      string            `json:"id,omitempty"`
-	Sources map[string]string `json:"sources,omitempty"`
+	Op                 string            `json:"op"`
+	File               string            `json:"file,omitempty"`
+	ID                 string            `json:"id,omitempty"`
+	Sources            map[string]string `json:"sources,omitempty"`
+	IncludeRunTypes    bool              `json:"includeRunTypes,omitempty"`
+	IncludeCacheSource bool              `json:"includeCacheSource,omitempty"`
 }
 
 // Response is returned per request. ID is the hash key into the shared
@@ -217,13 +225,14 @@ type Request struct {
 // OK is a simple acknowledgement for ops that don't return data
 // (setSources / resetCache). Emitted only when set so other ops stay tidy.
 type Response struct {
-	ID    string  `json:"-"`
-	HasID bool    `json:"-"`
-	OK    bool    `json:"-"`
-	Added []*RunType `json:"added,omitempty"`
-	Sites []Site  `json:"sites,omitempty"`
-	RunTypes []*RunType `json:"runTypes,omitempty"`
-	Error string  `json:"error,omitempty"`
+	ID          string     `json:"-"`
+	HasID       bool       `json:"-"`
+	OK          bool       `json:"-"`
+	Added       []*RunType `json:"added,omitempty"`
+	Sites       []Site     `json:"sites,omitempty"`
+	RunTypes    []*RunType `json:"runTypes,omitempty"`
+	CacheSource string     `json:"-"`
+	Error       string     `json:"error,omitempty"`
 }
 
 // Site records one transformer-injection point. Pos is the byte offset of
@@ -265,6 +274,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.RunTypes) > 0 {
 		out["runTypes"] = response.RunTypes
+	}
+	if response.CacheSource != "" {
+		out["cacheSource"] = response.CacheSource
 	}
 	if response.Error != "" {
 		out["error"] = response.Error

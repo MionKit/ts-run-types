@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {Request, Response, Site} from './protocol.ts';
+import type {Request, Response, RunType, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // Optional marker overrides forwarded to the Go binary's CLI flags.
@@ -76,11 +76,29 @@ class MessageTransport {
   }
 }
 
+// ScanFileOptions opts the scanFile call into returning the union of
+// runTypes / a pre-rendered cache module covering every file scanned since
+// the last reset / setSources. Both flags are off by default so the
+// rewrite pipeline pays nothing extra.
+export interface ScanFileOptions {
+  includeRunTypes?: boolean;
+  includeCacheSource?: boolean;
+}
+
+// ScanFileResult is the always-shape returned by scanFile. Sites are
+// per-file (rewriter contract); runTypes / cacheSource are populated only
+// when the corresponding flag was set on the call.
+export interface ScanFileResult {
+  sites: Site[];
+  runTypes?: RunType[];
+  cacheSource?: string;
+}
+
 // Common operation surface. Spawn-based and socket-based clients both
 // implement this interface so consumers can be typed against the connection
 // without caring which transport is in use.
 export interface ResolverConnection {
-  scanFile(file: string): Promise<Site[]>;
+  scanFile(file: string, opts?: ScanFileOptions): Promise<ScanFileResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
@@ -93,10 +111,17 @@ export interface ResolverConnection {
 abstract class ResolverClientBase implements ResolverConnection {
   protected abstract readonly transport: MessageTransport;
 
-  async scanFile(file: string): Promise<Site[]> {
-    const resp = await this.transport.request({op: 'scanFile', file});
+  async scanFile(file: string, opts: ScanFileOptions = {}): Promise<ScanFileResult> {
+    const req: Request = {op: 'scanFile', file};
+    if (opts.includeRunTypes) req.includeRunTypes = true;
+    if (opts.includeCacheSource) req.includeCacheSource = true;
+    const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`scanFile ${file}: ${resp.error}`);
-    return resp.sites ?? [];
+    return {
+      sites: resp.sites ?? [],
+      runTypes: resp.runTypes,
+      cacheSource: resp.cacheSource,
+    };
   }
 
   async dump(): Promise<Response> {
