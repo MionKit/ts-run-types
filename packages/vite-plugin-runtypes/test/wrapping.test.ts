@@ -53,9 +53,9 @@ describe('vite-plugin-runtypes / wrapping', () => {
       // matches what the call should look like.
       const ids = sites.map((s) => JSON.stringify(s.id));
       // 17c — explicit type arg, wrapper. Argument was `true`.
-      expect(out).toMatch(/isType<\{ flag: boolean \}>\(true, "[A-Za-z0-9]+"\)/);
+      expect(out).toMatch(/isType<\{flag: boolean\}>\(true, "[A-Za-z0-9]+"\)/);
       // 17d — inferred from object. The injected id sits after the obj arg.
-      expect(out).toMatch(/nameOf\(\{ kind: "node", value: 42 \}, "[A-Za-z0-9]+"\)/);
+      expect(out).toMatch(/nameOf\(\{kind: 'node', value: 42\}, "[A-Za-z0-9]+"\)/);
       // Every site's id is unique to its T, so all four show up in the patched output.
       for (const idLit of ids) {
         expect(out).toContain(idLit);
@@ -69,7 +69,7 @@ describe('vite-plugin-runtypes / wrapping', () => {
       // Negative-case 17f: `maskedWrapper("noop")` references a local
       // `RuntypeId_Local` type, not from `@mionjs/ts-go-run-types`. The call
       // must remain untouched.
-      expect(out).toContain(`maskedWrapper("noop");`);
+      expect(out).toContain(`maskedWrapper('noop');`);
     });
   });
 
