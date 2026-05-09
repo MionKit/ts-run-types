@@ -90,7 +90,8 @@ export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
 
 A function opts into compile-time id injection by declaring `id?: RuntypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
 
-- The canonical helper `getRuntypeId<T>(val?, id?)` shipped from `@mionjs/ts-go-run-types`.
+- The static helper `getRuntypeId<T>(id?)` shipped from `@mionjs/ts-go-run-types` — explicit type, no value.
+- The reflection helper `reflectRuntypeId<T>(value, id?)` — `T` inferred from a runtime value.
 - Any user-defined wrapper that propagates the marker — `function isType<T>(v, id?: RuntypeId<T>)`.
 
 Detection requires both:
@@ -111,7 +112,7 @@ internal/resolver/               scanFile + dump dispatch
 internal/serialize/              *checker.Type → protocol.TypeNode (dedup by id)
 internal/protocol/               stdio JSON request/response types
 internal/testfixtures/           fixture .ts + shared tsconfig
-packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRuntypeId
+packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRuntypeId/reflectRuntypeId
 packages/vite-plugin-runtypes/   JS side — drives scanFile, patches calls
 third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
@@ -168,7 +169,8 @@ Two output formats share the same in-memory `protocol.Dump`:
 Public marker package. Exports:
 
 - `type RuntypeId<T>` — the sentinel.
-- `function getRuntypeId<T>(val?, id?)` — canonical reflection helper. Throws at runtime if called without an injected id (i.e. the plugin isn't active).
+- `function getRuntypeId<T>(id?)` — static marker. Use with an explicit type argument when there's no runtime value. Throws if called without an injected id (i.e. the plugin isn't active).
+- `function reflectRuntypeId<T>(value, id?)` — reflection marker. `T` is inferred from `value`. Same runtime contract as `getRuntypeId`.
 - `function getMeta(id: RuntypeId<unknown>)` — cache lookup. Returns the reflection-shape Type for an id, or `undefined` if the cache hasn't been wired up.
 - `function __setRuntypeMetaResolver(fn)` — the virtual cache module calls this on first import.
 
@@ -179,17 +181,17 @@ Public marker package. Exports:
 - `render-cache.ts` — TS-side renderer that mirrors `internal/emit/tsmodule.go` byte-for-byte.
 - `index.ts` — Vite plugin glue. Short-circuits any file that doesn't contain the marker-module name as a cheap pre-filter. Emits `virtual:runtypes-cache`.
 
-## Padding for zero-arg calls
+## Slot injection and padding
 
-A call like `getRuntypeId<T>()` has zero arguments but the trailing slot is `paramIndex=1`. The patcher pads with `undefined` so the id lands at the correct slot:
+The id is injected at the trailing `RuntypeId<T>` slot. The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` pads with `undefined` whenever the caller wrote fewer arguments than `paramIndex`:
 
 ```
-getRuntypeId<T>()       →   getRuntypeId<T>(undefined, "<hash>")
-getRuntypeId<T>(val)    →   getRuntypeId<T>(val, "<hash>")
-isType<T>(v)            →   isType<T>(v, "<hash>")
+getRuntypeId<T>()         →   getRuntypeId<T>("<hash>")
+reflectRuntypeId(val)     →   reflectRuntypeId(val, "<hash>")
+isType<T>(v)              →   isType<T>(v, "<hash>")
 ```
 
-The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` does the padding math.
+Neither built-in helper needs padding (`getRuntypeId` puts the id at slot 0; `reflectRuntypeId` already has `value` at slot 0 and the id at slot 1). The padding mechanism remains in place for user-defined wrappers with additional intermediate parameters.
 
 ## Reflection shape
 

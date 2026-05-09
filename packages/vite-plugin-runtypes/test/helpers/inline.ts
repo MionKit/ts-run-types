@@ -29,7 +29,8 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // fake `@mionjs/ts-go-run-types` module.
 export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export function getRuntypeId<T>(value?: T, id?: RuntypeId<T>): RuntypeId<T>;
+  export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T>;
+  export function reflectRuntypeId<T>(value: T, id?: RuntypeId<T>): RuntypeId<T>;
 }
 `;
 
@@ -110,10 +111,14 @@ export async function rewriteInline(
   code: string,
   opts: WithInlineOpts = {}
 ): Promise<{out: string; sites: Site[]}> {
-  return withInlineSources({[file]: code}, async ({client, sources}) => {
-    const {code: out, sites} = await rewrite(file, sources[file], client);
-    return {out, sites};
-  }, opts);
+  return withInlineSources(
+    {[file]: code},
+    async ({client, sources}) => {
+      const {code: out, sites} = await rewrite(file, sources[file], client);
+      return {out, sites};
+    },
+    opts
+  );
 }
 
 // Cache shape produced by evaluating the rendered runtypes-cache module.
@@ -127,10 +132,7 @@ export interface EvaluatedCache {
 // render the cache module, and eval it. Pass {reset: true} when the test
 // must see a clean dump (atomic's "two strings share a cache id" wants
 // exactly one string entry).
-export async function evalCacheFor(
-  sources: InlineSources,
-  opts: WithInlineOpts = {}
-): Promise<EvaluatedCache> {
+export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
     async ({client, sources: augmented}) => {
@@ -144,10 +146,7 @@ export async function evalCacheFor(
       }
       const dump = await client.dump();
       const types = dump.types ?? [];
-      const js = renderCacheModule({types, sites, language: 'js'}).replace(
-        /export const /g,
-        'result.'
-      );
+      const js = renderCacheModule({types, sites, language: 'js'}).replace(/export const /g, 'result.');
       const factory = new Function(`const result = {}; ${js}; return result;`);
       return factory() as EvaluatedCache;
     },
@@ -167,5 +166,4 @@ export function getTypeFor(cache: EvaluatedCache, file: string): Type {
 }
 
 // Sugar so each test file doesn't repeat the gating boilerplate.
-export const runIfBinary = (it: TestAPI): TestAPI['skip'] | TestAPI =>
-  hasBinary() ? it : it.skip;
+export const runIfBinary = (it: TestAPI): TestAPI['skip'] | TestAPI => (hasBinary() ? it : it.skip);

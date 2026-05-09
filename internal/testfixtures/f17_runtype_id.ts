@@ -3,11 +3,10 @@ import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
-// 17a — direct call, T inferred from val.
-const u = {id: 1, name: 'm'} as {id: number; name: string};
-const a = getRuntypeId(u);
+// 17a — static call with explicit type argument.
+const a = getRuntypeId<{id: number; name: string}>();
 
-// 17b — explicit type argument.
+// 17b — static call with a primitive type argument.
 const b = getRuntypeId<string>();
 
 // 17c — user-defined wrapper. The trailing `id?: RuntypeId<T>` opts the
@@ -28,8 +27,8 @@ const d = nameOf({kind: 'node', value: 42});
 
 // 17e — call inside a generic body. `T` is the *outer* free type parameter,
 // so this must be SKIPPED by the scanner — there's nothing to inject yet.
-function inner<T>(val: T): RuntypeId<T> {
-  return getRuntypeId<T>(val);
+function inner<T>(_val: T): RuntypeId<T> {
+  return getRuntypeId<T>();
 }
 
 // 17f — collision: a user-defined type also named `RuntypeId`, declared

@@ -1,5 +1,5 @@
-import type { ResolverClient } from "./resolver-client.ts";
-import type { Site } from "./protocol.ts";
+import type {ResolverClient} from './resolver-client.ts';
+import type {Site} from './protocol.ts';
 
 // Rewritten carries the patched source + the sites the Go binary returned.
 // `sites[i].pos` is the byte offset of the close-paren in the ORIGINAL
@@ -20,21 +20,17 @@ export interface Rewritten {
 // internally indexes its source files by byte), so we operate on a Buffer
 // rather than a JS string — UTF-16 code-unit math would skew on any
 // multibyte char like an em-dash in a comment.
-export async function rewrite(
-  file: string,
-  code: string,
-  resolver: ResolverClient,
-): Promise<Rewritten> {
+export async function rewrite(file: string, code: string, resolver: ResolverClient): Promise<Rewritten> {
   const sites = await resolver.scanFile(file);
-  if (sites.length === 0) return { code, sites: [] };
+  if (sites.length === 0) return {code, sites: []};
 
-  let buf = Buffer.from(code, "utf8");
+  let buf = Buffer.from(code, 'utf8');
   const sorted = [...sites].sort((a, b) => b.pos - a.pos);
   for (const s of sorted) {
-    const insertion = Buffer.from(buildInsertion(s), "utf8");
+    const insertion = Buffer.from(buildInsertion(s), 'utf8');
     buf = Buffer.concat([buf.subarray(0, s.pos), insertion, buf.subarray(s.pos)]);
   }
-  return { code: buf.toString("utf8"), sites };
+  return {code: buf.toString('utf8'), sites};
 }
 
 // buildInsertion produces the text to splice in just before the call's
@@ -47,8 +43,8 @@ function buildInsertion(s: Site): string {
   const paramIndex = s.paramIndex ?? argsCount;
   const padding = Math.max(0, paramIndex - argsCount);
   const parts: string[] = [];
-  for (let i = 0; i < padding; i++) parts.push("undefined");
+  for (let i = 0; i < padding; i++) parts.push('undefined');
   parts.push(JSON.stringify(s.id));
-  const body = parts.join(", ");
+  const body = parts.join(', ');
   return argsCount > 0 ? `, ${body}` : body;
 }
