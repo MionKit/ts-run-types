@@ -38,7 +38,8 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design, and the per-kind guides:
 
 - [docs/atomic-types.md](docs/atomic-types.md) — primitives, regex, literals, enums, `Date` — with TypeScript narrowing quirks.
-- [docs/member-types.md](docs/member-types.md) — arrays, tuples, classes, object literals, functions, unions, recursive types.
+- [docs/member-types.md](docs/member-types.md) — single-typed members: `Array`, `Property`, `Method`.
+- [docs/collection-types.md](docs/collection-types.md) — multi-typed containers: tuples, unions, intersections, promises, functions, object literals, classes, recursive types.
 
 ### Data flow
 
@@ -164,7 +165,8 @@ packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design
 docs/atomic-types.md             per-kind reference for primitives + literals + enums
-docs/member-types.md             per-kind reference for structured types
+docs/member-types.md             per-kind reference for single-typed members (array, property, method)
+docs/collection-types.md         per-kind reference for multi-typed containers
 docs/ROADMAP.md                  scope + known lossy mappings
 scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening
