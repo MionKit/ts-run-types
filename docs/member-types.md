@@ -10,13 +10,13 @@ The three members are:
 
 > **Naming convention.** Mirrors mion's `packages/run-types/src/nodes/member` taxonomy — a "member" is a single-typed unit; multi-typed containers are documented in [collection-types.md](collection-types.md).
 >
-> **Child slots are refs.** A member's `type` field holds a `{ kind: -1, id: "<hash>" }` sentinel in the JSON wire format. The emitted runtime cache replaces the sentinel with a direct reference to the actual `t_<id>` const so consumers walk a fully-knotted graph with no dereferencing step. See [ARCHITECTURE.md](ARCHITECTURE.md) for emit mechanics.
+> **Child slots are refs.** A member's `child` field holds a `{ kind: -1, id: "<hash>" }` sentinel in the JSON wire format. The emitted runtime cache replaces the sentinel with a direct reference to the actual `t_<id>` const so consumers walk a fully-knotted graph with no dereferencing step. See [ARCHITECTURE.md](ARCHITECTURE.md) for emit mechanics.
 
 ---
 
 ## Array — `KindArray`
 
-A homogeneous sequence. Element type lives in `.type`.
+A homogeneous sequence. Element type lives in `.child`.
 
 ```ts
 getRuntypeId<string[]>();
@@ -27,7 +27,7 @@ reflectRuntypeId(xs);
 Cache entry shape:
 
 ```json
-{ "kind": 25, "type": { "kind": -1, "id": "<string-hash>" } }
+{ "kind": 25, "child": { "kind": -1, "id": "<string-hash>" } }
 ```
 
 Array is a member rather than a collection because it carries a single child type — same shape as `Property` and `Promise`, just unnamed.
@@ -41,7 +41,7 @@ A named slot carrying a single type. Two flavours:
 - `KindProperty` — declared inside a `class { … }`.
 - `KindPropertySignature` — declared inside a `type { … }` or `interface { … }`.
 
-Same field shape (`name`, `type`, optional `optional` / `readonly` flags); the kind discriminator tells the runtime which declaration site it came from. They never appear at the top of a type — always nested inside their parent class / object literal — but they get their own cache entries because they carry a name.
+Same field shape (`name`, `child`, optional `optional` / `readonly` flags); the kind discriminator tells the runtime which declaration site it came from. They never appear at the top of a type — always nested inside their parent class / object literal — but they get their own cache entries because they carry a name.
 
 ```ts
 class User {
@@ -59,7 +59,7 @@ Cache entry shape (the signature form):
 {
   "kind": 32,
   "name": "id",
-  "type": { "kind": -1, "id": "<number-hash>" }
+  "child": { "kind": -1, "id": "<number-hash>" }
 }
 ```
 
@@ -69,7 +69,7 @@ Cache entry shape (the class form):
 {
   "kind": 15,
   "name": "id",
-  "type": { "kind": -1, "id": "<number-hash>" }
+  "child": { "kind": -1, "id": "<number-hash>" }
 }
 ```
 

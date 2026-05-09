@@ -5,10 +5,10 @@
 // IDs are short alphanumeric hash strings; the const name prefix is `t_` so
 // the output is always a syntactically valid JS identifier.
 
-import {KIND_REF, type Site, type Type} from './protocol.ts';
+import {KIND_REF, type Site, type RunType} from './protocol.ts';
 
 export interface RenderInput {
-  types: Type[];
+  runTypes: RunType[];
   sites: Site[];
   // language="ts" (default) emits the typed module; "js" omits all type
   // annotations so the output is directly evaluable by node/vm without a TS
@@ -23,28 +23,28 @@ export function renderCacheModule(input: RenderInput): string {
   lines.push('// Source: reflection-shape runtime cache for mion runtypes.');
   lines.push('');
   if (ts) {
-    lines.push('// Local Type alias keeps this module self-contained (no external imports).');
-    lines.push('type Type = any;');
+    lines.push('// Local RunType alias keeps this module self-contained (no external imports).');
+    lines.push('type RunType = any;');
     lines.push('');
   }
 
   const annot = ts ? ': any ' : ' ';
-  for (const t of input.types) {
+  for (const t of input.runTypes) {
     if (!t || !t.id) continue;
     lines.push(`const ${varName(t.id)}${annot}= ${JSON.stringify(headerLiteral(t))};`);
   }
 
   lines.push('');
   lines.push('// --- knot refs, parents, and runtime values ---');
-  for (const t of input.types) {
+  for (const t of input.runTypes) {
     if (!t || !t.id) continue;
     appendFooter(lines, t, ts);
   }
 
   lines.push('');
-  const mapAnnot = ts ? '<string, Type>' : '';
+  const mapAnnot = ts ? '<string, RunType>' : '';
   lines.push(`export const __runtypes = new Map${mapAnnot}([`);
-  for (const t of input.types) {
+  for (const t of input.runTypes) {
     if (!t || !t.id) continue;
     lines.push(`  [${JSON.stringify(t.id)}, ${varName(t.id)}],`);
   }
@@ -61,7 +61,7 @@ function varName(id: string): string {
   return 't_' + id.replace(/[^A-Za-z0-9_]/g, '_');
 }
 
-function headerLiteral(t: Type): Record<string, unknown> {
+function headerLiteral(t: RunType): Record<string, unknown> {
   const m: Record<string, unknown> = {kind: t.kind};
   if (t.typeName) m.typeName = t.typeName;
   if (t.name) m.name = t.name;
@@ -81,16 +81,16 @@ function headerLiteral(t: Type): Record<string, unknown> {
 
 // isFooterLiteral mirrors the Go side: bigint/symbol/regexp literals are
 // emitted by the footer as expressions rather than inline JSON.
-function isFooterLiteral(t: Type): boolean {
+function isFooterLiteral(t: RunType): boolean {
   if (t.literal === undefined || t.literal === null) return false;
   if (t.flags?.includes('bigint') || t.flags?.includes('symbol')) return true;
   if (typeof t.literal === 'object' && (t.literal as any).regexp) return true;
   return false;
 }
 
-function appendFooter(lines: string[], t: Type, ts: boolean): void {
+function appendFooter(lines: string[], t: RunType, ts: boolean): void {
   const v = varName(t.id!);
-  if (t.type) lines.push(`${v}.type = ${derefExpr(t.type)};`);
+  if (t.child) lines.push(`${v}.child = ${derefExpr(t.child)};`);
   if (t.index) lines.push(`${v}.index = ${derefExpr(t.index)};`);
   if (t.return) lines.push(`${v}.return = ${derefExpr(t.return)};`);
   if (t.indexType) lines.push(`${v}.indexType = ${derefExpr(t.indexType)};`);
@@ -100,9 +100,9 @@ function appendFooter(lines: string[], t: Type, ts: boolean): void {
       if (p.kind === KIND_REF) lines.push(`${varName(p.id!)}.parent = ${v};`);
     }
   }
-  if (t.types && t.types.length) {
-    lines.push(`${v}.types = [${t.types.map(derefExpr).join(', ')}];`);
-    for (const m of t.types) {
+  if (t.children && t.children.length) {
+    lines.push(`${v}.children = [${t.children.map(derefExpr).join(', ')}];`);
+    for (const m of t.children) {
       if (m.kind === KIND_REF) lines.push(`${varName(m.id!)}.parent = ${v};`);
     }
   }
@@ -127,7 +127,7 @@ function appendFooter(lines: string[], t: Type, ts: boolean): void {
   }
 }
 
-function footerLiteralExpr(t: Type): string {
+function footerLiteralExpr(t: RunType): string {
   if (t.flags?.includes('bigint')) {
     return `BigInt(${JSON.stringify(t.literal)})`;
   }
@@ -142,7 +142,7 @@ function footerLiteralExpr(t: Type): string {
   return JSON.stringify(t.literal);
 }
 
-function derefExpr(t: Type | undefined): string {
+function derefExpr(t: RunType | undefined): string {
   if (!t) return 'undefined';
   if (t.kind === KIND_REF) return varName(t.id!);
   return JSON.stringify(t);

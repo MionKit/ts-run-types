@@ -1,8 +1,8 @@
 // Wire types mirroring internal/protocol/protocol.go. Hand-maintained rather
 // than code-generated to keep the plugin dep-free.
 //
-// The shape is the canonical mion runtypes reflection `Type` discriminated
-// union. Child Type slots in the JSON wire format are sentinels
+// The shape is the canonical mion runtypes reflection `RunType` discriminated
+// union. Child RunType slots in the JSON wire format are sentinels
 // (`{kind: -1, id: N}`); consumers either re-knot themselves (raw JSON) or
 // import the generated runtypes-cache.ts module which contains a fully-knotted
 // graph.
@@ -59,18 +59,19 @@ export interface ClassRef {
   module?: string;
 }
 
-// Type is a JSON-friendly union of every reflection Type variant. Optional
-// fields are populated only when relevant to the discriminator `kind`.
+// RunType is a JSON-friendly union of every reflection RunType variant.
+// Optional fields are populated only when relevant to the discriminator
+// `kind`.
 //
 // IDs are short alphanumeric hash strings (default 6 chars). Two
 // structurally-equal types share the same id.
-export interface Type {
+export interface RunType {
   id?: string;
   kind: ReflectionKind | typeof KIND_REF;
 
   // TypeAnnotations
   typeName?: string;
-  typeArguments?: Type[];
+  typeArguments?: RunType[];
   inlined?: true;
 
   // TypeLiteral
@@ -91,26 +92,32 @@ export interface Type {
   flags?: string[];
 
   // function-like
-  parameters?: Type[];
-  return?: Type;
+  parameters?: RunType[];
+  return?: RunType;
 
   // single-typed containers (array/promise/tupleMember/property/parameter)
-  type?: Type;
-  index?: Type;
+  child?: RunType;
+  index?: RunType;
 
   // multi-typed containers (objectLiteral/class/tuple/union/intersection/enum)
-  types?: Type[];
+  children?: RunType[];
 
   // enum
   enum?: Record<string, unknown>;
   values?: unknown[];
-  indexType?: Type;
+  indexType?: RunType;
 
   // class
-  extendsArguments?: Type[];
-  implements?: Type[];
-  arguments?: Type[];
+  extendsArguments?: RunType[];
+  implements?: RunType[];
+  arguments?: RunType[];
   classRef?: ClassRef;
+
+  // runtime-only — wired by the cache emitter, never present in wire JSON.
+  // `parent` is the containing RunType for child slots; `classType` is a live
+  // constructor reference (e.g. globalThis.Date for KindClass builtins).
+  parent?: RunType;
+  classType?: unknown;
 }
 
 // Site records one transformer-injection point. `pos` is the byte offset of
@@ -130,7 +137,7 @@ export interface Site {
 export interface Request {
   op: 'scanFile' | 'dump' | 'setSources' | 'reset' | 'resolveId';
   file?: string;
-  // resolveId only — hash id of the Type to look up in the cache.
+  // resolveId only — hash id of the RunType to look up in the cache.
   id?: string;
   // setSources only — { relpath: source-text }.
   sources?: Record<string, string>;
@@ -140,13 +147,13 @@ export interface Response {
   id?: string;
   // Acknowledgement for ops that don't return data (setSources / resetCache).
   ok?: true;
-  added?: Type[];
+  added?: RunType[];
   sites?: Site[];
-  types?: Type[];
+  runTypes?: RunType[];
   error?: string;
 }
 
 export interface Dump {
-  types: Type[];
+  runTypes: RunType[];
   sites: Site[];
 }

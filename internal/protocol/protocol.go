@@ -1,16 +1,16 @@
 // Package protocol defines the wire types exchanged between the ts-go-run-types
 // resolver and its callers. The shape is the canonical mion runtypes reflection
-// `Type` discriminated union so the user's runtypes JIT — which already
+// `RunType` discriminated union so the user's runtypes JIT — which already
 // understands this runtime shape — can consume our cache directly.
 //
-// Because JSON cannot carry cycles or live references, child Type slots in the
-// JSON wire format are ref sentinels: `{kind: -1, id: "<hash>"}`. Two consumption
-// paths exist:
+// Because JSON cannot carry cycles or live references, child RunType slots in
+// the JSON wire format are ref sentinels: `{kind: -1, id: "<hash>"}`. Two
+// consumption paths exist:
 //
 //  1. The generated `.ts` runtime artifact resolves cycles via direct const
 //     assignment — consumers `import { __runtypes }` and call `Map.get(hash)` to
-//     obtain a fully-knotted reflection Type object.
-//  2. JSON-only consumers walk `Dump.Types` themselves to re-knot.
+//     obtain a fully-knotted reflection RunType object.
+//  2. JSON-only consumers walk `Dump.RunTypes` themselves to re-knot.
 //
 // IDs are short alphanumeric hash strings (default 6 chars, configurable). The
 // hash is derived from the type's structural id (mirroring mion's
@@ -23,7 +23,7 @@ import "encoding/json"
 func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
 
 // ReflectionKind enumerates the discriminator values for every reflection
-// `Type` variant. New values must be appended in declaration order so the
+// `RunType` variant. New values must be appended in declaration order so the
 // integer values stay stable across releases.
 type ReflectionKind int
 
@@ -70,21 +70,21 @@ const (
 // in the table". Not a reflection kind — the value -1 is reserved for refs.
 const KindRef ReflectionKind = -1
 
-// Type is a JSON-friendly union of every reflection Type variant. Optional
-// fields are gated by `omitempty`. A given Type uses only the fields relevant
+// RunType is a JSON-friendly union of every reflection RunType variant. Optional
+// fields are gated by `omitempty`. A given RunType uses only the fields relevant
 // to its Kind; the rest stay zero/nil.
 //
-// Child Type slots (e.g. TypePropertySignature.type) are *Type so we can
+// Child RunType slots (e.g. TypePropertySignature.child) are *RunType so we can
 // emit sentinels (`{kind: -1, id: "<hash>"}`) without inlining the referenced
 // node.
-type Type struct {
+type RunType struct {
 	// TypeAnnotations.
 	// ID is always emitted (even empty) because the renderer needs an
 	// unambiguous handle for every type.
 	ID            string         `json:"id"`
 	Kind          ReflectionKind `json:"kind"`
 	TypeName      string         `json:"typeName,omitempty"`
-	TypeArguments []*Type        `json:"typeArguments,omitempty"`
+	TypeArguments []*RunType        `json:"typeArguments,omitempty"`
 	Inlined       bool           `json:"inlined,omitempty"`
 
 	// TypeLiteral
@@ -114,30 +114,30 @@ type Type struct {
 	Default any `json:"default,omitempty"`
 
 	// TypeFunction / TypeMethod / TypeMethodSignature / TypeCallSignature
-	Parameters []*Type `json:"parameters,omitempty"`
-	Return     *Type   `json:"return,omitempty"`
+	Parameters []*RunType `json:"parameters,omitempty"`
+	Return     *RunType   `json:"return,omitempty"`
 
-	// TypeArray / TypePromise / TypeRest / TypeIndexSignature.type
-	// / TypeTupleMember.type / TypePropertySignature.type / TypeProperty.type
-	// / TypeParameter.type
-	Type *Type `json:"type,omitempty"`
+	// TypeArray / TypePromise / TypeRest / TypeIndexSignature.child
+	// / TypeTupleMember.child / TypePropertySignature.child / TypeProperty.child
+	// / TypeParameter.child
+	Child *RunType `json:"child,omitempty"`
 
 	// TypeIndexSignature
-	Index *Type `json:"index,omitempty"`
+	Index *RunType `json:"index,omitempty"`
 
 	// TypeUnion / TypeIntersection / TypeTuple / TypeObjectLiteral / TypeClass
-	// — all use `types: []` of whichever child variants are legal.
-	Types []*Type `json:"types,omitempty"`
+	// — all use `children: []` of whichever child variants are legal.
+	Children []*RunType `json:"children,omitempty"`
 
 	// TypeEnum
 	Enum   map[string]any `json:"enum,omitempty"`
 	Values []any          `json:"values,omitempty"`
-	IndexT *Type          `json:"indexType,omitempty"`
+	IndexT *RunType          `json:"indexType,omitempty"`
 
 	// TypeClass
-	ExtendsArguments []*Type `json:"extendsArguments,omitempty"`
-	Implements       []*Type `json:"implements,omitempty"`
-	Arguments        []*Type `json:"arguments,omitempty"`
+	ExtendsArguments []*RunType `json:"extendsArguments,omitempty"`
+	Implements       []*RunType `json:"implements,omitempty"`
+	Arguments        []*RunType `json:"arguments,omitempty"`
 	// classType is a runtime constructor reference — see workaround docs.
 	// We emit the class's exported name + module path so a v2 footer can wire
 	// up an `import { Class } from "..."`.
@@ -167,10 +167,10 @@ type ClassRef struct {
 	Module  string `json:"module,omitempty"`  // originating module path
 }
 
-// NewRef returns a sentinel Type pointing at id. The TS artifact emitter
+// NewRef returns a sentinel RunType pointing at id. The TS artifact emitter
 // resolves these into direct const references.
-func NewRef(id string) *Type {
-	return &Type{Kind: KindRef, ID: id}
+func NewRef(id string) *RunType {
+	return &RunType{Kind: KindRef, ID: id}
 }
 
 // Op constants for the wire protocol. Stable string values — the TS side
@@ -180,7 +180,7 @@ const (
 	// per call whose resolved signature opts into transformer injection
 	// (trailing `RuntypeId<T>` parameter with a concretely-bound T).
 	OpScanFile = "scanFile"
-	// OpDump returns the full cache contents: every Type the resolver has
+	// OpDump returns the full cache contents: every RunType the resolver has
 	// projected so far + every Site recorded. Used at end-of-build.
 	OpDump = "dump"
 	// OpSetSources replaces the resolver's in-memory source overlay AND
@@ -194,8 +194,8 @@ const (
 	// and replacing it with a fresh one — the connection stays open. A
 	// subsequent setSources is required before scanFile will work.
 	OpReset = "reset"
-	// OpResolveID returns the canonical full Type for a given hash id.
-	// Child slots inside the returned Type stay as KindRef sentinels — the
+	// OpResolveID returns the canonical full RunType for a given hash id.
+	// Child slots inside the returned RunType stay as KindRef sentinels — the
 	// caller re-issues OpResolveID per id to drill in. Lets consumers walk
 	// member-type child refs without dumping the whole cache.
 	OpResolveID = "resolveId"
@@ -220,9 +220,9 @@ type Response struct {
 	ID    string  `json:"-"`
 	HasID bool    `json:"-"`
 	OK    bool    `json:"-"`
-	Added []*Type `json:"added,omitempty"`
+	Added []*RunType `json:"added,omitempty"`
 	Sites []Site  `json:"sites,omitempty"`
-	Types []*Type `json:"types,omitempty"`
+	RunTypes []*RunType `json:"runTypes,omitempty"`
 	Error string  `json:"error,omitempty"`
 }
 
@@ -243,7 +243,7 @@ type Site struct {
 
 // Dump is the build-end manifest written to runtypes-cache.json.
 type Dump struct {
-	Types []*Type `json:"types"`
+	RunTypes []*RunType `json:"runTypes"`
 	Sites []Site  `json:"sites"`
 }
 
@@ -263,8 +263,8 @@ func (r Response) MarshalJSON() ([]byte, error) {
 	if len(r.Sites) > 0 {
 		out["sites"] = r.Sites
 	}
-	if len(r.Types) > 0 {
-		out["types"] = r.Types
+	if len(r.RunTypes) > 0 {
+		out["runTypes"] = r.RunTypes
 	}
 	if r.Error != "" {
 		out["error"] = r.Error

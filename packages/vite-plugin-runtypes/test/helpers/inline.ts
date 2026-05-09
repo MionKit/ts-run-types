@@ -18,7 +18,7 @@ import type {TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
 import {renderCacheModule} from '../../src/render-cache.ts';
-import type {Site, Type} from '../../src/protocol.ts';
+import type {Site, RunType} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
@@ -124,7 +124,7 @@ export async function rewriteInline(
 // Cache shape produced by evaluating the rendered runtypes-cache module.
 // Mirrors what `virtual:runtypes-cache` exports at runtime.
 export interface EvaluatedCache {
-  __runtypes: Map<string, Type & Record<string, any>>;
+  __runtypes: Map<string, RunType>;
   __sites: Site[];
 }
 
@@ -145,8 +145,8 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
         }
       }
       const dump = await client.dump();
-      const types = dump.types ?? [];
-      const js = renderCacheModule({types, sites, language: 'js'}).replace(/export const /g, 'result.');
+      const runTypes = dump.runTypes ?? [];
+      const js = renderCacheModule({runTypes, sites, language: 'js'}).replace(/export const /g, 'result.');
       const factory = new Function(`const result = {}; ${js}; return result;`);
       return factory() as EvaluatedCache;
     },
@@ -154,10 +154,10 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
   );
 }
 
-// Look up the resolved Type for a given source file in an evaluated cache.
+// Look up the resolved RunType for a given source file in an evaluated cache.
 // Throws if no site was recorded or the id is missing — both indicate the
 // source under test didn't match the marker the way the test expected.
-export function getTypeFor(cache: EvaluatedCache, file: string): Type {
+export function getTypeFor(cache: EvaluatedCache, file: string): RunType {
   const site = cache.__sites.find((s) => s.file === file);
   if (!site) throw new Error(`no site recorded for ${file}`);
   const t = cache.__runtypes.get(site.id);

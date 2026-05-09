@@ -40,9 +40,9 @@ func atomicSetup(t *testing.T) *resolver.Resolver {
 	return r
 }
 
-// atomicResolve runs scanFile on a fixture and returns the Type entry for
+// atomicResolve runs scanFile on a fixture and returns the RunType entry for
 // its first (and only) call site.
-func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.Type {
+func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.RunType {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
 	if resp.Error != "" {
@@ -52,7 +52,7 @@ func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.Ty
 		t.Fatalf("scanFile %s returned no sites", file)
 	}
 	id := resp.Sites[0].ID
-	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).Types
+	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes
 	for _, n := range dump {
 		if n.ID == id {
 			return n
@@ -440,7 +440,7 @@ getRuntypeId<typeof re>();
 	}
 }
 
-func assertRegexLiteral(t *testing.T, tn *protocol.Type, wantSource, wantFlags string) {
+func assertRegexLiteral(t *testing.T, tn *protocol.RunType, wantSource, wantFlags string) {
 	t.Helper()
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
@@ -505,7 +505,7 @@ reflectRuntypeId(v);
 	}
 }
 
-func assertLiteralNumber42(t *testing.T, tn *protocol.Type) {
+func assertLiteralNumber42(t *testing.T, tn *protocol.RunType) {
 	t.Helper()
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
@@ -618,7 +618,7 @@ reflectRuntypeId(v);
 	}
 }
 
-func assertBigintLiteral(t *testing.T, tn *protocol.Type) {
+func assertBigintLiteral(t *testing.T, tn *protocol.RunType) {
 	t.Helper()
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)

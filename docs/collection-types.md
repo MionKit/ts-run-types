@@ -8,13 +8,13 @@ Each section shows:
 - the shape of the resulting cache entry,
 - how child slots are wired (refs vs inline).
 
-> **Child slots are refs.** A collection's `types`, `parameters`, `return`, `index`, `indexType` fields hold `{ kind: -1, id: "<hash>" }` sentinels in the JSON wire format. The emitted runtime cache replaces those sentinels with direct references to the actual `t_<id>` consts so consumers walk a fully-knotted graph with no dereferencing step. See [ARCHITECTURE.md](ARCHITECTURE.md) for emit mechanics.
+> **Child slots are refs.** A collection's `children`, `parameters`, `return`, `index`, `indexType` fields hold `{ kind: -1, id: "<hash>" }` sentinels in the JSON wire format. The emitted runtime cache replaces those sentinels with direct references to the actual `t_<id>` consts so consumers walk a fully-knotted graph with no dereferencing step. See [ARCHITECTURE.md](ARCHITECTURE.md) for emit mechanics.
 
 ---
 
 ## Tuple — `KindTuple`
 
-A fixed-length list with per-slot types. The `types` array holds `KindTupleMember` entries; each member's `Optional` flag marks `[A, B?]`-style optional slots, `Rest` flags `[...A[]]`-style rest slots.
+A fixed-length list with per-slot types. The `children` array holds `KindTupleMember` entries; each member's `Optional` flag marks `[A, B?]`-style optional slots, `Rest` flags `[...A[]]`-style rest slots.
 
 ```ts
 getRuntypeId<[number, string?]>();
@@ -27,7 +27,7 @@ Cache entry shape:
 ```json
 {
   "kind": 26,
-  "types": [
+  "children": [
     { "kind": -1, "id": "<member0>" },
     { "kind": -1, "id": "<member1>" }
   ]
@@ -36,10 +36,10 @@ Cache entry shape:
 
 ### `KindTupleMember` (inline)
 
-Each tuple slot is wrapped in a `KindTupleMember` so per-slot annotations (`optional`, `rest`) attach to the member rather than the underlying type. A `KindTupleMember` carries a single `type` ref and is only valid inside a parent tuple.
+Each tuple slot is wrapped in a `KindTupleMember` so per-slot annotations (`optional`, `rest`) attach to the member rather than the underlying type. A `KindTupleMember` carries a single `child` ref and is only valid inside a parent tuple.
 
 ```json
-{ "kind": 27, "optional": true, "type": { "kind": -1, "id": "<string-hash>" } }
+{ "kind": 27, "optional": true, "child": { "kind": -1, "id": "<string-hash>" } }
 ```
 
 ---
@@ -58,14 +58,14 @@ reflectRuntypeId(x);
 Cache entry shape:
 
 ```json
-{ "kind": 23, "types": [ { "kind": -1, "id": "<ok-true>" }, { "kind": -1, "id": "<ok-false>" } ] }
+{ "kind": 23, "children": [ { "kind": -1, "id": "<ok-true>" }, { "kind": -1, "id": "<ok-false>" } ] }
 ```
 
 ---
 
 ## Intersection — `KindIntersection`
 
-Same shape as `KindUnion` but with intersection semantics. Members live in `types`.
+Same shape as `KindUnion` but with intersection semantics. Members live in `children`.
 
 ```ts
 type Mix = { a: number } & { b: string };
@@ -76,7 +76,7 @@ getRuntypeId<Mix>();
 
 ## Promise — `KindPromise`
 
-A wrapper carrying the resolved value type in `.type`. Documented here rather than under members because semantically it's a container that introduces async behaviour, not a plain single-typed slot.
+A wrapper carrying the resolved value type in `.child`. Documented here rather than under members because semantically it's a container that introduces async behaviour, not a plain single-typed slot.
 
 ```ts
 getRuntypeId<Promise<number>>();
@@ -87,14 +87,14 @@ reflectRuntypeId(p);
 Cache entry shape:
 
 ```json
-{ "kind": 19, "type": { "kind": -1, "id": "<number-hash>" } }
+{ "kind": 19, "child": { "kind": -1, "id": "<number-hash>" } }
 ```
 
 ---
 
 ## Function — `KindFunction`
 
-A free standing callable. Parameters live in `.parameters` (each a `KindParameter` with `name`, `type`, `optional`); return type in `.return`.
+A free standing callable. Parameters live in `.parameters` (each a `KindParameter` with `name`, `child`, `optional`); return type in `.return`.
 
 (For named callable members declared inside a class or object literal, see `Method` / `MethodSignature` in [member-types.md](member-types.md) — those carry the same parameter/return shape inline alongside a name.)
 
@@ -117,13 +117,13 @@ Cache entry shape:
 }
 ```
 
-Each `KindParameter` is `{ kind: 18, name: "a", type: { kind: -1, id: "<number>" }, optional?: bool }`.
+Each `KindParameter` is `{ kind: 18, name: "a", child: { kind: -1, id: "<number>" }, optional?: bool }`.
 
 ---
 
 ## ObjectLiteral — `KindObjectLiteral`
 
-A structural object. Each property lives in `types` as a `KindPropertySignature` (or `KindMethodSignature` for inline function members). Index signatures live alongside properties as `KindIndexSignature`.
+A structural object. Each property lives in `children` as a `KindPropertySignature` (or `KindMethodSignature` for inline function members). Index signatures live alongside properties as `KindIndexSignature`.
 
 ```ts
 type User = { id: number; name: string };
@@ -138,7 +138,7 @@ Cache entry shape:
 {
   "kind": 30,
   "typeName": "User",
-  "types": [
+  "children": [
     { "kind": -1, "id": "<id-prop>" },
     { "kind": -1, "id": "<name-prop>" }
   ]
@@ -149,7 +149,7 @@ The `PropertySignature` / `MethodSignature` children themselves are documented i
 
 ### Index signatures — `KindIndexSignature`
 
-For `{ [k: K]: V }`-style declarations. Lives inside the parent's `types` list alongside property signatures. `index` holds the key type, `type` holds the value type.
+For `{ [k: K]: V }`-style declarations. Lives inside the parent's `children` list alongside property signatures. `index` holds the key type, `child` holds the value type.
 
 ```ts
 interface M { [k: string]: number }
@@ -162,7 +162,7 @@ reflectRuntypeId(m);
 {
   "kind": 31,
   "index": { "kind": -1, "id": "<string-hash>" },
-  "type":  { "kind": -1, "id": "<number-hash>" }
+  "child": { "kind": -1, "id": "<number-hash>" }
 }
 ```
 
@@ -170,7 +170,7 @@ reflectRuntypeId(m);
 
 ## Class — `KindClass`
 
-User-defined classes (or built-in interfaces TS represents as classes). `typeName` carries the class name; `types` holds the member list — `KindProperty` for fields, `KindMethod` for methods. The `ClassRef.Builtin` field is set for known built-ins (`Date`, `Map`, `Set`, `RegExp`).
+User-defined classes (or built-in interfaces TS represents as classes). `typeName` carries the class name; `children` holds the member list — `KindProperty` for fields, `KindMethod` for methods. The `ClassRef.Builtin` field is set for known built-ins (`Date`, `Map`, `Set`, `RegExp`).
 
 ```ts
 class User {
@@ -188,7 +188,7 @@ Cache entry shape:
 {
   "kind": 20,
   "typeName": "User",
-  "types": [
+  "children": [
     { "kind": -1, "id": "<id-prop>" },
     { "kind": -1, "id": "<greet-method>" }
   ]
@@ -212,7 +212,7 @@ declare const t: Tree;
 reflectRuntypeId(t);
 ```
 
-The walk path is `Tree → Property("children") → Array → Tree`. The element-type slot of the inner `Array` is the same id as the root `Tree` entry. At runtime, `root.types[0].type.type === root` holds by reference.
+The walk path is `Tree → Property("children") → Array → Tree`. The element-type slot of the inner `Array` is the same id as the root `Tree` entry. At runtime, `root.children[0].child.child === root` holds by reference.
 
 ### Mutually recursive
 
@@ -224,7 +224,7 @@ declare const a: A;
 reflectRuntypeId(a);
 ```
 
-Two cache entries (`A` and `B`); each closes back on the other through a property's `.type` slot. Cycle termination is by id-equality on the second visit, not by depth limit — the cache always wins.
+Two cache entries (`A` and `B`); each closes back on the other through a property's `.child` slot. Cycle termination is by id-equality on the second visit, not by depth limit — the cache always wins.
 
 ---
 
