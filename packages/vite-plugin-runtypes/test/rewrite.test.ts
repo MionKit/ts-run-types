@@ -158,11 +158,9 @@ const myAPI = getRuntypeId(routes);
     const tmp = path.join(__dirname, '.tmp-cache.ts');
     const handshake = JSON.stringify({sources: {'runtypes.d.ts': RUNTYPES_DTS, 'router.ts': code}}) + '\n';
     const request = JSON.stringify({op: 'scanFile', file: 'router.ts'}) + '\n';
-    const out = spawnSync(
-      BIN,
-      ['--cwd', path.resolve(__dirname, '../../..'), '--inline-sources-stdin', '--out-ts', tmp],
-      {input: handshake + request}
-    );
+    const out = spawnSync(BIN, ['--cwd', path.resolve(__dirname, '../../..'), '--inline-sources-stdin', '--out-ts', tmp], {
+      input: handshake + request,
+    });
     expect(out.status).toBe(0);
     const generated = fs.readFileSync(tmp, 'utf8');
     expect(generated).toContain('export const __runtypes');
