@@ -2,7 +2,7 @@
 
 Compile-time type resolver for [mion runtypes](https://github.com/mionkit) on **TypeScript 7 / typescript-go (tsgo)**.
 
-`ts-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers *call-site* type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `RuntypeId<T>` (from `@mionkit/runtypes`) and emits a deduplicated type-metadata module the runtime (and the JIT) can consume.
+`ts-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `RuntypeId<T>` (from `@mionjs/ts-run-types`) and emits a deduplicated type-metadata module the runtime (and the JIT) can consume.
 
 ## Why
 
@@ -17,36 +17,69 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ## How it works
 
 ```
- Vite plugin       ──▶  Go resolver (tsgo checker)  ──▶  JSON type projection
-      │                                                       │
-      └─── rewrites call sites ◀────── stable site id ────────┘
-                 │
-                 ▼
-       virtual:runtypes-cache   ◀── runtime / JIT consumes metadata
+  app.ts ──▶ vite-plugin-runtypes ──[scanFile]──▶  ts-run-types (Go)
+                       │                                 │
+                       │                                 │ tsgo Checker
+                       │                                 │
+                       │       ◀── Site[] ───────────────┤  walk CallExpr,
+                       │   rewrite hash → arg slot       │  detect RuntypeId<T>
+                       │                                 │
+                       │                                 │ structural-id → hashid
+                       │                                 │  (deepkit-shaped Type)
+                       ▼       ◀── Dump ──[dump]─────────┘
+              virtual:runtypes-cache  ──▶  runtime / JIT  (getMeta(id))
 ```
 
-1. User code imports `RuntypeId<T>` / `getRuntypeId<T>(val)` from `@mionkit/runtypes`. Any user-defined wrapper function may also declare `id?: RuntypeId<T>` as its trailing parameter to opt into the same flow.
-2. The Vite plugin sends each source file to the Go binary's `scanFile` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `RuntypeId<T>` (declared in `@mionkit/runtypes`) with `T` concretely bound.
+1. User code imports `RuntypeId<T>` / `getRuntypeId<T>(val)` from `@mionjs/ts-run-types`. Any user-defined wrapper function may also declare `id?: RuntypeId<T>` as its trailing parameter to opt into the same flow.
+2. The Vite plugin sends each source file to the Go binary's `scanFile` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `RuntypeId<T>` (declared in `@mionjs/ts-run-types`) with `T` concretely bound.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
-4. At build end, the plugin emits `virtual:runtypes-cache` — a deepkit-shaped, fully-knotted Type graph keyed by hash id. Runtimes read it via `getMeta(id)`.
+4. At build end, the plugin emits `virtual:runtypes-cache` — a deepkit-shaped, fully-knotted `Type` graph keyed by hash id. Runtimes read it via `getMeta(id)`.
 
-See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the detailed architecture.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
 
-## Build
+### Data flow
 
-```bash
-git submodule update --init --recursive
-(cd third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
-go build -o bin/ts-run-types ./cmd/ts-run-types
-```
+- **Types are deduplicated twice.** [internal/serialize](internal/serialize/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
+- **Structural ids are deterministic.** [internal/typeid](internal/typeid/) mirrors mion's `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through xxhash3 → base36 in [internal/hashid](internal/hashid/), yielding a 6-character hash (5 for literals).
+- **Rewrites operate on byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) therefore works on a `Buffer`, not a JS string — otherwise multibyte source characters would misalign the inserted hash.
+- **The emitted cache module is self-wired.** [internal/emit/tsmodule.go](internal/emit/tsmodule.go) (mirrored in [render-cache.ts](packages/vite-plugin-runtypes/src/render-cache.ts)) emits `const t_<hash> = {…}` declarations first, then an init block patches reference slots in place. This avoids circular-dependency issues at module load.
+- **The marker is detected by name _and_ declaring module.** [internal/marker](internal/marker/) checks both `RuntypeId` and that the alias is declared in `@mionjs/ts-run-types`, so a user's own `type RuntypeId<T> = ...` declared elsewhere does not trigger rewrites.
+
+## Components
+
+### Go side
+
+| Path                                                 | Purpose                                                                                                   |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [cmd/ts-run-types/main.go](cmd/ts-run-types/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                   |
+| [internal/program](internal/program/)                | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                              |
+| [internal/walker](internal/walker/)                  | Byte-position → AST node finder; depth-first visitor over `CallExpression`.                               |
+| [internal/marker](internal/marker/)                  | `RuntypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
+| [internal/resolver](internal/resolver/)              | `scanFile` / `dump` op dispatch; walks every call and asks the checker for the resolved signature.        |
+| [internal/typeid](internal/typeid/)                  | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                      |
+| [internal/hashid](internal/hashid/)                  | xxhash3 → short base36 hash dictionary; configurable length.                                              |
+| [internal/serialize](internal/serialize/)            | `*checker.Type` → deepkit-shaped `Type`; pointer + structural dedup.                                      |
+| [internal/emit](internal/emit/)                      | JSON and self-wired TS-module renderers for the cache.                                                    |
+| [internal/protocol](internal/protocol/)              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                |
+| [internal/testfixtures](internal/testfixtures/)      | F1–F17 `.ts` inputs: atomic deepkit kinds, primitives/objects/unions, inferred generics, marker variants. |
+
+### JS side
+
+| Path                                                                                                         | Purpose                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| [packages/runtypes](packages/runtypes/)                                                                      | `@mionjs/ts-run-types` — `RuntypeId<T>` marker type, `getRuntypeId`, `getMeta`, `__setRuntypeMetaResolver`. |
+| [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, emits `virtual:runtypes-cache`.            |
+| [packages/vite-plugin-runtypes/src/resolver-client.ts](packages/vite-plugin-runtypes/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                                       |
+| [packages/vite-plugin-runtypes/src/rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                            |
+| [packages/vite-plugin-runtypes/src/render-cache.ts](packages/vite-plugin-runtypes/src/render-cache.ts)       | Emits the self-wired `virtual:runtypes-cache` module.                                                       |
 
 ## Use
 
 ```ts
-import { getRuntypeId, type RuntypeId } from "@mionkit/runtypes";
+import {getRuntypeId, type RuntypeId} from '@mionjs/ts-run-types';
 
 // 1. Direct reflection — T inferred from the argument.
-const userId = getRuntypeId({ id: 1, name: "m" });
+const userId = getRuntypeId({id: 1, name: 'm'});
 
 // 2. Explicit type argument.
 const stringId = getRuntypeId<string>();
@@ -63,12 +96,12 @@ isType<User>(payload);
 The transformer rewrites each call to:
 
 ```ts
-getRuntypeId({ id: 1, name: "m" }, "abc123");
-getRuntypeId<string>(undefined, "Lk7Px9");
-isType<User>(payload, "qzPnXt");
+getRuntypeId({id: 1, name: 'm'}, 'abc123');
+getRuntypeId<string>(undefined, 'Lk7Px9');
+isType<User>(payload, 'qzPnXt');
 ```
 
-A free type parameter (a call inside a generic body where the marker's `T` is the wrapper's own type variable) is *skipped* — the wrapper must propagate by declaring `id?: RuntypeId<T>` itself and the injection happens at the wrapper's own call sites.
+A free type parameter (a call inside a generic body where the marker's `T` is the wrapper's own type variable) is _skipped_ — the wrapper must propagate by declaring `id?: RuntypeId<T>` itself and the injection happens at the wrapper's own call sites.
 
 ## CLI
 
@@ -95,37 +128,47 @@ bin/ts-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-run-types.so
 
 ```
 --marker-name NAME       default: RuntypeId
---marker-module MODULE   default: @mionkit/runtypes
+--marker-module MODULE   default: @mionjs/ts-run-types
 ```
 
 The marker is detected by both name AND declaring module, so a user's own `type RuntypeId<T> = ...` declared elsewhere does not accidentally trigger rewrites.
 
-## Test
+## Build & Test
+
+The repository contains a Go binary and a pnpm/Lerna workspace of JS packages. See [DEVS.md](DEVS.md) for full contributor setup, patch management, and publishing.
 
 ```bash
+git submodule update --init --recursive
+(cd third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
+go build -o bin/ts-run-types ./cmd/ts-run-types
+pnpm install --frozen-lockfile
 go test ./internal/...
-pnpm -C packages/runtypes test
-pnpm -C packages/vite-plugin-runtypes test
+pnpm test
 ```
 
-Fixtures cover all atomic deepkit kinds (string, number, BigInt, Symbol, Date, RegExp, enums, literals), primitive/object/union annotations, inferred function signatures, generic inference, and user-defined wrappers.
+The JS plugin tests spawn `bin/ts-run-types`, so the Go binary must be built before `pnpm test`.
 
-## Layout
+## Repository layout
 
 ```
 cmd/ts-run-types/                CLI entry point
-internal/program/                tsconfig + VFS bootstrap
-internal/walker/                 position → AST node finder
-internal/marker/                 RuntypeId<T> sentinel detection
-internal/resolver/               scanFile + dump dispatch
-internal/serialize/              *checker.Type → TypeNode (dedup by id)
-internal/protocol/               stdio JSON request/response types
-internal/testfixtures/           .ts inputs
-packages/runtypes/               @mionkit/runtypes — marker type + helper
+internal/                        Go pipeline (program, walker, marker, resolver,
+                                  typeid, hashid, serialize, emit, protocol, testfixtures)
+packages/runtypes/               @mionjs/ts-run-types — marker type + helpers
 packages/vite-plugin-runtypes/   Vite plugin, drives the binary
-third_party/tsgolint/            git submodule — tsgo shim layer
+third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design
+docs/ROADMAP.md                  scope + known lossy mappings
+examples/                        end-to-end sample projects
+scripts/                         publish / unpublish / pre-publish-test / pack
+pnpm-workspace.yaml              workspace + supply-chain hardening
+lerna.json                       lockstep version + publish config
+nx.json                          build-cache config
+eslint.config.js                 flat ESLint config (TypeScript-aware)
+.prettierrc                      formatter config
 ```
+
+`packages/*` is a pnpm workspace managed by Lerna, mirroring the [mion](https://github.com/MionKit/mion) monorepo setup.
 
 ## License
 

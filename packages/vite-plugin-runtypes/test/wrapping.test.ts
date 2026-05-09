@@ -5,15 +5,15 @@
 //
 // Driven against the f17 fixture in internal/testfixtures.
 
-import { describe, it, expect } from "vitest";
-import path from "node:path";
-import fs from "node:fs";
-import { ResolverClient } from "../src/resolver-client.js";
-import { rewrite } from "../src/rewrite.js";
+import {describe, it, expect} from 'vitest';
+import path from 'node:path';
+import fs from 'node:fs';
+import {ResolverClient} from '../src/resolver-client.js';
+import {rewrite} from '../src/rewrite.js';
 
-const ROOT = path.resolve(__dirname, "../../..");
-const BIN = path.resolve(ROOT, "bin/ts-run-types");
-const FIXTURES = path.resolve(ROOT, "internal/testfixtures");
+const ROOT = path.resolve(__dirname, '../../..');
+const BIN = path.resolve(ROOT, 'bin/ts-run-types');
+const FIXTURES = path.resolve(ROOT, 'internal/testfixtures');
 
 function hasBinary() {
   return fs.existsSync(BIN);
@@ -21,7 +21,7 @@ function hasBinary() {
 
 async function withResolver<T>(fn: (c: ResolverClient) => Promise<T>): Promise<T> {
   if (!hasBinary()) throw new Error(`ts-run-types binary not built: ${BIN}`);
-  const client = new ResolverClient(BIN, FIXTURES, "tsconfig.json");
+  const client = new ResolverClient(BIN, FIXTURES, 'tsconfig.json');
   try {
     return await fn(client);
   } finally {
@@ -29,15 +29,15 @@ async function withResolver<T>(fn: (c: ResolverClient) => Promise<T>): Promise<T
   }
 }
 
-describe("vite-plugin-runtypes / wrapping", () => {
+describe('vite-plugin-runtypes / wrapping', () => {
   const available = hasBinary();
   const runMaybe = available ? it : it.skip;
 
-  runMaybe("user-defined wrapper with RuntypeId<T> trailing param gets injected", async () => {
+  runMaybe('user-defined wrapper with RuntypeId<T> trailing param gets injected', async () => {
     await withResolver(async (client) => {
-      const file = "f17_runtype_id.ts";
-      const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      const { code: out, sites } = await rewrite(file, code, client);
+      const file = 'f17_runtype_id.ts';
+      const code = fs.readFileSync(path.join(FIXTURES, file), 'utf8');
+      const {code: out, sites} = await rewrite(file, code, client);
 
       // f17 has four directly rewritable sites (17a–17d). The two
       // negative cases (17e free-T body, 17f wrong-module) are skipped.
@@ -67,17 +67,17 @@ describe("vite-plugin-runtypes / wrapping", () => {
       expect(out).toContain(`return getRuntypeId<T>(val);`);
 
       // Negative-case 17f: `maskedWrapper("noop")` references a local
-      // `RuntypeId_Local` type, not from `@mionkit/runtypes`. The call
+      // `RuntypeId_Local` type, not from `@mionjs/ts-run-types`. The call
       // must remain untouched.
       expect(out).toContain(`maskedWrapper("noop");`);
     });
   });
 
-  runMaybe("calls with zero args still get the id at the right slot", async () => {
+  runMaybe('calls with zero args still get the id at the right slot', async () => {
     await withResolver(async (client) => {
-      const file = "f17_runtype_id.ts";
-      const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      const { code: out } = await rewrite(file, code, client);
+      const file = 'f17_runtype_id.ts';
+      const code = fs.readFileSync(path.join(FIXTURES, file), 'utf8');
+      const {code: out} = await rewrite(file, code, client);
       // 17b — `getRuntypeId<string>()` has zero args but the trailing slot
       // is the second parameter (paramIndex 1). The patcher pads with
       // `undefined` so the id lands at slot 1.

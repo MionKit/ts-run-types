@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import { getRuntypeId } from "@mionkit/runtypes";
+import {getRuntypeId} from '@mionjs/ts-run-types';
 export {};
 class User {
   id: number = 0;

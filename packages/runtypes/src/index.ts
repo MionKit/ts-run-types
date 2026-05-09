@@ -1,4 +1,4 @@
-// @mionkit/runtypes — the sentinel-marker primitive that opts a function
+// @mionjs/ts-run-types — the sentinel-marker primitive that opts a function
 // into compile-time type-id injection by `vite-plugin-runtypes`.
 //
 // Any generic function whose trailing parameter is `id?: RuntypeId<T>` is
@@ -33,9 +33,7 @@ export type RuntypeId<T> = string & {
  */
 export function getRuntypeId<T>(_value?: T, id?: RuntypeId<T>): RuntypeId<T> {
   if (id === undefined) {
-    throw new Error(
-      "getRuntypeId(): no id injected. vite-plugin-runtypes must be active.",
-    );
+    throw new Error('getRuntypeId(): no id injected. vite-plugin-runtypes must be active.');
   }
   return id;
 }
@@ -47,18 +45,14 @@ export function getRuntypeId<T>(_value?: T, id?: RuntypeId<T>): RuntypeId<T> {
 // The lookup is resolved lazily so this package can be imported without a
 // hard dependency on the virtual cache module — useful for testing /
 // library code that wants the marker type without pulling in the runtime.
-let runtypeMetaResolver:
-  | ((id: RuntypeId<unknown>) => unknown | undefined)
-  | undefined;
+let runtypeMetaResolver: ((id: RuntypeId<unknown>) => unknown | undefined) | undefined;
 
 /**
  * Install the cache resolver. The vite-plugin-runtypes virtual module
  * calls this on first import so subsequent `getMeta(id)` calls hit the
  * cache. Library consumers should not call this directly.
  */
-export function __setRuntypeMetaResolver(
-  fn: (id: RuntypeId<unknown>) => unknown | undefined,
-): void {
+export function __setRuntypeMetaResolver(fn: (id: RuntypeId<unknown>) => unknown | undefined): void {
   runtypeMetaResolver = fn;
 }
 
