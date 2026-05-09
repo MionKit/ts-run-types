@@ -13,6 +13,7 @@ package serialize
 import (
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -159,6 +160,37 @@ func (c *Cache) Serialize(t *checker.Type) *protocol.Type {
 // scanner — that only need an id, not a Type sentinel.
 func (c *Cache) AssignID(t *checker.Type) string {
 	return c.assignID(t)
+}
+
+// SerializeRegexLiteral registers a synthetic regex-literal Type entry and
+// returns its hash id. Two calls with the same (source, flags) deduplicate.
+//
+// Bypasses the *checker.Type path entirely — TS has no regex-literal type, so
+// the marker scanner harvests the regex from the AST when it can. The emitter
+// dispatches on the `literal.regexp` shape (see render-cache.ts:138-141) to
+// produce a `new RegExp("…", "…")` expression at runtime.
+func (c *Cache) SerializeRegexLiteral(source, flags string) string {
+	structural := strconv.Itoa(int(protocol.KindLiteral)) + ":regexp:" + source + "|" + flags
+	if id, ok := c.byStructural[structural]; ok {
+		return id
+	}
+	id, err := c.literals.Unique(structural, c.opts.literalHashLength())
+	if err != nil {
+		id = "x" + structural
+	}
+	c.byStructural[structural] = id
+	c.nodes[id] = &protocol.Type{
+		ID:   id,
+		Kind: protocol.KindLiteral,
+		Literal: map[string]any{
+			"regexp": map[string]any{
+				"source": source,
+				"flags":  flags,
+			},
+		},
+	}
+	c.insertOrder = append(c.insertOrder, id)
+	return id
 }
 
 // SerializeTopLevel returns the canonical Type entry (not a ref). Used by

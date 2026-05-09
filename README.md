@@ -35,7 +35,10 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. At build end, the plugin emits `virtual:runtypes-cache` — a reflection-shape, fully-knotted `Type` graph keyed by hash id. Runtimes read it via `getMeta(id)`.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design, and the per-kind guides:
+
+- [docs/atomic-types.md](docs/atomic-types.md) — primitives, regex, literals, enums, `Date` — with TypeScript narrowing quirks.
+- [docs/member-types.md](docs/member-types.md) — arrays, tuples, classes, object literals, functions, unions, recursive types.
 
 ### Data flow
 
@@ -160,6 +163,8 @@ packages/runtypes/               @mionjs/ts-go-run-types — marker type + helpe
 packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
 docs/ARCHITECTURE.md             detailed design
+docs/atomic-types.md             per-kind reference for primitives + literals + enums
+docs/member-types.md             per-kind reference for structured types
 docs/ROADMAP.md                  scope + known lossy mappings
 scripts/                         publish / unpublish / pre-publish-test / pack
 pnpm-workspace.yaml              workspace + supply-chain hardening

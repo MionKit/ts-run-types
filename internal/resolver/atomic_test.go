@@ -334,10 +334,22 @@ reflectRuntypeId(v);
 }
 
 // =========================================================================
-// Regexp instance type (kind 12) — distinct from a regexp literal.
+// Regexp — two reflection outcomes:
+//
+//   KindRegexp (instance type, kind 12) — produced when the resolver cannot
+//   trace the call to a regex-literal source. Examples: an explicit `RegExp`
+//   type, a `declare const`, a `let`-bound regex.
+//
+//   KindLiteral{regexp: {source, flags}} (literal kind 13) — produced when the
+//   resolver traces the call to a regex-literal source. Renders at runtime as
+//   `new RegExp("abc", "i")`. Triggered by inline regex literals, `as const`
+//   wraps, and (transitively) `const`-binding chains reachable via `typeof`
+//   in static form or via direct identifier reference in reflect form.
+//
+// See docs/atomic-types.md for the worked example matrix.
 // =========================================================================
 
-func TestAtomic_Regexp_Static(t *testing.T) {
+func TestAtomic_Regexp_Static_RegExpType(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 getRuntypeId<RegExp>();
 `
@@ -350,17 +362,102 @@ getRuntypeId<RegExp>();
 	}
 }
 
-func TestAtomic_Regexp_Reflect(t *testing.T) {
+func TestAtomic_Regexp_Reflect_DeclareConst(t *testing.T) {
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: RegExp = /abc/i;
-reflectRuntypeId(v);
+declare const re: RegExp;
+reflectRuntypeId(re);
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindRegexp {
 		t.Fatalf("expected KindRegexp, got %d", tn.Kind)
 	}
-	if tn.ClassRef == nil || tn.ClassRef.Builtin != "RegExp" {
-		t.Fatalf("expected ClassRef.Builtin=RegExp, got %+v", tn.ClassRef)
+}
+
+func TestAtomic_LiteralRegexp_Reflect_DirectLiteral(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/abc/i);
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, "abc", "i")
+}
+
+func TestAtomic_LiteralRegexp_Reflect_DirectLiteralAsConst(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/abc/i as const);
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, "abc", "i")
+}
+
+func TestAtomic_LiteralRegexp_Reflect_ConstBinding(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /abc/i;
+reflectRuntypeId(re);
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, "abc", "i")
+}
+
+func TestAtomic_LiteralRegexp_Static_TypeofBinding(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /abc/i;
+getRuntypeId<typeof re>();
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, "abc", "i")
+}
+
+// Trace follows chained const bindings.
+func TestAtomic_LiteralRegexp_Reflect_ChainedConst(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const a = /abc/i;
+const b = a;
+reflectRuntypeId(b);
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, "abc", "i")
+}
+
+// Cross-form hash equivalence: a direct-literal reflect call and a
+// typeof-binding static call with the same source+flags must share the same
+// cache id. Trace-based equivalent of TestAtomic_FormEquivalence.
+func TestAtomic_LiteralRegexp_FormEquivalence(t *testing.T) {
+	const reflectForm = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/abc/i);
+`
+	const staticForm = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /abc/i;
+getRuntypeId<typeof re>();
+`
+	r := setupInline(t, map[string]string{
+		"reflect.ts": reflectForm,
+		"static.ts":  staticForm,
+	})
+	a := resolveFile(t, r, "reflect.ts")
+	b := resolveFile(t, r, "static.ts")
+	if a.ID != b.ID {
+		t.Fatalf("expected same hash for direct vs typeof regex literal, got %q vs %q", a.ID, b.ID)
+	}
+}
+
+func assertRegexLiteral(t *testing.T, tn *protocol.Type, wantSource, wantFlags string) {
+	t.Helper()
+	if tn.Kind != protocol.KindLiteral {
+		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
+	}
+	m, ok := tn.Literal.(map[string]any)
+	if !ok {
+		t.Fatalf("expected literal to be a map, got %T", tn.Literal)
+	}
+	rx, ok := m["regexp"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected literal.regexp map, got %v", m["regexp"])
+	}
+	if rx["source"] != wantSource {
+		t.Fatalf("expected regex source=%q, got %v", wantSource, rx["source"])
+	}
+	if rx["flags"] != wantFlags {
+		t.Fatalf("expected regex flags=%q, got %v", wantFlags, rx["flags"])
 	}
 }
 
@@ -381,9 +478,10 @@ getRuntypeId<'hello'>();
 	}
 }
 
-func TestAtomic_LiteralString_Reflect(t *testing.T) {
+// `as const` preserves the literal at the generic call site.
+func TestAtomic_LiteralString_Reflect_AsConst(t *testing.T) {
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: 'hello' = 'hello';
+const v = 'hello' as const;
 reflectRuntypeId(v);
 `
 	_, tn := resolveInline(t, code)
@@ -392,6 +490,18 @@ reflectRuntypeId(v);
 	}
 	if tn.Literal != "hello" {
 		t.Fatalf("expected literal=\"hello\", got %v (%T)", tn.Literal, tn.Literal)
+	}
+}
+
+// Plain `const` — TS widens the literal type during generic inference.
+func TestAtomic_LiteralString_Reflect_PlainConst(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = 'hello';
+reflectRuntypeId(v);
+`
+	_, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindString {
+		t.Fatalf("expected KindString (widened), got %d", tn.Kind)
 	}
 }
 
@@ -422,13 +532,24 @@ getRuntypeId<42>();
 	assertLiteralNumber42(t, tn)
 }
 
-func TestAtomic_LiteralNumber_Reflect(t *testing.T) {
+func TestAtomic_LiteralNumber_Reflect_AsConst(t *testing.T) {
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: 42 = 42;
+const v = 42 as const;
 reflectRuntypeId(v);
 `
 	_, tn := resolveInline(t, code)
 	assertLiteralNumber42(t, tn)
+}
+
+func TestAtomic_LiteralNumber_Reflect_PlainConst(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = 42;
+reflectRuntypeId(v);
+`
+	_, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindNumber {
+		t.Fatalf("expected KindNumber (widened), got %d", tn.Kind)
+	}
 }
 
 func TestAtomic_LiteralBoolean_Static(t *testing.T) {
@@ -444,9 +565,9 @@ getRuntypeId<true>();
 	}
 }
 
-func TestAtomic_LiteralBoolean_Reflect(t *testing.T) {
+func TestAtomic_LiteralBoolean_Reflect_AsConst(t *testing.T) {
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: true = true;
+const v = true as const;
 reflectRuntypeId(v);
 `
 	_, tn := resolveInline(t, code)
@@ -458,6 +579,17 @@ reflectRuntypeId(v);
 	}
 }
 
+func TestAtomic_LiteralBoolean_Reflect_PlainConst(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = true;
+reflectRuntypeId(v);
+`
+	_, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindBoolean {
+		t.Fatalf("expected KindBoolean (widened), got %d", tn.Kind)
+	}
+}
+
 func TestAtomic_LiteralBigInt_Static(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 getRuntypeId<1n>();
@@ -466,13 +598,24 @@ getRuntypeId<1n>();
 	assertBigintLiteral(t, tn)
 }
 
-func TestAtomic_LiteralBigInt_Reflect(t *testing.T) {
+func TestAtomic_LiteralBigInt_Reflect_AsConst(t *testing.T) {
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: 1n = 1n;
+const v = 1n as const;
 reflectRuntypeId(v);
 `
 	_, tn := resolveInline(t, code)
 	assertBigintLiteral(t, tn)
+}
+
+func TestAtomic_LiteralBigInt_Reflect_PlainConst(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = 1n;
+reflectRuntypeId(v);
+`
+	_, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindBigInt {
+		t.Fatalf("expected KindBigInt (widened), got %d", tn.Kind)
+	}
 }
 
 func assertBigintLiteral(t *testing.T, tn *protocol.Type) {
@@ -560,13 +703,16 @@ getRuntypeId<Color>();
 }
 
 func TestAtomic_EnumNumeric_Reflect(t *testing.T) {
+	// `const v = Color.Red` (no annotation) — declared type widens to the
+	// parent enum `Color`. The counterintuitive trap `const v: Color = …`
+	// would narrow to the literal `Color.Red` instead; see docs/atomic-types.md.
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
 enum Color {
   Red = 0,
   Green = 1,
   Blue = 2,
 }
-declare const v: Color;
+const v = Color.Red;
 reflectRuntypeId(v);
 `
 	assertEnumNumeric(t, code)
@@ -602,13 +748,14 @@ getRuntypeId<Color>();
 }
 
 func TestAtomic_EnumString_Reflect(t *testing.T) {
+	// `const v = Color.Red` (no annotation) — see TestAtomic_EnumNumeric_Reflect.
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
 enum Color {
   Red = 'red',
   Green = 'green',
   Blue = 'blue',
 }
-declare const v: Color;
+const v = Color.Red;
 reflectRuntypeId(v);
 `
 	assertEnumString(t, code)

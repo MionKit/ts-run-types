@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -303,7 +304,16 @@ func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
 	if argsCount > lastIdx {
 		return protocol.Site{}, false
 	}
-	id := r.cache.AssignID(tArg)
+	// Regex-literal harvest: if we can trace the call to a regex-literal
+	// source expression, synthesize a KindLiteral{regexp} entry instead of
+	// resolving tArg through the type system. TS has no regex-literal type,
+	// so this is the only path that produces literal-kind regex entries.
+	id := ""
+	if src, flags, ok := r.resolveRegexLiteralSource(call, lastIdx, argsCount); ok {
+		id = r.cache.SerializeRegexLiteral(src, flags)
+	} else {
+		id = r.cache.AssignID(tArg)
+	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -314,4 +324,127 @@ func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
 		ParamIndex: lastIdx,
 		ArgsCount:  argsCount,
 	}, true
+}
+
+// resolveRegexLiteralSource attempts to harvest a regex-literal source from
+// the call's argument or type-argument expression. Returns (source, flags, true)
+// when a regex literal is reachable; (_, _, false) otherwise — in which case
+// the caller falls through to standard type-based resolution.
+//
+// Two entry points:
+//   - reflect form  (argsCount > 0)   — look at the single value argument
+//   - static form   (argsCount == 0)  — look at the first type argument (must be `typeof <id>`)
+//
+// The trace itself: unwrap `as` / parenthesised expressions, then either
+// harvest a RegularExpressionLiteral directly, recurse through a TypeQuery,
+// or resolve an Identifier to its const variable declaration's initializer.
+func (r *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCount int) (string, string, bool) {
+	ce := call.AsCallExpression()
+	if ce == nil {
+		return "", "", false
+	}
+	var node *ast.Node
+	switch {
+	case argsCount > 0 && argsCount == paramIndex:
+		// Reflect form: T is inferred from the value at slot 0.
+		if ce.Arguments != nil && len(ce.Arguments.Nodes) > 0 {
+			node = ce.Arguments.Nodes[0]
+		}
+	case argsCount == 0 && paramIndex == 0:
+		// Static form: T is the first type argument.
+		if ce.TypeArguments != nil && len(ce.TypeArguments.Nodes) > 0 {
+			node = ce.TypeArguments.Nodes[0]
+		}
+	}
+	if node == nil {
+		return "", "", false
+	}
+	return r.traceRegexLiteral(node, 0)
+}
+
+// traceRegexLiteral walks through AST wrappers, typeof references, and const
+// identifier bindings looking for a regex literal at the leaf. Depth-limited
+// to defend against pathological inputs the type checker would otherwise
+// reject (TS forbids self-referential initializers, but a defensive cap keeps
+// the resolver predictable).
+func (r *Resolver) traceRegexLiteral(node *ast.Node, depth int) (string, string, bool) {
+	if node == nil || depth > 16 {
+		return "", "", false
+	}
+	// Unwrap a single layer of `as T` / parens.
+	for {
+		switch node.Kind {
+		case ast.KindAsExpression:
+			ae := node.AsAsExpression()
+			if ae == nil {
+				return "", "", false
+			}
+			node = ae.Expression
+		case ast.KindParenthesizedExpression:
+			pe := node.AsParenthesizedExpression()
+			if pe == nil {
+				return "", "", false
+			}
+			node = pe.Expression
+		default:
+			goto unwrapped
+		}
+		if node == nil {
+			return "", "", false
+		}
+	}
+unwrapped:
+	switch node.Kind {
+	case ast.KindRegularExpressionLiteral:
+		lit := node.AsRegularExpressionLiteral()
+		if lit == nil {
+			return "", "", false
+		}
+		src, flags := splitRegexLiteralText(lit.Text)
+		return src, flags, true
+	case ast.KindTypeQuery:
+		tq := node.AsTypeQueryNode()
+		if tq == nil {
+			return "", "", false
+		}
+		return r.traceRegexLiteral(tq.ExprName, depth+1)
+	case ast.KindIdentifier:
+		sym := r.checker.GetSymbolAtLocation(node)
+		if sym == nil {
+			return "", "", false
+		}
+		for _, decl := range sym.Declarations {
+			if decl == nil || decl.Kind != ast.KindVariableDeclaration {
+				continue
+			}
+			// Only `const` bindings are traceable: `let`/`var` can be
+			// reassigned, so the initializer no longer determines the value
+			// at the call site.
+			parent := decl.Parent
+			if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
+				continue
+			}
+			vd := decl.AsVariableDeclaration()
+			if vd == nil || vd.Initializer == nil {
+				continue
+			}
+			return r.traceRegexLiteral(vd.Initializer, depth+1)
+		}
+	}
+	return "", "", false
+}
+
+// splitRegexLiteralText converts the raw RegExp literal text (e.g. "/abc/i")
+// into its source ("abc") and flags ("i"). The text always starts with `/`,
+// ends with `/<flags>`, and flags never contain `/`.
+func splitRegexLiteralText(text string) (source, flags string) {
+	if !strings.HasPrefix(text, "/") {
+		return text, ""
+	}
+	body := text[1:]
+	last := strings.LastIndex(body, "/")
+	if last < 0 {
+		return body, ""
+	}
+	return body[:last], body[last+1:]
 }
