@@ -112,6 +112,15 @@ func headerLiteral(runType *protocol.RunType) string {
 	if runType.Static {
 		fields["static"] = true
 	}
+	if runType.Visibility != nil {
+		fields["visibility"] = *runType.Visibility
+	}
+	if runType.IsSafePropName {
+		fields["isSafePropName"] = true
+	}
+	if runType.Position != nil {
+		fields["position"] = *runType.Position
+	}
 	if runType.Inlined {
 		fields["inlined"] = true
 	}

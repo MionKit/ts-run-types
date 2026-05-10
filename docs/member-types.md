@@ -128,6 +128,28 @@ Cache entry shape (the signature form):
 
 ---
 
+## Modifiers, position, and safe property names
+
+Every member node carries its **distinguishing fields** alongside the child type. These are gated by `omitempty` so a member only emits the slots that apply to it.
+
+| Field | Wire type | Applies to | Meaning |
+|---|---|---|---|
+| `name` | string | Property, PropertySignature, Method, MethodSignature, Parameter, TupleMember (labeled) | The member's identifier as written in source. Tuple members without a label carry no `name`. |
+| `optional` | `true` (omitted = false) | All member kinds | `foo?: …` / `b?:` slot / optional parameter. |
+| `readonly` | `true` (omitted = false) | Property, PropertySignature, IndexSignature | `readonly foo` modifier. |
+| `static` | `true` (omitted = false) | Property, Method | Class-only `static` keyword. |
+| `abstract` | `true` (omitted = false) | Property, Method | Class-only `abstract` keyword. |
+| `visibility` | `0` \| `1` \| `2` (omitted = implicit public) | Property, Method | `0` = public, `1` = protected, `2` = private. Mirrors mion / deepkit's `ReflectionVisibility` enum. |
+| `default` | literal value (omitted = none) | Parameter | Literal initializer (`5`, `"x"`, `true`, `null`). Non-literal initializers (expressions, function calls) leave `default` unset and append `flags: ["nonLiteralDefault"]` instead — mion's existing convention. |
+| `position` | integer (omitted when absent) | Parameter, TupleMember | 0-based slot index in the parent. Shipped explicitly so consumers don't have to `indexOf` against the parent array. |
+| `isSafePropName` | `true` (omitted = false) | Property, PropertySignature, Method, MethodSignature | True when `name` is a valid JS identifier (`/^[a-zA-Z_][a-zA-Z0-9_]*$/`) or all digits — i.e. `obj.<name>` dot access is legal. False/missing means bracket notation is required (`obj["weird name"]`). |
+
+`isSafePropName` is a ports of mion's helper at [`packages/run-types/src/lib/utils.ts:90`](https://github.com/MionKit/mion/blob/main/packages/run-types/src/lib/utils.ts#L90); shipping the boolean on every member lets downstream codegen pick dot-vs-bracket at compile time without re-running the regex.
+
+Worked example — `class U { public id = 0; private secret = ""; static count = 0; readonly tag = "t"; "weird name": boolean = false; }` serializes to five property nodes with, respectively: `visibility:0` + `isSafePropName:true`; `visibility:2` + `isSafePropName:true`; `static:true` + `visibility:0` + `isSafePropName:true`; `readonly:true` + `visibility:0` + `isSafePropName:true`; `isSafePropName` omitted (the `weird name` member requires bracket access).
+
+---
+
 ## See also
 
 - [atomic-types.md](atomic-types.md) — primitives, regex, literals, enums, `Date`.
