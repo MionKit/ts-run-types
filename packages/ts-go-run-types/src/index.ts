@@ -60,3 +60,5 @@ export {
   type DiscriminatorUnionLike,
   type FlattenedDiscriminator,
 } from './unionDiscriminator.ts';
+
+export {createIsType, type IsTypeFn} from './createIsType.ts';
