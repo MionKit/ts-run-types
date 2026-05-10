@@ -42,7 +42,7 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   const cached = validatorCache.get(id);
   if (cached) return cached;
   const factoryName = ISTYPE_FACTORY_PREFIX + id;
-  const factory = (factories as Record<string, (utl: unknown) => IsTypeFn>)[factoryName];
+  const factory = (factories as unknown as Record<string, (utl: unknown) => IsTypeFn>)[factoryName];
   if (!factory) {
     throw new Error(
       `createIsType(): no factory named "${factoryName}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for runtype "${id}".`
