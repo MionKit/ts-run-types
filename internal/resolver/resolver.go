@@ -539,6 +539,16 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 				walk(implement.ID)
 			}
 		}
+		// Extends — interface parents. Properties are already flattened
+		// into Children by the TS checker, but the parent refs are only
+		// reachable through this slot, so the walker needs to follow them
+		// explicitly or the parent interface disappears from the per-file
+		// projection.
+		for _, parent := range node.Extends {
+			if parent != nil {
+				walk(parent.ID)
+			}
+		}
 		// Decorators — surviving object-literal types from a collapsed
 		// `primitive & {brand}` intersection. Reachable from the
 		// branded primitive node, not from any structural slot, so the

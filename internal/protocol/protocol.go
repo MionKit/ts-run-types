@@ -182,6 +182,14 @@ type RunType struct {
 	ExtendsArguments []*RunType `json:"extendsArguments,omitempty"`
 	Implements       []*RunType `json:"implements,omitempty"`
 	Arguments        []*RunType `json:"arguments,omitempty"`
+	// Extends — TypeObjectLiteral (interface form) only — the direct
+	// parent interface types this declaration extends. Each entry is a
+	// ref to the parent's RunType. Properties inherited from these
+	// parents are ALSO included in Children (the TS checker merges them
+	// via GetPropertiesOfType), so the runtime path stays simple while
+	// codegen can walk the inheritance tree explicitly via Extends.
+	// Empty for anonymous object literals and `type` aliases.
+	Extends []*RunType `json:"extends,omitempty"`
 	// classType is a runtime constructor reference — see workaround docs.
 	// We emit the class's exported name + module path so a v2 footer can wire
 	// up an `import { Class } from "..."`.

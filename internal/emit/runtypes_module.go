@@ -198,6 +198,9 @@ func writeFooter(buffered *bufWriter, settings constants.CacheModuleSettings, ru
 	if len(runType.Implements) > 0 {
 		buffered.line(fmt.Sprintf("%s.implements = [%s];", name, joinRefs(settings, runType.Implements)))
 	}
+	if len(runType.Extends) > 0 {
+		buffered.line(fmt.Sprintf("%s.extends = [%s];", name, joinRefs(settings, runType.Extends)))
+	}
 
 	// classType — built-in constructors looked up on globalThis so the
 	// generated module needs zero runtime imports.

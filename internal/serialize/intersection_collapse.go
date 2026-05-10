@@ -104,10 +104,18 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 		return
 	}
 
-	// Object × object — delegate. GetPropertiesOfType on an intersection
-	// type returns the merged property set automatically.
+	// Object × object — surface the merged shape as an objectLiteral.
+	// We DON'T route through projectObjectType because its
+	// IsArrayLikeType / Promise / class branches call GetTypeArguments
+	// unconditionally, which tsgo crashes on for intersection types.
+	// projectMembersInto only calls GetPropertiesOfType + GetIndexInfos
+	// + GetSignaturesOfType, all of which are safe on intersections —
+	// the TS checker has already merged property sets across members.
 	if len(objectMembers) > 0 {
-		cache.projectObjectType(tsType, node)
+		node.Kind = protocol.KindObjectLiteral
+		properties := cache.typeChecker.GetPropertiesOfType(tsType)
+		callSignatures := cache.typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall)
+		cache.projectMembersInto(tsType, node, properties, callSignatures, false)
 		return
 	}
 
