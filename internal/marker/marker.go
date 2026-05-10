@@ -16,7 +16,10 @@
 package marker
 
 import (
-	"strings"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sync"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -34,8 +37,10 @@ type Options struct {
 	// Name is the symbol name of the marker type alias.
 	Name string
 	// Module is the package the marker is declared in. The check passes when
-	// the alias' declaration is either inside `declare module "<Module>"` or
-	// in a file whose path contains "/<Module>/" (the node_modules case).
+	// the alias' declaration is either inside `declare module "<Module>"`
+	// (ambient form, used by synthetic test fixtures) or in a file whose
+	// enclosing on-disk package.json has its `"name"` field equal to
+	// <Module> (real packages — workspace or installed).
 	Module string
 }
 
@@ -107,25 +112,100 @@ func IsFreeTypeParameter(tsType *checker.Type) bool {
 	return checker.Type_flags(tsType)&checker.TypeFlagsTypeParameter != 0
 }
 
-// DeclaredInModule reports whether symbol was declared inside the given module.
-// Two forms count:
-//   - `declare module "<module>" { type ... }` (ambient module declaration)
-//   - a `.d.ts` / `.ts` file whose path includes `/<module>/` (node_modules)
+// DeclaredInModule reports whether symbol was declared inside the given
+// module. Two forms count:
+//
+//   - `declare module "<module>" { type ... }` (ambient form) — used by
+//     synthetic test fixtures that don't have a real on-disk package.json
+//     (Go fixtures under internal/testfixtures, inline-source vite-plugin
+//     tests, etc).
+//   - A `.d.ts` / `.ts` file whose enclosing on-disk package.json declares
+//     `"name": "<module>"`. Covers both the consumer case
+//     (node_modules/<module>/dist/index.d.ts) and the workspace
+//     self-import case (packages/<dir>/src/index.ts where the package's
+//     name happens to equal <module>). The directory name on disk is
+//     irrelevant — only the `"name"` field is consulted, matching how
+//     Node module resolution defines a package's identity.
+//
+// Earlier versions of this function compared the source-file path
+// against `"/" + module + "/"`. That heuristic broke for workspace
+// self-imports (the on-disk directory `packages/ts-go-run-types/` does
+// not literally contain the published name `@mionjs/ts-go-run-types`),
+// forcing tests to insert an ambient-module overlay file as a
+// workaround. The package.json walk removes that workaround and uses
+// the same identity check as the rest of the JS ecosystem.
 func DeclaredInModule(symbol *ast.Symbol, module string) bool {
 	if symbol == nil || module == "" {
 		return false
 	}
-	pathFragment := "/" + module + "/"
 	for _, declaration := range symbol.Declarations {
 		if findAmbientModuleName(declaration) == module {
 			return true
 		}
 		sourceFile := ast.GetSourceFileOfNode(declaration)
-		if sourceFile != nil && strings.Contains(sourceFile.FileName(), pathFragment) {
+		if sourceFile == nil {
+			continue
+		}
+		if packageNameForFile(sourceFile.FileName()) == module {
 			return true
 		}
 	}
 	return false
+}
+
+// packageNameCache memoises directory→package-name results across the
+// life of a resolver process. The on-disk package.json for any given
+// directory doesn't change mid-run, so caching is safe and avoids
+// repeating identical fs walks for every marker-detection call.
+// Storing "" is itself a cached answer (meaning "no package.json found
+// walking up from here").
+var packageNameCache sync.Map // map[string]string
+
+// packageNameForFile returns the `"name"` field of the nearest
+// package.json found by walking parent directories from filePath, or ""
+// when no package.json is found, the file is unreadable, or it has no
+// name. The first package.json hit going up wins — Node's package
+// identity rule. We do NOT keep walking past a package.json that lacks
+// a `"name"` field; that file still declares a package boundary, just a
+// nameless one (so the marker check fails closed for files in such a
+// "package").
+func packageNameForFile(filePath string) string {
+	if filePath == "" {
+		return ""
+	}
+	dir := filepath.Dir(filePath)
+	if cached, ok := packageNameCache.Load(dir); ok {
+		return cached.(string)
+	}
+	name := lookupPackageNameUpward(dir)
+	packageNameCache.Store(dir, name)
+	return name
+}
+
+// lookupPackageNameUpward climbs from dir toward the filesystem root,
+// returning the `"name"` of the first readable package.json it finds.
+// Stops at the root (when filepath.Dir is a fixed point). Returns ""
+// for any of: file does not exist, JSON unparseable, name missing or
+// empty.
+func lookupPackageNameUpward(dir string) string {
+	current := dir
+	for {
+		data, err := os.ReadFile(filepath.Join(current, "package.json"))
+		if err == nil {
+			var pkg struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal(data, &pkg); err == nil {
+				return pkg.Name
+			}
+			return ""
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return ""
+		}
+		current = parent
+	}
 }
 
 // findAmbientModuleName walks the parent chain looking for the nearest

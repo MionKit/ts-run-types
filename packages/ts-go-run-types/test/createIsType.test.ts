@@ -10,11 +10,10 @@
 // The pipeline now works end-to-end via the real plugin so the
 // shortcut is redundant.
 //
-// The marker module is resolved Go-side via the sibling
-// `test/runtypes.d.ts` overlay (auto-picked-up by
-// tsconfig.test.json's `test/**/*` include glob — no per-file
-// `/// reference` needed); consumers installing the published
-// package resolve via standard Node module resolution instead.
+// `@mionjs/ts-go-run-types` resolves to the package's own
+// `src/index.ts` via the `"source"` exports condition
+// (vite: resolve.conditions; tsgo: customConditions) — see
+// CLAUDE.md → Marker package self-import resolution.
 //
 // Success bar (from plans/the-idea-is-to-groovy-rainbow.md):
 //   isType('abc')      === true

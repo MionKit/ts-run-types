@@ -123,17 +123,19 @@ Write paired tests (not parameterized): each scenario is two distinct tests, eac
 - Go-only tests (`go test ./internal/...`) do NOT need the prebuilt binary — they exercise the packages directly
 - Vite plugin tests (`pnpm --filter vite-plugin-runtypes test`) DO require the rebuilt binary
 
-## ⚠️ Workspace self-imports in marker package tests
+## Marker package self-import resolution
 
-[`packages/ts-go-run-types/test/`](packages/ts-go-run-types/test/) contains an ambient overlay file — [`runtypes.d.ts`](packages/ts-go-run-types/test/runtypes.d.ts) — that declares the `@mionjs/ts-go-run-types` module for tsgo's benefit. **Don't delete it** thinking it's redundant with the package's own `src/`.
+The marker package's own tests import from its public name `@mionjs/ts-go-run-types`, and both vitest and tsgo need to resolve that to the in-tree `src/index.ts` rather than the (un)built `dist/`. The wiring is:
 
-- The overlay exists because tsgo (the Go-side TS checker) has no way to resolve a workspace package's self-import to `src/` — it follows Node self-reference to `package.json` → `dist/index.d.ts`, which during dev is either missing or stale.
-- Vitest itself is fine — `resolve.alias` in [`vitest.config.ts`](packages/ts-go-run-types/vitest.config.ts) handles the runtime side. The overlay is purely for tsgo's type-resolution pass.
-- Auto-included via `tsconfig.test.json`'s `"include": ["test/**/*"]` glob; no `/// <reference />` directives needed.
-- Workspace-only — `test/` is not in the package's `"files"` array; published consumers never see it and resolve via standard Node module resolution against the built `dist/`.
-- When adding a new public API to `@mionjs/ts-go-run-types`, mirror the signature in this overlay file too, or the marker package's own tests will fail to typecheck under tsgo even though vite is happy.
-- The Go test suite uses the same pattern: [`internal/testfixtures/runtypes.d.ts`](internal/testfixtures/runtypes.d.ts). Keep the two in sync when changing public types.
-- See [docs/ARCHITECTURE.md → Workspace self-imports in tests](docs/ARCHITECTURE.md#workspace-self-imports-in-tests) for the full rationale and the path out (tsgo `customConditions` if/when supported).
+- [`packages/ts-go-run-types/package.json`](packages/ts-go-run-types/package.json) — `exports[".source"]` points at `./src/index.ts`. Opt-in lane; consumers without the `source` condition fall through to the normal `types`/`import`/`require` entries.
+- [`packages/ts-go-run-types/vitest.config.ts`](packages/ts-go-run-types/vitest.config.ts) — `resolve.conditions: ['source']` (mirrored on `ssr.resolve.conditions`) for vite's runtime resolver.
+- [`packages/ts-go-run-types/tsconfig.test.json`](packages/ts-go-run-types/tsconfig.test.json) — `customConditions: ["source"]` for tsgo's type-resolution pass.
+
+Both flags select the same `"source"` entry. Drop either one and the package self-import will resolve to the built `dist/` instead, breaking tests during dev when dist is missing or stale.
+
+The marker scanner in [`internal/marker/marker.go`](internal/marker/marker.go) gates `RuntypeId<T>` recognition by walking up from the declaration's source file to the nearest `package.json` and matching its `"name"` field. This makes source-resolved imports work the same as `node_modules`-resolved ones — both end up at a `package.json` with `"name": "@mionjs/ts-go-run-types"`. **Don't reintroduce the old path-fragment heuristic.**
+
+The Go test suite ([`internal/testfixtures/runtypes.d.ts`](internal/testfixtures/runtypes.d.ts)) uses the older ambient `declare module` form because the fixtures live under `internal/` without their own package.json. That path is also still honored by the marker scanner — keep the overlay in sync with the marker package's public API when adding new marker functions.
 
 ## Rewrite mechanics
 

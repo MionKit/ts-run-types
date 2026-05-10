@@ -14,14 +14,13 @@ const REPO_ROOT = resolve(HERE, '../..');
 // `virtual:runtypes-isType` / `virtual:runtypes-cache` modules become
 // importable.
 //
-// `resolve.alias` redirects the package self-import to the in-tree
-// source. tsgo (Go-side checker) resolves `@mionjs/ts-go-run-types` to
-// the local workspace package by package-name match before walking up
-// to node_modules — but its handling of our particular dist+src layout
-// breaks for self-imports. The runtime alias here keeps Vite's
-// resolution clean; tsgo's resolution is handled separately by the
-// test/runtypes.d.ts ambient overlay (auto-included via
-// tsconfig.test.json's include glob).
+// `resolve.conditions: ['source']` picks up the `"source"` exports
+// entry on `@mionjs/ts-go-run-types`'s package.json (pointing at
+// `src/index.ts`) — same condition `tsconfig.test.json` declares for
+// tsgo via `customConditions`. The two resolvers (vite at runtime,
+// tsgo for type-checking the marker scan) now both land on the same
+// in-tree source, with no alias plumbing required. SSR's resolver
+// honors the same conditions list.
 //
 // `cwd` is the package dir + `tsconfig.test.json` extends the build
 // config to also include `test/**`, so the Go resolver's Program
@@ -29,10 +28,9 @@ const REPO_ROOT = resolve(HERE, '../..');
 // (src-only) so `pnpm build` doesn't compile test files into dist.
 export default defineConfig({
   resolve: {
-    alias: {
-      '@mionjs/ts-go-run-types': resolve(PACKAGE_ROOT, 'src/index.ts'),
-    },
+    conditions: ['source'],
   },
+  ssr: {resolve: {conditions: ['source']}},
   plugins: [
     runtypesPlugin({
       binary: resolve(REPO_ROOT, 'bin/ts-go-run-types'),
