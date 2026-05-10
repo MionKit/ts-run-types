@@ -130,11 +130,18 @@ export interface RunType {
   // discriminator property within `safeUnionChildren[i]`. Consumer
   // reads entry.name for the property key and entry.child for the
   // expected type. Slots for non-object members (simple / any) are
-  // null/undefined. When detection finds no usable discriminator, the
-  // field is absent. Lives on the union (not the property node) so
-  // the relationship is correctly scoped — the same canonical
+  // null/undefined. Absent when neither detection pass finds a
+  // usable discriminator. Lives on the union (not the property node)
+  // so the relationship is correctly scoped — the same canonical
   // property node may be a discriminator in one parent union but not
   // in another.
+  //
+  // Wire-format equivalent of mion's FlattenedProp[] output
+  // (mion-run-types: packages/run-types/src/nodes/collection/unionDiscriminator.ts).
+  // Only the strictly-new field (the property ref) lives on the wire;
+  // the other FlattenedProp fields are reconstructible. Consumers
+  // call `flattenUnionDiscriminators` from @mionjs/ts-go-run-types
+  // to materialise the full per-member struct in one pass.
   unionDiscriminators?: (RunType | null | undefined)[];
 
   // surviving object-literal types from an intersection-collapse of a

@@ -156,10 +156,18 @@ type RunType struct {
 	// entry.Name for the property key and entry.Child for the expected
 	// type. Slots for non-object members (simple / any) are nil. When
 	// detection finds no usable discriminator, the field is empty.
-	// Mirrors mion's FlattenedProp[] output (minus the codegen-local
-	// compiledName) and lives on the union itself so the relationship
-	// is correctly scoped — the same canonical property node may be a
-	// discriminator in one parent union but not in another.
+	//
+	// Lives on the union itself so the relationship is correctly scoped —
+	// the same canonical property node may be a discriminator in one
+	// parent union but not in another.
+	//
+	// Wire-format equivalent of mion's FlattenedProp[] output
+	// (packages/run-types/src/nodes/collection/unionDiscriminator.ts).
+	// We carry only the strictly-new field (a ref to the property);
+	// the other FlattenedProp fields are reconstructible from the
+	// surrounding context. JS-side consumers use
+	// `flattenUnionDiscriminators` from @mionjs/ts-go-run-types to
+	// materialise the full per-member struct.
 	UnionDiscriminators []*RunType `json:"unionDiscriminators,omitempty"`
 
 	// Decorators — surviving object-literal types from a collapsed
