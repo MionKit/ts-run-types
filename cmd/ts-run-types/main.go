@@ -1,6 +1,7 @@
 // Command ts-run-types answers compile-time type-reflection queries for
 // mion runtypes. It holds a typescript-go Program + checker in memory and
-// speaks newline-delimited JSON on stdio, or exposes a single dump mode.
+// speaks newline-delimited JSON on stdio, or writes the dump straight to
+// disk via --out-json / --out-ts.
 package main
 
 import (
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mionkit/ts-run-types/internal/emit"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 	"github.com/mionkit/ts-run-types/internal/resolver"
@@ -29,6 +31,8 @@ Options:
     --one-shot          read requests from stdin until EOF, emit dump to stdout
     --daemon            listen on a Unix socket for persistent serving
     --socket PATH       socket path (default: /tmp/ts-run-types.sock)
+    --out-json PATH     after stdin is drained, write the cache as JSON to PATH
+    --out-ts   PATH     after stdin is drained, write the runtime TS artifact to PATH
     --single-threaded   force single-checker mode (useful for tests)
     -h, --help          show help
 `
@@ -42,6 +46,8 @@ func main() {
 		oneShot        bool
 		daemon         bool
 		socketPath     string
+		outJSON        string
+		outTS          string
 		singleThreaded bool
 		help           bool
 	)
@@ -50,6 +56,8 @@ func main() {
 	flag.BoolVar(&oneShot, "one-shot", false, "one-shot stdio mode")
 	flag.BoolVar(&daemon, "daemon", false, "daemon Unix-socket mode")
 	flag.StringVar(&socketPath, "socket", "/tmp/ts-run-types.sock", "Unix socket path")
+	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
+	flag.StringVar(&outTS, "out-ts", "", "write runtime TS module to PATH after stdin EOF")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
@@ -91,12 +99,26 @@ func main() {
 	switch {
 	case daemon:
 		runDaemon(r, socketPath)
-	case oneShot:
-		runOneShot(r, os.Stdin, os.Stdout)
 	default:
-		// If stdin is attached to a terminal we still default to one-shot — the
-		// binary is meant to be driven programmatically.
 		runOneShot(r, os.Stdin, os.Stdout)
+	}
+
+	// Optional file outputs after stdin is drained. Both formats share one
+	// resolver state so file emissions are consistent with the JSON the
+	// caller already saw on stdout.
+	dump := protocol.Dump{
+		Types: r.Cache().Dump(),
+		Sites: r.Sites(),
+	}
+	if outJSON != "" {
+		if err := writeFile(outJSON, func(w io.Writer) error { return emit.JSON(w, dump) }); err != nil {
+			fatal("out-json: %v", err)
+		}
+	}
+	if outTS != "" {
+		if err := writeFile(outTS, func(w io.Writer) error { return emit.TSModule(w, dump) }); err != nil {
+			fatal("out-ts: %v", err)
+		}
 	}
 }
 
@@ -118,12 +140,6 @@ func runOneShot(r *resolver.Resolver, in io.Reader, out io.Writer) {
 			fatal("encode: %v", err)
 		}
 	}
-
-	// End-of-stream dump so callers that forgot to request one still get the
-	// full table — useful for smoke tests and `bin/ts-run-types < queries`.
-	_ = enc.Encode(protocol.Dump{
-		Types: r.Cache().Dump(),
-	})
 }
 
 func runDaemon(r *resolver.Resolver, socketPath string) {
@@ -147,6 +163,19 @@ func runDaemon(r *resolver.Resolver, socketPath string) {
 			runOneShot(r, c, c)
 		}(conn)
 	}
+}
+
+func writeFile(path string, fn func(io.Writer) error) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	bw := bufio.NewWriter(f)
+	if err := fn(bw); err != nil {
+		return err
+	}
+	return bw.Flush()
 }
 
 func fatal(format string, args ...any) {

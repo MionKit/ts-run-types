@@ -91,11 +91,37 @@ Every resolved id is recorded in an append-only `Sites` slice so the final dump 
 
 Pure struct definitions shared between the Go resolver and the TS plugin. Stdio protocol is newline-delimited JSON; one `Request` in, one `Response` out, EOF terminates. The daemon mode wraps a Unix-socket accept loop around the same handler, one client at a time.
 
+### internal/emit
+
+Two output formats share the same in-memory `protocol.Dump`:
+
+- **`json.go`** — pretty-printed JSON. Child Type slots stay as `{kind: -1, id: N}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
+- **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t<N>` carrying scalar fields, then a footer block fills in reference-bearing slots (`type`, `return`, `parameters`, `types`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted deepkit `Type` object — no rehydration step at consumer load time, no helper function to call.
+
 ### packages/vite-plugin-runtypes
 
 - `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses.
-- `rewrite.ts` — regex-based scan for configured markers; for each call, asks the resolver, then inserts `, "<id>"` as an extra argument before the closing `)`. A hand-rolled bracket-aware scanner skips strings, templates and comments so the close paren is correct for nested/odd cases.
-- `index.ts` — Vite plugin glue. Emits a `virtual:runtypes-cache` module exporting `__runtypes: Map<id, TypeNode>` and `__sites`, populated from the resolver's periodic dump calls.
+- `rewrite.ts` — regex-based scan for configured markers; for each call, asks the resolver, then inserts `, <id>` as a numeric extra argument before the closing `)`. A hand-rolled bracket-aware scanner skips strings, templates and comments so the close paren is correct for nested/odd cases.
+- `render-cache.ts` — TS-side renderer that mirrors `internal/emit/tsmodule.go` byte-for-byte; produces the same `.ts` artifact from a `Dump`.
+- `index.ts` — Vite plugin glue. Emits a `virtual:runtypes-cache` module exporting `__runtypes: Map<number, Type>` and `__sites`. In production builds the same shape can be written to disk by passing `--out-ts` to the Go binary directly.
+
+## Deepkit shape compatibility
+
+The protocol's `Type` is byte-shape compatible with [deepkit/type's `Type` discriminated union](https://github.com/marcj/deepkit/blob/master/packages/type/src/reflection/type.ts). Specifically:
+
+- **Numeric `ReflectionKind`** matches deepkit's enum declaration order exactly (never=0, any=1, …, callSignature=35). Sentinel `-1` is reserved for ref slots.
+- **Container shape** mirrors deepkit: `TypeObjectLiteral.types` is an array of `TypePropertySignature`/`TypeMethodSignature`/`TypeIndexSignature`/`TypeCallSignature` nodes; `TypeFunction.parameters` is an array of `TypeParameter` nodes; tuple elements are wrapped as `TypeTupleMember`.
+- **Annotations carried**: `id`, `typeName`, `typeArguments`, `optional`, `readonly`, `abstract`, `static`, `inlined`, `flags`, `description`, `default` (literal-only), `classRef` (provenance for v0.3 lazy-import).
+- **Knotted output**: the `.ts` runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `__runtypes.get(id)` is a drop-in source of `Type` objects for the user's runtypes JIT — no adapter layer needed.
+
+Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
+
+- Symbol-keyed property names → synthetic `@@<name>` strings + `flags: ["symbol"]`.
+- Function/closure-valued `default` → omitted with `flags: ["nonLiteralDefault"]` marker.
+- `bigint` literal values → string with `flags: ["bigint"]` (consumer parses with `BigInt(…)`).
+- `parent` not in JSON; the `.ts` artifact wires it. JSON-only consumers re-knot themselves.
+
+Out of scope for v0.2: `templateLiteral`, `regexp`, `infer`, decorators (`MinLength<5>`-style), `TypeNumberBrand`, runtime-only fields (`function`, `classType`, `enum`). All have v0.3+ workaround proposals in the roadmap.
 
 ## go:linkname boundary
 
