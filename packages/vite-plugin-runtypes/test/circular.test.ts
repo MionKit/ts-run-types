@@ -296,4 +296,162 @@ reflectRuntypeId(value);
     expect(child.kind).toBe(ReflectionKind.objectLiteral);
     return child;
   }
+
+  // ---- nested + multiple circular ------------------------------------------
+  //
+  // Adapted from mion's `Interface with nested circular + multiple circular`
+  // describe in interface.spec.ts:763. Three interleaved recursive shapes:
+  //
+  //   interface ICircularDeep {
+  //     name: string;
+  //     big: bigint;
+  //     embedded: { hello: string; child?: ICircularDeep };
+  //   }
+  //   interface ICircularDate {
+  //     date: Date;
+  //     month: number;
+  //     year: number;
+  //     embedded?: ICircularDate;
+  //     deep?: ICircularDeep;
+  //   }
+  //   interface RootCircular {
+  //     isRoot: true;
+  //     ciChild: ICircularDeep;
+  //     ciRoort?: RootCircular;
+  //     ciDate: ICircularDate;
+  //   }
+  //
+  // Asserts every back-edge closes by `===` (no infinite expansion) and
+  // that cross-references between the three shapes resolve to the same
+  // canonical const each time.
+
+  runTest(
+    'nested + multiple circular static',
+    {
+      'nested.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface ICircularDeep {
+  name: string;
+  big: bigint;
+  embedded: {
+    hello: string;
+    child?: ICircularDeep;
+  };
+}
+interface ICircularDate {
+  date: Date;
+  month: number;
+  year: number;
+  embedded?: ICircularDate;
+  deep?: ICircularDeep;
+}
+interface RootCircular {
+  isRoot: true;
+  ciChild: ICircularDeep;
+  ciRoort?: RootCircular;
+  ciDate: ICircularDate;
+}
+getRuntypeId<RootCircular>();
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertNestedAndMultipleCircular(cache);
+    }
+  );
+
+  runTest(
+    'nested + multiple circular reflect',
+    {
+      'nested.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+interface ICircularDeep {
+  name: string;
+  big: bigint;
+  embedded: {
+    hello: string;
+    child?: ICircularDeep;
+  };
+}
+interface ICircularDate {
+  date: Date;
+  month: number;
+  year: number;
+  embedded?: ICircularDate;
+  deep?: ICircularDeep;
+}
+interface RootCircular {
+  isRoot: true;
+  ciChild: ICircularDeep;
+  ciRoort?: RootCircular;
+  ciDate: ICircularDate;
+}
+declare const value: RootCircular;
+reflectRuntypeId(value);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      assertNestedAndMultipleCircular(cache);
+    }
+  );
+
+  function assertNestedAndMultipleCircular(cache: Parameters<typeof getTypeFor>[0]) {
+    const root = getTypeFor(cache, 'nested.ts');
+    expect(root.kind).toBe(ReflectionKind.objectLiteral);
+
+    // isRoot: true literal
+    const isRoot = root.children?.find((m) => m.name === 'isRoot');
+    expect(isRoot).toBeDefined();
+    const isRootChild = isRoot!.child as RunType;
+    expect(isRootChild.kind).toBe(ReflectionKind.literal);
+    expect(isRootChild.literal).toBe(true);
+
+    // ciChild → ICircularDeep
+    const ciChild = root.children?.find((m) => m.name === 'ciChild');
+    expect(ciChild).toBeDefined();
+    const icDeep = ciChild!.child as RunType;
+    expect(icDeep.kind).toBe(ReflectionKind.objectLiteral);
+
+    // ciRoort? → back-edge to root
+    const ciRoort = root.children?.find((m) => m.name === 'ciRoort');
+    expect(ciRoort).toBeDefined();
+    expect(ciRoort!.optional).toBe(true);
+    expect(ciRoort!.child as RunType).toBe(root);
+
+    // ciDate → ICircularDate
+    const ciDate = root.children?.find((m) => m.name === 'ciDate');
+    expect(ciDate).toBeDefined();
+    const icDate = ciDate!.child as RunType;
+    expect(icDate.kind).toBe(ReflectionKind.objectLiteral);
+
+    // Three distinct canonical objects.
+    expect(icDeep).not.toBe(root);
+    expect(icDate).not.toBe(root);
+    expect(icDeep).not.toBe(icDate);
+
+    // ICircularDeep internals: name, big, embedded.{hello, child? → icDeep}
+    expect((icDeep.children?.find((m) => m.name === 'name')?.child as RunType).kind).toBe(ReflectionKind.string);
+    expect((icDeep.children?.find((m) => m.name === 'big')?.child as RunType).kind).toBe(ReflectionKind.bigint);
+    const embedded = icDeep.children?.find((m) => m.name === 'embedded');
+    expect(embedded).toBeDefined();
+    const embeddedObj = embedded!.child as RunType;
+    expect(embeddedObj.kind).toBe(ReflectionKind.objectLiteral);
+    expect((embeddedObj.children?.find((m) => m.name === 'hello')?.child as RunType).kind).toBe(ReflectionKind.string);
+    const innerChild = embeddedObj.children?.find((m) => m.name === 'child');
+    expect(innerChild).toBeDefined();
+    expect(innerChild!.optional).toBe(true);
+    expect(innerChild!.child as RunType).toBe(icDeep);
+
+    // ICircularDate internals: date/Date, month, year, embedded? → icDate, deep? → icDeep
+    expect((icDate.children?.find((m) => m.name === 'date')?.child as RunType).kind).toBe(ReflectionKind.class);
+    expect((icDate.children?.find((m) => m.name === 'month')?.child as RunType).kind).toBe(ReflectionKind.number);
+    expect((icDate.children?.find((m) => m.name === 'year')?.child as RunType).kind).toBe(ReflectionKind.number);
+    const dateEmbedded = icDate.children?.find((m) => m.name === 'embedded');
+    expect(dateEmbedded).toBeDefined();
+    expect(dateEmbedded!.optional).toBe(true);
+    expect(dateEmbedded!.child as RunType).toBe(icDate);
+    const deep = icDate.children?.find((m) => m.name === 'deep');
+    expect(deep).toBeDefined();
+    expect(deep!.optional).toBe(true);
+    expect(deep!.child as RunType).toBe(icDeep);
+  }
 });
