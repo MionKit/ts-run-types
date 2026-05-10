@@ -27,7 +27,7 @@
     "directory": "packages/vite-plugin-runtypes"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc --build tsconfig.json",
     "test": "vitest run",
     "dev:test": "vitest watch",
     "lint": "eslint src",

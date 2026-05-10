@@ -20,6 +20,7 @@
     "pnpm": ">= 10.0.0"
   },
   "scripts": {
+    "pretest": "pnpm --filter vite-plugin-runtypes run build",
     "test": "vitest run",
     "test:logs": "vitest run --reporter=default --reporter=./scripts/runtypes-logs-reporter.mjs",
     "check:go-binary": "bash scripts/check-go-binary.sh",
