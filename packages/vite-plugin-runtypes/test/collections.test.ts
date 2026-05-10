@@ -12,6 +12,11 @@ import {evalCacheFor, getTypeFor, runTest} from './helpers/inline.ts';
 
 describe('vite-plugin-runtypes / collection round-trip', () => {
   // ---- object literal: optional / readonly / unsafe prop name --------------
+  //
+  // The unsafe name is gnarly on purpose: a newline, `?>'`, a backslash, a
+  // tab, and a CR — control chars that exercise JSON encoding, the source-
+  // literal round-trip, and the safe-name regex.
+  const weirdPropName = "weird prop name \n?>'\\\t\r";
 
   runTest(
     'object with optional+readonly+unsafe name static',
@@ -20,7 +25,7 @@ describe('vite-plugin-runtypes / collection round-trip', () => {
 interface O {
   readonly id: number;
   nick?: string;
-  "weird name": boolean;
+  "weird prop name \\n?>'\\\\\\t\\r": boolean;
 }
 getRuntypeId<O>();
 `,
@@ -38,7 +43,7 @@ getRuntypeId<O>();
 interface O {
   readonly id: number;
   nick?: string;
-  "weird name": boolean;
+  "weird prop name \\n?>'\\\\\\t\\r": boolean;
 }
 declare const value: O;
 reflectRuntypeId(value);
@@ -63,7 +68,7 @@ reflectRuntypeId(value);
     expect(nick!.optional).toBe(true);
     expect(nick!.isSafePropName).toBe(true);
     expect(nick!.readonly).toBeUndefined();
-    const weird = root.children?.find((m) => m.name === 'weird name');
+    const weird = root.children?.find((m) => m.name === weirdPropName);
     expect(weird).toBeDefined();
     // Unsafe names: field is omitted on the wire so the consumer reads
     // undefined ≡ "needs bracket access".
