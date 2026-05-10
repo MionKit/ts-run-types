@@ -758,12 +758,23 @@ func (cache *Cache) projectSignatureInto(signature *checker.Signature, node *pro
 		parameter := &protocol.RunType{
 			Kind:     protocol.KindParameter,
 			Name:     paramSymbol.Name,
-			Child:    cache.Serialize(paramType),
 			Position: &position,
 		}
-		if paramSymbol.Flags&ast.SymbolFlagsOptional != 0 {
+		if paramSymbol.Flags&ast.SymbolFlagsOptional != 0 || isOptionalParameter(paramSymbol) {
 			parameter.Optional = true
 		}
+		if isRestParameter(paramSymbol) {
+			parameter.Flags = append(parameter.Flags, "rest")
+		}
+		// Optional parameters carry `T | undefined` at the symbol-type
+		// layer; the Optional flag IS the "undefined-permitted" signal so
+		// the union wrapper is redundant. Mirrors the equivalent stripping
+		// in appendProperty and projectTuple.
+		childType := paramType
+		if parameter.Optional {
+			childType = stripUndefined(childType)
+		}
+		parameter.Child = cache.Serialize(childType)
 		applyParameterDefault(parameter, paramSymbol)
 		structural := fmt.Sprintf("_pa_%s_%s_%d", node.ID, paramSymbol.Name, i)
 		paramID, err := cache.dict.Unique(structural, cache.opts.hashLength())

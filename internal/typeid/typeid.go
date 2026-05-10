@@ -189,11 +189,13 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		return collectionID(protocol.KindClass, ids, false)
 	}
 
-	// Free function — bare callable with no own properties.
+	// Free function — bare callable with no own properties. Encode the
+	// full signature shape; otherwise every function in the program would
+	// collide on a single structural id (which deduped to one cache entry).
 	callSignatures := computer.typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall)
 	properties := computer.typeChecker.GetPropertiesOfType(tsType)
 	if len(callSignatures) > 0 && len(properties) == 0 {
-		return strconv.Itoa(int(protocol.KindFunction))
+		return computer.signatureID(callSignatures[0], protocol.KindFunction, "")
 	}
 
 	// objectLiteral — composition of property ids, sorted by name for stability.
