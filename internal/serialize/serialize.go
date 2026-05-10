@@ -517,6 +517,14 @@ func (cache *Cache) projectObjectType(tsType *checker.Type, node *protocol.RunTy
 			cache.projectClass(tsType, node)
 			return
 		}
+		// Non-serialisable globals (Error / WeakMap / typed arrays / …) are
+		// also lib.d.ts interfaces from tsgo's perspective, but mion treats
+		// them as classes tagged with SubKindNonSerializable. Promote the
+		// same way Date/Map/Set are promoted above.
+		if protocol.IsNonSerializableSymbol(symbol.Name) {
+			cache.projectClass(tsType, node)
+			return
+		}
 	}
 
 	if isClass(tsType) {
@@ -609,13 +617,29 @@ func (cache *Cache) projectObjectLiteral(tsType *checker.Type, node *protocol.Ru
 
 func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 	node.Kind = protocol.KindClass
+	var symbolName string
 	if symbol := tsType.Symbol(); symbol != nil {
-		node.TypeName = symbol.Name
-		switch symbol.Name {
-		case "Date", "Map", "Set", "RegExp":
-			node.ClassRef = &protocol.ClassRef{Builtin: symbol.Name}
+		symbolName = symbol.Name
+		node.TypeName = symbolName
+		switch symbolName {
+		case "Date":
+			node.ClassRef = &protocol.ClassRef{Builtin: symbolName}
+			node.SubKind = protocol.SubKindDate
+		case "Map":
+			node.ClassRef = &protocol.ClassRef{Builtin: symbolName}
+			node.SubKind = protocol.SubKindMap
+		case "Set":
+			node.ClassRef = &protocol.ClassRef{Builtin: symbolName}
+			node.SubKind = protocol.SubKindSet
+		case "RegExp":
+			node.ClassRef = &protocol.ClassRef{Builtin: symbolName}
 		default:
-			node.ClassRef = &protocol.ClassRef{Name: symbol.Name}
+			if protocol.IsNonSerializableSymbol(symbolName) {
+				node.ClassRef = &protocol.ClassRef{Builtin: symbolName}
+				node.SubKind = protocol.SubKindNonSerializable
+			} else {
+				node.ClassRef = &protocol.ClassRef{Name: symbolName}
+			}
 		}
 	}
 	// GetTypeArguments only works on TypeReference targets; calling it on
@@ -623,8 +647,15 @@ func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 	// with the ObjectFlagsReference flag.
 	if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
 		if typeArguments := cache.typeChecker.GetTypeArguments(tsType); len(typeArguments) > 0 {
-			for _, typeArgument := range typeArguments {
-				node.Arguments = append(node.Arguments, cache.Serialize(typeArgument))
+			switch symbolName {
+			case "Map":
+				cache.appendMapArguments(node, typeArguments)
+			case "Set":
+				cache.appendSetArguments(node, typeArguments)
+			default:
+				for _, typeArgument := range typeArguments {
+					node.Arguments = append(node.Arguments, cache.Serialize(typeArgument))
+				}
 			}
 		}
 	}
@@ -653,6 +684,65 @@ func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 		properties = appendStaticMembers(properties, symbol)
 	}
 	cache.projectMembersInto(tsType, node, properties, nil, true)
+}
+
+// appendMapArguments wraps Map<K,V>'s two type arguments as synthetic
+// KindParameter members tagged with SubKindMapKey / SubKindMapValue and
+// appends them to node.Arguments. Mirrors mion's `nodes/native/map.ts`
+// shape so consumers can read the keyed parameter slots the same way on
+// either side. Each wrapper gets its own synthetic id (`_pa_<parentId>_<n>`,
+// same scheme as `projectSignatureInto`) so it participates in the cache.
+func (cache *Cache) appendMapArguments(node *protocol.RunType, typeArguments []*checker.Type) {
+	if len(typeArguments) != 2 {
+		for _, typeArgument := range typeArguments {
+			node.Arguments = append(node.Arguments, cache.Serialize(typeArgument))
+		}
+		return
+	}
+	keyName := "key"
+	valueName := "value"
+	keyParameter := cache.newNativeParameter(node.ID, 0, keyName, protocol.SubKindMapKey, typeArguments[0])
+	valueParameter := cache.newNativeParameter(node.ID, 1, valueName, protocol.SubKindMapValue, typeArguments[1])
+	node.Arguments = append(node.Arguments, keyParameter, valueParameter)
+}
+
+// appendSetArguments wraps Set<T>'s single type argument as a synthetic
+// KindParameter tagged with SubKindSetItem and appends it to
+// node.Arguments. Symmetric to appendMapArguments.
+func (cache *Cache) appendSetArguments(node *protocol.RunType, typeArguments []*checker.Type) {
+	if len(typeArguments) != 1 {
+		for _, typeArgument := range typeArguments {
+			node.Arguments = append(node.Arguments, cache.Serialize(typeArgument))
+		}
+		return
+	}
+	itemParameter := cache.newNativeParameter(node.ID, 0, "item", protocol.SubKindSetItem, typeArguments[0])
+	node.Arguments = append(node.Arguments, itemParameter)
+}
+
+// newNativeParameter builds a synthetic KindParameter wrapper for a Map or
+// Set type argument and registers it in the cache under a `_pa_<parent>_<i>`
+// id. Returns a ref to the wrapper so the caller can splice it into
+// node.Arguments.
+func (cache *Cache) newNativeParameter(parentID string, index int, name string, subKind protocol.ReflectionSubKind, childType *checker.Type) *protocol.RunType {
+	position := index
+	wrapper := &protocol.RunType{
+		Kind:     protocol.KindParameter,
+		SubKind:  subKind,
+		Name:     name,
+		Position: &position,
+		Child:    cache.Serialize(childType),
+	}
+	structural := fmt.Sprintf("_pa_%s_%s_%d", parentID, name, index)
+	wrapperID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+	if err != nil {
+		wrapperID = "x_pa_" + structural
+	}
+	wrapper.ID = wrapperID
+	cache.byStructural[structural] = wrapperID
+	cache.nodes[wrapperID] = wrapper
+	cache.insertOrder = append(cache.insertOrder, wrapperID)
+	return protocol.NewRef(wrapperID)
 }
 
 // appendStaticMembers extends instanceProps with each static member symbol

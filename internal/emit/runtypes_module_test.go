@@ -26,7 +26,7 @@ func TestPreamblePresent(t *testing.T) {
 	if strings.Count(out, "const u = undefined;") != 1 {
 		t.Errorf("expected exactly one `const u = undefined;` line, got:\n%s", out)
 	}
-	if !strings.Contains(out, "const RT = (id, kind, typeName, name, literal,") {
+	if !strings.Contains(out, "const RT = (id, kind, subKind, typeName, name, literal,") {
 		t.Errorf("expected `RT` factory header in preamble, got:\n%s", out)
 	}
 	// Factory body must declare every ref slot up-front (initialised to `u`
@@ -54,16 +54,16 @@ func TestStaticForm(t *testing.T) {
 	runTypes := []*protocol.RunType{
 		{ID: "LrjxT1", Kind: protocol.KindString},
 		{
-			ID:             "BxzL39",
-			Kind:           protocol.KindProperty,
-			Name:           "kind",
+			ID:         "BxzL39",
+			Kind:       protocol.KindProperty,
+			Name:       "kind",
 			IsSafeName: true,
-			Child:          protocol.NewRef("LrjxT1"),
+			Child:      protocol.NewRef("LrjxT1"),
 		},
 	}
 	out := emit(t, runTypes)
-	if !strings.Contains(out, `export const t_BxzL39 = RT('BxzL39',15,u,'kind',u,u,u,u,u,u,true);`) {
-		t.Errorf("expected Property to emit `RT('BxzL39',15,u,'kind',u,u,u,u,u,u,true);`, got:\n%s", out)
+	if !strings.Contains(out, `export const t_BxzL39 = RT('BxzL39',15,u,u,'kind',u,u,u,u,u,u,true);`) {
+		t.Errorf("expected Property to emit `RT('BxzL39',15,u,u,'kind',u,u,u,u,u,u,true);`, got:\n%s", out)
 	}
 	if !strings.Contains(out, `t_BxzL39.child = t_LrjxT1;`) {
 		t.Errorf("expected footer ref assignment `t_BxzL39.child = t_LrjxT1;`, got:\n%s", out)
@@ -100,9 +100,9 @@ func TestPositionZeroIsPreserved(t *testing.T) {
 		Name:     "name",
 		Position: intPtr(0),
 	}})
-	// arg slot 11 is `position`; with isSafeName false (slot 10 = u),
-	// the call is `RT('sCSEqy',18,u,'name',u,u,u,u,u,u,u,0);`.
-	if !strings.Contains(out, `RT('sCSEqy',18,u,'name',u,u,u,u,u,u,u,0);`) {
+	// arg slot 12 is `position`; with subKind/typeName/literal all u and
+	// isSafeName false, the call is `RT('sCSEqy',18,u,u,'name',u,u,u,u,u,u,u,0);`.
+	if !strings.Contains(out, `RT('sCSEqy',18,u,u,'name',u,u,u,u,u,u,u,0);`) {
 		t.Errorf("expected position 0 to render as `0`, got:\n%s", out)
 	}
 }
@@ -117,8 +117,8 @@ func TestFooterLiteralPassesUForLiteralArg(t *testing.T) {
 		Literal: "42",
 		Flags:   []string{"bigint"},
 	}})
-	// literal slot (index 4) must be `u`, not `'42'`.
-	if !strings.Contains(out, `RT('bigID',13,u,u,u`) {
+	// literal slot (index 5) must be `u`, not `'42'`.
+	if !strings.Contains(out, `RT('bigID',13,u,u,u,u`) {
 		t.Errorf("expected bigint literal to pass `u` at literal slot, got:\n%s", out)
 	}
 	if !strings.Contains(out, `t_bigID.literal = BigInt('42');`) {
@@ -136,7 +136,7 @@ func TestClassBuiltinUnchanged(t *testing.T) {
 		TypeName: "Date",
 		ClassRef: &protocol.ClassRef{Builtin: "Date"},
 	}})
-	if !strings.Contains(out, `RT('dateID',20,'Date');`) {
+	if !strings.Contains(out, `RT('dateID',20,u,'Date');`) {
 		t.Errorf("expected class factory call with typeName, got:\n%s", out)
 	}
 	if !strings.Contains(out, `t_dateID.classType = globalThis.Date;`) {
@@ -151,10 +151,10 @@ func TestCycle(t *testing.T) {
 	a := &protocol.RunType{ID: "A1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("B1")}
 	b := &protocol.RunType{ID: "B1", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("A1")}
 	out := emit(t, []*protocol.RunType{a, b})
-	if !strings.Contains(out, `export const t_A1 = RT('A1',15,u,'a',u,u,u,u,u,u,true);`) {
+	if !strings.Contains(out, `export const t_A1 = RT('A1',15,u,u,'a',u,u,u,u,u,u,true);`) {
 		t.Errorf("expected A1 factory call, got:\n%s", out)
 	}
-	if !strings.Contains(out, `export const t_B1 = RT('B1',15,u,'b',u,u,u,u,u,u,true);`) {
+	if !strings.Contains(out, `export const t_B1 = RT('B1',15,u,u,'b',u,u,u,u,u,u,true);`) {
 		t.Errorf("expected B1 factory call, got:\n%s", out)
 	}
 	if !strings.Contains(out, `t_A1.child = t_B1;`) || !strings.Contains(out, `t_B1.child = t_A1;`) {
@@ -180,30 +180,47 @@ func TestDeterministic(t *testing.T) {
 // renders as a non-`u` arg in the corresponding slot of the factory call.
 func TestKnownFieldsCovered(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{
-		ID:             "FULL",
-		Kind:           protocol.KindClass,
-		TypeName:       "TN",
-		Name:           "NM",
-		Literal:        "L",
-		Optional:       true,
-		Readonly:       true,
-		IsAbstract:     true,
-		IsStatic:       true,
-		Visibility:     intPtr(2),
-		IsSafeName: true,
-		Position:       intPtr(7),
-		Inlined:        true,
-		Flags:          []string{"f1"},
-		Description:    "D",
-		DefaultVal:     "DEF",
-		EnumVal:        map[string]any{"k": 1.0},
-		Values:         []any{"v"},
+		ID:          "FULL",
+		Kind:        protocol.KindClass,
+		SubKind:     protocol.SubKindNonSerializable,
+		TypeName:    "TN",
+		Name:        "NM",
+		Literal:     "L",
+		Optional:    true,
+		Readonly:    true,
+		IsAbstract:  true,
+		IsStatic:    true,
+		Visibility:  intPtr(2),
+		IsSafeName:  true,
+		Position:    intPtr(7),
+		Inlined:     true,
+		Flags:       []string{"f1"},
+		Description: "D",
+		DefaultVal:  "DEF",
+		EnumVal:     map[string]any{"k": 1.0},
+		Values:      []any{"v"},
 	}})
 	// Every scalar arg position should carry a non-`u` value. The trailing
 	// `values` arg is 'v' → rendered as ['v'], so no trimming happens.
-	expected := `RT('FULL',20,'TN','NM','L',true,true,true,true,2,true,7,true,['f1'],'D','DEF',{'k':1},['v']);`
+	expected := `RT('FULL',20,2004,'TN','NM','L',true,true,true,true,2,true,7,true,['f1'],'D','DEF',{'k':1},['v']);`
 	if !strings.Contains(out, expected) {
 		t.Errorf("expected fully-populated factory call:\n  %s\ngot:\n%s", expected, out)
+	}
+}
+
+// TestSubKindRendered — a class node with a non-zero SubKind must place
+// the numeric value at arg slot 2, between kind and typeName. Trailing
+// `u`s after typeName are still trimmed.
+func TestSubKindRendered(t *testing.T) {
+	out := emit(t, []*protocol.RunType{{
+		ID:       "mapID",
+		Kind:     protocol.KindClass,
+		SubKind:  protocol.SubKindMap,
+		TypeName: "Map",
+		ClassRef: &protocol.ClassRef{Builtin: "Map"},
+	}})
+	if !strings.Contains(out, `RT('mapID',20,2002,'Map');`) {
+		t.Errorf("expected class factory call with subKind, got:\n%s", out)
 	}
 }
 
@@ -218,7 +235,7 @@ func TestHiddenClassUniformity(t *testing.T) {
 	// never appear in the param list (return, arguments, extends,
 	// implements) initialise as `<name>: u`.
 	expected := []string{
-		"id", "kind", "typeName", "name", "literal",
+		"id", "kind", "subKind", "typeName", "name", "literal",
 		"optional", "readonly", "isAbstract", "isStatic",
 		"visibility", "isSafeName", "position", "inlined", "flags",
 		"description", "defaultVal", "enumVal", "values",
