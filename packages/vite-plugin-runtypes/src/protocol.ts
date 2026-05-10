@@ -120,6 +120,33 @@ export interface RunType {
   // multi-typed containers (objectLiteral/class/tuple/union/intersection/enum)
   children?: RunType[];
 
+  // union only — children reordered so superset shapes precede their
+  // subset equivalents (prevents unreachable union members at validate
+  // time). Same ref objects as `children`, just rearranged.
+  safeUnionChildren?: RunType[];
+
+  // JSON wire-format only — 0-based index of THIS ref inside its
+  // parent union's `safeUnionChildren`. Carried on the ref wrapper so
+  // raw-JSON consumers can re-knot without scanning. NOT reproduced in
+  // the emitted runtypes-cache module: canonical RunType nodes are
+  // shared singletons there, so per-parent position can't live on the
+  // node. Consumers of the cache module derive position via
+  // `parent.safeUnionChildren.indexOf(member)`.
+  safeUnionPosition?: number;
+
+  // property / propertySignature only — true when the serialize-time
+  // discriminator pass selected this property as a discriminator for
+  // one of its parent unions (either shared-name with unique per-member
+  // type-ids, or unique-prop fallback). Lets consumers fast-path the
+  // union check against this property.
+  isUnionDiscriminator?: true;
+
+  // surviving object-literal types from an intersection-collapse of a
+  // primitive with one or more brand objects (e.g. `string & {__brand}`).
+  // Each entry is a ref to an objectLiteral RunType. Mirrors deepkit's
+  // TypeAnnotations.decorators.
+  decorators?: RunType[];
+
   // enum
   enum?: Record<string, unknown>;
   values?: unknown[];

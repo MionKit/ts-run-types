@@ -539,6 +539,24 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 				walk(implement.ID)
 			}
 		}
+		// Decorators — surviving object-literal types from a collapsed
+		// `primitive & {brand}` intersection. Reachable from the
+		// branded primitive node, not from any structural slot, so the
+		// walker has to follow them explicitly or the brand object
+		// disappears from the per-file projection.
+		for _, decorator := range node.Decorators {
+			if decorator != nil {
+				walk(decorator.ID)
+			}
+		}
+		// SafeUnionChildren — same ref objects as Children (already
+		// walked), but follow explicitly for safety in case any future
+		// pass surfaces nodes here that Children misses.
+		for _, child := range node.SafeUnionChildren {
+			if child != nil {
+				walk(child.ID)
+			}
+		}
 	}
 	for _, site := range sites {
 		walk(site.ID)
