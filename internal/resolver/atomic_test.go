@@ -40,16 +40,16 @@ func atomicSetup(t *testing.T) *resolver.Resolver {
 	return r
 }
 
-// atomicResolve runs scanFile on a fixture and returns the RunType entry for
+// atomicResolve runs scanFiles on a fixture and returns the RunType entry for
 // its first (and only) call site.
 func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.RunType {
 	t.Helper()
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{file}})
 	if resp.Error != "" {
-		t.Fatalf("scanFile %s: %s", file, resp.Error)
+		t.Fatalf("scanFiles %s: %s", file, resp.Error)
 	}
 	if len(resp.Sites) == 0 {
-		t.Fatalf("scanFile %s returned no sites", file)
+		t.Fatalf("scanFiles %s returned no sites", file)
 	}
 	id := resp.Sites[0].ID
 	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes

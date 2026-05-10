@@ -135,19 +135,22 @@ export interface Site {
 }
 
 export interface Request {
-  op: 'scanFile' | 'dump' | 'setSources' | 'reset' | 'resolveId';
-  file?: string;
+  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
+  // scanFiles only — the files to scan in this request. The response's
+  // sites cover every listed file (each tagged with .file); when the
+  // include* flags are set, runTypes / cacheSource are projected over
+  // these files only (NOT the cache's session-wide contents — use dump
+  // for that).
+  files?: string[];
   // resolveId only — hash id of the RunType to look up in the cache.
   id?: string;
   // setSources only — { relpath: source-text }.
   sources?: Record<string, string>;
-  // scanFile only — when set, the response includes a runTypes slice
-  // covering every file scanned since the last reset / setSources.
+  // scanFiles only — when set, the response includes a runTypes slice
+  // covering the request's files.
   includeRunTypes?: boolean;
-  // scanFile only — when set, the response carries a pre-rendered cache
-  // module body (cacheSource) scoped to the same "scanned files" union.
-  // Tests use this to skip the JS-side renderer and get everything in one
-  // round-trip.
+  // scanFiles only — when set, the response carries a pre-rendered cache
+  // module body (cacheSource) scoped to the request's files.
   includeCacheSource?: boolean;
 }
 
@@ -158,7 +161,7 @@ export interface Response {
   added?: RunType[];
   sites?: Site[];
   runTypes?: RunType[];
-  // Always populated by `dump`; populated by `scanFile` when the request
+  // Always populated by `dump`; populated by `scanFiles` when the request
   // sets includeCacheSource. The body is a JS module exporting __runtypes
   // and __sites; consumers evaluate it (or hand it to a bundler) without
   // needing a TS loader.

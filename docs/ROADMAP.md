@@ -8,7 +8,7 @@ Living document. Captures **what's implemented**, **what's deliberately out of s
 
 | Component                         | Status            | Notes                                                                          |
 | --------------------------------- | ----------------- | ------------------------------------------------------------------------------ |
-| Go resolver + checker integration | ✅                | `scanFile` + `dump` ops over stdio (`--one-shot`) and Unix socket (`--daemon`) |
+| Go resolver + checker integration | ✅                | `scanFiles` + `dump` ops over stdio (`--one-shot`) and Unix socket (`--daemon`) |
 | Reflection-shape projection       | ✅                | `*checker.Type` → `protocol.Type` discriminated union, dedup by structural id  |
 | Wire formats                      | ✅                | JSON dump + self-wired TS module (`--out-json` / `--out-ts`)                   |
 | Vite plugin                       | ✅                | byte-offset rewriter, `virtual:runtypes-cache` module                          |
@@ -78,7 +78,7 @@ These are real reflection features we intend to ship; each has a concrete approa
 
 ## Compiler / resolver features not yet shipped
 
-- **Pre-process build mode** (`ts-go-run-types build --out .runtypes/`) for bundler-agnostic integration (Bun, SWC, plain tsgo). The binary already supports `--out-json` / `--out-ts`; the missing piece is a one-shot CLI subcommand that walks a project's source files itself instead of relying on the plugin to drive `scanFile`.
+- **Pre-process build mode** (`ts-go-run-types build --out .runtypes/`) for bundler-agnostic integration (Bun, SWC, plain tsgo). The binary already supports `--out-json` / `--out-ts`; the missing piece is a one-shot CLI subcommand that walks a project's source files itself instead of relying on the plugin to drive `scanFiles`.
 - **esbuild / Rollup / Webpack / Babel adapter plugins**. Each is ~100–150 LOC reusing `rewrite.ts`. Plugin pattern is the same; defer until there's user demand.
 - **Vendored shim** (drop the tsgolint submodule entirely, regenerate the shim ourselves via `tools/gen_shims`). Cleaner `git clone && go build`. Do once the API shape stabilises.
 - **Source-map adjustments** when the rewriter injects site-id arguments. Negligible effect for human debugging at the current stage.

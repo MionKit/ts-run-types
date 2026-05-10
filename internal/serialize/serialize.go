@@ -127,7 +127,7 @@ func (cache *Cache) Rebind(typeChecker *checker.Checker) {
 	cache.byPtr = make(map[*checker.Type]string)
 	// Per-file scope is tied to the previous Program's source files; a
 	// Program swap invalidates every key. Drop the map so the next
-	// scanFile starts from "no files scanned yet".
+	// scanFiles starts from "no files scanned yet".
 	cache.fileTypeIDs = make(map[string]map[string]struct{})
 }
 
@@ -223,10 +223,9 @@ func (cache *Cache) NodeByID(id string) *protocol.RunType {
 }
 
 // RecordFileID associates id with file in the per-file scope map. Called by
-// the resolver after each scanFile completes to remember which run types a
-// given file's call sites transitively reached. Used later by ScannedFiles
-// / IDsForUnion to scope the "scanned files" response of subsequent scanFile
-// requests carrying IncludeRunTypes / IncludeCacheSource.
+// the resolver after each scanFiles run to remember which run types a
+// given file's call sites transitively reached. Used later by IDsForUnion
+// to project a scanFiles response down to the request's specific files.
 func (cache *Cache) RecordFileID(file, id string) {
 	if file == "" || id == "" {
 		return
@@ -239,27 +238,11 @@ func (cache *Cache) RecordFileID(file, id string) {
 	bucket[id] = struct{}{}
 }
 
-// ScannedFiles returns the sorted list of files for which RecordFileID has
-// been called since the last Clear / Rebind. The order is deterministic so
-// callers building union slices observe stable output.
-func (cache *Cache) ScannedFiles() []string {
-	if len(cache.fileTypeIDs) == 0 {
-		return nil
-	}
-	files := make([]string, 0, len(cache.fileTypeIDs))
-	for file := range cache.fileTypeIDs {
-		files = append(files, file)
-	}
-	sort.Strings(files)
-	return files
-}
-
 // IDsForUnion returns the deduplicated, sorted slice of wire ids reachable
-// from any of files. Callers pass the result of ScannedFiles when they want
-// "every type touched by every scanned file so far". Ids missing from the
-// type table are dropped silently — they would indicate a stale per-file
-// entry pointing at a now-evicted node, which shouldn't happen in practice
-// (Clear / Rebind wipe both maps together).
+// from any of files. The resolver passes the request's explicit Files
+// list so the response is scoped to those files only — NOT to every file
+// that's ever been scanned in this session. Ids missing from the type
+// table are dropped silently (Clear / Rebind keep the two maps in sync).
 func (cache *Cache) IDsForUnion(files []string) []string {
 	if len(files) == 0 {
 		return nil
