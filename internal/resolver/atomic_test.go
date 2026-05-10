@@ -342,7 +342,7 @@ reflectRuntypeId(v);
 //
 //   KindLiteral{regexp: {source, flags}} (literal kind 13) — produced when the
 //   resolver traces the call to a regex-literal source. Renders at runtime as
-//   `new RegExp("abc", "i")`. Triggered by inline regex literals, `as const`
+//   `/abc/i`. Triggered by inline regex literals, `as const`
 //   wraps, and (transitively) `const`-binding chains reachable via `typeof`
 //   in static form or via direct identifier reference in reflect form.
 //
@@ -438,6 +438,26 @@ getRuntypeId<typeof re>();
 	if a.ID != b.ID {
 		t.Fatalf("expected same hash for direct vs typeof regex literal, got %q vs %q", a.ID, b.ID)
 	}
+}
+
+// Multi-escape: a regex literal with several `\/` escapes must round-trip the
+// `\/` bytes into the cache entry's source verbatim (split-on-last-/ logic),
+// so the emitter can render it back as a literal `/.../flags` expression.
+func TestAtomic_LiteralRegexp_Reflect_MultiEscapedSlashes(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/^https?:\/\/example\/path$/gi);
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, `^https?:\/\/example\/path$`, "gi")
+}
+
+func TestAtomic_LiteralRegexp_Static_MultiEscapedSlashes(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /^https?:\/\/example\/path$/gi;
+getRuntypeId<typeof re>();
+`
+	_, tn := resolveInline(t, code)
+	assertRegexLiteral(t, tn, `^https?:\/\/example\/path$`, "gi")
 }
 
 func assertRegexLiteral(t *testing.T, tn *protocol.RunType, wantSource, wantFlags string) {

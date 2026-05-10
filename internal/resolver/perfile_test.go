@@ -244,8 +244,8 @@ getRuntypeId<{a: number}>();
 	if dumpResp.CacheSource == "" {
 		t.Fatalf("dump: expected populated cacheSource")
 	}
-	if !strings.Contains(dumpResp.CacheSource, "export const __runtypes") {
-		t.Fatalf("dump cacheSource missing __runtypes export:\n%s", dumpResp.CacheSource)
+	if !strings.Contains(dumpResp.CacheSource, "export const t_") {
+		t.Fatalf("dump cacheSource missing `export const t_…` declarations:\n%s", dumpResp.CacheSource)
 	}
 }
 

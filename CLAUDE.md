@@ -44,7 +44,7 @@ Updating dependencies:
 - Uses **pnpm workspaces** for monorepo management (see [pnpm-workspace.yaml](pnpm-workspace.yaml)) + **Lerna** for lockstep versioning and topo-ordered scripts (see [lerna.json](lerna.json))
 - Both JS packages move in lockstep (`forcePublish: true`, `exact: true`)
 - Packages located under [packages/](packages/):
-  - `ts-go-run-types`: `@mionjs/ts-go-run-types` — `RuntypeId<T>` marker type, `getRuntypeId` (static), `reflectRuntypeId` (reflection), `getMeta`, runtime helpers
+  - `ts-go-run-types`: `@mionjs/ts-go-run-types` — `RuntypeId<T>` marker type, `getRuntypeId` (static), `reflectRuntypeId` (reflection)
   - `vite-plugin-runtypes`: Vite plugin — spawns the Go binary, applies byte-offset rewrites, emits `virtual:runtypes-cache`
 - Run commands in a specific package: `pnpm --filter @mionjs/ts-go-run-types run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`
 - Or navigate to package directory and run commands locally
@@ -126,7 +126,7 @@ Write paired tests (not parameterized): each scenario is two distinct tests, eac
 ## Rewrite mechanics
 
 - Rewrites operate on **byte offsets, not string indices** — tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) works on a `Buffer`, not a JS string. Don't "fix" it to use string slicing; multibyte source characters will misalign the inserted hash.
-- The emitted `virtual:runtypes-cache` module is **self-wired**: `const t_<hash> = {…}` declarations first, then an init block patches reference slots in place. This avoids circular-dependency issues at module load. The renderer lives in [internal/emit/tsmodule.go](internal/emit/tsmodule.go) and emits plain JS; the Vite plugin reads `cacheSource` off the resolver's `dump` response and serves it as the virtual module body. Tests can short-circuit by setting `includeCacheSource: true` on `scanFiles` to receive the same body scoped to **just the files in that request** (per-request projection, not session-wide accumulation — callers wanting everything in memory use `dump`).
+- The emitted `virtual:runtypes-cache` module is **self-wired**: `export const t_<hash> = {…}` declarations first, then an init block patches reference slots in place. This avoids circular-dependency issues at module load. The renderer lives in [internal/emit/runtypes_module.go](internal/emit/runtypes_module.go) and emits plain JS; the variable prefix and module name come from [internal/constants/constants.go](internal/constants/constants.go) (mirrored to TS via `pnpm run gen:ts-constants`). The Vite plugin reads `cacheSource` off the resolver's `dump` response and serves it as the virtual module body. Tests can short-circuit by setting `includeCacheSource: true` on `scanFiles` to receive the same body scoped to **just the files in that request** (per-request projection, not session-wide accumulation — callers wanting everything in memory use `dump`).
 - Types are **deduplicated twice** in [internal/serialize](internal/serialize/) — pointer identity (same `*checker.Type` reached via two paths) AND structural id (two distinct `Type` objects with the same shape). Both collapse to a single cache entry.
 
 ## Documentation

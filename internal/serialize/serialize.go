@@ -181,8 +181,8 @@ func (cache *Cache) AssignID(tsType *checker.Type) string {
 //
 // Bypasses the *checker.Type path entirely — TS has no regex-literal type, so
 // the marker scanner harvests the regex from the AST when it can. The emitter
-// dispatches on the `literal.regexp` shape (see emit/tsmodule.go footerLiteralExpr) to
-// produce a `new RegExp("…", "…")` expression at runtime.
+// dispatches on the `literal.regexp` shape (see emit/runtypes_module.go footerLiteralExpr)
+// to render a `/source/flags` regex literal at runtime.
 func (cache *Cache) SerializeRegexLiteral(source, flags string) string {
 	structural := strconv.Itoa(int(protocol.KindLiteral)) + ":regexp:" + source + "|" + flags
 	if id, ok := cache.byStructural[structural]; ok {
@@ -190,7 +190,11 @@ func (cache *Cache) SerializeRegexLiteral(source, flags string) string {
 	}
 	id, err := cache.literals.Unique(structural, cache.opts.literalHashLength())
 	if err != nil {
-		id = "x" + structural
+		// Fallback id must stay identifier-safe (the JS emitter uses it
+		// verbatim as a `const` name). The structural form contains `:` and
+		// `|`, so we hash it instead of concatenating. Prefix matches the
+		// other synthetic ids (`x_tm_`, `x_pr_`, …).
+		id = "x_re_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
 	}
 	cache.byStructural[structural] = id
 	cache.nodes[id] = &protocol.RunType{
@@ -307,9 +311,10 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 		id, err = cache.dict.Unique(structural, cache.opts.hashLength())
 	}
 	if err != nil {
-		// Unrecoverable hash exhaustion — fall back to the structural
-		// string verbatim so the caller at least sees a usable id.
-		id = "x" + structural
+		// Unrecoverable hash exhaustion — fall back to a hash of the
+		// structural string. The structural form contains `:` separators,
+		// so it can't be used verbatim as a JS const name.
+		id = "x_" + hashid.QuickHash(structural, cache.opts.hashLength(), "")
 	}
 
 	cache.byPtr[tsType] = id

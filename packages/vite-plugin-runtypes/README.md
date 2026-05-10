@@ -30,25 +30,28 @@ export default defineConfig({
 In your app:
 
 ```ts
-import {__runtypes} from 'virtual:runtypes-cache';
+import * as cache from 'virtual:runtypes-cache';
+import {RUNTYPES_VAR_PREFIX} from 'vite-plugin-runtypes';
 
 function getTypeInfo<T>(value: T, siteId?: string) {
-  return siteId ? __runtypes.get(siteId) : undefined;
+  return siteId ? cache[RUNTYPES_VAR_PREFIX + siteId] : undefined;
 }
 
 const name: string = 'mario';
 const info = getTypeInfo(name); // at build time, plugin injects the site id
 ```
 
+The cache module is a flat list of `export const t_<hash> = {…}` declarations. A future transformer pass can rewrite the lookup above into a direct named import (`import {t_<hash>} from 'virtual:runtypes-cache'`) so bundlers can tree-shake unused entries.
+
 ## Options
 
-| Option            | Default                         | Description                                              |
-| ----------------- | ------------------------------- | -------------------------------------------------------- |
-| `binary`          | — (required)                    | Path to the compiled `ts-go-run-types` Go binary.        |
-| `cwd`             | Vite's root                     | Project root used to resolve `tsconfig` and source paths |
-| `tsconfig`        | `"tsconfig.json"`               | tsconfig, relative to `cwd`.                             |
-| `markers`         | `[getTypeInfo, isType, router]` | Marker functions to rewrite.                             |
-| `virtualModuleId` | `"virtual:runtypes-cache"`      | Virtual module id exposing `__runtypes` Map + `__sites`. |
+| Option            | Default                         | Description                                                                |
+| ----------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| `binary`          | — (required)                    | Path to the compiled `ts-go-run-types` Go binary.                          |
+| `cwd`             | Vite's root                     | Project root used to resolve `tsconfig` and source paths                   |
+| `tsconfig`        | `"tsconfig.json"`               | tsconfig, relative to `cwd`.                                               |
+| `markers`         | `[getTypeInfo, isType, router]` | Marker functions to rewrite.                                               |
+| `virtualModuleId` | `"virtual:runtypes-cache"`      | Virtual module id exposing one `export const t_<hash>` per cached RunType. |
 
 ## Status
 

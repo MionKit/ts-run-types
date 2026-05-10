@@ -571,7 +571,7 @@ func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
 // module on the JS side.
 func renderModule(dump protocol.Dump) (string, error) {
 	var buf bytes.Buffer
-	if err := emit.TSModule(&buf, dump); err != nil {
+	if err := emit.RunTypesModule(&buf, dump); err != nil {
 		return "", fmt.Errorf("renderModule: %w", err)
 	}
 	return buf.String(), nil

@@ -52,12 +52,14 @@ export default function runtypes(options: PluginOptions) {
 
     async load(this: any, id: string) {
       if (id !== resolvedVirtualId) return null;
-      if (!resolver) return 'export const __runtypes = new Map();\nexport const __sites = [];\n';
+      // Empty body so `import * as cache from 'virtual:runtypes-cache'`
+      // returns an empty namespace until the resolver has produced anything.
+      if (!resolver) return '// no runtypes resolved yet\n';
       // The Go binary renders the JS cache module from its in-memory dump.
       // Full cache (not just scanned-files union) — Vite's load() runs once
       // per import and consumers expect every emitted id to be reachable.
       const dump = await resolver.dump();
-      return dump.cacheSource ?? 'export const __runtypes = new Map();\nexport const __sites = [];\n';
+      return dump.cacheSource ?? '// no runtypes resolved yet\n';
     },
 
     async transform(this: any, code: string, id: string) {
@@ -78,3 +80,9 @@ export default function runtypes(options: PluginOptions) {
 }
 
 export type {PluginOptions as Options};
+export {
+  RUNTYPES_VAR_PREFIX,
+  RUNTYPES_MODULE_NAME,
+  CACHE_MODULES,
+  type CacheModuleSettings,
+} from './runtypes-constants.generated.ts';
