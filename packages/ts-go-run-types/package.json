@@ -37,6 +37,9 @@
     "clean": "rimraf dist .coverage",
     "fresh-start": "pnpm run clean && rimraf node_modules"
   },
+  "dependencies": {
+    "@mionjs/core": "0.8.10"
+  },
   "devDependencies": {
     "vite-plugin-runtypes": "workspace:*"
   }

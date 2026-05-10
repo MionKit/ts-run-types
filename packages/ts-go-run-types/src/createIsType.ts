@@ -1,3 +1,4 @@
+import {getJitUtils, type JITUtils} from '@mionjs/core';
 import * as factories from 'virtual:runtypes-isType';
 import type {RuntypeId} from './index.ts';
 
@@ -42,16 +43,18 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   const cached = validatorCache.get(id);
   if (cached) return cached;
   const factoryName = ISTYPE_FACTORY_PREFIX + id;
-  const factory = (factories as unknown as Record<string, (utl: unknown) => IsTypeFn>)[factoryName];
+  const factory = (factories as unknown as Record<string, (utl: JITUtils) => IsTypeFn>)[factoryName];
   if (!factory) {
     throw new Error(
       `createIsType(): no factory named "${factoryName}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for runtype "${id}".`
     );
   }
-  // v1 has no closure-context dependencies. The factory ignores `utl`
-  // — the body is self-contained. Reserved for future per-fn factory
-  // closures that need injected helpers.
-  const validator = factory(undefined);
+  // `utl` is mion's shared JIT registry. Factory bodies look up nested
+  // jit functions and pure helpers through it (`utl.getJitFn(hash)`,
+  // `utl.usePureFn(ns, name)`, etc), and mion guarantees single-instance
+  // state across the process — so resolving it once per call is fine.
+  // Primitives like `isString` ignore the param; composite types use it.
+  const validator = factory(getJitUtils());
   validatorCache.set(id, validator);
   return validator;
 }
