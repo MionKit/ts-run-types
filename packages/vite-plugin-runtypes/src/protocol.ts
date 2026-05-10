@@ -96,16 +96,16 @@ export interface RunType {
   optional?: true;
   readonly?: true;
   visibility?: number;
-  abstract?: true;
-  static?: true;
-  // isSafePropName — property / method nodes only. True when `name` is a
+  isAbstract?: true;
+  isStatic?: true;
+  // isSafeName — property / method nodes only. True when `name` is a
   // valid JS identifier (or all digits) and consumers can emit dot access
   // (obj.foo). False/missing means bracket notation is required.
-  isSafePropName?: true;
+  isSafeName?: true;
   // position — parameter / tupleMember nodes only. 0-based slot index in
   // the parent. Number, not boolean, because zero is a valid slot.
   position?: number;
-  default?: unknown;
+  defaultVal?: unknown;
   description?: string;
   flags?: string[];
 
@@ -151,7 +151,7 @@ export interface RunType {
   decorators?: RunType[];
 
   // enum
-  enum?: Record<string, unknown>;
+  enumVal?: Record<string, unknown>;
   values?: unknown[];
   indexType?: RunType;
 

@@ -213,7 +213,7 @@ getRuntypeId<T>();
     async (sources) => {
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'alias.ts');
-      expect(root.extends).toBeNull();
+      expect(root.extends).toBeUndefined();
     }
   );
 
@@ -227,7 +227,7 @@ getRuntypeId<{a: string}>();
     async (sources) => {
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'anon.ts');
-      expect(root.extends).toBeNull();
+      expect(root.extends).toBeUndefined();
     }
   );
 });

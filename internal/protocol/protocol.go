@@ -103,18 +103,20 @@ type RunType struct {
 	Optional bool `json:"optional,omitempty"`
 	Readonly bool `json:"readonly,omitempty"`
 
-	// TypeProperty / TypeMethod
+	// TypeProperty / TypeMethod. Both flags use `is`-prefixed names so the
+	// emitted JS mirror lands on plain identifiers (not reserved words),
+	// which lets the cache-module factory bind them without aliasing.
 	Visibility *int `json:"visibility,omitempty"`
-	Abstract   bool `json:"abstract,omitempty"`
-	Static     bool `json:"static,omitempty"`
+	IsAbstract bool `json:"isAbstract,omitempty"`
+	IsStatic   bool `json:"isStatic,omitempty"`
 
-	// IsSafePropName — true when Name is a valid JS identifier and the
+	// IsSafeName — true when Name is a valid JS identifier and the
 	// consumer can emit `obj.<name>` dot access; false (omitted) means
-	// bracket notation is required. Mirrors mion's isSafePropName helper
+	// bracket notation is required. Mirrors mion's isSafeName helper
 	// at runtype level so downstream codegen need not re-run the regex.
 	// Populated only on TypeProperty / TypePropertySignature / TypeMethod /
 	// TypeMethodSignature.
-	IsSafePropName bool `json:"isSafePropName,omitempty"`
+	IsSafeName bool `json:"isSafeName,omitempty"`
 
 	// Position — 0-based slot index in the parent (function parameter list
 	// or tuple). Pointer so position 0 ships explicitly (`position: 0` is
@@ -122,10 +124,11 @@ type RunType struct {
 	// Populated only on TypeParameter and TypeTupleMember.
 	Position *int `json:"position,omitempty"`
 
-	// Default — literal-only; non-literal defaults are omitted with a Flags
-	// marker. Function/expression defaults are recorded in Flags as
-	// "nonLiteralDefault".
-	Default any `json:"default,omitempty"`
+	// DefaultVal — literal-only; non-literal defaults are omitted with a
+	// Flags marker. Function/expression defaults are recorded in Flags as
+	// "nonLiteralDefault". Named with the `Val` suffix so the JS mirror
+	// (`defaultVal`) avoids the `default` reserved word.
+	DefaultVal any `json:"defaultVal,omitempty"`
 
 	// TypeFunction / TypeMethod / TypeMethodSignature / TypeCallSignature
 	Parameters []*RunType `json:"parameters,omitempty"`
@@ -178,10 +181,11 @@ type RunType struct {
 	// of the object-literal members in the original intersection.
 	Decorators []*RunType `json:"decorators,omitempty"`
 
-	// TypeEnum
-	Enum   map[string]any `json:"enum,omitempty"`
-	Values []any          `json:"values,omitempty"`
-	IndexT *RunType       `json:"indexType,omitempty"`
+	// TypeEnum. `EnumVal` uses the `Val` suffix so the JS mirror lands as
+	// `enumVal`, sidestepping the `enum` reserved word.
+	EnumVal map[string]any `json:"enumVal,omitempty"`
+	Values  []any          `json:"values,omitempty"`
+	IndexT  *RunType       `json:"indexType,omitempty"`
 
 	// TypeClass
 	ExtendsArguments []*RunType `json:"extendsArguments,omitempty"`

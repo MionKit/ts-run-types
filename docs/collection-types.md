@@ -28,8 +28,8 @@ Cache entry shape:
 {
   "kind": 26,
   "children": [
-    { "kind": -1, "id": "<member0>" },
-    { "kind": -1, "id": "<member1>" }
+    {"kind": -1, "id": "<member0>"},
+    {"kind": -1, "id": "<member1>"}
   ]
 }
 ```
@@ -39,7 +39,7 @@ Cache entry shape:
 Each tuple slot is wrapped in a `KindTupleMember` so per-slot annotations (`optional`, `rest`, `position`, label `name`) attach to the member rather than the underlying type. A `KindTupleMember` carries a single `child` ref and is only valid inside a parent tuple. `position` is the member's 0-based slot index — shipped explicitly so consumers don't have to `indexOf` against the parent. Labels from `[a: number, b?: string]`-style declarations land in `name`.
 
 ```json
-{ "kind": 27, "name": "b", "optional": true, "position": 1, "child": { "kind": -1, "id": "<string-hash>" } }
+{"kind": 27, "name": "b", "optional": true, "position": 1, "child": {"kind": -1, "id": "<string-hash>"}}
 ```
 
 ---
@@ -49,7 +49,7 @@ Each tuple slot is wrapped in a `KindTupleMember` so per-slot annotations (`opti
 Flat list of member types. Discriminated unions, simple `A | B` unions, and string-enum-like unions all land here.
 
 ```ts
-type Result = { ok: true; value: number } | { ok: false; error: string };
+type Result = {ok: true; value: number} | {ok: false; error: string};
 getRuntypeId<Result>();
 declare const x: Result;
 reflectRuntypeId(x);
@@ -58,7 +58,13 @@ reflectRuntypeId(x);
 Cache entry shape:
 
 ```json
-{ "kind": 23, "children": [ { "kind": -1, "id": "<ok-true>" }, { "kind": -1, "id": "<ok-false>" } ] }
+{
+  "kind": 23,
+  "children": [
+    {"kind": -1, "id": "<ok-true>"},
+    {"kind": -1, "id": "<ok-false>"}
+  ]
+}
 ```
 
 ---
@@ -68,7 +74,7 @@ Cache entry shape:
 Same shape as `KindUnion` but with intersection semantics. Members live in `children`.
 
 ```ts
-type Mix = { a: number } & { b: string };
+type Mix = {a: number} & {b: string};
 getRuntypeId<Mix>();
 ```
 
@@ -92,10 +98,10 @@ Cache entry shape:
 {
   "kind": 17,
   "parameters": [
-    { "kind": -1, "id": "<param-a>" },
-    { "kind": -1, "id": "<param-b>" }
+    {"kind": -1, "id": "<param-a>"},
+    {"kind": -1, "id": "<param-b>"}
   ],
-  "return": { "kind": -1, "id": "<number-hash>" }
+  "return": {"kind": -1, "id": "<number-hash>"}
 }
 ```
 
@@ -128,9 +134,9 @@ There is no explicit `async` flag. Consumers detect async by inspecting `return`
 A structural object. Each property lives in `children` as a `KindPropertySignature` (or `KindMethodSignature` for inline function members). Index signatures live alongside properties as `KindIndexSignature`.
 
 ```ts
-type User = { id: number; name: string };
+type User = {id: number; name: string};
 getRuntypeId<User>();
-const u = { id: 1, name: 'm' } as User;
+const u = {id: 1, name: 'm'} as User;
 reflectRuntypeId(u);
 ```
 
@@ -141,20 +147,22 @@ Cache entry shape:
   "kind": 30,
   "typeName": "User",
   "children": [
-    { "kind": -1, "id": "<id-prop>" },
-    { "kind": -1, "id": "<name-prop>" }
+    {"kind": -1, "id": "<id-prop>"},
+    {"kind": -1, "id": "<name-prop>"}
   ]
 }
 ```
 
-The `PropertySignature` / `MethodSignature` children themselves are documented in [member-types.md](member-types.md), including their full modifier surface (`optional`, `readonly`, `isSafePropName`, etc.).
+The `PropertySignature` / `MethodSignature` children themselves are documented in [member-types.md](member-types.md), including their full modifier surface (`optional`, `readonly`, `isSafeName`, etc.).
 
 ### Index signatures — `KindIndexSignature`
 
 For `{ [k: K]: V }`-style declarations. Lives inside the parent's `children` list alongside property signatures. `index` holds the key type, `child` holds the value type.
 
 ```ts
-interface M { [k: string]: number }
+interface M {
+  [k: string]: number;
+}
 getRuntypeId<M>();
 declare const m: M;
 reflectRuntypeId(m);
@@ -163,8 +171,8 @@ reflectRuntypeId(m);
 ```json
 {
   "kind": 31,
-  "index": { "kind": -1, "id": "<string-hash>" },
-  "child": { "kind": -1, "id": "<number-hash>" }
+  "index": {"kind": -1, "id": "<string-hash>"},
+  "child": {"kind": -1, "id": "<number-hash>"}
 }
 ```
 
@@ -191,8 +199,8 @@ Cache entry shape:
   "kind": 20,
   "typeName": "User",
   "children": [
-    { "kind": -1, "id": "<id-prop>" },
-    { "kind": -1, "id": "<greet-method>" }
+    {"kind": -1, "id": "<id-prop>"},
+    {"kind": -1, "id": "<greet-method>"}
   ]
 }
 ```
@@ -208,7 +216,9 @@ Cycle closure happens at the emit layer, not in the cache structure itself. Inte
 ### Self-recursive
 
 ```ts
-interface Tree { children: Tree[] }
+interface Tree {
+  children: Tree[];
+}
 getRuntypeId<Tree>();
 declare const t: Tree;
 reflectRuntypeId(t);
@@ -219,8 +229,12 @@ The walk path is `Tree → Property("children") → Array → Tree`. The element
 ### Mutually recursive
 
 ```ts
-interface A { b: B }
-interface B { a: A }
+interface A {
+  b: B;
+}
+interface B {
+  a: A;
+}
 getRuntypeId<A>();
 declare const a: A;
 reflectRuntypeId(a);

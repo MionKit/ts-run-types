@@ -744,7 +744,7 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 	if symbol.Flags&ast.SymbolFlagsOptional != 0 {
 		member.Optional = true
 	}
-	member.IsSafePropName = isSafePropName(symbol.Name)
+	member.IsSafeName = isSafeName(symbol.Name)
 	applyMemberModifiers(member, symbol, asClass)
 
 	if isMethod {
@@ -838,11 +838,11 @@ func (cache *Cache) projectEnum(tsType *checker.Type, node *protocol.RunType) {
 		// EnumMember node carrying the literal value.
 		members := enumMembers(tsType)
 		if len(members) > 0 {
-			node.Enum = make(map[string]any, len(members))
+			node.EnumVal = make(map[string]any, len(members))
 			node.Values = make([]any, 0, len(members))
 			allString, allNumber := true, true
 			for _, member := range members {
-				node.Enum[member.name] = member.value
+				node.EnumVal[member.name] = member.value
 				node.Values = append(node.Values, member.value)
 				if _, ok := member.value.(string); !ok {
 					allString = false
