@@ -14,6 +14,7 @@
 // global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
@@ -34,6 +35,30 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 `;
 
 export type InlineSources = Record<string, string>;
+
+// Shape of the daemon-response capture attached to `task.meta.mionRuntypes`.
+// Read by `scripts/runtypes-logs-reporter.mjs` when `pnpm test:logs` runs.
+// `responses` is an array because a single test may call `evalCacheFor`
+// multiple times; outside that path the field is silently absent.
+export interface RuntypesMeta {
+  title: string;
+  sources: InlineSources;
+  mode: 'inline' | 'file';
+  paths?: Record<string, string>;
+  responses: unknown[];
+}
+
+// AsyncLocalStorage bridge between runTest/runFiles (which know the test's
+// `task.meta` object) and evalCacheFor (which knows the daemon response).
+// The helpers run `fn(sources)` inside `metaStore.run(meta, ...)`, so any
+// await-chained call from inside the test can read the same meta via
+// `metaStore.getStore()` and push onto its `responses` array.
+const metaStore = new AsyncLocalStorage<RuntypesMeta>();
+
+function recordResponse(response: unknown): void {
+  const meta = metaStore.getStore();
+  if (meta) meta.responses.push(response);
+}
 
 // Per-worker singleton stash. Survives vitest's per-file module isolation
 // because `globalThis` lives on the underlying Node process. Two slots:
@@ -140,7 +165,9 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
     async ({client, sources: augmented}) => {
       const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
       if (files.length === 0) throw new Error('evalCacheFor: no source files to scan');
-      const {cacheSource} = await client.scanFiles(files, {includeCacheSource: true});
+      const response = await client.scanFiles(files, {includeCacheSource: true});
+      recordResponse(response);
+      const {cacheSource} = response;
       if (!cacheSource) throw new Error('evalCacheFor: resolver returned no cacheSource');
       const js = cacheSource.replace(/export const /g, 'result.');
       const factory = new Function(`const result = {}; ${js}; return result;`);
@@ -171,25 +198,24 @@ export type FilePaths = Record<string, string>;
 /** Skip-gated test that hoists (title, sources) so they are addressable as data for future docs generation. */
 export function runTest(title: string, sources: InlineSources, fn: (sources: InlineSources) => void | Promise<void>): void {
   const register = runIfBinary(it);
-  register(title, async () => {
-    // Future: a docs reporter can read `task.meta.mionRuntypes` to emit
-    // examples without re-parsing test files. Wire-up site:
-    //   const {task} = (expect as any).getState();
-    //   if (task) task.meta = {...task.meta, mionRuntypes: {title, sources, mode: 'inline'}};
-    await fn(sources);
+  register(title, async ({task}) => {
+    const meta: RuntypesMeta = {title, sources, mode: 'inline', responses: []};
+    (task.meta as Record<string, unknown>).mionRuntypes = meta;
+    await metaStore.run(meta, () => Promise.resolve(fn(sources)));
   });
 }
 
 /** Like runTest, but each value is an absolute path to a fixture file. Missing files fail loudly. */
 export function runFiles(title: string, files: FilePaths, fn: (sources: InlineSources) => void | Promise<void>): void {
   const register = runIfBinary(it);
-  register(title, async () => {
+  register(title, async ({task}) => {
     const resolved: InlineSources = {};
     for (const [name, abs] of Object.entries(files)) {
       if (!fs.existsSync(abs)) throw new Error(`runFiles: missing fixture file for "${name}": ${abs}`);
       resolved[name] = fs.readFileSync(abs, 'utf8');
     }
-    // Same docs-reporter hook as runTest, mode: 'file', plus the source paths.
-    await fn(resolved);
+    const meta: RuntypesMeta = {title, sources: resolved, mode: 'file', paths: files, responses: []};
+    (task.meta as Record<string, unknown>).mionRuntypes = meta;
+    await metaStore.run(meta, () => Promise.resolve(fn(resolved)));
   });
 }
