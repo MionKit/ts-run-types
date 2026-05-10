@@ -2,9 +2,8 @@
 // internal/resolver/union_safeorder_test.go but exercises the full
 // pipeline (rewrite → resolver → cacheSource → eval module → assert
 // on the materialised RunType). The serialize-time analysis populates
-// safeUnionChildren, safeUnionPosition on each child ref, and
-// isUnionDiscriminator on selected properties — every scenario below
-// pins down one of those wire-format outputs.
+// safeUnionChildren and unionDiscriminators on the union node — every
+// scenario below pins down one of those wire-format outputs.
 //
 // Algorithm references:
 //   - mion-run-types unionDiscriminator.ts: sortUnreachableTypes,
@@ -79,10 +78,9 @@ getRuntypeId<T>();
   );
 
   // ---- safe-order: each child appears in safeUnionChildren ----------------
-  // In the emitted module shape, canonical nodes are shared singletons,
-  // so per-ref `safeUnionPosition` is JSON-only. We assert the
-  // round-trip invariant: every child appears exactly once in
-  // `safeUnionChildren` and consumers can derive position via indexOf.
+  // Canonical nodes are shared singletons in the emitted module so
+  // per-member position is derived via `safeUnionChildren.indexOf(member)`
+  // rather than stored on each ref.
 
   runTest(
     'each child has a slot in safeUnionChildren static',
@@ -139,7 +137,7 @@ reflectRuntypeId(value);
   // ---- discriminator: shared with non-distinct types is NOT marked --------
 
   runTest(
-    'shared name but same type is not a discriminator static',
+    'shared name but same type is not picked as discriminator static',
     {
       'shared.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: string; x: 1} | {kind: string; y: 2};
@@ -149,13 +147,11 @@ getRuntypeId<T>();
     async (sources) => {
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'shared.ts');
-      let markedKind = 0;
-      for (const member of root.children ?? []) {
-        for (const prop of member.children ?? []) {
-          if (prop.name === 'kind' && prop.isUnionDiscriminator) markedKind++;
-        }
+      // shared-name pass must reject `kind` (same type-id across members).
+      // Whatever fallback the unique-prop pass picks, it must not be `kind`.
+      for (const disc of root.unionDiscriminators ?? []) {
+        if (disc) expect(disc.name).not.toBe('kind');
       }
-      expect(markedKind).toBe(0);
     }
   );
 
@@ -172,23 +168,19 @@ getRuntypeId<T>();
     async (sources) => {
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'uniq.ts');
-      let aMarked = false;
-      let bMarked = false;
-      for (const member of root.children ?? []) {
-        for (const prop of member.children ?? []) {
-          if (prop.name === 'a' && prop.isUnionDiscriminator) aMarked = true;
-          if (prop.name === 'b' && prop.isUnionDiscriminator) bMarked = true;
-        }
+      const names = new Set<string>();
+      for (const disc of root.unionDiscriminators ?? []) {
+        if (disc?.name) names.add(disc.name);
       }
-      expect(aMarked).toBe(true);
-      expect(bMarked).toBe(true);
+      expect(names.has('a')).toBe(true);
+      expect(names.has('b')).toBe(true);
     }
   );
 
   // ---- discriminator: primitive-only union → no marks ---------------------
 
   runTest(
-    'primitive-only union has no discriminator marks static',
+    'primitive-only union has no discriminator slot static',
     {
       'prim.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 type T = string | number;
@@ -198,9 +190,7 @@ getRuntypeId<T>();
     async (sources) => {
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'prim.ts');
-      for (const member of root.children ?? []) {
-        expect(member.isUnionDiscriminator).toBeUndefined();
-      }
+      expect(root.unionDiscriminators).toBeUndefined();
     }
   );
 
@@ -283,19 +273,48 @@ getRuntypeId<T>();
     }
   );
 
+  // ---- discriminator: per-union scoping (shared property must not bleed) --
+  // Two unions reference structurally-identical `kind: 'a'` property
+  // nodes. UA picks `kind` as a shared-name discriminator; UB rejects
+  // it (same type-id across both members) and picks `aa` / `bb`
+  // instead. Before the union-scoped discriminator slot, the mark
+  // bled across the two unions via the shared property node.
+
+  runTest(
+    'discriminator info is scoped per-union (shared prop does not bleed)',
+    {
+      'iso.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type UA = {kind: 'a'; n: number} | {kind: 'b'; n: number};
+type UB = {kind: 'a'; aa: string} | {kind: 'a'; bb: number};
+getRuntypeId<UA>();
+getRuntypeId<UB>();
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      const unions = Object.values(cache.byHash).filter((t): t is RunType => t?.kind === ReflectionKind.union);
+      expect(unions.length).toBe(2);
+      const ua = unions.find((u) => u.unionDiscriminators?.some((d) => d?.name === 'kind'));
+      const ub = unions.find((u) => u !== ua);
+      expect(ua).toBeDefined();
+      expect(ub).toBeDefined();
+      // UA: every object member's discriminator slot points at 'kind'.
+      const uaKindMarks = (ua!.unionDiscriminators ?? []).filter((d) => d?.name === 'kind').length;
+      expect(uaKindMarks).toBe(2);
+      // UB: no slot may point at 'kind' (unique-prop fallback picks aa / bb).
+      for (const disc of ub!.unionDiscriminators ?? []) {
+        if (disc) expect(disc.name).not.toBe('kind');
+      }
+    }
+  );
+
   // ---- helper -------------------------------------------------------------
 
-  function assertDiscriminator(
-    cache: Parameters<typeof getTypeFor>[0],
-    propName: string,
-    expectedMarks: number
-  ): void {
+  function assertDiscriminator(cache: Parameters<typeof getTypeFor>[0], propName: string, expectedMarks: number): void {
     const root = getTypeFor(cache, 'disc.ts');
     let marks = 0;
-    for (const member of root.children ?? []) {
-      for (const prop of member.children ?? []) {
-        if (prop.name === propName && prop.isUnionDiscriminator) marks++;
-      }
+    for (const disc of root.unionDiscriminators ?? []) {
+      if (disc?.name === propName) marks++;
     }
     expect(marks).toBe(expectedMarks);
   }

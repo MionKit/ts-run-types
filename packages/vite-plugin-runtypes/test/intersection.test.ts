@@ -203,9 +203,7 @@ getRuntypeId<T>();
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'dist.ts');
       expect(root.kind).toBe(ReflectionKind.union);
-      const values = (root.children ?? [])
-        .filter((m) => m.kind === ReflectionKind.literal)
-        .map((m) => m.literal);
+      const values = (root.children ?? []).filter((m) => m.kind === ReflectionKind.literal).map((m) => m.literal);
       expect(values).toEqual(expect.arrayContaining(['a', 'b']));
     }
   );

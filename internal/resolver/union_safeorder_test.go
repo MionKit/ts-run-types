@@ -11,8 +11,6 @@ import (
 //
 // Algorithms ported from mion-run-types
 // (packages/run-types/src/nodes/collection/unionDiscriminator.ts).
-// Coverage matrix lives in
-// /root/.claude/plans/intersection-zesty-spindle.md §E.2.
 // =========================================================================
 
 // ---- safe-order: subset-related members get sorted by prop count -----------
@@ -96,24 +94,9 @@ getRuntypeId<T>();
 	}
 }
 
-// ---- safe-order: SafeUnionPosition on each ref child -----------------------
+// ---- safe-order: every child appears in safeUnionChildren -----------------
 
-func TestUnion_SafeUnionPositionOnEachChild(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-type T = {a: string} | {a: string; b: number};
-getRuntypeId<T>();
-`
-	_, tn := resolveInline(t, code)
-	for i, ref := range tn.Children {
-		if ref.SafeUnionPosition == nil {
-			t.Fatalf("child %d missing SafeUnionPosition", i)
-		}
-	}
-}
-
-// ---- safe-order: position points at the safe-order slot --------------------
-
-func TestUnion_SafeUnionPositionPointsAtSafeOrder(t *testing.T) {
+func TestUnion_EveryChildHasSafeUnionSlot(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number} | {x: boolean};
 getRuntypeId<T>();
@@ -122,16 +105,16 @@ getRuntypeId<T>();
 	if len(tn.Children) != len(tn.SafeUnionChildren) {
 		t.Fatalf("Children %d ≠ SafeUnionChildren %d", len(tn.Children), len(tn.SafeUnionChildren))
 	}
+	// Each child ref must appear exactly once in SafeUnionChildren.
 	for _, ref := range tn.Children {
-		if ref.SafeUnionPosition == nil {
-			t.Fatalf("child %s missing SafeUnionPosition", ref.ID)
+		count := 0
+		for _, safeRef := range tn.SafeUnionChildren {
+			if safeRef == ref {
+				count++
+			}
 		}
-		slot := *ref.SafeUnionPosition
-		if slot < 0 || slot >= len(tn.SafeUnionChildren) {
-			t.Fatalf("SafeUnionPosition %d out of range [0..%d)", slot, len(tn.SafeUnionChildren))
-		}
-		if tn.SafeUnionChildren[slot] != ref {
-			t.Fatalf("safeUnionChildren[%d] does not match the ref it points to", slot)
+		if count != 1 {
+			t.Fatalf("ref %s appears %d times in SafeUnionChildren, want 1", ref.ID, count)
 		}
 	}
 }
@@ -280,34 +263,26 @@ type T = {kind: 'a'; x: number} | {kind: 'b'; y: string};
 getRuntypeId<T>();
 `
 	r, tn := resolveInline(t, code)
-	// Walk all object members; verify the `kind` property on each is marked.
-	marks := 0
-	totalKindProps := 0
-	for _, ref := range tn.Children {
-		obj := deref(dump(r), ref)
-		if obj == nil || (obj.Kind != protocol.KindObjectLiteral && obj.Kind != protocol.KindClass) {
-			continue
-		}
-		for _, propRef := range obj.Children {
-			prop := deref(dump(r), propRef)
-			if prop == nil || prop.Name != "kind" {
-				continue
-			}
-			totalKindProps++
-			if prop.IsUnionDiscriminator {
-				marks++
-			}
-		}
+	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
+		t.Fatalf("UnionDiscriminators length %d, want %d", len(tn.UnionDiscriminators), len(tn.SafeUnionChildren))
 	}
-	if totalKindProps != 2 || marks != 2 {
-		t.Fatalf("expected both kind props marked discriminator (2/2), got %d/%d", marks, totalKindProps)
+	// Both members are objects, so both slots must be populated and both
+	// must point at a property named "kind".
+	for i, disc := range tn.UnionDiscriminators {
+		if disc == nil {
+			t.Fatalf("slot %d: expected discriminator ref, got nil", i)
+		}
+		prop := deref(dump(r), disc)
+		if prop == nil {
+			t.Fatalf("slot %d: discriminator ref %s did not resolve", i, disc.ID)
+		}
+		if prop.Name != "kind" {
+			t.Fatalf("slot %d: discriminator name = %q, want 'kind'", i, prop.Name)
+		}
 	}
 }
 
 // ---- discriminator: pick least-complex shared name --------------------------
-// Two qualifying shared-name discriminators exist (k1, k2); both members'
-// types match by-name with distinct types per member. Only one name should
-// be picked (the least-complex one).
 
 func TestUnionDiscriminator_NamedShared_PicksLeastComplex(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
@@ -316,30 +291,17 @@ type T = {k1: 'a'; k2: {nested: {deep: 1}}; x: number}
 getRuntypeId<T>();
 `
 	r, tn := resolveInline(t, code)
-	k1Marks, k2Marks := 0, 0
-	for _, ref := range tn.Children {
-		obj := deref(dump(r), ref)
-		if obj == nil {
-			continue
-		}
-		for _, propRef := range obj.Children {
-			prop := deref(dump(r), propRef)
-			if prop == nil {
-				continue
-			}
-			if prop.Name == "k1" && prop.IsUnionDiscriminator {
-				k1Marks++
-			}
-			if prop.Name == "k2" && prop.IsUnionDiscriminator {
-				k2Marks++
-			}
-		}
+	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
+		t.Fatalf("UnionDiscriminators length mismatch")
 	}
-	if k1Marks != 2 {
-		t.Fatalf("expected k1 (least-complex) marked on both members, got %d", k1Marks)
-	}
-	if k2Marks != 0 {
-		t.Fatalf("expected k2 (more-complex) NOT marked, got %d marks", k2Marks)
+	for i, disc := range tn.UnionDiscriminators {
+		if disc == nil {
+			t.Fatalf("slot %d: expected discriminator ref, got nil", i)
+		}
+		prop := deref(dump(r), disc)
+		if prop == nil || prop.Name != "k1" {
+			t.Fatalf("slot %d: expected discriminator name 'k1' (least complex), got %q", i, prop.Name)
+		}
 	}
 }
 
@@ -351,27 +313,22 @@ type T = {a: string} | {b: number};
 getRuntypeId<T>();
 `
 	r, tn := resolveInline(t, code)
-	aMarked, bMarked := false, false
-	for _, ref := range tn.Children {
-		obj := deref(dump(r), ref)
-		if obj == nil {
-			continue
-		}
-		for _, propRef := range obj.Children {
-			prop := deref(dump(r), propRef)
-			if prop == nil {
-				continue
-			}
-			if prop.Name == "a" && prop.IsUnionDiscriminator {
-				aMarked = true
-			}
-			if prop.Name == "b" && prop.IsUnionDiscriminator {
-				bMarked = true
-			}
-		}
+	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
+		t.Fatalf("UnionDiscriminators length mismatch")
 	}
-	if !aMarked || !bMarked {
-		t.Fatalf("expected both unique props marked: a=%v b=%v", aMarked, bMarked)
+	seen := map[string]bool{}
+	for i, disc := range tn.UnionDiscriminators {
+		if disc == nil {
+			t.Fatalf("slot %d: expected discriminator ref, got nil", i)
+		}
+		prop := deref(dump(r), disc)
+		if prop == nil {
+			t.Fatalf("slot %d: discriminator did not resolve", i)
+		}
+		seen[prop.Name] = true
+	}
+	if !seen["a"] || !seen["b"] {
+		t.Fatalf("expected unique-prop discriminators for both 'a' and 'b': seen=%v", seen)
 	}
 }
 
@@ -383,24 +340,19 @@ type T = {kind: string; x: 1} | {kind: string; y: 2};
 getRuntypeId<T>();
 `
 	r, tn := resolveInline(t, code)
-	kindMarks := 0
-	for _, ref := range tn.Children {
-		obj := deref(dump(r), ref)
-		if obj == nil {
+	// shared-name pass must reject `kind` (same type-id across members).
+	// The unique-prop pass should kick in and pick `x` / `y` instead.
+	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
+		t.Fatalf("UnionDiscriminators length mismatch")
+	}
+	for i, disc := range tn.UnionDiscriminators {
+		if disc == nil {
 			continue
 		}
-		for _, propRef := range obj.Children {
-			prop := deref(dump(r), propRef)
-			if prop == nil {
-				continue
-			}
-			if prop.Name == "kind" && prop.IsUnionDiscriminator {
-				kindMarks++
-			}
+		prop := deref(dump(r), disc)
+		if prop != nil && prop.Name == "kind" {
+			t.Fatalf("slot %d: 'kind' incorrectly chosen as discriminator (same type-id across members)", i)
 		}
-	}
-	if kindMarks != 0 {
-		t.Fatalf("expected kind NOT marked (same type-id across members), got %d marks", kindMarks)
 	}
 }
 
@@ -411,15 +363,10 @@ func TestUnionDiscriminator_NoObjects_NoDiscriminator(t *testing.T) {
 type T = string | number;
 getRuntypeId<T>();
 `
-	r, tn := resolveInline(t, code)
-	for _, ref := range tn.Children {
-		canonical := deref(dump(r), ref)
-		if canonical == nil {
-			continue
-		}
-		if canonical.IsUnionDiscriminator {
-			t.Fatalf("primitive member %s incorrectly marked as discriminator", canonical.ID)
-		}
+	_, tn := resolveInline(t, code)
+	// No object members → markDiscriminators short-circuits, slot empty.
+	if len(tn.UnionDiscriminators) != 0 {
+		t.Fatalf("primitive-only union should have empty UnionDiscriminators, got %d entries", len(tn.UnionDiscriminators))
 	}
 }
 
@@ -431,26 +378,123 @@ type T = {a: 1} | {b: 2};
 getRuntypeId<T>();
 `
 	r, tn := resolveInline(t, code)
-	aMarked, bMarked := false, false
-	for _, ref := range tn.Children {
-		obj := deref(dump(r), ref)
-		if obj == nil {
+	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
+		t.Fatalf("UnionDiscriminators length mismatch")
+	}
+	seen := map[string]bool{}
+	for _, disc := range tn.UnionDiscriminators {
+		if disc == nil {
 			continue
 		}
-		for _, propRef := range obj.Children {
-			prop := deref(dump(r), propRef)
-			if prop == nil {
-				continue
-			}
-			if prop.Name == "a" && prop.IsUnionDiscriminator {
-				aMarked = true
-			}
-			if prop.Name == "b" && prop.IsUnionDiscriminator {
-				bMarked = true
-			}
+		prop := deref(dump(r), disc)
+		if prop != nil {
+			seen[prop.Name] = true
 		}
 	}
-	if !aMarked || !bMarked {
-		t.Fatalf("expected both single-prop members to mark their prop: a=%v b=%v", aMarked, bMarked)
+	if !seen["a"] || !seen["b"] {
+		t.Fatalf("expected unique-prop discriminators for both 'a' and 'b': seen=%v", seen)
+	}
+}
+
+// ---- discriminator: per-union scoping (shared property must not bleed) ----
+
+// Two unions reference a structurally-identical `kind: 'a'` property
+// node. In union A, `kind` is a valid shared-name discriminator
+// (literal types differ across members). In union B, both members
+// carry `kind: 'a'` (identical type-id) so shared-name detection
+// rejects it, AND each member has a uniquely-typed other property so
+// the unique-prop pass picks those instead — `kind` should NOT appear
+// as a discriminator in B. Before the refactor, UA's shared-name pass
+// wrote IsUnionDiscriminator=true on the canonical kind:'a' property
+// node, and that flag bled across to B's output. With the field
+// scoped to the union, B's UnionDiscriminators is independent.
+func TestUnion_DiscriminatorIsolation_SamePropInTwoUnions(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type UA = {kind: 'a'; n: number} | {kind: 'b'; n: number};
+type UB = {kind: 'a'; aa: string} | {kind: 'a'; bb: number};
+getRuntypeId<UA>();
+getRuntypeId<UB>();
+`
+	r := setupInline(t, map[string]string{"iso.ts": code})
+	scan := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"iso.ts"}})
+	if scan.Error != "" {
+		t.Fatalf("scanFiles: %s", scan.Error)
+	}
+	if len(scan.Sites) != 2 {
+		t.Fatalf("expected 2 sites, got %d", len(scan.Sites))
+	}
+	types := dump(r)
+	var ua, ub *protocol.RunType
+	for _, site := range scan.Sites {
+		root := typeByID(types, site.ID)
+		if root == nil || root.Kind != protocol.KindUnion {
+			continue
+		}
+		if ua == nil {
+			ua = root
+		} else {
+			ub = root
+		}
+	}
+	if ua == nil || ub == nil {
+		t.Fatalf("missing one of the two unions")
+	}
+	// Union A: shared-name 'kind' qualifies → every object slot carries a
+	// discriminator ref pointing at the `kind` property.
+	uaKindDiscriminators := 0
+	for _, disc := range ua.UnionDiscriminators {
+		if disc == nil {
+			continue
+		}
+		prop := deref(types, disc)
+		if prop != nil && prop.Name == "kind" {
+			uaKindDiscriminators++
+		}
+	}
+	if uaKindDiscriminators != 2 {
+		t.Fatalf("UA: expected both object members to carry 'kind' discriminator, got %d", uaKindDiscriminators)
+	}
+	// Union B: 'kind' is NOT present on every member (one member is `{x:string}`),
+	// so shared-name detection must reject it. Whatever discriminator the
+	// unique-prop fallback picks, it cannot be the 'kind' property.
+	for i, disc := range ub.UnionDiscriminators {
+		if disc == nil {
+			continue
+		}
+		prop := deref(types, disc)
+		if prop != nil && prop.Name == "kind" {
+			t.Fatalf("UB slot %d: 'kind' incorrectly chosen as discriminator (would bleed from UA)", i)
+		}
+	}
+}
+
+// ---- discriminator: parallel-to-safeUnionChildren invariant ---------------
+
+func TestUnion_UnionDiscriminatorsParallelToSafeUnionChildren(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type T = number | {kind: 'a'; x: 1} | {kind: 'b'; y: 2};
+getRuntypeId<T>();
+`
+	r, tn := resolveInline(t, code)
+	if len(tn.UnionDiscriminators) == 0 {
+		t.Fatalf("expected populated UnionDiscriminators with two object members")
+	}
+	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
+		t.Fatalf("length mismatch: discriminators=%d safeOrder=%d",
+			len(tn.UnionDiscriminators), len(tn.SafeUnionChildren))
+	}
+	for i, safeRef := range tn.SafeUnionChildren {
+		canonical := deref(dump(r), safeRef)
+		if canonical == nil {
+			continue
+		}
+		isObject := canonical.Kind == protocol.KindObjectLiteral || canonical.Kind == protocol.KindClass
+		disc := tn.UnionDiscriminators[i]
+		if isObject && disc == nil {
+			t.Fatalf("slot %d: object member has no discriminator ref", i)
+		}
+		if !isObject && disc != nil {
+			t.Fatalf("slot %d: non-object member %d unexpectedly carries discriminator ref", i, canonical.Kind)
+		}
 	}
 }
