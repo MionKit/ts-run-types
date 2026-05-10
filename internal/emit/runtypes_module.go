@@ -139,12 +139,15 @@ func stringArg(value string) string {
 	return quoteJS(value)
 }
 
-// boolArg returns `"true"` when set, otherwise `"u"`. False is treated as
-// "absent" to keep the call site compact; the own-key still exists on the
-// returned object because the factory's literal declares it.
+// boolArg returns `"!0"` (the 2-char form of `true`) when set, otherwise
+// `"u"`. False is treated as "absent" to keep the call site compact; the
+// own-key still exists on the returned object because the factory's literal
+// declares it. `!0` is the boolean primitive `true` (negating the falsy
+// `0`), so `=== true` consumer checks behave identically — this is purely
+// a source-text byte saving in the emitted cache module.
 func boolArg(value bool) string {
 	if value {
-		return "true"
+		return "!0"
 	}
 	return "u"
 }
@@ -404,10 +407,12 @@ func writeJSLiteral(builder *strings.Builder, value any) {
 	case nil:
 		builder.WriteString("null")
 	case bool:
+		// `!0` === true, `!1` === false — 2-char wire forms identical to the
+		// boolean primitives. See boolArg for the rationale.
 		if typed {
-			builder.WriteString("true")
+			builder.WriteString("!0")
 		} else {
-			builder.WriteString("false")
+			builder.WriteString("!1")
 		}
 	case string:
 		builder.WriteString(quoteJS(typed))
