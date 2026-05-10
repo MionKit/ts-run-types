@@ -17,7 +17,7 @@ import (
 // resolves refs by direct assignment so consumers receive a fully-knotted
 // reflection RunType graph.
 //
-// The factory `_T` returns one object literal whose shape contains every key
+// The factory `RT` returns one object literal whose shape contains every key
 // any node will ever carry — header scalars come from positional args, every
 // ref slot is hardcoded to `null`. Call sites pass `u` (alias for `undefined`)
 // for slots that don't apply; trailing `u`s are trimmed so calls stay short.
@@ -45,7 +45,7 @@ func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
 			continue
 		}
 		args := renderFactoryArgs(runType)
-		buffered.line(fmt.Sprintf("export const %s = _T(%s);", varName(settings, runType.ID), strings.Join(args, ", ")))
+		buffered.line(fmt.Sprintf("export const %s = RT(%s);", varName(settings, runType.ID), strings.Join(args, ",")))
 	}
 
 	buffered.line("")
@@ -61,7 +61,7 @@ func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
 }
 
 // factoryPreambleLines holds the `const u = undefined;` alias and the
-// universal `_T` factory. The factory is a pure single-expression arrow
+// universal `RT` factory. The factory is a pure single-expression arrow
 // returning one object literal whose own-key set is identical for every
 // node — that's the property V8 uses to assign a stable hidden class. Param
 // order matches the canonical RunType field order; reserved-word JS
@@ -70,7 +70,7 @@ func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
 // the returned literal.
 var factoryPreambleLines = []string{
 	"const u = undefined;",
-	"const _T = (id, kind, typeName, name, literal,",
+	"const RT = (id, kind, typeName, name, literal,",
 	"            optional, readonly, abstract_, static_, visibility,",
 	"            isSafePropName, position, inlined, flags,",
 	"            description, default_, enum_, values) => ({",
@@ -89,7 +89,7 @@ var factoryPreambleLines = []string{
 	"});",
 }
 
-// renderFactoryArgs builds the positional-arg slice for one `_T(…)` call,
+// renderFactoryArgs builds the positional-arg slice for one `RT(…)` call,
 // then trims trailing `u` entries so the call stays compact. The first two
 // args (`id`, `kind`) are always present.
 func renderFactoryArgs(runType *protocol.RunType) []string {
@@ -191,7 +191,7 @@ func valuesArg(values []any) string {
 }
 
 // trimTrailingUndefined drops trailing `"u"` entries from the arg slice so
-// `_T(…)` calls stay compact. The first two slots (id, kind) are always
+// `RT(…)` calls stay compact. The first two slots (id, kind) are always
 // emitted; the minimum slice length is therefore 2.
 func trimTrailingUndefined(args []string) []string {
 	end := len(args)
