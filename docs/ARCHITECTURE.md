@@ -326,9 +326,38 @@ pnpm -C packages/vite-plugin-runtypes install
 pnpm -C packages/vite-plugin-runtypes test
 ```
 
+## Workspace self-imports in tests
+
+A subtlety that bites when reading the test setup: any test file inside `packages/ts-go-run-types/test/` that imports from `@mionjs/ts-go-run-types` (its own enclosing workspace package) is consumed by **two independent resolvers**, both of which need to land on a sensible target:
+
+1. **Vitest / Vite** — runtime resolution. We point this at `src/index.ts` via `resolve.alias` in [`vitest.config.ts`](../packages/ts-go-run-types/vitest.config.ts). Straightforward — vite's resolver is fully controllable from config.
+2. **tsgo** — the Go-side TypeScript checker, invoked by [`vite-plugin-runtypes`](../packages/vite-plugin-runtypes/) to compute runtype ids for each call site. tsgo has its **own** module resolver. It does not see vite's `resolve.alias`. It walks Node module resolution from scratch.
+
+The friction is at #2. Node's self-reference rule says: a package importing itself by its declared `name` resolves to that package's `exports`. Our [`packages/ts-go-run-types/package.json`](../packages/ts-go-run-types/package.json) points `"types"` at `./dist/index.d.ts`. So tsgo follows the chain `@mionjs/ts-go-run-types` → enclosing `package.json` → `./dist/index.d.ts` and either:
+
+- Finds nothing — we deliberately don't pre-build the marker package's `dist/` during dev. `src/` is the SUT; a mandatory pre-build before every test run is a brittle dev loop, and stale dist silently tests yesterday's code.
+- Finds a stale file — `dist/` is from a previous build that predates the in-flight `src/` changes.
+
+Either way, tsgo's view of the test program is wrong and the vite-plugin's per-site rewrite breaks.
+
+### Workaround
+
+[`packages/ts-go-run-types/test/runtypes.d.ts`](../packages/ts-go-run-types/test/runtypes.d.ts) — an ambient `declare module '@mionjs/ts-go-run-types' { … }` block that mirrors the public API. Auto-included in the test program via `tsconfig.test.json`'s `"include": ["test/**/*"]` glob; no `/// <reference />` directive needed in each test file. tsgo sees this declaration first and uses it instead of trying to resolve to `dist/`.
+
+The overlay is workspace-only: it lives in `test/`, which is NOT in the package's `"files"` array. Published consumers get the real `dist/index.d.ts` built from src/ and never see the overlay.
+
+The same pattern is used Go-side: [`internal/testfixtures/runtypes.d.ts`](../internal/testfixtures/runtypes.d.ts) is the equivalent overlay for the resolver's Go test suite. Same rationale, same shape — tests should not depend on the package being pre-built against itself.
+
+### Why this is a tsgo / configuration limitation, not a project decision
+
+The clean fix would be a `"source"` exports condition in the marker package's `package.json` pointing at `src/index.ts`, plus a `customConditions: ["source"]` entry in `tsconfig.test.json` so tsgo resolves source-first inside the workspace. Vitest already does the runtime equivalent via `resolve.conditions`. We have not yet confirmed whether tsgo's resolver honors custom exports conditions; if it does, the overlay file can be deleted in favor of that configuration. Either path resolves the underlying issue: **tsgo currently has no in-workspace way to resolve a self-import to source rather than built `dist/`**.
+
+Until that's verified or fixed upstream, the overlay is the pragmatic workaround. It's small, file-local, and uses a TypeScript primitive (`declare module`) that's been stable for a decade.
+
 ## Limitations
 
 - No source-map adjustments when the rewriter injects arguments. Negligible for the POC, small fix for production.
 - The shim locks us into tsgo's internal API surface. A renovate-driven sync on the tsgolint submodule keeps it current.
 - Concurrency: `Cache` is not safe for concurrent use; the resolver holds one checker per process and serialises requests.
 - v1 supports a single, trailing `RuntypeId<T>` parameter per signature. Multiple markers per call (or non-trailing position) is a v2 follow-up.
+- **tsgo self-import resolution in workspace tests** — tsgo resolves a workspace package's self-import to the package's own `dist/` rather than `src/`, with no known way to override via exports conditions. Workaround: an ambient `declare module` overlay file ([`test/runtypes.d.ts`](../packages/ts-go-run-types/test/runtypes.d.ts), and Go-side [`internal/testfixtures/runtypes.d.ts`](../internal/testfixtures/runtypes.d.ts)). See "Workspace self-imports in tests" above.
