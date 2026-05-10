@@ -58,6 +58,8 @@ export {
   CACHE_MODULES,
   RUNTYPES_VAR_PREFIX,
   RUNTYPES_MODULE_NAME,
+  ISTYPE_VAR_PREFIX,
+  ISTYPE_MODULE_NAME,
   type CacheModuleSettings,
 } from './runtypes-constants.generated.ts';
 
@@ -223,6 +225,15 @@ export interface Response {
   // consumers `import * as cache from 'virtual:runtypes-cache'` and look
   // entries up by `cache[RUNTYPES_VAR_PREFIX + id]`.
   cacheSource?: string;
+  // Sibling of `cacheSource` carrying the precompiled isType validator
+  // factories. Body shape:
+  //   export function get_isType_<hash>(utl){…}
+  // Consumers import the factory and invoke it themselves with whatever
+  // `utl` they want bound into the closure — the module never
+  // pre-invokes a factory. Populated under the same conditions as
+  // `cacheSource` (full cache on `dump`, scoped to request files on
+  // `scanFiles` with `includeCacheSource`).
+  isTypeCacheSource?: string;
   error?: string;
 }
 

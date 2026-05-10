@@ -14,6 +14,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-run-types/internal/emit"
+	"github.com/mionkit/ts-run-types/internal/jitfn"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -184,6 +185,11 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: renderErr.Error()}
 				}
 				response.CacheSource = rendered
+				isTypeRendered, isTypeErr := renderIsTypeModule(scoped)
+				if isTypeErr != nil {
+					return protocol.Response{Error: isTypeErr.Error()}
+				}
+				response.IsTypeCacheSource = isTypeRendered
 			}
 		}
 		return response
@@ -196,10 +202,15 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if renderErr != nil {
 			return protocol.Response{Error: renderErr.Error()}
 		}
+		isTypeRendered, isTypeErr := renderIsTypeModule(fullDump)
+		if isTypeErr != nil {
+			return protocol.Response{Error: isTypeErr.Error()}
+		}
 		return protocol.Response{
-			RunTypes:    fullDump.RunTypes,
-			Sites:       fullDump.Sites,
-			CacheSource: rendered,
+			RunTypes:          fullDump.RunTypes,
+			Sites:             fullDump.Sites,
+			CacheSource:       rendered,
+			IsTypeCacheSource: isTypeRendered,
 		}
 	case protocol.OpSetSources:
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {
@@ -611,6 +622,18 @@ func renderModule(dump protocol.Dump) (string, error) {
 	var buf bytes.Buffer
 	if err := emit.RunTypesModule(&buf, dump); err != nil {
 		return "", fmt.Errorf("renderModule: %w", err)
+	}
+	return buf.String(), nil
+}
+
+// renderIsTypeModule emits the sibling `virtual:runtypes-isType` module —
+// one `export function get_isType_<hash>(utl){…}` factory per cached
+// RunType the precompiler knows how to handle. v1 only emits factories
+// for KindString; other kinds are silently skipped (see jitfn.IsTypeModule).
+func renderIsTypeModule(dump protocol.Dump) (string, error) {
+	var buf bytes.Buffer
+	if err := jitfn.IsTypeModule(&buf, dump); err != nil {
+		return "", fmt.Errorf("renderIsTypeModule: %w", err)
 	}
 	return buf.String(), nil
 }

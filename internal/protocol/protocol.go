@@ -297,14 +297,21 @@ type Request struct {
 // OK is a simple acknowledgement for ops that don't return data
 // (setSources / resetCache). Emitted only when set so other ops stay tidy.
 type Response struct {
-	ID          string     `json:"-"`
-	HasID       bool       `json:"-"`
-	OK          bool       `json:"-"`
-	Added       []*RunType `json:"added,omitempty"`
-	Sites       []Site     `json:"sites,omitempty"`
-	RunTypes    []*RunType `json:"runTypes,omitempty"`
-	CacheSource string     `json:"cacheSource,omitempty"`
-	Error       string     `json:"error,omitempty"`
+	ID                string     `json:"-"`
+	HasID             bool       `json:"-"`
+	OK                bool       `json:"-"`
+	Added             []*RunType `json:"added,omitempty"`
+	Sites             []Site     `json:"sites,omitempty"`
+	RunTypes          []*RunType `json:"runTypes,omitempty"`
+	CacheSource       string     `json:"cacheSource,omitempty"`
+	// IsTypeCacheSource is the rendered body of the `virtual:runtypes-isType`
+	// module — one `export function get_isType_<hash>(utl){…}` factory
+	// per cached RunType the precompiler knows how to handle. Paired
+	// with CacheSource: populated whenever CacheSource is, and over the
+	// same projection (full cache for OpDump, scoped to request files
+	// for OpScanFiles with IncludeCacheSource).
+	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
+	Error             string `json:"error,omitempty"`
 }
 
 // Site records one transformer-injection point. Pos is the byte offset of
@@ -349,6 +356,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.CacheSource != "" {
 		out["cacheSource"] = response.CacheSource
+	}
+	if response.IsTypeCacheSource != "" {
+		out["isTypeCacheSource"] = response.IsTypeCacheSource
 	}
 	if response.Error != "" {
 		out["error"] = response.Error
