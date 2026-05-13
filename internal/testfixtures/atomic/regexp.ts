@@ -1,4 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
+import { getRuntypeId } from "@mionkit/runtypes";
 export {};
 const v: RegExp = /abc/i;
-isType<RegExp>(v);
+getRuntypeId<RegExp>(v);

@@ -1,4 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
+import { getRuntypeId } from "@mionkit/runtypes";
 export {};
 const v: true = true;
-isType<true>(v);
+getRuntypeId<true>(v);

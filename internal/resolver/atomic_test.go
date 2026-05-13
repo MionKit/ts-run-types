@@ -3,7 +3,6 @@ package resolver_test
 import (
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -40,42 +39,27 @@ func atomicSetup(t *testing.T) *resolver.Resolver {
 	return r
 }
 
-// atomicLocate finds a substring within a fixture file and returns its byte offset.
-func atomicLocate(t *testing.T, r *resolver.Resolver, file, needle string) int {
+// atomicResolve runs scanFile on a fixture and returns the Type entry for
+// its first (and only) call site. Atomic fixtures are written to contain
+// exactly one `getRuntypeId<T>(...)` call; if that assumption changes the
+// suite needs updating.
+func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.Type {
 	t.Helper()
-	abs := filepath.Join(atomicFixturesDir(t), file)
-	sf := r.Program.SourceFile(abs)
-	if sf == nil {
-		t.Fatalf("source file not loaded: %s", abs)
-	}
-	idx := strings.Index(sf.Text(), needle)
-	if idx < 0 {
-		t.Fatalf("needle %q not found in %s", needle, file)
-	}
-	return idx
-}
-
-// resolveSite drives an atomic fixture: most use `getTypeInfo(v)`
-// (resolveArgumentInferred) — for `isType<T>(...)` cases the test passes
-// `useTypeArg=true` to read the type-argument instead.
-func resolveSite(t *testing.T, r *resolver.Resolver, file, needle string, useTypeArg bool) *protocol.Type {
-	t.Helper()
-	pos := atomicLocate(t, r, file, needle)
-	op := "resolveArgumentInferred"
-	if useTypeArg {
-		op = "resolveTypeArgument"
-	}
-	resp := r.Dispatch(protocol.Request{Op: op, File: file, CallPos: pos, Index: 0})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
 	if resp.Error != "" {
-		t.Fatalf("resolve %s: %s", file, resp.Error)
+		t.Fatalf("scanFile %s: %s", file, resp.Error)
 	}
-	all := r.Dispatch(protocol.Request{Op: "dump"}).Types
-	for _, n := range all {
-		if n.ID == resp.ID {
+	if len(resp.Sites) == 0 {
+		t.Fatalf("scanFile %s returned no sites", file)
+	}
+	id := resp.Sites[0].ID
+	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).Types
+	for _, n := range dump {
+		if n.ID == id {
 			return n
 		}
 	}
-	t.Fatalf("type %q not found in dump", resp.ID)
+	t.Fatalf("type %q not found in dump for %s", id, file)
 	return nil
 }
 
@@ -95,7 +79,7 @@ func assertHashID(t *testing.T, id string) {
 // =========================================================================
 
 func TestAtomic_String(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "string.ts", "getTypeInfo(", false)
+	tn := atomicResolve(t, atomicSetup(t), "string.ts")
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString, got %d", tn.Kind)
 	}
@@ -103,77 +87,77 @@ func TestAtomic_String(t *testing.T) {
 }
 
 func TestAtomic_Number(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "number.ts", "getTypeInfo(", false)
+	tn := atomicResolve(t, atomicSetup(t), "number.ts")
 	if tn.Kind != protocol.KindNumber {
 		t.Fatalf("expected KindNumber, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Boolean(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "boolean.ts", "isType<boolean>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "boolean.ts")
 	if tn.Kind != protocol.KindBoolean {
 		t.Fatalf("expected KindBoolean, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_BigInt(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "bigint.ts", "isType<bigint>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "bigint.ts")
 	if tn.Kind != protocol.KindBigInt {
 		t.Fatalf("expected KindBigInt, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Symbol(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "symbol.ts", "isType<symbol>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "symbol.ts")
 	if tn.Kind != protocol.KindSymbol {
 		t.Fatalf("expected KindSymbol, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Null(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "null.ts", "isType<null>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "null.ts")
 	if tn.Kind != protocol.KindNull {
 		t.Fatalf("expected KindNull, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Undefined(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "undefined.ts", "isType<undefined>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "undefined.ts")
 	if tn.Kind != protocol.KindUndefined {
 		t.Fatalf("expected KindUndefined, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Void(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "void.ts", "isType<void>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "void.ts")
 	if tn.Kind != protocol.KindVoid {
 		t.Fatalf("expected KindVoid, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Any(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "any.ts", "isType<any>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "any.ts")
 	if tn.Kind != protocol.KindAny {
 		t.Fatalf("expected KindAny, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Unknown(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "unknown.ts", "isType<unknown>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "unknown.ts")
 	if tn.Kind != protocol.KindUnknown {
 		t.Fatalf("expected KindUnknown, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Never(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "never.ts", "isType<never>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "never.ts")
 	if tn.Kind != protocol.KindNever {
 		t.Fatalf("expected KindNever, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Object(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "object.ts", "isType<object>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "object.ts")
 	if tn.Kind != protocol.KindObject {
 		t.Fatalf("expected KindObject, got %d", tn.Kind)
 	}
@@ -184,7 +168,7 @@ func TestAtomic_Object(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_Regexp(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "regexp.ts", "isType<RegExp>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "regexp.ts")
 	if tn.Kind != protocol.KindRegexp {
 		t.Fatalf("expected KindRegexp, got %d", tn.Kind)
 	}
@@ -198,7 +182,7 @@ func TestAtomic_Regexp(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_LiteralString(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "literal_string.ts", `isType<"hello">(`, true)
+	tn := atomicResolve(t, atomicSetup(t), "literal_string.ts")
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -208,7 +192,7 @@ func TestAtomic_LiteralString(t *testing.T) {
 }
 
 func TestAtomic_LiteralNumber(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "literal_number.ts", "isType<42>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "literal_number.ts")
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -227,7 +211,7 @@ func TestAtomic_LiteralNumber(t *testing.T) {
 }
 
 func TestAtomic_LiteralBoolean(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "literal_boolean.ts", "isType<true>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "literal_boolean.ts")
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -237,7 +221,7 @@ func TestAtomic_LiteralBoolean(t *testing.T) {
 }
 
 func TestAtomic_LiteralBigInt(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "literal_bigint.ts", "isType<1n>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "literal_bigint.ts")
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -253,7 +237,7 @@ func TestAtomic_LiteralBigInt(t *testing.T) {
 }
 
 func TestAtomic_LiteralSymbol(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "literal_symbol.ts", "isType<typeof sym>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "literal_symbol.ts")
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -281,7 +265,7 @@ func TestAtomic_LiteralSymbol(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_EnumNumeric(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "enum_numeric.ts", "isType<Color>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "enum_numeric.ts")
 	if tn.Kind != protocol.KindEnum {
 		t.Fatalf("expected KindEnum, got %d", tn.Kind)
 	}
@@ -298,7 +282,7 @@ func TestAtomic_EnumNumeric(t *testing.T) {
 }
 
 func TestAtomic_EnumString(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "enum_string.ts", "isType<Color>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "enum_string.ts")
 	if tn.Kind != protocol.KindEnum {
 		t.Fatalf("expected KindEnum, got %d", tn.Kind)
 	}
@@ -318,7 +302,7 @@ func TestAtomic_EnumString(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_Date(t *testing.T) {
-	tn := resolveSite(t, atomicSetup(t), "date.ts", "isType<Date>(", true)
+	tn := atomicResolve(t, atomicSetup(t), "date.ts")
 	if tn.Kind != protocol.KindClass {
 		t.Fatalf("expected KindClass, got %d", tn.Kind)
 	}
@@ -337,14 +321,14 @@ func TestAtomic_Date(t *testing.T) {
 
 func TestAtomic_StructuralDedup(t *testing.T) {
 	r := atomicSetup(t)
-	a := resolveSite(t, r, "string.ts", "getTypeInfo(", false)
-	b := resolveSite(t, r, "literal_string.ts", `isType<"hello">(`, true)
+	a := atomicResolve(t, r, "string.ts")
+	b := atomicResolve(t, r, "literal_string.ts")
 	// They're different types (string vs "hello" literal), so different ids.
 	if a.ID == b.ID {
 		t.Fatalf("expected different ids for string vs \"hello\" literal")
 	}
 	// Re-resolving the same atomic type should return the exact same id.
-	a2 := resolveSite(t, r, "string.ts", "getTypeInfo(", false)
+	a2 := atomicResolve(t, r, "string.ts")
 	if a.ID != a2.ID {
 		t.Fatalf("expected stable id on re-resolve, got %q vs %q", a.ID, a2.ID)
 	}
