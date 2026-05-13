@@ -2,7 +2,6 @@ package resolver_test
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -29,7 +28,7 @@ func setup(t *testing.T) *resolver.Resolver {
 	if err != nil {
 		t.Fatalf("program.New: %v", err)
 	}
-	r, err := resolver.New(p)
+	r, err := resolver.New(p, resolver.Options{})
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
 	}
@@ -37,21 +36,7 @@ func setup(t *testing.T) *resolver.Resolver {
 	return r
 }
 
-func locate(t *testing.T, r *resolver.Resolver, file, needle string) int {
-	t.Helper()
-	abs := filepath.Join(fixturesDir(t), file)
-	sf := r.Program.SourceFile(abs)
-	if sf == nil {
-		t.Fatalf("source file not loaded: %s", abs)
-	}
-	idx := strings.Index(sf.Text(), needle)
-	if idx < 0 {
-		t.Fatalf("needle %q not found in %s", needle, file)
-	}
-	return idx
-}
-
-func typeByID(types []*protocol.Type, id int) *protocol.Type {
+func typeByID(types []*protocol.Type, id string) *protocol.Type {
 	for _, t := range types {
 		if t.ID == id {
 			return t
@@ -72,7 +57,7 @@ func deref(types []*protocol.Type, ref *protocol.Type) *protocol.Type {
 }
 
 func dump(r *resolver.Resolver) []*protocol.Type {
-	return r.Dispatch(protocol.Request{Op: "dump"}).Types
+	return r.Dispatch(protocol.Request{Op: protocol.OpDump}).Types
 }
 
 // findMember walks an objectLiteral / class root and returns the named member.
@@ -86,19 +71,30 @@ func findMember(types []*protocol.Type, root *protocol.Type, name string) *proto
 	return nil
 }
 
+// resolveFile drives scanFile on file and returns the Type entry for the
+// first site. Fixtures here are written with exactly one call site each;
+// when that ever changes, the callers will need a per-needle locator.
+func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.Type {
+	t.Helper()
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
+	if resp.Error != "" {
+		t.Fatalf("scanFile %s: %s", file, resp.Error)
+	}
+	if len(resp.Sites) == 0 {
+		t.Fatalf("scanFile %s returned no sites", file)
+	}
+	id := resp.Sites[0].ID
+	tn := typeByID(dump(r), id)
+	if tn == nil {
+		t.Fatalf("type %q missing", id)
+	}
+	return tn
+}
+
 // ---- F1 — annotation primitive -----------------------------------------------
 
 func TestF1_AnnotationPrimitive(t *testing.T) {
-	r := setup(t)
-	pos := locate(t, r, "f1_annotation_primitive.ts", "getTypeInfo(")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f1_annotation_primitive.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
-	tn := typeByID(dump(r), resp.ID)
-	if tn == nil {
-		t.Fatalf("type %d missing", resp.ID)
-	}
+	tn := resolveFile(t, setup(t), "f1_annotation_primitive.ts")
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString, got %d", tn.Kind)
 	}
@@ -108,14 +104,9 @@ func TestF1_AnnotationPrimitive(t *testing.T) {
 
 func TestF2_AnnotationObject(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f2_annotation_object.ts", "isType<User>(")
-	resp := r.Dispatch(protocol.Request{Op: "resolveTypeArgument", File: "f2_annotation_object.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f2_annotation_object.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindObjectLiteral {
+	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
 	}
 	if root.TypeName != "User" {
@@ -143,13 +134,8 @@ func TestF2_AnnotationObject(t *testing.T) {
 
 func TestF3_Union(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f3_union.ts", "isType<Result>(")
-	resp := r.Dispatch(protocol.Request{Op: "resolveTypeArgument", File: "f3_union.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
-	root := typeByID(dump(r), resp.ID)
-	if root == nil || root.Kind != protocol.KindUnion {
+	root := resolveFile(t, r, "f3_union.ts")
+	if root.Kind != protocol.KindUnion {
 		t.Fatalf("expected union, got %+v", root)
 	}
 	if len(root.Types) != 2 {
@@ -160,13 +146,7 @@ func TestF3_Union(t *testing.T) {
 // ---- F4 — inferred literal (number) ------------------------------------------
 
 func TestF4_InferredLiteral(t *testing.T) {
-	r := setup(t)
-	pos := locate(t, r, "f4_inferred_literal.ts", "getTypeInfo(")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f4_inferred_literal.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
-	tn := typeByID(dump(r), resp.ID)
+	tn := resolveFile(t, setup(t), "f4_inferred_literal.ts")
 	switch tn.Kind {
 	case protocol.KindNumber:
 		// widened
@@ -181,14 +161,9 @@ func TestF4_InferredLiteral(t *testing.T) {
 
 func TestF5_InferredFunction(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f5_inferred_function.ts", "getTypeInfo(add)")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f5_inferred_function.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f5_inferred_function.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindFunction {
+	if root.Kind != protocol.KindFunction {
 		t.Fatalf("expected function, got %+v", root)
 	}
 	if len(root.Parameters) != 2 {
@@ -208,25 +183,19 @@ func TestF5_InferredFunction(t *testing.T) {
 	}
 }
 
-// ---- F6 — router(routes) inferred from generic R -----------------------------
+// ---- F6 — getRuntypeId(routes) inferred from generic R -----------------------
 
 func TestF6_RouterInference(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f6_router_inference.ts", "router(routes)")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f6_router_inference.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f6_router_inference.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindObjectLiteral {
+	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
 	}
 	sayHello := findMember(types, root, "sayHello")
 	if sayHello == nil {
 		t.Fatalf("missing sayHello member")
 	}
-	// Is methodSignature (single call sig + no own props in the property type) OR propertySignature whose .type is a function.
 	var fn *protocol.Type
 	switch sayHello.Kind {
 	case protocol.KindMethodSignature:
@@ -260,14 +229,9 @@ func TestF6_RouterInference(t *testing.T) {
 
 func TestF7_InferredGeneric(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f7_inferred_generic.ts", "getTypeInfo(wrap")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f7_inferred_generic.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f7_inferred_generic.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindObjectLiteral {
+	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
 	}
 	a := findMember(types, root, "a")
@@ -287,14 +251,9 @@ func TestF7_InferredGeneric(t *testing.T) {
 
 func TestF8_FactoryInference(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f8_factory_inference.ts", "getTypeInfo(u)")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f8_factory_inference.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f8_factory_inference.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindObjectLiteral {
+	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
 	}
 	id := findMember(types, root, "id")
@@ -311,11 +270,9 @@ func TestF8_FactoryInference(t *testing.T) {
 
 func TestDedupAcrossQueries(t *testing.T) {
 	r := setup(t)
-	p1 := locate(t, r, "f1_annotation_primitive.ts", "getTypeInfo(")
-	p4 := locate(t, r, "f4_inferred_literal.ts", "getTypeInfo(")
-	r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f1_annotation_primitive.ts", CallPos: p1, Index: 0})
-	r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f4_inferred_literal.ts", CallPos: p4, Index: 0})
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f1_annotation_primitive.ts", CallPos: p1, Index: 0})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f1_annotation_primitive.ts"})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f4_inferred_literal.ts"})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f1_annotation_primitive.ts"})
 	if len(resp.Added) != 0 {
 		t.Fatalf("expected no new types on dedup, got %d", len(resp.Added))
 	}
@@ -325,14 +282,9 @@ func TestDedupAcrossQueries(t *testing.T) {
 
 func TestF12_Array(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f12_array.ts", "getTypeInfo(xs)")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f12_array.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f12_array.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindArray {
+	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected array, got %+v", root)
 	}
 	elem := deref(types, root.Type)
@@ -345,14 +297,9 @@ func TestF12_Array(t *testing.T) {
 
 func TestF13_Tuple(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f13_tuple.ts", "getTypeInfo(tup)")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f13_tuple.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f13_tuple.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindTuple {
+	if root.Kind != protocol.KindTuple {
 		t.Fatalf("expected tuple, got %+v", root)
 	}
 	if len(root.Types) != 2 {
@@ -378,14 +325,9 @@ func TestF13_Tuple(t *testing.T) {
 
 func TestF14_Promise(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f14_promise.ts", "getTypeInfo(p)")
-	resp := r.Dispatch(protocol.Request{Op: "resolveArgumentInferred", File: "f14_promise.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f14_promise.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindPromise {
+	if root.Kind != protocol.KindPromise {
 		t.Fatalf("expected promise, got %+v", root)
 	}
 	val := deref(types, root.Type)
@@ -398,14 +340,9 @@ func TestF14_Promise(t *testing.T) {
 
 func TestF15_Class(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f15_class.ts", "isType<User>(")
-	resp := r.Dispatch(protocol.Request{Op: "resolveTypeArgument", File: "f15_class.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f15_class.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindClass {
+	if root.Kind != protocol.KindClass {
 		t.Fatalf("expected class, got %+v", root)
 	}
 	if root.TypeName != "User" {
@@ -425,14 +362,9 @@ func TestF15_Class(t *testing.T) {
 
 func TestF16_IndexSignature(t *testing.T) {
 	r := setup(t)
-	pos := locate(t, r, "f16_index_signature.ts", "isType<M>(")
-	resp := r.Dispatch(protocol.Request{Op: "resolveTypeArgument", File: "f16_index_signature.ts", CallPos: pos, Index: 0})
-	if resp.Error != "" {
-		t.Fatalf("resolve: %s", resp.Error)
-	}
+	root := resolveFile(t, r, "f16_index_signature.ts")
 	types := dump(r)
-	root := typeByID(types, resp.ID)
-	if root == nil || root.Kind != protocol.KindObjectLiteral {
+	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
 	}
 	var idx *protocol.Type

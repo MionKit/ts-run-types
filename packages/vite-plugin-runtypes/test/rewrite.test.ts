@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { ResolverClient } from "../src/resolver-client.js";
-import { rewrite, DEFAULT_MARKERS } from "../src/rewrite.js";
+import { rewrite } from "../src/rewrite.js";
 import { renderCacheModule } from "../src/render-cache.js";
 import { ReflectionKind, type Type } from "../src/protocol.js";
 
@@ -37,17 +37,18 @@ describe("vite-plugin-runtypes / rewrite", () => {
   const available = hasBinary();
   const runMaybe = available ? it : it.skip;
 
-  runMaybe("F9: rewrites isType<User>(u) to pass a numeric site id", async () => {
+  runMaybe("F9: rewrites getRuntypeId<User>(u) to pass a hash site id", async () => {
     await withResolver(async (client) => {
       const file = "f2_annotation_object.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      const { code: out, sites } = await rewrite(file, code, DEFAULT_MARKERS, client);
+      const { code: out, sites } = await rewrite(file, code, client);
 
       expect(sites.length).toBe(1);
-      expect(sites[0].marker).toBe("isType");
-      expect(typeof sites[0].id).toBe("number");
-      // The emitted call carries the numeric site id.
-      expect(out).toMatch(new RegExp(`isType<User>\\(u, ${sites[0].id}\\);`));
+      expect(typeof sites[0].id).toBe("string");
+      expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
+      // The emitted call carries the hash site id as a string literal at
+      // the trailing slot — `u` is arg 0, the injected id is arg 1.
+      expect(out).toContain(`getRuntypeId<User>(u, ${JSON.stringify(sites[0].id)});`);
     });
   });
 
@@ -55,7 +56,7 @@ describe("vite-plugin-runtypes / rewrite", () => {
     await withResolver(async (client) => {
       const file = "f2_annotation_object.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      await rewrite(file, code, DEFAULT_MARKERS, client);
+      await rewrite(file, code, client);
 
       const dump = await client.dump();
       const types = dump.types ?? [];
@@ -68,7 +69,6 @@ describe("vite-plugin-runtypes / rewrite", () => {
       expect(id?.kind).toBe(ReflectionKind.propertySignature);
       expect(name?.kind).toBe(ReflectionKind.propertySignature);
 
-      // Follow the property type ids to their primitives.
       const idType = types.find((t) => t.id === id!.type!.id);
       const nameType = types.find((t) => t.id === name!.type!.id);
       expect(idType?.kind).toBe(ReflectionKind.number);
@@ -76,13 +76,13 @@ describe("vite-plugin-runtypes / rewrite", () => {
     });
   });
 
-  runMaybe("F6 plugin round-trip: router(routes) infers nested object+function shape", async () => {
+  runMaybe("F6 plugin round-trip: getRuntypeId(routes) infers nested object+function shape", async () => {
     await withResolver(async (client) => {
       const file = "f6_router_inference.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      const { sites } = await rewrite(file, code, DEFAULT_MARKERS, client);
+      const { sites } = await rewrite(file, code, client);
 
-      expect(sites.some((s) => s.marker === "router")).toBe(true);
+      expect(sites.length).toBeGreaterThan(0);
 
       const dump = await client.dump();
       const types = dump.types ?? [];
@@ -93,8 +93,6 @@ describe("vite-plugin-runtypes / rewrite", () => {
 
       const sayHello = findMember(types, root!, "sayHello");
       expect(sayHello).toBeDefined();
-      // sayHello can be either methodSignature (preferred) or propertySignature
-      // whose type is a function — both are deepkit-valid.
       let fn: Type | undefined = sayHello;
       if (sayHello!.kind === ReflectionKind.propertySignature) {
         fn = types.find((t) => t.id === sayHello!.type!.id);
@@ -107,9 +105,9 @@ describe("vite-plugin-runtypes / rewrite", () => {
     await withResolver(async (client) => {
       const f1 = "f1_annotation_primitive.ts";
       const code = fs.readFileSync(path.join(FIXTURES, f1), "utf8");
-      await rewrite(f1, code, DEFAULT_MARKERS, client);
+      await rewrite(f1, code, client);
       const before = (await client.dump()).types?.length ?? 0;
-      await rewrite(f1, code, DEFAULT_MARKERS, client);
+      await rewrite(f1, code, client);
       const after = (await client.dump()).types?.length ?? 0;
       expect(after).toBe(before);
     });
@@ -120,14 +118,11 @@ describe("vite-plugin-runtypes / generated module", () => {
   const available = hasBinary();
   const runMaybe = available ? it : it.skip;
 
-  // F17: render a runtypes-cache module from a Dump and assert the resulting
-  // JS evaluates to a fully-knotted deepkit Type graph — `Map.get(rootId)`
-  // returns an object whose nested children point back at their parent.
   runMaybe("F17: rendered cache module exports a knotted deepkit Type graph", async () => {
     const { types, sites } = await withResolver(async (client) => {
       const file = "f6_router_inference.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
-      await rewrite(file, code, DEFAULT_MARKERS, client);
+      await rewrite(file, code, client);
       const dump = await client.dump();
       return { types: dump.types ?? [], sites: dump.sites ?? [] };
     });
@@ -136,17 +131,13 @@ describe("vite-plugin-runtypes / generated module", () => {
     expect(tsModule).toContain("export const __runtypes");
     expect(tsModule).toContain("import type");
 
-    // Render the same input as plain JS for direct evaluation. We replace
-    // `export const NAME = …` with `result.NAME = …` so a Function-ctor eval
-    // can return the captured exports without touching global state.
     const js = renderCacheModule({ types, sites, language: "js" })
       .replace(/export const /g, "result.");
     const factory = new Function(`const result = {}; ${js}; return result;`);
-    const result = factory() as { __runtypes: Map<number, any>; __sites: any[] };
+    const result = factory() as { __runtypes: Map<string, any>; __sites: any[] };
     const runtypes = result.__runtypes;
     expect(runtypes).toBeInstanceOf(Map);
 
-    // Find the root objectLiteral and assert sayHello's parent chain points back.
     const roots = Array.from(runtypes.values()).filter(
       (t: any) =>
         t.kind === ReflectionKind.objectLiteral &&
@@ -160,18 +151,12 @@ describe("vite-plugin-runtypes / generated module", () => {
     expect(sayHello.parent).toBe(root);
   });
 
-  // CLI round-trip: invoke the binary's --out-ts and assert the same shape on disk.
+  // CLI round-trip: invoke the binary's scanFile op and assert --out-ts
+  // produces a parseable module shaped like the plugin's output.
   runMaybe("CLI --out-ts produces a parseable module identical in shape to the plugin's output", async () => {
     const tmp = path.join(__dirname, ".tmp-cache.ts");
     const queries =
-      JSON.stringify({
-        op: "resolveArgumentInferred",
-        file: "f6_router_inference.ts",
-        callPos: fs
-          .readFileSync(path.join(FIXTURES, "f6_router_inference.ts"), "utf8")
-          .indexOf("router(routes)"),
-        index: 0,
-      }) + "\n";
+      JSON.stringify({ op: "scanFile", file: "f6_router_inference.ts" }) + "\n";
     const out = spawnSync(
       BIN,
       ["--tsconfig", "tsconfig.json", "--cwd", FIXTURES, "--out-ts", tmp],
@@ -180,7 +165,7 @@ describe("vite-plugin-runtypes / generated module", () => {
     expect(out.status).toBe(0);
     const generated = fs.readFileSync(tmp, "utf8");
     expect(generated).toContain("export const __runtypes");
-    expect(generated).toMatch(/const t\d+: any/);
+    expect(generated).toMatch(/const t_[A-Za-z][A-Za-z0-9_]*: any/);
     fs.unlinkSync(tmp);
   });
 });

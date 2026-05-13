@@ -51,14 +51,21 @@ export enum ReflectionKind {
 export const KIND_REF = -1;
 
 export interface ClassRef {
-  name: string;
+  // builtin: "Date" | "Map" | "Set" | "RegExp" — footer wires
+  // `t.classType = globalThis.<builtin>`.
+  builtin?: string;
+  // user-class export name + originating module path (v2 lazy import).
+  name?: string;
   module?: string;
 }
 
 // Type is a JSON-friendly union of every deepkit Type variant. Optional
 // fields are populated only when relevant to the discriminator `kind`.
+//
+// IDs are short alphanumeric hash strings (default 6 chars). Two
+// structurally-equal types share the same id.
 export interface Type {
-  id?: number;
+  id?: string;
   kind: ReflectionKind | typeof KIND_REF;
 
   // TypeAnnotations
@@ -106,27 +113,27 @@ export interface Type {
   classRef?: ClassRef;
 }
 
+// Site records one transformer-injection point. `pos` is the byte offset of
+// the closing `)` of the call expression — the patcher inserts at that
+// offset. `paramIndex` is the 0-based slot the injected id occupies in the
+// call's argument list. `argsCount` is the number of arguments the user
+// already wrote; when less than `paramIndex` the patcher pads with
+// `undefined` so the id lands in the right slot.
 export interface Site {
   file: string;
   pos: number;
-  id: number;
+  id: string;
+  paramIndex?: number;
+  argsCount?: number;
 }
 
 export interface Request {
-  op:
-    | "resolveAnnotation"
-    | "resolveTypeArgument"
-    | "resolveArgumentInferred"
-    | "resolveSymbol"
-    | "dump";
+  op: "scanFile" | "dump";
   file?: string;
-  pos?: number;
-  callPos?: number;
-  index?: number;
 }
 
 export interface Response {
-  id?: number;
+  id?: string;
   added?: Type[];
   sites?: Site[];
   types?: Type[];

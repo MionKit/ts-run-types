@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ResolverClient } from "./resolver-client.js";
-import { DEFAULT_MARKERS, rewrite, type Marker } from "./rewrite.js";
+import { rewrite } from "./rewrite.js";
 import { renderCacheModule } from "./render-cache.js";
 import type { Site, Type } from "./protocol.js";
 
@@ -11,24 +11,28 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
-  // Marker calls to scan for. Defaults to getTypeInfo / isType / router.
-  markers?: readonly Marker[];
+  // Marker type alias name. Defaults to "RuntypeId".
+  markerName?: string;
+  // Package the marker is declared in. Defaults to "@mionkit/runtypes".
+  // Files that don't import the marker module are short-circuited.
+  markerModule?: string;
   // Id of the virtual module the plugin emits. Consumers import this module
   // to get the type-metadata table. Defaults to "virtual:runtypes-cache".
   virtualModuleId?: string;
 }
 
 const DEFAULT_VIRTUAL = "virtual:runtypes-cache";
+const DEFAULT_MARKER_MODULE = "@mionkit/runtypes";
 
 export default function runtypes(options: PluginOptions) {
   const virtualId = options.virtualModuleId ?? DEFAULT_VIRTUAL;
   const resolvedVirtualId = "\0" + virtualId;
-  const markers = options.markers ?? DEFAULT_MARKERS;
+  const markerModule = options.markerModule ?? DEFAULT_MARKER_MODULE;
 
   let resolver: ResolverClient | null = null;
   // Accumulated across all transform() calls — cleared on resolver restart.
-  // Keyed by numeric id (matching deepkit's `TypeAnnotations.id`).
-  const types = new Map<number, Type>();
+  // Keyed by hash id (mion's quickHash).
+  const types = new Map<string, Type>();
   const sites: Site[] = [];
 
   return {
@@ -36,7 +40,15 @@ export default function runtypes(options: PluginOptions) {
 
     configResolved(this: any, cfg: { root: string }) {
       const cwd = path.resolve(options.cwd ?? cfg.root);
-      resolver = new ResolverClient(options.binary, cwd, options.tsconfig ?? "tsconfig.json");
+      resolver = new ResolverClient(
+        options.binary,
+        cwd,
+        options.tsconfig ?? "tsconfig.json",
+        {
+          markerName: options.markerName,
+          markerModule: options.markerModule,
+        },
+      );
     },
 
     buildEnd(this: any) {
@@ -51,10 +63,6 @@ export default function runtypes(options: PluginOptions) {
 
     load(this: any, id: string) {
       if (id !== resolvedVirtualId) return null;
-      // Render the deepkit-shaped, fully-knotted cache module from our
-      // accumulated types + sites. Mirrors `internal/emit/tsmodule.go` so the
-      // virtual-module path produces byte-identical output to what the Go
-      // binary writes via `--out-ts`.
       return renderCacheModule({
         types: Array.from(types.values()),
         sites,
@@ -64,16 +72,17 @@ export default function runtypes(options: PluginOptions) {
     async transform(this: any, code: string, id: string) {
       if (!resolver) return null;
       if (!/\.[mc]?[jt]sx?$/.test(id)) return null;
-      if (!markers.some((m) => code.includes(m.name + "("))) return null;
+      // Short-circuit: a file that doesn't reference the marker module
+      // can't contain rewritable sites. Cheap textual check before the
+      // round-trip to the resolver.
+      if (!code.includes(markerModule)) return null;
 
-      // Vite gives us absolute paths; the resolver expects paths relative to
-      // its cwd.
       const rel = path.relative(options.cwd ?? process.cwd(), id);
-      const result = await rewrite(rel, code, markers, resolver);
+      const result = await rewrite(rel, code, resolver);
       if (result.sites.length === 0) return null;
 
       for (const s of result.sites) {
-        sites.push({ file: rel, pos: s.pos, id: s.id });
+        sites.push({ file: rel, pos: s.pos, id: s.id, paramIndex: s.paramIndex });
       }
       const dump = await resolver.dump();
       for (const t of dump.types ?? []) {
@@ -85,6 +94,5 @@ export default function runtypes(options: PluginOptions) {
   };
 }
 
-export type { Marker, PluginOptions as Options };
-export { DEFAULT_MARKERS };
+export type { PluginOptions as Options };
 export { renderCacheModule };
