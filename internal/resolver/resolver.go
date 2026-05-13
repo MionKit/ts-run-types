@@ -17,6 +17,12 @@ import (
 	"github.com/mionkit/ts-run-types/internal/walker"
 )
 
+// Options controls the resolver's hash budget. Forwarded to the serializer.
+type Options struct {
+	HashLength        int
+	LiteralHashLength int
+}
+
 // Resolver owns a Program and answers type queries against it. The serializer
 // cache is shared across queries so type ids stay stable in a single dump.
 type Resolver struct {
@@ -27,7 +33,9 @@ type Resolver struct {
 	sites   []protocol.Site
 }
 
-func New(p *program.Program) (*Resolver, error) {
+// New builds a Resolver against p. Defaults to hashid's default lengths when
+// HashLength / LiteralHashLength are zero.
+func New(p *program.Program, opts Options) (*Resolver, error) {
 	if p == nil || p.TS == nil {
 		return nil, errors.New("resolver.New: program is nil")
 	}
@@ -38,7 +46,10 @@ func New(p *program.Program) (*Resolver, error) {
 	}
 	return &Resolver{
 		Program: p,
-		cache:   serialize.NewCache(),
+		cache: serialize.NewCache(c, serialize.Options{
+			HashLength:        opts.HashLength,
+			LiteralHashLength: opts.LiteralHashLength,
+		}),
 		checker: c,
 		done:    done,
 	}, nil
@@ -85,7 +96,7 @@ func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 	}
 }
 
-func respond(id int, err error, added []*protocol.Type) protocol.Response {
+func respond(id string, err error, added []*protocol.Type) protocol.Response {
 	if err != nil {
 		return protocol.Response{Error: err.Error()}
 	}
@@ -101,75 +112,74 @@ func (r *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 	return sf, nil
 }
 
-// recordSite stores a resolved id under (file, pos) for the manifest. The
-// numeric id is the canonical identifier used by all downstream consumers.
-func (r *Resolver) recordSite(file string, pos int, ref *protocol.Type) int {
+// recordSite stores a resolved id under (file, pos) for the manifest.
+func (r *Resolver) recordSite(file string, pos int, ref *protocol.Type) string {
 	id := ref.ID
 	r.sites = append(r.sites, protocol.Site{File: file, Pos: pos, ID: id})
 	return id
 }
 
-func (r *Resolver) resolveAnnotation(file string, pos int) (int, error) {
+func (r *Resolver) resolveAnnotation(file string, pos int) (string, error) {
 	sf, err := r.sourceFile(file)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	node := walker.NodeAt(sf, pos)
 	if node == nil {
-		return 0, fmt.Errorf("no node at %s:%d", file, pos)
+		return "", fmt.Errorf("no node at %s:%d", file, pos)
 	}
 	t := r.checker.GetTypeFromTypeNode(node)
 	if t == nil {
-		return 0, fmt.Errorf("node at %s:%d is not a type node", file, pos)
+		return "", fmt.Errorf("node at %s:%d is not a type node", file, pos)
 	}
-	return r.recordSite(file, pos, r.cache.Serialize(r.checker, t)), nil
+	return r.recordSite(file, pos, r.cache.Serialize(t)), nil
 }
 
-func (r *Resolver) resolveSymbol(file string, pos int) (int, error) {
+func (r *Resolver) resolveSymbol(file string, pos int) (string, error) {
 	sf, err := r.sourceFile(file)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	node := walker.NodeAt(sf, pos)
 	if node == nil {
-		return 0, fmt.Errorf("no node at %s:%d", file, pos)
+		return "", fmt.Errorf("no node at %s:%d", file, pos)
 	}
 	t := r.checker.GetTypeAtLocation(node)
-	return r.recordSite(file, pos, r.cache.Serialize(r.checker, t)), nil
+	return r.recordSite(file, pos, r.cache.Serialize(t)), nil
 }
 
-func (r *Resolver) resolveTypeArgument(file string, callPos, idx int) (int, error) {
+func (r *Resolver) resolveTypeArgument(file string, callPos, idx int) (string, error) {
 	sf, err := r.sourceFile(file)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	call := walker.CallExpressionAt(sf, callPos)
 	if call == nil {
-		return 0, fmt.Errorf("no CallExpression at %s:%d", file, callPos)
+		return "", fmt.Errorf("no CallExpression at %s:%d", file, callPos)
 	}
 	ce := call.AsCallExpression()
 	if ce.TypeArguments == nil || len(ce.TypeArguments.Nodes) <= idx {
-		return 0, fmt.Errorf("no type argument %d at %s:%d", idx, file, callPos)
+		return "", fmt.Errorf("no type argument %d at %s:%d", idx, file, callPos)
 	}
 	typeNode := ce.TypeArguments.Nodes[idx]
 	t := r.checker.GetTypeFromTypeNode(typeNode)
-	return r.recordSite(file, callPos, r.cache.Serialize(r.checker, t)), nil
+	return r.recordSite(file, callPos, r.cache.Serialize(t)), nil
 }
 
-func (r *Resolver) resolveArgumentInferred(file string, callPos, idx int) (int, error) {
+func (r *Resolver) resolveArgumentInferred(file string, callPos, idx int) (string, error) {
 	sf, err := r.sourceFile(file)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	call := walker.CallExpressionAt(sf, callPos)
 	if call == nil {
-		return 0, fmt.Errorf("no CallExpression at %s:%d", file, callPos)
+		return "", fmt.Errorf("no CallExpression at %s:%d", file, callPos)
 	}
 	ce := call.AsCallExpression()
 	if ce.Arguments == nil || len(ce.Arguments.Nodes) <= idx {
-		return 0, fmt.Errorf("no argument %d at %s:%d", idx, file, callPos)
+		return "", fmt.Errorf("no argument %d at %s:%d", idx, file, callPos)
 	}
 	argNode := ce.Arguments.Nodes[idx]
 	t := r.checker.GetTypeAtLocation(argNode)
-	return r.recordSite(file, callPos, r.cache.Serialize(r.checker, t)), nil
+	return r.recordSite(file, callPos, r.cache.Serialize(t)), nil
 }

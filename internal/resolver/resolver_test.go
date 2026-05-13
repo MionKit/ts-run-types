@@ -29,7 +29,7 @@ func setup(t *testing.T) *resolver.Resolver {
 	if err != nil {
 		t.Fatalf("program.New: %v", err)
 	}
-	r, err := resolver.New(p)
+	r, err := resolver.New(p, resolver.Options{})
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
 	}
@@ -51,7 +51,7 @@ func locate(t *testing.T, r *resolver.Resolver, file, needle string) int {
 	return idx
 }
 
-func typeByID(types []*protocol.Type, id int) *protocol.Type {
+func typeByID(types []*protocol.Type, id string) *protocol.Type {
 	for _, t := range types {
 		if t.ID == id {
 			return t
@@ -97,7 +97,7 @@ func TestF1_AnnotationPrimitive(t *testing.T) {
 	}
 	tn := typeByID(dump(r), resp.ID)
 	if tn == nil {
-		t.Fatalf("type %d missing", resp.ID)
+		t.Fatalf("type %q missing", resp.ID)
 	}
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString, got %d", tn.Kind)

@@ -51,14 +51,21 @@ export enum ReflectionKind {
 export const KIND_REF = -1;
 
 export interface ClassRef {
-  name: string;
+  // builtin: "Date" | "Map" | "Set" | "RegExp" — footer wires
+  // `t.classType = globalThis.<builtin>`.
+  builtin?: string;
+  // user-class export name + originating module path (v2 lazy import).
+  name?: string;
   module?: string;
 }
 
 // Type is a JSON-friendly union of every deepkit Type variant. Optional
 // fields are populated only when relevant to the discriminator `kind`.
+//
+// IDs are short alphanumeric hash strings (default 6 chars). Two
+// structurally-equal types share the same id.
 export interface Type {
-  id?: number;
+  id?: string;
   kind: ReflectionKind | typeof KIND_REF;
 
   // TypeAnnotations
@@ -109,7 +116,7 @@ export interface Type {
 export interface Site {
   file: string;
   pos: number;
-  id: number;
+  id: string;
 }
 
 export interface Request {
@@ -126,7 +133,7 @@ export interface Request {
 }
 
 export interface Response {
-  id?: number;
+  id?: string;
   added?: Type[];
   sites?: Site[];
   types?: Type[];
