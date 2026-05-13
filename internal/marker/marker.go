@@ -10,8 +10,9 @@
 //     mandatory: it stops a user's own `type RuntypeId<T> = ...` from
 //     accidentally triggering rewrites.
 //
-// Mirrors deepkit's ReceiveType<T> mechanism, but with strict module-of-origin
-// gating because we don't want name collisions in third-party code.
+// Conceptually similar to a `ReceiveType<T>` phantom parameter, but with
+// strict module-of-origin gating so a user's own `type RuntypeId<T>` in
+// third-party code can never accidentally trigger rewrites.
 package marker
 
 import (

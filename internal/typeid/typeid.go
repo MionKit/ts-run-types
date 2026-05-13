@@ -81,8 +81,8 @@ func (c *Computer) dispatch(t *checker.Type) string {
 		return strconv.Itoa(int(kind)) + ":" + literalString(t, c.tc)
 	}
 
-	// Unique symbol literal — also a deepkit literal kind, but tsgo's flag
-	// is `UniqueESSymbol` not a `*Literal`.
+	// Unique symbol literal — also a literal kind in the reflection model,
+	// but tsgo's flag is `UniqueESSymbol` not a `*Literal`.
 	if flags&checker.TypeFlagsUniqueESSymbol != 0 {
 		name := ""
 		if sym := t.Symbol(); sym != nil {
@@ -104,9 +104,9 @@ func (c *Computer) dispatch(t *checker.Type) string {
 	// Enum — mion's algorithm uses just `String(kind)` for enums, but that
 	// causes all enums to collapse to the same id. We disambiguate by
 	// appending the typeName + sorted member values so two different enum
-	// declarations don't dedup at the cache level. (mion gets away with
-	// the bare-kind id because deepkit hands it distinct Type objects per
-	// enum at runtime — we have to dedup ourselves.)
+	// declarations don't dedup at the cache level. (mion gets away with the
+	// bare-kind id because each enum is handed a distinct Type object per
+	// declaration at runtime — we have to dedup ourselves.)
 	if flags&checker.TypeFlagsEnum != 0 || flags&checker.TypeFlagsEnumLike != 0 || flags&checker.TypeFlagsEnumLiteral != 0 {
 		return strconv.Itoa(int(protocol.KindEnum)) + ":" + enumDiscriminator(t, c.tc)
 	}
@@ -228,7 +228,7 @@ func (c *Computer) memberID(sym *ast.Symbol, asClass bool) string {
 	isOpt := sym.Flags&ast.SymbolFlagsOptional != 0
 
 	// Method vs property: a property whose type is a single-call-signature
-	// function with no other members maps to deepkit's method form.
+	// function with no other members maps to the reflection `method` form.
 	if propType != nil {
 		sigs := c.tc.GetSignaturesOfType(propType, checker.SignatureKindCall)
 		if len(sigs) > 0 && len(c.tc.GetPropertiesOfType(propType)) == 0 {
@@ -275,7 +275,7 @@ func (c *Computer) childIDs(types []*checker.Type) []string {
 // helpers — pure functions, no Computer state
 // ---------------------------------------------------------------------------
 
-// KindOf returns the deepkit ReflectionKind that best classifies a tsgo type.
+// KindOf returns the ReflectionKind that best classifies a tsgo type.
 // Exported because the serializer needs the same classification logic to
 // produce the protocol.Type.
 func KindOf(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
@@ -350,7 +350,7 @@ func objectKind(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
 	if isClass(t) {
 		return protocol.KindClass
 	}
-	// Free callable with no own properties → deepkit function.
+	// Free callable with no own properties → reflection function kind.
 	if len(tc.GetSignaturesOfType(t, checker.SignatureKindCall)) > 0 &&
 		len(tc.GetPropertiesOfType(t)) == 0 {
 		return protocol.KindFunction
@@ -428,7 +428,7 @@ func enumDiscriminator(t *checker.Type, tc *checker.Checker) string {
 	return strings.Join(parts, ",")
 }
 
-// stringifyLiteralValue gives a canonical form for a deepkit literal value
+// stringifyLiteralValue gives a canonical form for a reflection literal value
 // (string / number / bigint / bool). Used for structural id composition.
 func stringifyLiteralValue(v any) string {
 	switch x := v.(type) {

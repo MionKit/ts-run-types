@@ -1,11 +1,11 @@
 // Wire types mirroring internal/protocol/protocol.go. Hand-maintained rather
 // than code-generated to keep the plugin dep-free.
 //
-// The shape mirrors deepkit/type's `Type` discriminated union — see
-// https://github.com/marcj/deepkit/blob/master/packages/type/src/reflection/type.ts.
-// Child Type slots in the JSON wire format are sentinels (`{kind: -1, id: N}`);
-// consumers either re-knot themselves (raw JSON) or import the generated
-// runtypes-cache.ts module which contains a fully-knotted graph.
+// The shape is the canonical mion runtypes reflection `Type` discriminated
+// union. Child Type slots in the JSON wire format are sentinels
+// (`{kind: -1, id: N}`); consumers either re-knot themselves (raw JSON) or
+// import the generated runtypes-cache.ts module which contains a fully-knotted
+// graph.
 
 export enum ReflectionKind {
   never = 0,
@@ -46,7 +46,7 @@ export enum ReflectionKind {
   callSignature = 35,
 }
 
-// kindRef is our sentinel — not a deepkit kind. Used in JSON to point at
+// kindRef is our sentinel — not a reflection kind. Used in JSON to point at
 // another type by id without inlining the referenced node.
 export const KIND_REF = -1;
 
@@ -59,7 +59,7 @@ export interface ClassRef {
   module?: string;
 }
 
-// Type is a JSON-friendly union of every deepkit Type variant. Optional
+// Type is a JSON-friendly union of every reflection Type variant. Optional
 // fields are populated only when relevant to the discriminator `kind`.
 //
 // IDs are short alphanumeric hash strings (default 6 chars). Two

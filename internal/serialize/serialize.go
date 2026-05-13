@@ -1,4 +1,4 @@
-// Package serialize projects tsgo's *checker.Type into a deepkit-shaped
+// Package serialize projects tsgo's *checker.Type into a reflection-shape
 // protocol.Type graph. Every resolved type gets a structural id (mirroring
 // mion's `_createTypeId`) which is hashed (mion's quickHash, ported in
 // `internal/hashid`) into a short alphanumeric wire id. Two structurally-equal
@@ -198,7 +198,7 @@ func (c *Cache) internEmpty(kind protocol.ReflectionKind, marker string) string 
 func isLiteralStructural(s string) bool {
 	// Per typeid.dispatch, literals start with the kind number followed by a colon.
 	// The literal kind is `protocol.KindLiteral`. Encoded as "13:..." when we
-	// renumber to deepkit kinds. Use a byte check rather than parsing.
+	// renumber to ReflectionKind values. Use a byte check rather than parsing.
 	return len(s) > 3 && s[0] == '1' && s[1] == '3' && s[2] == ':'
 }
 
@@ -385,9 +385,9 @@ func (c *Cache) projectTuple(t *checker.Type, n *protocol.Type) {
 			elemType = args[i]
 		}
 		flags := info.TupleElementFlags()
-		// In tsgo, optional tuple slots type as `T | undefined`. Deepkit
-		// keeps the optional bit on the TupleMember and the inner type stays
-		// `T` — strip undefined when the element is optional.
+		// In tsgo, optional tuple slots type as `T | undefined`. The reflection
+		// shape keeps the optional bit on the TupleMember and the inner type
+		// stays `T` — strip undefined when the element is optional.
 		if flags&checker.ElementFlagsOptional != 0 && elemType != nil {
 			elemType = stripUndefined(elemType)
 		}
@@ -510,8 +510,8 @@ func (c *Cache) appendProperty(parent *protocol.Type, sym *ast.Symbol, asClass b
 	propType := c.tc.GetTypeOfSymbol(sym)
 
 	// Method-vs-property: a property whose type is a single-call-signature
-	// function with no other members maps to deepkit's `method` /
-	// `methodSignature` form.
+	// function with no other members maps to the `method` / `methodSignature`
+	// form.
 	isMethod := false
 	if propType != nil {
 		sigs := c.tc.GetSignaturesOfType(propType, checker.SignatureKindCall)

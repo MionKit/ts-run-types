@@ -25,7 +25,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
                        │   rewrite hash → arg slot       │  detect RuntypeId<T>
                        │                                 │
                        │                                 │ structural-id → hashid
-                       │                                 │  (deepkit-shaped Type)
+                       │                                 │  (reflection-shape Type)
                        ▼       ◀── Dump ──[dump]─────────┘
               virtual:runtypes-cache  ──▶  runtime / JIT  (getMeta(id))
 ```
@@ -33,7 +33,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 1. User code imports `RuntypeId<T>` / `getRuntypeId<T>(val)` from `@mionjs/ts-run-types`. Any user-defined wrapper function may also declare `id?: RuntypeId<T>` as its trailing parameter to opt into the same flow.
 2. The Vite plugin sends each source file to the Go binary's `scanFile` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `RuntypeId<T>` (declared in `@mionjs/ts-run-types`) with `T` concretely bound.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
-4. At build end, the plugin emits `virtual:runtypes-cache` — a deepkit-shaped, fully-knotted `Type` graph keyed by hash id. Runtimes read it via `getMeta(id)`.
+4. At build end, the plugin emits `virtual:runtypes-cache` — a reflection-shape, fully-knotted `Type` graph keyed by hash id. Runtimes read it via `getMeta(id)`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
 
@@ -58,10 +58,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
 | [internal/resolver](internal/resolver/)              | `scanFile` / `dump` op dispatch; walks every call and asks the checker for the resolved signature.        |
 | [internal/typeid](internal/typeid/)                  | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                      |
 | [internal/hashid](internal/hashid/)                  | xxhash3 → short base36 hash dictionary; configurable length.                                              |
-| [internal/serialize](internal/serialize/)            | `*checker.Type` → deepkit-shaped `Type`; pointer + structural dedup.                                      |
+| [internal/serialize](internal/serialize/)            | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup.                                    |
 | [internal/emit](internal/emit/)                      | JSON and self-wired TS-module renderers for the cache.                                                    |
 | [internal/protocol](internal/protocol/)              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                |
-| [internal/testfixtures](internal/testfixtures/)      | F1–F17 `.ts` inputs: atomic deepkit kinds, primitives/objects/unions, inferred generics, marker variants. |
+| [internal/testfixtures](internal/testfixtures/)      | F1–F17 `.ts` inputs: atomic reflection kinds, primitives/objects/unions, inferred generics, marker variants. |
 
 ### JS side
 

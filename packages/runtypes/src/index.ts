@@ -39,7 +39,7 @@ export function getRuntypeId<T>(_value?: T, id?: RuntypeId<T>): RuntypeId<T> {
 }
 
 // Cache lookup. The plugin emits a virtual module containing the
-// fully-knotted deepkit-shape Type graph keyed by hash id. Consumers use
+// fully-knotted reflection-shape Type graph keyed by hash id. Consumers use
 // `getMeta(id)` to read metadata for a given id.
 //
 // The lookup is resolved lazily so this package can be imported without a
@@ -57,7 +57,7 @@ export function __setRuntypeMetaResolver(fn: (id: RuntypeId<unknown>) => unknown
 }
 
 /**
- * Look up the deepkit-shape Type metadata for a given id. Returns
+ * Look up the reflection-shape Type metadata for a given id. Returns
  * `undefined` if the cache has not been wired up (no plugin active) or if
  * the id is unknown to the cache.
  */

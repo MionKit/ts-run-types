@@ -52,7 +52,7 @@ describe("vite-plugin-runtypes / rewrite", () => {
     });
   });
 
-  runMaybe("F10: cache contains User alias with deepkit-shaped propertySignatures", async () => {
+  runMaybe("F10: cache contains User alias with reflection-shape propertySignatures", async () => {
     await withResolver(async (client) => {
       const file = "f2_annotation_object.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
@@ -118,7 +118,7 @@ describe("vite-plugin-runtypes / generated module", () => {
   const available = hasBinary();
   const runMaybe = available ? it : it.skip;
 
-  runMaybe("F17: rendered cache module exports a knotted deepkit Type graph", async () => {
+  runMaybe("F17: rendered cache module exports a knotted reflection Type graph", async () => {
     const { types, sites } = await withResolver(async (client) => {
       const file = "f6_router_inference.ts";
       const code = fs.readFileSync(path.join(FIXTURES, file), "utf8");
