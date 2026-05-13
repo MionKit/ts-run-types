@@ -25,23 +25,78 @@
 2. **Query lifecycle**: every source file with calls to `RuntypeId<T>`-marked functions is sent to `scanFile`. The resolver walks every CallExpression, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter type is the sentinel marker.
 3. **Runtime lifecycle**: the rewritten source passes the site id as the trailing argument; the library's runtime helper does a `Map.get(id)`. No reflection work happens at runtime.
 
+## Execution model — what we replace and what we don't
+
+We **do not replace `tsc`**, and we do not implement a compiler. The Vite plugin is a normal `transform()` plugin running inside Vite/Rollup's pipeline, and the Go binary is a separate process used solely for _type resolution at call sites_ — it emits no JavaScript.
+
+Concretely, at build time:
+
+| Stage                                  | Tool                                                                        | Responsibility                                                                                                                                                          |
+| -------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type checking the project              | Whatever the user's tsconfig points at — `tsc`, `vue-tsc`, the editor, etc. | Unchanged. We don't type-check on the user's behalf.                                                                                                                    |
+| TS → JS emit                           | Vite's default (esbuild)                                                    | Unchanged. We never write `.js`.                                                                                                                                        |
+| Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-run-types** Go binary                       | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
+| Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full deepkit-shape `Type` graph, keyed by hash.                                                                                  |
+| Runtime metadata access                | **@mionjs/ts-run-types** (`getMeta(id)`)                                    | One `Map.get(id)` lookup against the virtual module.                                                                                                                    |
+
+### Why a separate Go binary
+
+`tsc` (the JavaScript build) shipped a [custom-transformer API](https://github.com/itsdouges/typescript-transformer-handbook) that runtime-type libraries (`ts-runtime`, `typia`, `deepkit/type`, etc.) hooked into. That API let a Node-side program walk the AST and rewrite source _with access to the checker_ before `tsc` emitted JS.
+
+`tsgo` — the Go port that will become TypeScript 7 — **does not currently expose any plugin or transformer API to user code**. The compiler is now a single statically-linked Go binary that runs as a CLI; you cannot load a Node plugin into it, and the checker's symbol-resolution machinery lives behind Go's `internal/` visibility wall (which Go enforces at the compiler level — see the "Shims" section below).
+
+Tracking issue: [microsoft/typescript-go#516 — Plugin support](https://github.com/microsoft/typescript-go/issues/516). As of this writing, no roadmap.
+
+That leaves two choices for type-aware tooling against TypeScript 7:
+
+1. **Wait** for an official API. Unbounded timeline.
+2. **Reach into tsgo's checker at the Go level** via a side-channel. That's what this project does, using the [oxc-project/tsgolint](https://github.com/oxc-project/tsgolint) shim layer (also used by oxc's TypeScript linter for the same reason). When #516 lands, we swap the shim for the official API and leave the Vite plugin, marker, cache, and runtime untouched.
+
+### Where each process runs
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│  Vite dev server  /  rollup build  (Node.js)                          │
+│                                                                       │
+│  ┌────────────────┐   transform(file)    ┌────────────────────────┐   │
+│  │  Vite core     │ ───────────────────▶ │  vite-plugin-runtypes  │   │
+│  │  (esbuild)     │                      │  (Node)                │   │
+│  │                │   ◀── rewritten src  └─────────┬──────────────┘   │
+│  └────────────────┘                                │ stdio JSON       │
+│                                                    ▼                  │
+└───────────────────────────────────────────────┬───────────────────────┘
+                                                │
+                            spawn() one child   │
+                                                ▼
+                                  ┌──────────────────────────┐
+                                  │  bin/ts-run-types  (Go)  │
+                                  │  ─────────────────────   │
+                                  │  tsgo Program + Checker  │
+                                  │  via shim/* imports      │
+                                  └──────────────────────────┘
+```
+
+The Go binary is a long-lived child process during a build session: spawned once, fed one `scanFile` request per `.ts` file, dumped at the end of the build, then torn down. The plugin can also run it as a Unix-socket daemon for HMR scenarios where the build session outlives a single Vite invocation.
+
+The user's tsconfig drives both worlds: the binary parses it to bootstrap the same `Program` view tsgo would use, so what we resolve as type `T` is exactly what tsgo resolves.
+
 ## The sentinel marker
 
-Detection is anchored on a single TypeScript type alias exported from the `@mionkit/runtypes` package:
+Detection is anchored on a single TypeScript type alias exported from the `@mionjs/ts-run-types` package:
 
 ```ts
-export type RuntypeId<T> = string & { readonly __mionRuntypeBrand?: T };
+export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
 ```
 
 A function opts into compile-time id injection by declaring `id?: RuntypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
 
-- The canonical helper `getRuntypeId<T>(val?, id?)` shipped from `@mionkit/runtypes`.
+- The canonical helper `getRuntypeId<T>(val?, id?)` shipped from `@mionjs/ts-run-types`.
 - Any user-defined wrapper that propagates the marker — `function isType<T>(v, id?: RuntypeId<T>)`.
 
 Detection requires both:
 
 1. The trailing parameter type alias must be named `RuntypeId` (configurable via `--marker-name`).
-2. The alias must be declared in `@mionkit/runtypes` (configurable via `--marker-module`). Either inside `declare module "@mionkit/runtypes" { ... }` or in a file path containing `/@mionkit/runtypes/`. This rules out accidental collisions with same-named user types declared elsewhere.
+2. The alias must be declared in `@mionjs/ts-run-types` (configurable via `--marker-module`). Either inside `declare module "@mionjs/ts-run-types" { ... }` or in a file path containing `/@mionjs/ts-run-types/`. This rules out accidental collisions with same-named user types declared elsewhere.
 
 A call inside a generic body where the marker's `T` is the wrapper's own free type parameter is **skipped** — there's no concrete `T` to assign an id to yet. The wrapper must propagate the marker via its own signature, and the injection happens at the wrapper's call sites instead.
 
@@ -56,7 +111,7 @@ internal/resolver/               scanFile + dump dispatch
 internal/serialize/              *checker.Type → protocol.TypeNode (dedup by id)
 internal/protocol/               stdio JSON request/response types
 internal/testfixtures/           fixture .ts + shared tsconfig
-packages/runtypes/               @mionkit/runtypes — marker type + getRuntypeId
+packages/runtypes/               @mionjs/ts-run-types — marker type + getRuntypeId
 packages/vite-plugin-runtypes/   JS side — drives scanFile, patches calls
 third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
@@ -91,10 +146,10 @@ Wraps the [`oxc-project/tsgolint`](https://github.com/oxc-project/tsgolint) shim
 
 Dispatches two operations:
 
-| op         | semantics                                                                 |
-| ---------- | ------------------------------------------------------------------------- |
+| op         | semantics                                                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scanFile` | Walks every CallExpression in file. For each whose resolved signature has a trailing `RuntypeId<T>` param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount}`. |
-| `dump`     | Returns the full cache (every Type) + the running Sites slice.            |
+| `dump`     | Returns the full cache (every Type) + the running Sites slice.                                                                                                            |
 
 `Pos` is the byte offset of the closing `)` of the call — the TS-side patcher inserts at that offset. `ParamIndex` is the 0-based slot the injected id goes into; `ArgsCount` is the number of arguments the user already wrote (so the patcher knows whether to pad with `undefined`).
 
@@ -109,7 +164,7 @@ Two output formats share the same in-memory `protocol.Dump`:
 - **`json.go`** — pretty-printed JSON. Child Type slots stay as `{kind: -1, id: "<hash>"}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
 - **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`type`, `return`, `parameters`, `types`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted deepkit `Type` object — no rehydration step.
 
-### packages/runtypes (`@mionkit/runtypes`)
+### packages/runtypes (`@mionjs/ts-run-types`)
 
 Public marker package. Exports:
 
@@ -155,15 +210,79 @@ Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 
 Out of scope for v0.2: `templateLiteral`, `regexp` literals, `infer`, decorators (`MinLength<5>`-style), `TypeNumberBrand`, runtime-only fields (`function`, `classType`, `enum`). All have v0.3+ workaround proposals in the roadmap.
 
-## go:linkname boundary
+## Shims — reaching into tsgo's `internal/`
 
-The shim layer we depend on (under `third_party/tsgolint/shim/*`) uses `//go:linkname` directives to re-export symbols from `github.com/microsoft/typescript-go/internal/*`. This is officially discouraged Go usage, but:
+### The visibility problem
 
-- The oxc-project fork tracks typescript-go via renovate, so shim drift is a bounded, automatable effort.
-- Type aliases in the shim (`type Program = compiler.Program`) preserve the full method set of internal types — exported methods like `Program.GetTypeChecker` and `Checker.GetTypeAtLocation` are directly callable from outside, no linkname thunks required for them.
-- We apply five performance/API patches from the tsgolint `patches/` directory to its typescript-go submodule as part of build; no changes to upstream typescript-go are needed beyond what tsgolint already carries.
+`microsoft/typescript-go` keeps almost everything we need under `internal/*`:
 
-When typescript-go#516 lands with an official transformer/linter API, swap the shim for that API and leave everything else unchanged.
+```
+github.com/microsoft/typescript-go/internal/checker
+github.com/microsoft/typescript-go/internal/ast
+github.com/microsoft/typescript-go/internal/parser
+github.com/microsoft/typescript-go/internal/compiler
+...
+```
+
+Go enforces an [`internal` visibility rule](https://go.dev/doc/go1.4#internalpackages) at the compiler level: a package whose path contains `…/internal/…` may only be imported by code rooted in the same module. So **no external Go program is allowed to import `internal/checker`** — including this one. The TypeScript team did that deliberately: they want freedom to refactor those packages.
+
+A _shim_ is a thin, **publicly-importable** wrapper package that lives outside `internal/` and re-exports the symbols inside. The shim is what makes external Go consumers (this project, the [oxc TypeScript linter](https://github.com/oxc-project/tsgolint), and others) possible.
+
+### Two techniques, mixed
+
+The shim files (under [`third_party/tsgolint/shim/*`](../third_party/tsgolint/shim/), auto-generated by tsgolint's `tools/gen_shims`) use **two complementary techniques**:
+
+**(1) Type aliases** for types, methods, and exported functions:
+
+```go
+// shim/checker/shim.go (excerpt)
+package checker
+
+import "github.com/microsoft/typescript-go/internal/checker"
+
+type Checker     = checker.Checker     // full method set preserved
+type AccessFlags = checker.AccessFlags
+const AccessFlagsNone = checker.AccessFlagsNone
+```
+
+A type alias preserves the _whole_ method set of the underlying type. Once `Checker` is aliased, every exported method on it — `Checker.GetTypeAtLocation`, `Checker.GetResolvedSignature`, etc. — is callable from outside with no further plumbing. This covers ~80% of the surface.
+
+**(2) `//go:linkname` directives** for unexported helpers we still need:
+
+```go
+// shim/vfs/osvfs/shim.go (excerpt)
+//go:linkname FS github.com/microsoft/typescript-go/internal/vfs/osvfs.FS
+func FS() vfs.FS
+```
+
+`//go:linkname` is a Go-runtime escape hatch that says "treat the name on the left as an alias of the symbol on the right at link time," bypassing visibility entirely. It's officially discouraged (and required `-gcflags=-checklinkname=0` for a while) but it's the only way to call genuinely unexported helpers. The shim uses it sparingly — type aliases do the heavy lifting wherever possible.
+
+### How we wire the shim into this module
+
+[`go.mod`](../go.mod) maps the shim import paths into our vendored tsgolint submodule via `replace` directives:
+
+```go
+replace (
+  github.com/microsoft/typescript-go/shim/ast      => ./third_party/tsgolint/shim/ast
+  github.com/microsoft/typescript-go/shim/checker  => ./third_party/tsgolint/shim/checker
+  github.com/microsoft/typescript-go/shim/compiler => ./third_party/tsgolint/shim/compiler
+  ...
+)
+```
+
+So when [`internal/program/program.go`](../internal/program/) writes `import "github.com/microsoft/typescript-go/shim/checker"`, it picks up the aliased `internal/checker` from the typescript-go that tsgolint vendors. We never write `internal/*` import paths ourselves — Go would refuse to compile if we did.
+
+### Patches we layer on top
+
+A handful of upstream `internal` symbols that tsgolint _wants_ to alias are themselves unexported (lowercase) in typescript-go. For those, [`third_party/tsgolint/patches/*.patch`](../third_party/tsgolint/patches/) apply small visibility lifts to the nested typescript-go submodule (e.g. uppercase a method name, or expose a constructor). The bootstrap step (`git am --3way --no-gpg-sign ../patches/*.patch`) applies them on a fresh checkout.
+
+[DEVS.md → Patching tsgolint's typescript-go](../DEVS.md#patching-tsgolints-typescript-go) documents how to add a new patch.
+
+### Maintenance model
+
+- The oxc-project tsgolint repo tracks typescript-go via renovate. Whenever typescript-go bumps, tsgolint regenerates its shim and we pick it up via `git submodule update`. Drift is bounded and automatable.
+- The runtime cost of going through a shim is **zero**: aliases and `//go:linkname` are link-time, not runtime constructs.
+- When [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516) lands with an official transformer/linter API, we replace the shim imports with that API — call sites in [`internal/program`](../internal/program/), [`internal/marker`](../internal/marker/), and [`internal/resolver`](../internal/resolver/) change; everything else (sentinel detection, structural ids, hash dictionary, cache emission, Vite plugin) stays put.
 
 ## Build and test
 

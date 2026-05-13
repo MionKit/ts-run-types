@@ -18,17 +18,27 @@
     "dist",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mionkit/ts-run-types.git",
+    "directory": "packages/vite-plugin-runtypes"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:test": "vitest watch",
+    "lint": "eslint src",
+    "format": "prettier --write 'src/**/*.ts'",
+    "clean": "rimraf dist .coverage",
+    "fresh-start": "pnpm run clean && rimraf node_modules"
   },
   "peerDependencies": {
     "vite": ">=5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "typescript": "^5.5.0",
-    "vite": "^5.4.0",
-    "vitest": "^2.0.0"
+    "vite": "5.4.10"
   }
 }

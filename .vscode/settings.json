@@ -1,0 +1,8 @@
+{
+  "files.watcherExclude": {
+    "third_party/**": true
+  },
+  "search.exclude": {
+    "third_party": true
+  }
+}

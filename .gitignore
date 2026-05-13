@@ -9,7 +9,12 @@ coverage.txt
 node_modules/
 packages/*/node_modules/
 packages/*/dist/
+packages/*/.dist/
+packages/*/.coverage/
 dist/
+.dist/
+.coverage/
+.nx/
 *.tsbuildinfo
 .pnpm-store/
 .pnpm-debug.log*
@@ -17,8 +22,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Build / pack artefacts
+/runtypes-cache.json
+/tarballs/
+
 # IDE / editor
-.vscode/
+# Track shared workspace settings/extensions, ignore user-specific files.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
@@ -28,6 +40,3 @@ yarn-error.log*
 .env
 .env.local
 *.log
-
-# Build artefacts
-/runtypes-cache.json

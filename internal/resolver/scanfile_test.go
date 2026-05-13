@@ -23,7 +23,7 @@ func TestScanFile_F17(t *testing.T) {
 
 	// Verify we found the five rewritable sites (17a–17d, plus the inferred-T
 	// wrapper-call form). The two negative cases — `inner<T>(val)` inside a
-	// generic body and `maskedWrapper(...)` against a non-`@mionkit/runtypes`
+	// generic body and `maskedWrapper(...)` against a non-`@mionjs/ts-run-types`
 	// RuntypeId alias — must not appear.
 	abs := filepath.Join(fixturesDir(t), "f17_runtype_id.ts")
 	sf := r.Program.SourceFile(abs)
@@ -79,7 +79,7 @@ func TestScanFile_F17(t *testing.T) {
 	// `maskedWrapper("noop")` must NOT appear in sites.
 	for _, neg := range []string{
 		`getRuntypeId<T>(val)`, // 17e — free type parameter inside body
-		`maskedWrapper("noop")`, // 17f — non-@mionkit/runtypes RuntypeId
+		`maskedWrapper("noop")`, // 17f — non-@mionjs/ts-run-types RuntypeId
 	} {
 		start := strings.Index(src, neg)
 		if start < 0 {

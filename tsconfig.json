@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "strict": true,
+    "removeComments": true,
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "incremental": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "references": [
+    {"path": "./packages/runtypes"},
+    {"path": "./packages/vite-plugin-runtypes"}
+  ],
+  "files": [],
+  "exclude": ["node_modules", "dist", ".dist", "third_party", "bin"]
+}

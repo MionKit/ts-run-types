@@ -3,12 +3,12 @@
 // into compile-time type-id injection by the ts-run-types transformer.
 //
 // The detection is two-layered:
-//   1. Name match — the type alias' symbol name must equal Options.Name
-//      (default "RuntypeId").
-//   2. Module-of-origin match — the alias must be declared inside the
-//      configured marker package (default "@mionkit/runtypes"). This is
-//      mandatory: it stops a user's own `type RuntypeId<T> = ...` from
-//      accidentally triggering rewrites.
+//  1. Name match — the type alias' symbol name must equal Options.Name
+//     (default "RuntypeId").
+//  2. Module-of-origin match — the alias must be declared inside the
+//     configured marker package (default "@mionjs/ts-run-types"). This is
+//     mandatory: it stops a user's own `type RuntypeId<T> = ...` from
+//     accidentally triggering rewrites.
 //
 // Mirrors deepkit's ReceiveType<T> mechanism, but with strict module-of-origin
 // gating because we don't want name collisions in third-party code.
@@ -25,7 +25,7 @@ import (
 const DefaultName = "RuntypeId"
 
 // DefaultModule is the package the marker type must be declared in.
-const DefaultModule = "@mionkit/runtypes"
+const DefaultModule = "@mionjs/ts-run-types"
 
 // Options configures marker detection. Zero values fall back to the defaults
 // above.
