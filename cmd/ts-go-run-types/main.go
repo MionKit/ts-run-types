@@ -45,6 +45,9 @@ Options:
                              before the request stream; build an inferred
                              Program whose source files come from that map
                              (no tsconfig glob, no disk reads for those paths)
+    --inline-server     persistent inline-sources server: start with no
+                        Program, accept setSources / resetCache / scanFile /
+                        dump ops; used by long-lived test daemons
     -h, --help          show help
 `
 
@@ -65,6 +68,7 @@ func main() {
 		markerModule       string
 		singleThreaded     bool
 		inlineSourcesStdin bool
+		inlineServer       bool
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -81,6 +85,8 @@ func main() {
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&inlineSourcesStdin, "inline-sources-stdin", false,
 		"read {\"sources\":{relpath:content}} from stdin before the request stream")
+	flag.BoolVar(&inlineServer, "inline-server", false,
+		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
 	flag.Parse()
@@ -110,8 +116,25 @@ func main() {
 	stdinDec := json.NewDecoder(bufio.NewReader(os.Stdin))
 	stdoutEnc := json.NewEncoder(os.Stdout)
 
-	var p *program.Program
-	if inlineSourcesStdin {
+	resolverOpts := resolver.Options{
+		HashLength:        hashLength,
+		LiteralHashLength: literalHashLength,
+		Marker: marker.Options{
+			Name:   markerName,
+			Module: markerModule,
+		},
+		Cwd:            absCwd,
+		SingleThreaded: singleThreaded,
+	}
+
+	var r *resolver.Resolver
+	switch {
+	case inlineServer:
+		// Persistent server mode: no startup Program. The client installs
+		// one via setSources, and may swap it many times before EOF / socket
+		// disconnect. resolver.NewServer cannot fail (no checker lease yet).
+		r = resolver.NewServer(resolverOpts)
+	case inlineSourcesStdin:
 		var handshake struct {
 			Sources map[string]string `json:"sources"`
 		}
@@ -125,7 +148,7 @@ func main() {
 			overlay[abs] = content
 			fileNames = append(fileNames, abs)
 		}
-		p, err = program.NewInferred(program.Options{
+		p, err := program.NewInferred(program.Options{
 			Cwd:            absCwd,
 			SingleThreaded: singleThreaded,
 			Overlay:        overlay,
@@ -133,8 +156,12 @@ func main() {
 		if err != nil {
 			fatal("program (inferred): %v", err)
 		}
-	} else {
-		p, err = program.New(program.Options{
+		r, err = resolver.New(p, resolverOpts)
+		if err != nil {
+			fatal("resolver: %v", err)
+		}
+	default:
+		p, err := program.New(program.Options{
 			Cwd:            absCwd,
 			TsconfigPath:   tsconfigPath,
 			SingleThreaded: singleThreaded,
@@ -142,18 +169,10 @@ func main() {
 		if err != nil {
 			fatal("program: %v", err)
 		}
-	}
-
-	r, err := resolver.New(p, resolver.Options{
-		HashLength:        hashLength,
-		LiteralHashLength: literalHashLength,
-		Marker: marker.Options{
-			Name:   markerName,
-			Module: markerModule,
-		},
-	})
-	if err != nil {
-		fatal("resolver: %v", err)
+		r, err = resolver.New(p, resolverOpts)
+		if err != nil {
+			fatal("resolver: %v", err)
+		}
 	}
 	defer r.Close()
 

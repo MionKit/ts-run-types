@@ -1,4 +1,5 @@
 import {spawn, type ChildProcess} from 'node:child_process';
+import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
 import type {Request, Response, Site} from './protocol.js';
@@ -15,49 +16,20 @@ export interface ResolverClientOptions {
   inlineSources?: Record<string, string>;
 }
 
-// ResolverClient spawns the ts-go-run-types binary in one-shot mode and drives it
-// over its JSON-per-line stdio protocol. One binary invocation per build — the
-// child process is kept alive until `close()` so Program + checker cache are
-// amortised across all queries.
-export class ResolverClient {
-  private child: ChildProcess;
-  private stdin: Writable;
-  private stdout: Readable;
+// Common JSON-per-line request/response framing. Owns the in-flight request
+// queue. The transport is agnostic to whether the streams come from a
+// spawned child process or a Unix-socket connection.
+class MessageTransport {
   private lines: Interface;
   private queue: Array<(r: Response) => void> = [];
   private closed = false;
 
   constructor(
-    private readonly binary: string,
-    private readonly cwd: string,
-    tsconfigPath: string,
-    opts: ResolverClientOptions = {}
+    private readonly stdin: Writable,
+    stdout: Readable,
+    private readonly onClose: () => void
   ) {
-    const args = ['--one-shot', '--cwd', cwd];
-    // The Go binary ignores --tsconfig when inline-sources mode is on, so
-    // skip the flag entirely in that case to keep the CLI honest.
-    if (!opts.inlineSources && tsconfigPath) {
-      args.push('--tsconfig', tsconfigPath);
-    }
-    if (opts.markerName) args.push('--marker-name', opts.markerName);
-    if (opts.markerModule) args.push('--marker-module', opts.markerModule);
-    if (opts.inlineSources) args.push('--inline-sources-stdin');
-    this.child = spawn(binary, args, {
-      stdio: ['pipe', 'pipe', 'inherit'],
-    });
-    if (!this.child.stdin || !this.child.stdout) {
-      throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');
-    }
-    this.stdin = this.child.stdin;
-    this.stdout = this.child.stdout;
-    if (opts.inlineSources) {
-      // Handshake: write the source map as a single JSON line before any
-      // requests can be queued. The Go side blocks on this before building
-      // its Program, so request() calls made by the caller right after the
-      // constructor naturally land after the handshake on the wire.
-      this.stdin.write(JSON.stringify({sources: opts.inlineSources}) + '\n');
-    }
-    this.lines = createInterface({input: this.stdout});
+    this.lines = createInterface({input: stdout});
     this.lines.on('line', (line) => {
       const done = this.queue.shift();
       if (!done) return;
@@ -67,10 +39,19 @@ export class ResolverClient {
         done({error: `parse: ${String(e)}`});
       }
     });
-    this.child.on('exit', () => {
-      this.closed = true;
-      while (this.queue.length) this.queue.shift()!({error: 'resolver exited'});
-    });
+  }
+
+  // markClosed is called by external close hooks (child 'exit', socket
+  // 'close') to drain pending requests with an error.
+  markClosed(reason: string): void {
+    this.closed = true;
+    while (this.queue.length) this.queue.shift()!({error: reason});
+  }
+
+  // writeUnframed writes raw bytes without queuing — used for the inline-sources
+  // handshake which the Go side reads before entering the request loop.
+  writeUnframed(payload: string): void {
+    this.stdin.write(payload);
   }
 
   async request(req: Request): Promise<Response> {
@@ -81,26 +62,118 @@ export class ResolverClient {
     });
   }
 
-  // scanFile asks the resolver to walk a source file and return every
-  // CallExpression whose resolved signature has a trailing RuntypeId<T>
-  // parameter (with T concretely bound). Returns an empty array on error
-  // or when no sites are found.
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.onClose();
+  }
+}
+
+// Common operation surface. Spawn-based and socket-based clients both
+// implement this interface so consumers can be typed against the connection
+// without caring which transport is in use.
+export interface ResolverConnection {
+  scanFile(file: string): Promise<Site[]>;
+  dump(): Promise<Response>;
+  setSources(sources: Record<string, string>): Promise<void>;
+  resetCache(): Promise<void>;
+  close(): void;
+}
+
+// Mixed-in ops implementation shared between the two clients. Inheritance
+// keeps the method definitions in one place and `this.transport` lookup
+// happens at call time, so field-initializer ordering isn't a concern.
+abstract class ResolverClientBase implements ResolverConnection {
+  protected abstract readonly transport: MessageTransport;
+
   async scanFile(file: string): Promise<Site[]> {
-    const resp = await this.request({op: 'scanFile', file});
-    if (resp.error) {
-      throw new Error(`scanFile ${file}: ${resp.error}`);
-    }
+    const resp = await this.transport.request({op: 'scanFile', file});
+    if (resp.error) throw new Error(`scanFile ${file}: ${resp.error}`);
     return resp.sites ?? [];
   }
 
   async dump(): Promise<Response> {
-    return this.request({op: 'dump'});
+    return this.transport.request({op: 'dump'});
+  }
+
+  async setSources(sources: Record<string, string>): Promise<void> {
+    const resp = await this.transport.request({op: 'setSources', sources});
+    if (resp.error) throw new Error(`setSources: ${resp.error}`);
+  }
+
+  async resetCache(): Promise<void> {
+    const resp = await this.transport.request({op: 'resetCache'});
+    if (resp.error) throw new Error(`resetCache: ${resp.error}`);
   }
 
   close(): void {
-    if (this.closed) return;
-    this.stdin.end();
-    this.child.kill();
-    this.closed = true;
+    this.transport.close();
+  }
+}
+
+// ResolverClient spawns the ts-go-run-types binary in one-shot mode and drives it
+// over its JSON-per-line stdio protocol. One binary invocation per build — the
+// child process is kept alive until `close()` so Program + checker cache are
+// amortised across all queries.
+export class ResolverClient extends ResolverClientBase {
+  private child: ChildProcess;
+  protected readonly transport: MessageTransport;
+
+  constructor(binary: string, cwd: string, tsconfigPath: string, opts: ResolverClientOptions = {}) {
+    super();
+    const args = ['--one-shot', '--cwd', cwd];
+    // The Go binary ignores --tsconfig when inline-sources mode is on, so
+    // skip the flag entirely in that case to keep the CLI honest.
+    if (!opts.inlineSources && tsconfigPath) {
+      args.push('--tsconfig', tsconfigPath);
+    }
+    if (opts.markerName) args.push('--marker-name', opts.markerName);
+    if (opts.markerModule) args.push('--marker-module', opts.markerModule);
+    if (opts.inlineSources) args.push('--inline-sources-stdin');
+    this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
+    if (!this.child.stdin || !this.child.stdout) {
+      throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');
+    }
+    const stdin = this.child.stdin;
+    const stdout = this.child.stdout;
+    this.transport = new MessageTransport(stdin, stdout, () => {
+      stdin.end();
+      this.child.kill();
+    });
+    if (opts.inlineSources) {
+      // Handshake: write the source map as a single JSON line before any
+      // requests can be queued. The Go side blocks on this before building
+      // its Program, so request() calls made by the caller right after the
+      // constructor naturally land after the handshake on the wire.
+      this.transport.writeUnframed(JSON.stringify({sources: opts.inlineSources}) + '\n');
+    }
+    this.child.on('exit', () => this.transport.markClosed('resolver exited'));
+  }
+}
+
+// ResolverSocketClient connects to a daemon-mode `ts-go-run-types` process
+// over a Unix socket. The daemon is typically spawned once at vitest
+// globalSetup and shared across every test file in the run.
+export class ResolverSocketClient extends ResolverClientBase {
+  private socket: Socket;
+  protected readonly transport: MessageTransport;
+
+  private constructor(socket: Socket) {
+    super();
+    this.socket = socket;
+    this.transport = new MessageTransport(socket, socket, () => {
+      socket.end();
+      socket.destroy();
+    });
+    socket.on('close', () => this.transport.markClosed('socket closed'));
+    socket.on('error', (e) => this.transport.markClosed(`socket error: ${e.message}`));
+  }
+
+  static async connect(socketPath: string): Promise<ResolverSocketClient> {
+    return new Promise((resolve, reject) => {
+      const sock = createConnection(socketPath);
+      sock.once('connect', () => resolve(new ResolverSocketClient(sock)));
+      sock.once('error', reject);
+    });
   }
 }

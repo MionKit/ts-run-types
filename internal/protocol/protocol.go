@@ -183,21 +183,36 @@ const (
 	// OpDump returns the full cache contents: every Type the resolver has
 	// projected so far + every Site recorded. Used at end-of-build.
 	OpDump = "dump"
+	// OpSetSources replaces the resolver's in-memory source overlay AND
+	// rebuilds the inferred Program against it. Sites are reset (their
+	// byte offsets are tied to the previous source text). The structural
+	// type cache survives across calls — same shape, same id — unless
+	// resetCache is explicitly invoked.
+	OpSetSources = "setSources"
+	// OpResetCache clears the type cache and sites table without touching
+	// the Program. Independent of setSources so tests can opt into
+	// isolation only when they need it.
+	OpResetCache = "resetCache"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
 type Request struct {
-	Op   string `json:"op"`
-	File string `json:"file,omitempty"`
+	Op      string            `json:"op"`
+	File    string            `json:"file,omitempty"`
+	Sources map[string]string `json:"sources,omitempty"`
 }
 
 // Response is returned per request. ID is the hash key into the shared
 // dedup table. To distinguish "no id" from an empty string without polluting
 // every payload, callers omit the field via HasID=false; we serialise via
 // MarshalJSON below so JSON consumers see the field only when it's set.
+//
+// OK is a simple acknowledgement for ops that don't return data
+// (setSources / resetCache). Emitted only when set so other ops stay tidy.
 type Response struct {
 	ID    string  `json:"-"`
 	HasID bool    `json:"-"`
+	OK    bool    `json:"-"`
 	Added []*Type `json:"added,omitempty"`
 	Sites []Site  `json:"sites,omitempty"`
 	Types []*Type `json:"types,omitempty"`
@@ -228,9 +243,12 @@ type Dump struct {
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
 // dump responses (which don't resolve a single id) don't carry a misleading "".
 func (r Response) MarshalJSON() ([]byte, error) {
-	out := make(map[string]any, 5)
+	out := make(map[string]any, 6)
 	if r.HasID {
 		out["id"] = r.ID
+	}
+	if r.OK {
+		out["ok"] = true
 	}
 	if len(r.Added) > 0 {
 		out["added"] = r.Added
