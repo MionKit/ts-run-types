@@ -13,7 +13,7 @@ export interface PluginOptions {
   tsconfig?: string;
   // Marker type alias name. Defaults to "RuntypeId".
   markerName?: string;
-  // Package the marker is declared in. Defaults to "@mionjs/ts-run-types".
+  // Package the marker is declared in. Defaults to "@mionjs/ts-go-run-types".
   // Files that don't import the marker module are short-circuited.
   markerModule?: string;
   // Id of the virtual module the plugin emits. Consumers import this module
@@ -22,7 +22,7 @@ export interface PluginOptions {
 }
 
 const DEFAULT_VIRTUAL = 'virtual:runtypes-cache';
-const DEFAULT_MARKER_MODULE = '@mionjs/ts-run-types';
+const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 
 export default function runtypes(options: PluginOptions) {
   const virtualId = options.virtualModuleId ?? DEFAULT_VIRTUAL;

@@ -20,7 +20,7 @@ done
 
 # ── Public packages to pack ──
 PACKAGES=(
-  "@mionjs/ts-run-types"
+  "@mionjs/ts-go-run-types"
   "vite-plugin-runtypes"
 )
 

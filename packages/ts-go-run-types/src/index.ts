@@ -1,4 +1,4 @@
-// @mionjs/ts-run-types — the sentinel-marker primitive that opts a function
+// @mionjs/ts-go-run-types — the sentinel-marker primitive that opts a function
 // into compile-time type-id injection by `vite-plugin-runtypes`.
 //
 // Any generic function whose trailing parameter is `id?: RuntypeId<T>` is

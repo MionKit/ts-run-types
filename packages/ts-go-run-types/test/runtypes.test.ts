@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {getRuntypeId, getMeta, __setRuntypeMetaResolver, type RuntypeId} from '../src/index.js';
 
-describe('@mionjs/ts-run-types', () => {
+describe('@mionjs/ts-go-run-types', () => {
   it('getRuntypeId throws when no id is injected (transformer inactive)', () => {
     // Direct invocation without the plugin = no trailing id arg. The runtime
     // throws so callers can't quietly get a wrong answer.

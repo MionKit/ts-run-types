@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRuntypeId} from '@mionjs/ts-run-types';
+import {getRuntypeId} from '@mionjs/ts-go-run-types';
 export {};
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
