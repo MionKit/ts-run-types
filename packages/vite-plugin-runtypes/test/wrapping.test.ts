@@ -7,10 +7,14 @@ import {describe, it, expect} from 'vitest';
 import {rewrite} from '../src/rewrite.js';
 import {hasBinary, withInlineSources} from './helpers/inline.js';
 
-// Four positive sites (17a–17d) and two negative cases (17e free-T body,
-// 17f wrong-module collision) live together so the resolver can see every
-// shape in one program.
-const F17_SOURCE = `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+describe('vite-plugin-runtypes / wrapping', () => {
+  const runMaybe = hasBinary() ? it : it.skip;
+
+  runMaybe('user-defined wrapper with RuntypeId<T> trailing param gets injected', async () => {
+    // Four positive sites (17a–17d) plus two negative cases (17e free-T
+    // body, 17f wrong-module collision). All in one module so the resolver
+    // sees every shape in one program.
+    const code = `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
 export {};
 
 // 17a — direct call, T inferred from val.
@@ -49,12 +53,7 @@ type RuntypeId_Local<T> = {readonly localBrand?: T};
 function maskedWrapper<T>(_v: T, _id?: RuntypeId_Local<T>): void {}
 maskedWrapper('noop');
 `;
-
-describe('vite-plugin-runtypes / wrapping', () => {
-  const runMaybe = hasBinary() ? it : it.skip;
-
-  runMaybe('user-defined wrapper with RuntypeId<T> trailing param gets injected', async () => {
-    await withInlineSources({'f17.ts': F17_SOURCE}, async ({client, sources}) => {
+    await withInlineSources({'f17.ts': code}, async ({client, sources}) => {
       const {code: out, sites} = await rewrite('f17.ts', sources['f17.ts'], client);
 
       // f17 has four directly rewritable sites (17a–17d). The two negative
@@ -88,11 +87,14 @@ describe('vite-plugin-runtypes / wrapping', () => {
   });
 
   runMaybe('calls with zero args still get the id at the right slot', async () => {
-    await withInlineSources({'f17.ts': F17_SOURCE}, async ({client, sources}) => {
-      const {code: out} = await rewrite('f17.ts', sources['f17.ts'], client);
-      // 17b — `getRuntypeId<string>()` has zero args but the trailing slot
-      // is the second parameter (paramIndex 1). The patcher pads with
-      // `undefined` so the id lands at slot 1.
+    // 17b in isolation — `getRuntypeId<string>()` has zero args but the
+    // trailing slot is the second parameter (paramIndex 1). The patcher
+    // pads with `undefined` so the id lands at slot 1.
+    const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const b = getRuntypeId<string>();
+`;
+    await withInlineSources({'zero_args.ts': code}, async ({client, sources}) => {
+      const {code: out} = await rewrite('zero_args.ts', sources['zero_args.ts'], client);
       expect(out).toMatch(/getRuntypeId<string>\(undefined, "[A-Za-z0-9]+"\)/);
     });
   });
