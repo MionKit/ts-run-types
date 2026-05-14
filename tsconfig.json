@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,

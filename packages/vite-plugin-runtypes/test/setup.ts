@@ -8,7 +8,7 @@
 // underlying ts-go-run-types child process stays alive across files —
 // it's the per-worker singleton spawned lazily by helpers/inline.ts.
 import {afterAll} from 'vitest';
-import {resetSharedClient} from './helpers/inline.js';
+import {resetSharedClient} from './helpers/inline.ts';
 
 afterAll(async () => {
   await resetSharedClient();

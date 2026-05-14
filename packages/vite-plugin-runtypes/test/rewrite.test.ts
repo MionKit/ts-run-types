@@ -2,10 +2,10 @@ import {describe, it, expect} from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {rewrite} from '../src/rewrite.js';
-import {renderCacheModule} from '../src/render-cache.js';
-import {ReflectionKind, type Type} from '../src/protocol.js';
-import {BIN, hasBinary, withInlineSources, RUNTYPES_DTS} from './helpers/inline.js';
+import {rewrite} from '../src/rewrite.ts';
+import {renderCacheModule} from '../src/render-cache.ts';
+import {ReflectionKind, type Type} from '../src/protocol.ts';
+import {BIN, hasBinary, withInlineSources, RUNTYPES_DTS} from './helpers/inline.ts';
 
 function findMember(types: Type[], root: Type, name: string): Type | undefined {
   for (const ref of root.types ?? []) {

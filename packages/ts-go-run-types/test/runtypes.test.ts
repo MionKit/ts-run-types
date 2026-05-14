@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest';
-import {getRuntypeId, getMeta, __setRuntypeMetaResolver, type RuntypeId} from '../src/index.js';
+import {getRuntypeId, getMeta, __setRuntypeMetaResolver, type RuntypeId} from '../src/index.ts';
 
 describe('@mionjs/ts-go-run-types', () => {
   it('getRuntypeId throws when no id is injected (transformer inactive)', () => {

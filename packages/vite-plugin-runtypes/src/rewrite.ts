@@ -1,5 +1,5 @@
-import type { ResolverClient } from "./resolver-client.js";
-import type { Site } from "./protocol.js";
+import type { ResolverClient } from "./resolver-client.ts";
+import type { Site } from "./protocol.ts";
 
 // Rewritten carries the patched source + the sites the Go binary returned.
 // `sites[i].pos` is the byte offset of the close-paren in the ORIGINAL

@@ -1,8 +1,8 @@
 import path from 'node:path';
-import {ResolverClient} from './resolver-client.js';
-import {rewrite} from './rewrite.js';
-import {renderCacheModule} from './render-cache.js';
-import type {Site, Type} from './protocol.js';
+import {ResolverClient} from './resolver-client.ts';
+import {rewrite} from './rewrite.ts';
+import {renderCacheModule} from './render-cache.ts';
+import type {Site, Type} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
