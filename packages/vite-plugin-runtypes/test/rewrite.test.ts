@@ -127,7 +127,7 @@ describe('vite-plugin-runtypes / generated module', () => {
 
     const tsModule = renderCacheModule({types, sites});
     expect(tsModule).toContain('export const __runtypes');
-    expect(tsModule).toContain('import type');
+    expect(tsModule).toContain('type Type = any;');
 
     const js = renderCacheModule({types, sites, language: 'js'}).replace(/export const /g, 'result.');
     const factory = new Function(`const result = {}; ${js}; return result;`);
