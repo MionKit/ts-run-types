@@ -5,6 +5,7 @@ export default defineConfig({
     projects: ['packages/runtypes/vitest.config.ts', 'packages/vite-plugin-runtypes/vitest.config.ts'],
     include: ['packages/**/test/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/.dist/**', 'third_party/**', 'examples/**', 'bin/**'],
+    globalSetup: ['./scripts/vitest-global-setup.mjs'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

@@ -6,6 +6,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    globalSetup: ['../../scripts/vitest-global-setup.mjs'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
