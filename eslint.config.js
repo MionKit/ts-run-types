@@ -12,7 +12,6 @@ export default tseslint.config(
       '**/.nx/**',
       'third_party/**',
       'bin/**',
-      'examples/**',
       'scripts/**',
       '**/vite.config.ts',
       '**/vitest.config.ts',
