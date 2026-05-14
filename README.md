@@ -1,14 +1,14 @@
-# ts-run-types
+# ts-go-run-types
 
 Compile-time type resolver for [mion runtypes](https://github.com/mionkit) on **TypeScript 7 / typescript-go (tsgo)**.
 
-`ts-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `RuntypeId<T>` (from `@mionjs/ts-go-run-types`) and emits a deduplicated type-metadata module the runtime (and the JIT) can consume.
+`ts-go-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `RuntypeId<T>` (from `@mionjs/ts-go-run-types`) and emits a deduplicated type-metadata module the runtime (and the JIT) can consume.
 
 ## Why
 
 TypeScript 7 ships the compiler as a compiled Go binary. The legacy custom-transformer API has not been ported (see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)), and the compiler can no longer be monkey-patched from Node. Runtime type-reflection libraries that relied on patching `tsc` therefore need a new, native side-channel into the checker.
 
-`ts-run-types` provides that channel — driven by a single primitive (the `RuntypeId<T>` sentinel) rather than a hard-coded list of function names, so users can wrap the canonical helper freely.
+`ts-go-run-types` provides that channel — driven by a single primitive (the `RuntypeId<T>` sentinel) rather than a hard-coded list of function names, so users can wrap the canonical helper freely.
 
 ## Status
 
@@ -17,7 +17,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ## How it works
 
 ```
-  app.ts ──▶ vite-plugin-runtypes ──[scanFile]──▶  ts-run-types (Go)
+  app.ts ──▶ vite-plugin-runtypes ──[scanFile]──▶  ts-go-run-types (Go)
                        │                                 │
                        │                                 │ tsgo Checker
                        │                                 │
@@ -49,19 +49,19 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
 
 ### Go side
 
-| Path                                                 | Purpose                                                                                                      |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [cmd/ts-run-types/main.go](cmd/ts-run-types/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
-| [internal/program](internal/program/)                | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
-| [internal/walker](internal/walker/)                  | Byte-position → AST node finder; depth-first visitor over `CallExpression`.                                  |
-| [internal/marker](internal/marker/)                  | `RuntypeId<T>` sentinel detection (name + module check); filters free type parameters.                       |
-| [internal/resolver](internal/resolver/)              | `scanFile` / `dump` op dispatch; walks every call and asks the checker for the resolved signature.           |
-| [internal/typeid](internal/typeid/)                  | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                         |
-| [internal/hashid](internal/hashid/)                  | xxhash3 → short base36 hash dictionary; configurable length.                                                 |
-| [internal/serialize](internal/serialize/)            | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup.                                       |
-| [internal/emit](internal/emit/)                      | JSON and self-wired TS-module renderers for the cache.                                                       |
-| [internal/protocol](internal/protocol/)              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                   |
-| [internal/testfixtures](internal/testfixtures/)      | F1–F17 `.ts` inputs: atomic reflection kinds, primitives/objects/unions, inferred generics, marker variants. |
+| Path                                                       | Purpose                                                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [cmd/ts-go-run-types/main.go](cmd/ts-go-run-types/main.go) | CLI entry; stdio one-shot and Unix-socket daemon modes.                                                      |
+| [internal/program](internal/program/)                      | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
+| [internal/walker](internal/walker/)                        | Byte-position → AST node finder; depth-first visitor over `CallExpression`.                                  |
+| [internal/marker](internal/marker/)                        | `RuntypeId<T>` sentinel detection (name + module check); filters free type parameters.                       |
+| [internal/resolver](internal/resolver/)                    | `scanFile` / `dump` op dispatch; walks every call and asks the checker for the resolved signature.           |
+| [internal/typeid](internal/typeid/)                        | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                         |
+| [internal/hashid](internal/hashid/)                        | xxhash3 → short base36 hash dictionary; configurable length.                                                 |
+| [internal/serialize](internal/serialize/)                  | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup.                                       |
+| [internal/emit](internal/emit/)                            | JSON and self-wired TS-module renderers for the cache.                                                       |
+| [internal/protocol](internal/protocol/)                    | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                   |
+| [internal/testfixtures](internal/testfixtures/)            | F1–F17 `.ts` inputs: atomic reflection kinds, primitives/objects/unions, inferred generics, marker variants. |
 
 ### JS side
 
@@ -108,7 +108,7 @@ A free type parameter (a call inside a generic body where the marker's `T` is th
 ### One-shot (stdio JSON)
 
 ```bash
-bin/ts-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache.json
+bin/ts-go-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache.json
 ```
 
 `requests.jsonl` is newline-delimited queries:
@@ -121,7 +121,7 @@ bin/ts-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache.js
 ### Daemon (Vite / HMR)
 
 ```bash
-bin/ts-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-run-types.sock
+bin/ts-go-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-go-run-types.sock
 ```
 
 ### Marker overrides
@@ -140,18 +140,18 @@ The repository contains a Go binary and a pnpm/Lerna workspace of JS packages. S
 ```bash
 git submodule update --init --recursive
 (cd third_party/tsgolint/typescript-go && git am --3way --no-gpg-sign ../patches/*.patch)
-go build -o bin/ts-run-types ./cmd/ts-run-types
+go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 pnpm install --frozen-lockfile
 go test ./internal/...
 pnpm test
 ```
 
-The JS plugin tests spawn `bin/ts-run-types`, so the Go binary must be built before `pnpm test`.
+The JS plugin tests spawn `bin/ts-go-run-types`, so the Go binary must be built before `pnpm test`.
 
 ## Repository layout
 
 ```
-cmd/ts-run-types/                CLI entry point
+cmd/ts-go-run-types/                CLI entry point
 internal/                        Go pipeline (program, walker, marker, resolver,
                                   typeid, hashid, serialize, emit, protocol, testfixtures)
 packages/runtypes/               @mionjs/ts-go-run-types — marker type + helpers

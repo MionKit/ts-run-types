@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Pre-publish verification for ts-run-types monorepo.
+# Pre-publish verification for ts-go-run-types monorepo.
 # Runs Go + JS test suites, lint, formatting check, and a fresh build.
 
 RED='\033[0;31m'
@@ -28,8 +28,8 @@ pnpm run fresh-start
 # ── Step 2: Build the Go binary ──
 # JS plugin tests spawn this binary, so it must exist before `pnpm test`.
 print_step "Build Go binary"
-go build -o bin/ts-run-types ./cmd/ts-run-types
-./bin/ts-run-types --help > /dev/null || true
+go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
+./bin/ts-go-run-types --help > /dev/null || true
 
 # ── Step 3: Go test suite ──
 print_step "Go tests"

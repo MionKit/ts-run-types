@@ -1,7 +1,7 @@
 {
   "name": "@mionjs/ts-go-run-types",
   "version": "0.1.0",
-  "description": "Sentinel marker + canonical reflection helper for ts-run-types. The vite plugin rewrites every call of a function whose trailing parameter type is RuntypeId<T> exported from this package.",
+  "description": "Sentinel marker + canonical reflection helper for ts-go-run-types. The vite plugin rewrites every call of a function whose trailing parameter type is RuntypeId<T> exported from this package.",
   "type": "module",
   "license": "MIT",
   "main": "./dist/index.cjs",
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-run-types.git",
+    "url": "git+https://github.com/mionkit/ts-go-run-types.git",
     "directory": "packages/runtypes"
   },
   "scripts": {

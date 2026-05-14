@@ -12,7 +12,7 @@ import {ResolverClient} from '../src/resolver-client.js';
 import {rewrite} from '../src/rewrite.js';
 
 const ROOT = path.resolve(__dirname, '../../..');
-const BIN = path.resolve(ROOT, 'bin/ts-run-types');
+const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
 const FIXTURES = path.resolve(ROOT, 'internal/testfixtures');
 
 function hasBinary() {
@@ -20,7 +20,7 @@ function hasBinary() {
 }
 
 async function withResolver<T>(fn: (c: ResolverClient) => Promise<T>): Promise<T> {
-  if (!hasBinary()) throw new Error(`ts-run-types binary not built: ${BIN}`);
+  if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
   const client = new ResolverClient(BIN, FIXTURES, 'tsconfig.json');
   try {
     return await fn(client);
