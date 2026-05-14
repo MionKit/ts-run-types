@@ -84,6 +84,30 @@ func NewCache(tc *checker.Checker, opts Options) *Cache {
 // Size returns the number of distinct types currently interned.
 func (c *Cache) Size() int { return len(c.nodes) }
 
+// Clear drops every interned type and resets the hash dictionaries. Used by
+// the resolver when a `resetCache` op arrives, or implicitly when a fresh
+// session is established. Safe to call concurrently with… nothing — the
+// cache is not thread-safe (same constraint as the package as a whole).
+func (c *Cache) Clear() {
+	c.byPtr = make(map[*checker.Type]string)
+	c.byStructural = make(map[string]string)
+	c.nodes = make(map[string]*protocol.Type)
+	c.insertOrder = c.insertOrder[:0]
+	c.dict = hashid.New()
+	c.literals = hashid.New()
+}
+
+// Rebind points the cache at a new checker. Called after a Program swap so
+// subsequent assignID calls compute structural ids against the live checker.
+// The pointer cache (byPtr) is cleared because keys are *checker.Type from
+// the old Program and can never match new lookups; structural dedup
+// (byStructural + nodes) survives — same shape, same id across Programs.
+func (c *Cache) Rebind(tc *checker.Checker) {
+	c.tc = tc
+	c.idc = typeid.New(tc)
+	c.byPtr = make(map[*checker.Type]string)
+}
+
 // Dump returns every interned Type sorted by wire id (deterministic across
 // builds — given identical inputs, dump bytes are identical).
 func (c *Cache) Dump() []*protocol.Type {
