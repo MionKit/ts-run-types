@@ -1,120 +1,104 @@
 # Roadmap
 
-Living document. Captures **pending implementation steps** for the in-progress reflection-shape migration, **known gaps and workarounds** for later releases, and **explicit out-of-scope items** for v1 so we don't accidentally scope-creep.
-
-Last updated alongside the reflection-shape migration (v0.2 work in progress on branch `claude/investigate-tsgolint-transformer-3W2tm`).
+Living document. Captures **what's implemented**, **what's deliberately out of scope** (and why), and **open questions parked for later**.
 
 ---
 
 ## Status snapshot
 
-| Component                         | v0.1 (POC, shipped) | v0.2 reflection-shape (in progress) |
-| --------------------------------- | ------------------- | ----------------------------------- |
-| Go resolver + checker integration | ✅                  | ✅ (no API change)                  |
-| Per-type projection               | ✅ ad-hoc shape     | ⏳ rewriting to reflection `Type`   |
-| Wire format                       | ✅ JSON only        | ⏳ JSON + generated `.ts` artifact  |
-| Vite plugin                       | ✅                  | ⏳ shape-mirroring update           |
-| Go fixture tests                  | ✅ 9 tests          | ⏳ rewrite + add F12–F16            |
-| Vite plugin tests                 | ✅ 4 tests          | ⏳ rewrite + add F17                |
-| Docs                              | ✅ ARCHITECTURE.md  | ⏳ reflection-shape section         |
+| Component                         | Status            | Notes                                                                          |
+| --------------------------------- | ----------------- | ------------------------------------------------------------------------------ |
+| Go resolver + checker integration | ✅                | `scanFile` + `dump` ops over stdio (`--one-shot`) and Unix socket (`--daemon`) |
+| Reflection-shape projection       | ✅                | `*checker.Type` → `protocol.Type` discriminated union, dedup by structural id  |
+| Wire formats                      | ✅                | JSON dump + self-wired TS module (`--out-json` / `--out-ts`)                   |
+| Vite plugin                       | ✅                | byte-offset rewriter, `virtual:runtypes-cache` module                          |
+| Go fixture tests                  | ✅                | F1–F17 + atomic kinds                                                          |
+| Vite plugin tests                 | ✅                | rewrite, atomic, wrapping suites                                               |
+| Docs                              | ✅                | ARCHITECTURE.md "Reflection shape" section                                     |
+| Decorators / `TypeNumberBrand`    | ❌ pending        | needs an AST-level scanner — see below                                         |
+| `templateLiteral` / `infer` kinds | ❌ pending        | reserved in the enum, not yet projected                                        |
+| Pre-process build mode            | ❌ pending        | bundler-agnostic CLI that writes the cache without Vite                        |
 
 ---
 
-## Pending steps for v0.2 (reflection shape)
+## Compile-time only — what we will never capture
 
-In execution order. Tracked in the live todo list during implementation.
+`ts-go-run-types` is a **compile-time, structural** reflection system. The cache is a JSON-shaped graph of `Type` nodes; the only legitimate runtime-valued payload it carries is **literal data** (numbers, strings, booleans, null, undefined, bigints, regexps, symbols-by-description). Every other field that exists in the mion runtypes runtime model but only has meaning as a *live JS value* is **deliberately not captured**, and there is no plan to add it.
 
-1. **`internal/protocol/protocol.go`** — replace `TypeNode` with `Type` + `ReflectionKind` constants in a stable declaration order, add `KindRef` sentinel and `NewRef(id)` helper.
-2. **`internal/serialize/serialize.go`** — rewrite `projectType` to emit reflection shape; split objects into `class` / `objectLiteral` / `array` / `tuple` / `promise` / `function` based on `ObjectFlags` + symbol detection; emit `types: []` arrays of `propertySignature` / `methodSignature` / `indexSignature` / `callSignature`; wrap params as `parameter` Type nodes.
-3. **`internal/emit/json.go`** _(new)_ — pure JSON dump of the cache (refs as `{kind:-1,id:N}` sentinels).
-4. **`internal/emit/tsmodule.go`** _(new)_ — emit the runtime `.ts` artifact: `const t<N>` declarations + footer that knots refs and `parent` by direct assignment so consumers `import { __runtypes }` and `__runtypes.get(id)` returns a fully-formed reflection `Type`. Stable ordering to keep diffs minimal.
-5. **`cmd/ts-go-run-types/main.go`** — add `--out-json PATH` and `--out-ts PATH` flags so the binary writes the cache directly without needing the Vite plugin.
-6. **`internal/resolver/resolver_test.go`** — update assertions to walk the reflection shape; existing F1–F8 must keep passing.
-7. **New fixtures + tests**:
-   - F12 array (`const xs: string[]`)
-   - F13 tuple (`const t: [number, string?]`)
-   - F14 promise (`Promise<number>`)
-   - F15 class (`class User { id: number; greet(): void {} }`)
-   - F16 index signature (`interface M { [k: string]: number }`)
-8. **`internal/testfixtures/golden/`** — per-fixture golden `*.json` and `*.ts` snapshot diffs.
-9. **`packages/vite-plugin-runtypes/src/protocol.ts`** — mirror the new Go shape (`ReflectionKind` enum + `Type` discriminated union + `TypeRef`).
-10. **`packages/vite-plugin-runtypes/src/index.ts`** — virtual cache module emits the same `.ts` artifact shape (or defers to the Go binary's `--out-ts` output in build mode).
-11. **`packages/vite-plugin-runtypes/test/`** — update assertions; add F17 (import the generated `.ts` module, assert `__runtypes.get(<id>)` returns a reflection `Type` with parent links and ref cycles wired).
-12. **`docs/ARCHITECTURE.md`** — add "Reflection shape" section documenting lossy mappings and the two output formats.
-13. **`examples/03-inference-router/expected-cache.{json,ts}`** _(new)_ — golden output for eyeball verification.
-14. **Commit + push** to `claude/investigate-tsgolint-transformer-3W2tm`.
+This is a design choice, not a missing feature: structural type checking only needs the shape, and binding the cache to live JS values would re-introduce the bundler/tooling coupling we left tsc to escape.
+
+| Runtime-only field                     | Why we won't emit it                                                                                                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TypeFunction.function?: Function`     | The closure is a JS value. Structural validation needs the signature (parameters + return), which we already emit. If a consumer needs to *call* the function, they import it.      |
+| `TypeClass.classType: ClassType`       | The constructor reference is a JS value. We emit the structural shape (`types`, `extendsArguments`, `implements`) and `classRef` provenance for builtins (`Date`/`Map`/`Set`/`RegExp` resolved to `globalThis.<Name>` in the `.ts` footer). User-class constructor wiring is **not** planned. |
+| `TypeEnum.enum: object`                | Enum object identity is a JS value. We emit `values` (and would emit a synthetic `{[name]: value}` for const enums if needed) — sufficient for structural checks.                   |
+| `default?: () => any` (param/property) | Default *expressions* are arbitrary JS. Literal defaults (`5`, `"foo"`, `true`, `null`) are inlined; non-literal defaults are dropped with `flags: ["nonLiteralDefault"]`.          |
+| `JitContainer`                         | Consumer-side JIT cache. Populated lazily by the runtypes runtime on first use.                                                                                                     |
+| `TypeInfer.set(type)`                  | Runtime mutation hook for unresolved conditional types. The checker has already resolved them by the time we project, so consumers never see an unresolved `infer T`.               |
+
+### Literal regexps — the one transform
+
+JSON cannot carry a `RegExp` instance, but the *literal* `RegExp` is compile-time-known data (source + flags). The serializer encodes it as `{regexp: {source, flags}}` in JSON; the generated `.ts` artifact's footer rehydrates it via `t.literal = new RegExp(source, flags)`. Same pattern as `bigint` (string + `BigInt(...)`) and `symbol` (description + `Symbol(...)`). Consumers reading the JSON directly get the structured form.
 
 ---
 
-## Known gaps and workarounds (revisit list — post v0.2)
+## Known gaps with planned workarounds
 
-Anything below is a **deliberate v0.2 omission** with a proposed workaround for a future release. Nothing is silently dropped — every entry has a note for "what to do later".
-
-### Runtime-only reflection fields (compile-time has no equivalent — must reference, not capture)
-
-| Field                                  | Why it can't be captured at build time                                                              | Workaround for v0.3+                                                                                                                                                                                                                 |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TypeFunction.function?: Function`     | Value is the JS function object itself. Compile-time only knows the _declaration_, not the closure. | Emit a lazy back-ref. The generated `.ts` module already lives next to the source; `import { fn } from "./module"` and assign `t.function = fn` in the footer. Requires per-id "origin file + export name" tracking in the resolver. |
-| `TypeClass.classType: ClassType`       | The actual constructor reference is a runtime value.                                                | Same lazy-import strategy. Track the symbol's `ValueDeclaration` file + export name and emit the import. The `protocol.ClassRef` field is already reserved for this.                                                                 |
-| `TypeEnum.enum: object`                | Enum object identity. We have the values, not the runtime object.                                   | Same lazy-import strategy when the enum is exported. For const enums (no runtime object), emit a synthetic `{[name]: value}` literal — equivalent for consumers.                                                                     |
-| `default?: () => any` (param/property) | Default expressions can be arbitrary JS (`() => fetchUser()`).                                      | Emit literal defaults inline (`5`, `"foo"`, `true`, `null`). Anything else: omit and add `flags: ["nonLiteralDefault"]` so consumers know it existed.                                                                                |
-| `JitContainer`                         | Runtime-only cache for the consumer's JIT.                                                          | Don't emit. Consumer's JIT populates it on first use.                                                                                                                                                                                |
-| `TypeInfer.set(type)`                  | Runtime mutation hook used inside conditional-type evaluation.                                      | Don't emit. We resolve conditionals at compile time, so the consumer never sees an unresolved `infer T`.                                                                                                                             |
+These are real reflection features we intend to ship; each has a concrete approach.
 
 ### Reflection features that need AST-level scanning beyond tsgo's checker
 
-| Feature                                      | Where it lives                                                     | Workaround for v0.3+                                                                                                                                        |
+| Feature                                      | Where it lives                                                     | Approach                                                                                                                                                    |
 | -------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Decorators (`MinLength<5>`, `Email`, etc.)   | Comment-pragma or branded type aliases parsed by a TS transformer. | Implement a decorator scanner that walks the type's declaration AST and recognises the marker types. Same primitive — `node.ForEachChild` — we already use. |
 | `TypeNumberBrand` (integer / int32 / …)      | Decorator-driven; same path as above.                              | Ship alongside the decorator scanner.                                                                                                                       |
-| `inlined: true` flag                         | Set when a type is inlined rather than referenced by name.         | Derive from "did we have an alias symbol?" — emit `inlined: true` for anonymous types. Cheap to add, just under-tested.                                     |
-| `originTypes: { typeName, typeArguments }[]` | Tracks each layer of type-alias unwrapping.                        | Walk `Type_alias` chain in tsgo (each alias has a target). Add when needed — not blocking for the runtypes JIT.                                             |
+| `inlined: true` flag                         | Set when a type is inlined rather than referenced by name.         | Derive from "did we have an alias symbol?" — emit `inlined: true` for anonymous types. Field is already in the protocol, just not populated.                |
+| `originTypes: { typeName, typeArguments }[]` | Tracks each layer of type-alias unwrapping.                        | Walk the alias chain in tsgo (each alias has a target). Add when needed — not blocking for the runtypes JIT.                                                |
 | `indexAccessOrigin`                          | Provenance for `T["key"]` resolved types.                          | tsgo's `IndexedAccessType` has the container + index types. Emit when we hit `TypeFlagsIndexedAccess`.                                                      |
 
-### JSON shape limitations
+### Reflection Type variants not yet projected
 
-| Limitation                  | Cause                                 | Workaround                                                                                                                                                                                 |
-| --------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Cyclic types in raw JSON    | JSON has no cycle support.            | Refs are sentinels (`{kind: -1, id: N}`) in JSON; the generated `.ts` artifact resolves cycles via direct `const` assignment in the footer. JSON-only consumers walk the table to re-knot. |
-| Symbol-keyed property names | JSON has no symbol type.              | Emit synthetic `@@<name>` strings + `flags: ["symbol"]`. Round-tripping symbol identity requires a runtime symbol registry — not on the roadmap.                                           |
-| `bigint` literal values     | JSON numbers lose precision past 2⁵³. | Emit as a string with `flags: ["bigint"]`; consumer parses with `BigInt(...)`.                                                                                                             |
+- `templateLiteral` (kind 14) — `` `prefix-${string}` `` template literal types. tsgo exposes via `TypeFlagsTemplateLiteral`; parsing the placeholder substructure into a `(TypeString | TypeAny | TypeNumber | TypeLiteral | TypeInfer)[]` shape is the work.
+- `infer` (kind 34) — `infer T` placeholder. Only meaningful inside unresolved conditional types, which tsgo eagerly resolves; would only appear if we add an op that returns the unresolved form.
+- `rest` (kind 29) outside tuples — function rest parameters. Currently marked with a `flags` entry; the dedicated `rest` Type variant comes later.
+- `enumMember` (kind 28) standalone — we emit `enum.values` but not per-member `TypeEnumMember` nodes. Add when needed.
+
+### JSON shape — known limitations and how we handle them
+
+| Limitation                  | Cause                                 | Handling                                                                                                                                                                                       |
+| --------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cyclic types in raw JSON    | JSON has no cycle support.            | Refs are sentinels (`{kind: -1, id: "<hash>"}`) in JSON; the generated `.ts` artifact resolves cycles via direct `const` assignment in the footer. JSON-only consumers walk the table to re-knot. |
+| `parent` back-references    | Same — JSON has no cycles.            | Not in JSON; the `.ts` artifact wires `parent` in the footer. JSON-only consumers re-knot themselves.                                                                                          |
+| Symbol-keyed property names | JSON has no symbol type.              | Emit synthetic `@@<name>` strings + `flags: ["symbol"]`. Round-tripping symbol *identity* would require a runtime symbol registry — out of scope.                                              |
+| `bigint` literal values     | JSON numbers lose precision past 2⁵³. | Emit as a string with `flags: ["bigint"]`; the `.ts` footer re-hydrates with `BigInt(...)`. JSON consumers do the same.                                                                        |
+| `regexp` literal values     | JSON has no `RegExp` type.            | Emit `{regexp: {source, flags}}`; the `.ts` footer re-hydrates with `new RegExp(source, flags)`. JSON consumers do the same.                                                                   |
+| `symbol` literal values     | JSON has no symbol type.              | Emit description string; the `.ts` footer re-hydrates with `Symbol(desc)`. Identity is not preserved — same caveat as symbol-keyed names.                                                      |
 
 ---
 
-## Out of scope for v0.2
+## Compiler / resolver features not yet shipped
 
-Listed here so we have a single record of conscious deferrals.
-
-### Reflection Type variants not implemented in v0.2
-
-- `templateLiteral` (kind 14) — `` `prefix-${string}` `` template literal types. tsgo exposes via `TypeFlagsTemplateLiteral`, but parsing the placeholder substructure into a `(TypeString | TypeAny | TypeNumber | TypeLiteral | TypeInfer)[]` shape is non-trivial. Defer.
-- `regexp` (kind 12) — `RegExp` as a structural type. Detected via symbol name, easy to add but not used by the runtypes JIT today.
-- `infer` (kind 31) — `infer T` placeholder. Only meaningful inside unresolved conditional types, which tsgo eagerly resolves.
-- `rest` (kind 33) outside tuples — function rest parameters. We mark rest params with a Flags marker; the dedicated rest Type variant comes later.
-- `enumMember` (kind 27) standalone — we emit `enum.values` but not per-member `TypeEnumMember` nodes. Add when needed.
-
-### Compiler / resolver features not in v0.2
-
-- **Pre-process build mode** (`ts-go-run-types build --out .runtypes/`) for bundler-agnostic integration (Bun, SWC, plain tsgo). Captured in the previous roadmap conversation; not part of this migration.
+- **Pre-process build mode** (`ts-go-run-types build --out .runtypes/`) for bundler-agnostic integration (Bun, SWC, plain tsgo). The binary already supports `--out-json` / `--out-ts`; the missing piece is a one-shot CLI subcommand that walks a project's source files itself instead of relying on the plugin to drive `scanFile`.
 - **esbuild / Rollup / Webpack / Babel adapter plugins**. Each is ~100–150 LOC reusing `rewrite.ts`. Plugin pattern is the same; defer until there's user demand.
 - **Vendored shim** (drop the tsgolint submodule entirely, regenerate the shim ourselves via `tools/gen_shims`). Cleaner `git clone && go build`. Do once the API shape stabilises.
-- **Source-map adjustments** when the rewriter injects site-id arguments. Negligible effect for human debugging at the POC level.
+- **Source-map adjustments** when the rewriter injects site-id arguments. Negligible effect for human debugging at the current stage.
 - **Production-grade call-site scanner** — replace the regex in `rewrite.ts` with `es-module-lexer` or `ts.createSourceFile` for fewer false positives inside strings/comments.
-- **HMR-aware incremental resolver** — currently the daemon runs the full Program for the lifetime of the build; a real HMR story requires `updateSourceFile` and incremental rebinding.
-- **Concurrency**: `serialize.Cache` is single-threaded by design; the resolver holds one checker. Multi-checker fan-out (one per CPU, like tsgolint's linter) is a v0.3+ concern.
+- **HMR-aware incremental resolver** — the daemon currently runs the full Program for the lifetime of the build; a real HMR story requires `updateSourceFile` and incremental rebinding.
+- **Concurrency**: `serialize.Cache` is single-threaded by design; the resolver holds one checker. Multi-checker fan-out (one per CPU, like tsgolint's linter) is a later concern.
 
-### Open questions parked for v0.3+
+---
+
+## Open questions parked for later
 
 - **Recursive type aliases** (`type List = { head: number; tail: List | null }`): the id-table dedup handles them at the data layer, the `.ts` artifact's footer re-knots cycles. Need an explicit fixture (F18) to lock behaviour in.
 - **Conditional and mapped types**: tsgo resolves these to concrete types at the call site; we emit the resolved form. We _lose_ the original conditional/mapped expression. If runtypes ever needs the unresolved form, record it in `flags` as a string snapshot of the source text.
 - **Unions of literals vs widened primitive**: tsgo aggressively widens (`"a" | "b"` becomes `string` in many contexts). Document any divergence from parser-level behaviour as fixtures surface it.
-- **Generic type parameters at the declaration site** (vs at the use site): `TypeTypeParameter` represents `<T>` _unbound_. We always operate on resolved instantiations. If runtypes JIT needs the unbound form, expose `resolveDeclaration` as a separate op.
-- **Runtime symbol registry**: would let symbol-keyed properties round-trip identity. Requires a coordinated runtime + build-time scheme; nobody asks for this yet.
+- **Generic type parameters at the declaration site** (vs at the use site): `TypeTypeParameter` represents `<T>` _unbound_. We always operate on resolved instantiations. If a consumer needs the unbound form, expose `resolveDeclaration` as a separate op.
 
 ---
 
 ## Conventions for adding to this file
 
-- **A row in "Known gaps"** should always include a workaround. If we can't think of one, escalate to "Out of scope" or ask the user.
-- **A row in "Out of scope"** is a v0.2 deferral, not a permanent rejection. Promote to "Known gaps" once we have a concrete workaround proposal.
-- **Promote to "Pending steps"** only when the design is settled and ready to execute.
+- **A row in "Known gaps"** should always include a concrete approach. If we can't think of one, escalate to "Compiler / resolver features not yet shipped" or "Open questions".
+- **A row in "Compile-time only — what we will never capture"** is a permanent design decision, not a deferral. Don't promote out of it without a redesign discussion.
+- **Implemented work** belongs in the status snapshot, not in a pending list — prune as you ship.
