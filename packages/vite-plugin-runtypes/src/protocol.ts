@@ -128,7 +128,7 @@ export interface Site {
 }
 
 export interface Request {
-  op: "scanFile" | "dump" | "setSources" | "resetCache";
+  op: "scanFile" | "dump" | "setSources" | "reset";
   file?: string;
   // setSources only — { relpath: source-text }.
   sources?: Record<string, string>;

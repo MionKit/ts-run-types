@@ -69,9 +69,8 @@ const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
 const myAPI = getRuntypeId(routes);
 `;
-    // resetCache so the "first objectLiteral with members" probe below
-    // doesn't pick up a stale User type from F9/F10 sitting in the shared
-    // daemon's cache.
+    // reset so the "first objectLiteral with members" probe below doesn't
+    // pick up the User type from F9/F10 sitting in this file's cache.
     await withInlineSources(
       {'router.ts': code},
       async ({client, sources}) => {
@@ -92,7 +91,7 @@ const myAPI = getRuntypeId(routes);
         }
         expect(fn?.parameters?.length).toBe(1);
       },
-      {resetCache: true}
+      {reset: true}
     );
   });
 
