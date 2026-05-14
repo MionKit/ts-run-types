@@ -1,4 +1,4 @@
-module github.com/mionkit/ts-go-run-types
+module github.com/mionkit/ts-run-types
 
 go 1.26
 

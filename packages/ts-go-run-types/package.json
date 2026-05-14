@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-go-run-types.git",
+    "url": "git+https://github.com/mionkit/ts-run-types.git",
     "directory": "packages/runtypes"
   },
   "scripts": {

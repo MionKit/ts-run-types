@@ -1,4 +1,4 @@
-// Package protocol defines the wire types exchanged between the ts-run-types
+// Package protocol defines the wire types exchanged between the ts-go-run-types
 // resolver and its callers. The shape is the canonical mion runtypes reflection
 // `Type` discriminated union so the user's runtypes JIT — which already
 // understands this runtime shape — can consume our cache directly.

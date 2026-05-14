@@ -5,13 +5,13 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.1.1",
-  "homepage": "https://github.com/mionkit/ts-go-run-types#readme",
+  "homepage": "https://github.com/mionkit/ts-run-types#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mionkit/ts-go-run-types.git"
+    "url": "git+https://github.com/mionkit/ts-run-types.git"
   },
   "bugs": {
-    "url": "https://github.com/mionkit/ts-go-run-types/issues"
+    "url": "https://github.com/mionkit/ts-run-types/issues"
   },
   "license": "MIT",
   "author": "ma-jerez",
