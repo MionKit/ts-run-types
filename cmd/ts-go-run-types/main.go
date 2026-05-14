@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/microsoft/typescript-go/shim/tspath"
+
 	"github.com/mionkit/ts-run-types/internal/emit"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -39,6 +41,10 @@ Options:
     --marker-name NAME  marker type alias (default RuntypeId)
     --marker-module M   package the marker is declared in (default @mionjs/ts-go-run-types)
     --single-threaded   force single-checker mode (useful for tests)
+    --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
+                             before the request stream; build an inferred
+                             Program whose source files come from that map
+                             (no tsconfig glob, no disk reads for those paths)
     -h, --help          show help
 `
 
@@ -55,10 +61,11 @@ func main() {
 		outTS             string
 		hashLength        int
 		literalHashLength int
-		markerName        string
-		markerModule      string
-		singleThreaded    bool
-		help              bool
+		markerName         string
+		markerModule       string
+		singleThreaded     bool
+		inlineSourcesStdin bool
+		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
 	flag.StringVar(&cwdFlag, "cwd", "", "working directory")
@@ -72,6 +79,8 @@ func main() {
 	flag.StringVar(&markerName, "marker-name", "", "marker type alias (default RuntypeId)")
 	flag.StringVar(&markerModule, "marker-module", "", "marker package (default @mionjs/ts-go-run-types)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
+	flag.BoolVar(&inlineSourcesStdin, "inline-sources-stdin", false,
+		"read {\"sources\":{relpath:content}} from stdin before the request stream")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
 	flag.Parse()
@@ -94,13 +103,45 @@ func main() {
 		fatal("abs(cwd): %v", err)
 	}
 
-	p, err := program.New(program.Options{
-		Cwd:            absCwd,
-		TsconfigPath:   tsconfigPath,
-		SingleThreaded: singleThreaded,
-	})
-	if err != nil {
-		fatal("program: %v", err)
+	// Stdio decoder/encoder is built up front because in inline-sources mode
+	// we consume one handshake line from stdin BEFORE constructing the
+	// Program, then keep the same decoder for the request loop so any bytes
+	// buffered by the JSON decoder past the handshake aren't lost.
+	stdinDec := json.NewDecoder(bufio.NewReader(os.Stdin))
+	stdoutEnc := json.NewEncoder(os.Stdout)
+
+	var p *program.Program
+	if inlineSourcesStdin {
+		var handshake struct {
+			Sources map[string]string `json:"sources"`
+		}
+		if err := stdinDec.Decode(&handshake); err != nil {
+			fatal("inline-sources handshake decode: %v", err)
+		}
+		overlay := make(map[string]string, len(handshake.Sources))
+		fileNames := make([]string, 0, len(handshake.Sources))
+		for rel, content := range handshake.Sources {
+			abs := tspath.ResolvePath(tspath.NormalizePath(absCwd), rel)
+			overlay[abs] = content
+			fileNames = append(fileNames, abs)
+		}
+		p, err = program.NewInferred(program.Options{
+			Cwd:            absCwd,
+			SingleThreaded: singleThreaded,
+			Overlay:        overlay,
+		}, fileNames)
+		if err != nil {
+			fatal("program (inferred): %v", err)
+		}
+	} else {
+		p, err = program.New(program.Options{
+			Cwd:            absCwd,
+			TsconfigPath:   tsconfigPath,
+			SingleThreaded: singleThreaded,
+		})
+		if err != nil {
+			fatal("program: %v", err)
+		}
 	}
 
 	r, err := resolver.New(p, resolver.Options{
@@ -120,7 +161,7 @@ func main() {
 	case daemon:
 		runDaemon(r, socketPath)
 	default:
-		runOneShot(r, os.Stdin, os.Stdout)
+		serveRequests(r, stdinDec, stdoutEnc)
 	}
 
 	// Optional file outputs after stdin is drained. Both formats share one
@@ -143,9 +184,10 @@ func main() {
 }
 
 func runOneShot(r *resolver.Resolver, in io.Reader, out io.Writer) {
-	dec := json.NewDecoder(bufio.NewReader(in))
-	enc := json.NewEncoder(out)
+	serveRequests(r, json.NewDecoder(bufio.NewReader(in)), json.NewEncoder(out))
+}
 
+func serveRequests(r *resolver.Resolver, dec *json.Decoder, enc *json.Encoder) {
 	for {
 		var req protocol.Request
 		if err := dec.Decode(&req); err != nil {
