@@ -7,6 +7,12 @@ export interface ResolverClientOptions {
   // Optional marker overrides forwarded to the Go binary's CLI flags.
   markerName?: string;
   markerModule?: string;
+  // When set, the resolver is spawned with --inline-sources-stdin and the
+  // map is written as the first stdin line (JSON `{"sources": …}`) before
+  // any request. Keys are paths relative to `cwd`; values are TS source.
+  // No on-disk tsconfig is needed in this mode — the Go side builds an
+  // inferred Program whose root files are exactly the overlay keys.
+  inlineSources?: Record<string, string>;
 }
 
 // ResolverClient spawns the ts-go-run-types binary in one-shot mode and drives it
@@ -27,9 +33,15 @@ export class ResolverClient {
     tsconfigPath: string,
     opts: ResolverClientOptions = {}
   ) {
-    const args = ['--one-shot', '--tsconfig', tsconfigPath, '--cwd', cwd];
+    const args = ['--one-shot', '--cwd', cwd];
+    // The Go binary ignores --tsconfig when inline-sources mode is on, so
+    // skip the flag entirely in that case to keep the CLI honest.
+    if (!opts.inlineSources && tsconfigPath) {
+      args.push('--tsconfig', tsconfigPath);
+    }
     if (opts.markerName) args.push('--marker-name', opts.markerName);
     if (opts.markerModule) args.push('--marker-module', opts.markerModule);
+    if (opts.inlineSources) args.push('--inline-sources-stdin');
     this.child = spawn(binary, args, {
       stdio: ['pipe', 'pipe', 'inherit'],
     });
@@ -38,6 +50,13 @@ export class ResolverClient {
     }
     this.stdin = this.child.stdin;
     this.stdout = this.child.stdout;
+    if (opts.inlineSources) {
+      // Handshake: write the source map as a single JSON line before any
+      // requests can be queued. The Go side blocks on this before building
+      // its Program, so request() calls made by the caller right after the
+      // constructor naturally land after the handshake on the wire.
+      this.stdin.write(JSON.stringify({sources: opts.inlineSources}) + '\n');
+    }
     this.lines = createInterface({input: this.stdout});
     this.lines.on('line', (line) => {
       const done = this.queue.shift();
