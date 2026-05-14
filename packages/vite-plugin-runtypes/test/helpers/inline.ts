@@ -14,7 +14,7 @@
 // global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
-import {afterAll, type TestAPI} from 'vitest';
+import type {TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.js';
 import {rewrite} from '../../src/rewrite.js';
 import {renderCacheModule} from '../../src/render-cache.js';
@@ -63,8 +63,8 @@ function getClient(): ResolverClient {
   stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true});
   if (!stash.atExitWired) {
     stash.atExitWired = true;
-    // Best-effort cleanup if the worker exits without going through
-    // afterAll (uncaught throws, vitest forcing termination, etc).
+    // Best-effort cleanup if the worker exits without going through the
+    // setupFiles afterAll hook (uncaught throws, vitest forcing termination).
     process.once('exit', () => {
       const s = (globalThis as GlobalWithStash)[STASH_KEY];
       if (s?.client) s.client.close();
@@ -73,18 +73,12 @@ function getClient(): ResolverClient {
   return stash.client;
 }
 
-// Each test FILE registers one afterAll that wipes the worker's resolver
-// state between files. The subprocess STAYS ALIVE — only its
-// cache/sites/Program/overlay get cleared. This is the moment when
-// cross-file pollution would otherwise leak.
-let _afterAllRegistered = false;
-function ensureFileAfterAll(): void {
-  if (_afterAllRegistered) return;
-  _afterAllRegistered = true;
-  afterAll(async () => {
-    const {client} = workerStash();
-    if (client) await client.reset();
-  });
+// resetSharedClient wipes resolver state between test files. Invoked by
+// the setupFiles entry's afterAll — kept here so the setup module doesn't
+// reach into the stash directly.
+export async function resetSharedClient(): Promise<void> {
+  const {client} = workerStash();
+  if (client) await client.reset();
 }
 
 export interface WithInlineOpts {
@@ -100,7 +94,6 @@ export async function withInlineSources<T>(
   fn: (ctx: {client: ResolverClient; sources: InlineSources}) => Promise<T>,
   opts: WithInlineOpts = {}
 ): Promise<T> {
-  ensureFileAfterAll();
   const client = getClient();
   if (opts.reset) await client.reset();
   // runtypes.d.ts is always present so caller's fixtures stay terse. The
