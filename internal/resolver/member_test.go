@@ -9,8 +9,11 @@ import (
 // ---- F19 — array of object literal -------------------------------------------
 
 func TestF19_ArrayOfObject(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f19_array_of_object.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const xs: {x: number}[];
+getRuntypeId(xs);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected KindArray, got %+v", root)
@@ -32,8 +35,11 @@ func TestF19_ArrayOfObject(t *testing.T) {
 // ---- F20 — array of array ----------------------------------------------------
 
 func TestF20_ArrayOfArray(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f20_array_of_array.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const xs: string[][];
+getRuntypeId(xs);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected outer KindArray, got %+v", root)
@@ -54,8 +60,14 @@ func TestF20_ArrayOfArray(t *testing.T) {
 // must terminate via the cache by id equality, not by infinite recursion.
 
 func TestF21_RecursiveSelf(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f21_recursive_self.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface Tree {
+  children: Tree[];
+}
+declare const t: Tree;
+getRuntypeId<Tree>(t);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected root KindObjectLiteral, got %+v", root)
@@ -84,8 +96,17 @@ func TestF21_RecursiveSelf(t *testing.T) {
 // ---- F22 — recursive mutual --------------------------------------------------
 
 func TestF22_RecursiveMutual(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f22_recursive_mutual.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface A {
+  b: B;
+}
+interface B {
+  a: A;
+}
+declare const a: A;
+getRuntypeId<A>(a);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected A KindObjectLiteral, got %+v", root)

@@ -11,7 +11,8 @@ import (
 )
 
 // atomicFixturesDir is a separate test-fixtures tree so the per-atomic
-// tests are isolated from the broader F1–F16 suite.
+// tests are isolated from the broader F1–F16 suite. Retained for the
+// one file-loading regression test (TestAtomic_String).
 func atomicFixturesDir(t *testing.T) string {
 	t.Helper()
 	abs, err := filepath.Abs("../testfixtures/atomic")
@@ -40,9 +41,8 @@ func atomicSetup(t *testing.T) *resolver.Resolver {
 }
 
 // atomicResolve runs scanFile on a fixture and returns the Type entry for
-// its first (and only) call site. Atomic fixtures are written to contain
-// exactly one `getRuntypeId<T>(...)` call; if that assumption changes the
-// suite needs updating.
+// its first (and only) call site. Used only by the file-loading regression
+// test below; the rest of the atomic suite uses resolveInline.
 func atomicResolve(t *testing.T, r *resolver.Resolver, file string) *protocol.Type {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
@@ -78,6 +78,9 @@ func assertHashID(t *testing.T, id string) {
 // Primitive kinds — id is just the kind number, no payload.
 // =========================================================================
 
+// TestAtomic_String is kept file-based as the one regression test that
+// exercises the on-disk tsconfig + osvfs path for the atomic suite. Every
+// other atomic test uses resolveInline.
 func TestAtomic_String(t *testing.T) {
 	tn := atomicResolve(t, atomicSetup(t), "string.ts")
 	if tn.Kind != protocol.KindString {
@@ -87,77 +90,121 @@ func TestAtomic_String(t *testing.T) {
 }
 
 func TestAtomic_Number(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "number.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: number = 42;
+getRuntypeId(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNumber {
 		t.Fatalf("expected KindNumber, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Boolean(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "boolean.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const v: boolean;
+getRuntypeId<boolean>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindBoolean {
 		t.Fatalf("expected KindBoolean, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_BigInt(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "bigint.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: bigint = 1n;
+getRuntypeId<bigint>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindBigInt {
 		t.Fatalf("expected KindBigInt, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Symbol(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "symbol.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: symbol = Symbol('x');
+getRuntypeId<symbol>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindSymbol {
 		t.Fatalf("expected KindSymbol, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Null(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "null.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: null = null;
+getRuntypeId<null>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNull {
 		t.Fatalf("expected KindNull, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Undefined(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "undefined.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: undefined = undefined;
+getRuntypeId<undefined>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUndefined {
 		t.Fatalf("expected KindUndefined, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Void(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "void.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const v: void;
+getRuntypeId<void>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindVoid {
 		t.Fatalf("expected KindVoid, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Any(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "any.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: any = 1;
+getRuntypeId<any>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindAny {
 		t.Fatalf("expected KindAny, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Unknown(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "unknown.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: unknown = 1;
+getRuntypeId<unknown>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnknown {
 		t.Fatalf("expected KindUnknown, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Never(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "never.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const v: never;
+getRuntypeId<never>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNever {
 		t.Fatalf("expected KindNever, got %d", tn.Kind)
 	}
 }
 
 func TestAtomic_Object(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "object.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: object = {};
+getRuntypeId<object>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindObject {
 		t.Fatalf("expected KindObject, got %d", tn.Kind)
 	}
@@ -168,7 +215,11 @@ func TestAtomic_Object(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_Regexp(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "regexp.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: RegExp = /abc/i;
+getRuntypeId<RegExp>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindRegexp {
 		t.Fatalf("expected KindRegexp, got %d", tn.Kind)
 	}
@@ -182,7 +233,11 @@ func TestAtomic_Regexp(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_LiteralString(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "literal_string.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 'hello' = 'hello';
+getRuntypeId<'hello'>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -192,7 +247,11 @@ func TestAtomic_LiteralString(t *testing.T) {
 }
 
 func TestAtomic_LiteralNumber(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "literal_number.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 42 = 42;
+getRuntypeId<42>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -211,7 +270,11 @@ func TestAtomic_LiteralNumber(t *testing.T) {
 }
 
 func TestAtomic_LiteralBoolean(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "literal_boolean.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: true = true;
+getRuntypeId<true>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -221,7 +284,11 @@ func TestAtomic_LiteralBoolean(t *testing.T) {
 }
 
 func TestAtomic_LiteralBigInt(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "literal_bigint.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 1n = 1n;
+getRuntypeId<1n>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -237,7 +304,11 @@ func TestAtomic_LiteralBigInt(t *testing.T) {
 }
 
 func TestAtomic_LiteralSymbol(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "literal_symbol.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const sym: unique symbol = Symbol('hello');
+getRuntypeId<typeof sym>(sym);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
 		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
 	}
@@ -265,7 +336,16 @@ func TestAtomic_LiteralSymbol(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_EnumNumeric(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "enum_numeric.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color {
+  Red = 0,
+  Green = 1,
+  Blue = 2,
+}
+const v: Color = Color.Red;
+getRuntypeId<Color>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindEnum {
 		t.Fatalf("expected KindEnum, got %d", tn.Kind)
 	}
@@ -282,7 +362,16 @@ func TestAtomic_EnumNumeric(t *testing.T) {
 }
 
 func TestAtomic_EnumString(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "enum_string.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color {
+  Red = 'red',
+  Green = 'green',
+  Blue = 'blue',
+}
+const v: Color = Color.Red;
+getRuntypeId<Color>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindEnum {
 		t.Fatalf("expected KindEnum, got %d", tn.Kind)
 	}
@@ -302,7 +391,11 @@ func TestAtomic_EnumString(t *testing.T) {
 // =========================================================================
 
 func TestAtomic_Date(t *testing.T) {
-	tn := atomicResolve(t, atomicSetup(t), "date.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: Date = new Date();
+getRuntypeId<Date>(v);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindClass {
 		t.Fatalf("expected KindClass, got %d", tn.Kind)
 	}
@@ -315,20 +408,31 @@ func TestAtomic_Date(t *testing.T) {
 }
 
 // =========================================================================
-// Structural dedup — two distinct fixtures with the same atomic type share
-// the same hash id.
+// Structural dedup — two distinct snippets with the same atomic type share
+// the same hash id; different shapes get different ids.
 // =========================================================================
 
 func TestAtomic_StructuralDedup(t *testing.T) {
-	r := atomicSetup(t)
-	a := atomicResolve(t, r, "string.ts")
-	b := atomicResolve(t, r, "literal_string.ts")
+	const widened = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: string = 'hello';
+getRuntypeId(v);
+`
+	const literal = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const v: 'hello' = 'hello';
+getRuntypeId<'hello'>(v);
+`
+	r := setupInline(t, map[string]string{
+		"widened.ts": widened,
+		"literal.ts": literal,
+	})
+	a := resolveFile(t, r, "widened.ts")
+	b := resolveFile(t, r, "literal.ts")
 	// They're different types (string vs "hello" literal), so different ids.
 	if a.ID == b.ID {
 		t.Fatalf("expected different ids for string vs \"hello\" literal")
 	}
 	// Re-resolving the same atomic type should return the exact same id.
-	a2 := atomicResolve(t, r, "string.ts")
+	a2 := resolveFile(t, r, "widened.ts")
 	if a.ID != a2.ID {
 		t.Fatalf("expected stable id on re-resolve, got %q vs %q", a.ID, a2.ID)
 	}
