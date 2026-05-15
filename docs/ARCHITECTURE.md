@@ -214,7 +214,8 @@ Out of scope for v0.2: `templateLiteral`, `infer`, decorators (`MinLength<5>`-st
 See also the per-kind references:
 
 - [atomic-types.md](./atomic-types.md) — primitives, regex, literals, enums, `Date`.
-- [member-types.md](./member-types.md) — arrays, tuples, classes, object literals, functions, unions, recursive types.
+- [member-types.md](./member-types.md) — single-typed members: `Array`, `Property`, `Method`.
+- [collection-types.md](./collection-types.md) — multi-typed containers: tuples, unions, intersections, promises, functions, object literals, classes, recursive types.
 
 ### Member types and cycle resolution
 

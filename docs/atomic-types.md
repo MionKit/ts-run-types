@@ -242,5 +242,6 @@ The footer assignment `t_<id>.classType = globalThis.Date` lets runtime code cal
 
 ## See also
 
-- [member-types.md](member-types.md) — structured kinds (arrays, tuples, classes, object literals, functions, unions, recursive types).
+- [member-types.md](member-types.md) — single-typed members: `Array`, `Property`, `Method`.
+- [collection-types.md](collection-types.md) — multi-typed containers: tuples, unions, intersections, promises, functions, object literals, classes, recursive types.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — overall pipeline and design.
