@@ -209,6 +209,19 @@ Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 
 Out of scope for v0.2: `templateLiteral`, `regexp` literals, `infer`, decorators (`MinLength<5>`-style), `TypeNumberBrand`, runtime-only fields (`function`, `classType`, `enum`). All have v0.3+ workaround proposals in the roadmap.
 
+### Member types and cycle resolution
+
+Member types are the family of nodes that own exactly one child slot — `Array<T>`, `TupleMember`, `Property`, `PropertySignature`, `Parameter`, `IndexSignature` (which adds an `index` key slot alongside its `type`). `Promise<T>` is modeled as a native type with the same single-child shape. They show up everywhere a parent composite needs to point at "the type of this slot".
+
+The wire format keeps these slots small via the `KindRef = -1` sentinel: every child Type returned by `serialize.Cache.Serialize` is a `{kind: -1, id: "<hash>"}` stub. The canonical full Type lives once in the cache, keyed by id. JSON consumers detect the sentinel and dereference manually; the emitted `virtual:runtypes-cache` module derefs at module-load time and hands consumers a fully-knotted graph.
+
+Cycles close at two layers without special-case code:
+
+- **Serializer**: [`serialize.Cache.assignID`](../internal/serialize/serialize.go) reserves the id and inserts a placeholder cache entry **before** projecting the type's children. A recursive walk that re-enters the same `*checker.Type` hits the `byPtr` lookup and gets back the reserved id immediately — no infinite recursion, no second projection.
+- **Emit**: the runtime artifact ([`internal/emit/tsmodule.go`](../internal/emit/tsmodule.go), mirrored in [`packages/vite-plugin-runtypes/src/render-cache.ts`](../packages/vite-plugin-runtypes/src/render-cache.ts)) declares every type as a scalar-only `const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.type = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors.
+
+Callers walking a member type's child ref can ask the resolver for the canonical Type via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned Type's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
+
 ## Shims — reaching into tsgo's `internal/`
 
 ### The visibility problem

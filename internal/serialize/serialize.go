@@ -169,6 +169,13 @@ func (c *Cache) SerializeTopLevel(t *checker.Type) *protocol.Type {
 	return c.nodes[id]
 }
 
+// NodeByID returns the canonical full Type for id, or nil if no such id
+// has been interned. Backs the OpResolveID query op for callers walking a
+// member type's child KindRef slots.
+func (c *Cache) NodeByID(id string) *protocol.Type {
+	return c.nodes[id]
+}
+
 // assignID computes/looks-up the wire id for t, projecting it on first sight.
 func (c *Cache) assignID(t *checker.Type) string {
 	if t == nil {
