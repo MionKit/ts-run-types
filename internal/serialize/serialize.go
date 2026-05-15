@@ -727,7 +727,16 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 		} else {
 			member.Kind = protocol.KindPropertySignature
 		}
-		member.Child = cache.Serialize(propertyType)
+		// Optional properties carry `T | undefined` at the symbol type
+		// layer; the Optional flag IS the "undefined-permitted" signal so
+		// the union wrapper is redundant. Strip it so circular optional
+		// self-references close on the inner type, not on a wrapping
+		// union node. Mirrors the tuple-member treatment at projectTuple.
+		childType := propertyType
+		if member.Optional {
+			childType = stripUndefined(childType)
+		}
+		member.Child = cache.Serialize(childType)
 	}
 
 	structural := fmt.Sprintf("_pr_%s_%s_%d", parent.ID, symbol.Name, index)
