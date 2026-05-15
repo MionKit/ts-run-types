@@ -1,8 +1,6 @@
 import path from 'node:path';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
-import {renderCacheModule} from './render-cache.ts';
-import type {Site, RunType} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -30,10 +28,6 @@ export default function runtypes(options: PluginOptions) {
   const markerModule = options.markerModule ?? DEFAULT_MARKER_MODULE;
 
   let resolver: ResolverClient | null = null;
-  // Accumulated across all transform() calls — cleared on resolver restart.
-  // Keyed by hash id (mion's quickHash).
-  const types = new Map<string, RunType>();
-  const sites: Site[] = [];
 
   return {
     name: 'vite-plugin-runtypes',
@@ -56,12 +50,14 @@ export default function runtypes(options: PluginOptions) {
       return null;
     },
 
-    load(this: any, id: string) {
+    async load(this: any, id: string) {
       if (id !== resolvedVirtualId) return null;
-      return renderCacheModule({
-        types: Array.from(types.values()),
-        sites,
-      });
+      if (!resolver) return 'export const __runtypes = new Map();\nexport const __sites = [];\n';
+      // The Go binary renders the JS cache module from its in-memory dump.
+      // Full cache (not just scanned-files union) — Vite's load() runs once
+      // per import and consumers expect every emitted id to be reachable.
+      const dump = await resolver.dump();
+      return dump.cacheSource ?? 'export const __runtypes = new Map();\nexport const __sites = [];\n';
     },
 
     async transform(this: any, code: string, id: string) {
@@ -76,18 +72,9 @@ export default function runtypes(options: PluginOptions) {
       const result = await rewrite(rel, code, resolver);
       if (result.sites.length === 0) return null;
 
-      for (const s of result.sites) {
-        sites.push({file: rel, pos: s.pos, id: s.id, paramIndex: s.paramIndex});
-      }
-      const dump = await resolver.dump();
-      for (const t of dump.runTypes ?? []) {
-        if (t.id !== undefined) types.set(t.id, t);
-      }
-
       return {code: result.code, map: null};
     },
   };
 }
 
 export type {PluginOptions as Options};
-export {renderCacheModule};

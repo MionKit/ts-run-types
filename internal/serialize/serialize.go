@@ -62,6 +62,14 @@ type Cache struct {
 	// at dump time for cross-build determinism).
 	insertOrder []string
 
+	// fileTypeIDs records which wire ids were transitively reached from each
+	// scanned file's call sites. Populated by the resolver (not by assignID
+	// itself, so the cache stays resolution-agnostic). Cleared on Clear and
+	// on Rebind — both wipe the per-file scope along with the type table /
+	// pointer cache, matching the contract that reset / setSources start
+	// "scanned files" from empty.
+	fileTypeIDs map[string]map[string]struct{}
+
 	dict        *hashid.Dict
 	literals    *hashid.Dict
 	typeChecker *checker.Checker
@@ -75,6 +83,7 @@ func NewCache(typeChecker *checker.Checker, opts Options) *Cache {
 		byPtr:        make(map[*checker.Type]string),
 		byStructural: make(map[string]string),
 		nodes:        make(map[string]*protocol.RunType),
+		fileTypeIDs:  make(map[string]map[string]struct{}),
 		dict:         hashid.New(),
 		literals:     hashid.New(),
 		typeChecker:  typeChecker,
@@ -94,6 +103,7 @@ func (cache *Cache) Clear() {
 	cache.byStructural = make(map[string]string)
 	cache.nodes = make(map[string]*protocol.RunType)
 	cache.insertOrder = cache.insertOrder[:0]
+	cache.fileTypeIDs = make(map[string]map[string]struct{})
 	cache.dict = hashid.New()
 	cache.literals = hashid.New()
 }
@@ -115,6 +125,10 @@ func (cache *Cache) Rebind(typeChecker *checker.Checker) {
 		cache.idComputer = nil
 	}
 	cache.byPtr = make(map[*checker.Type]string)
+	// Per-file scope is tied to the previous Program's source files; a
+	// Program swap invalidates every key. Drop the map so the next
+	// scanFile starts from "no files scanned yet".
+	cache.fileTypeIDs = make(map[string]map[string]struct{})
 }
 
 // Dump returns every interned Type sorted by wire id (deterministic across
@@ -167,7 +181,7 @@ func (cache *Cache) AssignID(tsType *checker.Type) string {
 //
 // Bypasses the *checker.Type path entirely — TS has no regex-literal type, so
 // the marker scanner harvests the regex from the AST when it can. The emitter
-// dispatches on the `literal.regexp` shape (see render-cache.ts:138-141) to
+// dispatches on the `literal.regexp` shape (see emit/tsmodule.go footerLiteralExpr) to
 // produce a `new RegExp("…", "…")` expression at runtime.
 func (cache *Cache) SerializeRegexLiteral(source, flags string) string {
 	structural := strconv.Itoa(int(protocol.KindLiteral)) + ":regexp:" + source + "|" + flags
@@ -206,6 +220,84 @@ func (cache *Cache) SerializeTopLevel(tsType *checker.Type) *protocol.RunType {
 // member type's child KindRef slots.
 func (cache *Cache) NodeByID(id string) *protocol.RunType {
 	return cache.nodes[id]
+}
+
+// RecordFileID associates id with file in the per-file scope map. Called by
+// the resolver after each scanFile completes to remember which run types a
+// given file's call sites transitively reached. Used later by ScannedFiles
+// / IDsForUnion to scope the "scanned files" response of subsequent scanFile
+// requests carrying IncludeRunTypes / IncludeCacheSource.
+func (cache *Cache) RecordFileID(file, id string) {
+	if file == "" || id == "" {
+		return
+	}
+	bucket, ok := cache.fileTypeIDs[file]
+	if !ok {
+		bucket = make(map[string]struct{})
+		cache.fileTypeIDs[file] = bucket
+	}
+	bucket[id] = struct{}{}
+}
+
+// ScannedFiles returns the sorted list of files for which RecordFileID has
+// been called since the last Clear / Rebind. The order is deterministic so
+// callers building union slices observe stable output.
+func (cache *Cache) ScannedFiles() []string {
+	if len(cache.fileTypeIDs) == 0 {
+		return nil
+	}
+	files := make([]string, 0, len(cache.fileTypeIDs))
+	for file := range cache.fileTypeIDs {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+	return files
+}
+
+// IDsForUnion returns the deduplicated, sorted slice of wire ids reachable
+// from any of files. Callers pass the result of ScannedFiles when they want
+// "every type touched by every scanned file so far". Ids missing from the
+// type table are dropped silently — they would indicate a stale per-file
+// entry pointing at a now-evicted node, which shouldn't happen in practice
+// (Clear / Rebind wipe both maps together).
+func (cache *Cache) IDsForUnion(files []string) []string {
+	if len(files) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	for _, file := range files {
+		for id := range cache.fileTypeIDs[file] {
+			if _, ok := cache.nodes[id]; !ok {
+				continue
+			}
+			seen[id] = struct{}{}
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// NodesForIDs returns the canonical *RunType entries for the given ids, in
+// the order supplied. Ids missing from the table are skipped. Used by the
+// resolver to materialise a "scanned files" scoped slice into a Dump.
+func (cache *Cache) NodesForIDs(ids []string) []*protocol.RunType {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]*protocol.RunType, 0, len(ids))
+	for _, id := range ids {
+		if node := cache.nodes[id]; node != nil {
+			out = append(out, node)
+		}
+	}
+	return out
 }
 
 // assignID computes/looks-up the wire id for tsType, projecting it on first sight.

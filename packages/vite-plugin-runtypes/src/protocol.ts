@@ -141,6 +141,14 @@ export interface Request {
   id?: string;
   // setSources only — { relpath: source-text }.
   sources?: Record<string, string>;
+  // scanFile only — when set, the response includes a runTypes slice
+  // covering every file scanned since the last reset / setSources.
+  includeRunTypes?: boolean;
+  // scanFile only — when set, the response carries a pre-rendered cache
+  // module body (cacheSource) scoped to the same "scanned files" union.
+  // Tests use this to skip the JS-side renderer and get everything in one
+  // round-trip.
+  includeCacheSource?: boolean;
 }
 
 export interface Response {
@@ -150,6 +158,11 @@ export interface Response {
   added?: RunType[];
   sites?: Site[];
   runTypes?: RunType[];
+  // Always populated by `dump`; populated by `scanFile` when the request
+  // sets includeCacheSource. The body is a JS module exporting __runtypes
+  // and __sites; consumers evaluate it (or hand it to a bundler) without
+  // needing a TS loader.
+  cacheSource?: string;
   error?: string;
 }
 
