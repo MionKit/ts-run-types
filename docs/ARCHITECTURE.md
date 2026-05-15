@@ -209,7 +209,12 @@ Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 - `bigint` literal values → string with `flags: ["bigint"]` (consumer parses with `BigInt(…)`).
 - `parent` not in JSON; the `.ts` artifact wires it. JSON-only consumers re-knot themselves.
 
-Out of scope for v0.2: `templateLiteral`, `regexp` literals, `infer`, decorators (`MinLength<5>`-style), `TypeNumberBrand`, runtime-only fields (`function`, `classType`, `enum`). All have v0.3+ workaround proposals in the roadmap.
+Out of scope for v0.2: `templateLiteral`, `infer`, decorators (`MinLength<5>`-style), `TypeNumberBrand`, runtime-only fields (`function`, `classType`, `enum`). All have v0.3+ workaround proposals in the roadmap. Regex literals are now produced via AST-trace from `const`-bound regex initializers — see [atomic-types.md § RegExp](./atomic-types.md#regexp).
+
+See also the per-kind references:
+
+- [atomic-types.md](./atomic-types.md) — primitives, regex, literals, enums, `Date`.
+- [member-types.md](./member-types.md) — arrays, tuples, classes, object literals, functions, unions, recursive types.
 
 ### Member types and cycle resolution
 
