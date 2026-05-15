@@ -7,7 +7,7 @@
 //   1. Spawn the Go binary with this test's inline source(s)
 //   2. rewrite() to inject the trailing-RuntypeId<T> id
 //   3. Render a runtypes-cache JS module from the resolver dump
-//   4. Eval the module and assert the resulting reflection-shape Type
+//   4. Eval the module and assert the resulting reflection-shape RunType
 //      contains real runtime values where applicable (BigInt / Symbol /
 //      RegExp / globalThis.Date instances)
 

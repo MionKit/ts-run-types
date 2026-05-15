@@ -56,10 +56,10 @@ func setupInline(t *testing.T, sources map[string]string) *resolver.Resolver {
 }
 
 // resolveInline pins code to test.ts in an in-memory program, scans it,
-// and returns the resolver plus the Type entry for the first call site.
+// and returns the resolver plus the RunType entry for the first call site.
 // Tests that need to dump the full type list after the scan use the
 // returned resolver; tests that only check the root type ignore it.
-func resolveInline(t *testing.T, code string) (*resolver.Resolver, *protocol.Type) {
+func resolveInline(t *testing.T, code string) (*resolver.Resolver, *protocol.RunType) {
 	t.Helper()
 	r := setupInline(t, map[string]string{"test.ts": code})
 	tn := resolveFile(t, r, "test.ts")

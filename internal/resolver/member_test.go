@@ -31,21 +31,21 @@ reflectRuntypeId(xs);
 	assertF19ArrayOfObject(t, r, root)
 }
 
-func assertF19ArrayOfObject(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF19ArrayOfObject(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected KindArray, got %+v", root)
 	}
-	elem := deref(types, root.Type)
+	elem := deref(types, root.Child)
 	if elem == nil || elem.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected element KindObjectLiteral, got %+v", elem)
 	}
 	x := findMember(types, elem, "x")
 	if x == nil {
-		t.Fatalf("missing 'x' property on element; types=%+v", elem.Types)
+		t.Fatalf("missing 'x' property on element; types=%+v", elem.Children)
 	}
-	xType := deref(types, x.Type)
+	xType := deref(types, x.Child)
 	if xType == nil || xType.Kind != protocol.KindNumber {
 		t.Fatalf("x.type expected KindNumber, got %+v", xType)
 	}
@@ -70,17 +70,17 @@ reflectRuntypeId(xs);
 	assertF20ArrayOfArray(t, r, root)
 }
 
-func assertF20ArrayOfArray(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF20ArrayOfArray(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected outer KindArray, got %+v", root)
 	}
-	inner := deref(types, root.Type)
+	inner := deref(types, root.Child)
 	if inner == nil || inner.Kind != protocol.KindArray {
 		t.Fatalf("expected inner KindArray, got %+v", inner)
 	}
-	leaf := deref(types, inner.Type)
+	leaf := deref(types, inner.Child)
 	if leaf == nil || leaf.Kind != protocol.KindString {
 		t.Fatalf("expected leaf KindString, got %+v", leaf)
 	}
@@ -114,7 +114,7 @@ reflectRuntypeId(t);
 	assertF21RecursiveSelf(t, r, root)
 }
 
-func assertF21RecursiveSelf(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF21RecursiveSelf(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -126,13 +126,13 @@ func assertF21RecursiveSelf(t *testing.T, r *resolver.Resolver, root *protocol.T
 	}
 	children := findMember(types, root, "children")
 	if children == nil {
-		t.Fatalf("missing 'children' property; types=%+v", root.Types)
+		t.Fatalf("missing 'children' property; types=%+v", root.Children)
 	}
-	arr := deref(types, children.Type)
+	arr := deref(types, children.Child)
 	if arr == nil || arr.Kind != protocol.KindArray {
 		t.Fatalf("children.type expected KindArray, got %+v", arr)
 	}
-	back := deref(types, arr.Type)
+	back := deref(types, arr.Child)
 	if back == nil {
 		t.Fatalf("array element ref did not resolve")
 	}
@@ -172,7 +172,7 @@ reflectRuntypeId(a);
 	assertF22RecursiveMutual(t, r, root)
 }
 
-func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -182,9 +182,9 @@ func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol
 
 	bProp := findMember(types, root, "b")
 	if bProp == nil {
-		t.Fatalf("A missing 'b' property; types=%+v", root.Types)
+		t.Fatalf("A missing 'b' property; types=%+v", root.Children)
 	}
-	b := deref(types, bProp.Type)
+	b := deref(types, bProp.Child)
 	if b == nil || b.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("b expected KindObjectLiteral, got %+v", b)
 	}
@@ -192,9 +192,9 @@ func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol
 
 	aProp := findMember(types, b, "a")
 	if aProp == nil {
-		t.Fatalf("B missing 'a' property; types=%+v", b.Types)
+		t.Fatalf("B missing 'a' property; types=%+v", b.Children)
 	}
-	back := deref(types, aProp.Type)
+	back := deref(types, aProp.Child)
 	if back == nil {
 		t.Fatalf("B.a ref did not resolve")
 	}
@@ -209,7 +209,7 @@ func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol
 	}
 }
 
-func countByID(types []*protocol.Type, id string) int {
+func countByID(types []*protocol.RunType, id string) int {
 	n := 0
 	for _, t := range types {
 		if t.ID == id {

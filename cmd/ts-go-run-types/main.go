@@ -187,7 +187,7 @@ func main() {
 	// resolver state so file emissions are consistent with the JSON the
 	// caller already saw on stdout.
 	dump := protocol.Dump{
-		Types: r.Cache().Dump(),
+		RunTypes: r.Cache().Dump(),
 		Sites: r.Sites(),
 	}
 	if outJSON != "" {

@@ -1,5 +1,5 @@
 // Package serialize projects tsgo's *checker.Type into a reflection-shape
-// protocol.Type graph. Every resolved type gets a structural id (mirroring
+// protocol.RunType graph. Every resolved type gets a structural id (mirroring
 // mion's `_createTypeId`) which is hashed (mion's quickHash, ported in
 // `internal/hashid`) into a short alphanumeric wire id. Two structurally-equal
 // types share the same wire id — that's what makes our cache keys stable
@@ -56,7 +56,7 @@ type Cache struct {
 	byStructural map[string]string
 
 	// Type table keyed by wire id. nodes[id] is the canonical entry.
-	nodes map[string]*protocol.Type
+	nodes map[string]*protocol.RunType
 
 	// Insertion order so Dump() returns nodes deterministically (sorted by id
 	// at dump time for cross-build determinism).
@@ -74,7 +74,7 @@ func NewCache(tc *checker.Checker, opts Options) *Cache {
 		opts:         opts,
 		byPtr:        make(map[*checker.Type]string),
 		byStructural: make(map[string]string),
-		nodes:        make(map[string]*protocol.Type),
+		nodes:        make(map[string]*protocol.RunType),
 		dict:         hashid.New(),
 		literals:     hashid.New(),
 		tc:           tc,
@@ -92,7 +92,7 @@ func (c *Cache) Size() int { return len(c.nodes) }
 func (c *Cache) Clear() {
 	c.byPtr = make(map[*checker.Type]string)
 	c.byStructural = make(map[string]string)
-	c.nodes = make(map[string]*protocol.Type)
+	c.nodes = make(map[string]*protocol.RunType)
 	c.insertOrder = c.insertOrder[:0]
 	c.dict = hashid.New()
 	c.literals = hashid.New()
@@ -119,13 +119,13 @@ func (c *Cache) Rebind(tc *checker.Checker) {
 
 // Dump returns every interned Type sorted by wire id (deterministic across
 // builds — given identical inputs, dump bytes are identical).
-func (c *Cache) Dump() []*protocol.Type {
+func (c *Cache) Dump() []*protocol.RunType {
 	ids := make([]string, 0, len(c.nodes))
 	for id := range c.nodes {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	out := make([]*protocol.Type, 0, len(ids))
+	out := make([]*protocol.RunType, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, c.nodes[id])
 	}
@@ -134,11 +134,11 @@ func (c *Cache) Dump() []*protocol.Type {
 
 // Added returns the slice of nodes inserted since `before`. Used by the
 // resolver to stream incremental updates back to clients.
-func (c *Cache) Added(before int) []*protocol.Type {
+func (c *Cache) Added(before int) []*protocol.RunType {
 	if before >= len(c.insertOrder) {
 		return nil
 	}
-	out := make([]*protocol.Type, 0, len(c.insertOrder)-before)
+	out := make([]*protocol.RunType, 0, len(c.insertOrder)-before)
 	for _, id := range c.insertOrder[before:] {
 		if n, ok := c.nodes[id]; ok {
 			out = append(out, n)
@@ -150,19 +150,19 @@ func (c *Cache) Added(before int) []*protocol.Type {
 // Serialize projects t into the cache and returns a ref to the canonical
 // entry. Callers receive a `KindRef` sentinel; the actual full Type lives in
 // `c.nodes[id]`.
-func (c *Cache) Serialize(t *checker.Type) *protocol.Type {
+func (c *Cache) Serialize(t *checker.Type) *protocol.RunType {
 	id := c.assignID(t)
 	return protocol.NewRef(id)
 }
 
 // AssignID projects t into the cache (if new) and returns its hash id.
 // Public alias for the internal assignID used by callers — like the marker
-// scanner — that only need an id, not a Type sentinel.
+// scanner — that only need an id, not a RunType sentinel.
 func (c *Cache) AssignID(t *checker.Type) string {
 	return c.assignID(t)
 }
 
-// SerializeRegexLiteral registers a synthetic regex-literal Type entry and
+// SerializeRegexLiteral registers a synthetic regex-literal RunType entry and
 // returns its hash id. Two calls with the same (source, flags) deduplicate.
 //
 // Bypasses the *checker.Type path entirely — TS has no regex-literal type, so
@@ -179,7 +179,7 @@ func (c *Cache) SerializeRegexLiteral(source, flags string) string {
 		id = "x" + structural
 	}
 	c.byStructural[structural] = id
-	c.nodes[id] = &protocol.Type{
+	c.nodes[id] = &protocol.RunType{
 		ID:   id,
 		Kind: protocol.KindLiteral,
 		Literal: map[string]any{
@@ -193,10 +193,10 @@ func (c *Cache) SerializeRegexLiteral(source, flags string) string {
 	return id
 }
 
-// SerializeTopLevel returns the canonical Type entry (not a ref). Used by
+// SerializeTopLevel returns the canonical RunType entry (not a ref). Used by
 // the resolver to record the top of a query result so callers see the full
 // shape rather than a sentinel.
-func (c *Cache) SerializeTopLevel(t *checker.Type) *protocol.Type {
+func (c *Cache) SerializeTopLevel(t *checker.Type) *protocol.RunType {
 	id := c.assignID(t)
 	return c.nodes[id]
 }
@@ -204,7 +204,7 @@ func (c *Cache) SerializeTopLevel(t *checker.Type) *protocol.Type {
 // NodeByID returns the canonical full Type for id, or nil if no such id
 // has been interned. Backs the OpResolveID query op for callers walking a
 // member type's child KindRef slots.
-func (c *Cache) NodeByID(id string) *protocol.Type {
+func (c *Cache) NodeByID(id string) *protocol.RunType {
 	return c.nodes[id]
 }
 
@@ -241,7 +241,7 @@ func (c *Cache) assignID(t *checker.Type) string {
 	c.byStructural[structural] = id
 
 	// Reserve the slot before projecting so cycles see the id.
-	c.nodes[id] = &protocol.Type{ID: id, Kind: typeid.KindOf(c.tc, t)}
+	c.nodes[id] = &protocol.RunType{ID: id, Kind: typeid.KindOf(c.tc, t)}
 	c.insertOrder = append(c.insertOrder, id)
 
 	node := c.projectType(t, id)
@@ -261,7 +261,7 @@ func (c *Cache) internEmpty(kind protocol.ReflectionKind, marker string) string 
 		id = "x_" + marker
 	}
 	c.byStructural[structural] = id
-	c.nodes[id] = &protocol.Type{ID: id, Kind: kind, Flags: []string{marker}}
+	c.nodes[id] = &protocol.RunType{ID: id, Kind: kind, Flags: []string{marker}}
 	c.insertOrder = append(c.insertOrder, id)
 	return id
 }
@@ -278,15 +278,15 @@ func isLiteralStructural(s string) bool {
 // assignID; we only populate kind-specific contents here.
 // ---------------------------------------------------------------------------
 
-func (c *Cache) projectType(t *checker.Type, id string) *protocol.Type {
-	n := &protocol.Type{ID: id}
+func (c *Cache) projectType(t *checker.Type, id string) *protocol.RunType {
+	n := &protocol.RunType{ID: id}
 	flags := t.Flags()
 
 	// typeName from a user-declared type alias ("User" in `type User = {...}`).
 	if alias := checker.Type_alias(t); alias != nil && alias.Symbol() != nil {
 		n.TypeName = alias.Symbol().Name
 		if args := alias.TypeArguments(); len(args) > 0 {
-			n.TypeArguments = make([]*protocol.Type, 0, len(args))
+			n.TypeArguments = make([]*protocol.RunType, 0, len(args))
 			for _, a := range args {
 				n.TypeArguments = append(n.TypeArguments, c.Serialize(a))
 			}
@@ -369,13 +369,13 @@ func (c *Cache) projectType(t *checker.Type, id string) *protocol.Type {
 	case flags&checker.TypeFlagsUnion != 0:
 		n.Kind = protocol.KindUnion
 		for _, m := range t.Distributed() {
-			n.Types = append(n.Types, c.Serialize(m))
+			n.Children = append(n.Children, c.Serialize(m))
 		}
 
 	case flags&checker.TypeFlagsIntersection != 0:
 		n.Kind = protocol.KindIntersection
 		for _, m := range t.AsUnionOrIntersectionType().Types() {
-			n.Types = append(n.Types, c.Serialize(m))
+			n.Children = append(n.Children, c.Serialize(m))
 		}
 
 	case flags&checker.TypeFlagsNonPrimitive != 0:
@@ -398,7 +398,7 @@ func (c *Cache) projectType(t *checker.Type, id string) *protocol.Type {
 // objectLiteral / regexp / Date
 // ---------------------------------------------------------------------------
 
-func (c *Cache) projectObjectType(t *checker.Type, n *protocol.Type) {
+func (c *Cache) projectObjectType(t *checker.Type, n *protocol.RunType) {
 	if checker.IsTupleType(t) {
 		c.projectTuple(t, n)
 		return
@@ -408,7 +408,7 @@ func (c *Cache) projectObjectType(t *checker.Type, n *protocol.Type) {
 		args := c.tc.GetTypeArguments(t)
 		if len(args) > 0 {
 			n.Kind = protocol.KindArray
-			n.Type = c.Serialize(args[0])
+			n.Child = c.Serialize(args[0])
 			return
 		}
 	}
@@ -419,7 +419,7 @@ func (c *Cache) projectObjectType(t *checker.Type, n *protocol.Type) {
 			args := c.tc.GetTypeArguments(t)
 			if len(args) > 0 {
 				n.Kind = protocol.KindPromise
-				n.Type = c.Serialize(args[0])
+				n.Child = c.Serialize(args[0])
 				return
 			}
 		case "RegExp":
@@ -445,7 +445,7 @@ func (c *Cache) projectObjectType(t *checker.Type, n *protocol.Type) {
 	c.projectObjectLiteral(t, n)
 }
 
-func (c *Cache) projectTuple(t *checker.Type, n *protocol.Type) {
+func (c *Cache) projectTuple(t *checker.Type, n *protocol.RunType) {
 	n.Kind = protocol.KindTuple
 	tt := t.TargetTupleType()
 	infos := tt.ElementInfos()
@@ -462,9 +462,9 @@ func (c *Cache) projectTuple(t *checker.Type, n *protocol.Type) {
 		if flags&checker.ElementFlagsOptional != 0 && elemType != nil {
 			elemType = stripUndefined(elemType)
 		}
-		member := &protocol.Type{
+		member := &protocol.RunType{
 			Kind: protocol.KindTupleMember,
-			Type: c.Serialize(elemType),
+			Child: c.Serialize(elemType),
 		}
 		if name := info.LabeledDeclaration(); name != nil {
 			member.Name = name.Text()
@@ -490,11 +490,11 @@ func (c *Cache) projectTuple(t *checker.Type, n *protocol.Type) {
 		c.byStructural[structural] = mid
 		c.nodes[mid] = member
 		c.insertOrder = append(c.insertOrder, mid)
-		n.Types = append(n.Types, protocol.NewRef(mid))
+		n.Children = append(n.Children, protocol.NewRef(mid))
 	}
 }
 
-func (c *Cache) projectObjectLiteral(t *checker.Type, n *protocol.Type) {
+func (c *Cache) projectObjectLiteral(t *checker.Type, n *protocol.RunType) {
 	callSigs := c.tc.GetSignaturesOfType(t, checker.SignatureKindCall)
 	props := c.tc.GetPropertiesOfType(t)
 	if len(callSigs) > 0 && len(props) == 0 {
@@ -506,7 +506,7 @@ func (c *Cache) projectObjectLiteral(t *checker.Type, n *protocol.Type) {
 	c.projectMembersInto(t, n, props, callSigs, false)
 }
 
-func (c *Cache) projectClass(t *checker.Type, n *protocol.Type) {
+func (c *Cache) projectClass(t *checker.Type, n *protocol.RunType) {
 	n.Kind = protocol.KindClass
 	if sym := t.Symbol(); sym != nil {
 		n.TypeName = sym.Name
@@ -533,7 +533,7 @@ func (c *Cache) projectClass(t *checker.Type, n *protocol.Type) {
 
 func (c *Cache) projectMembersInto(
 	t *checker.Type,
-	n *protocol.Type,
+	n *protocol.RunType,
 	props []*ast.Symbol,
 	callSigs []*checker.Signature,
 	asClass bool,
@@ -542,10 +542,10 @@ func (c *Cache) projectMembersInto(
 		c.appendProperty(n, sym, asClass, i)
 	}
 	for i, info := range c.tc.GetIndexInfosOfType(t) {
-		idx := &protocol.Type{
+		idx := &protocol.RunType{
 			Kind:  protocol.KindIndexSignature,
 			Index: c.Serialize(info.KeyType()),
-			Type:  c.Serialize(info.ValueType()),
+			Child:  c.Serialize(info.ValueType()),
 		}
 		if info.IsReadonly() {
 			idx.Readonly = true
@@ -559,10 +559,10 @@ func (c *Cache) projectMembersInto(
 		c.byStructural[structural] = idxID
 		c.nodes[idxID] = idx
 		c.insertOrder = append(c.insertOrder, idxID)
-		n.Types = append(n.Types, protocol.NewRef(idxID))
+		n.Children = append(n.Children, protocol.NewRef(idxID))
 	}
 	for i, sig := range callSigs {
-		callNode := &protocol.Type{Kind: protocol.KindCallSignature}
+		callNode := &protocol.RunType{Kind: protocol.KindCallSignature}
 		c.projectSignatureInto(sig, callNode)
 		structural := fmt.Sprintf("_cs_%s_%d", n.ID, i)
 		callID, err := c.dict.Unique(structural, c.opts.hashLength())
@@ -573,11 +573,11 @@ func (c *Cache) projectMembersInto(
 		c.byStructural[structural] = callID
 		c.nodes[callID] = callNode
 		c.insertOrder = append(c.insertOrder, callID)
-		n.Types = append(n.Types, protocol.NewRef(callID))
+		n.Children = append(n.Children, protocol.NewRef(callID))
 	}
 }
 
-func (c *Cache) appendProperty(parent *protocol.Type, sym *ast.Symbol, asClass bool, idx int) {
+func (c *Cache) appendProperty(parent *protocol.RunType, sym *ast.Symbol, asClass bool, idx int) {
 	propType := c.tc.GetTypeOfSymbol(sym)
 
 	// Method-vs-property: a property whose type is a single-call-signature
@@ -591,7 +591,7 @@ func (c *Cache) appendProperty(parent *protocol.Type, sym *ast.Symbol, asClass b
 		}
 	}
 
-	member := &protocol.Type{Name: sym.Name}
+	member := &protocol.RunType{Name: sym.Name}
 	if sym.Flags&ast.SymbolFlagsOptional != 0 {
 		member.Optional = true
 	}
@@ -610,7 +610,7 @@ func (c *Cache) appendProperty(parent *protocol.Type, sym *ast.Symbol, asClass b
 		} else {
 			member.Kind = protocol.KindPropertySignature
 		}
-		member.Type = c.Serialize(propType)
+		member.Child = c.Serialize(propType)
 	}
 
 	structural := fmt.Sprintf("_pr_%s_%s_%d", parent.ID, sym.Name, idx)
@@ -622,16 +622,16 @@ func (c *Cache) appendProperty(parent *protocol.Type, sym *ast.Symbol, asClass b
 	c.byStructural[structural] = mid
 	c.nodes[mid] = member
 	c.insertOrder = append(c.insertOrder, mid)
-	parent.Types = append(parent.Types, protocol.NewRef(mid))
+	parent.Children = append(parent.Children, protocol.NewRef(mid))
 }
 
-func (c *Cache) projectSignatureInto(sig *checker.Signature, n *protocol.Type) {
+func (c *Cache) projectSignatureInto(sig *checker.Signature, n *protocol.RunType) {
 	for i, p := range sig.Parameters() {
 		paramType := c.tc.GetTypeOfSymbol(p)
-		param := &protocol.Type{
+		param := &protocol.RunType{
 			Kind: protocol.KindParameter,
 			Name: p.Name,
-			Type: c.Serialize(paramType),
+			Child: c.Serialize(paramType),
 		}
 		if p.Flags&ast.SymbolFlagsOptional != 0 {
 			param.Optional = true
@@ -654,7 +654,7 @@ func (c *Cache) projectSignatureInto(sig *checker.Signature, n *protocol.Type) {
 // enums
 // ---------------------------------------------------------------------------
 
-func (c *Cache) projectEnum(t *checker.Type, n *protocol.Type) {
+func (c *Cache) projectEnum(t *checker.Type, n *protocol.RunType) {
 	n.Kind = protocol.KindEnum
 	if sym := t.Symbol(); sym != nil {
 		n.TypeName = sym.Name
@@ -681,11 +681,11 @@ func (c *Cache) projectEnum(t *checker.Type, n *protocol.Type) {
 			}
 			switch {
 			case allString:
-				n.IndexT = &protocol.Type{Kind: protocol.KindString, ID: "_enumIdx_string"}
+				n.IndexT = &protocol.RunType{Kind: protocol.KindString, ID: "_enumIdx_string"}
 			case allNumber:
-				n.IndexT = &protocol.Type{Kind: protocol.KindNumber, ID: "_enumIdx_number"}
+				n.IndexT = &protocol.RunType{Kind: protocol.KindNumber, ID: "_enumIdx_number"}
 			default:
-				n.IndexT = &protocol.Type{Kind: protocol.KindUnion, ID: "_enumIdx_mixed"}
+				n.IndexT = &protocol.RunType{Kind: protocol.KindUnion, ID: "_enumIdx_mixed"}
 			}
 		}
 	}

@@ -39,7 +39,7 @@ func setup(t *testing.T) *resolver.Resolver {
 	return r
 }
 
-func typeByID(types []*protocol.Type, id string) *protocol.Type {
+func typeByID(types []*protocol.RunType, id string) *protocol.RunType {
 	for _, t := range types {
 		if t.ID == id {
 			return t
@@ -48,8 +48,8 @@ func typeByID(types []*protocol.Type, id string) *protocol.Type {
 	return nil
 }
 
-// deref walks a single ref slot to the actual Type entry in `types`.
-func deref(types []*protocol.Type, ref *protocol.Type) *protocol.Type {
+// deref walks a single ref slot to the actual RunType entry in `runTypes`.
+func deref(types []*protocol.RunType, ref *protocol.RunType) *protocol.RunType {
 	if ref == nil {
 		return nil
 	}
@@ -59,13 +59,13 @@ func deref(types []*protocol.Type, ref *protocol.Type) *protocol.Type {
 	return ref
 }
 
-func dump(r *resolver.Resolver) []*protocol.Type {
-	return r.Dispatch(protocol.Request{Op: protocol.OpDump}).Types
+func dump(r *resolver.Resolver) []*protocol.RunType {
+	return r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes
 }
 
 // findMember walks an objectLiteral / class root and returns the named member.
-func findMember(types []*protocol.Type, root *protocol.Type, name string) *protocol.Type {
-	for _, ref := range root.Types {
+func findMember(types []*protocol.RunType, root *protocol.RunType, name string) *protocol.RunType {
+	for _, ref := range root.Children {
 		m := deref(types, ref)
 		if m != nil && m.Name == name {
 			return m
@@ -74,11 +74,11 @@ func findMember(types []*protocol.Type, root *protocol.Type, name string) *proto
 	return nil
 }
 
-// resolveFile drives scanFile on file and returns the Type entry for the
+// resolveFile drives scanFile on file and returns the RunType entry for the
 // first site. Used by both file-loading (setup) and inline (setupInline)
 // flows — both end up with a relative file name reachable from the
 // resolver's cwd.
-func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.Type {
+func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.RunType {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
 	if resp.Error != "" {
@@ -139,7 +139,7 @@ reflectRuntypeId(u);
 	assertF2User(t, r, root)
 }
 
-func assertF2User(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF2User(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -151,13 +151,13 @@ func assertF2User(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	id := findMember(types, root, "id")
 	name := findMember(types, root, "name")
 	if id == nil || name == nil {
-		t.Fatalf("missing id/name members; types=%+v", root.Types)
+		t.Fatalf("missing id/name members; types=%+v", root.Children)
 	}
 	if id.Kind != protocol.KindPropertySignature || name.Kind != protocol.KindPropertySignature {
 		t.Fatalf("expected propertySignature kind, got id=%d name=%d", id.Kind, name.Kind)
 	}
-	idT := deref(types, id.Type)
-	nameT := deref(types, name.Type)
+	idT := deref(types, id.Child)
+	nameT := deref(types, name.Child)
 	if idT == nil || idT.Kind != protocol.KindNumber {
 		t.Fatalf("id.type expected number, got %+v", idT)
 	}
@@ -187,13 +187,13 @@ reflectRuntypeId(x);
 	assertF3Union(t, root)
 }
 
-func assertF3Union(t *testing.T, root *protocol.Type) {
+func assertF3Union(t *testing.T, root *protocol.RunType) {
 	t.Helper()
 	if root.Kind != protocol.KindUnion {
 		t.Fatalf("expected union, got %+v", root)
 	}
-	if len(root.Types) != 2 {
-		t.Fatalf("expected 2 union members, got %d", len(root.Types))
+	if len(root.Children) != 2 {
+		t.Fatalf("expected 2 union members, got %d", len(root.Children))
 	}
 }
 
@@ -245,7 +245,7 @@ reflectRuntypeId(add);
 	assertF5Function(t, r, root)
 }
 
-func assertF5Function(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF5Function(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
@@ -258,7 +258,7 @@ func assertF5Function(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	if a == nil || a.Kind != protocol.KindParameter || a.Name != "a" {
 		t.Fatalf("first param expected parameter:a, got %+v", a)
 	}
-	aType := deref(types, a.Type)
+	aType := deref(types, a.Child)
 	if aType == nil || aType.Kind != protocol.KindNumber {
 		t.Fatalf("param a type expected number, got %+v", aType)
 	}
@@ -288,7 +288,7 @@ reflectRuntypeId(routes);
 	assertF6Router(t, r, root)
 }
 
-func assertF6Router(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF6Router(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -298,12 +298,12 @@ func assertF6Router(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	if sayHello == nil {
 		t.Fatalf("missing sayHello member")
 	}
-	var fn *protocol.Type
+	var fn *protocol.RunType
 	switch sayHello.Kind {
 	case protocol.KindMethodSignature:
 		fn = sayHello
 	case protocol.KindPropertySignature:
-		fn = deref(types, sayHello.Type)
+		fn = deref(types, sayHello.Child)
 	default:
 		t.Fatalf("sayHello has unexpected kind %d", sayHello.Kind)
 	}
@@ -317,7 +317,7 @@ func assertF6Router(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	if pname == nil || pname.Name != "name" {
 		t.Fatalf("expected param name=name, got %+v", pname)
 	}
-	pT := deref(types, pname.Type)
+	pT := deref(types, pname.Child)
 	if pT == nil || pT.Kind != protocol.KindString {
 		t.Fatalf("name param expected string, got %+v", pT)
 	}
@@ -352,7 +352,7 @@ reflectRuntypeId(wrap({a: 1, b: 'x'}));
 	assertF7Object(t, r, root)
 }
 
-func assertF7Object(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF7Object(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -363,11 +363,11 @@ func assertF7Object(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	if a == nil || b == nil {
 		t.Fatalf("missing a/b properties")
 	}
-	if deref(types, a.Type).Kind != protocol.KindNumber {
-		t.Fatalf("a expected number, got %+v", deref(types, a.Type))
+	if deref(types, a.Child).Kind != protocol.KindNumber {
+		t.Fatalf("a expected number, got %+v", deref(types, a.Child))
 	}
-	if deref(types, b.Type).Kind != protocol.KindString {
-		t.Fatalf("b expected string, got %+v", deref(types, b.Type))
+	if deref(types, b.Child).Kind != protocol.KindString {
+		t.Fatalf("b expected string, got %+v", deref(types, b.Child))
 	}
 }
 
@@ -391,7 +391,7 @@ reflectRuntypeId(u);
 	assertF8IdName(t, r, root)
 }
 
-func assertF8IdName(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF8IdName(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
@@ -399,10 +399,10 @@ func assertF8IdName(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	}
 	id := findMember(types, root, "id")
 	name := findMember(types, root, "name")
-	if id == nil || deref(types, id.Type).Kind != protocol.KindNumber {
+	if id == nil || deref(types, id.Child).Kind != protocol.KindNumber {
 		t.Fatalf("id expected number, got %+v", id)
 	}
-	if name == nil || deref(types, name.Type).Kind != protocol.KindString {
+	if name == nil || deref(types, name.Child).Kind != protocol.KindString {
 		t.Fatalf("name expected string, got %+v", name)
 	}
 }
@@ -449,13 +449,13 @@ reflectRuntypeId(xs);
 	assertF12Array(t, r, root)
 }
 
-func assertF12Array(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF12Array(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected array, got %+v", root)
 	}
-	elem := deref(types, root.Type)
+	elem := deref(types, root.Child)
 	if elem == nil || elem.Kind != protocol.KindString {
 		t.Fatalf("array element expected string, got %+v", elem)
 	}
@@ -480,18 +480,18 @@ reflectRuntypeId(tup);
 	assertF13Tuple(t, r, root)
 }
 
-func assertF13Tuple(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF13Tuple(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindTuple {
 		t.Fatalf("expected tuple, got %+v", root)
 	}
-	if len(root.Types) != 2 {
-		t.Fatalf("expected 2 tuple members, got %d", len(root.Types))
+	if len(root.Children) != 2 {
+		t.Fatalf("expected 2 tuple members, got %d", len(root.Children))
 	}
-	first := deref(types, root.Types[0])
-	second := deref(types, root.Types[1])
-	if first == nil || first.Kind != protocol.KindTupleMember || deref(types, first.Type).Kind != protocol.KindNumber {
+	first := deref(types, root.Children[0])
+	second := deref(types, root.Children[1])
+	if first == nil || first.Kind != protocol.KindTupleMember || deref(types, first.Child).Kind != protocol.KindNumber {
 		t.Fatalf("first member expected tupleMember:number, got %+v", first)
 	}
 	if second == nil || second.Kind != protocol.KindTupleMember {
@@ -500,8 +500,8 @@ func assertF13Tuple(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 	if !second.Optional {
 		t.Fatalf("second member expected optional=true")
 	}
-	if deref(types, second.Type).Kind != protocol.KindString {
-		t.Fatalf("second member type expected string, got %+v", deref(types, second.Type))
+	if deref(types, second.Child).Kind != protocol.KindString {
+		t.Fatalf("second member type expected string, got %+v", deref(types, second.Child))
 	}
 }
 
@@ -524,13 +524,13 @@ reflectRuntypeId(p);
 	assertF14Promise(t, r, root)
 }
 
-func assertF14Promise(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF14Promise(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindPromise {
 		t.Fatalf("expected promise, got %+v", root)
 	}
-	val := deref(types, root.Type)
+	val := deref(types, root.Child)
 	if val == nil || val.Kind != protocol.KindNumber {
 		t.Fatalf("promise value expected number, got %+v", val)
 	}
@@ -563,7 +563,7 @@ reflectRuntypeId(u);
 	assertF15Class(t, r, root)
 }
 
-func assertF15Class(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF15Class(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindClass {
@@ -607,14 +607,14 @@ reflectRuntypeId(m);
 	assertF16Index(t, r, root)
 }
 
-func assertF16Index(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+func assertF16Index(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
 	}
-	var idx *protocol.Type
-	for _, ref := range root.Types {
+	var idx *protocol.RunType
+	for _, ref := range root.Children {
 		m := deref(types, ref)
 		if m != nil && m.Kind == protocol.KindIndexSignature {
 			idx = m
@@ -622,12 +622,12 @@ func assertF16Index(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
 		}
 	}
 	if idx == nil {
-		t.Fatalf("expected at least one indexSignature, got types=%+v", root.Types)
+		t.Fatalf("expected at least one indexSignature, got types=%+v", root.Children)
 	}
 	if deref(types, idx.Index).Kind != protocol.KindString {
 		t.Fatalf("index expected string, got %+v", deref(types, idx.Index))
 	}
-	if deref(types, idx.Type).Kind != protocol.KindNumber {
-		t.Fatalf("value expected number, got %+v", deref(types, idx.Type))
+	if deref(types, idx.Child).Kind != protocol.KindNumber {
+		t.Fatalf("value expected number, got %+v", deref(types, idx.Child))
 	}
 }

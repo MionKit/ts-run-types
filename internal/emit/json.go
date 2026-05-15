@@ -2,7 +2,7 @@
 //
 //   - JSON (reflection-shape reference table) — for tools, inspection, debugging
 //   - TypeScript module — runtime artifact consumers import to get a
-//     fully-knotted reflection Type graph from a `Map<id, Type>`.
+//     fully-knotted reflection RunType graph from a `Map<id, RunType>`.
 //
 // Both share the same in-memory representation (protocol.Dump) and produce
 // stable, deterministic output so diffs are minimal across builds.

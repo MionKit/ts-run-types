@@ -277,7 +277,7 @@ func (c *Computer) childIDs(types []*checker.Type) []string {
 
 // KindOf returns the ReflectionKind that best classifies a tsgo type.
 // Exported because the serializer needs the same classification logic to
-// produce the protocol.Type.
+// produce the protocol.RunType.
 func KindOf(tc *checker.Checker, t *checker.Type) protocol.ReflectionKind {
 	if t == nil {
 		return protocol.KindNever

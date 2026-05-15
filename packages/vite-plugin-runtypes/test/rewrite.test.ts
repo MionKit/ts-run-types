@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {rewrite} from '../src/rewrite.ts';
 import {renderCacheModule} from '../src/render-cache.ts';
-import {ReflectionKind, type Type} from '../src/protocol.ts';
+import {ReflectionKind, type RunType} from '../src/protocol.ts';
 import {BIN, hasBinary, withInlineSources, RUNTYPES_DTS} from './helpers/inline.ts';
 
-function findMember(types: Type[], root: Type, name: string): Type | undefined {
-  for (const ref of root.types ?? []) {
+function findMember(types: RunType[], root: RunType, name: string): RunType | undefined {
+  for (const ref of root.children ?? []) {
     const m = types.find((x) => x.id === ref.id);
     if (m && m.name === name) return m;
   }
@@ -73,20 +73,20 @@ reflectRuntypeId(u);
     });
   });
 
-  async function assertUserCacheShape(client: {dump: () => Promise<{types?: Type[]}>}) {
+  async function assertUserCacheShape(client: {dump: () => Promise<{runTypes?: RunType[]}>}) {
     const dump = await client.dump();
-    const types = dump.types ?? [];
-    const user = types.find((t) => t.typeName === 'User');
+    const runTypes = dump.runTypes ?? [];
+    const user = runTypes.find((t) => t.typeName === 'User');
     expect(user).toBeDefined();
     expect(user!.kind).toBe(ReflectionKind.objectLiteral);
 
-    const id = findMember(types, user!, 'id');
-    const name = findMember(types, user!, 'name');
+    const id = findMember(runTypes, user!, 'id');
+    const name = findMember(runTypes, user!, 'name');
     expect(id?.kind).toBe(ReflectionKind.propertySignature);
     expect(name?.kind).toBe(ReflectionKind.propertySignature);
 
-    const idType = types.find((t) => t.id === id!.type!.id);
-    const nameType = types.find((t) => t.id === name!.type!.id);
+    const idType = runTypes.find((t) => t.id === id!.child!.id);
+    const nameType = runTypes.find((t) => t.id === name!.child!.id);
     expect(idType?.kind).toBe(ReflectionKind.number);
     expect(nameType?.kind).toBe(ReflectionKind.string);
   }
@@ -123,17 +123,17 @@ const myAPI = reflectRuntypeId(routes);
     );
   });
 
-  async function assertSayHelloRouterShape(client: {dump: () => Promise<{types?: Type[]}>}) {
+  async function assertSayHelloRouterShape(client: {dump: () => Promise<{runTypes?: RunType[]}>}) {
     const dump = await client.dump();
-    const types = dump.types ?? [];
-    const root = types.find((t) => t.kind === ReflectionKind.objectLiteral && (t.types ?? []).length > 0);
+    const runTypes = dump.runTypes ?? [];
+    const root = runTypes.find((t) => t.kind === ReflectionKind.objectLiteral && (t.children ?? []).length > 0);
     expect(root).toBeDefined();
 
-    const sayHello = findMember(types, root!, 'sayHello');
+    const sayHello = findMember(runTypes, root!, 'sayHello');
     expect(sayHello).toBeDefined();
-    let fn: Type | undefined = sayHello;
+    let fn: RunType | undefined = sayHello;
     if (sayHello!.kind === ReflectionKind.propertySignature) {
-      fn = types.find((t) => t.id === sayHello!.type!.id);
+      fn = runTypes.find((t) => t.id === sayHello!.child!.id);
     }
     expect(fn?.parameters?.length).toBe(1);
   }
@@ -156,9 +156,9 @@ const info = reflectRuntypeId(userName);
   async function assertNoNewTypesOnReResolve(code: string, file: string) {
     await withInlineSources({[file]: code}, async ({client, sources}) => {
       await rewrite(file, sources[file], client);
-      const before = (await client.dump()).types?.length ?? 0;
+      const before = (await client.dump()).runTypes?.length ?? 0;
       await rewrite(file, sources[file], client);
-      const after = (await client.dump()).types?.length ?? 0;
+      const after = (await client.dump()).runTypes?.length ?? 0;
       expect(after).toBe(before);
     });
   }
@@ -167,14 +167,14 @@ const info = reflectRuntypeId(userName);
 describe('vite-plugin-runtypes / generated module', () => {
   const runMaybe = hasBinary() ? it : it.skip;
 
-  runMaybe('F17 static: rendered cache module exports a knotted reflection Type graph', async () => {
+  runMaybe('F17 static: rendered cache module exports a knotted reflection RunType graph', async () => {
     const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 const myAPI = getRuntypeId<{sayHello: (name: string) => string}>();
 `;
     await assertCacheModuleHasSayHelloRoot(code, 'router-static.ts');
   });
 
-  runMaybe('F17 reflect: rendered cache module exports a knotted reflection Type graph', async () => {
+  runMaybe('F17 reflect: rendered cache module exports a knotted reflection RunType graph', async () => {
     const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
 const sayHello = (name: string): string => 'Hello ' + name;
 const routes = {sayHello};
@@ -184,29 +184,29 @@ const myAPI = reflectRuntypeId(routes);
   });
 
   async function assertCacheModuleHasSayHelloRoot(code: string, file: string) {
-    const {types, sites} = await withInlineSources({[file]: code}, async ({client, sources}) => {
+    const {runTypes, sites} = await withInlineSources({[file]: code}, async ({client, sources}) => {
       await rewrite(file, sources[file], client);
       const dump = await client.dump();
-      return {types: dump.types ?? [], sites: dump.sites ?? []};
+      return {runTypes: dump.runTypes ?? [], sites: dump.sites ?? []};
     });
 
-    const tsModule = renderCacheModule({types, sites});
+    const tsModule = renderCacheModule({runTypes, sites});
     expect(tsModule).toContain('export const __runtypes');
-    expect(tsModule).toContain('type Type = any;');
+    expect(tsModule).toContain('type RunType = any;');
 
-    const js = renderCacheModule({types, sites, language: 'js'}).replace(/export const /g, 'result.');
+    const js = renderCacheModule({runTypes, sites, language: 'js'}).replace(/export const /g, 'result.');
     const factory = new Function(`const result = {}; ${js}; return result;`);
     const result = factory() as {__runtypes: Map<string, any>; __sites: any[]};
-    const runtypes = result.__runtypes;
-    expect(runtypes).toBeInstanceOf(Map);
+    const runtypesMap = result.__runtypes;
+    expect(runtypesMap).toBeInstanceOf(Map);
 
-    const roots = Array.from(runtypes.values()).filter(
+    const roots = Array.from(runtypesMap.values()).filter(
       (t: any) =>
-        t.kind === ReflectionKind.objectLiteral && Array.isArray(t.types) && t.types.some((m: any) => m.name === 'sayHello')
+        t.kind === ReflectionKind.objectLiteral && Array.isArray(t.children) && t.children.some((m: any) => m.name === 'sayHello')
     );
     expect(roots.length).toBeGreaterThan(0);
     const root = roots[0];
-    const sayHello = root.types.find((m: any) => m.name === 'sayHello');
+    const sayHello = root.children.find((m: any) => m.name === 'sayHello');
     expect(sayHello).toBeDefined();
     expect(sayHello.parent).toBe(root);
   }

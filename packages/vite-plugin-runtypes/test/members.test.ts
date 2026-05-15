@@ -6,7 +6,7 @@
 // referential equality after the virtual cache evaluates.
 
 import {describe, it, expect} from 'vitest';
-import {KIND_REF, ReflectionKind, type Type} from '../src/protocol.ts';
+import {KIND_REF, ReflectionKind, type RunType} from '../src/protocol.ts';
 import {evalCacheFor, getTypeFor, hasBinary} from './helpers/inline.ts';
 
 describe('vite-plugin-runtypes / member round-trip', () => {
@@ -34,7 +34,7 @@ reflectRuntypeId(xs);
   function assertArrayOfString(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'array.ts');
     expect(root.kind).toBe(ReflectionKind.array);
-    const elem = root.type as Type;
+    const elem = root.child as RunType;
     expect(elem).toBeDefined();
     expect(elem.kind).toBe(ReflectionKind.string);
   }
@@ -61,12 +61,12 @@ reflectRuntypeId(xs);
   function assertArrayOfObject(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'arrobj.ts');
     expect(root.kind).toBe(ReflectionKind.array);
-    const elem = root.type as Type;
+    const elem = root.child as RunType;
     expect(elem.kind).toBe(ReflectionKind.objectLiteral);
-    const xProp = elem.types?.find((m) => m.name === 'x');
+    const xProp = elem.children?.find((m) => m.name === 'x');
     expect(xProp).toBeDefined();
     expect(xProp!.kind).toBe(ReflectionKind.propertySignature);
-    expect((xProp!.type as Type).kind).toBe(ReflectionKind.number);
+    expect((xProp!.child as RunType).kind).toBe(ReflectionKind.number);
   }
 
   runMaybe('array of array of string static', async () => {
@@ -91,13 +91,13 @@ reflectRuntypeId(xs);
   function assertArrayOfArray(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'arrarr.ts');
     expect(root.kind).toBe(ReflectionKind.array);
-    const inner = root.type as Type;
+    const inner = root.child as RunType;
     expect(inner.kind).toBe(ReflectionKind.array);
-    expect((inner.type as Type).kind).toBe(ReflectionKind.string);
+    expect((inner.child as RunType).kind).toBe(ReflectionKind.string);
   }
 
   // Cycle-safety proof for both forms. The footer emits
-  // `t_<arrayId>.type = t_<treeId>;` so walking root → children → array →
+  // `t_<arrayId>.child = t_<treeId>;` so walking root → children → array →
   // element returns the SAME object as the root by reference.
   runMaybe('recursive self type static closes cycle by reference', async () => {
     const cache = await evalCacheFor({
@@ -127,11 +127,11 @@ reflectRuntypeId(t);
   function assertRecursiveTreeCycle(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'tree.ts');
     expect(root.kind).toBe(ReflectionKind.objectLiteral);
-    const childrenProp = root.types?.find((m) => m.name === 'children');
+    const childrenProp = root.children?.find((m) => m.name === 'children');
     expect(childrenProp).toBeDefined();
-    const arr = childrenProp!.type as Type;
+    const arr = childrenProp!.child as RunType;
     expect(arr.kind).toBe(ReflectionKind.array);
-    const back = arr.type as Type;
+    const back = arr.child as RunType;
     expect(back).toBeDefined();
     expect(back.kind).not.toBe(KIND_REF);
     // Referential equality — the cache footer wired the same const reference

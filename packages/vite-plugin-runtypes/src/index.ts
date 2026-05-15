@@ -2,7 +2,7 @@ import path from 'node:path';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
 import {renderCacheModule} from './render-cache.ts';
-import type {Site, Type} from './protocol.ts';
+import type {Site, RunType} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -32,7 +32,7 @@ export default function runtypes(options: PluginOptions) {
   let resolver: ResolverClient | null = null;
   // Accumulated across all transform() calls — cleared on resolver restart.
   // Keyed by hash id (mion's quickHash).
-  const types = new Map<string, Type>();
+  const types = new Map<string, RunType>();
   const sites: Site[] = [];
 
   return {
@@ -80,7 +80,7 @@ export default function runtypes(options: PluginOptions) {
         sites.push({file: rel, pos: s.pos, id: s.id, paramIndex: s.paramIndex});
       }
       const dump = await resolver.dump();
-      for (const t of dump.types ?? []) {
+      for (const t of dump.runTypes ?? []) {
         if (t.id !== undefined) types.set(t.id, t);
       }
 

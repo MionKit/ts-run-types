@@ -36,7 +36,7 @@ Concretely, at build time:
 | Type checking the project              | Whatever the user's tsconfig points at — `tsc`, `vue-tsc`, the editor, etc. | Unchanged. We don't type-check on the user's behalf.                                                                                                                    |
 | TS → JS emit                           | Vite's default (esbuild)                                                    | Unchanged. We never write `.js`.                                                                                                                                        |
 | Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-go-run-types** Go binary                    | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
-| Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full reflection-shape `Type` graph, keyed by hash.                                                                               |
+| Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full reflection-shape `RunType` graph, keyed by hash.                                                                            |
 | Runtime metadata access                | **@mionjs/ts-go-run-types** (`getMeta(id)`)                                 | One `Map.get(id)` lookup against the virtual module.                                                                                                                    |
 
 ### Why a separate Go binary
@@ -109,7 +109,7 @@ internal/program/                tsconfig + VFS bootstrap
 internal/walker/                 position → AST node finder + call iterator
 internal/marker/                 RuntypeId<T> sentinel detection
 internal/resolver/               scanFile + dump dispatch
-internal/serialize/              *checker.Type → protocol.TypeNode (dedup by id)
+internal/serialize/              *checker.Type → protocol.RunType (dedup by id)
 internal/protocol/               stdio JSON request/response types
 internal/testfixtures/           fixture .ts + shared tsconfig
 packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRuntypeId/reflectRuntypeId
@@ -149,7 +149,7 @@ Dispatches two operations:
 | op         | semantics                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scanFile` | Walks every CallExpression in file. For each whose resolved signature has a trailing `RuntypeId<T>` param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount}`. |
-| `dump`     | Returns the full cache (every Type) + the running Sites slice.                                                                                                            |
+| `dump`     | Returns the full cache (every RunType) + the running Sites slice.                                                                                                         |
 
 `Pos` is the byte offset of the closing `)` of the call — the TS-side patcher inserts at that offset. `ParamIndex` is the 0-based slot the injected id goes into; `ArgsCount` is the number of arguments the user already wrote (so the patcher knows whether to pad with `undefined`).
 
@@ -161,8 +161,8 @@ Pure struct definitions shared between the Go resolver and the TS plugin. Stdio 
 
 Two output formats share the same in-memory `protocol.Dump`:
 
-- **`json.go`** — pretty-printed JSON. Child Type slots stay as `{kind: -1, id: "<hash>"}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
-- **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`type`, `return`, `parameters`, `types`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted reflection `Type` object — no rehydration step.
+- **`json.go`** — pretty-printed JSON. Child RunType slots stay as `{kind: -1, id: "<hash>"}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
+- **`tsmodule.go`** — the **runtime artifact**. Emits a self-contained TypeScript module: every type is declared as a top-level `const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`child`, `return`, `parameters`, `children`, `parent`) by direct assignment. Consumers `import { __runtypes } from "./runtypes-cache"` and call `__runtypes.get(id)` to obtain a fully-knotted reflection `RunType` object — no rehydration step.
 
 ### packages/runtypes (`@mionjs/ts-go-run-types`)
 
@@ -171,7 +171,7 @@ Public marker package. Exports:
 - `type RuntypeId<T>` — the sentinel.
 - `function getRuntypeId<T>(id?)` — static marker. Use with an explicit type argument when there's no runtime value. Throws if called without an injected id (i.e. the plugin isn't active).
 - `function reflectRuntypeId<T>(value, id?)` — reflection marker. `T` is inferred from `value`. Same runtime contract as `getRuntypeId`.
-- `function getMeta(id: RuntypeId<unknown>)` — cache lookup. Returns the reflection-shape Type for an id, or `undefined` if the cache hasn't been wired up.
+- `function getMeta(id: RuntypeId<unknown>)` — cache lookup. Returns the reflection-shape RunType for an id, or `undefined` if the cache hasn't been wired up.
 - `function __setRuntypeMetaResolver(fn)` — the virtual cache module calls this on first import.
 
 ### packages/vite-plugin-runtypes
@@ -195,12 +195,12 @@ Neither built-in helper needs padding (`getRuntypeId` puts the id at slot 0; `re
 
 ## Reflection shape
 
-The protocol's `Type` is the canonical mion runtypes reflection-shape discriminated union. Specifically:
+The protocol's `RunType` is the canonical mion runtypes reflection-shape discriminated union. Specifically:
 
 - **Numeric `ReflectionKind`** is declared in a stable order (never=0, any=1, …, callSignature=35) so the integer values are wire-safe across releases. Sentinel `-1` is reserved for ref slots.
-- **Container shape**: `TypeObjectLiteral.types` is an array of `TypePropertySignature`/`TypeMethodSignature`/`TypeIndexSignature`/`TypeCallSignature` nodes; `TypeFunction.parameters` is an array of `TypeParameter` nodes; tuple elements are wrapped as `TypeTupleMember`.
+- **Container shape**: `KindObjectLiteral.children` is an array of `KindPropertySignature`/`KindMethodSignature`/`KindIndexSignature`/`KindCallSignature` nodes; `KindFunction.parameters` is an array of `KindParameter` nodes; tuple elements are wrapped as `KindTupleMember`.
 - **Annotations carried**: `id`, `typeName`, `typeArguments`, `optional`, `readonly`, `abstract`, `static`, `inlined`, `flags`, `description`, `default` (literal-only), `classRef` (provenance for v0.3 lazy-import).
-- **Knotted output**: the `.ts` runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `__runtypes.get(id)` is a drop-in source of `Type` objects for the user's runtypes JIT — no adapter layer needed.
+- **Knotted output**: the `.ts` runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `__runtypes.get(id)` is a drop-in source of `RunType` objects for the user's runtypes JIT — no adapter layer needed.
 
 Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 
@@ -221,14 +221,14 @@ See also the per-kind references:
 
 Member types are the family of nodes that own exactly one child slot — `Array<T>`, `TupleMember`, `Property`, `PropertySignature`, `Parameter`, `IndexSignature` (which adds an `index` key slot alongside its `type`). `Promise<T>` is modeled as a native type with the same single-child shape. They show up everywhere a parent composite needs to point at "the type of this slot".
 
-The wire format keeps these slots small via the `KindRef = -1` sentinel: every child Type returned by `serialize.Cache.Serialize` is a `{kind: -1, id: "<hash>"}` stub. The canonical full Type lives once in the cache, keyed by id. JSON consumers detect the sentinel and dereference manually; the emitted `virtual:runtypes-cache` module derefs at module-load time and hands consumers a fully-knotted graph.
+The wire format keeps these slots small via the `KindRef = -1` sentinel: every child RunType returned by `serialize.Cache.Serialize` is a `{kind: -1, id: "<hash>"}` stub. The canonical full RunType lives once in the cache, keyed by id. JSON consumers detect the sentinel and dereference manually; the emitted `virtual:runtypes-cache` module derefs at module-load time and hands consumers a fully-knotted graph.
 
 Cycles close at two layers without special-case code:
 
 - **Serializer**: [`serialize.Cache.assignID`](../internal/serialize/serialize.go) reserves the id and inserts a placeholder cache entry **before** projecting the type's children. A recursive walk that re-enters the same `*checker.Type` hits the `byPtr` lookup and gets back the reserved id immediately — no infinite recursion, no second projection.
-- **Emit**: the runtime artifact ([`internal/emit/tsmodule.go`](../internal/emit/tsmodule.go), mirrored in [`packages/vite-plugin-runtypes/src/render-cache.ts`](../packages/vite-plugin-runtypes/src/render-cache.ts)) declares every type as a scalar-only `const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.type = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors.
+- **Emit**: the runtime artifact ([`internal/emit/tsmodule.go`](../internal/emit/tsmodule.go), mirrored in [`packages/vite-plugin-runtypes/src/render-cache.ts`](../packages/vite-plugin-runtypes/src/render-cache.ts)) declares every type as a scalar-only `const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.child = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors.
 
-Callers walking a member type's child ref can ask the resolver for the canonical Type via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned Type's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
+Callers walking a member type's child ref can ask the resolver for the canonical RunType via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned RunType's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
 
 ## Shims — reaching into tsgo's `internal/`
 
