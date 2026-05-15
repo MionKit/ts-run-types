@@ -22,7 +22,7 @@ import (
 )
 
 // Options controls the resolver's hash budget and the marker-detection
-// parameters threaded through to scanFile.
+// parameters threaded through to scanFiles.
 type Options struct {
 	HashLength        int
 	LiteralHashLength int
@@ -44,7 +44,7 @@ type Options struct {
 // cache is shared across queries so type ids stay stable in a single dump.
 //
 // Program-less resolvers (built via NewServer) are valid: they accept the
-// setSources op to install a Program, then serve scanFile / dump as normal.
+// setSources op to install a Program, then serve scanFiles / dump as normal.
 // Subsequent setSources calls swap the Program in place — the structural
 // type cache survives across swaps so dedup IDs stay stable.
 type Resolver struct {
@@ -124,7 +124,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 // lives inside the Program) the in-memory source map. Equivalent to
 // throwing the Resolver away and replacing it with a fresh NewServer —
 // except the goroutine / connection stays open. After reset, the resolver
-// requires a new setSources before scanFile will work.
+// requires a new setSources before scanFiles will work.
 //
 // Lib files (lib.d.ts, bundled tsgo declarations) live behind the
 // cachedvfs layer in program.New / program.NewInferred — they are byte-
@@ -161,18 +161,20 @@ func (resolver *Resolver) Sites() []protocol.Site {
 func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 	before := resolver.cache.Size()
 	switch request.Op {
-	case protocol.OpScanFile:
+	case protocol.OpScanFiles:
 		if resolver.Program == nil {
-			return protocol.Response{Error: "scanFile: no Program loaded — call setSources first"}
+			return protocol.Response{Error: "scanFiles: no Program loaded — call setSources first"}
 		}
-		sites, err := resolver.dispatchScanFile(request.File)
+		if len(request.Files) == 0 {
+			return protocol.Response{Error: "scanFiles: files is required and must be non-empty"}
+		}
+		sites, err := resolver.dispatchScanFiles(request.Files)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
-		resolver.recordFileIDs(request.File, sites)
 		response := protocol.Response{Sites: sites, Added: resolver.cache.Added(before)}
 		if request.IncludeRunTypes || request.IncludeCacheSource {
-			scoped := resolver.scopedDump()
+			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
 				response.RunTypes = scoped.RunTypes
 			}
@@ -272,24 +274,33 @@ func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 	return sourceFile, nil
 }
 
-// dispatchScanFile walks every CallExpression in file and returns one Site
-// per call whose resolved signature has a trailing `RuntypeId<T>` parameter
-// (where T is concretely bound). The transformer reads the returned sites
-// and patches each call to pass the corresponding id at the trailing slot.
-func (resolver *Resolver) dispatchScanFile(file string) ([]protocol.Site, error) {
-	sourceFile, err := resolver.sourceFile(file)
-	if err != nil {
-		return nil, err
-	}
+// dispatchScanFiles walks every CallExpression in each requested file and
+// returns one Site per call whose resolved signature has a trailing
+// `RuntypeId<T>` parameter (where T is concretely bound). Sites for every
+// file are returned flat, each tagged with .File so callers can filter.
+//
+// After each per-file scan, recordFileIDs walks the sites' RunType graphs
+// and notes the reached wire ids against that file in the cache's per-file
+// scope map. The map drives the per-request projection that
+// scopedDump uses for IncludeRunTypes / IncludeCacheSource.
+func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, error) {
 	var sites []protocol.Site
-	walker.ForEachCallExpression(sourceFile, func(call *ast.Node) bool {
-		site, ok := resolver.scanCall(file, call)
-		if ok {
-			sites = append(sites, site)
-			resolver.sites = append(resolver.sites, site)
+	for _, file := range files {
+		sourceFile, err := resolver.sourceFile(file)
+		if err != nil {
+			return nil, err
 		}
-		return true
-	})
+		fileStart := len(sites)
+		walker.ForEachCallExpression(sourceFile, func(call *ast.Node) bool {
+			site, ok := resolver.scanCall(file, call)
+			if ok {
+				sites = append(sites, site)
+				resolver.sites = append(resolver.sites, site)
+			}
+			return true
+		})
+		resolver.recordFileIDs(file, sites[fileStart:])
+	}
 	return sites, nil
 }
 
@@ -534,13 +545,12 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 	}
 }
 
-// scopedDump builds a protocol.Dump covering the union of every file scanned
-// since the last reset / setSources. RunTypes are sorted by id (cache
-// guarantees) and sites are filtered to scanned-file entries only — callers
-// that haven't asked for the full in-memory dump shouldn't see types or
-// sites attributed to files outside the current scan session.
-func (resolver *Resolver) scopedDump() protocol.Dump {
-	files := resolver.cache.ScannedFiles()
+// scopedDump builds a protocol.Dump covering only the supplied files —
+// the request's per-call projection, not a session-wide accumulation.
+// RunTypes are sorted by id (cache guarantees) and sites are filtered to
+// the same file allowlist. Callers wanting the full in-memory cache use
+// dispatchDump instead.
+func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
 	ids := resolver.cache.IDsForUnion(files)
 	runTypes := resolver.cache.NodesForIDs(ids)
 	allowed := make(map[string]struct{}, len(files))

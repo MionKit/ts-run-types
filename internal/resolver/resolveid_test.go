@@ -34,12 +34,12 @@ func TestResolveID_ArrayRoundTrip_Reflect(t *testing.T) {
 func assertResolveIDArrayRoundTrip(t *testing.T, code string) {
 	t.Helper()
 	r := setupInline(t, map[string]string{"test.ts": code})
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp.Error != "" {
-		t.Fatalf("scanFile: %s", resp.Error)
+		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	if len(resp.Sites) == 0 {
-		t.Fatalf("scanFile returned no sites")
+		t.Fatalf("scanFiles returned no sites")
 	}
 	siteID := resp.Sites[0].ID
 
@@ -59,7 +59,7 @@ func assertResolveIDArrayRoundTrip(t *testing.T, code string) {
 
 func TestResolveID_UnknownReturnsEmpty(t *testing.T) {
 	r := setupInline(t, map[string]string{"test.ts": resolveIDArrayCodeReflect})
-	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpResolveID, ID: "does-not-exist"})
 	if resp.Error != "" {
 		t.Fatalf("unexpected error: %s", resp.Error)

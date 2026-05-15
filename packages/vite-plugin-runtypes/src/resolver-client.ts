@@ -16,7 +16,7 @@ export interface ResolverClientOptions {
   inlineSources?: Record<string, string>;
   // When true, spawns with --inline-server: no startup Program, no
   // handshake. The client is expected to install state via setSources
-  // before calling scanFile. The same connection persists across many
+  // before calling scanFiles. The same connection persists across many
   // setSources / reset cycles, so a single child process can serve every
   // test in a vitest file.
   serverMode?: boolean;
@@ -76,19 +76,20 @@ class MessageTransport {
   }
 }
 
-// ScanFileOptions opts the scanFile call into returning the union of
-// runTypes / a pre-rendered cache module covering every file scanned since
-// the last reset / setSources. Both flags are off by default so the
-// rewrite pipeline pays nothing extra.
-export interface ScanFileOptions {
+// ScanFilesOptions opts the scanFiles call into returning runTypes / a
+// pre-rendered cache module projected over the request's files. Both
+// flags are off by default so the rewrite pipeline (which only needs
+// site offsets) pays nothing extra.
+export interface ScanFilesOptions {
   includeRunTypes?: boolean;
   includeCacheSource?: boolean;
 }
 
-// ScanFileResult is the always-shape returned by scanFile. Sites are
-// per-file (rewriter contract); runTypes / cacheSource are populated only
-// when the corresponding flag was set on the call.
-export interface ScanFileResult {
+// ScanFilesResult is the shape returned by scanFiles. Sites are flat —
+// every site detected across the request's files, each tagged with .file
+// so callers can filter or group. runTypes / cacheSource are populated
+// only when the corresponding flag was set on the call.
+export interface ScanFilesResult {
   sites: Site[];
   runTypes?: RunType[];
   cacheSource?: string;
@@ -98,7 +99,7 @@ export interface ScanFileResult {
 // implement this interface so consumers can be typed against the connection
 // without caring which transport is in use.
 export interface ResolverConnection {
-  scanFile(file: string, opts?: ScanFileOptions): Promise<ScanFileResult>;
+  scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
   dump(): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
@@ -111,12 +112,13 @@ export interface ResolverConnection {
 abstract class ResolverClientBase implements ResolverConnection {
   protected abstract readonly transport: MessageTransport;
 
-  async scanFile(file: string, opts: ScanFileOptions = {}): Promise<ScanFileResult> {
-    const req: Request = {op: 'scanFile', file};
+  async scanFiles(files: string[], opts: ScanFilesOptions = {}): Promise<ScanFilesResult> {
+    if (files.length === 0) throw new Error('scanFiles: files must be non-empty');
+    const req: Request = {op: 'scanFiles', files};
     if (opts.includeRunTypes) req.includeRunTypes = true;
     if (opts.includeCacheSource) req.includeCacheSource = true;
     const resp = await this.transport.request(req);
-    if (resp.error) throw new Error(`scanFile ${file}: ${resp.error}`);
+    if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
     return {
       sites: resp.sites ?? [],
       runTypes: resp.runTypes,
@@ -135,7 +137,7 @@ abstract class ResolverClientBase implements ResolverConnection {
 
   // reset wipes ALL resolver state (cache, sites, Program, overlay) — see
   // internal/resolver/resolver.go:Reset for the contract. The caller must
-  // call setSources before the next scanFile.
+  // call setSources before the next scanFiles.
   async reset(): Promise<void> {
     const resp = await this.transport.request({op: 'reset'});
     if (resp.error) throw new Error(`reset: ${resp.error}`);
@@ -155,7 +157,7 @@ abstract class ResolverClientBase implements ResolverConnection {
 //   - opts.inlineSources: --one-shot --inline-sources-stdin, source map
 //     written as the handshake line before any request.
 //   - opts.serverMode: --one-shot --inline-server, no startup Program;
-//     the caller drives setSources / reset / scanFile / dump over stdin
+//     the caller drives setSources / reset / scanFiles / dump over stdin
 //     for the lifetime of the process.
 export class ResolverClient extends ResolverClientBase {
   private child: ChildProcess;

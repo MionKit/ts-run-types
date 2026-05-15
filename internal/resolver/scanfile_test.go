@@ -9,7 +9,7 @@ import (
 )
 
 // scanFixture is the shared driver behind the F17 / F17b regression tests.
-// It dispatches a scanFile op against `fixture` and asserts that every
+// It dispatches a scanFiles op against `fixture` and asserts that every
 // `want` needle produces a site whose Pos lands on the trailing `)` of
 // the matching call, with a non-negative ParamIndex and a hash-shaped id.
 // Each `neg` needle must NOT produce a site.
@@ -21,9 +21,9 @@ func scanFixture(
 ) {
 	t.Helper()
 	r := setup(t)
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: fixture})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{fixture}})
 	if resp.Error != "" {
-		t.Fatalf("scanFile: %s", resp.Error)
+		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	sites := resp.Sites
 
@@ -143,9 +143,9 @@ function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
 isType<{flag: boolean}>(true, 'manualHash');
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp.Error != "" {
-		t.Fatalf("scanFile: %s", resp.Error)
+		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	if len(resp.Sites) != 0 {
 		t.Fatalf("expected 0 sites (id slot already filled), got %d: %+v",
@@ -173,9 +173,9 @@ function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
 isType<{flag: boolean}>(true, 'manualHash');
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp.Error != "" {
-		t.Fatalf("scanFile: %s", resp.Error)
+		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	if len(resp.Sites) != 0 {
 		t.Fatalf("expected 0 sites (id slot already filled), got %d: %+v",
@@ -183,7 +183,7 @@ isType<{flag: boolean}>(true, 'manualHash');
 	}
 }
 
-// TestScanFile_Idempotent_Static: re-running scanFile on a static-form
+// TestScanFile_Idempotent_Static: re-running scanFiles on a static-form
 // source must add zero new types and report the same site count.
 func TestScanFile_Idempotent_Static(t *testing.T) {
 	const code = `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
@@ -223,13 +223,13 @@ isType<{flag: boolean}>(true);
 func assertIdempotent(t *testing.T, code string) {
 	t.Helper()
 	r := setupInline(t, map[string]string{"test.ts": code})
-	resp1 := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
+	resp1 := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp1.Error != "" {
-		t.Fatalf("first scanFile: %s", resp1.Error)
+		t.Fatalf("first scanFiles: %s", resp1.Error)
 	}
-	resp2 := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
+	resp2 := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
 	if resp2.Error != "" {
-		t.Fatalf("second scanFile: %s", resp2.Error)
+		t.Fatalf("second scanFiles: %s", resp2.Error)
 	}
 	if len(resp2.Added) != 0 {
 		t.Fatalf("expected zero added on idempotent re-scan, got %d", len(resp2.Added))

@@ -21,7 +21,7 @@ export interface Rewritten {
 // rather than a JS string — UTF-16 code-unit math would skew on any
 // multibyte char like an em-dash in a comment.
 export async function rewrite(file: string, code: string, resolver: ResolverClient): Promise<Rewritten> {
-  const {sites} = await resolver.scanFile(file);
+  const {sites} = await resolver.scanFiles([file]);
   if (sites.length === 0) return {code, sites: []};
 
   let buf = Buffer.from(code, 'utf8');
