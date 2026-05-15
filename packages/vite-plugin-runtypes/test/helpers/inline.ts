@@ -14,7 +14,7 @@
 // global slot survives.
 import path from 'node:path';
 import fs from 'node:fs';
-import type {TestAPI} from 'vitest';
+import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
 import {renderCacheModule} from '../../src/render-cache.ts';
@@ -167,3 +167,33 @@ export function getTypeFor(cache: EvaluatedCache, file: string): RunType {
 
 // Sugar so each test file doesn't repeat the gating boilerplate.
 export const runIfBinary = (it: TestAPI): TestAPI['skip'] | TestAPI => (hasBinary() ? it : it.skip);
+
+// name -> absolute path on disk. Used by runFiles to load real fixture
+// files instead of inline string literals.
+export type FilePaths = Record<string, string>;
+
+/** Skip-gated test that hoists (title, sources) so they are addressable as data for future docs generation. */
+export function runTest(title: string, sources: InlineSources, fn: (sources: InlineSources) => void | Promise<void>): void {
+  const register = runIfBinary(it);
+  register(title, async () => {
+    // Future: a docs reporter can read `task.meta.mionRuntypes` to emit
+    // examples without re-parsing test files. Wire-up site:
+    //   const {task} = (expect as any).getState();
+    //   if (task) task.meta = {...task.meta, mionRuntypes: {title, sources, mode: 'inline'}};
+    await fn(sources);
+  });
+}
+
+/** Like runTest, but each value is an absolute path to a fixture file. Missing files fail loudly. */
+export function runFiles(title: string, files: FilePaths, fn: (sources: InlineSources) => void | Promise<void>): void {
+  const register = runIfBinary(it);
+  register(title, async () => {
+    const resolved: InlineSources = {};
+    for (const [name, abs] of Object.entries(files)) {
+      if (!fs.existsSync(abs)) throw new Error(`runFiles: missing fixture file for "${name}": ${abs}`);
+      resolved[name] = fs.readFileSync(abs, 'utf8');
+    }
+    // Same docs-reporter hook as runTest, mode: 'file', plus the source paths.
+    await fn(resolved);
+  });
+}
