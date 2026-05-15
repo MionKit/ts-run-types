@@ -25,6 +25,7 @@ yarn-error.log*
 # Build / pack artefacts
 /runtypes-cache.json
 /tarballs/
+/logs/
 
 # IDE / editor
 # Track shared workspace settings/extensions, ignore user-specific files.

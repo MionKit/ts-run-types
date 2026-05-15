@@ -21,6 +21,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:logs": "vitest run --reporter=default --reporter=./scripts/runtypes-logs-reporter.mjs",
     "check:go-binary": "bash scripts/check-go-binary.sh",
     "format": "prettier --write 'packages/**/*.{ts,md}'",
     "check-format": "prettier --check 'packages/**/*.{ts,md}'",
