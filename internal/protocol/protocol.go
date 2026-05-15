@@ -84,7 +84,7 @@ type RunType struct {
 	ID            string         `json:"id"`
 	Kind          ReflectionKind `json:"kind"`
 	TypeName      string         `json:"typeName,omitempty"`
-	TypeArguments []*RunType        `json:"typeArguments,omitempty"`
+	TypeArguments []*RunType     `json:"typeArguments,omitempty"`
 	Inlined       bool           `json:"inlined,omitempty"`
 
 	// TypeLiteral
@@ -107,6 +107,20 @@ type RunType struct {
 	Visibility *int `json:"visibility,omitempty"`
 	Abstract   bool `json:"abstract,omitempty"`
 	Static     bool `json:"static,omitempty"`
+
+	// IsSafePropName — true when Name is a valid JS identifier and the
+	// consumer can emit `obj.<name>` dot access; false (omitted) means
+	// bracket notation is required. Mirrors mion's isSafePropName helper
+	// at runtype level so downstream codegen need not re-run the regex.
+	// Populated only on TypeProperty / TypePropertySignature / TypeMethod /
+	// TypeMethodSignature.
+	IsSafePropName bool `json:"isSafePropName,omitempty"`
+
+	// Position — 0-based slot index in the parent (function parameter list
+	// or tuple). Pointer so position 0 ships explicitly (`position: 0` is
+	// not stripped by omitempty). Nil for kinds that aren't positional.
+	// Populated only on TypeParameter and TypeTupleMember.
+	Position *int `json:"position,omitempty"`
 
 	// Default — literal-only; non-literal defaults are omitted with a Flags
 	// marker. Function/expression defaults are recorded in Flags as
@@ -132,7 +146,7 @@ type RunType struct {
 	// TypeEnum
 	Enum   map[string]any `json:"enum,omitempty"`
 	Values []any          `json:"values,omitempty"`
-	IndexT *RunType          `json:"indexType,omitempty"`
+	IndexT *RunType       `json:"indexType,omitempty"`
 
 	// TypeClass
 	ExtendsArguments []*RunType `json:"extendsArguments,omitempty"`
@@ -258,7 +272,7 @@ type Site struct {
 // Dump is the build-end manifest written to runtypes-cache.json.
 type Dump struct {
 	RunTypes []*RunType `json:"runTypes"`
-	Sites []Site  `json:"sites"`
+	Sites    []Site     `json:"sites"`
 }
 
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so

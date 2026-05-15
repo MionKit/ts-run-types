@@ -36,10 +36,10 @@ Cache entry shape:
 
 ### `KindTupleMember` (inline)
 
-Each tuple slot is wrapped in a `KindTupleMember` so per-slot annotations (`optional`, `rest`) attach to the member rather than the underlying type. A `KindTupleMember` carries a single `child` ref and is only valid inside a parent tuple.
+Each tuple slot is wrapped in a `KindTupleMember` so per-slot annotations (`optional`, `rest`, `position`, label `name`) attach to the member rather than the underlying type. A `KindTupleMember` carries a single `child` ref and is only valid inside a parent tuple. `position` is the member's 0-based slot index — shipped explicitly so consumers don't have to `indexOf` against the parent. Labels from `[a: number, b?: string]`-style declarations land in `name`.
 
 ```json
-{ "kind": 27, "optional": true, "child": { "kind": -1, "id": "<string-hash>" } }
+{ "kind": 27, "name": "b", "optional": true, "position": 1, "child": { "kind": -1, "id": "<string-hash>" } }
 ```
 
 ---
@@ -99,7 +99,7 @@ Cache entry shape:
 }
 ```
 
-Each `KindParameter` is `{ kind: 18, name: "a", child: { kind: -1, id: "<number>" }, optional?: bool }`.
+Each `KindParameter` is `{ kind: 18, name: "a", position: 0, child: { kind: -1, id: "<number>" }, optional?: bool, default?: literal }`. Literal defaults (`= 5`, `= "x"`, `= true`, `= null`) land in `default`; non-literal initializers leave `default` unset and append `flags: ["nonLiteralDefault"]`.
 
 ---
 
@@ -127,7 +127,7 @@ Cache entry shape:
 }
 ```
 
-The `PropertySignature` / `MethodSignature` children themselves are documented in [member-types.md](member-types.md).
+The `PropertySignature` / `MethodSignature` children themselves are documented in [member-types.md](member-types.md), including their full modifier surface (`optional`, `readonly`, `isSafePropName`, etc.).
 
 ### Index signatures — `KindIndexSignature`
 
@@ -177,7 +177,7 @@ Cache entry shape:
 }
 ```
 
-The `Property` / `Method` children themselves are documented in [member-types.md](member-types.md).
+The `Property` / `Method` children themselves are documented in [member-types.md](member-types.md). Instance and **static** members both land in `children` — statics carry `static: true`; visibility (`public` = 0, `protected` = 1, `private` = 2) lands in `visibility`; `abstract` and `readonly` are emitted as `true` when present.
 
 ---
 
