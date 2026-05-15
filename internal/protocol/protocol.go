@@ -231,7 +231,7 @@ type Response struct {
 	Added       []*RunType `json:"added,omitempty"`
 	Sites       []Site     `json:"sites,omitempty"`
 	RunTypes    []*RunType `json:"runTypes,omitempty"`
-	CacheSource string     `json:"-"`
+	CacheSource string     `json:"cacheSource,omitempty"`
 	Error       string     `json:"error,omitempty"`
 }
 
