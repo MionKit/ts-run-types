@@ -22,13 +22,13 @@ const isTypeInnerPrefix = "isType_"
 
 // IsTypeModule writes the runtime artifact for the
 // `virtual:runtypes-isType` module: module-level `'use strict';`,
-// a `getJitUtils` import, the shared `J` factory, and one
-// `export const get_isType_<hash> = J(…);` per RunType the IsTypeEmitter
-// supports. Each `J(…)` call builds the JitCompiledFn entry, calls
-// `utl.addToJitCache(entry)` to auto-register it under its jitFnHash,
-// and returns the entry for any consumer that wants the named export.
-// Importing the module is enough to populate mion's canonical
-// jitFnsCache — consumers no longer need to invoke a factory by name.
+// the shared `J` factory wrapped inside an `export function install(utl)`,
+// and one `<get_isType_hash>: J(…)` property per RunType the
+// IsTypeEmitter supports. The module is pure: importing it has no side
+// effect — the consumer must call `install(utl)` explicitly, at which
+// point every entry is materialized against the supplied utl, registered
+// via `utl.addToJitCache(entry)`, and returned as a map keyed by
+// factoryName for direct lookup.
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is
 // one line once the Emitter is implemented. Adding typeErrors later
@@ -38,19 +38,23 @@ func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 }
 
 // isTypeFactoryPreambleLines is everything the rendered module emits
-// before the per-entry exports:
+// before the per-entry properties of the returned map:
 //
 //   - `'use strict';` at module top — strict mode propagates lexically
 //     into every nested closure, so per-factory directives would be
 //     redundant. ES modules are strict by default, but the directive
 //     is kept as a marker for readers and for non-ESM evaluation paths
 //     (e.g. tests that eval the module body via `new Function`).
-//   - `import {getJitUtils} from '@mionjs/ts-go-run-types';` — the runtime registry.
 //   - `const u = undefined;` — same wire-size trick the runtypes module
 //     uses (internal/emit/runtypes_module.go's `RT` preamble).
-//   - `const J = (…) => {…};` — the shared factory that builds a
-//     JitCompiledFn entry, registers it in the JitUtils cache, and
-//     returns it. Mirrors `RT` in the runtypes module.
+//   - `export function install(utl) {` — the module's single export.
+//     Caller passes a JITUtils-shaped object; the function materializes
+//     every entry against it (so `createJitFn(utl)` and
+//     `utl.addToJitCache(entry)` happen at install-call time rather
+//     than at module import, eliminating the side-effect import).
+//   - `const J = (…) => {…};` — the shared factory inside install that
+//     builds a JitCompiledFn entry, registers it in the supplied utl's
+//     cache, and returns it. Mirrors `RT` in the runtypes module.
 //
 // All `JitCompiledFnData` fields the entry needs are passed as positional
 // args to `J`. Fields invariant per fnID family (`args`,
@@ -59,21 +63,27 @@ func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 // multiple lines without awkward formatting around trailing commas.
 var isTypeFactoryPreambleLines = []string{
 	"'use strict';",
-	"import {getJitUtils} from '@mionjs/ts-go-run-types';",
 	"",
 	"const u = undefined;",
-	"const J = (jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) => {",
-	"  const utl = getJitUtils();",
-	"  const fn = createJitFn(utl);",
-	"  const entry = {",
-	"    jitFnHash, fnID: 'isType', typeName,",
-	"    args: {'vλl': 'v'}, defaultParamValues: {'vλl': u},",
-	"    code, isNoop, jitDependencies, pureFnDependencies, createJitFn, fn,",
+	"export function install(utl) {",
+	"  const J = (jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) => {",
+	"    const fn = createJitFn(utl);",
+	"    const entry = {",
+	"      jitFnHash, fnID: 'isType', typeName,",
+	"      args: {'vλl': 'v'}, defaultParamValues: {'vλl': u},",
+	"      code, isNoop, jitDependencies, pureFnDependencies, createJitFn, fn,",
+	"    };",
+	"    utl.addToJitCache(entry);",
+	"    return entry;",
 	"  };",
-	"  utl.addToJitCache(entry);",
-	"  return entry;",
-	"};",
-	"",
+	"  return {",
+}
+
+// isTypeFactoryEpilogueLines closes the `return { … }` literal and the
+// surrounding `install(utl)` function body that the preamble opened.
+var isTypeFactoryEpilogueLines = []string{
+	"  };",
+	"}",
 }
 
 // RenderFnModule is the fn-agnostic module renderer. Emits the preamble,
@@ -115,17 +125,23 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		buffered.line(entry)
 	}
 
+	for _, postLine := range isTypeFactoryEpilogueLines {
+		buffered.line(postLine)
+	}
+
 	return buffered.err
 }
 
 // renderEntry compiles one RunType into a
-// `export const <factoryName> = J(<7 positional args>);` line. The
-// inner function lands as `<innerPrefix><hash>` (e.g. "isType_abc123");
-// the outer factory lands as `<VarPrefix><hash>` (e.g.
-// "get_isType_abc123"). Noop bodies — `function name(v){return true}`
-// for isType, or analogous defaults for other fns — return an empty
-// string so the renderer can skip them; consumers default to a trivial
-// fallback on the JS side (mirrors mion's `isNoop` short-circuit at
+// `    <factoryName>: J(<7 positional args>),` line inside the
+// `return { … }` literal of the `install(utl)` body. The inner function
+// lands as `<innerPrefix><hash>` (e.g. "isType_abc123"); the outer
+// property lands as `<VarPrefix><hash>` (e.g. "get_isType_abc123") so
+// consumers can look it up by the same name they used pre-migration.
+// Noop bodies — `function name(v){return true}` for isType, or
+// analogous defaults for other fns — return an empty string so the
+// renderer can skip them; consumers default to a trivial fallback on
+// the JS side (mirrors mion's `isNoop` short-circuit at
 // jitFnCompiler.ts:101).
 func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string) string {
 	factoryName := settings.VarPrefix + runType.ID
@@ -145,7 +161,7 @@ func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettin
 		stringSliceJS(walker.PureFnDependencies),
 		createJitFn,
 	}
-	return "export const " + factoryName + " = J(" + joinArgs(args) + ");"
+	return "    " + factoryName + ": J(" + joinArgs(args) + "),"
 }
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.

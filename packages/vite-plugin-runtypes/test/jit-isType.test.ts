@@ -63,15 +63,16 @@ getRuntypeId<string>();
       expect(stringRunType.kind).toBe(5); // ReflectionKind.string
 
       // 2. Evaluate the isType module against a stub JitUtils. The
-      //    module's `J(…)` factory calls `getJitUtils().addToJitCache`
-      //    on import — every emitted entry lands in the stub cache as
-      //    a side effect, indexed by jitFnHash.
+      //    module is pure: importing it does nothing. Calling its
+      //    single `install(utl)` export materializes every entry,
+      //    registers each via `utl.addToJitCache`, and returns the
+      //    entries map keyed by factoryName.
       const isTypeSource = response.isTypeCacheSource;
       if (!isTypeSource) throw new Error('expected isTypeCacheSource in response');
       const {byName, cache} = evalIsTypeModule(isTypeSource);
 
-      // Both the named export and the auto-registered cache entry must
-      // point at the same `JitCompiledFn` object — there's no copy.
+      // Both the returned map entry and the stub-registered cache entry
+      // must point at the same `JitCompiledFn` object — there's no copy.
       const named = byName[ISTYPE_VAR_PREFIX + site.id];
       const cached = cache[site.id];
       expect(named).toBeDefined();
@@ -111,27 +112,25 @@ function evalCacheModule(source: string): Record<string, RunType> {
   return factory() as Record<string, RunType>;
 }
 
-// evalIsTypeModule evaluates the rendered isType module under a stub
-// `getJitUtils()` so the import-time `addToJitCache(entry)` call lands
-// in a local cache we can inspect. Two rewrites:
+// evalIsTypeModule evaluates the rendered isType module and calls its
+// `install(utl)` export against a stub JitUtils. The stub records every
+// `addToJitCache(entry)` call in a local map so we can assert the install
+// call wired entries through the supplied utl. The returned object from
+// install — keyed by factoryName — is the consumer-facing entries map.
 //
-//   1. The `import {getJitUtils} from '@mionjs/ts-go-run-types';` statement
-//      is stripped — `new Function` evaluates in script scope, not module
-//      scope, so `import` is a syntax error. The stub is supplied as
-//      a positional arg to the generated function instead.
-//   2. `export const get_isType_X = J(…);` becomes
-//      `byName.get_isType_X = J(…);` so every named entry lands on the
-//      `byName` object alongside the auto-registered cache hit.
+// One rewrite: strip the `export` keyword off `function install` so the
+// declaration becomes a regular function we can pick up in `new Function`
+// (which evaluates in script scope where `export` is a syntax error).
 function evalIsTypeModule(source: string): {byName: Record<string, JitEntry>; cache: Record<string, JitEntry>} {
   const cache: Record<string, JitEntry> = {};
-  const stub = () => ({
+  const stub = {
     addToJitCache(entry: JitEntry) {
       cache[entry.jitFnHash] = entry;
     },
-  });
-  const js = source.replace(/^import .*from '@mionjs\/ts-go-run-types';\s*$/m, '').replace(/export const (\w+) = /g, 'byName.$1 = ');
-  const factory = new Function('getJitUtils', 'byName', js);
-  const byName: Record<string, JitEntry> = {};
-  factory(stub, byName);
+  };
+  const js = source.replace(/^export function install/m, 'function install');
+  const factory = new Function(`${js}\nreturn install;`);
+  const install = factory() as (utl: typeof stub) => Record<string, JitEntry>;
+  const byName = install(stub);
   return {byName, cache};
 }

@@ -1,6 +1,7 @@
 /* ########
  * 2024 mion
  * Author: Ma-jerez
+
  * License: MIT
  * The software is provided "as is", without warranty of any kind.
  * ######## */
@@ -15,30 +16,22 @@ import type {
     SerializableClass,
     PersistedJitFunctionsCache,
     FnsDataCache,
+    CompiledPureFunction,
+    PureFunction,
 } from './types.ts';
-import {CompiledPureFunction} from './types.ts';
-import {PureFunction} from './types.ts';
-import {initPureFunction, isTestEnv, getOrCreateGlobal} from './utils.ts';
 import {restoreCompiledJitFns} from './restoreJitFns.ts';
 
 // Minimal ambient — `console` is universally available at runtime (node + browser)
 // but the package's tsconfig sets `types: []` so the global isn't otherwise visible.
 declare const console: {warn(...args: any[]): void};
 
-// Local caches - can be populated from AOT caches via addAOTCaches()
-const jitFnsCache: JitFunctionsCache = getOrCreateGlobal('mion.jit.jitFnsCache', () => ({}) as JitFunctionsCache);
+// Module-local caches. Plain objects/Maps — no globalThis singleton trick;
+// dual-loading (CJS + ESM) is solved elsewhere in the bundler config.
+const jitFnsCache: JitFunctionsCache = {};
 /** Namespaced pure functions cache: { namespace: { fnHash: CompiledPureFunction } } */
-const pureFnsCache: PureFunctionsCache = getOrCreateGlobal('mion.jit.pureFnsCache', () => ({}) as PureFunctionsCache);
-
-// serializable classes registry, serializable classes can be automatically deserialized if they are registered here
-const deserializeFnsRegistry = getOrCreateGlobal(
-    'mion.jit.deserializeFnsRegistry',
-    () => new Map<string, DeserializeClassFn<any>>()
-);
-const serializableClassRegistry = getOrCreateGlobal(
-    'mion.jit.serializableClassRegistry',
-    () => new Map<string, SerializableClass>()
-);
+const pureFnsCache: PureFunctionsCache = {};
+const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
+const serializableClassRegistry = new Map<string, SerializableClass>();
 
 /**
  * Interface defining the shape of jitUtils
@@ -258,17 +251,10 @@ export function getJitFnCaches() {
     };
 }
 
-/**
- * Resets the jit and pure functions caches.
- * This is useful for testing purposes only.
- * Note: After calling this, AOT caches must be re-registered via virtual modules or addAOTCaches().
- */
-export function resetJitFnCaches() {
-    if (!isTestEnv()) throw new Error('resetJitFnCaches() can only be called fro testing purposes');
-    for (const k in jitFnsCache) delete jitFnsCache[k];
-    for (const k in pureFnsCache) delete pureFnsCache[k];
-    deserializeFnsRegistry.clear();
-    serializableClassRegistry.clear();
+/** Lazily materialize a pure function's `.fn` by invoking its `createPureFn` closure. */
+function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
+    if (compiled.fn) return;
+    compiled.fn = compiled.createPureFn(jitUtils);
 }
 
 /** Helper function to ensure namespace exists in the cache */
