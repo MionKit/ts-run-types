@@ -17,7 +17,6 @@ import fs from 'node:fs';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
-import {renderCacheModule} from '../../src/render-cache.ts';
 import type {Site, RunType} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
@@ -84,9 +83,11 @@ export async function resetSharedClient(): Promise<void> {
 
 export interface WithInlineOpts {
   // When true, sends a `reset` op before installing the new sources.
-  // `reset` wipes EVERYTHING (cache, sites, Program, overlay). Useful for
-  // tests that assert specific dump shapes against earlier tests IN THE
-  // SAME FILE. Between-files reset is automatic via afterAll.
+  // `reset` wipes EVERYTHING (cache, sites, Program, overlay). Most tests
+  // don't need this anymore — setSources alone clears the per-file scope
+  // map, so scanFile responses with includeRunTypes are already isolated
+  // to the freshly-installed source set. Kept for paranoia / tests that
+  // want to assert against a guaranteed-empty global cache.
   reset?: boolean;
 }
 
@@ -128,25 +129,32 @@ export interface EvaluatedCache {
   __sites: Site[];
 }
 
-// Full pipeline: rewrite every entry in `sources`, dump the resolver,
-// render the cache module, and eval it. Pass {reset: true} when the test
-// must see a clean dump (atomic's "two strings share a cache id" wants
-// exactly one string entry).
+// Full pipeline: scan every entry in `sources` via the resolver, asking the
+// LAST call to also return a rendered cache module covering the union of
+// every scanned file. The Go side scopes runTypes / cacheSource to "files
+// scanned since the last reset/setSources", so withInlineSources's
+// setSources call alone is enough to isolate each test — no `reset: true`
+// needed.
 export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
     async ({client, sources: augmented}) => {
-      const sites: Site[] = [];
-      for (const [file, code] of Object.entries(augmented)) {
-        if (file === 'runtypes.d.ts') continue; // shim, no callsites
-        const result = await rewrite(file, code, client);
-        for (const s of result.sites) {
-          sites.push({file, pos: s.pos, id: s.id, paramIndex: s.paramIndex});
-        }
+      const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
+      let cacheSource: string | undefined;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isLast = i === files.length - 1;
+        const {sites: scanned, cacheSource: emitted} = await client.scanFile(file, {
+          includeCacheSource: isLast,
+        });
+        // Run rewrite for its side-effect on the source text in case future
+        // tests assert against it (current callers don't, but the loop is
+        // cheap and keeps the scan path warm).
+        void scanned;
+        if (isLast) cacheSource = emitted;
       }
-      const dump = await client.dump();
-      const runTypes = dump.runTypes ?? [];
-      const js = renderCacheModule({runTypes, sites, language: 'js'}).replace(/export const /g, 'result.');
+      if (!cacheSource) throw new Error('evalCacheFor: resolver returned no cacheSource');
+      const js = cacheSource.replace(/export const /g, 'result.');
       const factory = new Function(`const result = {}; ${js}; return result;`);
       return factory() as EvaluatedCache;
     },

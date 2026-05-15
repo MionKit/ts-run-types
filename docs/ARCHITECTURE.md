@@ -178,8 +178,7 @@ Public marker package. Exports:
 
 - `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses. Forwards `--marker-name` / `--marker-module` if the user overrides them.
 - `rewrite.ts` — single function: for each file, calls `scanFile`, then applies the returned sites as **byte-offset** insertions to the source. Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
-- `render-cache.ts` — TS-side renderer that mirrors `internal/emit/tsmodule.go` byte-for-byte.
-- `index.ts` — Vite plugin glue. Short-circuits any file that doesn't contain the marker-module name as a cheap pre-filter. Emits `virtual:runtypes-cache`.
+- `index.ts` — Vite plugin glue. Short-circuits any file that doesn't contain the marker-module name as a cheap pre-filter. `load("virtual:runtypes-cache")` returns the `cacheSource` field from the resolver's `dump` response — the Go side is the single renderer.
 
 ## Slot injection and padding
 
@@ -226,7 +225,7 @@ The wire format keeps these slots small via the `KindRef = -1` sentinel: every c
 Cycles close at two layers without special-case code:
 
 - **Serializer**: [`serialize.Cache.assignID`](../internal/serialize/serialize.go) reserves the id and inserts a placeholder cache entry **before** projecting the type's children. A recursive walk that re-enters the same `*checker.Type` hits the `byPtr` lookup and gets back the reserved id immediately — no infinite recursion, no second projection.
-- **Emit**: the runtime artifact ([`internal/emit/tsmodule.go`](../internal/emit/tsmodule.go), mirrored in [`packages/vite-plugin-runtypes/src/render-cache.ts`](../packages/vite-plugin-runtypes/src/render-cache.ts)) declares every type as a scalar-only `const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.child = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors.
+- **Emit**: the runtime artifact ([`internal/emit/tsmodule.go`](../internal/emit/tsmodule.go)) declares every type as a scalar-only `const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.child = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors. The Vite plugin reads the rendered module string from the resolver's `dump` response — there's no JS-side renderer to mirror.
 
 Callers walking a member type's child ref can ask the resolver for the canonical RunType via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned RunType's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
 

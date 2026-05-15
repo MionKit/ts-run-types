@@ -4,6 +4,7 @@
 package resolver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-run-types/internal/emit"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -167,11 +169,35 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
-		return protocol.Response{Sites: sites, Added: resolver.cache.Added(before)}
+		resolver.recordFileIDs(request.File, sites)
+		response := protocol.Response{Sites: sites, Added: resolver.cache.Added(before)}
+		if request.IncludeRunTypes || request.IncludeCacheSource {
+			scoped := resolver.scopedDump()
+			if request.IncludeRunTypes {
+				response.RunTypes = scoped.RunTypes
+			}
+			if request.IncludeCacheSource {
+				rendered, renderErr := renderModule(scoped)
+				if renderErr != nil {
+					return protocol.Response{Error: renderErr.Error()}
+				}
+				response.CacheSource = rendered
+			}
+		}
+		return response
 	case protocol.OpDump:
-		return protocol.Response{
+		fullDump := protocol.Dump{
 			RunTypes: resolver.cache.Dump(),
 			Sites:    resolver.Sites(),
+		}
+		rendered, renderErr := renderModule(fullDump)
+		if renderErr != nil {
+			return protocol.Response{Error: renderErr.Error()}
+		}
+		return protocol.Response{
+			RunTypes:    fullDump.RunTypes,
+			Sites:       fullDump.Sites,
+			CacheSource: rendered,
 		}
 	case protocol.OpSetSources:
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {
@@ -432,6 +458,113 @@ unwrapped:
 		}
 	}
 	return "", "", false
+}
+
+// recordFileIDs walks every RunType transitively reachable from `sites` and
+// notes the visited wire ids against `file` in the per-file scope map. The
+// resulting map drives the "scanned files" semantics for IncludeRunTypes /
+// IncludeCacheSource — see scopedDump.
+func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
+	if file == "" || len(sites) == 0 {
+		return
+	}
+	visited := make(map[string]struct{})
+	var walk func(id string)
+	walk = func(id string) {
+		if id == "" {
+			return
+		}
+		if _, seen := visited[id]; seen {
+			return
+		}
+		visited[id] = struct{}{}
+		resolver.cache.RecordFileID(file, id)
+		node := resolver.cache.NodeByID(id)
+		if node == nil {
+			return
+		}
+		// Walk every ref-carrying slot. Inline scalar RunTypes (no .ID) don't
+		// reach further nodes, so following them is safe but pointless —
+		// RecordFileID is a no-op for empty ids anyway.
+		if node.Child != nil {
+			walk(node.Child.ID)
+		}
+		if node.Index != nil {
+			walk(node.Index.ID)
+		}
+		if node.Return != nil {
+			walk(node.Return.ID)
+		}
+		if node.IndexT != nil {
+			walk(node.IndexT.ID)
+		}
+		for _, child := range node.Children {
+			if child != nil {
+				walk(child.ID)
+			}
+		}
+		for _, parameter := range node.Parameters {
+			if parameter != nil {
+				walk(parameter.ID)
+			}
+		}
+		for _, typeArgument := range node.TypeArguments {
+			if typeArgument != nil {
+				walk(typeArgument.ID)
+			}
+		}
+		for _, argument := range node.Arguments {
+			if argument != nil {
+				walk(argument.ID)
+			}
+		}
+		for _, extendsArgument := range node.ExtendsArguments {
+			if extendsArgument != nil {
+				walk(extendsArgument.ID)
+			}
+		}
+		for _, implement := range node.Implements {
+			if implement != nil {
+				walk(implement.ID)
+			}
+		}
+	}
+	for _, site := range sites {
+		walk(site.ID)
+	}
+}
+
+// scopedDump builds a protocol.Dump covering the union of every file scanned
+// since the last reset / setSources. RunTypes are sorted by id (cache
+// guarantees) and sites are filtered to scanned-file entries only — callers
+// that haven't asked for the full in-memory dump shouldn't see types or
+// sites attributed to files outside the current scan session.
+func (resolver *Resolver) scopedDump() protocol.Dump {
+	files := resolver.cache.ScannedFiles()
+	ids := resolver.cache.IDsForUnion(files)
+	runTypes := resolver.cache.NodesForIDs(ids)
+	allowed := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		allowed[file] = struct{}{}
+	}
+	sites := make([]protocol.Site, 0, len(resolver.sites))
+	for _, site := range resolver.sites {
+		if _, ok := allowed[site.File]; ok {
+			sites = append(sites, site)
+		}
+	}
+	return protocol.Dump{RunTypes: runTypes, Sites: sites}
+}
+
+// renderModule emits the JS cache module for dump to a string. The emit
+// layer is the single source of truth; the plugin no longer renders the
+// module on the JS side.
+func renderModule(dump protocol.Dump) (string, error) {
+	var buf bytes.Buffer
+	if err := emit.TSModule(&buf, dump); err != nil {
+		return "", fmt.Errorf("renderModule: %w", err)
+	}
+	return buf.String(), nil
 }
 
 // splitRegexLiteralText converts the raw RegExp literal text (e.g. "/abc/i")

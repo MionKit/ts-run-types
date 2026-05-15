@@ -35,7 +35,7 @@ Options:
     --daemon            listen on a Unix socket for persistent serving
     --socket PATH       socket path (default: /tmp/ts-go-run-types.sock)
     --out-json PATH     after stdin is drained, write the cache as JSON to PATH
-    --out-ts   PATH     after stdin is drained, write the runtime TS artifact to PATH
+    --out-ts   PATH     after stdin is drained, write the runtime cache JS module to PATH
     --hash-length N     short-id length for type hashes (default 6)
     --literal-hash-length N  short-id length for literal-typed hashes (default 5)
     --marker-name NAME  marker type alias (default RuntypeId)
@@ -77,7 +77,7 @@ func main() {
 	flag.BoolVar(&daemon, "daemon", false, "daemon Unix-socket mode")
 	flag.StringVar(&socketPath, "socket", "/tmp/ts-go-run-types.sock", "Unix socket path")
 	flag.StringVar(&outJSON, "out-json", "", "write cache as JSON to PATH after stdin EOF")
-	flag.StringVar(&outTS, "out-ts", "", "write runtime TS module to PATH after stdin EOF")
+	flag.StringVar(&outTS, "out-ts", "", "write runtime cache JS module to PATH after stdin EOF")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 6)")
 	flag.IntVar(&literalHashLength, "literal-hash-length", 0, "short-id length for literal hashes (0 = default 5)")
 	flag.StringVar(&markerName, "marker-name", "", "marker type alias (default RuntypeId)")

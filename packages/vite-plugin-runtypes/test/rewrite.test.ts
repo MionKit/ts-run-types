@@ -3,7 +3,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {rewrite} from '../src/rewrite.ts';
-import {renderCacheModule} from '../src/render-cache.ts';
 import {ReflectionKind, type RunType} from '../src/protocol.ts';
 import {BIN, runTest, withInlineSources, RUNTYPES_DTS} from './helpers/inline.ts';
 
@@ -230,17 +229,16 @@ const myAPI = reflectRuntypeId(routes);
   );
 
   async function assertCacheModuleHasSayHelloRoot(sources: Record<string, string>, file: string) {
-    const {runTypes, sites} = await withInlineSources(sources, async ({client}) => {
+    const cacheSource = await withInlineSources(sources, async ({client}) => {
       await rewrite(file, sources[file], client);
       const dump = await client.dump();
-      return {runTypes: dump.runTypes ?? [], sites: dump.sites ?? []};
+      return dump.cacheSource ?? '';
     });
 
-    const tsModule = renderCacheModule({runTypes, sites});
-    expect(tsModule).toContain('export const __runtypes');
-    expect(tsModule).toContain('type RunType = any;');
+    expect(cacheSource).toContain('export const __runtypes');
+    expect(cacheSource).toMatch(/export const __runtypes = new Map\(/);
 
-    const js = renderCacheModule({runTypes, sites, language: 'js'}).replace(/export const /g, 'result.');
+    const js = cacheSource.replace(/export const /g, 'result.');
     const factory = new Function(`const result = {}; ${js}; return result;`);
     const result = factory() as {__runtypes: Map<string, any>; __sites: any[]};
     const runtypesMap = result.__runtypes;
@@ -255,6 +253,11 @@ const myAPI = reflectRuntypeId(routes);
     const sayHello = root.children.find((m: any) => m.name === 'sayHello');
     expect(sayHello).toBeDefined();
     expect(sayHello.parent).toBe(root);
+    // Every cached RunType must carry its `id` (the primary cache handle).
+    for (const t of runtypesMap.values()) {
+      expect(typeof t.id).toBe('string');
+      expect(t.id.length).toBeGreaterThan(0);
+    }
   }
 
   // CLI round-trip via spawnSync — kept as a single test (one form is
@@ -280,7 +283,9 @@ const myAPI = reflectRuntypeId(routes);
       expect(out.status).toBe(0);
       const generated = fs.readFileSync(tmp, 'utf8');
       expect(generated).toContain('export const __runtypes');
-      expect(generated).toMatch(/const t_[A-Za-z][A-Za-z0-9_]*: any/);
+      expect(generated).toMatch(/const t_[A-Za-z][A-Za-z0-9_]*\s*=/);
+      // Output is now plain JS — no TypeScript annotations to assert against.
+      expect(generated).not.toContain(': any');
       fs.unlinkSync(tmp);
     }
   );
