@@ -249,25 +249,25 @@ type Dump struct {
 
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
 // dump responses (which don't resolve a single id) don't carry a misleading "".
-func (r Response) MarshalJSON() ([]byte, error) {
+func (response Response) MarshalJSON() ([]byte, error) {
 	out := make(map[string]any, 6)
-	if r.HasID {
-		out["id"] = r.ID
+	if response.HasID {
+		out["id"] = response.ID
 	}
-	if r.OK {
+	if response.OK {
 		out["ok"] = true
 	}
-	if len(r.Added) > 0 {
-		out["added"] = r.Added
+	if len(response.Added) > 0 {
+		out["added"] = response.Added
 	}
-	if len(r.Sites) > 0 {
-		out["sites"] = r.Sites
+	if len(response.Sites) > 0 {
+		out["sites"] = response.Sites
 	}
-	if len(r.RunTypes) > 0 {
-		out["runTypes"] = r.RunTypes
+	if len(response.RunTypes) > 0 {
+		out["runTypes"] = response.RunTypes
 	}
-	if r.Error != "" {
-		out["error"] = r.Error
+	if response.Error != "" {
+		out["error"] = response.Error
 	}
 	return jsonMarshal(out)
 }

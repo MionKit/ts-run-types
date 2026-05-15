@@ -43,24 +43,24 @@ func QuickHash(input string, length int, prev string) string {
 	if length < 1 {
 		length = 1
 	}
-	var h uint32
+	var hash uint32
 	for i := 0; i < len(input); i++ {
 		// Go's uint32 multiplication wraps mod 2^32 — same low-32 bits as
 		// JS's Math.imul + `>>> 0`. ASCII inputs only (our structural ids
 		// are all ASCII) so byte-indexing matches charCodeAt semantics.
-		h = h*prime + uint32(input[i])
+		hash = hash*prime + uint32(input[i])
 	}
 	result := []byte(prev)
 	// First character: from the 52-letter alphabet so the hash is a valid
 	// JS identifier when used as a variable name.
-	h = h * prime
+	hash = hash * prime
 	if len(result) == 0 {
-		result = append(result, alphaChars[h%uint32(len(alphaChars))])
+		result = append(result, alphaChars[hash%uint32(len(alphaChars))])
 	}
 	// Remaining characters: from the 62-char alphanumeric alphabet.
 	for len(result) < length {
-		h = h * prime
-		result = append(result, hashChars[h%uint32(len(hashChars))])
+		hash = hash * prime
+		result = append(result, hashChars[hash%uint32(len(hashChars))])
 	}
 	if len(result) > length {
 		result = result[:length]
@@ -89,8 +89,8 @@ func New() *Dict {
 // Unique returns a unique hash for `id`. Repeat calls with the same `id`
 // return the same hash. Two distinct ids that hash to the same string at
 // `length` cause the second call to extend the length and re-hash.
-func (d *Dict) Unique(id string, length int) (string, error) {
-	if existing, ok := d.reverse[id]; ok {
+func (dict *Dict) Unique(id string, length int) (string, error) {
+	if existing, ok := dict.reverse[id]; ok {
 		return existing, nil
 	}
 	if length < 1 {
@@ -99,16 +99,16 @@ func (d *Dict) Unique(id string, length int) (string, error) {
 	hash := QuickHash(id, length, "")
 	counter := 1
 	for {
-		owner, taken := d.entries[hash]
+		owner, taken := dict.entries[hash]
 		if !taken {
-			d.entries[hash] = id
-			d.reverse[id] = hash
+			dict.entries[hash] = id
+			dict.reverse[id] = hash
 			return hash, nil
 		}
 		if owner == id {
 			// Idempotent hit — somehow the reverse map didn't catch it
 			// (shouldn't happen, but guard anyway).
-			d.reverse[id] = hash
+			dict.reverse[id] = hash
 			return hash, nil
 		}
 		// Collision: grow length and continue the hash chain.
@@ -122,20 +122,20 @@ func (d *Dict) Unique(id string, length int) (string, error) {
 }
 
 // Has reports whether `hash` is already assigned in this Dict.
-func (d *Dict) Has(hash string) bool {
-	_, ok := d.entries[hash]
+func (dict *Dict) Has(hash string) bool {
+	_, ok := dict.entries[hash]
 	return ok
 }
 
 // Lookup returns the original structural id for a given hash, or "" if absent.
-func (d *Dict) Lookup(hash string) string {
-	return d.entries[hash]
+func (dict *Dict) Lookup(hash string) string {
+	return dict.entries[hash]
 }
 
 // Reset clears the dictionary. Useful for tests.
-func (d *Dict) Reset() {
-	d.entries = make(map[string]string)
-	d.reverse = make(map[string]string)
+func (dict *Dict) Reset() {
+	dict.entries = make(map[string]string)
+	dict.reverse = make(map[string]string)
 }
 
 // ErrTooManyCollisions is returned by Unique when the maximum collision
