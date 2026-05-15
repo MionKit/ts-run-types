@@ -418,3 +418,218 @@ func walkProp(t *testing.T, types []*protocol.RunType, parent *protocol.RunType,
 	}
 	return child
 }
+
+// ---- F34 — Interface with nested circular + multiple circular --------------
+//
+// Adapted from mion's `Interface with nested circular + multiple circular`
+// describe in interface.spec.ts:763. Three interleaved recursive shapes:
+//
+//	interface ICircularDeep {
+//	    name: string;
+//	    big: bigint;
+//	    embedded: { hello: string; child?: ICircularDeep };  // back-edge via inline
+//	}
+//
+//	interface ICircularDate {
+//	    date: Date;
+//	    month: number;
+//	    year: number;
+//	    embedded?: ICircularDate;   // self back-edge
+//	    deep?: ICircularDeep;       // cross-reference
+//	}
+//
+//	interface RootCircular {
+//	    isRoot: true;               // literal
+//	    ciChild: ICircularDeep;
+//	    ciRoort?: RootCircular;     // self back-edge (note: `ciRoort` is mion's typo, preserved)
+//	    ciDate: ICircularDate;
+//	}
+//
+// Each named interface must appear exactly once in the cache; every
+// back-edge must close on its expected canonical id.
+
+func TestF34_NestedAndMultipleCircular_Static(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface ICircularDeep {
+  name: string;
+  big: bigint;
+  embedded: {
+    hello: string;
+    child?: ICircularDeep;
+  };
+}
+interface ICircularDate {
+  date: Date;
+  month: number;
+  year: number;
+  embedded?: ICircularDate;
+  deep?: ICircularDeep;
+}
+interface RootCircular {
+  isRoot: true;
+  ciChild: ICircularDeep;
+  ciRoort?: RootCircular;
+  ciDate: ICircularDate;
+}
+getRuntypeId<RootCircular>();
+`
+	r, root := resolveInline(t, code)
+	assertF34NestedAndMultipleCircular(t, r, root)
+}
+
+func TestF34_NestedAndMultipleCircular_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+interface ICircularDeep {
+  name: string;
+  big: bigint;
+  embedded: {
+    hello: string;
+    child?: ICircularDeep;
+  };
+}
+interface ICircularDate {
+  date: Date;
+  month: number;
+  year: number;
+  embedded?: ICircularDate;
+  deep?: ICircularDeep;
+}
+interface RootCircular {
+  isRoot: true;
+  ciChild: ICircularDeep;
+  ciRoort?: RootCircular;
+  ciDate: ICircularDate;
+}
+declare const value: RootCircular;
+reflectRuntypeId(value);
+`
+	r, root := resolveInline(t, code)
+	assertF34NestedAndMultipleCircular(t, r, root)
+}
+
+func assertF34NestedAndMultipleCircular(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
+	t.Helper()
+	types := dump(r)
+	if root.Kind != protocol.KindObjectLiteral {
+		t.Fatalf("expected RootCircular KindObjectLiteral, got %+v", root)
+	}
+	// TypeName is only populated for `type X = ...` aliases, not `interface
+	// X { ... }` declarations (see serialize.go projectType, line 361).
+	// Identity is verified via canonical id uniqueness below instead.
+	rootID := root.ID
+
+	// ----- root: isRoot literal `true` -----
+	isRoot := findMember(types, root, "isRoot")
+	if isRoot == nil {
+		t.Fatalf("missing 'isRoot' on RootCircular; children=%+v", root.Children)
+	}
+	isRootChild := deref(types, isRoot.Child)
+	if isRootChild == nil || isRootChild.Kind != protocol.KindLiteral {
+		t.Fatalf("isRoot.child expected KindLiteral, got %+v", isRootChild)
+	}
+	if v, ok := isRootChild.Literal.(bool); !ok || !v {
+		t.Fatalf("isRoot literal expected true, got %#v", isRootChild.Literal)
+	}
+
+	// ----- root → ciChild → ICircularDeep -----
+	ciChild := findMember(types, root, "ciChild")
+	if ciChild == nil {
+		t.Fatalf("missing 'ciChild'; children=%+v", root.Children)
+	}
+	icDeep := deref(types, ciChild.Child)
+	if icDeep == nil || icDeep.Kind != protocol.KindObjectLiteral {
+		t.Fatalf("ciChild.child expected KindObjectLiteral, got %+v", icDeep)
+	}
+	icDeepID := icDeep.ID
+	if got := countByID(types, icDeepID); got != 1 {
+		t.Fatalf("expected ICircularDeep to appear exactly once in cache, got %d", got)
+	}
+
+	// ----- root → ciRoort? → RootCircular (self back-edge) -----
+	ciRoort := findMember(types, root, "ciRoort")
+	if ciRoort == nil {
+		t.Fatalf("missing 'ciRoort'; children=%+v", root.Children)
+	}
+	if !ciRoort.Optional {
+		t.Fatalf("ciRoort expected Optional=true, got %+v", ciRoort)
+	}
+	ciRoortBack := deref(types, ciRoort.Child)
+	if ciRoortBack == nil || ciRoortBack.ID != rootID {
+		t.Fatalf("expected ciRoort.child to close cycle on rootID=%s, got %+v", rootID, ciRoortBack)
+	}
+
+	// ----- root → ciDate → ICircularDate -----
+	ciDate := findMember(types, root, "ciDate")
+	if ciDate == nil {
+		t.Fatalf("missing 'ciDate'; children=%+v", root.Children)
+	}
+	icDate := deref(types, ciDate.Child)
+	if icDate == nil || icDate.Kind != protocol.KindObjectLiteral {
+		t.Fatalf("ciDate.child expected KindObjectLiteral, got %+v", icDate)
+	}
+	icDateID := icDate.ID
+	if got := countByID(types, icDateID); got != 1 {
+		t.Fatalf("expected ICircularDate to appear exactly once in cache, got %d", got)
+	}
+	if rootID == icDeepID || rootID == icDateID || icDeepID == icDateID {
+		t.Fatalf("expected three distinct canonical ids; root=%s icDeep=%s icDate=%s", rootID, icDeepID, icDateID)
+	}
+
+	// ----- ICircularDeep internals: name/string, big/bigint, embedded → inline obj -----
+	if name := findMember(types, icDeep, "name"); name == nil || deref(types, name.Child).Kind != protocol.KindString {
+		t.Fatalf("ICircularDeep.name expected string, got %+v", name)
+	}
+	if big := findMember(types, icDeep, "big"); big == nil || deref(types, big.Child).Kind != protocol.KindBigInt {
+		t.Fatalf("ICircularDeep.big expected bigint, got %+v", big)
+	}
+	embedded := findMember(types, icDeep, "embedded")
+	if embedded == nil {
+		t.Fatalf("missing 'embedded' on ICircularDeep; children=%+v", icDeep.Children)
+	}
+	embeddedObj := deref(types, embedded.Child)
+	if embeddedObj == nil || embeddedObj.Kind != protocol.KindObjectLiteral {
+		t.Fatalf("embedded.child expected KindObjectLiteral, got %+v", embeddedObj)
+	}
+	if hello := findMember(types, embeddedObj, "hello"); hello == nil || deref(types, hello.Child).Kind != protocol.KindString {
+		t.Fatalf("embedded.hello expected string, got %+v", hello)
+	}
+	child := findMember(types, embeddedObj, "child")
+	if child == nil {
+		t.Fatalf("missing 'child' on embedded; children=%+v", embeddedObj.Children)
+	}
+	if !child.Optional {
+		t.Fatalf("embedded.child expected Optional=true, got %+v", child)
+	}
+	childBack := deref(types, child.Child)
+	if childBack == nil || childBack.ID != icDeepID {
+		t.Fatalf("expected embedded.child to close cycle on icDeepID=%s, got %+v", icDeepID, childBack)
+	}
+
+	// ----- ICircularDate internals: date/Date, month/number, year/number,
+	//       embedded?/ICircularDate (self back-edge), deep?/ICircularDeep -----
+	if date := findMember(types, icDate, "date"); date == nil {
+		t.Fatalf("missing 'date' on ICircularDate; children=%+v", icDate.Children)
+	} else if dt := deref(types, date.Child); dt == nil || dt.Kind != protocol.KindClass || dt.TypeName != "Date" {
+		t.Fatalf("date.child expected KindClass Date, got %+v", dt)
+	}
+	if month := findMember(types, icDate, "month"); month == nil || deref(types, month.Child).Kind != protocol.KindNumber {
+		t.Fatalf("month expected number, got %+v", month)
+	}
+	if year := findMember(types, icDate, "year"); year == nil || deref(types, year.Child).Kind != protocol.KindNumber {
+		t.Fatalf("year expected number, got %+v", year)
+	}
+	dateEmbedded := findMember(types, icDate, "embedded")
+	if dateEmbedded == nil || !dateEmbedded.Optional {
+		t.Fatalf("ICircularDate.embedded expected optional, got %+v", dateEmbedded)
+	}
+	if dateEmbeddedBack := deref(types, dateEmbedded.Child); dateEmbeddedBack == nil || dateEmbeddedBack.ID != icDateID {
+		t.Fatalf("expected ICircularDate.embedded to close cycle on icDateID=%s, got %+v", icDateID, dateEmbeddedBack)
+	}
+	deep := findMember(types, icDate, "deep")
+	if deep == nil || !deep.Optional {
+		t.Fatalf("ICircularDate.deep expected optional, got %+v", deep)
+	}
+	if deepCross := deref(types, deep.Child); deepCross == nil || deepCross.ID != icDeepID {
+		t.Fatalf("expected ICircularDate.deep to cross-reference icDeepID=%s, got %+v", icDeepID, deepCross)
+	}
+}
