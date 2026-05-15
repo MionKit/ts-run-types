@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRuntypeId} from '@mionjs/ts-go-run-types';
+import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
 export {};
 const v: string = 'hello';
-getRuntypeId(v);
+reflectRuntypeId(v);

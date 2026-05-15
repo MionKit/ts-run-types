@@ -9,7 +9,8 @@ declare module '@mionjs/ts-go-run-types' {
   // Branded-string sentinel — only the phantom `T` matters to the checker.
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
 
-  // Canonical reflection helper. The transformer rewrites every call
-  // site to pass the trailing `id` argument.
-  export function getRuntypeId<T>(value?: T, id?: RuntypeId<T>): RuntypeId<T>;
+  // Static marker — explicit T, no value.
+  export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T>;
+  // Reflection marker — T inferred from a runtime value.
+  export function reflectRuntypeId<T>(value: T, id?: RuntypeId<T>): RuntypeId<T>;
 }

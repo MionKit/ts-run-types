@@ -2,5 +2,6 @@
 // `@mionjs/ts-go-run-types` install on the search path.
 declare module '@mionjs/ts-go-run-types' {
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export function getRuntypeId<T>(value?: T, id?: RuntypeId<T>): RuntypeId<T>;
+  export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T>;
+  export function reflectRuntypeId<T>(value: T, id?: RuntypeId<T>): RuntypeId<T>;
 }

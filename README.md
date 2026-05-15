@@ -8,7 +8,7 @@ Compile-time type resolver for [mion runtypes](https://github.com/mionkit) on **
 
 TypeScript 7 ships the compiler as a compiled Go binary. The legacy custom-transformer API has not been ported (see [microsoft/typescript-go#516](https://github.com/microsoft/typescript-go/issues/516)), and the compiler can no longer be monkey-patched from Node. Runtime type-reflection libraries that relied on patching `tsc` therefore need a new, native side-channel into the checker.
 
-`ts-go-run-types` provides that channel — driven by a single primitive (the `RuntypeId<T>` sentinel) rather than a hard-coded list of function names, so users can wrap the canonical helper freely.
+`ts-go-run-types` provides that channel — driven by a single primitive (the `RuntypeId<T>` sentinel) rather than a hard-coded list of function names, so users can wrap the canonical helpers freely.
 
 ## Status
 
@@ -30,7 +30,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
               virtual:runtypes-cache  ──▶  runtime / JIT  (getMeta(id))
 ```
 
-1. User code imports `RuntypeId<T>` / `getRuntypeId<T>(val)` from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: RuntypeId<T>` as its trailing parameter to opt into the same flow.
+1. User code imports `RuntypeId<T>` / `getRuntypeId<T>()` (static) or `reflectRuntypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: RuntypeId<T>` as its trailing parameter to opt into the same flow.
 2. The Vite plugin sends each source file to the Go binary's `scanFile` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `RuntypeId<T>` (declared in `@mionjs/ts-go-run-types`) with `T` concretely bound.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. At build end, the plugin emits `virtual:runtypes-cache` — a reflection-shape, fully-knotted `Type` graph keyed by hash id. Runtimes read it via `getMeta(id)`.
@@ -67,7 +67,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
 
 | Path                                                                                                         | Purpose                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| [packages/runtypes](packages/runtypes/)                                                                      | `@mionjs/ts-go-run-types` — `RuntypeId<T>` marker type, `getRuntypeId`, `getMeta`, `__setRuntypeMetaResolver`. |
+| [packages/runtypes](packages/runtypes/)                                                                      | `@mionjs/ts-go-run-types` — `RuntypeId<T>` marker type, `getRuntypeId`, `reflectRuntypeId`, `getMeta`, `__setRuntypeMetaResolver`. |
 | [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, emits `virtual:runtypes-cache`.               |
 | [packages/vite-plugin-runtypes/src/resolver-client.ts](packages/vite-plugin-runtypes/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                                          |
 | [packages/vite-plugin-runtypes/src/rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                               |
@@ -76,13 +76,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design.
 ## Use
 
 ```ts
-import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+import {getRuntypeId, reflectRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
 
-// 1. Direct reflection — T inferred from the argument.
-const userId = getRuntypeId({id: 1, name: 'm'});
-
-// 2. Explicit type argument.
+// 1. Static form — explicit type argument, no value.
 const stringId = getRuntypeId<string>();
+const userId = getRuntypeId<{id: number; name: string}>();
+
+// 2. Reflection form — T inferred from a runtime value.
+const sayHelloId = reflectRuntypeId(sayHelloFn);
 
 // 3. User-defined wrapper — declare the same trailing RuntypeId<T> param,
 //    the transformer treats it identically.
@@ -96,9 +97,10 @@ isType<User>(payload);
 The transformer rewrites each call to:
 
 ```ts
-getRuntypeId({id: 1, name: 'm'}, 'abc123');
-getRuntypeId<string>(undefined, 'Lk7Px9');
-isType<User>(payload, 'qzPnXt');
+getRuntypeId<string>('Lk7Px9');
+getRuntypeId<{id: number; name: string}>('abc123');
+reflectRuntypeId(sayHelloFn, 'qzPnXt');
+isType<User>(payload, 'mNr4Vw');
 ```
 
 A free type parameter (a call inside a generic body where the marker's `T` is the wrapper's own type variable) is _skipped_ — the wrapper must propagate by declaring `id?: RuntypeId<T>` itself and the injection happens at the wrapper's own call sites.
