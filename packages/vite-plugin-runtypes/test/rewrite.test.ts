@@ -15,122 +15,81 @@ function findMember(types: RunType[], root: RunType, name: string): RunType | un
   return undefined;
 }
 
-const f9StaticSrc = {
-  'user.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-type User = {id: number; name: string};
-getRuntypeId<User>();
-`,
-};
-
-const f9ReflectSrc = {
-  'user-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-type User = {id: number; name: string};
-const u = {id: 1, name: 'm'} as User;
-reflectRuntypeId(u);
-`,
-};
-
-const f10StaticSrc = {
-  'user.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-type User = {id: number; name: string};
-getRuntypeId<User>();
-`,
-};
-
-const f10ReflectSrc = {
-  'user-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-type User = {id: number; name: string};
-const u = {id: 1, name: 'm'} as User;
-reflectRuntypeId(u);
-`,
-};
-
-const f6StaticSrc = {
-  'router-static.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-const myAPI = getRuntypeId<{sayHello: (name: string) => string}>();
-`,
-};
-
-const f6ReflectSrc = {
-  'router-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const sayHello = (name: string): string => 'Hello ' + name;
-const routes = {sayHello};
-const myAPI = reflectRuntypeId(routes);
-`,
-};
-
-const dedupStaticSrc = {
-  'primitive-static.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-const info = getRuntypeId<string>();
-`,
-};
-
-const dedupReflectSrc = {
-  'primitive-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const userName: string = 'mario';
-const info = reflectRuntypeId(userName);
-`,
-};
-
-const f17StaticSrc = {
-  'router-static.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-const myAPI = getRuntypeId<{sayHello: (name: string) => string}>();
-`,
-};
-
-const f17ReflectSrc = {
-  'router-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const sayHello = (name: string): string => 'Hello ' + name;
-const routes = {sayHello};
-const myAPI = reflectRuntypeId(routes);
-`,
-};
-
-const cliRoundTripSrc = {
-  'router.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const sayHello = (name: string): string => 'Hello ' + name;
-const routes = {sayHello};
-const myAPI = reflectRuntypeId(routes);
-`,
-};
-
 describe('vite-plugin-runtypes / rewrite', () => {
-  runTest('F9 static: rewrites getRuntypeId<User>() to pass a hash site id', f9StaticSrc, async (sources) => {
-    await withInlineSources(sources, async ({client}) => {
-      const {code: out, sites} = await rewrite('user.ts', sources['user.ts'], client);
+  runTest(
+    'F9 static: rewrites getRuntypeId<User>() to pass a hash site id',
+    {
+      'user.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+getRuntypeId<User>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {code: out, sites} = await rewrite('user.ts', sources['user.ts'], client);
 
-      expect(sites.length).toBe(1);
-      expect(typeof sites[0].id).toBe('string');
-      expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-      // Static form has no preceding arguments — the injected id sits in slot 0.
-      expect(out).toContain(`getRuntypeId<User>(${JSON.stringify(sites[0].id)});`);
-    });
-  });
+        expect(sites.length).toBe(1);
+        expect(typeof sites[0].id).toBe('string');
+        expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
+        // Static form has no preceding arguments — the injected id sits in slot 0.
+        expect(out).toContain(`getRuntypeId<User>(${JSON.stringify(sites[0].id)});`);
+      });
+    }
+  );
 
-  runTest('F9 reflect: rewrites reflectRuntypeId(u) to pass a hash site id', f9ReflectSrc, async (sources) => {
-    await withInlineSources(sources, async ({client}) => {
-      const {code: out, sites} = await rewrite('user-reflect.ts', sources['user-reflect.ts'], client);
+  runTest(
+    'F9 reflect: rewrites reflectRuntypeId(u) to pass a hash site id',
+    {
+      'user-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+const u = {id: 1, name: 'm'} as User;
+reflectRuntypeId(u);
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        const {code: out, sites} = await rewrite('user-reflect.ts', sources['user-reflect.ts'], client);
 
-      expect(sites.length).toBe(1);
-      expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
-      // Reflect form: `u` is arg 0, the injected id is arg 1.
-      expect(out).toContain(`reflectRuntypeId(u, ${JSON.stringify(sites[0].id)});`);
-    });
-  });
+        expect(sites.length).toBe(1);
+        expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
+        // Reflect form: `u` is arg 0, the injected id is arg 1.
+        expect(out).toContain(`reflectRuntypeId(u, ${JSON.stringify(sites[0].id)});`);
+      });
+    }
+  );
 
-  runTest('F10 static: cache contains User alias with reflection-shape propertySignatures', f10StaticSrc, async (sources) => {
-    await withInlineSources(sources, async ({client}) => {
-      await rewrite('user.ts', sources['user.ts'], client);
-      await assertUserCacheShape(client);
-    });
-  });
+  runTest(
+    'F10 static: cache contains User alias with reflection-shape propertySignatures',
+    {
+      'user.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+getRuntypeId<User>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        await rewrite('user.ts', sources['user.ts'], client);
+        await assertUserCacheShape(client);
+      });
+    }
+  );
 
-  runTest('F10 reflect: cache contains User alias with reflection-shape propertySignatures', f10ReflectSrc, async (sources) => {
-    await withInlineSources(sources, async ({client}) => {
-      await rewrite('user-reflect.ts', sources['user-reflect.ts'], client);
-      await assertUserCacheShape(client);
-    });
-  });
+  runTest(
+    'F10 reflect: cache contains User alias with reflection-shape propertySignatures',
+    {
+      'user-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+const u = {id: 1, name: 'm'} as User;
+reflectRuntypeId(u);
+`,
+    },
+    async (sources) => {
+      await withInlineSources(sources, async ({client}) => {
+        await rewrite('user-reflect.ts', sources['user-reflect.ts'], client);
+        await assertUserCacheShape(client);
+      });
+    }
+  );
 
   async function assertUserCacheShape(client: {dump: () => Promise<{runTypes?: RunType[]}>}) {
     const dump = await client.dump();
@@ -150,29 +109,47 @@ describe('vite-plugin-runtypes / rewrite', () => {
     expect(nameType?.kind).toBe(ReflectionKind.string);
   }
 
-  runTest('F6 static: getRuntypeId<routes>() carries nested object+function shape', f6StaticSrc, async (sources) => {
-    await withInlineSources(
-      sources,
-      async ({client}) => {
-        const {sites} = await rewrite('router-static.ts', sources['router-static.ts'], client);
-        expect(sites.length).toBeGreaterThan(0);
-        await assertSayHelloRouterShape(client);
-      },
-      {reset: true}
-    );
-  });
+  runTest(
+    'F6 static: getRuntypeId<routes>() carries nested object+function shape',
+    {
+      'router-static.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const myAPI = getRuntypeId<{sayHello: (name: string) => string}>();
+`,
+    },
+    async (sources) => {
+      await withInlineSources(
+        sources,
+        async ({client}) => {
+          const {sites} = await rewrite('router-static.ts', sources['router-static.ts'], client);
+          expect(sites.length).toBeGreaterThan(0);
+          await assertSayHelloRouterShape(client);
+        },
+        {reset: true}
+      );
+    }
+  );
 
-  runTest('F6 reflect: reflectRuntypeId(routes) infers nested object+function shape', f6ReflectSrc, async (sources) => {
-    await withInlineSources(
-      sources,
-      async ({client}) => {
-        const {sites} = await rewrite('router-reflect.ts', sources['router-reflect.ts'], client);
-        expect(sites.length).toBeGreaterThan(0);
-        await assertSayHelloRouterShape(client);
-      },
-      {reset: true}
-    );
-  });
+  runTest(
+    'F6 reflect: reflectRuntypeId(routes) infers nested object+function shape',
+    {
+      'router-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const sayHello = (name: string): string => 'Hello ' + name;
+const routes = {sayHello};
+const myAPI = reflectRuntypeId(routes);
+`,
+    },
+    async (sources) => {
+      await withInlineSources(
+        sources,
+        async ({client}) => {
+          const {sites} = await rewrite('router-reflect.ts', sources['router-reflect.ts'], client);
+          expect(sites.length).toBeGreaterThan(0);
+          await assertSayHelloRouterShape(client);
+        },
+        {reset: true}
+      );
+    }
+  );
 
   async function assertSayHelloRouterShape(client: {dump: () => Promise<{runTypes?: RunType[]}>}) {
     const dump = await client.dump();
@@ -189,13 +166,30 @@ describe('vite-plugin-runtypes / rewrite', () => {
     expect(fn?.parameters?.length).toBe(1);
   }
 
-  runTest('dedup static: re-resolving the same file adds no new types', dedupStaticSrc, async (sources) => {
-    await assertNoNewTypesOnReResolve(sources, 'primitive-static.ts');
-  });
+  runTest(
+    'dedup static: re-resolving the same file adds no new types',
+    {
+      'primitive-static.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const info = getRuntypeId<string>();
+`,
+    },
+    async (sources) => {
+      await assertNoNewTypesOnReResolve(sources, 'primitive-static.ts');
+    }
+  );
 
-  runTest('dedup reflect: re-resolving the same file adds no new types', dedupReflectSrc, async (sources) => {
-    await assertNoNewTypesOnReResolve(sources, 'primitive-reflect.ts');
-  });
+  runTest(
+    'dedup reflect: re-resolving the same file adds no new types',
+    {
+      'primitive-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const userName: string = 'mario';
+const info = reflectRuntypeId(userName);
+`,
+    },
+    async (sources) => {
+      await assertNoNewTypesOnReResolve(sources, 'primitive-reflect.ts');
+    }
+  );
 
   async function assertNoNewTypesOnReResolve(sources: Record<string, string>, file: string) {
     await withInlineSources(sources, async ({client}) => {
@@ -209,13 +203,31 @@ describe('vite-plugin-runtypes / rewrite', () => {
 });
 
 describe('vite-plugin-runtypes / generated module', () => {
-  runTest('F17 static: rendered cache module exports a knotted reflection RunType graph', f17StaticSrc, async (sources) => {
-    await assertCacheModuleHasSayHelloRoot(sources, 'router-static.ts');
-  });
+  runTest(
+    'F17 static: rendered cache module exports a knotted reflection RunType graph',
+    {
+      'router-static.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const myAPI = getRuntypeId<{sayHello: (name: string) => string}>();
+`,
+    },
+    async (sources) => {
+      await assertCacheModuleHasSayHelloRoot(sources, 'router-static.ts');
+    }
+  );
 
-  runTest('F17 reflect: rendered cache module exports a knotted reflection RunType graph', f17ReflectSrc, async (sources) => {
-    await assertCacheModuleHasSayHelloRoot(sources, 'router-reflect.ts');
-  });
+  runTest(
+    'F17 reflect: rendered cache module exports a knotted reflection RunType graph',
+    {
+      'router-reflect.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const sayHello = (name: string): string => 'Hello ' + name;
+const routes = {sayHello};
+const myAPI = reflectRuntypeId(routes);
+`,
+    },
+    async (sources) => {
+      await assertCacheModuleHasSayHelloRoot(sources, 'router-reflect.ts');
+    }
+  );
 
   async function assertCacheModuleHasSayHelloRoot(sources: Record<string, string>, file: string) {
     const {runTypes, sites} = await withInlineSources(sources, async ({client}) => {
@@ -251,7 +263,13 @@ describe('vite-plugin-runtypes / generated module', () => {
   // test bypasses the in-process ResolverClient entirely.
   runTest(
     "CLI --out-ts produces a parseable module identical in shape to the plugin's output",
-    cliRoundTripSrc,
+    {
+      'router.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const sayHello = (name: string): string => 'Hello ' + name;
+const routes = {sayHello};
+const myAPI = reflectRuntypeId(routes);
+`,
+    },
     async (sources) => {
       const tmp = path.join(__dirname, '.tmp-cache.ts');
       const handshake = JSON.stringify({sources: {'runtypes.d.ts': RUNTYPES_DTS, 'router.ts': sources['router.ts']}}) + '\n';
