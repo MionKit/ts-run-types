@@ -105,6 +105,7 @@ Write paired tests (not parameterized): each scenario is two distinct tests, eac
 - Don't use `@param` and `@returns` comments in JSDoc
 - Prefer one-liner comments for functions, eg `/** does this and that **/`
 - Prefer one-line `if` statements, eg `if (condition) doSomething();`
+- Use meaningful variable names in both Go and JS/TS — avoid one-letter abbreviations like `p`, `c`, `t`. When a struct field has a JSON tag, reuse that name for the local variable. Bad: `func New(p *Program, c *Checker)`. Good: `func New(program *Program, checker *Checker)`. Loop indices (`i`, `k`, `v`) and `err` are fine.
 
 ## Development Workflow
 

@@ -41,9 +41,9 @@ func New(opts Options) (*Program, error) {
 	cwd := tspath.NormalizePath(opts.Cwd)
 
 	baseFS := bundled.WrapFS(cachedvfs.From(osvfs.FS()))
-	var fs vfs.FS = baseFS
+	var fileSystem vfs.FS = baseFS
 	if len(opts.Overlay) > 0 {
-		fs = newOverlayFS(baseFS, opts.Overlay)
+		fileSystem = newOverlayFS(baseFS, opts.Overlay)
 	}
 
 	configPath := opts.TsconfigPath
@@ -52,34 +52,34 @@ func New(opts Options) (*Program, error) {
 	} else {
 		configPath = tspath.ResolvePath(cwd, configPath)
 	}
-	if !fs.FileExists(configPath) {
+	if !fileSystem.FileExists(configPath) {
 		return nil, fmt.Errorf("tsconfig not found at %s", configPath)
 	}
 
-	host := compiler.NewCompilerHost(cwd, fs, bundled.LibPath(), nil, nil)
+	host := compiler.NewCompilerHost(cwd, fileSystem, bundled.LibPath(), nil, nil)
 
-	parsed, diagnostics := tsoptions.GetParsedCommandLineOfConfigFile(
+	parsedConfig, diagnostics := tsoptions.GetParsedCommandLineOfConfigFile(
 		configPath, &core.CompilerOptions{}, nil, host, nil,
 	)
 	if len(diagnostics) > 0 {
 		return nil, fmt.Errorf("tsconfig parse failed: %s", ast.Diagnostic_Localize(diagnostics[0], ast.DefaultLocale()))
 	}
 
-	progOpts := compiler.ProgramOptions{
-		Config:         parsed,
+	programOpts := compiler.ProgramOptions{
+		Config:         parsedConfig,
 		SingleThreaded: core.TSFalse,
 		Host:           host,
 	}
 	if opts.SingleThreaded {
-		progOpts.SingleThreaded = core.TSTrue
+		programOpts.SingleThreaded = core.TSTrue
 	}
 
-	ts := compiler.NewProgram(progOpts)
-	if ts == nil {
+	tsProgram := compiler.NewProgram(programOpts)
+	if tsProgram == nil {
 		return nil, errors.New("compiler.NewProgram returned nil")
 	}
-	ts.BindSourceFiles()
-	return &Program{TS: ts, FS: fs}, nil
+	tsProgram.BindSourceFiles()
+	return &Program{TS: tsProgram, FS: fileSystem}, nil
 }
 
 // NewInferred builds a Program without a tsconfig — used when the caller just
@@ -88,14 +88,14 @@ func NewInferred(opts Options, fileNames []string) (*Program, error) {
 	cwd := tspath.NormalizePath(opts.Cwd)
 
 	baseFS := bundled.WrapFS(cachedvfs.From(osvfs.FS()))
-	var fs vfs.FS = baseFS
+	var fileSystem vfs.FS = baseFS
 	if len(opts.Overlay) > 0 {
-		fs = newOverlayFS(baseFS, opts.Overlay)
+		fileSystem = newOverlayFS(baseFS, opts.Overlay)
 	}
 
-	host := compiler.NewCompilerHost(cwd, fs, bundled.LibPath(), nil, nil)
+	host := compiler.NewCompilerHost(cwd, fileSystem, bundled.LibPath(), nil, nil)
 
-	progOpts := compiler.ProgramOptions{
+	programOpts := compiler.ProgramOptions{
 		Config: &tsoptions.ParsedCommandLine{
 			ParsedConfig: &core.ParsedOptions{
 				CompilerOptions: &core.CompilerOptions{
@@ -116,19 +116,19 @@ func NewInferred(opts Options, fileNames []string) (*Program, error) {
 		Host:           host,
 	}
 	if opts.SingleThreaded {
-		progOpts.SingleThreaded = core.TSTrue
+		programOpts.SingleThreaded = core.TSTrue
 	}
 
-	ts := compiler.NewProgram(progOpts)
-	if ts == nil {
+	tsProgram := compiler.NewProgram(programOpts)
+	if tsProgram == nil {
 		return nil, errors.New("compiler.NewProgram returned nil")
 	}
-	ts.BindSourceFiles()
-	return &Program{TS: ts, FS: fs}, nil
+	tsProgram.BindSourceFiles()
+	return &Program{TS: tsProgram, FS: fileSystem}, nil
 }
 
 // SourceFile returns the parsed source file for the given absolute path, or nil
 // if the file is not part of the program.
-func (p *Program) SourceFile(absPath string) *ast.SourceFile {
-	return p.TS.GetSourceFile(absPath)
+func (program *Program) SourceFile(absPath string) *ast.SourceFile {
+	return program.TS.GetSourceFile(absPath)
 }
