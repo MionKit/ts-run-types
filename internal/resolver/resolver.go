@@ -278,14 +278,19 @@ func (r *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
 		// is itself instantiated at its own call sites.
 		return protocol.Site{}, false
 	}
-	id := r.cache.AssignID(tArg)
-	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
-	// the closing-paren offset where the TS-side patcher inserts.
-	pos := call.End() - 1
 	argsCount := 0
 	if ce := call.AsCallExpression(); ce != nil && ce.Arguments != nil {
 		argsCount = len(ce.Arguments.Nodes)
 	}
+	// Caller has already placed an argument at (or past) the id slot.
+	// Never override an explicit pass-through — leave the call untouched.
+	if argsCount > lastIdx {
+		return protocol.Site{}, false
+	}
+	id := r.cache.AssignID(tArg)
+	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
+	// the closing-paren offset where the TS-side patcher inserts.
+	pos := call.End() - 1
 	return protocol.Site{
 		File:       file,
 		Pos:        pos,

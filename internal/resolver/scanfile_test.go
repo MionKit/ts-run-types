@@ -94,6 +94,24 @@ func TestScanFile_F17(t *testing.T) {
 	}
 }
 
+// TestScanFile_F18_ExplicitId asserts the scanner skips calls whose
+// trailing `RuntypeId<T>` slot is already filled by an explicit caller-
+// supplied argument. Three shapes in the fixture: direct call with an
+// explicit literal, direct call with `undefined` padding plus a literal,
+// and a user-defined wrapper called with an explicit literal. None must
+// produce a site.
+func TestScanFile_F18_ExplicitId(t *testing.T) {
+	r := setup(t)
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f18_explicit_id.ts"})
+	if resp.Error != "" {
+		t.Fatalf("scanFile: %s", resp.Error)
+	}
+	if len(resp.Sites) != 0 {
+		t.Fatalf("expected 0 sites for f18 (id slot already filled), got %d: %+v",
+			len(resp.Sites), resp.Sites)
+	}
+}
+
 // TestScanFile_DedupesStructurally: the f17 fixture has two calls that bind
 // `T` to a `{ flag: boolean }`-shaped object — once via the explicit
 // `isType<{ flag: boolean }>(...)` and once via the inferred `getRuntypeId(u)`
