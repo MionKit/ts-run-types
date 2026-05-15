@@ -180,9 +180,25 @@ func (r *Resolver) Dispatch(req protocol.Request) protocol.Response {
 	case protocol.OpReset:
 		r.Reset()
 		return protocol.Response{OK: true}
+	case protocol.OpResolveID:
+		t := r.ResolveID(req.ID)
+		if t == nil {
+			return protocol.Response{}
+		}
+		return protocol.Response{Types: []*protocol.Type{t}}
 	default:
 		return protocol.Response{Error: "unknown op: " + req.Op}
 	}
+}
+
+// ResolveID returns the canonical full Type for id, or nil if no such id
+// has been interned. Child slots inside the returned Type remain KindRef
+// sentinels — callers re-issue ResolveID per id to drill in.
+func (r *Resolver) ResolveID(id string) *protocol.Type {
+	if id == "" {
+		return nil
+	}
+	return r.cache.NodeByID(id)
 }
 
 // dispatchSetSources builds an inferred Program from the supplied overlay
