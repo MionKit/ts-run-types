@@ -54,6 +54,26 @@ export function reflectRuntypeId<T>(_value: T, id?: RuntypeId<T>): RuntypeId<T> 
   return id;
 }
 
+// JIT runtime registry — migrated from `@mionjs/core`. Each Go-emitted
+// `virtual:runtypes-isType` module imports `getJitUtils` from this package
+// and self-registers its entries via `addToJitCache` at import time.
+// Symbol.for(...) keys are byte-identical to mion's, so both copies share
+// the same globalThis-backed cache singleton during the transition.
+//
+// Exported BEFORE `./createIsType.ts` so the jit module's evaluation
+// completes before createIsType.ts triggers the virtual:runtypes-isType
+// load — the virtual module re-imports `getJitUtils` from this same
+// package root and would otherwise observe an uninitialized binding
+// through the cycle.
+export {
+  getJitUtils,
+  addAOTCaches,
+  addSerializedJitCaches,
+  getJitFnCaches,
+  resetJitFnCaches,
+  type JITUtils,
+} from './jit/jitUtils.ts';
+
 export {
   flattenUnionDiscriminators,
   type DiscriminatorPropLike,
