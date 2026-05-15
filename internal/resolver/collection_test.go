@@ -16,12 +16,19 @@ import (
 
 // ---- F23 — object with optional / readonly / unsafe name ---------------------
 
+// weirdPropName is the post-TS-lex form of the source-level
+// `"weird prop name \n?>'\\\t\r"` literal: a real newline, `?>'`, a real
+// backslash, a tab, and a CR. Chosen to stress JSON encoding (control
+// chars), JS source-literal round-trip, and the safe-name regex
+// (rejects on the space alone, never mind the control chars).
+const weirdPropName = "weird prop name \n?>'\\\t\r"
+
 func TestF23_ObjectShapes_Static(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 interface O {
   readonly id: number;
   nick?: string;
-  "weird name": boolean;
+  "weird prop name \n?>'\\\t\r": boolean;
 }
 getRuntypeId<O>();
 `
@@ -34,7 +41,7 @@ func TestF23_ObjectShapes_Reflect(t *testing.T) {
 interface O {
   readonly id: number;
   nick?: string;
-  "weird name": boolean;
+  "weird prop name \n?>'\\\t\r": boolean;
 }
 declare const value: O;
 reflectRuntypeId(value);
@@ -78,15 +85,15 @@ func assertF23ObjectShapes(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 		t.Fatalf("nick expected Readonly=false, got %+v", nickMember)
 	}
 
-	weirdMember := findMember(types, root, "weird name")
+	weirdMember := findMember(types, root, weirdPropName)
 	if weirdMember == nil {
-		t.Fatalf("missing 'weird name' property; types=%+v", root.Children)
+		t.Fatalf("missing weird-name property; types=%+v", root.Children)
 	}
 	if weirdMember.IsSafePropName {
-		t.Fatalf("'weird name' expected IsSafePropName=false, got %+v", weirdMember)
+		t.Fatalf("weird name expected IsSafePropName=false, got %+v", weirdMember)
 	}
-	if weirdMember.Name != "weird name" {
-		t.Fatalf("expected Name='weird name', got %q", weirdMember.Name)
+	if weirdMember.Name != weirdPropName {
+		t.Fatalf("expected Name=%q, got %q", weirdPropName, weirdMember.Name)
 	}
 }
 
