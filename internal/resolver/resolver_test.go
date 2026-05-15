@@ -18,6 +18,9 @@ func fixturesDir(t *testing.T) string {
 	return abs
 }
 
+// setup builds a Resolver against the on-disk testfixtures/ directory via
+// the tsconfig path. Retained for the file-loading regression tests
+// (TestScanFile_F17) — the rest of the suite uses setupInline.
 func setup(t *testing.T) *resolver.Resolver {
 	t.Helper()
 	p, err := program.New(program.Options{
@@ -72,8 +75,9 @@ func findMember(types []*protocol.Type, root *protocol.Type, name string) *proto
 }
 
 // resolveFile drives scanFile on file and returns the Type entry for the
-// first site. Fixtures here are written with exactly one call site each;
-// when that ever changes, the callers will need a per-needle locator.
+// first site. Used by both file-loading (setup) and inline (setupInline)
+// flows — both end up with a relative file name reachable from the
+// resolver's cwd.
 func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.Type {
 	t.Helper()
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
@@ -94,7 +98,11 @@ func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.Type
 // ---- F1 — annotation primitive -----------------------------------------------
 
 func TestF1_AnnotationPrimitive(t *testing.T) {
-	tn := resolveFile(t, setup(t), "f1_annotation_primitive.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const userName: string = 'mario';
+getRuntypeId(userName);
+`
+	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString, got %d", tn.Kind)
 	}
@@ -103,8 +111,12 @@ func TestF1_AnnotationPrimitive(t *testing.T) {
 // ---- F2 — annotation object alias `User` -------------------------------------
 
 func TestF2_AnnotationObject(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f2_annotation_object.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type User = {id: number; name: string};
+const u = {id: 1, name: 'm'} as User;
+getRuntypeId<User>(u);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
@@ -133,8 +145,12 @@ func TestF2_AnnotationObject(t *testing.T) {
 // ---- F3 — discriminated union ------------------------------------------------
 
 func TestF3_Union(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f3_union.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type Result = {ok: true; value: number} | {ok: false; error: string};
+declare const x: unknown;
+getRuntypeId<Result>(x);
+`
+	_, root := resolveInline(t, code)
 	if root.Kind != protocol.KindUnion {
 		t.Fatalf("expected union, got %+v", root)
 	}
@@ -146,7 +162,11 @@ func TestF3_Union(t *testing.T) {
 // ---- F4 — inferred literal (number) ------------------------------------------
 
 func TestF4_InferredLiteral(t *testing.T) {
-	tn := resolveFile(t, setup(t), "f4_inferred_literal.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const x = 42;
+getRuntypeId(x);
+`
+	_, tn := resolveInline(t, code)
 	switch tn.Kind {
 	case protocol.KindNumber:
 		// widened
@@ -160,8 +180,11 @@ func TestF4_InferredLiteral(t *testing.T) {
 // ---- F5 — inferred function with inferred return -----------------------------
 
 func TestF5_InferredFunction(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f5_inferred_function.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const add = (a: number, b: number) => a + b;
+getRuntypeId(add);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindFunction {
 		t.Fatalf("expected function, got %+v", root)
@@ -186,8 +209,12 @@ func TestF5_InferredFunction(t *testing.T) {
 // ---- F6 — getRuntypeId(routes) inferred from generic R -----------------------
 
 func TestF6_RouterInference(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f6_router_inference.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const sayHello = (name: string): string => 'Hello ' + name;
+const routes = {sayHello};
+getRuntypeId(routes);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
@@ -228,8 +255,13 @@ func TestF6_RouterInference(t *testing.T) {
 // ---- F7 — inferred generic ---------------------------------------------------
 
 func TestF7_InferredGeneric(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f7_inferred_generic.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+function wrap<T>(x: T): T {
+  return x;
+}
+getRuntypeId(wrap({a: 1, b: 'x'}));
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
@@ -250,8 +282,12 @@ func TestF7_InferredGeneric(t *testing.T) {
 // ---- F8 — factory inference --------------------------------------------------
 
 func TestF8_FactoryInference(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f8_factory_inference.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const makeUser = (id: number, name: string) => ({id, name});
+const u = makeUser(1, 'm');
+getRuntypeId(u);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
@@ -269,10 +305,21 @@ func TestF8_FactoryInference(t *testing.T) {
 // ---- Dedup -------------------------------------------------------------------
 
 func TestDedupAcrossQueries(t *testing.T) {
-	r := setup(t)
-	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f1_annotation_primitive.ts"})
-	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f4_inferred_literal.ts"})
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "f1_annotation_primitive.ts"})
+	const primitive = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const userName: string = 'mario';
+getRuntypeId(userName);
+`
+	const inferred = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const x = 42;
+getRuntypeId(x);
+`
+	r := setupInline(t, map[string]string{
+		"a.ts": primitive,
+		"b.ts": inferred,
+	})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "a.ts"})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "b.ts"})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "a.ts"})
 	if len(resp.Added) != 0 {
 		t.Fatalf("expected no new types on dedup, got %d", len(resp.Added))
 	}
@@ -281,8 +328,11 @@ func TestDedupAcrossQueries(t *testing.T) {
 // ---- F12 — array (`string[]`) ------------------------------------------------
 
 func TestF12_Array(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f12_array.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const xs: string[] = ['a', 'b'];
+getRuntypeId(xs);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected array, got %+v", root)
@@ -296,8 +346,11 @@ func TestF12_Array(t *testing.T) {
 // ---- F13 — tuple (`[number, string?]`) ---------------------------------------
 
 func TestF13_Tuple(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f13_tuple.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const tup: [number, string?] = [1];
+getRuntypeId(tup);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindTuple {
 		t.Fatalf("expected tuple, got %+v", root)
@@ -324,8 +377,11 @@ func TestF13_Tuple(t *testing.T) {
 // ---- F14 — promise (`Promise<number>`) ---------------------------------------
 
 func TestF14_Promise(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f14_promise.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+declare const p: Promise<number>;
+getRuntypeId(p);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindPromise {
 		t.Fatalf("expected promise, got %+v", root)
@@ -339,8 +395,15 @@ func TestF14_Promise(t *testing.T) {
 // ---- F15 — class -------------------------------------------------------------
 
 func TestF15_Class(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f15_class.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+class User {
+  id: number = 0;
+  greet(): void {}
+}
+declare const u: User;
+getRuntypeId<User>(u);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindClass {
 		t.Fatalf("expected class, got %+v", root)
@@ -361,8 +424,14 @@ func TestF15_Class(t *testing.T) {
 // ---- F16 — index signature ---------------------------------------------------
 
 func TestF16_IndexSignature(t *testing.T) {
-	r := setup(t)
-	root := resolveFile(t, r, "f16_index_signature.ts")
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface M {
+  [k: string]: number;
+}
+declare const m: M;
+getRuntypeId<M>(m);
+`
+	r, root := resolveInline(t, code)
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected objectLiteral, got %+v", root)
