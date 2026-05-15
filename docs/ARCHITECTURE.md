@@ -6,7 +6,7 @@
 
 ```
   .ts source                   Go resolver                  JSON type table
-  ┌─────────┐    scanFile    ┌──────────────┐   TypeNode   ┌───────────────┐
+  ┌─────────┐    scanFiles    ┌──────────────┐   TypeNode   ┌───────────────┐
   │  app.ts │ ─────────────▶ │  ts-go-run-types │ ───────────▶ │  site → id    │
   └─────────┘                │  (typescript- │              │  id   → node  │
        ▲                     │   go checker) │              └───────────────┘
@@ -21,8 +21,8 @@
 
 ### Three lifecycles
 
-1. **Build lifecycle** (Vite, Rollup, CI codegen): Go resolver is spawned once, receives one `scanFile` query per source file, dumps the full table at end-of-build, is torn down.
-2. **Query lifecycle**: every source file with calls to `RuntypeId<T>`-marked functions is sent to `scanFile`. The resolver walks every CallExpression, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter type is the sentinel marker.
+1. **Build lifecycle** (Vite, Rollup, CI codegen): Go resolver is spawned once, receives one `scanFiles` query per source file, dumps the full table at end-of-build, is torn down.
+2. **Query lifecycle**: every source file with calls to `RuntypeId<T>`-marked functions is sent to `scanFiles`. The resolver walks every CallExpression, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter type is the sentinel marker.
 3. **Runtime lifecycle**: the rewritten source passes the site id as the trailing argument; the library's runtime helper does a `Map.get(id)`. No reflection work happens at runtime.
 
 ## Execution model — what we replace and what we don't
@@ -76,7 +76,7 @@ That leaves two choices for type-aware tooling against TypeScript 7:
                                   └──────────────────────────┘
 ```
 
-The Go binary is a long-lived child process during a build session: spawned once, fed one `scanFile` request per `.ts` file, dumped at the end of the build, then torn down. The plugin can also run it as a Unix-socket daemon for HMR scenarios where the build session outlives a single Vite invocation.
+The Go binary is a long-lived child process during a build session: spawned once, fed one `scanFiles` request per `.ts` file, dumped at the end of the build, then torn down. The plugin can also run it as a Unix-socket daemon for HMR scenarios where the build session outlives a single Vite invocation.
 
 The user's tsconfig drives both worlds: the binary parses it to bootstrap the same `Program` view tsgo would use, so what we resolve as type `T` is exactly what tsgo resolves.
 
@@ -108,12 +108,12 @@ cmd/ts-go-run-types/                CLI entry point
 internal/program/                tsconfig + VFS bootstrap
 internal/walker/                 position → AST node finder + call iterator
 internal/marker/                 RuntypeId<T> sentinel detection
-internal/resolver/               scanFile + dump dispatch
+internal/resolver/               scanFiles + dump dispatch
 internal/serialize/              *checker.Type → protocol.RunType (dedup by id)
 internal/protocol/               stdio JSON request/response types
 internal/testfixtures/           fixture .ts + shared tsconfig
 packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRuntypeId/reflectRuntypeId
-packages/vite-plugin-runtypes/   JS side — drives scanFile, patches calls
+packages/vite-plugin-runtypes/   JS side — drives scanFiles, patches calls
 third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
 ```
@@ -132,7 +132,7 @@ Wraps the [`oxc-project/tsgolint`](https://github.com/oxc-project/tsgolint) shim
 
 - `NodeAt(sf, pos)` — deepest `*ast.Node` whose `[Pos, End)` contains `pos`.
 - `CallExpressionAt(sf, pos)` — walks up from `NodeAt` until it finds a `KindCallExpression`.
-- `ForEachCallExpression(sf, cb)` — depth-first visitor over every CallExpression in a source file. Used by the resolver's `scanFile` op.
+- `ForEachCallExpression(sf, cb)` — depth-first visitor over every CallExpression in a source file. Used by the resolver's `scanFiles` op.
 
 ### internal/marker
 
@@ -148,7 +148,7 @@ Dispatches two operations:
 
 | op         | semantics                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scanFile` | Walks every CallExpression in file. For each whose resolved signature has a trailing `RuntypeId<T>` param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount}`. |
+| `scanFiles` | Walks every CallExpression in file. For each whose resolved signature has a trailing `RuntypeId<T>` param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount}`. |
 | `dump`     | Returns the full cache (every RunType) + the running Sites slice.                                                                                                         |
 
 `Pos` is the byte offset of the closing `)` of the call — the TS-side patcher inserts at that offset. `ParamIndex` is the 0-based slot the injected id goes into; `ArgsCount` is the number of arguments the user already wrote (so the patcher knows whether to pad with `undefined`).
@@ -177,7 +177,7 @@ Public marker package. Exports:
 ### packages/vite-plugin-runtypes
 
 - `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses. Forwards `--marker-name` / `--marker-module` if the user overrides them.
-- `rewrite.ts` — single function: for each file, calls `scanFile`, then applies the returned sites as **byte-offset** insertions to the source. Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
+- `rewrite.ts` — single function: for each file, calls `scanFiles`, then applies the returned sites as **byte-offset** insertions to the source. Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
 - `index.ts` — Vite plugin glue. Short-circuits any file that doesn't contain the marker-module name as a cheap pre-filter. `load("virtual:runtypes-cache")` returns the `cacheSource` field from the resolver's `dump` response — the Go side is the single renderer.
 
 ## Slot injection and padding
@@ -314,7 +314,7 @@ git submodule update --init --recursive
 # Build the resolver:
 go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 
-# Go test suite — covers atomic reflection kinds + scanFile detection over the
+# Go test suite — covers atomic reflection kinds + scanFiles detection over the
 # F1–F17 fixtures:
 go test ./internal/...
 

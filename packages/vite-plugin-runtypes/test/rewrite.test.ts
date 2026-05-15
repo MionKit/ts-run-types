@@ -276,7 +276,7 @@ const myAPI = reflectRuntypeId(routes);
     async (sources) => {
       const tmp = path.join(__dirname, '.tmp-cache.ts');
       const handshake = JSON.stringify({sources: {'runtypes.d.ts': RUNTYPES_DTS, 'router.ts': sources['router.ts']}}) + '\n';
-      const request = JSON.stringify({op: 'scanFile', file: 'router.ts'}) + '\n';
+      const request = JSON.stringify({op: 'scanFiles', files: ['router.ts']}) + '\n';
       const out = spawnSync(BIN, ['--cwd', path.resolve(__dirname, '../../..'), '--inline-sources-stdin', '--out-ts', tmp], {
         input: handshake + request,
       });

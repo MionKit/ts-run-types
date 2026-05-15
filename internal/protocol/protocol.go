@@ -176,10 +176,14 @@ func NewRef(id string) *RunType {
 // Op constants for the wire protocol. Stable string values — the TS side
 // references the same names.
 const (
-	// OpScanFile walks every CallExpression in a file and returns one Site
-	// per call whose resolved signature opts into transformer injection
-	// (trailing `RuntypeId<T>` parameter with a concretely-bound T).
-	OpScanFile = "scanFile"
+	// OpScanFiles walks every CallExpression in each requested file and
+	// returns one Site per call whose resolved signature opts into
+	// transformer injection (trailing `RuntypeId<T>` parameter with a
+	// concretely-bound T). When Request.IncludeRunTypes or
+	// IncludeCacheSource is set, the response also carries a projection
+	// scoped to Request.Files only — NOT to the cache's session-wide
+	// contents. Callers that want the full in-memory cache use OpDump.
+	OpScanFiles = "scanFiles"
 	// OpDump returns the full cache contents: every RunType the resolver has
 	// projected so far + every Site recorded. Used at end-of-build.
 	OpDump = "dump"
@@ -192,7 +196,7 @@ const (
 	// OpReset wipes ALL resolver state: cache, sites, Program, checker,
 	// and the in-memory overlay. Equivalent to throwing the Resolver away
 	// and replacing it with a fresh one — the connection stays open. A
-	// subsequent setSources is required before scanFile will work.
+	// subsequent setSources is required before scanFiles will work.
 	OpReset = "reset"
 	// OpResolveID returns the canonical full RunType for a given hash id.
 	// Child slots inside the returned RunType stay as KindRef sentinels — the
@@ -203,14 +207,15 @@ const (
 
 // Request is the union of all query operations (see resolver/dispatch).
 //
-// IncludeRunTypes and IncludeCacheSource are scanFile-only opt-ins that
-// piggyback the full union of run types / a pre-rendered cache module
-// for every file scanned since the last reset/setSources. Callers that
-// want everything in one round-trip set both; the rewrite pipeline
-// (which only needs site offsets) leaves them off.
+// Files carries the scanFiles op's input — every file the caller wants
+// scanned in this request. The response's Sites carries entries for
+// every listed file (each tagged with .File), and IncludeRunTypes /
+// IncludeCacheSource scope their payload to **this request's Files
+// only**, not to any session-wide accumulation. Callers that want the
+// whole in-memory cache call OpDump.
 type Request struct {
 	Op                 string            `json:"op"`
-	File               string            `json:"file,omitempty"`
+	Files              []string          `json:"files,omitempty"`
 	ID                 string            `json:"id,omitempty"`
 	Sources            map[string]string `json:"sources,omitempty"`
 	IncludeRunTypes    bool              `json:"includeRunTypes,omitempty"`

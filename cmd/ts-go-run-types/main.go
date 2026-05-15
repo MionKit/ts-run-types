@@ -46,7 +46,7 @@ Options:
                              Program whose source files come from that map
                              (no tsconfig glob, no disk reads for those paths)
     --inline-server     persistent inline-sources server: start with no
-                        Program, accept setSources / resetCache / scanFile /
+                        Program, accept setSources / resetCache / scanFiles /
                         dump ops; used by long-lived test daemons
     -h, --help          show help
 `

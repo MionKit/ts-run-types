@@ -1,7 +1,7 @@
 // Fake the runtime marker package so fixtures don't need a real
 // `@mionjs/ts-go-run-types` install on the search path.
 //
-// The resolver's scanFile op looks for any signature whose trailing
+// The resolver's scanFiles op looks for any signature whose trailing
 // parameter is `RuntypeId<T>` *and* whose alias is declared inside the
 // configured marker module — both checks must pass for a call to be
 // rewritten.

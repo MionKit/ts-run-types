@@ -74,18 +74,18 @@ func findMember(types []*protocol.RunType, root *protocol.RunType, name string) 
 	return nil
 }
 
-// resolveFile drives scanFile on file and returns the RunType entry for the
+// resolveFile drives scanFiles on file and returns the RunType entry for the
 // first site. Used by both file-loading (setup) and inline (setupInline)
 // flows — both end up with a relative file name reachable from the
 // resolver's cwd.
 func resolveFile(t *testing.T, r *resolver.Resolver, file string) *protocol.RunType {
 	t.Helper()
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: file})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{file}})
 	if resp.Error != "" {
-		t.Fatalf("scanFile %s: %s", file, resp.Error)
+		t.Fatalf("scanFiles %s: %s", file, resp.Error)
 	}
 	if len(resp.Sites) == 0 {
-		t.Fatalf("scanFile %s returned no sites", file)
+		t.Fatalf("scanFiles %s returned no sites", file)
 	}
 	id := resp.Sites[0].ID
 	tn := typeByID(dump(r), id)
@@ -422,9 +422,9 @@ reflectRuntypeId(x);
 		"a.ts": primitive,
 		"b.ts": inferred,
 	})
-	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "a.ts"})
-	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "b.ts"})
-	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "a.ts"})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
+	r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"b.ts"}})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
 	if len(resp.Added) != 0 {
 		t.Fatalf("expected no new types on dedup, got %d", len(resp.Added))
 	}

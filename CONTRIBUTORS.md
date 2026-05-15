@@ -109,7 +109,7 @@ Feed line-delimited operations and read the JSON dump back:
 
 ```bash
 printf '%s\n%s\n' \
-  '{"op":"scanFile","file":"internal/testfixtures/f6_router_inference.ts"}' \
+  '{"op":"scanFiles","files":["internal/testfixtures/f6_router_inference.ts"]}' \
   '{"op":"dump"}' \
   | bin/ts-go-run-types --one-shot --tsconfig internal/testfixtures/tsconfig.json \
   > cache.json

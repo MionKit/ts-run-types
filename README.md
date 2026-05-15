@@ -17,7 +17,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ## How it works
 
 ```
-  app.ts ──▶ vite-plugin-runtypes ──[scanFile]──▶  ts-go-run-types (Go)
+  app.ts ──▶ vite-plugin-runtypes ──[scanFiles]──▶  ts-go-run-types (Go)
                        │                                 │
                        │                                 │ tsgo Checker
                        │                                 │
@@ -31,7 +31,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
 ```
 
 1. User code imports `RuntypeId<T>` / `getRuntypeId<T>()` (static) or `reflectRuntypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: RuntypeId<T>` as its trailing parameter to opt into the same flow.
-2. The Vite plugin sends each source file to the Go binary's `scanFile` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `RuntypeId<T>` (declared in `@mionjs/ts-go-run-types`) with `T` concretely bound.
+2. The Vite plugin sends each source file to the Go binary's `scanFiles` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `RuntypeId<T>` (declared in `@mionjs/ts-go-run-types`) with `T` concretely bound. `scanFiles` accepts an array of files in a single request; opt-in flags (`includeRunTypes`, `includeCacheSource`) project the response down to just those files.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
 4. At build end, the plugin emits `virtual:runtypes-cache` — a reflection-shape, fully-knotted `Type` graph keyed by hash id. Runtimes read it via `getMeta(id)`.
 
@@ -59,7 +59,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design, and th
 | [internal/program](internal/program/)                      | Loads tsconfig + VFS, bootstraps tsgo `Program` + `Checker`.                                                 |
 | [internal/walker](internal/walker/)                        | Byte-position → AST node finder; depth-first visitor over `CallExpression`.                                  |
 | [internal/marker](internal/marker/)                        | `RuntypeId<T>` sentinel detection (name + module check); filters free type parameters.                       |
-| [internal/resolver](internal/resolver/)                    | `scanFile` / `dump` op dispatch; walks every call and asks the checker for the resolved signature.           |
+| [internal/resolver](internal/resolver/)                    | `scanFiles` / `dump` op dispatch; walks every call and asks the checker for the resolved signature.          |
 | [internal/typeid](internal/typeid/)                        | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                         |
 | [internal/hashid](internal/hashid/)                        | xxhash3 → short base36 hash dictionary; configurable length.                                                 |
 | [internal/serialize](internal/serialize/)                  | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup.                                       |
@@ -119,7 +119,7 @@ bin/ts-go-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache
 `requests.jsonl` is newline-delimited queries:
 
 ```json
-{"op":"scanFile","file":"src/app.ts"}
+{"op":"scanFiles","files":["src/app.ts"]}
 {"op":"dump"}
 ```
 
