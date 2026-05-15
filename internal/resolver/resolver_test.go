@@ -199,10 +199,11 @@ func assertF3Union(t *testing.T, root *protocol.Type) {
 
 // ---- F4 — inferred literal (number) ------------------------------------------
 //
-// F4 is fundamentally about *inference*: the value `42` is typed as either
-// a literal `42` or widened `number`. The static form `getRuntypeId<42>()`
-// is a different question (always literal) — kept as a separate test below
-// so the inference-flavoured behaviour stays explicit.
+// F4 is fundamentally about *inference*: the value `42` is typed as the literal
+// `42` at the declared-type level, but TS widens literal types during generic
+// type-parameter inference. So `reflectRuntypeId(x)` where `const x = 42` lands
+// on `KindNumber`. The static `getRuntypeId<42>()` form asks for the literal
+// type directly and gets `KindLiteral`.
 
 func TestF4_InferredLiteral_Reflect(t *testing.T) {
 	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
@@ -210,13 +211,8 @@ const x = 42;
 reflectRuntypeId(x);
 `
 	_, tn := resolveInline(t, code)
-	switch tn.Kind {
-	case protocol.KindNumber:
-		// widened
-	case protocol.KindLiteral:
-		// literal preserved — still acceptable
-	default:
-		t.Fatalf("expected number-ish, got kind=%d", tn.Kind)
+	if tn.Kind != protocol.KindNumber {
+		t.Fatalf("expected KindNumber (widened during inference), got kind=%d", tn.Kind)
 	}
 }
 

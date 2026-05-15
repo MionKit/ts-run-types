@@ -248,7 +248,9 @@ reflectRuntypeId(v);
     expect(getTypeFor(cache, 'object.ts').kind).toBe(ReflectionKind.object);
   });
 
-  runMaybe('regexp instance static', async () => {
+  // ---- regexp — instance form (no trace to a regex literal) -----------
+
+  runMaybe('regexp instance static (explicit RegExp type)', async () => {
     const cache = await evalCacheFor({
       'regexp.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 getRuntypeId<RegExp>();
@@ -257,14 +259,69 @@ getRuntypeId<RegExp>();
     expect(getTypeFor(cache, 'regexp.ts').kind).toBe(ReflectionKind.regexp);
   });
 
-  runMaybe('regexp instance reflect', async () => {
+  runMaybe('regexp instance reflect (declare const, no initializer)', async () => {
     const cache = await evalCacheFor({
       'regexp.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: RegExp = /abc/i;
-reflectRuntypeId(v);
+declare const re: RegExp;
+reflectRuntypeId(re);
 `,
     });
     expect(getTypeFor(cache, 'regexp.ts').kind).toBe(ReflectionKind.regexp);
+  });
+
+  // ---- regexp — literal form (trace harvests source + flags) ----------
+  //
+  // End-to-end shape proof: the rendered cache must produce a real `RegExp`
+  // instance via the emitter's `new RegExp(source, flags)` footer expression.
+
+  runMaybe('regexp literal reflect (direct /abc/i) -> real RegExp', async () => {
+    const cache = await evalCacheFor({
+      'regexp_literal.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/abc/i);
+`,
+    });
+    const t: any = getTypeFor(cache, 'regexp_literal.ts');
+    expect(t.kind).toBe(ReflectionKind.literal);
+    expect(t.literal).toBeInstanceOf(RegExp);
+    expect((t.literal as RegExp).source).toBe('abc');
+    expect((t.literal as RegExp).flags).toBe('i');
+  });
+
+  runMaybe('regexp literal reflect (as const wrap)', async () => {
+    const cache = await evalCacheFor({
+      'regexp_literal.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/abc/i as const);
+`,
+    });
+    const t: any = getTypeFor(cache, 'regexp_literal.ts');
+    expect(t.kind).toBe(ReflectionKind.literal);
+    expect(t.literal).toBeInstanceOf(RegExp);
+  });
+
+  runMaybe('regexp literal reflect (const binding) -> harvested via trace', async () => {
+    const cache = await evalCacheFor({
+      'regexp_literal.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /abc/i;
+reflectRuntypeId(re);
+`,
+    });
+    const t: any = getTypeFor(cache, 'regexp_literal.ts');
+    expect(t.kind).toBe(ReflectionKind.literal);
+    expect((t.literal as RegExp).source).toBe('abc');
+    expect((t.literal as RegExp).flags).toBe('i');
+  });
+
+  runMaybe('regexp literal static (typeof binding) -> harvested via trace', async () => {
+    const cache = await evalCacheFor({
+      'regexp_literal.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /abc/i;
+getRuntypeId<typeof re>();
+`,
+    });
+    const t: any = getTypeFor(cache, 'regexp_literal.ts');
+    expect(t.kind).toBe(ReflectionKind.literal);
+    expect((t.literal as RegExp).source).toBe('abc');
+    expect((t.literal as RegExp).flags).toBe('i');
   });
 
   // ---- literals ---------------------------------------------------------
@@ -280,16 +337,26 @@ getRuntypeId<'hello'>();
     expect(t.literal).toBe('hello');
   });
 
-  runMaybe('literal string "hello" reflect', async () => {
+  runMaybe('literal string "hello" reflect (as const)', async () => {
     const cache = await evalCacheFor({
       'literal_string.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: 'hello' = 'hello';
+const v = 'hello' as const;
 reflectRuntypeId(v);
 `,
     });
     const t = getTypeFor(cache, 'literal_string.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(t.literal).toBe('hello');
+  });
+
+  runMaybe('literal string "hello" reflect (plain const) — widens to string', async () => {
+    const cache = await evalCacheFor({
+      'literal_string.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = 'hello';
+reflectRuntypeId(v);
+`,
+    });
+    expect(getTypeFor(cache, 'literal_string.ts').kind).toBe(ReflectionKind.string);
   });
 
   runMaybe('literal number 42 static', async () => {
@@ -303,16 +370,26 @@ getRuntypeId<42>();
     expect(t.literal).toBe(42);
   });
 
-  runMaybe('literal number 42 reflect', async () => {
+  runMaybe('literal number 42 reflect (as const)', async () => {
     const cache = await evalCacheFor({
       'literal_number.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: 42 = 42;
+const v = 42 as const;
 reflectRuntypeId(v);
 `,
     });
     const t = getTypeFor(cache, 'literal_number.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(t.literal).toBe(42);
+  });
+
+  runMaybe('literal number 42 reflect (plain const) — widens to number', async () => {
+    const cache = await evalCacheFor({
+      'literal_number.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = 42;
+reflectRuntypeId(v);
+`,
+    });
+    expect(getTypeFor(cache, 'literal_number.ts').kind).toBe(ReflectionKind.number);
   });
 
   runMaybe('literal boolean true static', async () => {
@@ -326,16 +403,26 @@ getRuntypeId<true>();
     expect(t.literal).toBe(true);
   });
 
-  runMaybe('literal boolean true reflect', async () => {
+  runMaybe('literal boolean true reflect (as const)', async () => {
     const cache = await evalCacheFor({
       'literal_boolean.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: true = true;
+const v = true as const;
 reflectRuntypeId(v);
 `,
     });
     const t = getTypeFor(cache, 'literal_boolean.ts');
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(t.literal).toBe(true);
+  });
+
+  runMaybe('literal boolean true reflect (plain const) — widens to boolean', async () => {
+    const cache = await evalCacheFor({
+      'literal_boolean.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = true;
+reflectRuntypeId(v);
+`,
+    });
+    expect(getTypeFor(cache, 'literal_boolean.ts').kind).toBe(ReflectionKind.boolean);
   });
 
   runMaybe('literal bigint 1n -> real BigInt instance, static', async () => {
@@ -350,10 +437,10 @@ getRuntypeId<1n>();
     expect(t.literal).toBe(1n);
   });
 
-  runMaybe('literal bigint 1n -> real BigInt instance, reflect', async () => {
+  runMaybe('literal bigint 1n -> real BigInt instance, reflect (as const)', async () => {
     const cache = await evalCacheFor({
       'literal_bigint.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
-const v: 1n = 1n;
+const v = 1n as const;
 reflectRuntypeId(v);
 `,
     });
@@ -361,6 +448,16 @@ reflectRuntypeId(v);
     expect(t.kind).toBe(ReflectionKind.literal);
     expect(typeof t.literal).toBe('bigint');
     expect(t.literal).toBe(1n);
+  });
+
+  runMaybe('literal bigint 1n reflect (plain const) — widens to bigint', async () => {
+    const cache = await evalCacheFor({
+      'literal_bigint.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v = 1n;
+reflectRuntypeId(v);
+`,
+    });
+    expect(getTypeFor(cache, 'literal_bigint.ts').kind).toBe(ReflectionKind.bigint);
   });
 
   // Literal symbol: spelling a unique-symbol type still requires a value
@@ -413,6 +510,9 @@ getRuntypeId<Color>();
   });
 
   runMaybe('numeric enum reflect -> values + enum object + indexType=number', async () => {
+    // `const v = Color.Red` (no annotation) widens to the parent enum `Color`.
+    // The trap `const v: Color = …` narrows to the literal `Color.Red` — see
+    // docs/atomic-types.md.
     const cache = await evalCacheFor({
       'enum_numeric.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
 enum Color {
@@ -420,7 +520,7 @@ enum Color {
   Green = 1,
   Blue = 2,
 }
-declare const v: Color;
+const v = Color.Red;
 reflectRuntypeId(v);
 `,
     });
@@ -457,7 +557,7 @@ enum Color {
   Green = 'green',
   Blue = 'blue',
 }
-declare const v: Color;
+const v = Color.Red;
 reflectRuntypeId(v);
 `,
     });
