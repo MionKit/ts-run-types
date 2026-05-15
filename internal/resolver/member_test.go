@@ -4,16 +4,35 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-run-types/internal/resolver"
 )
+
+// Each scenario below has paired *_Static / *_Reflect tests per the
+// marker test coverage rule (CLAUDE.md). The shared assertion helpers
+// receive the resolved root + dump and exercise the same expectations
+// regardless of which marker form drove the resolution.
 
 // ---- F19 — array of object literal -------------------------------------------
 
-func TestF19_ArrayOfObject(t *testing.T) {
+func TestF19_ArrayOfObject_Static(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-declare const xs: {x: number}[];
-getRuntypeId(xs);
+getRuntypeId<{x: number}[]>();
 `
 	r, root := resolveInline(t, code)
+	assertF19ArrayOfObject(t, r, root)
+}
+
+func TestF19_ArrayOfObject_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+declare const xs: {x: number}[];
+reflectRuntypeId(xs);
+`
+	r, root := resolveInline(t, code)
+	assertF19ArrayOfObject(t, r, root)
+}
+
+func assertF19ArrayOfObject(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected KindArray, got %+v", root)
@@ -34,12 +53,25 @@ getRuntypeId(xs);
 
 // ---- F20 — array of array ----------------------------------------------------
 
-func TestF20_ArrayOfArray(t *testing.T) {
+func TestF20_ArrayOfArray_Static(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-declare const xs: string[][];
-getRuntypeId(xs);
+getRuntypeId<string[][]>();
 `
 	r, root := resolveInline(t, code)
+	assertF20ArrayOfArray(t, r, root)
+}
+
+func TestF20_ArrayOfArray_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+declare const xs: string[][];
+reflectRuntypeId(xs);
+`
+	r, root := resolveInline(t, code)
+	assertF20ArrayOfArray(t, r, root)
+}
+
+func assertF20ArrayOfArray(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindArray {
 		t.Fatalf("expected outer KindArray, got %+v", root)
@@ -59,15 +91,31 @@ getRuntypeId(xs);
 // The cycle path is Tree → Property("children") → Array → Tree. Walking it
 // must terminate via the cache by id equality, not by infinite recursion.
 
-func TestF21_RecursiveSelf(t *testing.T) {
+func TestF21_RecursiveSelf_Static(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 interface Tree {
   children: Tree[];
 }
-declare const t: Tree;
-getRuntypeId<Tree>(t);
+getRuntypeId<Tree>();
 `
 	r, root := resolveInline(t, code)
+	assertF21RecursiveSelf(t, r, root)
+}
+
+func TestF21_RecursiveSelf_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+interface Tree {
+  children: Tree[];
+}
+declare const t: Tree;
+reflectRuntypeId(t);
+`
+	r, root := resolveInline(t, code)
+	assertF21RecursiveSelf(t, r, root)
+}
+
+func assertF21RecursiveSelf(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected root KindObjectLiteral, got %+v", root)
@@ -95,7 +143,7 @@ getRuntypeId<Tree>(t);
 
 // ---- F22 — recursive mutual --------------------------------------------------
 
-func TestF22_RecursiveMutual(t *testing.T) {
+func TestF22_RecursiveMutual_Static(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 interface A {
   b: B;
@@ -103,10 +151,29 @@ interface A {
 interface B {
   a: A;
 }
-declare const a: A;
-getRuntypeId<A>(a);
+getRuntypeId<A>();
 `
 	r, root := resolveInline(t, code)
+	assertF22RecursiveMutual(t, r, root)
+}
+
+func TestF22_RecursiveMutual_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+interface A {
+  b: B;
+}
+interface B {
+  a: A;
+}
+declare const a: A;
+reflectRuntypeId(a);
+`
+	r, root := resolveInline(t, code)
+	assertF22RecursiveMutual(t, r, root)
+}
+
+func assertF22RecursiveMutual(t *testing.T, r *resolver.Resolver, root *protocol.Type) {
+	t.Helper()
 	types := dump(r)
 	if root.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected A KindObjectLiteral, got %+v", root)

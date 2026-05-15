@@ -44,7 +44,7 @@ Updating dependencies:
 - Uses **pnpm workspaces** for monorepo management (see [pnpm-workspace.yaml](pnpm-workspace.yaml)) + **Lerna** for lockstep versioning and topo-ordered scripts (see [lerna.json](lerna.json))
 - Both JS packages move in lockstep (`forcePublish: true`, `exact: true`)
 - Packages located under [packages/](packages/):
-  - `ts-go-run-types`: `@mionjs/ts-go-run-types` — `RuntypeId<T>` marker type, `getRuntypeId`, `getMeta`, runtime helpers
+  - `ts-go-run-types`: `@mionjs/ts-go-run-types` — `RuntypeId<T>` marker type, `getRuntypeId` (static), `reflectRuntypeId` (reflection), `getMeta`, runtime helpers
   - `vite-plugin-runtypes`: Vite plugin — spawns the Go binary, applies byte-offset rewrites, emits `virtual:runtypes-cache`
 - Run commands in a specific package: `pnpm --filter @mionjs/ts-go-run-types run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`
 - Or navigate to package directory and run commands locally
@@ -78,6 +78,15 @@ Updating dependencies:
 - Run Go tests: `go test ./internal/...`
 - **Always `go build` the binary before `pnpm test`** — plugin tests spawn `bin/ts-go-run-types` and will fail at spawn otherwise. A `pnpm run check:go-binary` script ([scripts/check-go-binary.sh](scripts/check-go-binary.sh)) is available to verify.
 - Never run `pnpm run build` during development (only for publishing)
+
+### ⚠️ Marker test coverage rule
+
+Any test that exercises the marker API — in either Go under [internal/](internal/) or the JS plugin under [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/) — MUST cover both forms:
+
+- the **static** form `getRuntypeId<T>()` — caller supplies `T` explicitly, no value;
+- the **reflection** form `reflectRuntypeId(value)` — `T` inferred from a runtime value.
+
+Write paired tests (not parameterized): each scenario is two distinct tests, each using the natural call shape for its intent — e.g. `getRuntypeId<string>()` vs `const s: string = 'hello'; reflectRuntypeId(s);`. Both forms should resolve to the same cache entry for equivalent `T`, and at least one paired test per suite should assert that hash equivalence (see `TestAtomic_FormEquivalence` in [internal/resolver/atomic_test.go](internal/resolver/atomic_test.go)).
 
 ## Publishing Modules
 

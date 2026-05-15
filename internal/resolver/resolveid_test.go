@@ -14,13 +14,26 @@ import (
 // child slots stay as refs so payloads stay bounded — and that NodeByID
 // returns nil for unknown ids.
 
-const resolveIDArrayCode = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-const xs: string[] = ['a', 'b'];
-getRuntypeId(xs);
+const resolveIDArrayCodeStatic = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+getRuntypeId<string[]>();
 `
 
-func TestResolveID_ArrayRoundTrip(t *testing.T) {
-	r := setupInline(t, map[string]string{"test.ts": resolveIDArrayCode})
+const resolveIDArrayCodeReflect = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const xs: string[] = ['a', 'b'];
+reflectRuntypeId(xs);
+`
+
+func TestResolveID_ArrayRoundTrip_Static(t *testing.T) {
+	assertResolveIDArrayRoundTrip(t, resolveIDArrayCodeStatic)
+}
+
+func TestResolveID_ArrayRoundTrip_Reflect(t *testing.T) {
+	assertResolveIDArrayRoundTrip(t, resolveIDArrayCodeReflect)
+}
+
+func assertResolveIDArrayRoundTrip(t *testing.T, code string) {
+	t.Helper()
+	r := setupInline(t, map[string]string{"test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
 	if resp.Error != "" {
 		t.Fatalf("scanFile: %s", resp.Error)
@@ -45,7 +58,7 @@ func TestResolveID_ArrayRoundTrip(t *testing.T) {
 }
 
 func TestResolveID_UnknownReturnsEmpty(t *testing.T) {
-	r := setupInline(t, map[string]string{"test.ts": resolveIDArrayCode})
+	r := setupInline(t, map[string]string{"test.ts": resolveIDArrayCodeReflect})
 	r.Dispatch(protocol.Request{Op: protocol.OpScanFile, File: "test.ts"})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpResolveID, ID: "does-not-exist"})
 	if resp.Error != "" {
