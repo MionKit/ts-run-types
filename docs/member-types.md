@@ -2,9 +2,10 @@
 
 This document covers the **member** `ReflectionKind`s — types that carry a single child type, optionally with a name. Atomic kinds live in [atomic-types.md](atomic-types.md); composite kinds (tuples, unions, classes, object literals, …) live in [collection-types.md](collection-types.md).
 
-The three members are:
+The members are:
 
 - **Array** — element type only, no name.
+- **Promise** — resolved-value type only, no name.
 - **Property** / **PropertySignature** — named carrier of a single type. The bare form (`KindProperty`) appears inside a `class`; the signature form (`KindPropertySignature`) appears inside a `type` / `interface`.
 - **Method** / **MethodSignature** — same name+kind split, but the carried type is a function signature.
 
@@ -31,6 +32,24 @@ Cache entry shape:
 ```
 
 Array is a member rather than a collection because it carries a single child type — same shape as `Property` and `Promise`, just unnamed.
+
+---
+
+## Promise — `KindPromise`
+
+A wrapper carrying the resolved value type in `.child`. Same single-unnamed-child shape as `Array`, just with async semantics — `Promise<T>` always resolves to exactly one type.
+
+```ts
+getRuntypeId<Promise<number>>();
+declare const p: Promise<number>;
+reflectRuntypeId(p);
+```
+
+Cache entry shape:
+
+```json
+{ "kind": 19, "child": { "kind": -1, "id": "<number-hash>" } }
+```
 
 ---
 
@@ -112,5 +131,5 @@ Cache entry shape (the signature form):
 ## See also
 
 - [atomic-types.md](atomic-types.md) — primitives, regex, literals, enums, `Date`.
-- [collection-types.md](collection-types.md) — multi-typed containers: tuples, unions, intersections, promises, functions, object literals, classes, recursive types.
+- [collection-types.md](collection-types.md) — multi-typed containers: tuples, unions, intersections, functions, object literals, classes, recursive types.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — overall pipeline and design.

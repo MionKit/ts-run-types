@@ -1,6 +1,6 @@
 # Collection types
 
-This document covers the **collection** `ReflectionKind`s — types that contain multiple children, or wrap a heterogeneous structure. Atomic kinds live in [atomic-types.md](atomic-types.md); single-child member kinds (`Array`, `Property`, `Method`) live in [member-types.md](member-types.md).
+This document covers the **collection** `ReflectionKind`s — types that contain multiple children, or wrap a heterogeneous structure. Atomic kinds live in [atomic-types.md](atomic-types.md); single-child member kinds (`Array`, `Promise`, `Property`, `Method`) live in [member-types.md](member-types.md).
 
 Each section shows:
 
@@ -70,24 +70,6 @@ Same shape as `KindUnion` but with intersection semantics. Members live in `chil
 ```ts
 type Mix = { a: number } & { b: string };
 getRuntypeId<Mix>();
-```
-
----
-
-## Promise — `KindPromise`
-
-A wrapper carrying the resolved value type in `.child`. Documented here rather than under members because semantically it's a container that introduces async behaviour, not a plain single-typed slot.
-
-```ts
-getRuntypeId<Promise<number>>();
-declare const p: Promise<number>;
-reflectRuntypeId(p);
-```
-
-Cache entry shape:
-
-```json
-{ "kind": 19, "child": { "kind": -1, "id": "<number-hash>" } }
 ```
 
 ---
@@ -231,5 +213,5 @@ Two cache entries (`A` and `B`); each closes back on the other through a propert
 ## See also
 
 - [atomic-types.md](atomic-types.md) — primitives, regex, literals, enums, `Date`.
-- [member-types.md](member-types.md) — single-typed members: `Array`, `Property`, `Method` (and their structural-signature counterparts).
+- [member-types.md](member-types.md) — single-typed members: `Array`, `Promise`, `Property`, `Method` (and their structural-signature counterparts).
 - [ARCHITECTURE.md](ARCHITECTURE.md) — overall pipeline and design.
