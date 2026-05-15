@@ -537,12 +537,20 @@ func (cache *Cache) projectTuple(tsType *checker.Type, node *protocol.RunType) {
 		if elementFlags&checker.ElementFlagsOptional != 0 && elementType != nil {
 			elementType = stripUndefined(elementType)
 		}
+		position := i
 		member := &protocol.RunType{
-			Kind:  protocol.KindTupleMember,
-			Child: cache.Serialize(elementType),
+			Kind:     protocol.KindTupleMember,
+			Child:    cache.Serialize(elementType),
+			Position: &position,
 		}
-		if labelName := info.LabeledDeclaration(); labelName != nil {
-			member.Name = labelName.Text()
+		if labelDecl := info.LabeledDeclaration(); labelDecl != nil {
+			// labelDecl is the labeled Parameter / NamedTupleMember AST node.
+			// Its .Text() is undefined on the wrapper kind itself; the label
+			// lives on the inner binding name. Mirrors the tsgo checker at
+			// internal/checker/relater.go:getTupleElementLabel.
+			if nameNode := labelDecl.Name(); nameNode != nil {
+				member.Name = nameNode.Text()
+			}
 		}
 		if elementFlags&checker.ElementFlagsOptional != 0 {
 			member.Optional = true
@@ -603,7 +611,39 @@ func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 		}
 	}
 	properties := cache.typeChecker.GetPropertiesOfType(tsType)
+	// Class static members live on the symbol's Exports table, not on the
+	// instance type. Append them so static properties / methods reach the
+	// same projection path (applyMemberModifiers reads the `static` keyword
+	// off each declaration's modifier flags).
+	if symbol := tsType.Symbol(); symbol != nil {
+		properties = appendStaticMembers(properties, symbol)
+	}
 	cache.projectMembersInto(tsType, node, properties, nil, true)
+}
+
+// appendStaticMembers extends instanceProps with each static member symbol
+// the class symbol carries in Exports. Skips internal names (constructor,
+// prototype slot, etc.) which start with the InternalSymbolNamePrefix
+// sentinel.
+func appendStaticMembers(instanceProps []*ast.Symbol, classSymbol *ast.Symbol) []*ast.Symbol {
+	if classSymbol.Exports == nil {
+		return instanceProps
+	}
+	for name, exportSymbol := range classSymbol.Exports {
+		if exportSymbol == nil {
+			continue
+		}
+		if len(name) > 0 && name[0] == 0xFE {
+			// InternalSymbolNamePrefix — skip @@call / @@constructor / @@new / etc.
+			continue
+		}
+		// Filter to value-shape members (property / method / accessor).
+		if exportSymbol.Flags&(ast.SymbolFlagsProperty|ast.SymbolFlagsMethod|ast.SymbolFlagsAccessor) == 0 {
+			continue
+		}
+		instanceProps = append(instanceProps, exportSymbol)
+	}
+	return instanceProps
 }
 
 func (cache *Cache) projectMembersInto(
@@ -670,6 +710,8 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 	if symbol.Flags&ast.SymbolFlagsOptional != 0 {
 		member.Optional = true
 	}
+	member.IsSafePropName = isSafePropName(symbol.Name)
+	applyMemberModifiers(member, symbol, asClass)
 
 	if isMethod {
 		if asClass {
@@ -703,14 +745,17 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 func (cache *Cache) projectSignatureInto(signature *checker.Signature, node *protocol.RunType) {
 	for i, paramSymbol := range signature.Parameters() {
 		paramType := cache.typeChecker.GetTypeOfSymbol(paramSymbol)
+		position := i
 		parameter := &protocol.RunType{
-			Kind:  protocol.KindParameter,
-			Name:  paramSymbol.Name,
-			Child: cache.Serialize(paramType),
+			Kind:     protocol.KindParameter,
+			Name:     paramSymbol.Name,
+			Child:    cache.Serialize(paramType),
+			Position: &position,
 		}
 		if paramSymbol.Flags&ast.SymbolFlagsOptional != 0 {
 			parameter.Optional = true
 		}
+		applyParameterDefault(parameter, paramSymbol)
 		structural := fmt.Sprintf("_pa_%s_%s_%d", node.ID, paramSymbol.Name, i)
 		paramID, err := cache.dict.Unique(structural, cache.opts.hashLength())
 		if err != nil {
