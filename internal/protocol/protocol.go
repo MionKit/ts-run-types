@@ -319,7 +319,43 @@ type Response struct {
 	// same projection (full cache for OpDump, scoped to request files
 	// for OpScanFiles with IncludeCacheSource).
 	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
-	Error             string `json:"error,omitempty"`
+	// ParsedFnsCacheSource is the rendered body of the
+	// `virtual:runtypes-parsed-fns` module — a `Record<"<ns>::<fn>",
+	// ParsedFactoryFn>` consumed by `registerPureFnFactory` at runtime.
+	// Populated alongside CacheSource on OpDump and OpScanFiles
+	// (when IncludeCacheSource is set).
+	ParsedFnsCacheSource string `json:"parsedFnsCacheSource,omitempty"`
+	// ParsedFnsDiagnostics carries non-fatal extractor errors (bad arg
+	// shapes, body-hash collisions, etc.) — emitted by the Vite plugin
+	// via `this.warn` in canonical tsc line format. Schema mirrors the
+	// LSP Diagnostic shape so downstream tooling (LSP servers, ESLint
+	// reporters, problem matchers) can ingest with minimal glue.
+	ParsedFnsDiagnostics []ParsedFnDiagnostic `json:"parsedFnsDiagnostics,omitempty"`
+	Error                string               `json:"error,omitempty"`
+}
+
+// ParsedFnDiagnostic is the wire shape of parsedfn.Diagnostic. The Vite
+// plugin re-emits each one as a build warning so VS Code's $tsc problem
+// matcher surfaces it in the Problems panel.
+type ParsedFnDiagnostic struct {
+	Code     string            `json:"code"`
+	Category string            `json:"category"` // "error" | "warning"
+	Message  string            `json:"message"`
+	Site     ParsedFnDiagSite  `json:"site"`
+	Related  []ParsedFnRelated `json:"related,omitempty"`
+}
+
+type ParsedFnDiagSite struct {
+	FilePath  string `json:"filePath"`
+	StartLine int    `json:"startLine"`
+	StartCol  int    `json:"startCol"`
+	EndLine   int    `json:"endLine"`
+	EndCol    int    `json:"endCol"`
+}
+
+type ParsedFnRelated struct {
+	ParsedFnDiagSite
+	Message string `json:"message"`
 }
 
 // Site records one transformer-injection point. Pos is the byte offset of
@@ -367,6 +403,12 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.IsTypeCacheSource != "" {
 		out["isTypeCacheSource"] = response.IsTypeCacheSource
+	}
+	if response.ParsedFnsCacheSource != "" {
+		out["parsedFnsCacheSource"] = response.ParsedFnsCacheSource
+	}
+	if len(response.ParsedFnsDiagnostics) > 0 {
+		out["parsedFnsDiagnostics"] = response.ParsedFnsDiagnostics
 	}
 	if response.Error != "" {
 		out["error"] = response.Error

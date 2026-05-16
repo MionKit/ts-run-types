@@ -234,7 +234,41 @@ export interface Response {
   // `cacheSource` (full cache on `dump`, scoped to request files on
   // `scanFiles` with `includeCacheSource`).
   isTypeCacheSource?: string;
+  // Sibling of `cacheSource` carrying the parsed-fn data the Go binary
+  // extracted from every `registerPureFnFactory(<ns>, <fnName>, <factory>)`
+  // call. Body exports a single `parsedFns: Record<"<ns>::<fn>",
+  // ParsedFactoryFn>` consumed by `@mionjs/ts-go-run-types`'s
+  // `registerPureFnFactory` at runtime.
+  parsedFnsCacheSource?: string;
+  // Wire-side diagnostic records emitted alongside `parsedFnsCacheSource`.
+  // The plugin re-emits each one via `this.warn` in canonical tsc format
+  // so VS Code's $tsc problem matcher picks them up; the build never
+  // fails on these.
+  parsedFnsDiagnostics?: ParsedFnDiagnostic[];
   error?: string;
+}
+
+// ParsedFnDiagnostic mirrors the Go-side protocol.ParsedFnDiagnostic
+// shape. Modeled after the LSP Diagnostic schema so downstream tools can
+// ingest with minimal translation.
+export interface ParsedFnDiagnostic {
+  code: string;
+  category: 'error' | 'warning' | string;
+  message: string;
+  site: ParsedFnDiagSite;
+  related?: ParsedFnRelated[];
+}
+
+export interface ParsedFnDiagSite {
+  filePath: string;
+  startLine: number;
+  startCol: number;
+  endLine: number;
+  endCol: number;
+}
+
+export interface ParsedFnRelated extends ParsedFnDiagSite {
+  message: string;
 }
 
 export interface Dump {

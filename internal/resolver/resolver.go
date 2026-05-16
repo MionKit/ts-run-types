@@ -16,6 +16,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/emit"
 	"github.com/mionkit/ts-run-types/internal/jitfn"
 	"github.com/mionkit/ts-run-types/internal/marker"
+	"github.com/mionkit/ts-run-types/internal/parsedfn"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 	"github.com/mionkit/ts-run-types/internal/serialize"
@@ -190,6 +191,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: isTypeErr.Error()}
 				}
 				response.IsTypeCacheSource = isTypeRendered
+				parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, request.Files)
+				if parsedFnsErr != nil {
+					return protocol.Response{Error: parsedFnsErr.Error()}
+				}
+				response.ParsedFnsCacheSource = parsedFnsRendered
+				response.ParsedFnsDiagnostics = parsedFnsDiags
 			}
 		}
 		return response
@@ -206,11 +213,17 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if isTypeErr != nil {
 			return protocol.Response{Error: isTypeErr.Error()}
 		}
+		parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, nil)
+		if parsedFnsErr != nil {
+			return protocol.Response{Error: parsedFnsErr.Error()}
+		}
 		return protocol.Response{
-			RunTypes:          fullDump.RunTypes,
-			Sites:             fullDump.Sites,
-			CacheSource:       rendered,
-			IsTypeCacheSource: isTypeRendered,
+			RunTypes:             fullDump.RunTypes,
+			Sites:                fullDump.Sites,
+			CacheSource:          rendered,
+			IsTypeCacheSource:    isTypeRendered,
+			ParsedFnsCacheSource: parsedFnsRendered,
+			ParsedFnsDiagnostics: parsedFnsDiags,
 		}
 	case protocol.OpSetSources:
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {
@@ -624,6 +637,69 @@ func renderModule(dump protocol.Dump) (string, error) {
 		return "", fmt.Errorf("renderModule: %w", err)
 	}
 	return buf.String(), nil
+}
+
+// renderParsedFnsModule walks `files` (or every file in the program when
+// `files` is nil), extracts registerPureFnFactory call data, and returns
+// the rendered virtual-module source plus any wire-shaped diagnostics.
+// nil `files` is the OpDump path; a non-nil slice is OpScanFiles with
+// IncludeCacheSource (we scope to the request's files for parity with
+// CacheSource / IsTypeCacheSource).
+func renderParsedFnsModule(prog *program.Program, files []string) (string, []protocol.ParsedFnDiagnostic, error) {
+	if prog == nil {
+		return "", nil, nil
+	}
+	walkFiles := files
+	if walkFiles == nil {
+		sourceFiles := prog.TS.SourceFiles()
+		walkFiles = make([]string, 0, len(sourceFiles))
+		for _, sf := range sourceFiles {
+			if sf == nil {
+				continue
+			}
+			walkFiles = append(walkFiles, sf.FileName())
+		}
+	}
+	entries, diagnostics := parsedfn.ExtractFromProgram(prog, walkFiles)
+
+	var buf bytes.Buffer
+	if err := parsedfn.ParsedFnsModule(&buf, entries); err != nil {
+		return "", nil, fmt.Errorf("renderParsedFnsModule: %w", err)
+	}
+
+	wireDiags := make([]protocol.ParsedFnDiagnostic, 0, len(diagnostics))
+	for _, diag := range diagnostics {
+		wireDiags = append(wireDiags, toWireDiagnostic(diag))
+	}
+	return buf.String(), wireDiags, nil
+}
+
+// toWireDiagnostic translates the in-Go diagnostic shape to the protocol's
+// JSON-friendly mirror. Same fields, different package edge.
+func toWireDiagnostic(diag parsedfn.Diagnostic) protocol.ParsedFnDiagnostic {
+	out := protocol.ParsedFnDiagnostic{
+		Code:     diag.Code,
+		Category: diag.Category,
+		Message:  diag.Message,
+		Site:     toWireSite(diag.Site),
+	}
+	for _, related := range diag.Related {
+		out.Related = append(out.Related, protocol.ParsedFnRelated{
+			ParsedFnDiagSite: toWireSite(related.DiagnosticSite),
+			Message:          related.Message,
+		})
+	}
+	return out
+}
+
+func toWireSite(site parsedfn.DiagnosticSite) protocol.ParsedFnDiagSite {
+	return protocol.ParsedFnDiagSite{
+		FilePath:  site.FilePath,
+		StartLine: site.StartLine,
+		StartCol:  site.StartCol,
+		EndLine:   site.EndLine,
+		EndCol:    site.EndCol,
+	}
 }
 
 // renderIsTypeModule emits the sibling `virtual:runtypes-isType` module —
