@@ -586,6 +586,122 @@ func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
 	}
 }
 
+// TestIsTypeModule_CodeNSPropagation covers the bubble-up semantics
+// the renderer relies on now that the per-entry `subtreeFullySupported`
+// pre-walk is gone. Each row asserts that an unsupported leaf
+// somewhere in the subtree causes the top-level factory to be silently
+// skipped (no panic, no malformed code), while sibling supported
+// entries in the same dump still render normally.
+func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	// KindIntersection is unsupported at the leaf — used here as a
+	// stand-in for "any future kind without an emit". We could equally
+	// well synthesize a brand-new ReflectionKind value; KindIntersection
+	// has the advantage of being a real cache shape today.
+	unsupportedLeaf := &protocol.RunType{ID: "uns", Kind: protocol.KindIntersection}
+
+	t.Run("array_of_unsupported_skipped", func(t *testing.T) {
+		arr := &protocol.RunType{
+			ID:    "ar1",
+			Kind:  protocol.KindArray,
+			Child: &protocol.RunType{ID: "uns", Kind: protocol.KindRef},
+		}
+		dump := protocol.Dump{RunTypes: []*protocol.RunType{arr, unsupportedLeaf, stringRT}}
+		out := renderToString(t, dump)
+		if strings.Contains(out, "factory('ar1',") {
+			t.Errorf("array with unsupported child must be skipped, got:\n%s", out)
+		}
+		if !strings.Contains(out, "factory('str',") {
+			t.Errorf("supported sibling must still render, got:\n%s", out)
+		}
+	})
+
+	t.Run("object_with_one_unsupported_prop_skipped", func(t *testing.T) {
+		propUns := &protocol.RunType{
+			ID:         "pU",
+			Kind:       protocol.KindPropertySignature,
+			Name:       "u",
+			IsSafeName: true,
+			Child:      &protocol.RunType{ID: "uns", Kind: protocol.KindRef},
+		}
+		propOk := &protocol.RunType{
+			ID:         "pO",
+			Kind:       protocol.KindPropertySignature,
+			Name:       "o",
+			IsSafeName: true,
+			Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+		}
+		iface := &protocol.RunType{
+			ID:   "if1",
+			Kind: protocol.KindObjectLiteral,
+			Children: []*protocol.RunType{
+				{ID: "pU", Kind: protocol.KindRef},
+				{ID: "pO", Kind: protocol.KindRef},
+			},
+		}
+		dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propUns, propOk, unsupportedLeaf, stringRT}}
+		out := renderToString(t, dump)
+		if strings.Contains(out, "factory('if1',") {
+			t.Errorf("object with one unsupported property must be skipped, got:\n%s", out)
+		}
+	})
+
+	t.Run("union_with_one_unsupported_member_skipped", func(t *testing.T) {
+		un := &protocol.RunType{
+			ID:   "un1",
+			Kind: protocol.KindUnion,
+			Children: []*protocol.RunType{
+				{ID: "str", Kind: protocol.KindRef},
+				{ID: "uns", Kind: protocol.KindRef},
+			},
+		}
+		dump := protocol.Dump{RunTypes: []*protocol.RunType{un, unsupportedLeaf, stringRT}}
+		out := renderToString(t, dump)
+		if strings.Contains(out, "factory('un1',") {
+			t.Errorf("union with one unsupported member must be skipped, got:\n%s", out)
+		}
+	})
+
+	t.Run("nested_array_of_unsupported_skipped", func(t *testing.T) {
+		// Outer Array[Array[Unsupported]] — the inner array's child
+		// returns CodeNS; inner array propagates; outer array
+		// propagates. Net effect: both inner and outer factories
+		// silently absent from the rendered module.
+		innerArr := &protocol.RunType{
+			ID:    "ai",
+			Kind:  protocol.KindArray,
+			Child: &protocol.RunType{ID: "uns", Kind: protocol.KindRef},
+		}
+		outerArr := &protocol.RunType{
+			ID:    "ao",
+			Kind:  protocol.KindArray,
+			Child: &protocol.RunType{ID: "ai", Kind: protocol.KindRef},
+		}
+		dump := protocol.Dump{RunTypes: []*protocol.RunType{outerArr, innerArr, unsupportedLeaf}}
+		out := renderToString(t, dump)
+		if strings.Contains(out, "factory('ao',") {
+			t.Errorf("outer array of unsupported must be skipped, got:\n%s", out)
+		}
+		if strings.Contains(out, "factory('ai',") {
+			t.Errorf("inner array of unsupported must be skipped, got:\n%s", out)
+		}
+	})
+
+	t.Run("plain_user_class_with_unsupported_subkind_skipped", func(t *testing.T) {
+		// KindClass + SubKindNonSerializable was a panic path before
+		// the refactor; now it returns CodeNS so the entry skips.
+		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
+		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
+		out := renderToString(t, dump)
+		if strings.Contains(out, "factory('ns1',") {
+			t.Errorf("KindClass+SubKindNonSerializable must be skipped, got:\n%s", out)
+		}
+		if !strings.Contains(out, "factory('str',") {
+			t.Errorf("supported sibling must still render, got:\n%s", out)
+		}
+	})
+}
+
 func TestIsTypeModule_NilRunTypeSkipped(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
