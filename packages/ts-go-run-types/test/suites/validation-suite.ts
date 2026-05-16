@@ -128,12 +128,46 @@ export const VALIDATION_SUITE = {
       title: 'enum (mixed values)',
       description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
       isType: () => createIsType<Color>(),
-      // ENUM ANNOTATION TRAP: `const v: Color = Color.Red` narrows v to
-      // the literal member type `Color.Red`, not the parent enum —
-      // counterintuitive but documented in docs/atomic-types.md "Enum —
-      // Reflect form — annotation is a TRAP" and pinned in Go by
-      // TestAtomic_EnumNumeric_Reflect. Reflect form for enums MUST omit
-      // the annotation so TS widens to the parent enum type.
+      // -------------------------------------------------------------
+      // ENUM ANNOTATION TRAP — reflect-form divergence from static
+      // -------------------------------------------------------------
+      // TypeScript behavior: `const v: Color = Color.Red` narrows v's
+      // apparent type to the literal enum member `Color.Red` (the
+      // initializer's type) rather than keeping the declared parent
+      // enum `Color`. The annotation guides assignability for the
+      // initializer check, but the const binding's inferred apparent
+      // type uses the narrower initializer type. So at the
+      // `createIsType(v)` call site, T is inferred as `Color.Red`
+      // (literal `0`) — NOT the full enum.
+      //
+      // Why the static form is fine:
+      //   `createIsType<Color>()` passes `Color` directly; nothing is
+      //   inferred from a value, so no narrowing happens.
+      //
+      // Why the reflect form would fail with an annotation:
+      //   The Go resolver hashes T as the literal member `Color.Red`,
+      //   producing a validator that only accepts the value `0` and
+      //   rejects every other enum member (Color.Green='green',
+      //   Color.Blue=2). The first `valid` sample (Color.Red=0) would
+      //   pass spuriously; the rest would fail.
+      //
+      // Fix: omit the annotation entirely — `const v = Color.Red;`.
+      // TS then widens a const enum-member assignment to the parent
+      // enum type, so v has type `Color` and `createIsType(v)` infers
+      // T as the full enum.
+      //
+      // Same root cause as the union-narrowing trap below (CFA on
+      // const bindings narrows to the initializer's narrowest type),
+      // but the enum case wants WIDENING, so removing the annotation
+      // is the right knob. The union case (below) wants to pin a
+      // wider type than the initializer's; that one casts with `as U`.
+      //
+      // Cross-references:
+      //   - docs/atomic-types.md "Enum — Reflect form — annotation is
+      //     a TRAP" carries the public-facing explanation.
+      //   - internal/resolver/atomic_test.go::
+      //     TestAtomic_EnumNumeric_Reflect /
+      //     TestAtomic_EnumString_Reflect pin this at the Go layer.
       isTypeReflect: () => {
         const v = Color.Red;
         return createIsType(v);
@@ -1512,15 +1546,65 @@ export const VALIDATION_SUITE = {
       title: 'Date | number | string | null | bigint',
       description: 'mion union.spec.ts "validate union" — Atomic Union suite',
       isType: () => createIsType<Date | number | string | null | bigint>(),
-      // UNION NARROWING TRAP: `const v: U = literal` triggers TS
-      // control-flow narrowing on const bindings, so v's type at the
-      // `createIsType(v)` use point degenerates to `typeof literal`
-      // instead of the declared union U. The validator then specializes
-      // to the narrowed arm and rejects the other union members. Cast
-      // the initializer with `as U` (or omit the annotation and let TS
-      // infer from the cast) so v's apparent type at the use point IS
-      // the full union. This trap is also documented for enums in
-      // docs/atomic-types.md — same root cause: TS's CFA on const.
+      // -------------------------------------------------------------
+      // UNION NARROWING TRAP — reflect-form divergence from static
+      // -------------------------------------------------------------
+      // TypeScript behavior: `const v: U = literal` looks like it
+      // should pin v's type to the declared union U, but TS's
+      // control-flow analysis (CFA) tracks const bindings by their
+      // initializer's narrowest type. The annotation only enforces
+      // that the initializer is assignable to U; from any subsequent
+      // use, v's APPARENT type is the type of the initializer (e.g.
+      // `'hello'`, not `string | number`).
+      //
+      //   Example:
+      //     const v: string | number = 'hello';
+      //     //    declared: string | number
+      //     //    apparent at use: 'hello' (string-literal type)
+      //
+      // Why the static form is fine:
+      //   `createIsType<U>()` passes U directly as the type argument;
+      //   no inference from a value, so no narrowing.
+      //
+      // Why the reflect form would fail with an annotation:
+      //   `createIsType(v)` infers T from v's apparent type at the
+      //   call site, which CFA has narrowed to one arm. The Go
+      //   resolver hashes T as that single arm and produces a
+      //   validator specialized to it — every other union member is
+      //   rejected. For `Date | number | string | null | bigint`
+      //   with `const v: U = 123`, only `42` and `123` would pass;
+      //   the Date / string / null / bigint valid samples would all
+      //   spuriously fail.
+      //
+      // Fix: cast the initializer with `as U`. The cast makes the
+      // initializer's *declared* type the full union, and CFA
+      // preserves that declared type as v's apparent type at every
+      // subsequent use:
+      //
+      //   const v = 123 as Date | number | string | null | bigint;
+      //   //    apparent at use: Date | number | string | null | bigint
+      //
+      // Why we cast on the RHS instead of omitting the annotation
+      // (the enum fix): unannotated `const v = 123` would infer
+      // `number` (a single arm of the union), not the union. There's
+      // no widening rule for primitives that maps to "the declared
+      // union" — the only way to surface the full union to CFA is
+      // the explicit cast.
+      //
+      // Same root cause as the enum-annotation trap above (CFA on
+      // const narrows to the initializer's narrowest type), but the
+      // remediation differs by context: enums want widening (drop
+      // the annotation), unions want pinning to a type wider than
+      // the initializer (cast with `as U`).
+      //
+      // This trap applies uniformly to EVERY union reflect thunk in
+      // this suite — atomic, literal, object-arm, mixed, discriminated,
+      // subset, intersection-to-union, and template-literal
+      // distributions. Each affected case below uses the same
+      // `<literal> as U` idiom and references this section. The four
+      // UTILITY cases whose utility resolves to a union
+      // (exclude_atomic, extract_atomic, exclude_from_object_union,
+      // non_nullable) get the same treatment.
       isTypeReflect: () => {
         const v = 123 as Date | number | string | null | bigint;
         return createIsType(v);
