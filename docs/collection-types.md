@@ -101,6 +101,26 @@ Cache entry shape:
 
 Each `KindParameter` is `{ kind: 18, name: "a", position: 0, child: { kind: -1, id: "<number>" }, optional?: bool, default?: literal }`. Literal defaults (`= 5`, `= "x"`, `= true`, `= null`) land in `default`; non-literal initializers leave `default` unset and append `flags: ["nonLiteralDefault"]`.
 
+### Rest parameters
+
+A trailing `...rest: T[]` parameter is encoded as a regular `KindParameter` with `flags: ["rest"]` and its `child` set to the array type (`T[]`, not the element). Consumers walk the array's `child` to reach the element. Mirrors the tuple-member convention (`KindTupleMember` with `flags: ["rest"]`).
+
+```ts
+type Fn = (a: number, ...rest: boolean[]) => string;
+//                    ^^^ KindParameter, name: "rest", position: 1, flags: ["rest"]
+//                                       child resolves to KindArray<KindBoolean>
+```
+
+### Dispatch — Function vs ObjectLiteral with CallSignature
+
+- An object type with **exactly one call signature and no other properties** projects as `KindFunction`. This is the common case (arrow types, function types, function values).
+- An object type with **call signatures AND properties** stays as `KindObjectLiteral`; each call signature appears as a `KindCallSignature` child alongside the regular property children. Used for callable interfaces (`interface Tagged { (x: number): string; tag: string; }`).
+- A function-typed property INSIDE a class projects as `KindMethod`; inside an interface / object literal it projects as `KindMethodSignature`. Both carry the same `parameters` / `return` slots as `KindFunction`, plus the property `name` and member modifiers (see [member-types.md](member-types.md)).
+
+### Async
+
+There is no explicit `async` flag. Consumers detect async by inspecting `return` — if its kind is `KindPromise`, the function is async. This mirrors mion's `FunctionRunType.isAsync()` (which infers from the resolved return type).
+
 ---
 
 ## ObjectLiteral — `KindObjectLiteral`

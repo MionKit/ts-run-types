@@ -57,14 +57,7 @@ func applyMemberModifiers(member *protocol.RunType, symbol *ast.Symbol, asClass 
 // initializers (function/expression/computed) leave Default nil and append
 // the "nonLiteralDefault" marker to Flags — mirrors mion's convention.
 func applyParameterDefault(parameter *protocol.RunType, symbol *ast.Symbol) {
-	declaration := symbol.ValueDeclaration
-	if declaration == nil && len(symbol.Declarations) > 0 {
-		declaration = symbol.Declarations[0]
-	}
-	if declaration == nil || declaration.Kind != ast.KindParameter {
-		return
-	}
-	paramNode := declaration.AsParameterDeclaration()
+	paramNode := parameterDeclaration(symbol)
 	if paramNode == nil || paramNode.Initializer == nil {
 		return
 	}
@@ -83,4 +76,38 @@ func applyParameterDefault(parameter *protocol.RunType, symbol *ast.Symbol) {
 	default:
 		parameter.Flags = append(parameter.Flags, "nonLiteralDefault")
 	}
+}
+
+// isRestParameter returns true when the parameter symbol's declaration
+// carries a `...` (DotDotDotToken). The signature wire shape stores rest
+// as a string flag on KindParameter — mirrors the tuple-member treatment
+// in projectTuple. We can't ask the Signature itself because the shim
+// doesn't expose Signature.flags; the AST node carries the same info via
+// the rest token, which TS only sets on a true variadic parameter.
+func isRestParameter(symbol *ast.Symbol) bool {
+	paramNode := parameterDeclaration(symbol)
+	return paramNode != nil && paramNode.DotDotDotToken != nil
+}
+
+// isOptionalParameter returns true when the parameter symbol's declaration
+// carries a `?` (QuestionToken). SymbolFlagsOptional gets set on optional
+// property symbols but NOT on optional parameter symbols in tsgo —
+// optionality lives on the AST node for parameters, same place rest does.
+func isOptionalParameter(symbol *ast.Symbol) bool {
+	paramNode := parameterDeclaration(symbol)
+	return paramNode != nil && paramNode.QuestionToken != nil
+}
+
+// parameterDeclaration unwraps a parameter symbol to its
+// ParameterDeclaration AST node, or nil if the symbol's declaration is
+// missing or of the wrong kind.
+func parameterDeclaration(symbol *ast.Symbol) *ast.ParameterDeclaration {
+	declaration := symbol.ValueDeclaration
+	if declaration == nil && len(symbol.Declarations) > 0 {
+		declaration = symbol.Declarations[0]
+	}
+	if declaration == nil || declaration.Kind != ast.KindParameter {
+		return nil
+	}
+	return declaration.AsParameterDeclaration()
 }
