@@ -53,3 +53,10 @@ export function reflectRuntypeId<T>(_value: T, id?: RuntypeId<T>): RuntypeId<T> 
   }
   return id;
 }
+
+export {
+  flattenUnionDiscriminators,
+  type DiscriminatorPropLike,
+  type DiscriminatorUnionLike,
+  type FlattenedDiscriminator,
+} from './unionDiscriminator.ts';
