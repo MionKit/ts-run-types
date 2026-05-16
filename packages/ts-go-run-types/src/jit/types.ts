@@ -44,29 +44,6 @@ export interface PersistedPureFunction extends CompiledPureFunction {
   fn: undefined;
 }
 
-/** Pre-parsed factory function data injected at build time by the mion vite plugin */
-export interface ParsedFactoryFn {
-  /** Hash of the function body */
-  readonly bodyHash: string;
-  /** The names of the factory function parameters */
-  readonly paramNames: string[];
-  /** The normalized function body code */
-  readonly code: string;
-}
-
-/** Cached parsed-function data emitted by the Go binary into the parsedFns
- *  cache module. Same fields as `ParsedFactoryFn`; the alias makes the
- *  jitUtils-registry intent clear at call sites. Stored value is mutable
- *  so the binary's emitter can layer fields without reallocating. */
-export interface ParsedFn {
-  bodyHash: string;
-  paramNames: string[];
-  code: string;
-}
-
-/** Flat parsed-function data cache keyed by "<namespace>::<fnName>". */
-export type ParsedFnsDataCache = Record<string, ParsedFn>;
-
 // ########################################### Run types ##############################################
 
 /** Runtime representation of a single reflected type, populated by the Go

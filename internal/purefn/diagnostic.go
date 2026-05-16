@@ -29,6 +29,13 @@ const (
 	// satisfies. Authored by ValidatePureFnDependencies at the end of
 	// compilation, after every contributing file has been indexed.
 	CodeMissingPureFnDep = "PFE9012"
+
+	// CodePurityDepNotLiteral surfaces when a pure-fn factory body
+	// reaches `utl.getPureFn(...)` (or sibling) with an argument that
+	// can't be resolved to a string literal at scan time. Static dep
+	// extraction needs a literal so the dep graph is fully known before
+	// the cache module is emitted.
+	CodePurityDepNotLiteral = "PFE9013"
 )
 
 // Diagnostic is a single non-fatal extractor error. The Vite plugin re-emits

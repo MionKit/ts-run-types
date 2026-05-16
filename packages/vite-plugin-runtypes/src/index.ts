@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
-import type {CacheKind, ParsedFnDiagnostic} from './protocol.ts';
+import type {CacheKind, PureFnDiagnostic} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -26,12 +26,12 @@ const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 // resolve the package's `exports` map at startup. Anchored on the
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
-const CACHE_FILE_RE = /[/\\]caches[/\\](runTypesCache|isTypeCache|parsedFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+const CACHE_FILE_RE = /[/\\]caches[/\\](runTypesCache|isTypeCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',
   isTypeCache: 'isType',
-  parsedFnsCache: 'parsedFns',
+  pureFnsCache: 'pureFns',
 };
 
 export default function runtypes(options: PluginOptions) {
@@ -78,11 +78,11 @@ export default function runtypes(options: PluginOptions) {
         const kind = CACHE_KIND_BY_FILE[cacheMatch[1]];
         cacheModuleIds[kind] = id;
         const dump = await resolver.dump({includeCacheSources: [kind]});
-        // ParsedFn diagnostics flow alongside parsedFnsCacheSource only —
+        // PureFn diagnostics flow alongside pureFnsCacheSource only —
         // surface them on that one transform call so each diagnostic is
         // emitted exactly once per build pass.
-        if (kind === 'parsedFns') {
-          for (const diag of dump.parsedFnsDiagnostics ?? []) {
+        if (kind === 'pureFns') {
+          for (const diag of dump.pureFnsDiagnostics ?? []) {
             this.warn(formatTscDiagnostic(diag));
           }
         }
@@ -99,7 +99,7 @@ export default function runtypes(options: PluginOptions) {
 
       const rel = path.relative(options.cwd ?? process.cwd(), id);
       const result = await rewrite(rel, code, resolver);
-      if (result.sites.length === 0) return null;
+      if (result.sites.length === 0 && result.replacements.length === 0) return null;
 
       return {code: result.code, map: null};
     },
@@ -111,7 +111,7 @@ export default function runtypes(options: PluginOptions) {
     //   2. Re-scan the changed file so the cache is up to date AND we
     //      get per-cache "did this scan change anything?" signals.
     //   3. Invalidate only the cache modules whose backing data grew
-    //      (addedRunTypes / addedIsType / addedParsedFns), then return
+    //      (addedRunTypes / addedIsType / addedPureFns), then return
     //      the changed user file batched with those invalidated modules
     //      so Vite ships them in a single HMR message. The cache
     //      module's `accept` callback fires before the user file's swap,
@@ -146,9 +146,9 @@ export default function runtypes(options: PluginOptions) {
         return;
       }
 
-      // ParsedFn diagnostics from this scan — surface immediately so
+      // PureFn diagnostics from this scan — surface immediately so
       // the editor's problem panel updates as the user types.
-      for (const diag of result.parsedFnsDiagnostics ?? []) {
+      for (const diag of result.pureFnsDiagnostics ?? []) {
         this.warn?.(formatTscDiagnostic(diag));
       }
 
@@ -158,7 +158,7 @@ export default function runtypes(options: PluginOptions) {
         const kindsToInvalidate: CacheKind[] = [];
         if (result.addedRunTypes) kindsToInvalidate.push('runType');
         if (result.addedIsType) kindsToInvalidate.push('isType');
-        if (result.addedParsedFns) kindsToInvalidate.push('parsedFns');
+        if (result.addedPureFns) kindsToInvalidate.push('pureFns');
         for (const kind of kindsToInvalidate) {
           const cacheId = cacheModuleIds[kind];
           if (!cacheId) continue;
@@ -177,21 +177,21 @@ export default function runtypes(options: PluginOptions) {
 // pickCacheSource pulls the rendered body field matching `kind` off a
 // dump response. Centralised so the transform hook stays terse.
 function pickCacheSource(
-  dump: {runTypeCacheSource?: string; isTypeCacheSource?: string; parsedFnsCacheSource?: string},
+  dump: {runTypeCacheSource?: string; isTypeCacheSource?: string; pureFnsCacheSource?: string},
   kind: CacheKind
 ): string | undefined {
   if (kind === 'runType') return dump.runTypeCacheSource;
   if (kind === 'isType') return dump.isTypeCacheSource;
-  if (kind === 'parsedFns') return dump.parsedFnsCacheSource;
+  if (kind === 'pureFns') return dump.pureFnsCacheSource;
   return undefined;
 }
 
-// formatTscDiagnostic renders a parsedFn diagnostic in the canonical
+// formatTscDiagnostic renders a pure-fn diagnostic in the canonical
 // `tsc --pretty=false` line format so VS Code's $tsc problem matcher
 // recognises it:
 //   /abs/path(line,col): error PFE9001: message
 //     Related: /abs/path(line,col): related message
-export function formatTscDiagnostic(diag: ParsedFnDiagnostic): string {
+export function formatTscDiagnostic(diag: PureFnDiagnostic): string {
   let line = `${diag.site.filePath}(${diag.site.startLine},${diag.site.startCol}): ${diag.category} ${diag.code}: ${diag.message}`;
   if (diag.related && diag.related.length > 0) {
     for (const related of diag.related) {

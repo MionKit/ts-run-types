@@ -192,11 +192,23 @@ export interface Site {
   argsCount?: number;
 }
 
+// Replacement is a byte-range rewrite on a source file: replace
+// [start, end) with text. Used by the pure-fn extractor to null out
+// the factory argument of every `registerPureFnFactory(ns, fn,
+// factory)` call so the canonical fn body lives only in the emitted
+// pureFns cache module.
+export interface Replacement {
+  file: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
 // CacheKind enumerates the rendered cache-module bodies callers can opt
 // into on a scanFiles request via Request.includeCacheSources. Mirrors
 // the Go-side protocol.CacheKind. `'all'` is a forward-compatible
 // shortcut: when present every other kind is treated as requested.
-export type CacheKind = 'runType' | 'isType' | 'parsedFns' | 'all';
+export type CacheKind = 'runType' | 'isType' | 'pureFns' | 'all';
 
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
@@ -228,12 +240,19 @@ export interface Response {
   // Per-cache "did this scan change anything?" signals consumed by the
   // Vite plugin's handleHotUpdate. `addedRunTypes` is true when this
   // scan interned new RunTypes; `addedIsType` when at least one of
-  // those is supported by the IsType emitter; `addedParsedFns` when
-  // any parsedFn entry's bodyHash flipped or appeared.
+  // those is supported by the IsType emitter; `addedPureFns` when
+  // any pure-fn entry's bodyHash flipped or appeared.
   addedRunTypes?: boolean;
   addedIsType?: boolean;
-  addedParsedFns?: boolean;
+  addedPureFns?: boolean;
   sites?: Site[];
+  // Replacements is the byte-range rewrite list the Vite plugin
+  // applies alongside Sites in `rewrite.ts`. The pure-fn extractor
+  // emits one entry per accepted `registerPureFnFactory(ns, fn,
+  // factory)` call: replace the factory argument with `null` so the
+  // canonical fn body lives only in the emitted pureFns cache module
+  // (no duplication in the user bundle).
+  replacements?: Replacement[];
   runTypes?: RunType[];
   // Always populated by `dump`; populated by `scanFiles` when the request
   // opts into `'runType'` (or `'all'`) via includeCacheSources. The body
@@ -250,33 +269,35 @@ export interface Response {
   // pre-invokes a factory. Populated by `dump` and on `scanFiles` when
   // the caller opts into `'isType'` (or `'all'`).
   isTypeCacheSource?: string;
-  // Sibling of `runTypeCacheSource` carrying the parsed-fn data the Go
+  // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
-  // <factory>)` call. Body exports a single `parsedFns: Record<"<ns>::<fn>",
-  // ParsedFactoryFn>` consumed by `@mionjs/ts-go-run-types`'s
-  // `registerPureFnFactory` at runtime. Populated by `dump` and on
-  // `scanFiles` when the caller opts into `'parsedFns'` (or `'all'`).
-  parsedFnsCacheSource?: string;
-  // Wire-side diagnostic records emitted alongside `parsedFnsCacheSource`.
+  // <factory>)` call. Body is a sequence of `factory(key, bodyHash,
+  // paramNames, code, pureFnDependencies, createPureFn)` calls — the
+  // `createPureFn` argument is an inline function literal templated
+  // from the same `code` string, so the cache module is the canonical
+  // runtime home of every pure-fn body. Populated by `dump` and on
+  // `scanFiles` when the caller opts into `'pureFns'` (or `'all'`).
+  pureFnsCacheSource?: string;
+  // Wire-side diagnostic records emitted alongside `pureFnsCacheSource`.
   // The plugin re-emits each one via `this.warn` in canonical tsc format
   // so VS Code's $tsc problem matcher picks them up; the build never
   // fails on these.
-  parsedFnsDiagnostics?: ParsedFnDiagnostic[];
+  pureFnsDiagnostics?: PureFnDiagnostic[];
   error?: string;
 }
 
-// ParsedFnDiagnostic mirrors the Go-side protocol.ParsedFnDiagnostic
+// PureFnDiagnostic mirrors the Go-side protocol.PureFnDiagnostic
 // shape. Modeled after the LSP Diagnostic schema so downstream tools can
 // ingest with minimal translation.
-export interface ParsedFnDiagnostic {
+export interface PureFnDiagnostic {
   code: string;
   category: 'error' | 'warning' | string;
   message: string;
-  site: ParsedFnDiagSite;
-  related?: ParsedFnRelated[];
+  site: PureFnDiagSite;
+  related?: PureFnRelated[];
 }
 
-export interface ParsedFnDiagSite {
+export interface PureFnDiagSite {
   filePath: string;
   startLine: number;
   startCol: number;
@@ -284,7 +305,7 @@ export interface ParsedFnDiagSite {
   endCol: number;
 }
 
-export interface ParsedFnRelated extends ParsedFnDiagSite {
+export interface PureFnRelated extends PureFnDiagSite {
   message: string;
 }
 

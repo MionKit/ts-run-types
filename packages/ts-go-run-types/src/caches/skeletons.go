@@ -17,5 +17,5 @@ package skeletons
 
 import "embed"
 
-//go:embed runTypesCache.ts isTypeCache.ts parsedFnsCache.ts
+//go:embed runTypesCache.ts isTypeCache.ts pureFnsCache.ts
 var FS embed.FS
