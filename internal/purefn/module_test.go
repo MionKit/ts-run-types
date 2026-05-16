@@ -1,4 +1,4 @@
-package parsedpurefn
+package purefn
 
 import (
 	"bytes"
