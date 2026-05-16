@@ -451,12 +451,14 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 		for _, member := range tsType.Distributed() {
 			node.Children = append(node.Children, cache.Serialize(member))
 		}
+		// Compute safe order + discriminator marks once at serialize time
+		// so every FE consumer reads ready-baked metadata.
+		cache.finalizeUnion(node)
 
 	case flags&checker.TypeFlagsIntersection != 0:
-		node.Kind = protocol.KindIntersection
-		for _, member := range tsType.AsUnionOrIntersectionType().Types() {
-			node.Children = append(node.Children, cache.Serialize(member))
-		}
+		// Intersections are collapsed in Go so consumers never see a raw
+		// KindIntersection on the wire. See intersection_collapse.go.
+		cache.collapseIntersection(tsType, node)
 
 	case flags&checker.TypeFlagsNonPrimitive != 0:
 		// The bare `object` primitive (`const x: object`).
