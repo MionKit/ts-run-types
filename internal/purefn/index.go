@@ -12,7 +12,7 @@ import (
 //
 //   - byKey: every successful registration the extractor saw, keyed by
 //     "<namespace>::<functionName>". Same map shape consumers see in
-//     virtual:runtypes-parsed-fns.
+//     virtual:runtypes-pure-fns.
 //   - scanned: every absolute filePath that has already been parsed
 //     for registerPureFnFactory call sites. Gates the lazy expansion
 //     in ValidatePureFnDependencies — a file in this set never gets
@@ -20,7 +20,7 @@ import (
 //
 // Not safe for concurrent use; build per-dump.
 type Index struct {
-	byKey   map[string]ParsedFn
+	byKey   map[string]Entry
 	scanned map[string]bool
 }
 
@@ -28,9 +28,9 @@ type Index struct {
 // is the slice ExtractFromProgram was called with — every file in it
 // counts as scanned even when it contributed zero registrations, so
 // later lazy expansion knows not to re-walk it.
-func NewIndex(entries []ParsedFn, files []string) *Index {
+func NewIndex(entries []Entry, files []string) *Index {
 	idx := &Index{
-		byKey:   make(map[string]ParsedFn, len(entries)),
+		byKey:   make(map[string]Entry, len(entries)),
 		scanned: make(map[string]bool, len(files)),
 	}
 	for _, entry := range entries {
@@ -42,9 +42,9 @@ func NewIndex(entries []ParsedFn, files []string) *Index {
 	return idx
 }
 
-// Get returns the ParsedFn registered under "<namespace>::<functionName>"
+// Get returns the Entry registered under "<namespace>::<functionName>"
 // if any, plus an ok flag.
-func (idx *Index) Get(key string) (ParsedFn, bool) {
+func (idx *Index) Get(key string) (Entry, bool) {
 	entry, ok := idx.byKey[key]
 	return entry, ok
 }
@@ -62,7 +62,7 @@ func (idx *Index) Scanned(filePath string) bool {
 // step intentionally doesn't double-author them for lazy-expanded
 // files (the alternative would generate noise during incremental
 // build flows).
-func (idx *Index) merge(entries []ParsedFn, filePath string) {
+func (idx *Index) merge(entries []Entry, filePath string) {
 	for _, entry := range entries {
 		if _, dup := idx.byKey[entry.Key()]; dup {
 			continue

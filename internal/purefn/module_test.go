@@ -31,7 +31,7 @@ func TestPureFnsModule_EmptyInput(t *testing.T) {
 
 func TestPureFnsModule_SingleEntry(t *testing.T) {
 	var buf bytes.Buffer
-	entries := []ParsedFn{{
+	entries := []Entry{{
 		Namespace:    "mion",
 		FunctionName: "asJSONString",
 		ParamNames:   []string{},
@@ -52,7 +52,7 @@ func TestPureFnsModule_SingleEntry(t *testing.T) {
 
 func TestPureFnsModule_WithDependencies(t *testing.T) {
 	var buf bytes.Buffer
-	entries := []ParsedFn{{
+	entries := []Entry{{
 		Namespace:          "mion",
 		FunctionName:       "consumer",
 		ParamNames:         []string{"x"},
@@ -71,7 +71,7 @@ func TestPureFnsModule_WithDependencies(t *testing.T) {
 
 func TestPureFnsModule_QuoteEscapes(t *testing.T) {
 	var buf bytes.Buffer
-	entries := []ParsedFn{{
+	entries := []Entry{{
 		Namespace:    "test",
 		FunctionName: "withQuote",
 		ParamNames:   []string{"x"},
@@ -91,7 +91,7 @@ func TestPureFnsModule_QuoteEscapes(t *testing.T) {
 }
 
 func TestPureFnsModule_DeterministicOrder(t *testing.T) {
-	entries := []ParsedFn{
+	entries := []Entry{
 		{Namespace: "a", FunctionName: "x", Code: "return 1;", BodyHash: "h1", ParamNames: []string{}},
 		{Namespace: "b", FunctionName: "y", Code: "return 2;", BodyHash: "h2", ParamNames: []string{}},
 	}
@@ -104,7 +104,7 @@ func TestPureFnsModule_DeterministicOrder(t *testing.T) {
 }
 
 func TestReplacements_NullsOutFactoryArg(t *testing.T) {
-	entries := []ParsedFn{{
+	entries := []Entry{{
 		Namespace:       "mion",
 		FunctionName:    "foo",
 		FilePath:        "/abs/a.ts",
@@ -124,7 +124,7 @@ func TestReplacements_SkipsEntriesWithoutBounds(t *testing.T) {
 	// Synthetic entries (e.g. those built in module_test fixtures above)
 	// lack FactoryArgStart/End. Replacements must skip them so we don't
 	// emit zero-width or nonsensical rewrites.
-	entries := []ParsedFn{
+	entries := []Entry{
 		{Namespace: "a", FunctionName: "b", FilePath: "/x.ts"},                 // missing bounds
 		{Namespace: "c", FunctionName: "d", FactoryArgStart: 10, FactoryArgEnd: 20}, // missing FilePath
 	}

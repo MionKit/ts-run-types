@@ -26,7 +26,7 @@ import (
 // Output is deterministic: entries are emitted in the order they
 // appear in the input slice (ExtractFromProgram already sorts
 // alphabetically by key).
-func PureFnsModule(writer io.Writer, entries []ParsedFn) error {
+func PureFnsModule(writer io.Writer, entries []Entry) error {
 	var body strings.Builder
 	for _, entry := range entries {
 		body.WriteString("factory(")
@@ -59,9 +59,9 @@ func PureFnsModule(writer io.Writer, entries []ParsedFn) error {
 // function literal.
 //
 // Entries without FactoryArgStart/End populated (e.g. a synthetic
-// ParsedFn built by a test) are skipped — only real extraction
+// Entry built by a test) are skipped — only real extraction
 // results carry the byte offsets needed to rewrite source.
-func Replacements(entries []ParsedFn) []protocol.Replacement {
+func Replacements(entries []Entry) []protocol.Replacement {
 	var out []protocol.Replacement
 	for _, entry := range entries {
 		if entry.FilePath == "" || entry.FactoryArgEnd <= entry.FactoryArgStart {
