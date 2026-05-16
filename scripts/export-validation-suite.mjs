@@ -1,33 +1,67 @@
 #!/usr/bin/env node
-// Generates docs/validation-suite.json from VALIDATION_SUITE.
+// Generates gendocs/validation-suite.json from VALIDATION_SUITE.
 //
 // Pipeline:
 //   1. Spawn `go run ./cmd/extract-fn-bodies` to lift the original TS source
 //      text of every arrow-function body inside VALIDATION_SUITE.
-//   2. Load the suite through vite's ssrLoadModule (configured with the
-//      `source` resolve condition so the marker package resolves to its
-//      in-tree `src/`). Going through vite — not Node's native
-//      --experimental-strip-types — handles the suite's in-thunk `enum`
-//      declarations, which Node's strip-only mode rejects.
-//   3. Walk the runtime suite; for each case, copy non-function fields
-//      verbatim and substitute Go-extracted source for each function field.
-//   4. Write the merged tree to docs/validation-suite.json.
+//   2. Load the suite through vite's ssrLoadModule with the runtypes plugin
+//      active, so `createIsType<T>()` calls resolve to real validators
+//      (cache populated by the Go daemon via the plugin's transform hook).
+//   3. Phase 3 — runtime pass: for each case + each API, call the
+//      validator against the case's `valid` / `invalid` samples to compute
+//      `pass: boolean`, then bench it to compute `{valid,invalid}OpsPerSec`.
+//   4. Close the vite server; spawn a dedicated `serverMode` ResolverClient.
+//      Phase 4 — compile pass: for each case + each API, wrap the body in
+//      a synthetic .ts file, drive `reset + setSources + scanFiles` cycles
+//      and time the `scanFiles` round-trip → `compileMs`.
+//   5. Merge bodies + structure + metrics, write the JSON.
 //
-// Future extensions — perf measurement, evaluated sample arrays, validator
-// cross-checks — land here in the Node side without touching the Go cmd.
+// Single-file orchestrator on purpose — the metrics phases share the suite
+// walk + the Stats helper, splitting them across modules would just add
+// indirection without trimming code.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import {performance} from 'node:perf_hooks';
 import {createServer} from 'vite';
+import runtypesPlugin from '../packages/vite-plugin-runtypes/dist/index.js';
+import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-client.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
 const SUITE_PATH = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/validation-suite.ts');
+const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
+const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.json');
+const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
 const IDENTIFIER = 'VALIDATION_SUITE';
 const FN_FIELDS = ['isType', 'isTypeReflect', 'getSamples'];
+const APIS = ['isType', 'isTypeReflect'];
+
+// Workload knobs. Tune at the top — no CLI flags for now.
+const OPS_CYCLES = 10;
+const OPS_ITERS = 1_000;
+const OPS_WARMUP = 50;
+const COMPILE_CYCLES = 3;
+
+// Ambient overlay so the synthetic compile-pass files can `import` the marker
+// package without a real package.json lookup. Mirrors RUNTYPES_DTS in
+// packages/vite-plugin-runtypes/test/helpers/inline.ts.
+const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
+  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T>;
+  export function reflectRuntypeId<T>(value: T, id?: RuntypeId<T>): RuntypeId<T>;
+  export interface RunTypeOptions {
+    noLiterals?: boolean;
+    noIsArrayCheck?: boolean;
+    strictTypes?: boolean;
+  }
+  export type IsTypeFn = (value: unknown) => boolean;
+  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): Promise<IsTypeFn>;
+}
+`;
 
 function runGoExtractor() {
   const res = spawnSync('go', ['run', './cmd/extract-fn-bodies', '--file', SUITE_PATH, '--identifier', IDENTIFIER], {
@@ -45,7 +79,18 @@ function runGoExtractor() {
   return JSON.parse(res.stdout);
 }
 
-async function loadSuite() {
+function ensureBinary() {
+  if (!fs.existsSync(BIN)) {
+    process.stderr.write(`ts-go-run-types binary not found at ${BIN}\n`);
+    process.stderr.write(`build it with: go build -o bin/ts-go-run-types ./cmd/ts-go-run-types\n`);
+    process.exit(1);
+  }
+}
+
+// Phase 2 — load the suite WITH the runtypes plugin active. The plugin's
+// transform hook scans the suite file, spawns the daemon, and populates
+// the isType cache so the validators are usable after this returns.
+async function loadSuiteWithPlugin() {
   const server = await createServer({
     root: REPO_ROOT,
     configFile: false,
@@ -55,6 +100,13 @@ async function loadSuite() {
     ssr: {resolve: {conditions: ['source']}},
     optimizeDeps: {noDiscovery: true},
     logLevel: 'error',
+    plugins: [
+      runtypesPlugin({
+        binary: BIN,
+        cwd: PACKAGE_ROOT,
+        tsconfig: 'tsconfig.test.json',
+      }),
+    ],
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);
@@ -64,7 +116,267 @@ async function loadSuite() {
   }
 }
 
-function buildOutput(suite, bodies) {
+// Stats over an array of numeric samples. Rounds to a precision that keeps
+// the JSON diffable (integer for big numbers, 3-decimal for small ms).
+function statsOf(samples) {
+  if (!samples || samples.length === 0) return undefined;
+  const n = samples.length;
+  const mean = samples.reduce((a, b) => a + b, 0) / n;
+  const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / n;
+  const stddev = Math.sqrt(variance);
+  return {
+    mean: roundSig(mean),
+    stddev: roundSig(stddev),
+    min: roundSig(Math.min(...samples)),
+    max: roundSig(Math.max(...samples)),
+  };
+}
+
+function roundSig(x) {
+  if (!Number.isFinite(x)) return x;
+  if (Math.abs(x) >= 1000) return Math.round(x);
+  return Math.round(x * 1000) / 1000;
+}
+
+// One ops/sec measurement = `iters` validator calls timed, repeated `cycles`
+// times. Per-cycle ops/sec values are returned; the caller flattens these
+// across all (sample, cycle) tuples to compute case-level Stats.
+function benchOpsPerSec(fn, value, cycles, iters, warmup) {
+  for (let i = 0; i < warmup; i++) fn(value);
+  const out = [];
+  for (let c = 0; c < cycles; c++) {
+    const start = performance.now();
+    for (let i = 0; i < iters; i++) fn(value);
+    const elapsed = performance.now() - start;
+    out.push(iters / (elapsed / 1000));
+  }
+  return out;
+}
+
+// Phase 3 — runtime pass/fail + ops/sec. Returns a tree of partial metrics
+// (pass + valid/invalid stats) keyed by category → caseKey → api.
+async function runValidationPhase(suite) {
+  const totalCases = Object.values(suite).reduce((n, cs) => n + Object.keys(cs).length, 0);
+  const metrics = {};
+  let cases = 0;
+  let fnsRun = 0;
+  let failedCases = [];
+  const phaseStart = performance.now();
+  for (const [category, casesObj] of Object.entries(suite)) {
+    metrics[category] = {};
+    for (const [caseKey, caseObj] of Object.entries(casesObj)) {
+      cases += 1;
+      progress('validate', cases, totalCases, phaseStart, `${category}.${caseKey}`);
+      const samples = caseObj.getSamples();
+      const valid = Array.isArray(samples?.valid) ? samples.valid : [];
+      const invalid = Array.isArray(samples?.invalid) ? samples.invalid : [];
+      const perApi = {};
+      for (const api of APIS) {
+        if (typeof caseObj[api] !== 'function') continue;
+        let validator;
+        try {
+          validator = await caseObj[api]();
+        } catch (err) {
+          process.stderr.write(`warn: ${category}.${caseKey}.${api}() threw at lookup: ${err.message}\n`);
+          continue;
+        }
+        if (typeof validator !== 'function') {
+          process.stderr.write(`warn: ${category}.${caseKey}.${api}() did not return a function\n`);
+          continue;
+        }
+        fnsRun += 1;
+
+        const pass = valid.every((v) => validator(v) === true) && invalid.every((v) => validator(v) === false);
+        if (!pass) failedCases.push(`${category}.${caseKey}.${api}`);
+
+        const validRuns = [];
+        for (const v of valid) validRuns.push(...benchOpsPerSec(validator, v, OPS_CYCLES, OPS_ITERS, OPS_WARMUP));
+        const invalidRuns = [];
+        for (const v of invalid) invalidRuns.push(...benchOpsPerSec(validator, v, OPS_CYCLES, OPS_ITERS, OPS_WARMUP));
+
+        perApi[api] = {
+          pass,
+          validOpsPerSec: statsOf(validRuns),
+          invalidOpsPerSec: statsOf(invalidRuns),
+        };
+      }
+      if (Object.keys(perApi).length > 0) metrics[category][caseKey] = perApi;
+    }
+  }
+  progressEnd('validate');
+  if (failedCases.length > 0) {
+    process.stderr.write(`note: ${failedCases.length} case(s) reported pass:false:\n`);
+    for (const id of failedCases.slice(0, 20)) process.stderr.write(`  - ${id}\n`);
+    if (failedCases.length > 20) process.stderr.write(`  ... (+${failedCases.length - 20} more)\n`);
+  }
+  return {metrics, cases, fnsRun};
+}
+
+// Phase 4 — compile-time pass. Spawns a dedicated serverMode client and
+// drives reset + setSources + scanFiles cycles per (case, api). Mutates
+// `metrics` in place, adding `compileMs` to each existing api entry and
+// creating new api entries for cases that had no Phase-3 metrics but do
+// have a body (e.g. when Phase 3 skipped due to a validator lookup error).
+async function runCompilePhase(metrics, bodies) {
+  // Wipe + recreate the per-case cache-module dump dir so removed cases
+  // don't leave orphan files behind.
+  const casesDir = path.join(REPO_ROOT, 'gendocs/cases');
+  fs.rmSync(casesDir, {recursive: true, force: true});
+  fs.mkdirSync(casesDir, {recursive: true});
+
+  const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true});
+  const overlayDts = {__bench__: 'runtypes.d.ts', body: RUNTYPES_DTS};
+  const units = [];
+  for (const [category, caseBodies] of Object.entries(bodies)) {
+    for (const [caseKey, byApi] of Object.entries(caseBodies)) {
+      for (const api of APIS) {
+        if (typeof byApi?.[api] === 'string') units.push({category, caseKey, api, body: byApi[api]});
+      }
+    }
+  }
+  let totalRpcs = 0;
+  let modulesWritten = 0;
+  const startWall = performance.now();
+  let doneUnits = 0;
+  try {
+    for (const {category, caseKey, api, body} of units) {
+      doneUnits += 1;
+      progress('compile', doneUnits, units.length, startWall, `${category}.${caseKey}.${api}`);
+      metrics[category] ??= {};
+      const relpath = `__bench__/${safe(category)}__${safe(caseKey)}__${api}.ts`;
+      const synth = buildSynthetic(body);
+      const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [relpath]: synth};
+      const times = [];
+      let captured = null;
+      for (let c = 0; c < COMPILE_CYCLES; c++) {
+        await client.reset();
+        await client.setSources(sourcesMap);
+        const start = performance.now();
+        // `['all']` so the first-cycle response carries runTypes / isType /
+        // pureFns cache modules — we dump them to disk below. The flag
+        // doesn't materially change compile time vs `['isType']` since the
+        // daemon has to do the same parse + resolve either way.
+        const resp = await client.scanFiles([relpath], {includeCacheSources: ['all']});
+        times.push(performance.now() - start);
+        if (c === 0) captured = resp;
+        totalRpcs += 1;
+      }
+      metrics[category][caseKey] ??= {};
+      metrics[category][caseKey][api] ??= {};
+      metrics[category][caseKey][api].compileMs = statsOf(times);
+      if (captured) modulesWritten += writeCaseDump(casesDir, category, caseKey, api, captured);
+    }
+  } finally {
+    client.close();
+  }
+  progressEnd('compile');
+  return {totalRpcs, modulesWritten, wallMs: performance.now() - startWall};
+}
+
+// Dumps the daemon-rendered cache modules for one (case, api) under
+// gendocs/cases/<category>__<caseKey>__<api>/. Sources are plain JS
+// (per internal/emit/runtypes_module.go), so we use the .js extension.
+function writeCaseDump(casesDir, category, caseKey, api, resp) {
+  const dir = path.join(casesDir, `${safe(category)}__${safe(caseKey)}__${api}`);
+  fs.mkdirSync(dir, {recursive: true});
+  let n = 0;
+  for (const [field, file] of [
+    ['runTypeCacheSource', 'runTypes.js'],
+    ['isTypeCacheSource', 'isType.js'],
+    ['pureFnsCacheSource', 'pureFns.js'],
+  ]) {
+    const body = resp[field];
+    if (typeof body === 'string' && body.length > 0) {
+      fs.writeFileSync(path.join(dir, file), body);
+      n += 1;
+    }
+  }
+  return n;
+}
+
+function buildSynthetic(body) {
+  return `import {createIsType} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+}
+
+function safe(s) {
+  return String(s).replace(/[^A-Za-z0-9_]/g, '_');
+}
+
+// Emits a markdown summary of the suite. Per category we render an HTML
+// <table> rather than a markdown pipe-table so the `isType` cell can hold
+// a fenced ```ts code block — markdown parsers re-enter inline-markdown
+// mode inside a <td> when there are blank lines around the fence, which
+// triggers syntax highlighting on GitHub / VSCode preview / most GFM
+// renderers. Only the `isType` API is shown here; full per-case metrics
+// (including `isTypeReflect`) live in validation-suite.json.
+function renderMarkdown(out) {
+  const lines = [];
+  lines.push('# Validation suite');
+  lines.push('');
+  lines.push(
+    'Generated from `VALIDATION_SUITE` in `packages/ts-go-run-types/test/suites/validation-suite.ts`. ' +
+      'Full per-case metrics (including `isTypeReflect`) live in `validation-suite.json`; ' +
+      'per-case rendered cache modules live under `cases/`.'
+  );
+  lines.push('');
+  for (const [category, cases] of Object.entries(out)) {
+    lines.push(`## ${category}`);
+    lines.push('');
+    lines.push('<table>');
+    lines.push('<thead><tr>');
+    lines.push('<th>title</th>');
+    lines.push('<th align="right">compile ops/sec</th>');
+    lines.push('<th align="right">valid ops/sec</th>');
+    lines.push('<th align="right">invalid ops/sec</th>');
+    lines.push('<th>isType</th>');
+    lines.push('</tr></thead>');
+    lines.push('<tbody>');
+    for (const [caseKey, record] of Object.entries(cases)) {
+      const title = record.title ?? caseKey;
+      const m = record.metrics?.isType;
+      const compileOps = m?.compileMs?.mean ? Math.round(1000 / m.compileMs.mean) : null;
+      const validOps = m?.validOpsPerSec?.mean ?? null;
+      const invalidOps = m?.invalidOpsPerSec?.mean ?? null;
+      lines.push('<tr>');
+      lines.push(`<td>${htmlEscape(title)}</td>`);
+      lines.push(`<td align="right">${fmtNum(compileOps)}</td>`);
+      lines.push(`<td align="right">${fmtNum(validOps)}</td>`);
+      lines.push(`<td align="right">${fmtNum(invalidOps)}</td>`);
+      // Blank lines + fenced block re-enter markdown parsing inside this <td>.
+      lines.push('<td>');
+      lines.push('');
+      if (typeof record.isType === 'string' && record.isType.length > 0) {
+        lines.push('```ts');
+        lines.push(record.isType);
+        lines.push('```');
+      } else {
+        lines.push('_no isType thunk_');
+      }
+      lines.push('');
+      lines.push('</td>');
+      lines.push('</tr>');
+    }
+    lines.push('</tbody>');
+    lines.push('</table>');
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+const compactNumberFormat = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 2,
+});
+function fmtNum(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return compactNumberFormat.format(n);
+}
+
+function htmlEscape(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildOutput(suite, bodies, metrics) {
   const out = {};
   let totalCategories = 0;
   let totalCases = 0;
@@ -87,6 +399,10 @@ function buildOutput(suite, bodies) {
         record[fnField] = body;
         totalBodies += 1;
       }
+      const caseMetrics = metrics?.[category]?.[caseKey];
+      if (caseMetrics && Object.keys(caseMetrics).length > 0) {
+        record.metrics = caseMetrics;
+      }
       out[category][caseKey] = record;
     }
   }
@@ -94,14 +410,70 @@ function buildOutput(suite, bodies) {
 }
 
 async function main() {
+  ensureBinary();
+  const t0 = performance.now();
+
   const bodies = runGoExtractor();
-  const suite = await loadSuite();
-  const {out, totalCategories, totalCases, totalBodies} = buildOutput(suite, bodies);
+  process.stdout.write(`extracted bodies (${ms(t0)})\n`);
+
+  const t1 = performance.now();
+  const suite = await loadSuiteWithPlugin();
+  process.stdout.write(`loaded VALIDATION_SUITE via vite + runtypes plugin (${ms(t1)})\n`);
+
+  const t2 = performance.now();
+  const {metrics, cases, fnsRun} = await runValidationPhase(suite);
+  process.stdout.write(`ran pass/fail + ops/sec on ${cases} cases × ${fnsRun} validators (${ms(t2)})\n`);
+
+  const t3 = performance.now();
+  const {totalRpcs, modulesWritten, wallMs} = await runCompilePhase(metrics, bodies);
+  process.stdout.write(
+    `ran compile pass — ${totalRpcs} RPCs, ${COMPILE_CYCLES} cycles per (case,api), ` +
+      `${modulesWritten} cache modules dumped to gendocs/cases/ (${ms(t3)})\n`
+  );
+  void wallMs;
+
+  const {out, totalCategories, totalCases, totalBodies} = buildOutput(suite, bodies, metrics);
   fs.mkdirSync(path.dirname(OUT_PATH), {recursive: true});
   fs.writeFileSync(OUT_PATH, JSON.stringify(out, null, 2) + '\n');
+  fs.writeFileSync(MD_PATH, renderMarkdown(out));
   process.stdout.write(
-    `wrote ${path.relative(REPO_ROOT, OUT_PATH)} — ${totalCategories} categories, ${totalCases} cases, ${totalBodies} function bodies\n`
+    `wrote ${path.relative(REPO_ROOT, OUT_PATH)} + ${path.relative(REPO_ROOT, MD_PATH)} — ${totalCategories} categories, ${totalCases} cases, ${totalBodies} function bodies (total ${ms(t0)})\n`
   );
+}
+
+function ms(start) {
+  const elapsed = performance.now() - start;
+  if (elapsed < 1000) return `${Math.round(elapsed)}ms`;
+  return `${(elapsed / 1000).toFixed(1)}s`;
+}
+
+// Decile progress: one line at each 10% boundary (10%, 20%, …, 100%).
+// Tracks the last printed decile per label so callers can fire on every
+// iteration; we only emit when the decile crosses.
+const progressLastDecile = new Map();
+function progress(label, current, total, startTime, detail) {
+  const pct = total > 0 ? (current * 100) / total : 100;
+  const decile = Math.floor(pct / 10);
+  if (decile <= (progressLastDecile.get(label) ?? -1)) return;
+  progressLastDecile.set(label, decile);
+  const elapsed = (performance.now() - startTime) / 1000;
+  const rate = current > 0 ? current / elapsed : 0;
+  const remaining = rate > 0 ? (total - current) / rate : 0;
+  process.stdout.write(
+    `[${label}] ${decile * 10}% (${current}/${total}) — ` +
+      `${formatDur(elapsed)} elapsed, ~${formatDur(remaining)} left ` +
+      `(${rate.toFixed(1)}/s)${detail ? ` — ${detail}` : ''}\n`
+  );
+}
+function progressEnd(label) {
+  progressLastDecile.delete(label);
+}
+function formatDur(secs) {
+  if (!Number.isFinite(secs)) return '?';
+  if (secs < 60) return `${secs.toFixed(1)}s`;
+  const m = Math.floor(secs / 60);
+  const s = Math.round(secs - m * 60);
+  return `${m}m${s.toString().padStart(2, '0')}s`;
 }
 
 await main();
