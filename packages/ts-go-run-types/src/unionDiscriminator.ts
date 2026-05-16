@@ -59,10 +59,9 @@ export interface FlattenedDiscriminator<Member, Prop> {
  *       // emit a switch arm: case value[prop.name] === <typeID literal> → unionItem
  *     }
  */
-export function flattenUnionDiscriminators<
-  Member,
-  Prop extends DiscriminatorPropLike,
->(union: DiscriminatorUnionLike<Member, Prop>): FlattenedDiscriminator<Member, Prop>[] {
+export function flattenUnionDiscriminators<Member, Prop extends DiscriminatorPropLike>(
+  union: DiscriminatorUnionLike<Member, Prop>
+): FlattenedDiscriminator<Member, Prop>[] {
   const members = union.safeUnionChildren ?? [];
   const discriminators = union.unionDiscriminators ?? [];
   return members.map((unionItem, unionIndex) => {
