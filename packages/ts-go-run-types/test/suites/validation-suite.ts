@@ -513,4 +513,274 @@ export const VALIDATION_SUITE = {
       }),
     },
   },
-} as const satisfies {ATOMIC: Record<string, ValidationCase>; ARRAY: Record<string, ValidationCase>};
+
+  // OBJECT — ports `isType` test coverage from mion's object-shape
+  // node specs:
+  //   - packages/run-types/src/nodes/collection/interface.spec.ts
+  //   - packages/run-types/src/nodes/collection/class.spec.ts
+  //   - packages/run-types/src/nodes/collection/classRpcError.spec.ts
+  //   - packages/run-types/src/nodes/member/indexProperty.spec.ts
+  //   - packages/run-types/src/nodes/member/callSignature.spec.ts
+  //   - packages/run-types/src/nodes/collection/circularRefs.spec.ts
+  //   - packages/run-types/src/jitCompilers/serialization-suite.ts
+  //     (OBJECTS / RECORDS / FUNCTIONS sections — entries that touch
+  //     interface, class, index signature, method, or call signature)
+  // and the validate(...) sanity-check assertions embedded in the
+  // adjacent `mock` / `hasUnknownKeys` / `stripUnknownKeys` blocks.
+  //
+  // Tests for non-isType adapters (mock, typeErrors, hasUnknownKeys,
+  // prepareForJson, …) land in their own future adapter files; this
+  // block carries ONLY the isType-relevant assertions but preserves
+  // the sample shapes so a future adapter can re-import them.
+  OBJECT: {
+    simple_interface: {
+      title: '{a: string; b: number}',
+      description: 'mion interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
+      isType: () => createIsType<{a: string; b: number}>(),
+      getSamples: () => ({
+        valid: [{a: 'hello', b: 1}, {a: '', b: 0}, {a: 'x', b: 42, extra: true}],
+        invalid: ['hello', null, undefined, {a: 'x'}, {a: 1, b: 1}, {a: 'x', b: 'not number'}],
+      }),
+    },
+
+    interface_with_optional: {
+      title: '{a: string; b?: number}',
+      description: 'optional property — `(v.b === undefined || Number.isFinite(v.b))` per PropertyRunType.emitIsType',
+      isType: () => createIsType<{a: string; b?: number}>(),
+      getSamples: () => ({
+        valid: [{a: 'x'}, {a: 'x', b: 0}, {a: 'x', b: undefined}],
+        invalid: [{a: 'x', b: 'not number'}, {a: 1}, null],
+      }),
+    },
+
+    interface_with_date: {
+      title: '{date: Date; name: string}',
+      description: 'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
+      isType: () => createIsType<{date: Date; name: string}>(),
+      getSamples: () => ({
+        valid: [{date: new Date(), name: 'x'}],
+        invalid: [{date: 'not date', name: 'x'}, {date: new Date(), name: 1}, {name: 'x'}, null],
+      }),
+    },
+
+    interface_with_method: {
+      title: '{name: string; cb: () => any}',
+      description: "mion: objectSkipProps — function-typed properties are skipped from isType (mion's `getJitChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
+      isType: () => createIsType<{name: string; cb: () => any}>(),
+      getSamples: () => ({
+        // No cb required because function-typed properties are skipped.
+        valid: [{name: 'x'}, {name: 'x', cb: () => null}, {name: 'x', cb: 42}],
+        invalid: [{name: 1}, null, undefined],
+      }),
+    },
+
+    nested_object: {
+      title: '{a: string; deep: {b: string; c: number}}',
+      description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
+      isType: () => createIsType<{a: string; deep: {b: string; c: number}}>(),
+      getSamples: () => ({
+        valid: [{a: 'x', deep: {b: 'y', c: 1}}],
+        invalid: [{a: 'x'}, {a: 'x', deep: {b: 1, c: 1}}, {a: 'x', deep: null}, null],
+      }),
+    },
+
+    interface_string_array_prop: {
+      title: '{tags: string[]}',
+      description: 'an array-typed property — exercises the dependency-call layer through an object',
+      isType: () => createIsType<{tags: string[]}>(),
+      getSamples: () => ({
+        valid: [{tags: []}, {tags: ['a', 'b']}],
+        invalid: [{tags: ['a', 1]}, {tags: 'not array'}, null],
+      }),
+    },
+
+    circular_interface: {
+      title: 'ICircular = {name: string; child?: ICircular}',
+      description: "mion interface.spec.ts 'validate circular object'. Exercises self-recursive dependency call (mion isSelf branch — `<innerFnName>(v.child)` without `.fn`).",
+      isType: () => {
+        type ICircular = {name: string; child?: ICircular};
+        return createIsType<ICircular>();
+      },
+      getSamples: () => ({
+        valid: [
+          {name: 'root'},
+          {name: 'root', child: {name: 'a'}},
+          {name: 'root', child: {name: 'a', child: {name: 'b'}}},
+        ],
+        invalid: [
+          {name: 1},
+          {name: 'x', child: {name: 1}},
+          {name: 'x', child: 'not object'},
+          null,
+        ],
+      }),
+    },
+
+    circular_interface_on_array: {
+      title: 'ICircularArray = {name: string; children?: ICircularArray[]}',
+      description: "mion interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
+      isType: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        return createIsType<ICircularArray>();
+      },
+      getSamples: () => ({
+        valid: [
+          {name: 'r'},
+          {name: 'r', children: []},
+          {name: 'r', children: [{name: 'a'}, {name: 'b', children: [{name: 'c'}]}]},
+        ],
+        invalid: [
+          {name: 'r', children: [{name: 1}]},
+          {name: 'r', children: 'not array'},
+          {name: 1},
+        ],
+      }),
+    },
+
+    circular_interface_on_nested_object: {
+      title: 'ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}}',
+      description: "mion interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
+      isType: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        return createIsType<ICircularDeep>();
+      },
+      getSamples: () => ({
+        valid: [
+          {name: 'r', embedded: {hello: 'h'}},
+          {name: 'r', embedded: {hello: 'h', child: {name: 'c', embedded: {hello: 'h2'}}}},
+        ],
+        invalid: [
+          {name: 'r'},
+          {name: 'r', embedded: {hello: 1}},
+          {name: 'r', embedded: null},
+        ],
+      }),
+    },
+
+    index_signature_string: {
+      title: '{[key: string]: string}',
+      description: "mion indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
+      isType: () => createIsType<{[key: string]: string}>(),
+      getSamples: () => ({
+        valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
+        invalid: [{a: 1}, {a: 'x', b: 2}, null, 'not object'],
+      }),
+    },
+
+    index_signature_named_props: {
+      title: '{a: string; b: number; [key: string]: string | number}',
+      description: "mion indexProperty.spec.ts 'validate index run type + extra properties' — defer the full mix (union value type isn't ported yet). Active form keeps just the named props sub-check until union lands.",
+      // Defer the union form until KindUnion lands — the index sig's
+      // value type is `string | number` which our emit doesn't handle.
+      getSamples: () => ({
+        valid: [{a: 'x', b: 1}, {a: 'x', b: 1, extra: 'y'}],
+        invalid: [{a: 1, b: 1}, {a: 'x'}, null],
+      }),
+    },
+
+    index_signature_nested: {
+      title: '{[key: string]: {[key: string]: number}}',
+      description: "mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.",
+      isType: () => createIsType<{[key: string]: {[key: string]: number}}>(),
+      getSamples: () => ({
+        valid: [{}, {a: {x: 1, y: 2}}, {a: {}, b: {n: 0}}],
+        invalid: [{a: 1}, {a: {x: 'not number'}}, null],
+      }),
+    },
+
+    index_signature_date_value: {
+      title: '{[key: string]: {[key: string]: Date}}',
+      description: "mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.",
+      isType: () => createIsType<{[key: string]: {[key: string]: Date}}>(),
+      getSamples: () => ({
+        valid: [{}, {a: {x: new Date()}}],
+        invalid: [{a: {x: 'not date'}}, {a: 'not object'}],
+      }),
+    },
+
+    function_top_level: {
+      title: '() => void',
+      description: 'mion FunctionRunType.emitIsType — `typeof v === \'function\'`. Param-arity check is deferred (mion-level).',
+      isType: () => createIsType<() => void>(),
+      getSamples: () => ({
+        valid: [() => {}, function () {}, async () => {}],
+        invalid: [null, undefined, 42, 'function', {}],
+      }),
+    },
+
+    // ---- DEFERRED — kept as data for future adapter activation ----
+
+    interface_callable: {
+      title: 'CallableInterface = {(a: number, b: boolean): string; extra: string}',
+      description: 'mion interface.spec.ts callable interface — needs the `isCallable()` branch in interface emit (the call signature combined with the AND chain over remaining props). Not yet ported.',
+      getSamples: () => ({
+        valid: [
+          Object.assign(function (_a: number, _b: boolean) {
+            return 'x';
+          }, {extra: 'x'}),
+        ],
+        invalid: [{extra: 'x'}, () => {}],
+      }),
+    },
+
+    interface_all_optional: {
+      title: '{a?: string; b?: number}',
+      description: 'mion interface.spec.ts "validate empty object for ObjectAllOptional type" — needs the `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === \'[object Object]\')`. Not yet implemented; deferred so the all-optional reject-array case is correct.',
+      getSamples: () => ({
+        valid: [{}, {a: 'x'}, {a: 'x', b: 1}],
+        invalid: [[], new Date(), new Map(), new Set()],
+      }),
+    },
+
+    class_simple: {
+      title: 'class MySerializableClass with two atomic props',
+      description: "mion class.spec.ts 'validate class' — needs ClassRunType supported in Supports/emit and the serializer must project class-instance properties. ClassRunType inherits InterfaceRunType.emitIsType so the existing object-emit path handles it; activation depends on the serializer surfacing the right Children shape for plain user classes.",
+      getSamples: () => ({
+        // Sample shapes mion uses (paraphrased — the actual class
+        // construction lives in mion's test setup).
+        valid: [{date: new Date(), name: 'x'}],
+        invalid: [{date: 'not date', name: 'x'}, {date: new Date()}, null],
+      }),
+    },
+
+    rpc_error_class: {
+      title: 'RpcError<"test-error">',
+      description: "mion classRpcError.spec.ts — needs the RpcError-flavored class projection (literal-string generic + brand). Deferred until class support generally lands.",
+      getSamples: () => ({
+        valid: [],
+        invalid: [],
+      }),
+    },
+
+    call_signature_params: {
+      title: 'CallSignature params (tuple)',
+      description: "mion callSignature.spec.ts — needs tuple/parameter-tuple emit for the [a, b] params shape.",
+      getSamples: () => ({
+        valid: [],
+        invalid: [],
+      }),
+    },
+
+    union_value_index: {
+      title: '{[key: string]: string | number}',
+      description: 'index signature with union value type — needs union emit.',
+      getSamples: () => ({
+        valid: [{a: 'x', b: 1}],
+        invalid: [{a: true}],
+      }),
+    },
+
+    object_with_union_prop: {
+      title: '{kind: "a" | "b"; n: number}',
+      description: 'discriminated union as property — needs union emit.',
+      getSamples: () => ({
+        valid: [{kind: 'a', n: 1}, {kind: 'b', n: 0}],
+        invalid: [{kind: 'c', n: 1}, {n: 1}],
+      }),
+    },
+  },
+} as const satisfies {
+  ATOMIC: Record<string, ValidationCase>;
+  ARRAY: Record<string, ValidationCase>;
+  OBJECT: Record<string, ValidationCase>;
+};
