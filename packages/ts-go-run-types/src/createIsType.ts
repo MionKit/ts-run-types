@@ -54,6 +54,16 @@ const validatorCache = new Map<string, IsTypeFn>();
  *  (`createIsTypeFn<T>(opts?): Promise<IsTypeFn>`). Async only for
  *  signature parity with mion — our AOT pipeline resolves synchronously.
  *
+ *  Two equivalent call shapes:
+ *    - Static  : `createIsType<T>()` — caller supplies `T` explicitly.
+ *    - Reflect : `const v: T = …; createIsType(v)` — `T` is inferred
+ *                from the value's declared static type. The value itself
+ *                is discarded at runtime; only the type checker uses it
+ *                to infer `T`. Same dispatch as `reflectRuntypeId`.
+ *  Both shapes produce identical validators — the Go-side scanner reads
+ *  `T` off the parameter's declared type either way, so the cache hash
+ *  matches. Paired tests in `internal/resolver/*_test.go` enforce this.
+ *
  *  At compile time `vite-plugin-runtypes` rewrites every call site to
  *  inject the trailing `RuntypeId<T>` hash. The options object (if any)
  *  is read by the Go-side marker scanner at build time and folded into
@@ -65,9 +75,11 @@ const validatorCache = new Map<string, IsTypeFn>();
  *  when jitUtils doesn't contain an entry for the expected hash —
  *  both indicate the build pipeline didn't wire correctly. **/
 export async function createIsType<T>(
+  val?: T,
   options?: RunTypeOptions,
   id?: RuntypeId<T>,
 ): Promise<IsTypeFn> {
+  void val; // runtime-ignored; only used by type-checker to infer T
   void options; // runtime-ignored; baked into id at compile time
   if (id === undefined) {
     throw new Error(
