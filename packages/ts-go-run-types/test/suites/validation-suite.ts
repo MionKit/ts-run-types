@@ -22,10 +22,11 @@
 //   ATOMIC / ARRAY / OBJECT / TUPLE / UNION / TEMPLATE_LITERAL /
 //   NATIVE (Map / Set / Promise / Awaited) / UTILITY (Partial /
 //   Required / Pick / Omit / Exclude / Extract / …).
-// Each category has its own isType adapter file under
-// test/adapters/isType-*.test.ts that registers `it()` per active
-// case + `it.todo()` per deferred case, with a counter-guard test
-// that catches drift between this file and the adapter.
+// Each category has its own `describe(...)` block in the merged
+// adapter file test/adapters/isType.test.ts that registers `it()`
+// per active case + `it.todo()` per deferred case, with a per-block
+// counter-guard test that catches drift between this file and the
+// adapter.
 //
 // The literal-type variants (`literal_2`, `literal_a`, …) live
 // under sibling ATOMIC keys since each literal flavour is a

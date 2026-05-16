@@ -62,20 +62,20 @@ These are real reflection features we intend to ship; each has a concrete approa
 
 ### `isType` emit — port complete
 
-Every mion `isType` node category is ported with end-to-end test coverage: **all active validation cases passing, 0 deferred** across 12 adapter files under `packages/ts-go-run-types/test/adapters/`.
+Every mion `isType` node category is ported with end-to-end test coverage: **all active validation cases passing, 0 deferred** in `packages/ts-go-run-types/test/adapters/isType.test.ts` (one `describe(...)` block per category, each with its own drift-guard counter).
 
-| Category | Adapter file | Highlights |
+| Category | `describe` block | Highlights |
 | --- | --- | --- |
-| Atomic (any/unknown/never/void/null/undefined/string/number/boolean/bigint/symbol/object/regexp/literal/enum/Date) | `isType.test.ts` | Includes `noLiterals` option variants. |
-| Array | `isType-array.test.ts` | Circular self-reference, 2D / 3D, `noIsArrayCheck`, array-of-objects, array-of-unions, array-of-tuples, `symbol[]` non-serializable. |
-| Object (interface / class / property / method / index signature / call signature / function) | `isType-object.test.ts` | Plain user class with `prototype`-filter, RpcError-shape, all-optional w/ `allOptionalCode` guard, callable interface (`isCallable()` branch), `Parameters<F>` for CallSignature param validation, `Record<UnionKey, V>`. |
-| Tuple | `isType-tuple.test.ts` | Optional members, rest (`[A, ...B[]]`), circular self-reference, non-serializable function slot, trailing-optionals chain, named tuple labels. |
-| Union | `isType-union.test.ts` | Union-of-objects, discriminated unions, union with methods, circular unions, intersection (resolved to ObjectLiteral by tsgo). |
-| TemplateLiteral | `isType-templateLiteral.test.ts` | Regex-escape edge cases, multi-segment URLs, nested-in-object, index-signature key pattern, union-placeholder. |
-| Native | `isType-native.test.ts` | `Map<K, V>` (`instanceof` + `.entries()`), `Set<T>` (`.values()`), `Promise<T>` (thenable), `Awaited<P>`. |
-| Utility | `isType-utility.test.ts` | `Partial` / `Required` / `Pick` / `Omit` / `Exclude` (atomic + object-union) / `Extract` / `NonNullable` / `ReturnType` / `Readonly` + intersection-with-required-override + Omit-keeping-optional. tsgo resolves utilities eagerly so no new emit needed — pure regression coverage. |
+| Atomic (any/unknown/never/void/null/undefined/string/number/boolean/bigint/symbol/object/regexp/literal/enum/Date) | `isType / ATOMIC` | Includes `noLiterals` option variants. |
+| Array | `isType / ARRAY` | Circular self-reference, 2D / 3D, `noIsArrayCheck`, array-of-objects, array-of-unions, array-of-tuples, `symbol[]` non-serializable. |
+| Object (interface / class / property / method / index signature / call signature / function) | `isType / OBJECT` | Plain user class with `prototype`-filter, RpcError-shape, all-optional w/ `allOptionalCode` guard, callable interface (`isCallable()` branch), `Parameters<F>` for CallSignature param validation, `Record<UnionKey, V>`. |
+| Tuple | `isType / TUPLE` | Optional members, rest (`[A, ...B[]]`), circular self-reference, non-serializable function slot, trailing-optionals chain, named tuple labels. |
+| Union | `isType / UNION` | Union-of-objects, discriminated unions, union with methods, circular unions, intersection (resolved to ObjectLiteral by tsgo). |
+| TemplateLiteral | `isType / TEMPLATE_LITERAL` | Regex-escape edge cases, multi-segment URLs, nested-in-object, index-signature key pattern, union-placeholder. |
+| Native | `isType / NATIVE` | `Map<K, V>` (`instanceof` + `.entries()`), `Set<T>` (`.values()`), `Promise<T>` (thenable), `Awaited<P>`. |
+| Utility | `isType / UTILITY` | `Partial` / `Required` / `Pick` / `Omit` / `Exclude` (atomic + object-union) / `Extract` / `NonNullable` / `ReturnType` / `Readonly` + intersection-with-required-override + Omit-keeping-optional. tsgo resolves utilities eagerly so no new emit needed — pure regression coverage. |
 
-The validation suite's `as const satisfies` type guard catches drift between the suite + adapter file pairs. Each adapter file's "all cases ran" counter test catches forgotten `it()` registrations.
+The validation suite's `as const satisfies` type guard catches drift between the suite and the adapter `describe` blocks. Each block's "all cases ran" counter test catches forgotten `it()` registrations.
 
 **Renderer-side architecture**: composite emits propagate a `CodeNS` sentinel from any unsupported leaf upward through the existing compile pass; the renderer's dangling-dep cascade then drops any entry whose recorded deps weren't emitted. Replaces an earlier O(M·S) `subtreeFullySupported` pre-walk; runtime behavior is unchanged (unsupported types silently absent, createIsType-side noop fallback `() => true` handles the cache miss). See `internal/caches/jitfn/codetype.go` → `CodeNS` for the full contract.
 
