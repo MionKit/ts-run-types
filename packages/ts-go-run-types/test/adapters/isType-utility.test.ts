@@ -39,7 +39,11 @@ describe('isType / UTILITY', () => {
   it('NonNullable<string | number | null | undefined>', () => assertIsType(VALIDATION_SUITE.UTILITY.non_nullable));
   it('ReturnType<(...) => Date>', () => assertIsType(VALIDATION_SUITE.UTILITY.return_type));
   it('Readonly<Person>', () => assertIsType(VALIDATION_SUITE.UTILITY.readonly));
-  it("Uppercase<'foo'>", () => assertIsType(VALIDATION_SUITE.UTILITY.uppercase));
+  // Note: Uppercase / Lowercase / Capitalize / Uncapitalize are NOT
+  // covered as isType constraints — they belong in the future
+  // validation-constraints library (alongside number brand types).
+  // See the comment above `intersection_with_required_override` in
+  // validation-suite.ts.
   it("Partial<Person> & Required<Pick<Person, 'name'>>", () => assertIsType(VALIDATION_SUITE.UTILITY.intersection_with_required_override));
   it("Omit<{a; b?; c}, 'a'> — preserves optional flag on remaining props", () => assertIsType(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
 
