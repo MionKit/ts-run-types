@@ -34,8 +34,9 @@ describe('isType / UNION', () => {
   it('{kind: "a"; n: number} | {kind: "b"; s: string}', () => assertIsType(VALIDATION_SUITE.UNION.discriminated_union));
   it('{name; getName()} | {age; getAge()} — methods skipped', () => assertIsType(VALIDATION_SUITE.UNION.union_with_methods));
 
-  // Deferred — features that need follow-up port work.
-  it.todo('UnionC circular — needs circular-type detection');
+  it('UnionC = Date|number|string|{a?:UnionC;b?:string}|UnionC[]', () => assertIsType(VALIDATION_SUITE.UNION.circular_union));
+
+  // Deferred — documentation-only or feature-gated.
   it.todo('{a: string} & {b: number} — intersection resolved at compile time (document only)');
 
   it('all union isType tests ran', () => {

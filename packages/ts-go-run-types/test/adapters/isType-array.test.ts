@@ -50,9 +50,10 @@ describe('isType / ARRAY', () => {
   it('(string | number)[]', () => assertIsType(VALIDATION_SUITE.ARRAY.union_array));
   it('[string, number][]', () => assertIsType(VALIDATION_SUITE.ARRAY.tuple_array));
 
+  it('CircularArray = CircularArray[]', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_array));
+  it('ObjectType (Block 13) — recursive object with array prop', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_object_with_array));
+
   // Deferred — features that haven't landed yet.
-  it.todo('CircularArray — needs circular-type detection');
-  it.todo('ObjectType (Block 13) — needs object + recursive-type support');
   it.todo('symbol[] — non-serializable, build-time error');
 
   // Coverage guard. Mirrors isType.test.ts. Vitest's `it.todo` does

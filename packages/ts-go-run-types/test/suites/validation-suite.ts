@@ -471,18 +471,20 @@ export const VALIDATION_SUITE = {
     },
 
     circular_array: {
-      title: 'CircularArray',
+      title: 'CircularArray = CircularArray[]',
       description:
-        "mion array.spec.ts 'Array circular ref' — needs circular-type detection in the serializer + self-recursive dependency call (mion emits ${hash}(args) without .fn for self)",
+        "mion array.spec.ts 'Array circular ref'. Self-referential array — handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall (emits the inner-function-name directly, no .fn).",
+      isType: () => {
+        type CircularArray = CircularArray[];
+        return createIsType<CircularArray>();
+      },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
         const arrA: any = [];
         arrA.push([[[]]], [[]], []);
-        const arrInvalidNested: any = [];
-        arrInvalidNested.push([[['A']]]); // mion Block 17 invalid case
         return {
           valid: [[], arrA],
-          invalid: [[[[]], 'A'], arrInvalidNested],
+          invalid: [[[[]], 'A'], 'not array', null],
         };
       },
     },
@@ -490,14 +492,19 @@ export const VALIDATION_SUITE = {
     circular_object_with_array: {
       title: 'ObjectType (mion Block 13)',
       description:
-        'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — needs object + recursive-type support',
+        'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — same dependency-call mechanism as the basic circular interface; the array property d?: ObjectType[] closes the cycle via Array → Object.',
+      isType: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return createIsType<ObjectType>();
+      },
       getSamples: () => ({
         valid: [
           {a: 'hello'},
           {a: 'hello', deep: {b: 'world', c: 123}},
           {a: 'hello', d: [{a: 'world'}]},
+          {a: 'hello', d: [{a: 'world', d: [{a: 'deep'}]}]},
         ],
-        invalid: [{a: 42}, 'not-an-object'],
+        invalid: [{a: 42}, 'not-an-object', {a: 'hello', deep: {b: 1, c: 1}}, {a: 'hello', d: 'not-array'}],
       }),
     },
 
@@ -722,10 +729,11 @@ export const VALIDATION_SUITE = {
 
     interface_all_optional: {
       title: '{a?: string; b?: number}',
-      description: 'mion interface.spec.ts "validate empty object for ObjectAllOptional type" — needs the `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === \'[object Object]\')`. Not yet implemented; deferred so the all-optional reject-array case is correct.',
+      description: 'mion interface.spec.ts "validate empty object for ObjectAllOptional type". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === \'[object Object]\')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they\'d slip through the bare `typeof === \'object\'` check).',
+      isType: () => createIsType<{a?: string; b?: number}>(),
       getSamples: () => ({
-        valid: [{}, {a: 'x'}, {a: 'x', b: 1}],
-        invalid: [[], new Date(), new Map(), new Set()],
+        valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
+        invalid: [[], new Date(), new Map(), new Set(), null, 'hello', 42],
       }),
     },
 
@@ -844,11 +852,19 @@ export const VALIDATION_SUITE = {
 
     tuple_circular: {
       title: '[Date, number, string, null, string[], bigint, TupleCircular?]',
-      description: 'mion tuple.spec.ts circular tuple — needs circular-type detection to set IsCircular',
-      getSamples: () => ({
-        valid: [],
-        invalid: [],
-      }),
+      description: 'mion tuple.spec.ts circular tuple. Same mechanism as circular array — Tuple is always non-inlined, the self-recursive dependency call closes the cycle via the isSelf branch.',
+      isType: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createIsType<TupleCircular>();
+      },
+      getSamples: () => {
+        const tc: any = [new Date(), 1, 'a', null, [], 1n];
+        const tcRec: any = [new Date(), 1, 'a', null, [], 1n, [new Date(), 1, 'a', null, [], 1n]];
+        return {
+          valid: [tc, tcRec],
+          invalid: [[], [new Date(), 1, 'a', null, [], 'not bigint'], 'not array'],
+        };
+      },
     },
 
     tuple_with_non_serializable: {
@@ -945,10 +961,23 @@ export const VALIDATION_SUITE = {
 
     circular_union: {
       title: 'UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[]',
-      description: 'mion union.spec.ts "Union circular" — needs circular-type detection.',
+      description: 'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
+      isType: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createIsType<UnionC>();
+      },
       getSamples: () => ({
-        valid: [],
-        invalid: [],
+        valid: [
+          new Date(),
+          123,
+          'hello',
+          {},
+          {a: {a: {}}},
+          {b: 'hello'},
+          [],
+          [{a: {}}, [123, 'hello']],
+        ],
+        invalid: [true, null, undefined, {a: true}, [true]],
       }),
     },
 
