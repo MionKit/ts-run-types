@@ -243,6 +243,12 @@ func jitTypeName(runType *protocol.RunType) string {
 		return "methodSignature"
 	case protocol.KindCallSignature:
 		return "callSignature"
+	case protocol.KindTuple:
+		return "tuple"
+	case protocol.KindTupleMember:
+		return "tupleMember"
+	case protocol.KindUnion:
+		return "union"
 	}
 	return ""
 }
@@ -338,6 +344,41 @@ func subtreeFullySupported(rt *protocol.RunType, refTable map[string]*protocol.R
 			return true
 		}
 		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
+	case protocol.KindTuple:
+		// Mirrors emitTupleIsType — walks every Children entry. A
+		// tuple member with an unsupported child can't be validated,
+		// so the whole tuple is skipped.
+		for _, child := range rt.Children {
+			if !subtreeFullySupported(child, refTable, emitter, seen) {
+				return false
+			}
+		}
+		return true
+	case protocol.KindTupleMember:
+		if rt.Child == nil {
+			return true
+		}
+		resolved := resolveRefForSupport(rt.Child, refTable)
+		if resolved != nil && isFunctionLikeKind(resolved.Kind) {
+			// Function-typed tuple element — emit handles via
+			// `=== undefined` (no descent needed).
+			return true
+		}
+		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
+	case protocol.KindUnion:
+		// Every union member must be supported — there's no graceful
+		// "skip unsupported member" path here without changing union
+		// semantics.
+		children := rt.SafeUnionChildren
+		if len(children) == 0 {
+			children = rt.Children
+		}
+		for _, child := range children {
+			if !subtreeFullySupported(child, refTable, emitter, seen) {
+				return false
+			}
+		}
+		return true
 	}
 	// Atomic kinds (and KindClass+SubKindDate, KindFunction etc treated
 	// as atomic by the emit) have no descent — supported as-is.
