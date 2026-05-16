@@ -1,4 +1,4 @@
-package serialize
+package runtype
 
 import (
 	"github.com/mionkit/ts-run-types/internal/protocol"

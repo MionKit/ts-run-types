@@ -1,4 +1,4 @@
-package emit
+package runtype
 
 import (
 	"bytes"

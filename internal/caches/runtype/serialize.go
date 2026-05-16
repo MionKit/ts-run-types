@@ -1,14 +1,15 @@
-// Package serialize projects tsgo's *checker.Type into a reflection-shape
-// protocol.RunType graph. Every resolved type gets a structural id (mirroring
-// mion's `_createTypeId`) which is hashed (mion's quickHash, ported in
-// `internal/hashid`) into a short alphanumeric wire id. Two structurally-equal
-// types share the same wire id — that's what makes our cache keys stable
-// across builds and equivalent to what mion would compute at runtime.
+// This file (was internal/serialize/serialize.go) projects tsgo's
+// *checker.Type into a reflection-shape protocol.RunType graph. Every
+// resolved type gets a structural id (mirroring mion's `_createTypeId`)
+// which is hashed (mion's quickHash, ported in `internal/hashid`) into a
+// short alphanumeric wire id. Two structurally-equal types share the same
+// wire id — that's what makes our cache keys stable across builds and
+// equivalent to what mion would compute at runtime.
 //
 // The serializer is stateful across calls: multiple resolver queries share
 // one deduplicated type table and one hash dictionary. NOT safe for
 // concurrent use.
-package serialize
+package runtype
 
 import (
 	"fmt"
@@ -19,7 +20,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/hashid"
 	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/typeid"
+	"github.com/mionkit/ts-run-types/internal/caches/runtype/typeid"
 )
 
 // Options configures the serializer's hash budget. Zero values use the
