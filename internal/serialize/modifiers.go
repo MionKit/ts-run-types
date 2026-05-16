@@ -19,6 +19,31 @@ const (
 // MethodSignatures can still be readonly but never carry visibility/static/
 // abstract markers.
 func applyMemberModifiers(member *protocol.RunType, symbol *ast.Symbol, asClass bool) {
+	// Readonly resolution: for symbols where the AST declaration would
+	// lie about the effective readonly state — mapped-type properties
+	// (Readonly<T> / `+readonly` / `-readonly`) and merged synthetic
+	// properties from intersections/unions — trust CheckFlagsReadonly
+	// directly. The TS checker has already applied all merging rules
+	// (e.g. intersection: writable wins per tsgo
+	// checker.go:21057-21060), and the underlying declarations still
+	// carry pre-merge modifiers. Real declared symbols (CheckFlags
+	// silent on these bits) fall through to the AST modifier read.
+	const checkFlagsSynthOrMapped = ast.CheckFlagsMapped | ast.CheckFlagsSyntheticProperty | ast.CheckFlagsSyntheticMethod
+	if symbol.CheckFlags&checkFlagsSynthOrMapped != 0 {
+		if symbol.CheckFlags&ast.CheckFlagsReadonly != 0 {
+			member.Readonly = true
+		}
+		// Synthesised symbols never carry meaningful class-level
+		// modifiers — visibility/static/abstract live on actual
+		// declarations only.
+		return
+	}
+	// Non-synthesised symbols: CheckFlagsReadonly may also be set
+	// (e.g. `const` variables, getter-without-setter). Honor it
+	// alongside the AST modifier check so neither path loses info.
+	if symbol.CheckFlags&ast.CheckFlagsReadonly != 0 {
+		member.Readonly = true
+	}
 	declaration := symbol.ValueDeclaration
 	if declaration == nil && len(symbol.Declarations) > 0 {
 		declaration = symbol.Declarations[0]

@@ -227,6 +227,33 @@ func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string
 func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	propertyType := computer.typeChecker.GetTypeOfSymbol(symbol)
 	optional := symbol.Flags&ast.SymbolFlagsOptional != 0
+	// Readonly must be part of the structural id — `{a: string}` and
+	// `{readonly a: string}` are different shapes and must not share
+	// a cache slot. Mirrors the resolution rule in
+	// internal/serialize/modifiers.go:applyMemberModifiers — trust
+	// CheckFlagsReadonly for mapped/synthetic symbols (since the AST
+	// declaration would lie); otherwise honor CheckFlags AND the AST
+	// modifier together.
+	const checkFlagsSynthOrMapped = ast.CheckFlagsMapped | ast.CheckFlagsSyntheticProperty | ast.CheckFlagsSyntheticMethod
+	var readonly bool
+	if symbol.CheckFlags&checkFlagsSynthOrMapped != 0 {
+		readonly = symbol.CheckFlags&ast.CheckFlagsReadonly != 0
+	} else {
+		if symbol.CheckFlags&ast.CheckFlagsReadonly != 0 {
+			readonly = true
+		}
+		if !readonly {
+			for _, declaration := range symbol.Declarations {
+				if declaration == nil {
+					continue
+				}
+				if ast.GetCombinedModifierFlags(declaration)&ast.ModifierFlagsReadonly != 0 {
+					readonly = true
+					break
+				}
+			}
+		}
+	}
 
 	// Method vs property: a property whose type is a single-call-signature
 	// function with no other members maps to the reflection `method` form.
@@ -237,7 +264,7 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 			if asClass {
 				kind = protocol.KindMethod
 			}
-			return computer.signatureID(signatures[0], kind, symbol.Name) + optBit(optional)
+			return computer.signatureID(signatures[0], kind, symbol.Name) + optBit(optional) + readonlyBit(readonly)
 		}
 	}
 
@@ -246,7 +273,14 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 		kind = protocol.KindProperty
 	}
 	child := computer.Compute(propertyType)
-	return memberID(kind, symbol.Name, optional, child)
+	return memberID(kind, symbol.Name, optional, child) + readonlyBit(readonly)
+}
+
+func readonlyBit(readonly bool) string {
+	if readonly {
+		return "#ro"
+	}
+	return ""
 }
 
 func (computer *Computer) signatureID(signature *checker.Signature, kind protocol.ReflectionKind, name string) string {
