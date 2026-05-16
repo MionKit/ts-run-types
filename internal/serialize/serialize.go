@@ -594,6 +594,17 @@ func (cache *Cache) projectObjectLiteral(tsType *checker.Type, node *protocol.Ru
 	}
 	node.Kind = protocol.KindObjectLiteral
 	cache.projectMembersInto(tsType, node, properties, callSignatures, false)
+	// If this is a named interface with extends clauses, capture the
+	// parent interface refs. The TS checker has already merged the
+	// inherited members into `properties` above, but consumers may want
+	// to walk the tree explicitly via .Extends. Anonymous object
+	// literals and `type` aliases have no symbol-flagged-Interface
+	// declaration, so GetBaseTypes returns empty for them.
+	if symbol := tsType.Symbol(); symbol != nil && symbol.Flags&ast.SymbolFlagsInterface != 0 {
+		for _, baseType := range safeGetBaseTypes(cache.typeChecker, tsType) {
+			node.Extends = append(node.Extends, cache.Serialize(baseType))
+		}
+	}
 }
 
 func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
@@ -615,6 +626,22 @@ func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 			for _, typeArgument := range typeArguments {
 				node.Arguments = append(node.Arguments, cache.Serialize(typeArgument))
 			}
+		}
+	}
+	// Populate ExtendsArguments — ES6 single-inheritance, so at most one
+	// base type. The TS checker has already merged inherited members into
+	// GetPropertiesOfType below; ExtendsArguments lets consumers walk the
+	// inheritance tree explicitly when needed. safeGetBaseTypes handles
+	// the Reference-instantiation case (e.g. `class B extends A<string>`)
+	// where the bare GetBaseTypes call would crash.
+	for _, baseType := range safeGetBaseTypes(cache.typeChecker, tsType) {
+		node.ExtendsArguments = append(node.ExtendsArguments, cache.Serialize(baseType))
+	}
+	// Populate Implements by walking the class declaration's
+	// HeritageClauses for entries with the implements keyword.
+	if symbol := tsType.Symbol(); symbol != nil {
+		for _, implementedType := range collectImplementsTypes(cache.typeChecker, symbol) {
+			node.Implements = append(node.Implements, cache.Serialize(implementedType))
 		}
 	}
 	properties := cache.typeChecker.GetPropertiesOfType(tsType)

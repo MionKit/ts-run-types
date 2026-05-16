@@ -95,8 +95,13 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 
 	if len(objectMembers) > 0 {
 		// Object × object — the TS checker already merged properties on
-		// the intersection type, so we hash the type as an object literal.
-		return computer.objectID(tsType, protocol.KindObjectLiteral)
+		// the intersection type. Hash the merged members directly rather
+		// than routing through objectID: the intersection isn't a Reference
+		// or TupleType, and objectID's array/promise/class branches call
+		// GetTypeArguments unconditionally which crashes on intersection
+		// types in tsgo.
+		ids := computer.memberIDs(tsType, false)
+		return collectionID(protocol.KindObjectLiteral, ids, false)
 	}
 
 	return strconv.Itoa(int(protocol.KindUnknown))

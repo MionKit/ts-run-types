@@ -158,6 +158,15 @@ export interface RunType {
   arguments?: RunType[];
   classRef?: ClassRef;
 
+  // objectLiteral (interface form) — direct parent interface types
+  // this declaration extends. Each entry is a ref to the parent's
+  // RunType. Properties inherited from these parents are ALSO
+  // included in `children` (the TS checker merges them via
+  // GetPropertiesOfType), so the runtime path stays simple while
+  // codegen can walk the inheritance tree explicitly. Empty for
+  // anonymous object literals and `type` aliases.
+  extends?: RunType[];
+
   // runtime-only — wired by the cache emitter, never present in wire JSON.
   // `parent` is the containing RunType for child slots; `classType` is a live
   // constructor reference (e.g. globalThis.Date for KindClass builtins).
