@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
 func main() {
@@ -59,7 +60,48 @@ func main() {
 		out.WriteString(fmt.Sprintf("export const %s_MODULE_NAME = %q;\n", upper, setting.Name))
 	}
 
+	out.WriteString("\n")
+	writeReflectionSubKind(out)
+	out.WriteString("\n")
+	writeNonSerializableGlobals(out)
+
 	fmt.Print(out.String())
+}
+
+// writeReflectionSubKind emits a TS `as const` map mirroring
+// internal/protocol/subkind.go's ReflectionSubKind enum. The numeric
+// values must match mion's own ReflectionSubKind exactly so structural
+// ids agree byte-for-byte across the Go and TS halves.
+func writeReflectionSubKind(out *strings.Builder) {
+	entries := []struct {
+		name  string
+		value protocol.ReflectionSubKind
+	}{
+		{"mapKey", protocol.SubKindMapKey},
+		{"mapValue", protocol.SubKindMapValue},
+		{"setItem", protocol.SubKindSetItem},
+		{"date", protocol.SubKindDate},
+		{"map", protocol.SubKindMap},
+		{"set", protocol.SubKindSet},
+		{"nonSerializable", protocol.SubKindNonSerializable},
+	}
+	out.WriteString("export const REFLECTION_SUB_KIND = {\n")
+	for _, entry := range entries {
+		out.WriteString(fmt.Sprintf("  %s: %d,\n", entry.name, entry.value))
+	}
+	out.WriteString("} as const;\n")
+	out.WriteString("export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];\n")
+}
+
+// writeNonSerializableGlobals emits the symbol-name list used by both
+// halves to detect non-serialisable native types. Mirrors mion's
+// `nonSerializableGlobals` in `packages/run-types/src/constants.ts`.
+func writeNonSerializableGlobals(out *strings.Builder) {
+	out.WriteString("export const NON_SERIALIZABLE_GLOBALS = [\n")
+	for _, name := range protocol.NonSerializableGlobals {
+		out.WriteString(fmt.Sprintf("  %q,\n", name))
+	}
+	out.WriteString("] as const;\n")
 }
 
 // tsKey wraps a key in quotes if it isn't a bare JS identifier. Keeps the
@@ -87,4 +129,3 @@ func isIdent(s string) bool {
 	}
 	return true
 }
-

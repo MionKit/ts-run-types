@@ -75,11 +75,11 @@ func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
 // `enumVal`, so every key can use ES shorthand without aliasing.
 var factoryPreambleLines = []string{
 	"const u = undefined;",
-	"const RT = (id, kind, typeName, name, literal,",
+	"const RT = (id, kind, subKind, typeName, name, literal,",
 	"            optional, readonly, isAbstract, isStatic, visibility,",
 	"            isSafeName, position, inlined, flags,",
 	"            description, defaultVal, enumVal, values) => ({",
-	"  id, kind, typeName, name, literal,",
+	"  id, kind, subKind, typeName, name, literal,",
 	"  optional, readonly, isAbstract, isStatic,",
 	"  visibility, isSafeName, position, inlined, flags,",
 	"  description, defaultVal, enumVal, values,",
@@ -100,24 +100,34 @@ func renderFactoryArgs(runType *protocol.RunType) []string {
 	args := []string{
 		quoteJS(runType.ID),             // 0: id
 		strconv.Itoa(int(runType.Kind)), // 1: kind
-		stringArg(runType.TypeName),     // 2: typeName
-		stringArg(runType.Name),         // 3: name
-		literalArg(runType),             // 4: literal
-		boolArg(runType.Optional),       // 5: optional
-		boolArg(runType.Readonly),       // 6: readonly
-		boolArg(runType.IsAbstract),     // 7: isAbstract
-		boolArg(runType.IsStatic),       // 8: isStatic
-		intPtrArg(runType.Visibility),   // 9: visibility
-		boolArg(runType.IsSafeName), // 10: isSafeName
-		intPtrArg(runType.Position),     // 11: position
-		boolArg(runType.Inlined),        // 12: inlined
-		flagsArg(runType.Flags),         // 13: flags
-		stringArg(runType.Description),  // 14: description
-		jsonArg(runType.DefaultVal),     // 15: defaultVal
-		enumArg(runType.EnumVal),        // 16: enumVal
-		valuesArg(runType.Values),       // 17: values
+		subKindArg(runType.SubKind),     // 2: subKind
+		stringArg(runType.TypeName),     // 3: typeName
+		stringArg(runType.Name),         // 4: name
+		literalArg(runType),             // 5: literal
+		boolArg(runType.Optional),       // 6: optional
+		boolArg(runType.Readonly),       // 7: readonly
+		boolArg(runType.IsAbstract),     // 8: isAbstract
+		boolArg(runType.IsStatic),       // 9: isStatic
+		intPtrArg(runType.Visibility),   // 10: visibility
+		boolArg(runType.IsSafeName),     // 11: isSafeName
+		intPtrArg(runType.Position),     // 12: position
+		boolArg(runType.Inlined),        // 13: inlined
+		flagsArg(runType.Flags),         // 14: flags
+		stringArg(runType.Description),  // 15: description
+		jsonArg(runType.DefaultVal),     // 16: defaultVal
+		enumArg(runType.EnumVal),        // 17: enumVal
+		valuesArg(runType.Values),       // 18: values
 	}
 	return trimTrailingUndefined(args)
+}
+
+// subKindArg renders a SubKind value or `u` when zero. Zero is the
+// "not applicable" sentinel — only nodes that need a SubKind get one.
+func subKindArg(value protocol.ReflectionSubKind) string {
+	if value == protocol.SubKindNone {
+		return "u"
+	}
+	return strconv.Itoa(int(value))
 }
 
 // stringArg returns the JS source for a string field — `u` when empty,

@@ -13,3 +13,47 @@ export const CACHE_MODULES = {
 
 export const RUNTYPES_VAR_PREFIX = 't_';
 export const RUNTYPES_MODULE_NAME = 'runTypesModule';
+
+export const REFLECTION_SUB_KIND = {
+  mapKey: 1801,
+  mapValue: 1802,
+  setItem: 1803,
+  date: 2001,
+  map: 2002,
+  set: 2003,
+  nonSerializable: 2004,
+} as const;
+export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];
+
+export const NON_SERIALIZABLE_GLOBALS = [
+  'Error',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+  'AggregateError',
+  'WeakMap',
+  'WeakSet',
+  'DataView',
+  'ArrayBuffer',
+  'SharedArrayBuffer',
+  'Float32Array',
+  'Float64Array',
+  'Int8Array',
+  'Int16Array',
+  'Int32Array',
+  'Uint8Array',
+  'Uint8ClampedArray',
+  'Uint16Array',
+  'Uint32Array',
+  'BigInt64Array',
+  'BigUint64Array',
+  'Generator',
+  'GeneratorFunction',
+  'AsyncGenerator',
+  'Iterator',
+  'AsyncGeneratorFunction',
+  'AsyncIterator',
+] as const;

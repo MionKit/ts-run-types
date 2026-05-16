@@ -113,7 +113,7 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 
 	// Union / intersection — composition of distributed members.
 	if flags&checker.TypeFlagsUnion != 0 {
-		return collectionID(kind, computer.childIDs(tsType.Distributed()), false)
+		return collectionID(int(kind), computer.childIDs(tsType.Distributed()), false)
 	}
 	if flags&checker.TypeFlagsIntersection != 0 {
 		return computer.collapsedIntersectionID(tsType)
@@ -136,7 +136,7 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		for i, typeArgument := range typeArguments {
 			ids[i] = computer.Compute(typeArgument)
 		}
-		return collectionID(protocol.KindTuple, ids, true)
+		return collectionID(int(protocol.KindTuple), ids, true)
 	}
 
 	// Array.
@@ -144,7 +144,7 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		if len(typeArguments) > 0 {
 			child := computer.Compute(typeArguments[0])
-			return memberID(protocol.KindArray, "0", false, child)
+			return memberID(int(protocol.KindArray), "0", false, child)
 		}
 	}
 
@@ -153,39 +153,49 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 		if len(typeArguments) > 0 {
 			child := computer.Compute(typeArguments[0])
-			return memberID(protocol.KindPromise, "0", false, child)
+			return memberID(int(protocol.KindPromise), "0", false, child)
 		}
 	}
 
-	// Class (or built-in interface mion treats as class).
+	// Built-in classes — Date / Map / Set — get their own subKind id, exactly
+	// as mion's `computeClassTypeId` does in `lib/typeId.ts:149`. The numeric
+	// prefix is the SubKind (2001 / 2002 / 2003), not KindClass.
 	if symbol := tsType.Symbol(); symbol != nil {
 		switch symbol.Name {
 		case "Date":
-			return strconv.Itoa(int(protocol.KindClass)) + ":Date"
+			return strconv.Itoa(int(protocol.SubKindDate))
 		case "Map":
 			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
 				typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 				if len(typeArguments) == 2 {
-					return strconv.Itoa(int(protocol.KindClass)) + ":Map{" +
-						computer.Compute(typeArguments[0]) + "," + computer.Compute(typeArguments[1]) + "}"
+					return strconv.Itoa(int(protocol.SubKindMap)) + "{" +
+						strconv.Itoa(int(protocol.SubKindMapKey)) + ":" + computer.Compute(typeArguments[0]) + "," +
+						strconv.Itoa(int(protocol.SubKindMapValue)) + ":" + computer.Compute(typeArguments[1]) + "}"
 				}
 			}
-			return strconv.Itoa(int(protocol.KindClass)) + ":Map"
+			return strconv.Itoa(int(protocol.SubKindMap))
 		case "Set":
 			if tsType.ObjectFlags()&checker.ObjectFlagsReference != 0 {
 				typeArguments := computer.typeChecker.GetTypeArguments(tsType)
 				if len(typeArguments) == 1 {
-					return strconv.Itoa(int(protocol.KindClass)) + ":Set{" +
-						computer.Compute(typeArguments[0]) + "}"
+					return strconv.Itoa(int(protocol.SubKindSet)) + "{" +
+						strconv.Itoa(int(protocol.SubKindSetItem)) + ":" + computer.Compute(typeArguments[0]) + "}"
 				}
 			}
-			return strconv.Itoa(int(protocol.KindClass)) + ":Set"
+			return strconv.Itoa(int(protocol.SubKindSet))
 		}
+	}
+	// Non-serialisable globals (Error, WeakMap, typed arrays, …) are tagged
+	// with SubKindNonSerializable and use that as their structural prefix —
+	// matches mion's `subKind || kind` rule.
+	if symbol := tsType.Symbol(); symbol != nil && protocol.IsNonSerializableSymbol(symbol.Name) {
+		ids := computer.memberIDs(tsType, true)
+		return collectionID(int(protocol.SubKindNonSerializable), ids, false)
 	}
 	if isClass(tsType) {
 		// Generic user class — composition of property ids (sorted for determinism).
 		ids := computer.memberIDs(tsType, true)
-		return collectionID(protocol.KindClass, ids, false)
+		return collectionID(int(protocol.KindClass), ids, false)
 	}
 
 	// Free function — bare callable with no own properties. Encode the
@@ -206,7 +216,7 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		}
 		sort.Strings(ids)
 	}
-	return collectionID(protocol.KindObjectLiteral, ids, false)
+	return collectionID(int(protocol.KindObjectLiteral), ids, false)
 }
 
 func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string {
@@ -273,7 +283,7 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 		kind = protocol.KindProperty
 	}
 	child := computer.Compute(propertyType)
-	return memberID(kind, symbol.Name, optional, child) + readonlyBit(readonly)
+	return memberID(int(kind), symbol.Name, optional, child) + readonlyBit(readonly)
 }
 
 func readonlyBit(readonly bool) string {
@@ -288,7 +298,7 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 	for _, paramSymbol := range signature.Parameters() {
 		paramType := computer.typeChecker.GetTypeOfSymbol(paramSymbol)
 		optional := paramSymbol.Flags&ast.SymbolFlagsOptional != 0
-		parts = append(parts, memberID(protocol.KindParameter, paramSymbol.Name, optional, computer.Compute(paramType)))
+		parts = append(parts, memberID(int(protocol.KindParameter), paramSymbol.Name, optional, computer.Compute(paramType)))
 	}
 	parts = append(parts, "->"+computer.Compute(computer.typeChecker.GetReturnTypeOfSignature(signature)))
 	body := "{" + strings.Join(parts, ",") + "}"
@@ -406,15 +416,19 @@ func isClass(tsType *checker.Type) bool {
 	return false
 }
 
-func collectionID(kind protocol.ReflectionKind, children []string, brackets bool) string {
+// collectionID composes a structural id with the given numeric prefix.
+// Accepts a bare int because the prefix may be either a ReflectionKind
+// (e.g. KindTuple) or a ReflectionSubKind (e.g. SubKindNonSerializable)
+// per mion's `subKind || kind` rule.
+func collectionID(prefix int, children []string, brackets bool) string {
 	if brackets {
-		return strconv.Itoa(int(kind)) + "[" + strings.Join(children, ",") + "]"
+		return strconv.Itoa(prefix) + "[" + strings.Join(children, ",") + "]"
 	}
-	return strconv.Itoa(int(kind)) + "{" + strings.Join(children, ",") + "}"
+	return strconv.Itoa(prefix) + "{" + strings.Join(children, ",") + "}"
 }
 
-func memberID(kind protocol.ReflectionKind, name string, optional bool, child string) string {
-	return strconv.Itoa(int(kind)) + ":" + name + optBit(optional) + ":" + child
+func memberID(prefix int, name string, optional bool, child string) string {
+	return strconv.Itoa(prefix) + ":" + name + optBit(optional) + ":" + child
 }
 
 func optBit(optional bool) string {

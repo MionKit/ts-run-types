@@ -101,7 +101,7 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 		// GetTypeArguments unconditionally which crashes on intersection
 		// types in tsgo.
 		ids := computer.memberIDs(tsType, false)
-		return collectionID(protocol.KindObjectLiteral, ids, false)
+		return collectionID(int(protocol.KindObjectLiteral), ids, false)
 	}
 
 	return strconv.Itoa(int(protocol.KindUnknown))

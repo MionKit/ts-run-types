@@ -829,6 +829,148 @@ func assertDateType(t *testing.T, code string) {
 	if tn.ClassRef == nil || tn.ClassRef.Builtin != "Date" {
 		t.Fatalf("expected ClassRef.Builtin=Date, got %+v", tn.ClassRef)
 	}
+	if tn.SubKind != protocol.SubKindDate {
+		t.Fatalf("expected SubKind=SubKindDate(%d), got %d", protocol.SubKindDate, tn.SubKind)
+	}
+}
+
+// =========================================================================
+// Map<K,V> — class instance with SubKindMap and synthetic
+// mapKey/mapValue parameter wrappers on Arguments.
+// =========================================================================
+
+func TestAtomic_Map_Static(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+getRuntypeId<Map<string, number>>();
+`
+	assertMapType(t, code)
+}
+
+func TestAtomic_Map_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v: Map<string, number> = new Map();
+reflectRuntypeId(v);
+`
+	assertMapType(t, code)
+}
+
+func assertMapType(t *testing.T, code string) {
+	t.Helper()
+	r, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindClass {
+		t.Fatalf("expected KindClass, got %d", tn.Kind)
+	}
+	if tn.TypeName != "Map" {
+		t.Fatalf("expected typeName=Map, got %q", tn.TypeName)
+	}
+	if tn.ClassRef == nil || tn.ClassRef.Builtin != "Map" {
+		t.Fatalf("expected ClassRef.Builtin=Map, got %+v", tn.ClassRef)
+	}
+	if tn.SubKind != protocol.SubKindMap {
+		t.Fatalf("expected SubKind=SubKindMap(%d), got %d", protocol.SubKindMap, tn.SubKind)
+	}
+	if len(tn.Arguments) != 2 {
+		t.Fatalf("expected 2 Arguments wrappers, got %d", len(tn.Arguments))
+	}
+	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes
+	keyWrapper := lookupNode(dump, tn.Arguments[0].ID)
+	valueWrapper := lookupNode(dump, tn.Arguments[1].ID)
+	if keyWrapper == nil || keyWrapper.Kind != protocol.KindParameter || keyWrapper.SubKind != protocol.SubKindMapKey {
+		t.Fatalf("expected key wrapper KindParameter+SubKindMapKey, got %+v", keyWrapper)
+	}
+	if valueWrapper == nil || valueWrapper.Kind != protocol.KindParameter || valueWrapper.SubKind != protocol.SubKindMapValue {
+		t.Fatalf("expected value wrapper KindParameter+SubKindMapValue, got %+v", valueWrapper)
+	}
+}
+
+// =========================================================================
+// Set<T> — class instance with SubKindSet and a synthetic setItem
+// parameter wrapper on Arguments.
+// =========================================================================
+
+func TestAtomic_Set_Static(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+getRuntypeId<Set<string>>();
+`
+	assertSetType(t, code)
+}
+
+func TestAtomic_Set_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v: Set<string> = new Set();
+reflectRuntypeId(v);
+`
+	assertSetType(t, code)
+}
+
+func assertSetType(t *testing.T, code string) {
+	t.Helper()
+	r, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindClass {
+		t.Fatalf("expected KindClass, got %d", tn.Kind)
+	}
+	if tn.TypeName != "Set" {
+		t.Fatalf("expected typeName=Set, got %q", tn.TypeName)
+	}
+	if tn.ClassRef == nil || tn.ClassRef.Builtin != "Set" {
+		t.Fatalf("expected ClassRef.Builtin=Set, got %+v", tn.ClassRef)
+	}
+	if tn.SubKind != protocol.SubKindSet {
+		t.Fatalf("expected SubKind=SubKindSet(%d), got %d", protocol.SubKindSet, tn.SubKind)
+	}
+	if len(tn.Arguments) != 1 {
+		t.Fatalf("expected 1 Arguments wrapper, got %d", len(tn.Arguments))
+	}
+	dump := r.Dispatch(protocol.Request{Op: protocol.OpDump}).RunTypes
+	itemWrapper := lookupNode(dump, tn.Arguments[0].ID)
+	if itemWrapper == nil || itemWrapper.Kind != protocol.KindParameter || itemWrapper.SubKind != protocol.SubKindSetItem {
+		t.Fatalf("expected item wrapper KindParameter+SubKindSetItem, got %+v", itemWrapper)
+	}
+}
+
+// =========================================================================
+// Non-serialisable global (Error) — class with SubKindNonSerializable.
+// =========================================================================
+
+func TestAtomic_NonSerializable_Static(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+getRuntypeId<Error>();
+`
+	assertErrorType(t, code)
+}
+
+func TestAtomic_NonSerializable_Reflect(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const v: Error = new Error();
+reflectRuntypeId(v);
+`
+	assertErrorType(t, code)
+}
+
+func assertErrorType(t *testing.T, code string) {
+	t.Helper()
+	_, tn := resolveInline(t, code)
+	if tn.Kind != protocol.KindClass {
+		t.Fatalf("expected KindClass, got %d", tn.Kind)
+	}
+	if tn.TypeName != "Error" {
+		t.Fatalf("expected typeName=Error, got %q", tn.TypeName)
+	}
+	if tn.SubKind != protocol.SubKindNonSerializable {
+		t.Fatalf("expected SubKind=SubKindNonSerializable(%d), got %d", protocol.SubKindNonSerializable, tn.SubKind)
+	}
+	if tn.ClassRef == nil || tn.ClassRef.Builtin != "Error" {
+		t.Fatalf("expected ClassRef.Builtin=Error, got %+v", tn.ClassRef)
+	}
+}
+
+func lookupNode(dump []*protocol.RunType, id string) *protocol.RunType {
+	for _, node := range dump {
+		if node.ID == id {
+			return node
+		}
+	}
+	return nil
 }
 
 // =========================================================================
