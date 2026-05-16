@@ -440,6 +440,10 @@ export const VALIDATION_SUITE = {
     string_array: {
       title: 'string[]',
       isType: () => createIsType<string[]>(),
+      isTypeReflect: () => {
+        const v: string[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello', 'world']],
         // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
@@ -454,6 +458,10 @@ export const VALIDATION_SUITE = {
       title: 'number[]',
       description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
       isType: () => createIsType<number[]>(),
+      isTypeReflect: () => {
+        const v: number[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [1, 2, 3], [42]],
         invalid: [[1, '2'], 'not-array', [Infinity], [-Infinity], [NaN]],
@@ -463,6 +471,10 @@ export const VALIDATION_SUITE = {
     boolean_array: {
       title: 'boolean[]',
       isType: () => createIsType<boolean[]>(),
+      isTypeReflect: () => {
+        const v: boolean[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [true, false]],
         invalid: [[true, 42], 'nope'],
@@ -472,6 +484,10 @@ export const VALIDATION_SUITE = {
     bigint_array: {
       title: 'bigint[]',
       isType: () => createIsType<bigint[]>(),
+      isTypeReflect: () => {
+        const v: bigint[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [1n, 2n]],
         invalid: [[1n, 2], 'nope'],
@@ -482,6 +498,10 @@ export const VALIDATION_SUITE = {
       title: 'Date[]',
       description: 'from mion serialization-suite ARRAYS.array_date',
       isType: () => createIsType<Date[]>(),
+      isTypeReflect: () => {
+        const v: Date[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
         invalid: [['2024'], [42]],
@@ -491,6 +511,10 @@ export const VALIDATION_SUITE = {
     regexp_array: {
       title: 'RegExp[]',
       isType: () => createIsType<RegExp[]>(),
+      isTypeReflect: () => {
+        const v: RegExp[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [/abc/, new RegExp('abc')]],
         invalid: [['/abc/'], [42]],
@@ -501,6 +525,10 @@ export const VALIDATION_SUITE = {
       title: 'undefined[]',
       description: 'from mion serialization-suite ARRAYS.undefined_in_array',
       isType: () => createIsType<undefined[]>(),
+      isTypeReflect: () => {
+        const v: undefined[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [undefined, undefined]],
         invalid: [[null], [42]],
@@ -510,6 +538,10 @@ export const VALIDATION_SUITE = {
     null_array: {
       title: 'null[]',
       isType: () => createIsType<null[]>(),
+      isTypeReflect: () => {
+        const v: null[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [null]],
         invalid: [[undefined], [42]],
@@ -520,6 +552,10 @@ export const VALIDATION_SUITE = {
       title: 'Array<string>',
       description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
       isType: () => createIsType<Array<string>>(),
+      isTypeReflect: () => {
+        const v: Array<string> = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         invalid: ['hello', [42]],
@@ -530,6 +566,10 @@ export const VALIDATION_SUITE = {
       title: 'string[][]',
       description: 'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getJIT(...).fn(v[i0]))',
       isType: () => createIsType<string[][]>(),
+      isTypeReflect: () => {
+        const v: string[][] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [[]], [['hello', 'world'], ['a', 'b']]],
         // mion Block 5 path-error samples: top-level array-of-string
@@ -544,6 +584,10 @@ export const VALIDATION_SUITE = {
       title: 'string[][][]',
       description: 'depth stress for the dependency-call layer',
       isType: () => createIsType<string[][][]>(),
+      isTypeReflect: () => {
+        const v: string[][][] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
         invalid: [[[['a', 2]]], [['a']], ['a']],
@@ -554,6 +598,10 @@ export const VALIDATION_SUITE = {
       title: 'string[] (noIsArrayCheck)',
       description: 'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
       isType: () => createIsType<string[]>(undefined, {noIsArrayCheck: true}),
+      isTypeReflect: () => {
+        const v: string[] = [];
+        return createIsType(v, {noIsArrayCheck: true});
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         // Without the guard, non-array inputs may not be rejected by
@@ -570,6 +618,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string}[]',
       description: "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
       isType: () => createIsType<{a: string}[]>(),
+      isTypeReflect: () => {
+        const v: {a: string}[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           [],
@@ -584,6 +636,10 @@ export const VALIDATION_SUITE = {
       title: '(string | number)[]',
       description: 'array of union — each element validates against the union OR-chain.',
       isType: () => createIsType<(string | number)[]>(),
+      isTypeReflect: () => {
+        const v: (string | number)[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], ['a', 1, 'b', 2], [1], ['a']],
         invalid: [[true], 'a', [null], ['a', true]],
@@ -594,6 +650,10 @@ export const VALIDATION_SUITE = {
       title: '[string, number][]',
       description: 'array of tuples — exercises tuple under array dependency call.',
       isType: () => createIsType<[string, number][]>(),
+      isTypeReflect: () => {
+        const v: [string, number][] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [['a', 1], ['b', 2]]],
         invalid: [[['a']], [['a', 'b']], 'not-array', [[1, 'a']]],
@@ -607,6 +667,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type CircularArray = CircularArray[];
         return createIsType<CircularArray>();
+      },
+      isTypeReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return createIsType(v);
       },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
@@ -627,6 +692,11 @@ export const VALIDATION_SUITE = {
         type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
         return createIsType<ObjectType>();
       },
+      isTypeReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 'hello'},
@@ -643,6 +713,10 @@ export const VALIDATION_SUITE = {
       description:
         "mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time; we mirror the runtime-observable effect by emitting an always-false validator so any input is rejected.",
       isType: () => createIsType<symbol[]>(),
+      isTypeReflect: () => {
+        const v: symbol[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [],
         invalid: [[Symbol('a')], [], 'not array', null, [42]],
@@ -673,6 +747,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string; b: number}',
       description: 'mion interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
       isType: () => createIsType<{a: string; b: number}>(),
+      isTypeReflect: () => {
+        const v: {a: string; b: number} = {a: 'hello', b: 1};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: 'hello', b: 1}, {a: '', b: 0}, {a: 'x', b: 42, extra: true}],
         invalid: ['hello', null, undefined, {a: 'x'}, {a: 1, b: 1}, {a: 'x', b: 'not number'}],
@@ -683,6 +761,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string; b?: number}',
       description: 'optional property — `(v.b === undefined || Number.isFinite(v.b))` per PropertyRunType.emitIsType',
       isType: () => createIsType<{a: string; b?: number}>(),
+      isTypeReflect: () => {
+        const v: {a: string; b?: number} = {a: 'x'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: 'x'}, {a: 'x', b: 0}, {a: 'x', b: undefined}],
         invalid: [{a: 'x', b: 'not number'}, {a: 1}, null],
@@ -693,6 +775,10 @@ export const VALIDATION_SUITE = {
       title: '{date: Date; name: string}',
       description: 'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
       isType: () => createIsType<{date: Date; name: string}>(),
+      isTypeReflect: () => {
+        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{date: new Date(), name: 'x'}],
         invalid: [{date: 'not date', name: 'x'}, {date: new Date(), name: 1}, {name: 'x'}, null],
@@ -703,6 +789,10 @@ export const VALIDATION_SUITE = {
       title: '{name: string; cb: () => any}',
       description: "mion: objectSkipProps — function-typed properties are skipped from isType (mion's `getJitChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
       isType: () => createIsType<{name: string; cb: () => any}>(),
+      isTypeReflect: () => {
+        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
+        return createIsType(v);
+      },
       getSamples: () => ({
         // No cb required because function-typed properties are skipped.
         valid: [{name: 'x'}, {name: 'x', cb: () => null}, {name: 'x', cb: 42}],
@@ -714,6 +804,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string; deep: {b: string; c: number}}',
       description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
       isType: () => createIsType<{a: string; deep: {b: string; c: number}}>(),
+      isTypeReflect: () => {
+        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: 'x', deep: {b: 'y', c: 1}}],
         invalid: [{a: 'x'}, {a: 'x', deep: {b: 1, c: 1}}, {a: 'x', deep: null}, null],
@@ -724,6 +818,10 @@ export const VALIDATION_SUITE = {
       title: '{tags: string[]}',
       description: 'an array-typed property — exercises the dependency-call layer through an object',
       isType: () => createIsType<{tags: string[]}>(),
+      isTypeReflect: () => {
+        const v: {tags: string[]} = {tags: []};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{tags: []}, {tags: ['a', 'b']}],
         invalid: [{tags: ['a', 1]}, {tags: 'not array'}, null],
@@ -736,6 +834,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type ICircular = {name: string; child?: ICircular};
         return createIsType<ICircular>();
+      },
+      isTypeReflect: () => {
+        type ICircular = {name: string; child?: ICircular};
+        const v: ICircular = {name: 'root'};
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -759,6 +862,11 @@ export const VALIDATION_SUITE = {
         type ICircularArray = {name: string; children?: ICircularArray[]};
         return createIsType<ICircularArray>();
       },
+      isTypeReflect: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        const v: ICircularArray = {name: 'r'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'r'},
@@ -780,6 +888,11 @@ export const VALIDATION_SUITE = {
         type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
         return createIsType<ICircularDeep>();
       },
+      isTypeReflect: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'r', embedded: {hello: 'h'}},
@@ -797,6 +910,10 @@ export const VALIDATION_SUITE = {
       title: '{[key: string]: string}',
       description: "mion indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
       isType: () => createIsType<{[key: string]: string}>(),
+      isTypeReflect: () => {
+        const v: {[key: string]: string} = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
         invalid: [{a: 1}, {a: 'x', b: 2}, null, 'not object'],
@@ -807,6 +924,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string; b: number; [key: string]: string | number}',
       description: "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
       isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
+      isTypeReflect: () => {
+        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: 'x', b: 1}, {a: 'x', b: 1, extra: 'y'}, {a: 'x', b: 1, extra: 7}],
         invalid: [{a: 1, b: 1}, {a: 'x'}, null, {a: 'x', b: 1, extra: true}],
@@ -817,6 +938,10 @@ export const VALIDATION_SUITE = {
       title: '{[key: string]: {[key: string]: number}}',
       description: "mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.",
       isType: () => createIsType<{[key: string]: {[key: string]: number}}>(),
+      isTypeReflect: () => {
+        const v: {[key: string]: {[key: string]: number}} = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: {x: 1, y: 2}}, {a: {}, b: {n: 0}}],
         invalid: [{a: 1}, {a: {x: 'not number'}}, null],
@@ -827,6 +952,10 @@ export const VALIDATION_SUITE = {
       title: '{[key: string]: {[key: string]: Date}}',
       description: "mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.",
       isType: () => createIsType<{[key: string]: {[key: string]: Date}}>(),
+      isTypeReflect: () => {
+        const v: {[key: string]: {[key: string]: Date}} = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: {x: new Date()}}],
         invalid: [{a: {x: 'not date'}}, {a: 'not object'}],
@@ -847,6 +976,18 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Obj2>();
       },
+      isTypeReflect: () => {
+        interface Obj1 {
+          a: string;
+          [key: string]: string;
+        }
+        interface Obj2 {
+          b: string;
+          c: Obj1;
+        }
+        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {b: 'hello', c: {a: 'world', c: 'world'}},
@@ -865,6 +1006,10 @@ export const VALIDATION_SUITE = {
       title: '() => void',
       description: 'mion FunctionRunType.emitIsType — `typeof v === \'function\'`. Param-arity check is deferred (mion-level).',
       isType: () => createIsType<() => void>(),
+      isTypeReflect: () => {
+        const v: () => void = () => {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [() => {}, function () {}, async () => {}],
         invalid: [null, undefined, 42, 'function', {}],
@@ -877,6 +1022,15 @@ export const VALIDATION_SUITE = {
       title: 'CallableInterface = {(a: number, b: boolean): string; extra: string}',
       description: 'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
       isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
+      isTypeReflect: () => {
+        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
+          function (_a: number, _b: boolean) {
+            return 'x';
+          },
+          {extra: 'x'},
+        );
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           Object.assign(function (_a: number, _b: boolean) {
@@ -896,6 +1050,10 @@ export const VALIDATION_SUITE = {
       title: '{a?: string; b?: number}',
       description: 'mion interface.spec.ts "validate empty object for ObjectAllOptional type". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === \'[object Object]\')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they\'d slip through the bare `typeof === \'object\'` check).',
       isType: () => createIsType<{a?: string; b?: number}>(),
+      isTypeReflect: () => {
+        const v: {a?: string; b?: number} = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
         invalid: [[], new Date(), new Map(), new Set(), null, 'hello', 42],
@@ -918,6 +1076,21 @@ export const VALIDATION_SUITE = {
           }
         }
         return createIsType<MySerializableClass>();
+      },
+      isTypeReflect: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
+        return createIsType(v);
       },
       getSamples: () => {
         class Match {
@@ -959,6 +1132,21 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<RpcError<'test-error'>>();
       },
+      isTypeReflect: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
+        return createIsType(v);
+      },
       getSamples: () => {
         const validInstance = {
           'mion@isΣrrθr': true,
@@ -989,6 +1177,11 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean) => string;
         return createIsType<Parameters<CallSig>>();
       },
+      isTypeReflect: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        const v: Parameters<CallSig> = [1, true];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           [1, true],
@@ -1016,6 +1209,11 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         return createIsType<Parameters<CallSig>>();
       },
+      isTypeReflect: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        const v: Parameters<CallSig> = [3, true, 'hello'];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           [3, true, 'hello'],
@@ -1037,6 +1235,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         return createIsType<Parameters<CallSig>>();
+      },
+      isTypeReflect: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        const v: Parameters<CallSig> = [3, true];
+        return createIsType(v);
       },
       getSamples: () => {
         const date1 = new Date();
@@ -1061,6 +1264,10 @@ export const VALIDATION_SUITE = {
       title: 'Record<"a" | "b", number>',
       description: "`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.",
       isType: () => createIsType<Record<'a' | 'b', number>>(),
+      isTypeReflect: () => {
+        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 1, b: 2},
@@ -1083,6 +1290,10 @@ export const VALIDATION_SUITE = {
       title: '{[key: string]: string | number}',
       description: 'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
       isType: () => createIsType<{[key: string]: string | number}>(),
+      isTypeReflect: () => {
+        const v: {[key: string]: string | number} = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: 1, b: 'x'}],
         invalid: [{a: true}, {a: 'x', b: null}, 'not object', null],
@@ -1093,6 +1304,10 @@ export const VALIDATION_SUITE = {
       title: '{kind: "a" | "b"; n: number}',
       description: 'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
       isType: () => createIsType<{kind: 'a' | 'b'; n: number}>(),
+      isTypeReflect: () => {
+        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{kind: 'a', n: 1}, {kind: 'b', n: 0}],
         invalid: [{kind: 'c', n: 1}, {n: 1}, {kind: 'a', n: 'not number'}, null],
@@ -1111,6 +1326,10 @@ export const VALIDATION_SUITE = {
     string_number_pair: {
       title: '[string, number]',
       isType: () => createIsType<[string, number]>(),
+      isTypeReflect: () => {
+        const v: [string, number] = ['hello', 1];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [['hello', 1], ['', 0]],
         invalid: [[], ['hello'], ['hello', 1, 'extra'], [1, 'hello'], 'not array', null],
@@ -1121,6 +1340,10 @@ export const VALIDATION_SUITE = {
       title: '[Date, number, string, null, string[], bigint]',
       description: 'mion tuple.spec.ts "validate tuple"',
       isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
+      isTypeReflect: () => {
+        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
         invalid: [
@@ -1135,6 +1358,10 @@ export const VALIDATION_SUITE = {
       title: '[number, bigint?, boolean?, number?]',
       description: 'mion tuple.spec.ts "validate tuple with optional parameters"',
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      isTypeReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
         invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array'],
@@ -1145,6 +1372,10 @@ export const VALIDATION_SUITE = {
       title: '[string, number][]',
       description: 'array of tuples — exercises tuple inside array dependency call',
       isType: () => createIsType<[string, number][]>(),
+      isTypeReflect: () => {
+        const v: [string, number][] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[], [['a', 1]], [['a', 1], ['b', 2]]],
         invalid: [[['a', 'b']], [['a']], ['not tuple']],
@@ -1157,6 +1388,10 @@ export const VALIDATION_SUITE = {
       title: '[number, ...string[]]',
       description: "mion tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
       isType: () => createIsType<[number, ...string[]]>(),
+      isTypeReflect: () => {
+        const v: [number, ...string[]] = [3];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
         invalid: [[3, 'a', 4], ['not number'], [], 'not array', [3, 1]],
@@ -1169,6 +1404,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createIsType<TupleCircular>();
+      },
+      isTypeReflect: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
+        return createIsType(v);
       },
       getSamples: () => {
         const tc: any = [new Date(), 1, 'a', null, [], 1n];
@@ -1184,6 +1424,10 @@ export const VALIDATION_SUITE = {
       title: '[number, bigint?, boolean?, number?]',
       description: "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      isTypeReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           [3],
@@ -1207,6 +1451,10 @@ export const VALIDATION_SUITE = {
       title: '[name: string, age: number]',
       description: "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
       isType: () => createIsType<[name: string, age: number]>(),
+      isTypeReflect: () => {
+        const v: [name: string, age: number] = ['Alice', 30];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [['Alice', 30], ['', 0]],
         invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array'],
@@ -1217,6 +1465,10 @@ export const VALIDATION_SUITE = {
       title: '[number, () => any]',
       description: 'mion serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per mion\'s non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.',
       isType: () => createIsType<[number, () => any]>(),
+      isTypeReflect: () => {
+        const v: [number, () => any] = [3, () => null];
+        return createIsType(v);
+      },
       getSamples: () => ({
         // `[3]` is valid — v[1] is undefined which satisfies the
         // `v[1] === undefined` check the function slot emits.
@@ -1238,6 +1490,10 @@ export const VALIDATION_SUITE = {
       title: 'Date | number | string | null | bigint',
       description: 'mion union.spec.ts "validate union" — Atomic Union suite',
       isType: () => createIsType<Date | number | string | null | bigint>(),
+      isTypeReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
         invalid: [{}, [], true, undefined],
@@ -1248,6 +1504,10 @@ export const VALIDATION_SUITE = {
       title: "'UNO' | 'DOS' | 'TRES'",
       description: 'mion union.spec.ts "validate union discriminator string"',
       isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
+      isTypeReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['UNO', 'DOS', 'TRES'],
         invalid: ['INVALID', 'uno', '', 42, null],
@@ -1257,6 +1517,10 @@ export const VALIDATION_SUITE = {
     string_or_number: {
       title: 'string | number',
       isType: () => createIsType<string | number>(),
+      isTypeReflect: () => {
+        const v: string | number = 'hello';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['hello', 42, 0, ''],
         invalid: [null, undefined, true, [], {}],
@@ -1267,6 +1531,10 @@ export const VALIDATION_SUITE = {
       title: 'string[] | number[] | boolean[]',
       description: 'mion union.spec.ts "Union Arr"',
       isType: () => createIsType<string[] | number[] | boolean[]>(),
+      isTypeReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [['a'], [1], [true, false], [], ['a', 'b']],
         invalid: [['a', 1], [1, 'a'], 'not array', null],
@@ -1277,6 +1545,10 @@ export const VALIDATION_SUITE = {
       title: '(string | bigint | boolean | Date)[]',
       description: 'mion union.spec.ts "Arr with union of types"',
       isType: () => createIsType<(string | bigint | boolean | Date)[]>(),
+      isTypeReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
         invalid: [['a', false, 2]], // 2 is a number, not bigint
@@ -1289,6 +1561,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string; aa: boolean} | {b: number} | {c: bigint}',
       description: "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      isTypeReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return createIsType(v);
+      },
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
         // because `{b: number}` is satisfied. Our emit accepts any
@@ -1302,6 +1578,10 @@ export const VALIDATION_SUITE = {
       title: '{kind: "a"; n: number} | {kind: "b"; s: string}',
       description: 'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
       isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      isTypeReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{kind: 'a', n: 1}, {kind: 'b', s: 'hello'}],
         invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}, null, 'not object'],
@@ -1314,6 +1594,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createIsType<UnionC>();
+      },
+      isTypeReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1334,6 +1619,10 @@ export const VALIDATION_SUITE = {
       title: '{name: string; getName(): string} | {age: number; getAge(): number}',
       description: 'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
       isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      isTypeReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {name: 'x', getName: () => 'x'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', []],
@@ -1344,6 +1633,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string} & {b: number}',
       description: "mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.",
       isType: () => createIsType<{a: string} & {b: number}>(),
+      isTypeReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: 'x', b: 1}, {a: '', b: 0}],
         invalid: [{a: 'x'}, {b: 1}, null, {a: 1, b: 1}, {a: 'x', b: 'not number'}],
@@ -1356,6 +1649,10 @@ export const VALIDATION_SUITE = {
       title: '{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}',
       description: "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      isTypeReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
         invalid: [
@@ -1371,6 +1668,10 @@ export const VALIDATION_SUITE = {
       title: "{type:'a'; prop: boolean} | {type:'b'; prop: number} | {type:'c'; prop: string}",
       description: "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
       isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      isTypeReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {type: 'a', prop: true};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{type: 'a', prop: true}, {type: 'b', prop: 123}, {type: 'c', prop: 'hello'}],
         invalid: [{type: 'a', prop: 123}, {type: 'b', prop: 'hello'}, {type: 'c', prop: true}],
@@ -1389,6 +1690,11 @@ export const VALIDATION_SUITE = {
           | {b: number}
           | {c: bigint; aa: 'string'}
         >(),
+      isTypeReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} =
+          ['a', 'b', 'c'];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -1409,6 +1715,10 @@ export const VALIDATION_SUITE = {
       title: '{a: boolean} | {a: number}',
       description: "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
       isType: () => createIsType<{a: boolean} | {a: number}>(),
+      isTypeReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
         invalid: [{a: 'hello'}, {}, null],
@@ -1426,6 +1736,15 @@ export const VALIDATION_SUITE = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      isTypeReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -1446,6 +1765,10 @@ export const VALIDATION_SUITE = {
       title: 'string | any',
       description: "mion union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
       isType: () => createIsType<string | any>(),
+      isTypeReflect: () => {
+        const v: string | any = 'hello';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
@@ -1456,6 +1779,10 @@ export const VALIDATION_SUITE = {
       title: 'string | unknown',
       description: "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
       isType: () => createIsType<string | unknown>(),
+      isTypeReflect: () => {
+        const v: string | unknown = 'hello';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
@@ -1474,6 +1801,17 @@ export const VALIDATION_SUITE = {
           b: number;
         }
         return createIsType<SmallObj | LargeObj>();
+      },
+      isTypeReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -1499,6 +1837,22 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Tiny | Medium | Large>();
       },
+      isTypeReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
         invalid: [{}, {y: 123}, {z: true}, {x: 1}],
@@ -1520,6 +1874,20 @@ export const VALIDATION_SUITE = {
           value: number;
         }
         return createIsType<Base | Extended | Unrelated>();
+      },
+      isTypeReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
@@ -1544,6 +1912,10 @@ export const VALIDATION_SUITE = {
       title: '`api/user/${number}`',
       description: "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'. Compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at JIT-build time; isType emits `typeof v === 'string' && regex.test(v)`.",
       isType: () => createIsType<`api/user/${number}`>(),
+      isTypeReflect: () => {
+        const v: `api/user/${number}` = 'api/user/42';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
         invalid: ['api/user/abc', '/api/user/42', 'api/user/', 42, null, 'api/user/42x'],
@@ -1554,6 +1926,10 @@ export const VALIDATION_SUITE = {
       title: '`/api/v${number}/user/${string}/posts/${number}`',
       description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
       isType: () => createIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
+      isTypeReflect: () => {
+        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
         invalid: ['api/v1/user/jane/posts/7', '/api/v1/user/jane/posts/abc', '/api/vx/user/jane/posts/7'],
@@ -1564,6 +1940,10 @@ export const VALIDATION_SUITE = {
       title: '`${string}/${number}`',
       description: "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted (string span uses `[\\s\\S]*`, not `+`).",
       isType: () => createIsType<`${string}/${number}`>(),
+      isTypeReflect: () => {
+        const v: `${string}/${number}` = '/42';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['/42', 'users/42'],
         invalid: ['users', '/abc'],
@@ -1574,6 +1954,10 @@ export const VALIDATION_SUITE = {
       title: '`(${number})`',
       description: "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
       isType: () => createIsType<`(${number})`>(),
+      isTypeReflect: () => {
+        const v: `(${number})` = '(42)';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['(42)', '(0)', '(-3.14)'],
         invalid: ['42', '(abc)', '()', '(42'],
@@ -1584,6 +1968,10 @@ export const VALIDATION_SUITE = {
       title: '{url: `api/user/${number}`; method: string}',
       description: "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
       isType: () => createIsType<{url: `api/user/${number}`; method: string}>(),
+      isTypeReflect: () => {
+        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{url: 'api/user/42', method: 'GET'}],
         invalid: [{url: 'api/admin/42', method: 'GET'}, {url: 'api/user/42'}, null],
@@ -1594,6 +1982,10 @@ export const VALIDATION_SUITE = {
       title: '{[key: `api/${string}`]: number}',
       description: "mion templateLiteral.spec.ts 'as index signature key' — index signature whose key type is a template literal pattern. The IndexSignature emit now compiles the key pattern to a regex (same path as standalone template literals) and adds a per-key `regex.test(k)` check to the for-in loop, mirroring mion's getKeyPatternVar.",
       isType: () => createIsType<{[key: `api/${string}`]: number}>(),
+      isTypeReflect: () => {
+        const v: {[key: `api/${string}`]: number} = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
         invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null],
@@ -1604,6 +1996,10 @@ export const VALIDATION_SUITE = {
       title: "`${'a' | 'b'}-${number}`",
       description: 'Template literal with a union placeholder. tsgo distributes the union internally, so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} — anything outside the union must be rejected.',
       isType: () => createIsType<`${'a' | 'b'}-${number}`>(),
+      isTypeReflect: () => {
+        const v: `${'a' | 'b'}-${number}` = 'a-42';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['a-42', 'b-0', 'a--3.14'],
         invalid: ['c-1', 'a-', '-1', 'a-foo', 'ab-1'],
@@ -1625,6 +2021,10 @@ export const VALIDATION_SUITE = {
       title: 'Map<string, number>',
       description: 'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
       isType: () => createIsType<Map<string, number>>(),
+      isTypeReflect: () => {
+        const v: Map<string, number> = new Map();
+        return createIsType(v);
+      },
       getSamples: () => {
         const empty = new Map();
         const one = new Map([['a', 1]]);
@@ -1645,6 +2045,10 @@ export const VALIDATION_SUITE = {
       title: 'Set<string>',
       description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
       isType: () => createIsType<Set<string>>(),
+      isTypeReflect: () => {
+        const v: Set<string> = new Set();
+        return createIsType(v);
+      },
       getSamples: () => {
         const empty = new Set<string>();
         const one = new Set(['a']);
@@ -1661,6 +2065,10 @@ export const VALIDATION_SUITE = {
       title: 'Promise<string>',
       description: 'Promise validation is a thenable check — `typeof v === \'object\' && v !== null && typeof v.then === \'function\'`. The wrapped T cannot be validated synchronously (the promise hasn\'t resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below).',
       isType: () => createIsType<Promise<string>>(),
+      isTypeReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return createIsType(v);
+      },
       getSamples: () => {
         const realPromise = Promise.resolve('x');
         const thenable = {then: () => null};
@@ -1675,6 +2083,10 @@ export const VALIDATION_SUITE = {
       title: 'Awaited<Promise<string>>',
       description: "TypeScript's built-in `Awaited<P>` utility unwraps the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit. The test verifies the utility threads through correctly.",
       isType: () => createIsType<Awaited<Promise<string>>>(),
+      isTypeReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [42, null, undefined, Promise.resolve('x')],
@@ -1709,6 +2121,16 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Circular>();
       },
+      isTypeReflect: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        const v: Circular = {n: 1, s: 'hello'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {n: 1, s: 'hello', c: {n: 2, s: 'world'}},
@@ -1729,6 +2151,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createIsType<CuArray>();
+      },
+      isTypeReflect: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        const v: CuArray = [];
+        return createIsType(v);
       },
       getSamples: () => {
         const date = new Date();
@@ -1756,6 +2183,13 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularTuple>();
       },
+      isTypeReflect: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        const v: CircularTuple = {tuple: [1n]};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]},
@@ -1780,6 +2214,13 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularIndex>();
       },
+      isTypeReflect: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        const v: CircularIndex = {index: {}};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {index: {a: {index: {b: {index: {}}}}}},
@@ -1802,6 +2243,13 @@ export const VALIDATION_SUITE = {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
         }
         return createIsType<CircularDeep>();
+      },
+      isTypeReflect: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1844,6 +2292,15 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Partial<Person>>();
       },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {},
@@ -1872,6 +2329,15 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Required<MaybePerson>>();
       },
+      isTypeReflect: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{name: 'John', age: 30, createdAt: new Date()}],
         invalid: [
@@ -1894,6 +2360,15 @@ export const VALIDATION_SUITE = {
           createdAt: Date;
         }
         return createIsType<Pick<Person, 'name' | 'createdAt'>>();
+      },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1921,6 +2396,15 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Omit<Person, 'age'>>();
       },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -1934,6 +2418,10 @@ export const VALIDATION_SUITE = {
       title: "Exclude<'name' | 'age' | 'createdAt', 'age'>",
       description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      isTypeReflect: () => {
+        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
         invalid: ['age', 'other', 42, null],
@@ -1944,6 +2432,10 @@ export const VALIDATION_SUITE = {
       title: "Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>",
       description: 'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      isTypeReflect: () => {
+        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
         invalid: ['age', 'other', null],
@@ -1960,6 +2452,14 @@ export const VALIDATION_SUITE = {
           | {kind: 'triangle'; base: number; height: number};
         return createIsType<Exclude<Shape, {kind: 'circle'}>>();
       },
+      isTypeReflect: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {kind: 'square', x: 5},
@@ -1973,6 +2473,10 @@ export const VALIDATION_SUITE = {
       title: 'NonNullable<string | number | null | undefined>',
       description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
       isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
+      isTypeReflect: () => {
+        const v: NonNullable<string | number | null | undefined> = 'hello';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['hello', 42, 0],
         invalid: [null, undefined, true, {}, []],
@@ -1985,6 +2489,11 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type Fn = (a: number, b: boolean) => Date;
         return createIsType<ReturnType<Fn>>();
+      },
+      isTypeReflect: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        const v: ReturnType<Fn> = new Date();
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -2001,6 +2510,14 @@ export const VALIDATION_SUITE = {
           age: number;
         }
         return createIsType<Readonly<Person>>();
+      },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Readonly<Person> = {name: 'John', age: 30};
+        return createIsType(v);
       },
       getSamples: () => ({
         valid: [{name: 'John', age: 30}, {name: '', age: 0}],
@@ -2030,6 +2547,15 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
       },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John'},
@@ -2051,6 +2577,10 @@ export const VALIDATION_SUITE = {
       title: "Omit<{a: string; b?: number; c: boolean}, 'a'>",
       description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
       isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      isTypeReflect: () => {
+        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
         invalid: [{}, {b: 1}, {c: 'not boolean'}, null],
