@@ -318,10 +318,10 @@ type Request struct {
 // OK is a simple acknowledgement for ops that don't return data
 // (setSources / resetCache). Emitted only when set so other ops stay tidy.
 type Response struct {
-	ID                string     `json:"-"`
-	HasID             bool       `json:"-"`
-	OK                bool       `json:"-"`
-	Added              []*RunType `json:"added,omitempty"`
+	ID    string     `json:"-"`
+	HasID bool       `json:"-"`
+	OK    bool       `json:"-"`
+	Added []*RunType `json:"added,omitempty"`
 	// AddedRunTypes is true when this scanFiles call interned at least one
 	// new RunType into the cache. The Vite plugin reads it from
 	// handleHotUpdate to decide whether the runTypes cache module needs
@@ -335,11 +335,11 @@ type Response struct {
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
-	AddedPureFns       bool       `json:"addedPureFns,omitempty"`
-	Sites              []Site     `json:"sites,omitempty"`
+	AddedPureFns       bool          `json:"addedPureFns,omitempty"`
+	Sites              []Site        `json:"sites,omitempty"`
 	Replacements       []Replacement `json:"replacements,omitempty"`
-	RunTypes           []*RunType `json:"runTypes,omitempty"`
-	RunTypeCacheSource string     `json:"runTypeCacheSource,omitempty"`
+	RunTypes           []*RunType    `json:"runTypes,omitempty"`
+	RunTypeCacheSource string        `json:"runTypeCacheSource,omitempty"`
 	// IsTypeCacheSource is the rendered body of the `virtual:runtypes-isType`
 	// module — one `export function get_isType_<hash>(utl){…}` factory
 	// per cached RunType the precompiler knows how to handle. Sibling of
@@ -373,11 +373,11 @@ type Response struct {
 // plugin re-emits each one as a build warning so VS Code's $tsc problem
 // matcher surfaces it in the Problems panel.
 type PureFnDiagnostic struct {
-	Code     string           `json:"code"`
-	Category string           `json:"category"` // "error" | "warning"
-	Message  string           `json:"message"`
-	Site     PureFnDiagSite   `json:"site"`
-	Related  []PureFnRelated  `json:"related,omitempty"`
+	Code     string          `json:"code"`
+	Category string          `json:"category"` // "error" | "warning"
+	Message  string          `json:"message"`
+	Site     PureFnDiagSite  `json:"site"`
+	Related  []PureFnRelated `json:"related,omitempty"`
 }
 
 type PureFnDiagSite struct {

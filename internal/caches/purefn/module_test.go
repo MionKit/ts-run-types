@@ -125,7 +125,7 @@ func TestReplacements_SkipsEntriesWithoutBounds(t *testing.T) {
 	// lack FactoryArgStart/End. Replacements must skip them so we don't
 	// emit zero-width or nonsensical rewrites.
 	entries := []Entry{
-		{Namespace: "a", FunctionName: "b", FilePath: "/x.ts"},                 // missing bounds
+		{Namespace: "a", FunctionName: "b", FilePath: "/x.ts"},                      // missing bounds
 		{Namespace: "c", FunctionName: "d", FactoryArgStart: 10, FactoryArgEnd: 20}, // missing FilePath
 	}
 	if got := Replacements(entries); len(got) != 0 {

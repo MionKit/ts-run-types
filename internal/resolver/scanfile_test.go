@@ -95,7 +95,7 @@ func TestScanFile_F17_StaticGetRuntypeId(t *testing.T) {
 			{"nameOf({kind: 'node', value: 42})", "17d: user wrapper, inferred T"},
 		},
 		[]string{
-			"getRuntypeId<T>()",      // 17e — free type parameter inside body
+			"getRuntypeId<T>()",     // 17e — free type parameter inside body
 			"maskedWrapper('noop')", // 17f — non-@mionjs/ts-go-run-types RuntypeId
 		},
 	)

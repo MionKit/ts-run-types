@@ -369,4 +369,3 @@ func lineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
 	}
 	return line, col
 }
-
