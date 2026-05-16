@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -19,10 +20,14 @@ import (
 //
 // The factory `RT` returns one object literal whose shape contains every key
 // any node will ever carry — header scalars come from positional args, every
-// ref slot is hardcoded to `null`. Call sites pass `u` (alias for `undefined`)
-// for slots that don't apply; trailing `u`s are trimmed so calls stay short.
-// Every emitted node therefore shares one V8 hidden class, and the footer's
-// `t_X.child = t_Y;` patches land on a pre-existing slot.
+// ref slot is initialised to `u` (alias for `undefined`). Call sites pass `u`
+// for header slots that don't apply; trailing `u`s are trimmed so calls stay
+// short. Every emitted node therefore shares one V8 hidden class (hidden
+// classes are shape-determined, not value-determined, so `u`/`undefined` and
+// `null` would yield the same Map — `u` is preferred because `JSON.stringify`
+// drops undefined slots, shrinking any downstream serialisation a consumer
+// does, and the source-text byte cost matches `null` thanks to the alias).
+// The footer's `t_X.child = t_Y;` patches land on a pre-existing slot.
 //
 // Footer special-cases (unchanged from the previous emitter):
 //   - Literal bigint  → `t.literal = BigInt("…")`
@@ -64,28 +69,27 @@ func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
 // universal `RT` factory. The factory is a pure single-expression arrow
 // returning one object literal whose own-key set is identical for every
 // node — that's the property V8 uses to assign a stable hidden class. Param
-// order matches the canonical RunType field order; reserved-word JS
-// property names are kept as runtime keys by aliasing the Go param to
-// `abstract_` / `static_` / `default_` / `enum_` and renaming inline in
-// the returned literal.
+// order matches the canonical RunType field order. All factory params are
+// plain identifiers (no reserved words) because the protocol exposes the
+// would-be-reserved fields as `isAbstract` / `isStatic` / `defaultVal` /
+// `enumVal`, so every key can use ES shorthand without aliasing.
 var factoryPreambleLines = []string{
 	"const u = undefined;",
 	"const RT = (id, kind, typeName, name, literal,",
-	"            optional, readonly, abstract_, static_, visibility,",
-	"            isSafePropName, position, inlined, flags,",
-	"            description, default_, enum_, values) => ({",
+	"            optional, readonly, isAbstract, isStatic, visibility,",
+	"            isSafeName, position, inlined, flags,",
+	"            description, defaultVal, enumVal, values) => ({",
 	"  id, kind, typeName, name, literal,",
-	"  optional, readonly,",
-	"  abstract: abstract_, static: static_,",
-	"  visibility, isSafePropName, position, inlined, flags,",
-	"  description, default: default_, enum: enum_, values,",
-	"  child: null, index: null, return: null, indexType: null,",
-	"  parameters: null, children: null,",
-	"  safeUnionChildren: null, unionDiscriminators: null,",
-	"  decorators: null, typeArguments: null,",
-	"  arguments: null, extendsArguments: null,",
-	"  implements: null, extends: null,",
-	"  classType: null,",
+	"  optional, readonly, isAbstract, isStatic,",
+	"  visibility, isSafeName, position, inlined, flags,",
+	"  description, defaultVal, enumVal, values,",
+	"  child: u, index: u, return: u, indexType: u,",
+	"  parameters: u, children: u,",
+	"  safeUnionChildren: u, unionDiscriminators: u,",
+	"  decorators: u, typeArguments: u,",
+	"  arguments: u, extendsArguments: u,",
+	"  implements: u, extends: u,",
+	"  classType: u,",
 	"});",
 }
 
@@ -94,35 +98,35 @@ var factoryPreambleLines = []string{
 // args (`id`, `kind`) are always present.
 func renderFactoryArgs(runType *protocol.RunType) []string {
 	args := []string{
-		strconv.Quote(runType.ID),       // 0: id
+		quoteJS(runType.ID),             // 0: id
 		strconv.Itoa(int(runType.Kind)), // 1: kind
 		stringArg(runType.TypeName),     // 2: typeName
 		stringArg(runType.Name),         // 3: name
 		literalArg(runType),             // 4: literal
 		boolArg(runType.Optional),       // 5: optional
 		boolArg(runType.Readonly),       // 6: readonly
-		boolArg(runType.Abstract),       // 7: abstract
-		boolArg(runType.Static),         // 8: static
+		boolArg(runType.IsAbstract),     // 7: isAbstract
+		boolArg(runType.IsStatic),       // 8: isStatic
 		intPtrArg(runType.Visibility),   // 9: visibility
-		boolArg(runType.IsSafePropName), // 10: isSafePropName
+		boolArg(runType.IsSafeName), // 10: isSafeName
 		intPtrArg(runType.Position),     // 11: position
 		boolArg(runType.Inlined),        // 12: inlined
 		flagsArg(runType.Flags),         // 13: flags
 		stringArg(runType.Description),  // 14: description
-		jsonArg(runType.Default),        // 15: default
-		enumArg(runType.Enum),           // 16: enum
+		jsonArg(runType.DefaultVal),     // 15: defaultVal
+		enumArg(runType.EnumVal),        // 16: enumVal
 		valuesArg(runType.Values),       // 17: values
 	}
 	return trimTrailingUndefined(args)
 }
 
 // stringArg returns the JS source for a string field — `u` when empty,
-// otherwise a quoted JS string literal.
+// otherwise a single-quoted JS string literal (see quoteJS for rationale).
 func stringArg(value string) string {
 	if value == "" {
 		return "u"
 	}
-	return strconv.Quote(value)
+	return quoteJS(value)
 }
 
 // boolArg returns `"true"` when set, otherwise `"u"`. False is treated as
@@ -155,15 +159,15 @@ func literalArg(runType *protocol.RunType) string {
 	if isFooterLiteral(runType) {
 		return "u"
 	}
-	return mustJSON(runType.Literal)
+	return mustJSLiteral(runType.Literal)
 }
 
-// jsonArg returns `u` for nil, otherwise the JSON encoding of the value.
+// jsonArg returns `u` for nil, otherwise the JS-literal encoding of value.
 func jsonArg(value any) string {
 	if value == nil {
 		return "u"
 	}
-	return mustJSON(value)
+	return mustJSLiteral(value)
 }
 
 // flagsArg renders a []string as a JS array literal or `u` when empty.
@@ -171,7 +175,7 @@ func flagsArg(flags []string) string {
 	if len(flags) == 0 {
 		return "u"
 	}
-	return mustJSON(flags)
+	return mustJSLiteral(flags)
 }
 
 // enumArg renders an enum map or `u` when empty/nil.
@@ -179,7 +183,7 @@ func enumArg(enum map[string]any) string {
 	if len(enum) == 0 {
 		return "u"
 	}
-	return mustJSON(enum)
+	return mustJSLiteral(enum)
 }
 
 // valuesArg renders a []any or `u` when empty.
@@ -187,7 +191,7 @@ func valuesArg(values []any) string {
 	if len(values) == 0 {
 		return "u"
 	}
-	return mustJSON(values)
+	return mustJSLiteral(values)
 }
 
 // trimTrailingUndefined drops trailing `"u"` entries from the arg slice so
@@ -300,12 +304,12 @@ func footerLiteralExpr(runType *protocol.RunType) string {
 	for _, flag := range runType.Flags {
 		if flag == "bigint" {
 			literalString, _ := runType.Literal.(string)
-			return fmt.Sprintf("BigInt(%q)", literalString)
+			return "BigInt(" + quoteJS(literalString) + ")"
 		}
 		if flag == "symbol" {
 			if literalMap, ok := runType.Literal.(map[string]any); ok {
 				if name, ok := literalMap["symbol"].(string); ok {
-					return fmt.Sprintf("Symbol(%q)", name)
+					return "Symbol(" + quoteJS(name) + ")"
 				}
 			}
 			return "Symbol()"
@@ -318,11 +322,14 @@ func footerLiteralExpr(runType *protocol.RunType) string {
 			return fmt.Sprintf("/%s/%s", source, flags)
 		}
 	}
-	return mustJSON(runType.Literal)
+	return mustJSLiteral(runType.Literal)
 }
 
 // derefExpr renders a single child slot. Refs become bare const names;
-// inline Types become JSON literals.
+// inline (non-ref) Types are round-tripped through JSON to land in the
+// any-tree shape that mustJSLiteral understands, so the emitted struct
+// participates in the same single-quoted output as the rest of the module.
+// This is a rare path — most child slots are KindRef → bare var name.
 func derefExpr(settings constants.CacheModuleSettings, runType *protocol.RunType) string {
 	if runType == nil {
 		return "undefined"
@@ -330,7 +337,15 @@ func derefExpr(settings constants.CacheModuleSettings, runType *protocol.RunType
 	if runType.Kind == protocol.KindRef {
 		return varName(settings, runType.ID)
 	}
-	return mustJSON(runType)
+	encoded, err := json.Marshal(runType)
+	if err != nil {
+		return fmt.Sprintf("/* json err: %v */ undefined", err)
+	}
+	var generic any
+	if err := json.Unmarshal(encoded, &generic); err != nil {
+		return fmt.Sprintf("/* json err: %v */ undefined", err)
+	}
+	return mustJSLiteral(generic)
 }
 
 func joinRefs(settings constants.CacheModuleSettings, runTypes []*protocol.RunType) string {
@@ -341,12 +356,95 @@ func joinRefs(settings constants.CacheModuleSettings, runTypes []*protocol.RunTy
 	return strings.Join(parts, ", ")
 }
 
-func mustJSON(value any) string {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Sprintf("/* json err: %v */ undefined", err)
+// quoteJS renders a Go string as a JS source-level **single-quoted** string
+// literal. Single quotes are preferred over `strconv.Quote`'s double quotes
+// because the emitted module body is shipped over the resolver protocol as
+// a JSON-encoded `cacheSource` string — every `"` inside the JS source then
+// costs an extra escape byte (`\"`) on the wire. Single-quoting keeps the
+// JSON envelope unescaped for the overwhelmingly common case of JS strings
+// that contain no apostrophes (hash ids, kind names, property names, …).
+//
+// The implementation piggybacks on `strconv.Quote` so unicode/control-char
+// escaping stays correct, then swaps the wrapping and the two quote-class
+// escapes: `\"` is no longer needed inside a single-quoted JS string, and
+// any literal `'` must be `\'`.
+func quoteJS(value string) string {
+	quoted := strconv.Quote(value)
+	inner := quoted[1 : len(quoted)-1]
+	inner = strings.ReplaceAll(inner, `\"`, `"`)
+	inner = strings.ReplaceAll(inner, `'`, `\'`)
+	return "'" + inner + "'"
+}
+
+// mustJSLiteral renders an arbitrary value as a JS source-level literal.
+// Same wire-efficiency motivation as `quoteJS`: every string the value
+// contains (including object keys) is single-quoted. Numbers, booleans and
+// null serialize identically to JSON. Unrecognised types fall back to
+// `json.Marshal` — that branch produces valid JS but with double-quoted
+// strings inside, so prefer extending the type switch when a new shape
+// appears in the dump.
+func mustJSLiteral(value any) string {
+	var builder strings.Builder
+	writeJSLiteral(&builder, value)
+	return builder.String()
+}
+
+func writeJSLiteral(builder *strings.Builder, value any) {
+	switch typed := value.(type) {
+	case nil:
+		builder.WriteString("null")
+	case bool:
+		if typed {
+			builder.WriteString("true")
+		} else {
+			builder.WriteString("false")
+		}
+	case string:
+		builder.WriteString(quoteJS(typed))
+	case []any:
+		builder.WriteByte('[')
+		for i, item := range typed {
+			if i > 0 {
+				builder.WriteByte(',')
+			}
+			writeJSLiteral(builder, item)
+		}
+		builder.WriteByte(']')
+	case []string:
+		builder.WriteByte('[')
+		for i, item := range typed {
+			if i > 0 {
+				builder.WriteByte(',')
+			}
+			builder.WriteString(quoteJS(item))
+		}
+		builder.WriteByte(']')
+	case map[string]any:
+		// Sort keys for deterministic output (matches encoding/json behavior).
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		builder.WriteByte('{')
+		for i, key := range keys {
+			if i > 0 {
+				builder.WriteByte(',')
+			}
+			builder.WriteString(quoteJS(key))
+			builder.WriteByte(':')
+			writeJSLiteral(builder, typed[key])
+		}
+		builder.WriteByte('}')
+	default:
+		// Numeric primitives and other JSON-safe types fall back to JSON.
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			fmt.Fprintf(builder, "/* json err: %v */ undefined", err)
+			return
+		}
+		builder.Write(encoded)
 	}
-	return string(encoded)
 }
 
 type bufWriter struct {

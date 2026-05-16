@@ -59,10 +59,10 @@ func applyMemberModifiers(member *protocol.RunType, symbol *ast.Symbol, asClass 
 		return
 	}
 	if flags&ast.ModifierFlagsStatic != 0 {
-		member.Static = true
+		member.IsStatic = true
 	}
 	if flags&ast.ModifierFlagsAbstract != 0 {
-		member.Abstract = true
+		member.IsAbstract = true
 	}
 	switch {
 	case flags&ast.ModifierFlagsPrivate != 0:
@@ -78,8 +78,8 @@ func applyMemberModifiers(member *protocol.RunType, symbol *ast.Symbol, asClass 
 }
 
 // applyParameterDefault inspects the parameter's declaration for an
-// initializer expression. Literal values land in `Default`; non-literal
-// initializers (function/expression/computed) leave Default nil and append
+// initializer expression. Literal values land in `DefaultVal`; non-literal
+// initializers (function/expression/computed) leave DefaultVal nil and append
 // the "nonLiteralDefault" marker to Flags — mirrors mion's convention.
 func applyParameterDefault(parameter *protocol.RunType, symbol *ast.Symbol) {
 	paramNode := parameterDeclaration(symbol)
@@ -89,15 +89,15 @@ func applyParameterDefault(parameter *protocol.RunType, symbol *ast.Symbol) {
 	initializer := paramNode.Initializer
 	switch initializer.Kind {
 	case ast.KindStringLiteral, ast.KindNoSubstitutionTemplateLiteral:
-		parameter.Default = initializer.Text()
+		parameter.DefaultVal = initializer.Text()
 	case ast.KindNumericLiteral:
-		parameter.Default = parseNumberLiteral(initializer.Text())
+		parameter.DefaultVal = parseNumberLiteral(initializer.Text())
 	case ast.KindTrueKeyword:
-		parameter.Default = true
+		parameter.DefaultVal = true
 	case ast.KindFalseKeyword:
-		parameter.Default = false
+		parameter.DefaultVal = false
 	case ast.KindNullKeyword:
-		parameter.Default = nil
+		parameter.DefaultVal = nil
 	default:
 		parameter.Flags = append(parameter.Flags, "nonLiteralDefault")
 	}

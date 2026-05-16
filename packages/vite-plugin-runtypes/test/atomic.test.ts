@@ -727,7 +727,7 @@ getRuntypeId<Color>();
       const t = getTypeFor(cache, 'enum_numeric.ts');
       expect(t.kind).toBe(ReflectionKind.enum);
       expect(t.typeName).toBe('Color');
-      expect(t.enum).toEqual({Red: 0, Green: 1, Blue: 2});
+      expect(t.enumVal).toEqual({Red: 0, Green: 1, Blue: 2});
       expect(t.values).toEqual(expect.arrayContaining([0, 1, 2]));
       expect(t.indexType?.kind).toBe(ReflectionKind.number);
     }
@@ -754,7 +754,7 @@ reflectRuntypeId(v);
       const t = getTypeFor(cache, 'enum_numeric.ts');
       expect(t.kind).toBe(ReflectionKind.enum);
       expect(t.typeName).toBe('Color');
-      expect(t.enum).toEqual({Red: 0, Green: 1, Blue: 2});
+      expect(t.enumVal).toEqual({Red: 0, Green: 1, Blue: 2});
       expect(t.values).toEqual(expect.arrayContaining([0, 1, 2]));
       expect(t.indexType?.kind).toBe(ReflectionKind.number);
     }
@@ -776,7 +776,7 @@ getRuntypeId<Color>();
       const cache = await evalCacheFor(sources);
       const t = getTypeFor(cache, 'enum_string.ts');
       expect(t.kind).toBe(ReflectionKind.enum);
-      expect(t.enum).toEqual({Red: 'red', Green: 'green', Blue: 'blue'});
+      expect(t.enumVal).toEqual({Red: 'red', Green: 'green', Blue: 'blue'});
       expect(t.indexType?.kind).toBe(ReflectionKind.string);
     }
   );
@@ -798,7 +798,7 @@ reflectRuntypeId(v);
       const cache = await evalCacheFor(sources);
       const t = getTypeFor(cache, 'enum_string.ts');
       expect(t.kind).toBe(ReflectionKind.enum);
-      expect(t.enum).toEqual({Red: 'red', Green: 'green', Blue: 'blue'});
+      expect(t.enumVal).toEqual({Red: 'red', Green: 'green', Blue: 'blue'});
       expect(t.indexType?.kind).toBe(ReflectionKind.string);
     }
   );

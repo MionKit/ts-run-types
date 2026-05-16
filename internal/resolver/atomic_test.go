@@ -747,8 +747,8 @@ func assertEnumNumeric(t *testing.T, code string) {
 	if tn.TypeName != "Color" {
 		t.Fatalf("expected typeName=Color, got %q", tn.TypeName)
 	}
-	if len(tn.Enum) != 3 {
-		t.Fatalf("expected 3 members, got %d (%v)", len(tn.Enum), tn.Enum)
+	if len(tn.EnumVal) != 3 {
+		t.Fatalf("expected 3 members, got %d (%v)", len(tn.EnumVal), tn.EnumVal)
 	}
 	if tn.IndexT == nil || tn.IndexT.Kind != protocol.KindNumber {
 		t.Fatalf("expected indexType=number, got %+v", tn.IndexT)
@@ -787,11 +787,11 @@ func assertEnumString(t *testing.T, code string) {
 	if tn.Kind != protocol.KindEnum {
 		t.Fatalf("expected KindEnum, got %d", tn.Kind)
 	}
-	if len(tn.Enum) != 3 {
-		t.Fatalf("expected 3 members, got %d", len(tn.Enum))
+	if len(tn.EnumVal) != 3 {
+		t.Fatalf("expected 3 members, got %d", len(tn.EnumVal))
 	}
-	if v, ok := tn.Enum["Red"].(string); !ok || v != "red" {
-		t.Fatalf("expected Red=\"red\", got %v", tn.Enum["Red"])
+	if v, ok := tn.EnumVal["Red"].(string); !ok || v != "red" {
+		t.Fatalf("expected Red=\"red\", got %v", tn.EnumVal["Red"])
 	}
 	if tn.IndexT == nil || tn.IndexT.Kind != protocol.KindString {
 		t.Fatalf("expected indexType=string, got %+v", tn.IndexT)

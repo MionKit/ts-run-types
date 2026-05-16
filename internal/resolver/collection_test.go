@@ -11,7 +11,7 @@ import (
 // tests per the marker test coverage rule (CLAUDE.md) and shares an
 // assertion helper. Exercises the modifier-and-default fields populated
 // by serialize.go's appendProperty / projectSignatureInto / projectTuple
-// — readonly, visibility, abstract, static, isSafePropName, position,
+// — readonly, visibility, abstract, static, isSafeName, position,
 // default — none of which had end-to-end coverage before.
 
 // ---- F23 — object with optional / readonly / unsafe name ---------------------
@@ -64,8 +64,8 @@ func assertF23ObjectShapes(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 	if !idMember.Readonly {
 		t.Fatalf("id expected Readonly=true, got %+v", idMember)
 	}
-	if !idMember.IsSafePropName {
-		t.Fatalf("id expected IsSafePropName=true, got %+v", idMember)
+	if !idMember.IsSafeName {
+		t.Fatalf("id expected IsSafeName=true, got %+v", idMember)
 	}
 	if idMember.Optional {
 		t.Fatalf("id expected Optional=false, got %+v", idMember)
@@ -78,8 +78,8 @@ func assertF23ObjectShapes(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 	if !nickMember.Optional {
 		t.Fatalf("nick expected Optional=true, got %+v", nickMember)
 	}
-	if !nickMember.IsSafePropName {
-		t.Fatalf("nick expected IsSafePropName=true, got %+v", nickMember)
+	if !nickMember.IsSafeName {
+		t.Fatalf("nick expected IsSafeName=true, got %+v", nickMember)
 	}
 	if nickMember.Readonly {
 		t.Fatalf("nick expected Readonly=false, got %+v", nickMember)
@@ -89,8 +89,8 @@ func assertF23ObjectShapes(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 	if weirdMember == nil {
 		t.Fatalf("missing weird-name property; types=%+v", root.Children)
 	}
-	if weirdMember.IsSafePropName {
-		t.Fatalf("weird name expected IsSafePropName=false, got %+v", weirdMember)
+	if weirdMember.IsSafeName {
+		t.Fatalf("weird name expected IsSafeName=false, got %+v", weirdMember)
 	}
 	if weirdMember.Name != weirdPropName {
 		t.Fatalf("expected Name=%q, got %q", weirdPropName, weirdMember.Name)
@@ -161,8 +161,8 @@ func assertF24ClassPropertyModifiers(t *testing.T, r *resolver.Resolver, root *p
 	}
 
 	countMember := findMember(types, root, "count")
-	if countMember == nil || !countMember.Static {
-		t.Fatalf("count expected Static=true, got %+v", countMember)
+	if countMember == nil || !countMember.IsStatic {
+		t.Fatalf("count expected IsStatic=true, got %+v", countMember)
 	}
 }
 
@@ -206,13 +206,13 @@ func assertF25ClassMethodModifiers(t *testing.T, r *resolver.Resolver, root *pro
 	if greetMember == nil || greetMember.Kind != protocol.KindMethod {
 		t.Fatalf("greet expected KindMethod, got %+v", greetMember)
 	}
-	if !greetMember.Abstract {
-		t.Fatalf("greet expected Abstract=true, got %+v", greetMember)
+	if !greetMember.IsAbstract {
+		t.Fatalf("greet expected IsAbstract=true, got %+v", greetMember)
 	}
 
 	factoryMember := findMember(types, root, "factory")
-	if factoryMember == nil || !factoryMember.Static {
-		t.Fatalf("factory expected Static=true, got %+v", factoryMember)
+	if factoryMember == nil || !factoryMember.IsStatic {
+		t.Fatalf("factory expected IsStatic=true, got %+v", factoryMember)
 	}
 
 	hiddenMember := findMember(types, root, "hidden")
@@ -345,7 +345,7 @@ func assertF27ReadonlyIndexSignature(t *testing.T, r *resolver.Resolver, root *p
 
 // ---- F28 — parameter defaults + position ------------------------------------
 //
-// Exercises Parameter.Default (literal + nonLiteralDefault marker) and
+// Exercises Parameter.DefaultVal (literal + nonLiteralDefault marker) and
 // Parameter.Position through the function-type projection. The function
 // is itself a KindFunction node (single call signature on an object
 // literal triggers the function dispatch), so we walk root.Parameters.
@@ -387,27 +387,27 @@ func assertF28ParameterDefaults(t *testing.T, r *resolver.Resolver, root *protoc
 		}
 	}
 	if !expectDefaults {
-		// Static form has no runtime values — Default fields stay nil.
+		// Static form has no runtime values — DefaultVal fields stay nil.
 		return
 	}
 	paramA := deref(types, root.Parameters[0])
-	if paramA.Default != nil {
-		t.Fatalf("parameter[0] expected no default, got %v", paramA.Default)
+	if paramA.DefaultVal != nil {
+		t.Fatalf("parameter[0] expected no default, got %v", paramA.DefaultVal)
 	}
 	paramB := deref(types, root.Parameters[1])
-	if paramB.Default != "x" {
-		t.Fatalf("parameter[1].Default expected 'x', got %v", paramB.Default)
+	if paramB.DefaultVal != "x" {
+		t.Fatalf("parameter[1].DefaultVal expected 'x', got %v", paramB.DefaultVal)
 	}
 	paramC := deref(types, root.Parameters[2])
-	if v, ok := paramC.Default.(int64); !ok || v != 5 {
+	if v, ok := paramC.DefaultVal.(int64); !ok || v != 5 {
 		// parseNumberLiteral may produce int64 or float64 — accept either.
-		if v, ok := paramC.Default.(float64); !ok || v != 5 {
-			t.Fatalf("parameter[2].Default expected 5, got %v (%T)", paramC.Default, paramC.Default)
+		if v, ok := paramC.DefaultVal.(float64); !ok || v != 5 {
+			t.Fatalf("parameter[2].DefaultVal expected 5, got %v (%T)", paramC.DefaultVal, paramC.DefaultVal)
 		}
 	}
 	paramD := deref(types, root.Parameters[3])
-	if paramD.Default != nil {
-		t.Fatalf("parameter[3] expected Default=nil for non-literal, got %v", paramD.Default)
+	if paramD.DefaultVal != nil {
+		t.Fatalf("parameter[3] expected DefaultVal=nil for non-literal, got %v", paramD.DefaultVal)
 	}
 	if !containsFlag(paramD.Flags, "nonLiteralDefault") {
 		t.Fatalf("parameter[3] expected flags to contain 'nonLiteralDefault', got %+v", paramD.Flags)

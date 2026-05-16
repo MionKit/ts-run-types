@@ -3,7 +3,7 @@
 // (getRuntypeId<T>()) and reflect (reflectRuntypeId(v)) tests per the
 // marker test coverage rule (CLAUDE.md). Exercises the modifier and
 // position fields the Go serializer populates: optional/readonly/
-// visibility/abstract/static, isSafePropName on properties/methods, and
+// visibility/abstract/static, isSafeName on properties/methods, and
 // position on tuple members.
 
 import {describe, expect} from 'vitest';
@@ -61,18 +61,18 @@ reflectRuntypeId(value);
     const id = root.children?.find((m) => m.name === 'id');
     expect(id).toBeDefined();
     expect(id!.readonly).toBe(true);
-    expect(id!.isSafePropName).toBe(true);
+    expect(id!.isSafeName).toBe(true);
     expect(id!.optional).toBeUndefined();
     const nick = root.children?.find((m) => m.name === 'nick');
     expect(nick).toBeDefined();
     expect(nick!.optional).toBe(true);
-    expect(nick!.isSafePropName).toBe(true);
+    expect(nick!.isSafeName).toBe(true);
     expect(nick!.readonly).toBeUndefined();
     const weird = root.children?.find((m) => m.name === weirdPropName);
     expect(weird).toBeDefined();
     // Unsafe names: field is omitted on the wire so the consumer reads
     // undefined ≡ "needs bracket access".
-    expect(weird!.isSafePropName).toBeUndefined();
+    expect(weird!.isSafeName).toBeUndefined();
   }
 
   // ---- class: visibility / static / readonly --------------------------------
@@ -130,7 +130,7 @@ reflectRuntypeId(value);
     const tag = root.children?.find((m) => m.name === 'tag') as RunType;
     expect(tag.readonly).toBe(true);
     const count = root.children?.find((m) => m.name === 'count') as RunType;
-    expect(count.static).toBe(true);
+    expect(count.isStatic).toBe(true);
   }
 
   // ---- tuple: labeled / rest / optional / position -------------------------
