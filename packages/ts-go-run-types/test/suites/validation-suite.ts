@@ -1104,25 +1104,28 @@ export const VALIDATION_SUITE = {
   TEMPLATE_LITERAL: {
     url_with_number_id: {
       title: '`api/user/${number}`',
-      description: "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'",
+      description: "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'. Compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at JIT-build time; isType emits `typeof v === 'string' && regex.test(v)`.",
+      isType: () => createIsType<`api/user/${number}`>(),
       getSamples: () => ({
-        valid: ['api/user/42', 'api/user/0'],
-        invalid: ['api/user/abc', '/api/user/42', 'api/user/', 42, null],
+        valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
+        invalid: ['api/user/abc', '/api/user/42', 'api/user/', 42, null, 'api/user/42x'],
       }),
     },
 
     multi_segment_url: {
       title: '`/api/v${number}/user/${string}/posts/${number}`',
-      description: "mion templateLiteral.spec.ts 'multi-segment URL'",
+      description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
+      isType: () => createIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
       getSamples: () => ({
-        valid: ['/api/v1/user/jane/posts/7'],
-        invalid: ['api/v1/user/jane/posts/7', '/api/v1/user/jane/posts/abc'],
+        valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
+        invalid: ['api/v1/user/jane/posts/7', '/api/v1/user/jane/posts/abc', '/api/vx/user/jane/posts/7'],
       }),
     },
 
     leading_string_placeholder: {
       title: '`${string}/${number}`',
-      description: "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted.",
+      description: "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted (string span uses `[\\s\\S]*`, not `+`).",
+      isType: () => createIsType<`${string}/${number}`>(),
       getSamples: () => ({
         valid: ['/42', 'users/42'],
         invalid: ['users', '/abc'],
@@ -1131,28 +1134,31 @@ export const VALIDATION_SUITE = {
 
     regex_special_chars: {
       title: '`(${number})`',
-      description: "mion templateLiteral.spec.ts 'regex special chars in literal' — parens must be escaped in the compiled regex.",
+      description: "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
+      isType: () => createIsType<`(${number})`>(),
       getSamples: () => ({
-        valid: ['(42)'],
-        invalid: ['42', '(abc)'],
-      }),
-    },
-
-    template_literal_index_key: {
-      title: '{[key: `api/${string}`]: number}',
-      description: "mion templateLiteral.spec.ts 'as index signature key' — index signature whose key type is a template literal pattern. Needs template-literal projection + the index-emit regex-key check (mion's getKeyPatternVar / getSkipCode).",
-      getSamples: () => ({
-        valid: [{'api/users': 1}, {}],
-        invalid: [{foo: 1}, {'api/users': 'not number'}],
+        valid: ['(42)', '(0)', '(-3.14)'],
+        invalid: ['42', '(abc)', '()', '(42'],
       }),
     },
 
     template_literal_nested_in_object: {
       title: '{url: `api/user/${number}`; method: string}',
-      description: "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value.",
+      description: "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
+      isType: () => createIsType<{url: `api/user/${number}`; method: string}>(),
       getSamples: () => ({
         valid: [{url: 'api/user/42', method: 'GET'}],
-        invalid: [{url: 'api/admin/42', method: 'GET'}, {url: 'api/user/42'}],
+        invalid: [{url: 'api/admin/42', method: 'GET'}, {url: 'api/user/42'}, null],
+      }),
+    },
+
+    template_literal_index_key: {
+      title: '{[key: `api/${string}`]: number}',
+      description: "mion templateLiteral.spec.ts 'as index signature key' — index signature whose key type is a template literal pattern. The IndexSignature emit now compiles the key pattern to a regex (same path as standalone template literals) and adds a per-key `regex.test(k)` check to the for-in loop, mirroring mion's getKeyPatternVar.",
+      isType: () => createIsType<{[key: `api/${string}`]: number}>(),
+      getSamples: () => ({
+        valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
+        invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null],
       }),
     },
   },

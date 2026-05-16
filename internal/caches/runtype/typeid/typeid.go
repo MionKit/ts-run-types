@@ -111,6 +111,34 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 		return strconv.Itoa(int(protocol.KindEnum)) + ":" + enumDiscriminator(tsType, computer.typeChecker)
 	}
 
+	// Template literal — id captures the literal text segments + the
+	// placeholder span ids so two distinct patterns
+	// (`` `api/${number}` `` vs `` `(${number})` ``) don't collide.
+	if flags&checker.TypeFlagsTemplateLiteral != 0 {
+		tpl := tsType.AsTemplateLiteralType()
+		if tpl != nil {
+			texts := tpl.Texts()
+			spanIDs := computer.childIDs(tpl.Types())
+			var b strings.Builder
+			b.WriteString(strconv.Itoa(int(protocol.KindTemplateLiteral)))
+			b.WriteString(":tl:")
+			for i, text := range texts {
+				if i > 0 {
+					b.WriteByte('|')
+				}
+				b.WriteString(text)
+			}
+			b.WriteByte('#')
+			for i, id := range spanIDs {
+				if i > 0 {
+					b.WriteByte(',')
+				}
+				b.WriteString(id)
+			}
+			return b.String()
+		}
+	}
+
 	// Union / intersection — composition of distributed members.
 	if flags&checker.TypeFlagsUnion != 0 {
 		return collectionID(int(kind), computer.childIDs(tsType.Distributed()), false)
@@ -361,6 +389,8 @@ func KindOf(typeChecker *checker.Checker, tsType *checker.Type) protocol.Reflect
 		flags&checker.TypeFlagsEnumLike != 0,
 		flags&checker.TypeFlagsEnumLiteral != 0:
 		return protocol.KindEnum
+	case flags&checker.TypeFlagsTemplateLiteral != 0:
+		return protocol.KindTemplateLiteral
 	case flags&checker.TypeFlagsUnion != 0:
 		return protocol.KindUnion
 	case flags&checker.TypeFlagsIntersection != 0:
