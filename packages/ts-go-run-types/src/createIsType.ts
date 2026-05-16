@@ -1,4 +1,4 @@
-import {install} from 'virtual:runtypes-isType';
+import {initCache as initIsTypeCache} from 'virtual:runtypes-isType';
 import {getJitUtils} from './jit/jitUtils.ts';
 import type {RuntypeId} from './index.ts';
 
@@ -6,22 +6,13 @@ import type {RuntypeId} from './index.ts';
  *  mion's `IsTypeFn` in run-types/src/types.ts. **/
 export type IsTypeFn = (value: unknown) => boolean;
 
-// Factory-name prefix for the isType virtual module's entries. Mirrors
-// `CacheModules["isType"].VarPrefix` in internal/constants/constants.go,
-// which is also surfaced via the generated TS constants file at
-// packages/vite-plugin-runtypes/src/runtypes-constants.generated.ts.
-// Hardcoded here so the marker package doesn't depend on the plugin
-// package just to read this string — the value is stable and a drift
-// would surface immediately as a "no factory for <hash>" runtime error.
-const ISTYPE_FACTORY_PREFIX = 'get_isType_';
-
-// One-shot call to the virtual module's `install` export. The Go-emitted
-// module is pure: importing it does nothing on its own. `install(utl)`
-// materializes every JitCompiledFn entry against the supplied utl,
-// registers each via `utl.addToJitCache`, and returns the entries map
-// keyed by `get_isType_<hash>`. We pin to this package's `jitUtils`
-// singleton since the validators are local to this package's runtime.
-const entries = install(getJitUtils()) as Record<string, {fn: IsTypeFn} | undefined>;
+// One-shot call to the virtual module's `initCache(jitUtils)` export.
+// Materialises every JitCompiledFn entry against the supplied jitUtils,
+// registers each via `jitUtils.addToJitCache`, and returns the
+// module-local cache table keyed by raw `jitFnHash`. The legacy
+// `get_isType_<hash>` factory prefix is no longer part of the cache
+// key — entries are looked up by the canonical hash directly.
+const cache = initIsTypeCache(getJitUtils()) as Record<string, {fn: IsTypeFn} | undefined>;
 
 // Validator cache keyed by runtype id (the hash injected at compile
 // time by vite-plugin-runtypes). Two `createIsType<T>()` calls for the
@@ -37,11 +28,11 @@ const validatorCache = new Map<string, IsTypeFn>();
  *
  *  At compile time `vite-plugin-runtypes` rewrites every call site to
  *  inject the trailing `RuntypeId<T>` hash, so the runtime path just
- *  reads the precompiled `JitCompiledFn` entry off the install-time
- *  entries map and caches its `.fn` validator.
+ *  reads the precompiled `JitCompiledFn` entry off the cache by raw
+ *  hash and caches its `.fn` validator.
  *
  *  Throws when called without the plugin active (no `id` injected) or
- *  when the install map doesn't contain an entry for the expected hash —
+ *  when the cache doesn't contain an entry for the expected hash —
  *  both indicate the build pipeline didn't wire correctly. **/
 export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   if (id === undefined) {
@@ -51,11 +42,10 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   }
   const cached = validatorCache.get(id);
   if (cached) return cached;
-  const factoryName = ISTYPE_FACTORY_PREFIX + id;
-  const entry = entries[factoryName];
+  const entry = cache[id];
   if (!entry) {
     throw new Error(
-      `createIsType(): no entry named "${factoryName}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for runtype "${id}".`
+      `createIsType(): no entry for "${id}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for that runtype.`
     );
   }
   const validator = entry.fn;

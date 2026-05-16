@@ -7,13 +7,13 @@
 
 import {describe, it, expect} from 'vitest';
 import type {CompiledPureFunction} from '../src/jit/types.ts';
-import {JITUtils, getJitUtils} from '../src/jit/jitUtils.ts';
+import {JITUtils, getJitUtils, pureFnKey} from '../src/jit/jitUtils.ts';
 import {registerPureFnFactory} from '../src/jit/pureFn.ts';
 
 const TEST_NAMESPACE = 'test';
 
 function getCompiledPureFn(namespace: string, fnName: string): CompiledPureFunction | undefined {
-  return getJitUtils().getCompiledPureFn(namespace, fnName);
+  return getJitUtils().getCompiledPureFn(pureFnKey(namespace, fnName));
 }
 
 // 14-char base64url — what the Go binary's BodyHash emits.
@@ -32,7 +32,10 @@ it('register and get pure function with extracted data', () => {
       return true;
     };
   });
-  const restoredFn = getJitUtils().getPureFn(TEST_NAMESPACE, 'stringPureFn') as (s: string, p: StringParams) => boolean;
+  const restoredFn = getJitUtils().getPureFn(pureFnKey(TEST_NAMESPACE, 'stringPureFn')) as (
+    s: string,
+    p: StringParams
+  ) => boolean;
   expect(restoredFn).toBeDefined();
   expect(restoredFn).toBeInstanceOf(Function);
   expect(restoredFn('a', {isLowercase: true})).toBe(true);
@@ -78,7 +81,7 @@ it('auto-detects dependencies via proxy when factory calls getPureFn', () => {
     };
   });
   registerPureFnFactory(TEST_NAMESPACE, 'pureFunctionB', function (jUtils: JITUtils) {
-    const isA = jUtils.getPureFn('test', 'pureFunctionA') as (s: string, p: Params) => boolean;
+    const isA = jUtils.getPureFn('test::pureFunctionA') as (s: string, p: Params) => boolean;
     return function is_b(s: string, p: Params): boolean {
       const isAResult = isA(s, p);
       if (p.isB) return isAResult && s.includes('b');
@@ -108,7 +111,10 @@ describe('arrow function factory functions', () => {
         return true;
       };
     });
-    const restoredFn = getJitUtils().getPureFn(TEST_NAMESPACE, 'arrowWithParens') as (s: string, p: StringParams) => boolean;
+    const restoredFn = getJitUtils().getPureFn(pureFnKey(TEST_NAMESPACE, 'arrowWithParens')) as (
+      s: string,
+      p: StringParams
+    ) => boolean;
     expect(restoredFn).toBeDefined();
     expect(restoredFn).toBeInstanceOf(Function);
     expect(restoredFn('abc', {isLowercase: true})).toBe(true);
@@ -127,7 +133,10 @@ describe('arrow function factory functions', () => {
           return n * (p.multiplier ?? 1);
         }
     );
-    const restoredFn = getJitUtils().getPureFn(TEST_NAMESPACE, 'arrowExpression') as (n: number, p: NumParams) => number;
+    const restoredFn = getJitUtils().getPureFn(pureFnKey(TEST_NAMESPACE, 'arrowExpression')) as (
+      n: number,
+      p: NumParams
+    ) => number;
     expect(restoredFn).toBeDefined();
     expect(restoredFn).toBeInstanceOf(Function);
     expect(restoredFn(5, {multiplier: 3})).toBe(15);
@@ -146,7 +155,7 @@ describe('arrow function factory functions', () => {
       };
     });
     registerPureFnFactory(TEST_NAMESPACE, 'arrowFnB', (jUtils: JITUtils) => {
-      const isA = jUtils.getPureFn('test', 'arrowFnA') as (s: string, p: Params) => boolean;
+      const isA = jUtils.getPureFn('test::arrowFnA') as (s: string, p: Params) => boolean;
       return function is_b(s: string, p: Params): boolean {
         const isAResult = isA(s, p);
         if (p.isB) return isAResult && s.includes('b');

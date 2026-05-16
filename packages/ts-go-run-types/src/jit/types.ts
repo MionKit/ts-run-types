@@ -109,20 +109,20 @@ export interface PersistedJitFn extends Omit<JitCompiledFn, 'fn'> {
 
 // jit and pure functions at runtime, contains both createJitFn and fn
 export type JitFunctionsCache = Record<string, JitCompiledFn>;
-/** Namespaced cache structure for pure functions: { namespace: { fnHash: CompiledPureFunction } } */
-export type PureFunctionsCache = Record<string, Record<string, CompiledPureFunction>>;
+/** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */
+export type PureFunctionsCache = Record<string, CompiledPureFunction>;
 
 // jit and pure functions persisted to src code, contains createJitFn but not fn
 // this allow usage in environments that can not use eval or new Function()
 export type PersistedJitFunctionsCache = Record<string, PersistedJitFn>;
-/** Namespaced cache structure for persisted pure functions */
-export type PersistedPureFunctionsCache = Record<string, Record<string, PersistedPureFunction>>;
+/** Flat cache for persisted pure functions, keyed by "<namespace>::<fnName>". */
+export type PersistedPureFunctionsCache = Record<string, PersistedPureFunction>;
 
 // jit and pure functions data, does not contain createJitFn or fn
 // this is used to serialize over the network, but requires using new Function() to restore functionality
 export type FnsDataCache = Record<string, JitCompiledFnData>;
-/** Namespaced cache structure for pure function data */
-export type PureFnsDataCache = Record<string, Record<string, PureFunctionData>>;
+/** Flat cache for pure function data, keyed by "<namespace>::<fnName>". */
+export type PureFnsDataCache = Record<string, PureFunctionData>;
 
 // ########################################### Classes / helpers #########################################
 

@@ -244,8 +244,14 @@ getRuntypeId<{a: number}>();
 	if dumpResp.RunTypeCacheSource == "" {
 		t.Fatalf("dump: expected populated runTypeCacheSource")
 	}
-	if !strings.Contains(dumpResp.RunTypeCacheSource, "export const t_") {
-		t.Fatalf("dump runTypeCacheSource missing `export const t_…` declarations:\n%s", dumpResp.RunTypeCacheSource)
+	// The dump must contain factory calls for every interned id so
+	// consumers re-evaluating the module body see the full cache. With
+	// the splice-based emitter we look for `rt('<id>',` lines.
+	if !strings.Contains(dumpResp.RunTypeCacheSource, "rt('"+idA+"',") {
+		t.Fatalf("dump runTypeCacheSource missing rt(...) call for id %q:\n%s", idA, dumpResp.RunTypeCacheSource)
+	}
+	if !strings.Contains(dumpResp.RunTypeCacheSource, "rt('"+idB+"',") {
+		t.Fatalf("dump runTypeCacheSource missing rt(...) call for id %q:\n%s", idB, dumpResp.RunTypeCacheSource)
 	}
 }
 

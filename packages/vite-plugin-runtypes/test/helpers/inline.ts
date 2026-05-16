@@ -18,7 +18,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
-import {RUNTYPES_VAR_PREFIX, type Site, type RunType} from '../../src/protocol.ts';
+import {type Site, type RunType} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
@@ -148,10 +148,9 @@ export async function rewriteInline(
 }
 
 // Cache shape produced by evaluating the rendered runtypes-cache module.
-// `byHash` mirrors what `virtual:runtypes-cache` exports as a namespace
-// (one `<RUNTYPES_VAR_PREFIX><hash>` key per cached RunType). `sites` is
-// pulled straight off the daemon response — the cache module itself no
-// longer carries them.
+// `byHash` is the module-local `cache` object returned by `initCache()` —
+// flat `{[rawHash]: RunType}`. `sites` is pulled straight off the
+// daemon response.
 export interface EvaluatedCache {
   byHash: Record<string, RunType>;
   sites: Site[];
@@ -160,7 +159,9 @@ export interface EvaluatedCache {
 // Full pipeline: scan every test source in ONE scanFiles request. The
 // Go side projects runTypes / runTypeCacheSource over exactly those
 // files, independent of anything else in the cache. The rendered module
-// body is evaluated through `new Function` and returned as `{byHash, sites}`.
+// body (skeleton + spliced factory calls) is evaluated through
+// `new Function`, its `initCache` export is invoked, and the populated
+// cache object is returned.
 export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
@@ -171,17 +172,29 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
       recordResponse(response);
       const {runTypeCacheSource} = response;
       if (!runTypeCacheSource) throw new Error('evalCacheFor: resolver returned no runTypeCacheSource');
-      // Rewrite each `export const t_X = …` to `var t_X = result.t_X = …`
-      // so footer lines like `t_X.children = […];` continue to see the
-      // binding by bare name AND every entry lands on `result` for
-      // enumeration. `var` (not `let`/`const`) so `new Function` can
-      // function-scope the declarations across the whole synthesized body.
-      const js = runTypeCacheSource.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
-      const factory = new Function(`const result = {}; ${js}; return result;`);
-      return {byHash: factory() as Record<string, RunType>, sites: response.sites ?? []};
+      return {byHash: evalRunTypesModule(runTypeCacheSource) as Record<string, RunType>, sites: response.sites ?? []};
     },
     opts
   );
+}
+
+// evalRunTypesModule evaluates the rendered runtypes cache module body
+// (skeleton + spliced rt(...) / cache['…'].slot assignments) via
+// `new Function` and returns the populated cache object. Strips the
+// two `export …` declarations (the function `initCache` and the
+// re-export of `cache`) so the module body is valid script-scope JS.
+function evalRunTypesModule(source: string): Record<string, RunType> {
+  const stripped = stripExports(source);
+  const factory = new Function(`${stripped}\nreturn initCache;`);
+  const initCache = factory() as (jitUtils?: unknown) => Record<string, RunType>;
+  return initCache({});
+}
+
+// stripExports rewrites `export function …` to `function …` and removes
+// `export {cache};` so the skeleton body evaluates inside a `new Function`
+// script body (which doesn't accept `export` syntax).
+function stripExports(source: string): string {
+  return source.replace(/^\s*export\s+function\s+/gm, 'function ').replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
 }
 
 // Look up the resolved RunType for a given source file in an evaluated cache.
@@ -190,7 +203,7 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 export function getTypeFor(cache: EvaluatedCache, file: string): RunType {
   const site = cache.sites.find((s) => s.file === file);
   if (!site) throw new Error(`no site recorded for ${file}`);
-  const t = cache.byHash[RUNTYPES_VAR_PREFIX + site.id];
+  const t = cache.byHash[site.id];
   if (!t) throw new Error(`type ${site.id} not in cache for ${file}`);
   return t;
 }

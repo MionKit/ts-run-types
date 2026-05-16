@@ -16,6 +16,13 @@ export default tseslint.config(
       '**/vite.config.ts',
       '**/vitest.config.ts',
       'eslint.config.js',
+      // Hand-authored cache skeletons. The `factory` / `rt` helpers are
+      // consumed by the generated region the Go binary splices in at
+      // build time, so eslint flags them as unused. `@ts-nocheck` keeps
+      // the strict-mode TS compiler quiet about implicit-any parameters
+      // for the same reason. Both are intentional — keep the skeletons
+      // out of lint's scope.
+      'packages/ts-go-run-types/src/caches/**',
     ],
   },
   eslint.configs.recommended,

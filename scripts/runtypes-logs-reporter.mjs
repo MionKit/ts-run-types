@@ -47,17 +47,17 @@ function renderBody(meta) {
     parts.push(code.endsWith('\n') ? code.slice(0, -1) : code);
     parts.push('');
   }
-  // Split cacheSource off each response so the JSON view stays compact and
-  // the cache renders as readable JS at the bottom of the file.
+  // Strip every cache-source field off each response so the JSON view
+  // stays compact and the caches render as readable JS at the bottom of
+  // the file. Any field whose name ends in "CacheSource" is treated as
+  // a cache body — that covers the protocol's runTypeCacheSource,
+  // isTypeCacheSource, and parsedFnsCacheSource (and any future
+  // sibling that follows the same naming convention).
   const responses = meta.responses ?? [];
-  const stripped = responses.map((r) => {
-    if (r && typeof r === 'object' && 'cacheSource' in r) {
-      const {cacheSource: _omit, ...rest} = r;
-      return rest;
-    }
-    return r;
-  });
-  const caches = responses.map((r) => (r && typeof r === 'object' ? r.cacheSource : undefined));
+  const stripped = responses.map(stripCacheSources);
+  // caches[i] is a {fieldName -> body} record for response i, holding
+  // only the non-empty cache-source bodies.
+  const caches = responses.map(collectCacheSources);
 
   parts.push('// === daemon response ===');
   if (responses.length === 0) {
@@ -70,20 +70,47 @@ function renderBody(meta) {
   }
   parts.push('');
 
-  const presentCaches = caches.filter((c) => typeof c === 'string' && c.length > 0);
-  if (presentCaches.length === 1) {
-    parts.push('// === cache source ===');
-    parts.push(presentCaches[0].endsWith('\n') ? presentCaches[0].slice(0, -1) : presentCaches[0]);
-    parts.push('');
-  } else if (presentCaches.length > 1) {
-    caches.forEach((cache, i) => {
-      if (typeof cache !== 'string' || cache.length === 0) return;
-      parts.push(`// === cache source [${i}] ===`);
-      parts.push(cache.endsWith('\n') ? cache.slice(0, -1) : cache);
+  // One "// === <fieldName> ===" block per non-empty cache-source body,
+  // tagged by response index when there's more than one response.
+  const responseCount = caches.length;
+  caches.forEach((perResponse, responseIdx) => {
+    for (const [fieldName, body] of Object.entries(perResponse)) {
+      const label = responseCount > 1 ? `${fieldName} [${responseIdx}]` : fieldName;
+      parts.push(`// === ${label} ===`);
+      parts.push(body.endsWith('\n') ? body.slice(0, -1) : body);
       parts.push('');
-    });
-  }
+    }
+  });
   return parts.join('\n');
+}
+
+// isCacheSourceField reports whether a daemon-response field carries a
+// rendered virtual-module body. Every cache kind names its field
+// "<kind>CacheSource", so a suffix check covers the whole family
+// without enumerating each one — new kinds light up automatically.
+function isCacheSourceField(name) {
+  return typeof name === 'string' && name.endsWith('CacheSource');
+}
+
+function stripCacheSources(response) {
+  if (!response || typeof response !== 'object') return response;
+  const out = {};
+  for (const [key, value] of Object.entries(response)) {
+    if (isCacheSourceField(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function collectCacheSources(response) {
+  const out = {};
+  if (!response || typeof response !== 'object') return out;
+  for (const [key, value] of Object.entries(response)) {
+    if (!isCacheSourceField(key)) continue;
+    if (typeof value !== 'string' || value.length === 0) continue;
+    out[key] = value;
+  }
+  return out;
 }
 
 export default class RuntypesLogsReporter {

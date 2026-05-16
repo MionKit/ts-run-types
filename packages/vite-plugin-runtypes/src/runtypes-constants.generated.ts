@@ -8,14 +8,17 @@ export interface CacheModuleSettings {
 }
 
 export const CACHE_MODULES = {
-  isType: {name: 'isTypeModule', varPrefix: 'get_isType_'},
-  runTypes: {name: 'runTypesModule', varPrefix: 't_'},
+  isType: {name: "isTypeModule", varPrefix: "get_isType_"},
+  parsedFns: {name: "parsedFnsModule", varPrefix: ""},
+  runTypes: {name: "runTypesModule", varPrefix: "t_"},
 } as const satisfies Record<string, CacheModuleSettings>;
 
-export const ISTYPE_VAR_PREFIX = 'get_isType_';
-export const ISTYPE_MODULE_NAME = 'isTypeModule';
-export const RUNTYPES_VAR_PREFIX = 't_';
-export const RUNTYPES_MODULE_NAME = 'runTypesModule';
+export const ISTYPE_VAR_PREFIX = "get_isType_";
+export const ISTYPE_MODULE_NAME = "isTypeModule";
+export const PARSEDFNS_VAR_PREFIX = "";
+export const PARSEDFNS_MODULE_NAME = "parsedFnsModule";
+export const RUNTYPES_VAR_PREFIX = "t_";
+export const RUNTYPES_MODULE_NAME = "runTypesModule";
 
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,
@@ -29,34 +32,34 @@ export const REFLECTION_SUB_KIND = {
 export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];
 
 export const NON_SERIALIZABLE_GLOBALS = [
-  'Error',
-  'EvalError',
-  'RangeError',
-  'ReferenceError',
-  'SyntaxError',
-  'TypeError',
-  'URIError',
-  'AggregateError',
-  'WeakMap',
-  'WeakSet',
-  'DataView',
-  'ArrayBuffer',
-  'SharedArrayBuffer',
-  'Float32Array',
-  'Float64Array',
-  'Int8Array',
-  'Int16Array',
-  'Int32Array',
-  'Uint8Array',
-  'Uint8ClampedArray',
-  'Uint16Array',
-  'Uint32Array',
-  'BigInt64Array',
-  'BigUint64Array',
-  'Generator',
-  'GeneratorFunction',
-  'AsyncGenerator',
-  'Iterator',
-  'AsyncGeneratorFunction',
-  'AsyncIterator',
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+  "AggregateError",
+  "WeakMap",
+  "WeakSet",
+  "DataView",
+  "ArrayBuffer",
+  "SharedArrayBuffer",
+  "Float32Array",
+  "Float64Array",
+  "Int8Array",
+  "Int16Array",
+  "Int32Array",
+  "Uint8Array",
+  "Uint8ClampedArray",
+  "Uint16Array",
+  "Uint32Array",
+  "BigInt64Array",
+  "BigUint64Array",
+  "Generator",
+  "GeneratorFunction",
+  "AsyncGenerator",
+  "Iterator",
+  "AsyncGeneratorFunction",
+  "AsyncIterator",
 ] as const;
