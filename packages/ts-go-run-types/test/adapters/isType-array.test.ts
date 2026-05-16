@@ -52,9 +52,7 @@ describe('isType / ARRAY', () => {
 
   it('CircularArray = CircularArray[]', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_array));
   it('ObjectType (Block 13) — recursive object with array prop', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_object_with_array));
-
-  // Deferred — features that haven't landed yet.
-  it.todo('symbol[] — non-serializable, build-time error');
+  it('symbol[] — non-serializable, always-false validator', () => assertIsType(VALIDATION_SUITE.ARRAY.symbol_array));
 
   // Coverage guard. Mirrors isType.test.ts. Vitest's `it.todo` does
   // NOT invoke `afterEach`, so the counter naturally measures only

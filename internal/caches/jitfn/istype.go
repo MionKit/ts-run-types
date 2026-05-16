@@ -287,6 +287,19 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		if rt.Child == nil {
 			return JitCode{Code: "", Type: CodeE}
 		}
+		// Non-serializable element type — mion throws at JIT-compile
+		// time with "Arrays can not have non serializable types, ie:
+		// Symbol[], Function[], etc." (nodes/member/array.ts:148).
+		// We mirror the runtime-observable effect by emitting a
+		// `return false` validator (always-invalid) — mion's throw
+		// happens at createJitFunction time, but the net effect for
+		// any caller is "this type cannot be validated"; emitting
+		// always-false captures that without bringing a compile-time
+		// throw path into the resolver.
+		resolvedChild := ctx.ResolveRef(rt.Child)
+		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+			return JitCode{Code: "return false", Type: CodeRB}
+		}
 		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
 		iVar := ctx.NextLocalVar("i")
 		resVar := ctx.NextLocalVar("res")
@@ -866,6 +879,19 @@ func isFunctionLikeKind(kind protocol.ReflectionKind) bool {
 		return true
 	}
 	return false
+}
+
+// isNonSerializableElementKind reports whether kind would trip
+// mion's `child.skipJit(comp)` check inside an array's emitIsType
+// (nodes/member/array.ts:148: "Arrays can not have non serializable
+// types"). KindSymbol joins the function-flavoured kinds — mion's
+// symbol.ts overrides skipJit to return true for the same reason
+// (symbols can't be JSON-serialized or round-tripped through JIT).
+func isNonSerializableElementKind(kind protocol.ReflectionKind) bool {
+	if kind == protocol.KindSymbol {
+		return true
+	}
+	return isFunctionLikeKind(kind)
 }
 
 // propertyAccessor builds the JS subscript expression for `parent.name`
