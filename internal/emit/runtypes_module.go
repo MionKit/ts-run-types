@@ -94,6 +94,9 @@ func headerLiteral(runType *protocol.RunType) string {
 	if runType.IsSafePropName {
 		fields["isSafePropName"] = true
 	}
+	if runType.IsUnionDiscriminator {
+		fields["isUnionDiscriminator"] = true
+	}
 	if runType.Position != nil {
 		fields["position"] = *runType.Position
 	}
@@ -167,6 +170,21 @@ func writeFooter(buffered *bufWriter, settings constants.CacheModuleSettings, ru
 				buffered.line(fmt.Sprintf("%s.parent = %s;", varName(settings, child.ID), name))
 			}
 		}
+	}
+	// safeUnionChildren — same ref objects as Children, reordered so
+	// superset shapes precede their subset equivalents. Emitted as a
+	// parallel array; consumers derive per-member safe position via
+	// `safeUnionChildren.indexOf(member)`. The JSON wire form carries
+	// per-ref `safeUnionPosition`; that field is intentionally NOT
+	// reproduced in the in-memory module shape because canonical nodes
+	// are shared singletons and can't hold a per-parent position.
+	if len(runType.SafeUnionChildren) > 0 {
+		buffered.line(fmt.Sprintf("%s.safeUnionChildren = [%s];", name, joinRefs(settings, runType.SafeUnionChildren)))
+	}
+	// decorators — surviving object-literal types from a collapsed
+	// `primitive & {brand}` intersection.
+	if len(runType.Decorators) > 0 {
+		buffered.line(fmt.Sprintf("%s.decorators = [%s];", name, joinRefs(settings, runType.Decorators)))
 	}
 	if len(runType.TypeArguments) > 0 {
 		buffered.line(fmt.Sprintf("%s.typeArguments = [%s];", name, joinRefs(settings, runType.TypeArguments)))
