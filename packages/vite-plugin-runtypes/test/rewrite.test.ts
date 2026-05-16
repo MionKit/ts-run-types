@@ -254,7 +254,6 @@ const myAPI = reflectRuntypeId(routes);
     const root = roots[0];
     const sayHello = root.children.find((m: any) => m.name === 'sayHello');
     expect(sayHello).toBeDefined();
-    expect(sayHello.parent).toBe(root);
     // Every cached RunType must carry its `id` (the primary cache handle).
     for (const t of entries) {
       expect(typeof t.id).toBe('string');

@@ -150,20 +150,17 @@ type RunType struct {
 	// Empty for unions that don't need reordering (≤1 object member).
 	SafeUnionChildren []*RunType `json:"safeUnionChildren,omitempty"`
 
-	// Set on direct ref children of a union — the 0-based index of THIS
-	// ref inside its parent union's SafeUnionChildren. Pointer so the
-	// explicit `0` survives omitempty. Lives on the *ref wrapper*, not
-	// the underlying canonical node, because the same canonical node
-	// can appear at different safe positions in different parent unions.
-	SafeUnionPosition *int `json:"safeUnionPosition,omitempty"`
-
-	// IsUnionDiscriminator — set on TypeProperty / TypePropertySignature
-	// nodes when the property was selected (by the serialize-time
-	// discriminator pass) as a discriminator for one of its parent
-	// unions. Either a shared-name discriminator (same name across all
-	// union members, distinct types) or a unique-prop discriminator
-	// (single property whose type-id is unique to its member).
-	IsUnionDiscriminator bool `json:"isUnionDiscriminator,omitempty"`
+	// TypeUnion only — set by the serialize-time discriminator detection
+	// pass. Parallel to SafeUnionChildren: entry i is a ref to the
+	// discriminator property within SafeUnionChildren[i]. Consumer reads
+	// entry.Name for the property key and entry.Child for the expected
+	// type. Slots for non-object members (simple / any) are nil. When
+	// detection finds no usable discriminator, the field is empty.
+	// Mirrors mion's FlattenedProp[] output (minus the codegen-local
+	// compiledName) and lives on the union itself so the relationship
+	// is correctly scoped — the same canonical property node may be a
+	// discriminator in one parent union but not in another.
+	UnionDiscriminators []*RunType `json:"unionDiscriminators,omitempty"`
 
 	// Decorators — surviving object-literal types from a collapsed
 	// intersection that combined a primitive with one or more brand

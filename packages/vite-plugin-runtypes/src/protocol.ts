@@ -125,21 +125,17 @@ export interface RunType {
   // time). Same ref objects as `children`, just rearranged.
   safeUnionChildren?: RunType[];
 
-  // JSON wire-format only — 0-based index of THIS ref inside its
-  // parent union's `safeUnionChildren`. Carried on the ref wrapper so
-  // raw-JSON consumers can re-knot without scanning. NOT reproduced in
-  // the emitted runtypes-cache module: canonical RunType nodes are
-  // shared singletons there, so per-parent position can't live on the
-  // node. Consumers of the cache module derive position via
-  // `parent.safeUnionChildren.indexOf(member)`.
-  safeUnionPosition?: number;
-
-  // property / propertySignature only — true when the serialize-time
-  // discriminator pass selected this property as a discriminator for
-  // one of its parent unions (either shared-name with unique per-member
-  // type-ids, or unique-prop fallback). Lets consumers fast-path the
-  // union check against this property.
-  isUnionDiscriminator?: true;
+  // union only — set by the serialize-time discriminator detection
+  // pass. Parallel to `safeUnionChildren`: entry i is a ref to the
+  // discriminator property within `safeUnionChildren[i]`. Consumer
+  // reads entry.name for the property key and entry.child for the
+  // expected type. Slots for non-object members (simple / any) are
+  // null/undefined. When detection finds no usable discriminator, the
+  // field is absent. Lives on the union (not the property node) so
+  // the relationship is correctly scoped — the same canonical
+  // property node may be a discriminator in one parent union but not
+  // in another.
+  unionDiscriminators?: (RunType | null | undefined)[];
 
   // surviving object-literal types from an intersection-collapse of a
   // primitive with one or more brand objects (e.g. `string & {__brand}`).
@@ -168,9 +164,8 @@ export interface RunType {
   extends?: RunType[];
 
   // runtime-only — wired by the cache emitter, never present in wire JSON.
-  // `parent` is the containing RunType for child slots; `classType` is a live
-  // constructor reference (e.g. globalThis.Date for KindClass builtins).
-  parent?: RunType;
+  // `classType` is a live constructor reference (e.g. globalThis.Date for
+  // KindClass builtins).
   classType?: unknown;
 }
 

@@ -567,6 +567,16 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 				walk(child.ID)
 			}
 		}
+		// UnionDiscriminators — refs to the discriminator property
+		// within each union member. The property nodes are also
+		// reachable via the member's Children, but follow explicitly
+		// in case any future pass surfaces nodes here that Children
+		// misses.
+		for _, disc := range node.UnionDiscriminators {
+			if disc != nil {
+				walk(disc.ID)
+			}
+		}
 	}
 	for _, site := range sites {
 		walk(site.ID)
