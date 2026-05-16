@@ -68,11 +68,30 @@ These are real reflection features we intend to ship; each has a concrete approa
 | Limitation                  | Cause                                 | Handling                                                                                                                                                                                       |
 | --------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Cyclic types in raw JSON    | JSON has no cycle support.            | Refs are sentinels (`{kind: -1, id: "<hash>"}`) in JSON; the generated `.ts` artifact resolves cycles via direct `const` assignment in the footer. JSON-only consumers walk the table to re-knot. |
-| `parent` back-references    | Same — JSON has no cycles.            | Not in JSON; the `.ts` artifact wires `parent` in the footer. JSON-only consumers re-knot themselves.                                                                                          |
+| `parent` back-references    | Same — JSON has no cycles.            | Not emitted at all. Canonical nodes are shared singletons (one per structural id) so a stored `parent` would be wrong for any node with multiple parents. Consumers that need a parent link build it themselves while walking the graph from a known root.                          |
 | Symbol-keyed property names | JSON has no symbol type.              | Emit synthetic `@@<name>` strings + `flags: ["symbol"]`. Round-tripping symbol *identity* would require a runtime symbol registry — out of scope.                                              |
 | `bigint` literal values     | JSON numbers lose precision past 2⁵³. | Emit as a string with `flags: ["bigint"]`; the `.ts` footer re-hydrates with `BigInt(...)`. JSON consumers do the same.                                                                        |
 | `regexp` literal values     | JSON has no `RegExp` type.            | Emit `{regexp: {source, flags}}`; the `.ts` footer re-hydrates with `new RegExp(source, flags)`. JSON consumers do the same.                                                                   |
 | `symbol` literal values     | JSON has no symbol type.              | Emit description string; the `.ts` footer re-hydrates with `Symbol(desc)`. Identity is not preserved — same caveat as symbol-keyed names.                                                      |
+
+### Union discriminator wire shape — `unionDiscriminators[]`
+
+Mion's codegen path for discriminated unions consumes a `FlattenedProp` struct per object member (see `mion-run-types: packages/run-types/src/nodes/collection/unionDiscriminator.ts`). Our wire stores **only the strictly-new field** — a ref to the discriminator property — on the union node:
+
+```ts
+// On a TypeUnion RunType:
+unionDiscriminators?: (RunType | null | undefined)[];
+// Parallel to `safeUnionChildren`. Entry i is a ref to the discriminator
+// property within safeUnionChildren[i]; null/undefined for non-object
+// slots (simple / any). Absent when neither detection pass finds a
+// usable discriminator.
+```
+
+Everything else mion's `FlattenedProp` carries is reconstructible from the surrounding wire shape. Consumers call `flattenUnionDiscriminators` from `@mionjs/ts-go-run-types` to materialise the full per-member struct in one pass — it pairs each `safeUnionChildren[i]` with the parallel `unionDiscriminators[i]` and resolves the property's `typeID` via `prop.child.id`.
+
+Rationale: the wire format leans on dedup/minimality elsewhere; carrying `unionItem` / `unionIndex` / `typeID` directly would duplicate data already on the wire (`safeUnionChildren[i]`, the index itself, and the property's child ref id respectively). The detection passes (shared-name + unique-prop fallback) live on the Go side (`internal/serialize/union_safeorder.go`); both write into this single slot, scoped to the parent union — a property node shared between two unions is independently classified for each parent.
+
+`compiledName` in mion's struct is a codegen-time local variable name; it isn't wire data and is allocated by the consumer when emitting JS.
 
 ---
 
