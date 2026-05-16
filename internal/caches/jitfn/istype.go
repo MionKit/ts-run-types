@@ -46,6 +46,20 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
+// AnyIsTypeSupported reports whether at least one of `runTypes` is
+// supported by the IsType emitter. Used by the resolver to set the
+// AddedIsType wire signal independently of AddedRunTypes — a runtype
+// can be added without the isType cache changing (unsupported kind).
+func AnyIsTypeSupported(runTypes []*protocol.RunType) bool {
+	emitter := IsTypeEmitter{}
+	for _, rt := range runTypes {
+		if emitter.Supports(rt) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsJitInlined delegates to DefaultIsJitInlined. Mion's
 // run-types/src/lib/baseRunTypes.ts:52 defines the predicate ONCE
 // for every jit fn (no per-class overrides exist in the upstream

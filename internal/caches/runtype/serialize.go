@@ -1,12 +1,12 @@
-// This file (was internal/serialize/serialize.go) projects tsgo's
-// *checker.Type into a reflection-shape protocol.RunType graph. Every
-// resolved type gets a structural id (mirroring mion's `_createTypeId`)
-// which is hashed (mion's quickHash, ported in `internal/hashid`) into a
-// short alphanumeric wire id. Two structurally-equal types share the same
-// wire id — that's what makes our cache keys stable across builds and
-// equivalent to what mion would compute at runtime.
+// Serializer: projects tsgo's *checker.Type into a reflection-shape
+// protocol.RunType graph. Every resolved type gets a structural id
+// (mirroring mion's `_createTypeId`) which is hashed (mion's quickHash,
+// ported in `internal/hashid`) into a short alphanumeric wire id. Two
+// structurally-equal types share the same wire id — that's what makes
+// our cache keys stable across builds and equivalent to what mion would
+// compute at runtime.
 //
-// The serializer is stateful across calls: multiple resolver queries share
+// The Cache is stateful across calls: multiple resolver queries share
 // one deduplicated type table and one hash dictionary. NOT safe for
 // concurrent use.
 package runtype

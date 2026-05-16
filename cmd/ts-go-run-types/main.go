@@ -191,7 +191,7 @@ func main() {
 		Sites:    r.Sites(),
 	}
 	if outJSON != "" {
-		if err := writeFile(outJSON, func(w io.Writer) error { return protocol.JSON(w, dump) }); err != nil {
+		if err := writeFile(outJSON, dump.WriteJSON); err != nil {
 			fatal("out-json: %v", err)
 		}
 	}
