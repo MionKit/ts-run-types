@@ -159,3 +159,34 @@ func TestStringSliceJS_EmptyAndPopulated(t *testing.T) {
 		t.Errorf("two → %q, want ['a','b']", got)
 	}
 }
+
+func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
+	if got := pureFnDepsJS(nil); got != "[]" {
+		t.Errorf("nil → %q, want []", got)
+	}
+	if got := pureFnDepsJS([]protocol.PureFnDep{}); got != "[]" {
+		t.Errorf("empty → %q, want []", got)
+	}
+	deps := []protocol.PureFnDep{
+		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/abs/run-types-pure-fns.ts"},
+		{Namespace: "mion", FunctionName: "newRunTypeErr", FilePath: "/abs/run-types-pure-fns.ts"},
+	}
+	want := "['mion::asJSONString','mion::newRunTypeErr']"
+	if got := pureFnDepsJS(deps); got != want {
+		t.Errorf("populated → %q, want %q", got, want)
+	}
+}
+
+func TestIsTypeModule_PureFnDepsRendered(t *testing.T) {
+	// Emission shape sanity: when a walker carries triples, the rendered
+	// J(…) entry receives a flat ["ns::fn", …] array (filePath stripped).
+	deps := pureFnDepsJS([]protocol.PureFnDep{
+		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/some/abs/run-types-pure-fns.ts"},
+	})
+	if deps != "['mion::asJSONString']" {
+		t.Fatalf("projection mismatch: got %q", deps)
+	}
+	if strings.Contains(deps, "/some/abs/") || strings.Contains(deps, "filePath") {
+		t.Fatalf("filePath must NOT leak into emitted JS, got %q", deps)
+	}
+}
