@@ -716,14 +716,20 @@ export const VALIDATION_SUITE = {
 
     interface_callable: {
       title: 'CallableInterface = {(a: number, b: boolean): string; extra: string}',
-      description: 'mion interface.spec.ts callable interface — needs the `isCallable()` branch in interface emit (the call signature combined with the AND chain over remaining props). Not yet ported.',
+      description: 'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
+      isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
       getSamples: () => ({
         valid: [
           Object.assign(function (_a: number, _b: boolean) {
             return 'x';
           }, {extra: 'x'}),
         ],
-        invalid: [{extra: 'x'}, () => {}],
+        invalid: [
+          {extra: 'x'},                           // not a function
+          () => {},                               // missing `extra` prop
+          Object.assign(() => {}, {extra: 42}),   // extra wrong type
+          null,
+        ],
       }),
     },
 
@@ -1003,10 +1009,11 @@ export const VALIDATION_SUITE = {
 
     intersection_to_object: {
       title: '{a: string} & {b: number}',
-      description: "mion intersection.spec.ts — Deepkit resolves intersections to ObjectLiteral at compile time, so this isn't a KindIntersection at our cache level (it's already a flattened object). Carried as documentation; runtime behavior is identical to {a: string; b: number}.",
+      description: "mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.",
+      isType: () => createIsType<{a: string} & {b: number}>(),
       getSamples: () => ({
-        valid: [{a: 'x', b: 1}],
-        invalid: [{a: 'x'}, {b: 1}, null],
+        valid: [{a: 'x', b: 1}, {a: '', b: 0}],
+        invalid: [{a: 'x'}, {b: 1}, null, {a: 1, b: 1}, {a: 'x', b: 'not number'}],
       }),
     },
   },
