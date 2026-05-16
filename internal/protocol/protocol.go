@@ -100,6 +100,15 @@ type RunType struct {
 	TypeName      string     `json:"typeName,omitempty"`
 	TypeArguments []*RunType `json:"typeArguments,omitempty"`
 	Inlined       bool       `json:"inlined,omitempty"`
+	// IsCircular flags a RunType that appears inside its own subtree
+	// (e.g. `type CA = CA[]`). Mirrors mion's `isCircular` flag on
+	// BaseRunType (run-types/src/lib/baseRunTypes.ts) — the JIT compiler
+	// uses it to force a self-recursive dependency call instead of
+	// inlining the body. Today the serializer never sets it (circular
+	// type detection lands with the first composite kind that needs it);
+	// the field exists so the dependency-call layer can honor mion's
+	// `isJitInlined` ordered checks faithfully.
+	IsCircular bool `json:"isCircular,omitempty"`
 
 	// TypeLiteral
 	Literal any `json:"literal,omitempty"`

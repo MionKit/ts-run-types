@@ -55,6 +55,10 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindObject, protocol.KindRegexp,
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
+	case protocol.KindArray:
+		// Gate on a non-nil child — a malformed RunType with Kind=KindArray
+		// and Child=nil would otherwise reach Emit and panic.
+		return rt.Child != nil
 	case protocol.KindClass:
 		return rt.SubKind == protocol.SubKindDate
 	}
@@ -200,8 +204,111 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// mion:nodes/atomic/literal.ts:70-71 (emitIsType) +
 		// literal.ts:88-105 (compileIsLiteral).
 		return emitLiteral(rt, v)
+
+	case protocol.KindArray:
+		// mion:nodes/member/array.ts:emitIsType. Allocates an index
+		// counter + a result local, sets the child accessor on the
+		// current frame so the child's pushStack adopts `v[i0]` as its
+		// Vλl, then composes the canonical block:
+		//
+		//   if (!Array.isArray(v)) return false;
+		//   for (let i0 = 0; i0 < v.length; i0++) {
+		//     const res0 = <childCode>;
+		//     if (!(res0)) return false;
+		//   }
+		//   return true;
+		//
+		// Two collapse paths mirror mion's emitIsType when the child
+		// produces no validator code:
+		//   - child empty + noIsArrayCheck → `""` (the whole check
+		//     evaporates — mion `{code: undefined}`).
+		//   - child empty + no noIsArrayCheck → bare `Array.isArray(v)`.
+		// The non-serializable child guard (Symbol, Function) lives at
+		// resolve time: such arrays never reach Emit because the kind
+		// gate strips their child before serialization. If we ever do
+		// see one here, the existing inner-kind dispatch panics — which
+		// matches mion's runtime "Arrays can not have non serializable
+		// types" error surface.
+		if rt.Child == nil {
+			return JitCode{Code: "", Type: CodeE}
+		}
+		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
+		iVar := ctx.NextLocalVar("i")
+		resVar := ctx.NextLocalVar("res")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		childJit := ctx.CompileChild(rt.Child, CodeE)
+		// Reset the accessor so any later sibling-children pushes
+		// (none today, but cheap to keep correct) start from the
+		// parent's Vλl rather than the now-stale subscript.
+		ctx.SetChildAccessor("")
+		if childJit.Code == "" {
+			if noIsArrayCheck {
+				return JitCode{Code: "", Type: CodeE}
+			}
+			return JitCode{Code: "Array.isArray(" + v + ")", Type: CodeE}
+		}
+		var body strings.Builder
+		if !noIsArrayCheck {
+			body.WriteString("if (!Array.isArray(")
+			body.WriteString(v)
+			body.WriteString(")) return false;\n")
+		}
+		body.WriteString("for (let ")
+		body.WriteString(iVar)
+		body.WriteString(" = 0; ")
+		body.WriteString(iVar)
+		body.WriteString(" < ")
+		body.WriteString(v)
+		body.WriteString(".length; ")
+		body.WriteString(iVar)
+		body.WriteString("++) {\nconst ")
+		body.WriteString(resVar)
+		body.WriteString(" = ")
+		body.WriteString(childJit.Code)
+		body.WriteString(";\nif (!(")
+		body.WriteString(resVar)
+		body.WriteString(")) return false;\n}\nreturn true")
+		return JitCode{Code: body.String(), Type: CodeRB}
 	}
 	panic(fmt.Sprintf("jitfn: isType emitter not implemented for kind %d (TODO)", rt.Kind))
+}
+
+// hasFlag is a small membership helper for RunType.Flags. Inlined
+// here rather than promoted to a shared util because it's the only
+// caller today; promote when a second caller lands.
+func hasFlag(flags []string, target string) bool {
+	for _, flag := range flags {
+		if flag == target {
+			return true
+		}
+	}
+	return false
+}
+
+// EmitDependencyCall returns the JS expression that invokes a
+// pre-rendered child JIT entry from inside the parent's body, and
+// registers the context-item declaration that resolves the child via
+// the jitUtils singleton. Mirrors mion's BaseFnCompiler.callDependency
+// (jitFnCompiler.ts:326): cross-function calls go through
+// `<hash>.fn(args)`, self-recursive calls drop the `.fn` indirection
+// and emit `<hash>(args)` directly (mion's `isSelf` branch).
+//
+// The context-item line is the canonical mion shape:
+//
+//	const <hash> = utl.getJIT('<hash>')
+//
+// — registered once per hash thanks to the ordered-items set; sibling
+// arrays in the same parent body see the same `const` declaration.
+func (IsTypeEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
+	args := ctx.Vλl
+	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	if isSelf {
+		return childID + "(" + args + ")"
+	}
+	if !ctx.HasContextItem(childID) {
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+	}
+	return childID + ".fn(" + args + ")"
 }
 
 // emitLiteral mirrors mion's compileIsLiteral (literal.ts:88-105).

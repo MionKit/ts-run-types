@@ -35,6 +35,14 @@ func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 // `jitUtils` from its enclosing `initCache(jitUtils)`, so call sites
 // stay compact.
 //
+// Entries are emitted in **child-before-parent** order so each
+// factory's `createJitFn(jitUtils)` invocation can resolve its
+// `utl.getJIT('<childHash>')` context items against an already-
+// populated cache. The order is derived from each entry's
+// `jitDependencies` (discovered during compile) via a DFS post-order
+// walk over the input set; entries with no deps keep their input
+// position relative to each other (stable topo sort).
+//
 // Kinds the emitter's Supports gate doesn't accept are silently
 // skipped — the alternative (panicking) would crash the whole module
 // for the presence of one unsupported kind, making kind-by-kind
@@ -55,15 +63,79 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	var body strings.Builder
 	body.WriteString("const u = undefined;\n")
 
+	// Single-pass id→RunType index used by the walker to deref
+	// KindRef sentinels at descent time. Cache entries store every
+	// child slot as a ref (`{kind: -1, id: …}`) per protocol.go;
+	// without the table the walker would dispatch on the ref's
+	// placeholder kind and panic.
+	refTable := make(map[string]*protocol.RunType, len(dump.RunTypes))
+	for _, runType := range dump.RunTypes {
+		if runType == nil || runType.ID == "" {
+			continue
+		}
+		refTable[runType.ID] = runType
+	}
+
+	type compiled struct {
+		line string
+		deps []string
+	}
+	entries := make(map[string]compiled, len(dump.RunTypes))
+	order := make([]string, 0, len(dump.RunTypes))
 	for _, runType := range dump.RunTypes {
 		if runType == nil || !emitter.Supports(runType) {
 			continue
 		}
-		entry := renderEntry(runType, settings, emitter, innerPrefix)
-		if entry == "" {
+		// Composite kinds (Array today; Union / Tuple / Class when they
+		// land) reach unsupported subtrees through CompileChild. The
+		// Supports() check is a per-node gate — it doesn't know what's
+		// downstream. Walk the subtree against the ref table once
+		// before compile so an array whose element is e.g. a union can
+		// be skipped cleanly instead of panicking inside Emit.
+		if !subtreeFullySupported(runType, refTable, emitter, map[string]bool{}) {
 			continue
 		}
-		body.WriteString(entry)
+		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable)
+		if line == "" {
+			continue
+		}
+		if _, exists := entries[runType.ID]; exists {
+			continue
+		}
+		entries[runType.ID] = compiled{line: line, deps: deps}
+		order = append(order, runType.ID)
+	}
+
+	// DFS post-order from each input entry to produce a stable topo
+	// sort: children land before parents. Deps pointing to entries
+	// outside the rendered set (e.g. unsupported kinds) are skipped —
+	// the runtime cache miss surfaces at validator-call time, which
+	// is the right place for that failure mode to land.
+	visited := make(map[string]bool, len(entries))
+	var topo []string
+	var visit func(id string)
+	visit = func(id string) {
+		if visited[id] {
+			return
+		}
+		visited[id] = true
+		entry, ok := entries[id]
+		if !ok {
+			return
+		}
+		for _, dep := range entry.deps {
+			if _, ok := entries[dep]; ok {
+				visit(dep)
+			}
+		}
+		topo = append(topo, id)
+	}
+	for _, id := range order {
+		visit(id)
+	}
+
+	for _, id := range topo {
+		body.WriteString(entries[id].line)
 		body.WriteByte('\n')
 	}
 
@@ -75,20 +147,22 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	return err
 }
 
-// renderEntry compiles one RunType into a `factory(jitUtils, …);` line
-// that the skeleton's `factory` function consumes. Inner function name
-// is `<innerPrefix><hash>` (e.g. "isType_abc123"); the outer factory's
-// debug name (`<VarPrefix><hash>`, e.g. "get_isType_abc123") is used
-// only as the closure's printed name so consumers see the same identity
-// in stack traces. Noop bodies return empty string so the renderer
-// skips them; consumers default to a trivial fallback on the JS side.
-func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string) string {
+// renderEntryWithDeps compiles one RunType into its `factory(…);` line
+// and returns the discovered jit-dependency hashes alongside. Inner
+// function name is `<innerPrefix><hash>` (e.g. "isType_abc123"); the
+// outer factory's debug name (`<VarPrefix><hash>`, e.g.
+// "get_isType_abc123") is used only as the closure's printed name so
+// consumers see the same identity in stack traces. Noop bodies return
+// an empty line so the renderer skips them; consumers default to a
+// trivial fallback on the JS side.
+func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType) (string, []string) {
 	factoryName := settings.VarPrefix + runType.ID
 	innerName := innerPrefix + runType.ID
 	walker := NewWalker(runType, innerName, emitter)
+	walker.RefTable = refTable
 	innerFn, isNoop := walker.Compile()
 	if isNoop {
-		return ""
+		return "", nil
 	}
 	createJitFn := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	args := []string{
@@ -100,7 +174,8 @@ func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettin
 		pureFnDepsJS(walker.PureFnDependencies),
 		createJitFn,
 	}
-	return "factory(" + joinArgs(args) + ");"
+	deps := append([]string(nil), walker.JitDependencies...)
+	return "factory(" + joinArgs(args) + ");", deps
 }
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.
@@ -148,8 +223,62 @@ func jitTypeName(runType *protocol.RunType) string {
 		return "literal"
 	case protocol.KindEnum:
 		return "enum"
+	case protocol.KindArray:
+		return "array"
 	}
 	return ""
+}
+
+// subtreeFullySupported recursively checks whether every node the
+// walker would descend into when emitting rt is supported by emitter.
+// Used as a renderer-level gate so composite kinds (Array etc.)
+// referencing an unsupported child kind (e.g. Union before that
+// emitter lands) are silently skipped instead of panicking when the
+// dispatch reaches the child's Emit arm.
+//
+// **Per-kind recursion mirrors what IsTypeEmitter.Emit actually
+// descends into** — not what the RunType *carries*. Date is a
+// KindClass that carries every prototype-method as a Child, but the
+// emit is `v instanceof Date && !isNaN(v.getTime())` and never
+// recurses; checking those methods here would (incorrectly) reject
+// Date as unsupported. Each kind's branch enumerates only the slots
+// the emit visits.
+//
+// `seen` carries the ids walked so far so cyclic graphs (e.g.
+// `type CA = CA[]`) terminate. A cyclic edge back to an already-
+// seen id is treated as supported — the cycle is closed by the
+// dependency-call layer at runtime, not by recursing further here.
+func subtreeFullySupported(rt *protocol.RunType, refTable map[string]*protocol.RunType, emitter Emitter, seen map[string]bool) bool {
+	if rt == nil {
+		return true
+	}
+	if rt.Kind == protocol.KindRef {
+		if rt.ID == "" {
+			return false
+		}
+		if seen[rt.ID] {
+			return true
+		}
+		seen[rt.ID] = true
+		return subtreeFullySupported(refTable[rt.ID], refTable, emitter, seen)
+	}
+	if !emitter.Supports(rt) {
+		return false
+	}
+	if rt.ID != "" {
+		if seen[rt.ID] {
+			return true
+		}
+		seen[rt.ID] = true
+	}
+	switch rt.Kind {
+	case protocol.KindArray:
+		// Mirrors istype.go KindArray Emit — descends only into Child.
+		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
+	}
+	// Atomic kinds (and KindClass+SubKindDate, treated as atomic by the
+	// emit) have no descent — supported as-is.
+	return true
 }
 
 // boolJS emits the JS literal for b.

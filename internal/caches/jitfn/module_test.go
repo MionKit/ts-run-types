@@ -193,6 +193,111 @@ func TestIsTypeModule_EnumEmitBody(t *testing.T) {
 	}
 }
 
+// TestIsTypeModule_ArrayEmitBody covers KindArray's canonical block
+// (mion:nodes/member/array.ts:emitIsType). The outer array renders an
+// Array.isArray guard, a numbered for-loop, and an inlined child check
+// since the child (string) is atomic — no dependency call needed.
+func TestIsTypeModule_ArrayEmitBody(t *testing.T) {
+	// emit walks the *protocol.RunType graph as-given (not via cache
+	// resolution) so the Child slot here is inlined as a KindString
+	// rather than a KindRef sentinel — same shape the renderer sees
+	// after the cache materialises children into the parent.
+	dump := protocol.Dump{
+		RunTypes: []*protocol.RunType{
+			{ID: "ar1", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
+		},
+	}
+	out := renderToString(t, dump)
+	for _, fragment := range []string{
+		"if (!Array.isArray(v)) return false;",
+		"for (let i0 = 0; i0 < v.length; i0++) {",
+		"const res0 = typeof v[i0] === 'string';",
+		"if (!(res0)) return false;",
+		"return true",
+	} {
+		if !strings.Contains(out, fragment) {
+			t.Errorf("expected array body fragment %q in:\n%s", fragment, out)
+		}
+	}
+}
+
+// TestIsTypeModule_NestedArrayDependencyCall covers `string[][]` — the
+// first multi-level case in the suite. The outer array's body must
+// invoke the inner array's pre-compiled validator via the dependency-
+// call layer:
+//
+//   - The outer module's `jitDependencies` arg carries the inner
+//     hash (non-empty `[…]`).
+//   - The outer createJitFn closure has a `const <innerHash> =
+//     utl.getJIT('<innerHash>')` context-item line.
+//   - The outer body contains `<innerHash>.fn(v[i0])` at the element
+//     check position.
+//   - Both modules render (inner first, outer second — topo sort).
+func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
+	inner := &protocol.RunType{
+		ID:    "inn",
+		Kind:  protocol.KindArray,
+		Child: &protocol.RunType{ID: "str", Kind: protocol.KindString},
+	}
+	outer := &protocol.RunType{
+		ID:    "out",
+		Kind:  protocol.KindArray,
+		Child: &protocol.RunType{ID: "inn", Kind: protocol.KindArray, Child: &protocol.RunType{ID: "str", Kind: protocol.KindString}},
+	}
+	// Cache insertion order is parent-first (outer, inner). Renderer
+	// must reorder to inner-before-outer so the outer's closure can
+	// resolve `utl.getJIT('inn')` against an already-registered entry.
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}}
+	out := renderToString(t, dump)
+
+	innerFactory := "factory('inn',"
+	outerFactory := "factory('out',"
+	innerIdx := strings.Index(out, innerFactory)
+	outerIdx := strings.Index(out, outerFactory)
+	if innerIdx < 0 {
+		t.Fatalf("inner factory missing in:\n%s", out)
+	}
+	if outerIdx < 0 {
+		t.Fatalf("outer factory missing in:\n%s", out)
+	}
+	if innerIdx >= outerIdx {
+		t.Errorf("inner factory must render before outer (topo sort); got innerIdx=%d outerIdx=%d in:\n%s", innerIdx, outerIdx, out)
+	}
+	if !strings.Contains(out, "['inn']") {
+		t.Errorf("outer factory's jitDependencies arg must contain ['inn'], got:\n%s", out)
+	}
+	if !strings.Contains(out, "const inn = utl.getJIT('inn')") {
+		t.Errorf("outer factory must register context item resolving the inner hash, got:\n%s", out)
+	}
+	if !strings.Contains(out, "inn.fn(v[i0])") {
+		t.Errorf("outer body must call inner via `<hash>.fn(args)`, got:\n%s", out)
+	}
+}
+
+// TestIsTypeModule_ArrayNoIsArrayCheck — when the noIsArrayCheck flag
+// is set on the array RunType, the leading `if (!Array.isArray(v))
+// return false;` guard is omitted. Mirrors mion's `comp.opts.noIsArrayCheck`
+// branch in array.ts:emitIsType.
+func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
+	dump := protocol.Dump{
+		RunTypes: []*protocol.RunType{
+			{
+				ID:    "an1",
+				Kind:  protocol.KindArray,
+				Flags: []string{"noIsArrayCheck"},
+				Child: &protocol.RunType{ID: "str", Kind: protocol.KindString},
+			},
+		},
+	}
+	out := renderToString(t, dump)
+	if strings.Contains(out, "Array.isArray") {
+		t.Errorf("noIsArrayCheck array must omit `Array.isArray(…)` guard, got:\n%s", out)
+	}
+	if !strings.Contains(out, "for (let i0 = 0;") {
+		t.Errorf("noIsArrayCheck array must still emit element loop, got:\n%s", out)
+	}
+}
+
 func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
 	// KindFunction and KindUnion remain unsupported after the atomic
 	// emitIsType port — they belong to mion's function/collection

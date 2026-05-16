@@ -285,4 +285,232 @@ export const VALIDATION_SUITE = {
     // mion has no unknown.spec.ts — UnknownRunType extends AnyRunType
     // with no spec coverage. Intentionally omitted.
   },
-} as const satisfies {ATOMIC: Record<string, ValidationCase>};
+
+  // ARRAY — ported from mion's packages/run-types/src/nodes/member/array.spec.ts
+  // (every `it()` block's `validate(…)` assertion is migrated, including
+  // those embedded in non-isType blocks such as `hasUnknownKeys`, `mock`,
+  // and `stripUnknownKeys`), plus every `ARRAYS.*` entry in
+  // packages/run-types/src/jitCompilers/serialization-suite.ts that affects
+  // isType behavior.
+  //
+  // Cases whose element kind isn't yet implemented in the Go port
+  // (object literal / union / tuple / non-Date class / circular) omit
+  // the `isType` thunk; the adapter renders them as `it.todo` so the
+  // sample payloads survive intact for activation when each kind lands.
+  //
+  // Adapters out of scope for this PR (each has its own future test file
+  // re-importing this suite):
+  //   - mock          → mion array.spec.ts "mock" / "mock CircularArray"
+  //   - typeErrors    → mion array.spec.ts "+ errors" variants
+  //   - hasUnknownKeys / strip / undefined / visitUnknownKeyErrors
+  //                   → mion array.spec.ts "test array strict modes"
+  //   - prepareForJson / restoreFromJson / JSON round-trip
+  //                   → mion jitCompilers/json/jsonSpec/02JsonArrays.spec.ts
+  ARRAY: {
+    string_array: {
+      title: 'string[]',
+      isType: () => createIsType<string[]>(),
+      getSamples: () => ({
+        valid: [[], ['hello', 'world']],
+        // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
+        // is the carry-over from mion's "simple array hasUnknownKeys on
+        // array with non objects" block — the object element fails the
+        // string check, so the whole array fails isType.
+        invalid: ['hello', ['hello', 2], ['hello', 'world', {hello: 'world'}]],
+      }),
+    },
+
+    number_array: {
+      title: 'number[]',
+      description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
+      isType: () => createIsType<number[]>(),
+      getSamples: () => ({
+        valid: [[], [1, 2, 3], [42]],
+        invalid: [[1, '2'], 'not-array', [Infinity], [-Infinity], [NaN]],
+      }),
+    },
+
+    boolean_array: {
+      title: 'boolean[]',
+      isType: () => createIsType<boolean[]>(),
+      getSamples: () => ({
+        valid: [[], [true, false]],
+        invalid: [[true, 42], 'nope'],
+      }),
+    },
+
+    bigint_array: {
+      title: 'bigint[]',
+      isType: () => createIsType<bigint[]>(),
+      getSamples: () => ({
+        valid: [[], [1n, 2n]],
+        invalid: [[1n, 2], 'nope'],
+      }),
+    },
+
+    date_array: {
+      title: 'Date[]',
+      description: 'from mion serialization-suite ARRAYS.array_date',
+      isType: () => createIsType<Date[]>(),
+      getSamples: () => ({
+        valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
+        invalid: [['2024'], [42]],
+      }),
+    },
+
+    regexp_array: {
+      title: 'RegExp[]',
+      isType: () => createIsType<RegExp[]>(),
+      getSamples: () => ({
+        valid: [[], [/abc/, new RegExp('abc')]],
+        invalid: [['/abc/'], [42]],
+      }),
+    },
+
+    undefined_array: {
+      title: 'undefined[]',
+      description: 'from mion serialization-suite ARRAYS.undefined_in_array',
+      isType: () => createIsType<undefined[]>(),
+      getSamples: () => ({
+        valid: [[], [undefined, undefined]],
+        invalid: [[null], [42]],
+      }),
+    },
+
+    null_array: {
+      title: 'null[]',
+      isType: () => createIsType<null[]>(),
+      getSamples: () => ({
+        valid: [[], [null]],
+        invalid: [[undefined], [42]],
+      }),
+    },
+
+    array_generic: {
+      title: 'Array<string>',
+      description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
+      isType: () => createIsType<Array<string>>(),
+      getSamples: () => ({
+        valid: [[], ['hello']],
+        invalid: ['hello', [42]],
+      }),
+    },
+
+    string_array_2d: {
+      title: 'string[][]',
+      description: 'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getJIT(...).fn(v[i0]))',
+      isType: () => createIsType<string[][]>(),
+      getSamples: () => ({
+        valid: [[], [[]], [['hello', 'world'], ['a', 'b']]],
+        // mion Block 5 path-error samples: top-level array-of-string
+        // fails isType when the type is string[][], same for plain
+        // string. `['hello']` is "first element is `'hello'` which is
+        // not an array".
+        invalid: [[['hello', 2]], ['hello'], ['hello', 'world'], 'hello'],
+      }),
+    },
+
+    string_array_3d: {
+      title: 'string[][][]',
+      description: 'depth stress for the dependency-call layer',
+      isType: () => createIsType<string[][][]>(),
+      getSamples: () => ({
+        valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
+        invalid: [[[['a', 2]]], [['a']], ['a']],
+      }),
+    },
+
+    string_array_noIsArrayCheck: {
+      title: 'string[] (noIsArrayCheck)',
+      description: 'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
+      isType: () => createIsType<string[]>({noIsArrayCheck: true}),
+      getSamples: () => ({
+        valid: [[], ['hello']],
+        // Without the guard, non-array inputs may not be rejected by
+        // the validator (mion's documented trade-off — the caller has
+        // pre-verified arrayness). Only sample inputs that the loop
+        // itself catches.
+        invalid: [[42]],
+      }),
+    },
+
+    // ---- DEFERRED — sample payloads carried for future activation ----
+
+    object_array: {
+      title: '{a: string}[]',
+      description: "mion array.spec.ts 'test array strict modes' — needs interface/object literal support before isType activates",
+      // No isType thunk → rendered as `it.todo` in the adapter.
+      getSamples: () => ({
+        valid: [
+          [],
+          [{a: 'hello'}, {a: 'world'}],
+          // mion Block 7: arrWithExtraDeep — array of objects with
+          // extra keys still PASSES isType in mion (unknown keys are
+          // a separate concern). Captured here so the future object
+          // adapter's expectations are correct.
+          [{a: 'hello', extraA: 'extraA'}, {a: 'world'}],
+        ],
+        invalid: ['not-an-array', [{a: 42}]],
+      }),
+    },
+
+    union_array: {
+      title: '(string | number)[]',
+      description: 'needs union support',
+      getSamples: () => ({
+        valid: [[], ['a', 1, 'b', 2]],
+        invalid: [[true], 'a'],
+      }),
+    },
+
+    tuple_array: {
+      title: '[string, number][]',
+      description: 'needs tuple support',
+      getSamples: () => ({
+        valid: [[], [['a', 1], ['b', 2]]],
+        invalid: [[['a']], [['a', 'b']]],
+      }),
+    },
+
+    circular_array: {
+      title: 'CircularArray',
+      description:
+        "mion array.spec.ts 'Array circular ref' — needs circular-type detection in the serializer + self-recursive dependency call (mion emits ${hash}(args) without .fn for self)",
+      getSamples: () => {
+        // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
+        const arrA: any = [];
+        arrA.push([[[]]], [[]], []);
+        const arrInvalidNested: any = [];
+        arrInvalidNested.push([[['A']]]); // mion Block 17 invalid case
+        return {
+          valid: [[], arrA],
+          invalid: [[[[]], 'A'], arrInvalidNested],
+        };
+      },
+    },
+
+    circular_object_with_array: {
+      title: 'ObjectType (mion Block 13)',
+      description:
+        'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — needs object + recursive-type support',
+      getSamples: () => ({
+        valid: [
+          {a: 'hello'},
+          {a: 'hello', deep: {b: 'world', c: 123}},
+          {a: 'hello', d: [{a: 'world'}]},
+        ],
+        invalid: [{a: 42}, 'not-an-object'],
+      }),
+    },
+
+    symbol_array: {
+      title: 'symbol[]',
+      description:
+        "mion ARRAYS.non_serializable_in_array — emits a compile-time error in mion ('Arrays can not have non serializable types'). Not testable via runtime samples; the Go-side guard lives in serialize/emit",
+      getSamples: () => ({
+        valid: [],
+        invalid: [[Symbol('a')]],
+      }),
+    },
+  },
+} as const satisfies {ATOMIC: Record<string, ValidationCase>; ARRAY: Record<string, ValidationCase>};
