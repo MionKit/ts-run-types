@@ -276,6 +276,75 @@ func TestPurity_ClosureVariable_PFE9011(t *testing.T) {
 	}
 }
 
+func TestPurity_ModuleLevelConst_StillClosureViolation(t *testing.T) {
+	// The whole point of the purity rule: a `const` declared OUTSIDE the
+	// factory but INSIDE the same module — i.e. a real closure variable
+	// at module scope — must still fail. `withFactoryBody` can't express
+	// this shape (it wraps the body directly inside the call), so this
+	// test uses extractFromOverlay to author the full source.
+	_, diags := extractFromOverlay(t, map[string]string{
+		"case.ts": `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+const name = 'John';
+export const sayHello = registerPureFnFactory('myNamespace', 'sayHello', function () {
+  return function _greet() {
+    return 'Hello ' + name;
+  };
+});
+`,
+	})
+	diag, ok := firstDiagWithCode(diags, CodePurityClosure)
+	if !ok {
+		t.Fatalf("expected PFE9011 for module-level `name` closure, got %+v", diags)
+	}
+	if !strings.Contains(diag.Message, "name") {
+		t.Errorf("message should reference `name`, got %q", diag.Message)
+	}
+}
+
+func TestPurity_ModuleLevelFunction_StillClosureViolation(t *testing.T) {
+	// A module-level helper function called from inside the factory is
+	// also a closure access — the factory should not reach for it.
+	_, diags := extractFromOverlay(t, map[string]string{
+		"case.ts": `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+function helper(x: number) { return x * 2; }
+export const x = registerPureFnFactory('ns', 'fn', function () {
+  return function _f(n: number) {
+    return helper(n);
+  };
+});
+`,
+	})
+	diag, ok := firstDiagWithCode(diags, CodePurityClosure)
+	if !ok {
+		t.Fatalf("expected PFE9011 for module-level `helper` closure, got %+v", diags)
+	}
+	if !strings.Contains(diag.Message, "helper") {
+		t.Errorf("message should reference `helper`, got %q", diag.Message)
+	}
+}
+
+func TestPurity_ImportedSymbol_StillClosureViolation(t *testing.T) {
+	// Imports are bindings in the module scope. Referencing one from
+	// inside the factory body is a closure access and must fail.
+	_, diags := extractFromOverlay(t, map[string]string{
+		"case.ts": `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+declare const someImportedHelper: (n: number) => number;
+export const x = registerPureFnFactory('ns', 'fn', function () {
+  return function _f(n: number) {
+    return someImportedHelper(n);
+  };
+});
+`,
+	})
+	diag, ok := firstDiagWithCode(diags, CodePurityClosure)
+	if !ok {
+		t.Fatalf("expected PFE9011 for module-level imported symbol, got %+v", diags)
+	}
+	if !strings.Contains(diag.Message, "someImportedHelper") {
+		t.Errorf("message should reference `someImportedHelper`, got %q", diag.Message)
+	}
+}
+
 func TestPurity_NestedFunctionScopeBoundary(t *testing.T) {
 	// Outer factory declares `X`. Inner function declares its own `X`
 	// (via parameter). Reference to `X` inside the inner should resolve
