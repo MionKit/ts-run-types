@@ -203,6 +203,14 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	if body == nil {
 		return nil, diags
 	}
+
+	// Purity validation — port of mion's eslint-plugin-mion
+	// `pure-functions.ts` rule. Emits PFE9006-PFE9011 diagnostics for
+	// this/await/yield, dynamic import, forbidden identifiers, and
+	// closure-variable references. Build never fails; the entry still
+	// emits even when violations exist (same posture as PFE9001/9003).
+	diags = append(diags, checkPurity(sourceFile, factoryFn)...)
+
 	var code string
 	if body.Kind == ast.KindBlock {
 		code = stripTypesFromBlock(sourceFile, body)
