@@ -1,11 +1,8 @@
 package jitfn
 
 import (
-	"strings"
 	"testing"
 
-	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -64,104 +61,54 @@ func TestUpdateDependencies_SkipsNoopChildren(t *testing.T) {
 	}
 }
 
-// pureFnFixtureProgram builds an in-memory program holding a single TS
-// file at <cwd>/pure-fns.ts whose body is the supplied source. Returns
-// the program + absolute file path. Used by AddPureFnDependency tests
-// to feed real registerPureFnFactory call sites to the integrity scan.
-func pureFnFixtureProgram(t *testing.T, source string) (*program.Program, string) {
-	t.Helper()
-	cwd := tspath.NormalizePath(t.TempDir())
-	filePath := tspath.ResolvePath(cwd, "pure-fns.ts")
-	prog, err := program.NewInferred(program.Options{
-		Cwd:            cwd,
-		SingleThreaded: true,
-		Overlay:        map[string]string{filePath: source},
-	}, []string{filePath})
-	if err != nil {
-		t.Fatalf("program.NewInferred: %v", err)
-	}
-	return prog, filePath
-}
+// AddPureFnDependency is now record-only: it appends the triple and
+// dedupes. Validation against the actual `registerPureFnFactory` call
+// happens at end-of-compilation via purefn.ValidatePureFnDependencies,
+// so the cases that previously asserted "missing source file" /
+// "wrong namespace" errors moved to internal/purefn/index_test.go.
 
-func TestAddPureFnDependency_HappyPath(t *testing.T) {
-	prog, filePath := pureFnFixtureProgram(t, `
-declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
-export const cpf = registerPureFnFactory('mion', 'asJSONString', function () { return JSON.stringify; });
-`)
+func TestAddPureFnDependency_RecordsTriple(t *testing.T) {
 	w := newTestWalker()
-	w.SourceLookup = prog
-	if err := w.AddPureFnDependency("mion", "asJSONString", filePath); err != nil {
-		t.Fatalf("AddPureFnDependency: %v", err)
-	}
+	w.AddPureFnDependency("mion", "asJSONString", "/abs/run-types-pure-fns.ts")
 	if len(w.PureFnDependencies) != 1 {
 		t.Fatalf("expected 1 dep, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
 	}
 	got := w.PureFnDependencies[0]
-	if got.Namespace != "mion" || got.FunctionName != "asJSONString" || got.FilePath != filePath {
+	if got.Namespace != "mion" || got.FunctionName != "asJSONString" || got.FilePath != "/abs/run-types-pure-fns.ts" {
 		t.Fatalf("triple mismatch: got %+v", got)
 	}
 }
 
-func TestAddPureFnDependency_MissingLookup(t *testing.T) {
+func TestAddPureFnDependency_NoValidationAtCallSite(t *testing.T) {
+	// The whole point of the optimization: appending is O(1) and does
+	// NOT touch the filesystem. Pass a nonsense filePath — it should
+	// still record cleanly. The eventual diagnostic surfaces later in
+	// purefn.ValidatePureFnDependencies.
 	w := newTestWalker()
-	err := w.AddPureFnDependency("mion", "asJSONString", "/nope.ts")
-	if err == nil || !strings.Contains(err.Error(), "requires a SourceLookup") {
-		t.Fatalf("expected SourceLookup error, got %v", err)
+	w.AddPureFnDependency("mion", "asJSONString", "/this/path/does/not/exist.ts")
+	if len(w.PureFnDependencies) != 1 {
+		t.Fatalf("expected the triple to be recorded regardless of filePath validity, got %v", w.PureFnDependencies)
 	}
 }
 
-func TestAddPureFnDependency_MissingFile(t *testing.T) {
-	prog, _ := pureFnFixtureProgram(t, `export const x = 1;`)
+func TestAddPureFnDependency_DedupesFullTriple(t *testing.T) {
 	w := newTestWalker()
-	w.SourceLookup = prog
-	err := w.AddPureFnDependency("mion", "asJSONString", "/path/not/in/program.ts")
-	if err == nil || !strings.Contains(err.Error(), "source file not in program") {
-		t.Fatalf("expected missing-file error, got %v", err)
-	}
-}
-
-func TestAddPureFnDependency_NoMatchingCall(t *testing.T) {
-	prog, filePath := pureFnFixtureProgram(t, `
-declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
-export const cpf = registerPureFnFactory('mion', 'somethingElse', function () { return null; });
-`)
-	w := newTestWalker()
-	w.SourceLookup = prog
-	err := w.AddPureFnDependency("mion", "asJSONString", filePath)
-	if err == nil || !strings.Contains(err.Error(), "not found in") {
-		t.Fatalf("expected not-found error, got %v", err)
-	}
-	if len(w.PureFnDependencies) != 0 {
-		t.Fatalf("nothing should be appended on failure, got %v", w.PureFnDependencies)
-	}
-}
-
-func TestAddPureFnDependency_WrongNamespace(t *testing.T) {
-	prog, filePath := pureFnFixtureProgram(t, `
-declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
-export const cpf = registerPureFnFactory('other', 'asJSONString', function () { return null; });
-`)
-	w := newTestWalker()
-	w.SourceLookup = prog
-	err := w.AddPureFnDependency("mion", "asJSONString", filePath)
-	if err == nil || !strings.Contains(err.Error(), "not found in") {
-		t.Fatalf("expected not-found error when namespace differs, got %v", err)
-	}
-}
-
-func TestAddPureFnDependency_Dedup(t *testing.T) {
-	prog, filePath := pureFnFixtureProgram(t, `
-declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
-export const cpf = registerPureFnFactory('mion', 'asJSONString', function () { return JSON.stringify; });
-`)
-	w := newTestWalker()
-	w.SourceLookup = prog
 	for i := 0; i < 3; i++ {
-		if err := w.AddPureFnDependency("mion", "asJSONString", filePath); err != nil {
-			t.Fatalf("AddPureFnDependency (iter %d): %v", i, err)
-		}
+		w.AddPureFnDependency("mion", "asJSONString", "/abs/pure-fns.ts")
 	}
 	if len(w.PureFnDependencies) != 1 {
-		t.Fatalf("expected 1 dep after dedup, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
+		t.Fatalf("expected 1 dep after 3 identical appends, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
+	}
+}
+
+func TestAddPureFnDependency_DifferentFilePathIsDistinctEntry(t *testing.T) {
+	// Same (ns, fn) but different filePath — both entries recorded.
+	// Resolution to a "real" file happens later in
+	// purefn.ValidatePureFnDependencies via lazy index expansion.
+	w := newTestWalker()
+	w.AddPureFnDependency("mion", "asJSONString", "/a.ts")
+	w.AddPureFnDependency("mion", "asJSONString", "/b.ts")
+	if len(w.PureFnDependencies) != 2 {
+		t.Fatalf("expected 2 distinct entries by filePath, got %d (%v)", len(w.PureFnDependencies), w.PureFnDependencies)
 	}
 }
