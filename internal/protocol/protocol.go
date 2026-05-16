@@ -81,11 +81,17 @@ type RunType struct {
 	// TypeAnnotations.
 	// ID is always emitted (even empty) because the renderer needs an
 	// unambiguous handle for every type.
-	ID            string         `json:"id"`
-	Kind          ReflectionKind `json:"kind"`
-	TypeName      string         `json:"typeName,omitempty"`
-	TypeArguments []*RunType     `json:"typeArguments,omitempty"`
-	Inlined       bool           `json:"inlined,omitempty"`
+	ID   string         `json:"id"`
+	Kind ReflectionKind `json:"kind"`
+	// SubKind disambiguates kinds that map to more than one runtime shape —
+	// `Date` / `Map` / `Set` / non-serialisable classes share KindClass but
+	// each carry their own SubKind, and Map/Set parameter slots carry the
+	// mapKey/mapValue/setItem subkinds. See internal/protocol/subkind.go.
+	// Zero (SubKindNone) is "not applicable"; only set on nodes that need it.
+	SubKind       ReflectionSubKind `json:"subKind,omitempty"`
+	TypeName      string            `json:"typeName,omitempty"`
+	TypeArguments []*RunType        `json:"typeArguments,omitempty"`
+	Inlined       bool              `json:"inlined,omitempty"`
 
 	// TypeLiteral
 	Literal any `json:"literal,omitempty"`
