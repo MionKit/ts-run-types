@@ -116,8 +116,7 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 		return collectionID(kind, computer.childIDs(tsType.Distributed()), false)
 	}
 	if flags&checker.TypeFlagsIntersection != 0 {
-		members := tsType.AsUnionOrIntersectionType().Types()
-		return collectionID(kind, computer.childIDs(members), false)
+		return computer.collapsedIntersectionID(tsType)
 	}
 
 	// Object-flavoured: tuple / array / promise / function / class / objectLiteral.

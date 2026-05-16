@@ -143,6 +143,36 @@ type RunType struct {
 	// — all use `children: []` of whichever child variants are legal.
 	Children []*RunType `json:"children,omitempty"`
 
+	// TypeUnion only — safe order computed at serialize time. Each entry
+	// is a ref pointing at the same canonical child as Children, but
+	// reordered so more-specific (superset) members precede their subset
+	// equivalents. Prevents unreachable union members at validate time.
+	// Empty for unions that don't need reordering (≤1 object member).
+	SafeUnionChildren []*RunType `json:"safeUnionChildren,omitempty"`
+
+	// Set on direct ref children of a union — the 0-based index of THIS
+	// ref inside its parent union's SafeUnionChildren. Pointer so the
+	// explicit `0` survives omitempty. Lives on the *ref wrapper*, not
+	// the underlying canonical node, because the same canonical node
+	// can appear at different safe positions in different parent unions.
+	SafeUnionPosition *int `json:"safeUnionPosition,omitempty"`
+
+	// IsUnionDiscriminator — set on TypeProperty / TypePropertySignature
+	// nodes when the property was selected (by the serialize-time
+	// discriminator pass) as a discriminator for one of its parent
+	// unions. Either a shared-name discriminator (same name across all
+	// union members, distinct types) or a unique-prop discriminator
+	// (single property whose type-id is unique to its member).
+	IsUnionDiscriminator bool `json:"isUnionDiscriminator,omitempty"`
+
+	// Decorators — surviving object-literal types from a collapsed
+	// intersection that combined a primitive with one or more brand
+	// objects (e.g. `string & {__brand: "Email"}`). Each entry is a
+	// ref to an objectLiteral RunType. Mirrors deepkit's
+	// TypeAnnotations.decorators field. Order is the declaration order
+	// of the object-literal members in the original intersection.
+	Decorators []*RunType `json:"decorators,omitempty"`
+
 	// TypeEnum
 	Enum   map[string]any `json:"enum,omitempty"`
 	Values []any          `json:"values,omitempty"`
