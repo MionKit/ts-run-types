@@ -3,6 +3,7 @@ package resolver_test
 import (
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -1028,5 +1029,100 @@ reflectRuntypeId(v);
 	b := resolveFile(t, r, "reflect.ts")
 	if a.ID != b.ID {
 		t.Fatalf("expected same hash for static vs reflect form of `string`, got %q vs %q", a.ID, b.ID)
+	}
+}
+
+// TestAtomic_EnumNumeric_FormEquivalence_Annotated pins the resolver's
+// reflect-form annotation-honoring behavior. All three forms — annotated
+// reflect (`const v: Color = Color.Red`), unannotated reflect
+// (`const v = Color.Red`), and static `getRuntypeId<Color>()` — must
+// produce the same hash, because the annotation walk inside scanCall reads
+// the declared type when one is present. Regression check: before the
+// annotation walk landed, the annotated-reflect form narrowed to the
+// literal enum member and diverged from the other two.
+func TestAtomic_EnumNumeric_FormEquivalence_Annotated(t *testing.T) {
+	const annotatedReflect = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color { Red = 0, Green = 1, Blue = 2 }
+const v: Color = Color.Red;
+reflectRuntypeId(v);
+`
+	const unannotatedReflect = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color { Red = 0, Green = 1, Blue = 2 }
+const v = Color.Red;
+reflectRuntypeId(v);
+`
+	const staticForm = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+enum Color { Red = 0, Green = 1, Blue = 2 }
+getRuntypeId<Color>();
+`
+	r := setupInline(t, map[string]string{
+		"annotated.ts":   annotatedReflect,
+		"unannotated.ts": unannotatedReflect,
+		"static.ts":      staticForm,
+	})
+	annotated := resolveFile(t, r, "annotated.ts")
+	unannotated := resolveFile(t, r, "unannotated.ts")
+	static := resolveFile(t, r, "static.ts")
+	if annotated.ID != unannotated.ID {
+		t.Fatalf("annotated vs unannotated reflect diverge: %q vs %q", annotated.ID, unannotated.ID)
+	}
+	if annotated.ID != static.ID {
+		t.Fatalf("annotated reflect vs static diverge: %q vs %q", annotated.ID, static.ID)
+	}
+}
+
+// TestResolver_FunctionCallArgDiagnostic pins the marker scanner's
+// function-call-argument-in-reflect-form warning. The validator still
+// works (T comes from the inferred return type), but the call expression
+// argument is an anti-pattern: the function would be invoked at runtime
+// purely to satisfy type inference, with side effects / exceptions /
+// async work firing for nothing. The diagnostic nudges users toward
+// `createIsType<ReturnType<typeof fn>>()`.
+func TestResolver_FunctionCallArgDiagnostic(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+function makeUser(): {id: number} { return {id: 1}; }
+reflectRuntypeId(makeUser());
+`
+	r := setupInline(t, map[string]string{"call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.MarkerDiagnostics) != 1 {
+		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	}
+	diag := resp.MarkerDiagnostics[0]
+	if diag.Code != "marker/function-call-arg" {
+		t.Fatalf("expected code marker/function-call-arg, got %q", diag.Code)
+	}
+	if diag.Category != "warning" {
+		t.Fatalf("expected category warning, got %q", diag.Category)
+	}
+	if !strings.Contains(diag.Message, "makeUser") {
+		t.Fatalf("expected message to mention `makeUser`, got %q", diag.Message)
+	}
+	if !strings.Contains(diag.Message, "ReturnType") {
+		t.Fatalf("expected message to suggest ReturnType, got %q", diag.Message)
+	}
+	// Site still emitted so the validator works.
+	if len(resp.Sites) != 1 {
+		t.Fatalf("expected 1 site (validator still works), got %d", len(resp.Sites))
+	}
+}
+
+// TestResolver_NoFunctionCallArgDiagnostic_ForIdentifier verifies the
+// diagnostic is silent for the legitimate identifier-argument case.
+func TestResolver_NoFunctionCallArgDiagnostic_ForIdentifier(t *testing.T) {
+	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const user: {id: number} = {id: 1};
+reflectRuntypeId(user);
+`
+	r := setupInline(t, map[string]string{"id.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"id.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.MarkerDiagnostics) != 0 {
+		t.Fatalf("expected 0 marker diagnostics for identifier arg, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
 	}
 }

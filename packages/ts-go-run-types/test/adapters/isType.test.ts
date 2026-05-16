@@ -135,6 +135,9 @@ describe('isType / OBJECT', () => {
   // Active cases — kinds in scope for the current Go emit.
   it('{a: string; b: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.simple_interface));
   it('{readonly name: "john"; readonly age: 30} — as const', () => assertIsType(VALIDATION_SUITE.OBJECT.object_as_const_literals));
+  it('{id; name} via ReturnType<typeof fn>', () => assertIsType(VALIDATION_SUITE.OBJECT.object_via_return_type_utility));
+  it('{id; name} via property access', () => assertIsType(VALIDATION_SUITE.OBJECT.object_via_property_access));
+  it('{id; name} via array element access', () => assertIsType(VALIDATION_SUITE.OBJECT.object_via_array_access));
   it('{a: string; b?: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_with_optional));
   it('{date: Date; name: string}', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_with_date));
   it('{name: string; cb: () => any} — methods skipped', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_with_method));
