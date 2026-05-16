@@ -1,24 +1,20 @@
-// Package cachetpl owns the hand-authored cache-module skeletons and the
-// splice helper that merges Go-generated factory calls into them.
+// Package cachetpl owns the splice helper that merges Go-generated
+// factory calls into the hand-authored cache-module skeletons.
 //
-// The canonical skeletons live under
+// The skeletons themselves live under
 // packages/ts-go-run-types/src/caches/*.ts so devs see the cache shape
-// next to the rest of the package source. The copies under
-// skeletons/ here mirror them for `go:embed` (Go cannot embed files
-// outside the module root). The scripts/sync-cache-skeletons.sh script
-// (run via `pnpm run gen:cache-skeletons`, or as part of pre-commit /
-// CI) keeps the two in sync.
+// next to the rest of the package source. A one-file Go shim in that
+// same directory exposes them as an `embed.FS` — no mirrored copy in
+// this package, no sync script, single source of truth.
 package cachetpl
 
 import (
-	"embed"
 	"errors"
 	"fmt"
 	"strings"
-)
 
-//go:embed skeletons/runTypesCache.ts skeletons/isTypeCache.ts skeletons/parsedFnsCache.ts
-var skeletons embed.FS
+	skeletons "github.com/mionkit/ts-run-types/packages/ts-go-run-types/src/caches"
+)
 
 // MarkerLine is the comment text the splice helper looks for in each
 // skeleton. The exact spelling must match the marker comment in the
@@ -29,7 +25,8 @@ var skeletons embed.FS
 // readable.
 const MarkerLine = "// #### REPLACE HERE ####"
 
-// Skeleton names — match the file names under skeletons/.
+// Skeleton names — match the file names under
+// packages/ts-go-run-types/src/caches/.
 const (
 	SkeletonRunTypes  = "runTypesCache.ts"
 	SkeletonIsType    = "isTypeCache.ts"
@@ -48,7 +45,7 @@ const (
 // marker, every renderer fails loudly instead of producing a malformed
 // module body.
 func Splice(name string, body string) (string, error) {
-	skeleton, err := skeletons.ReadFile("skeletons/" + name)
+	skeleton, err := skeletons.FS.ReadFile(name)
 	if err != nil {
 		return "", fmt.Errorf("cachetpl.Splice: load skeleton %q: %w", name, err)
 	}
