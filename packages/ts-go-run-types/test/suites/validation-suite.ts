@@ -67,7 +67,7 @@ export interface ValidationCase {
 export const VALIDATION_SUITE = {
   ATOMIC: {
     any: {
-      title: 'any',
+      title: 'Any type — every value passes',
       isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
       isType: () => createIsType<any>(),
       isTypeReflect: () => {
@@ -81,7 +81,7 @@ export const VALIDATION_SUITE = {
     },
 
     bigint: {
-      title: 'bigint',
+      title: 'BigInt primitive',
       description: 'Infinity and -Infinity rejected (typeof gate)',
       isType: () => createIsType<bigint>(),
       isTypeReflect: () => {
@@ -95,7 +95,7 @@ export const VALIDATION_SUITE = {
     },
 
     boolean: {
-      title: 'boolean',
+      title: 'Boolean primitive (strict typeof)',
       isTypeNotes:
         'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
       isType: () => createIsType<boolean>(),
@@ -110,7 +110,7 @@ export const VALIDATION_SUITE = {
     },
 
     date: {
-      title: 'Date',
+      title: 'Date instance (rejects Invalid Date)',
       description: 'Invalid Date instances (getTime() === NaN) rejected',
       isTypeNotes: [
         'Must be an actual Date instance (instanceof Date).',
@@ -128,7 +128,7 @@ export const VALIDATION_SUITE = {
     },
 
     enum_mixed: {
-      title: 'enum (mixed values)',
+      title: 'Enum with mixed numeric and string members',
       description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
       isTypeNotes: [
         'Validator accepts the underlying enum VALUES (0, "green", 2 for Color {Red, Green="green", Blue=2}).',
@@ -165,7 +165,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_2: {
-      title: 'literal 2',
+      title: 'Numeric literal type (strict equality)',
       isTypeNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
       isType: () => createIsType<2>(),
       isTypeReflect: () => {
@@ -176,7 +176,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_a: {
-      title: 'literal "a"',
+      title: 'String literal type (case-sensitive)',
       isTypeNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
       isType: () => createIsType<'a'>(),
       isTypeReflect: () => {
@@ -187,7 +187,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_regexp_simple: {
-      title: 'literal /abc/i',
+      title: 'RegExp literal type (matched by source plus flags)',
       isTypeNotes:
         'RegExp literal types are matched by source + flags, not by reference. A separate instance like `new RegExp("abc", "i")` would also pass; `/abc/` (missing flag) or `/abc/g` (different flag) does NOT.',
       isType: () => {
@@ -203,7 +203,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_regexp_escaped: {
-      title: 'literal /[\'"]\\/ \\\\ \\//',
+      title: 'RegExp literal with regex-metacharacters in the source',
       description: 'regexp with characters that can be problematic in jit code if not correctly scaped',
       isType: () => {
         const reg2 = /['"]\/ \\ \//;
@@ -224,7 +224,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_true: {
-      title: 'literal true',
+      title: 'Boolean literal type (only true)',
       isTypeNotes:
         'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
       isType: () => createIsType<true>(),
@@ -236,7 +236,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_1n: {
-      title: 'literal 1n',
+      title: 'BigInt literal type (only 1n)',
       isTypeNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
       isType: () => createIsType<1n>(),
       isTypeReflect: () => {
@@ -247,7 +247,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_symbol: {
-      title: 'literal Symbol("hello")',
+      title: 'Symbol literal type (matched by description)',
       description: 'symbol identity via description match (mion semantics)',
       isTypeNotes:
         'TS DIVERGENCE: Symbol literal types are matched by `description`, not by unique-symbol identity. A different `Symbol("hello")` instance with the same description WILL satisfy the type. Strict TS treats each `typeof sym` as a unique-symbol referring to that exact value.',
@@ -272,7 +272,7 @@ export const VALIDATION_SUITE = {
     },
 
     never: {
-      title: 'never',
+      title: 'Never — no value passes',
       isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
       isType: () => createIsType<never>(),
       isTypeReflect: () => {
@@ -286,7 +286,7 @@ export const VALIDATION_SUITE = {
     },
 
     null: {
-      title: 'null',
+      title: 'Null primitive (distinct from undefined)',
       description: 'null and undefined are distinct',
       isTypeNotes:
         'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
@@ -302,7 +302,7 @@ export const VALIDATION_SUITE = {
     },
 
     number: {
-      title: 'number',
+      title: 'Number primitive (rejects NaN and Infinity)',
       description: 'Infinity and -Infinity rejected (Number.isFinite)',
       isTypeNotes: [
         'Uses `Number.isFinite(v)` rather than bare `typeof v === "number"`.',
@@ -320,7 +320,7 @@ export const VALIDATION_SUITE = {
     },
 
     object: {
-      title: 'object',
+      title: 'Object type — any non-null non-primitive value',
       description: 'null rejected despite JS typeof null === "object"',
       isTypeNotes: [
         'Emit is `typeof v === "object" && v !== null` — strict TS semantics (any non-primitive non-null value).',
@@ -340,7 +340,7 @@ export const VALIDATION_SUITE = {
     },
 
     regexp: {
-      title: 'RegExp',
+      title: 'RegExp instance',
       isTypeNotes:
         'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
       isType: () => createIsType<RegExp>(),
@@ -355,7 +355,7 @@ export const VALIDATION_SUITE = {
     },
 
     string: {
-      title: 'string',
+      title: 'String primitive',
       isTypeNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
       isType: () => createIsType<string>(),
       isTypeReflect: () => {
@@ -369,7 +369,7 @@ export const VALIDATION_SUITE = {
     },
 
     symbol: {
-      title: 'symbol',
+      title: 'Symbol primitive',
       isTypeNotes:
         'Strict typeof === "symbol". Accepts any symbol — keyed (`Symbol("foo")`), unkeyed (`Symbol()`), or well-known (`Symbol.iterator`). The literal string "symbol" is rejected.',
       isType: () => createIsType<symbol>(),
@@ -384,7 +384,7 @@ export const VALIDATION_SUITE = {
     },
 
     undefined: {
-      title: 'undefined',
+      title: 'Undefined primitive (distinct from null)',
       description: 'undefined and null are distinct',
       isTypeNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
       isType: () => createIsType<undefined>(),
@@ -399,7 +399,7 @@ export const VALIDATION_SUITE = {
     },
 
     void: {
-      title: 'void',
+      title: 'Void — accepts undefined, rejects null',
       description: 'void accepts undefined (and bare function return); rejects null',
       isType: () => createIsType<void>(),
       isTypeReflect: () => {
@@ -424,7 +424,7 @@ export const VALIDATION_SUITE = {
     // these cases reuse the existing base-kind emit code.
 
     literal_2_noLiterals: {
-      title: 'literal 2 (noLiterals)',
+      title: 'Numeric literal with noLiterals (degrades to number)',
       description: 'degrades to number — Number.isFinite check',
       isTypeNotes:
         'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
@@ -437,7 +437,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_a_noLiterals: {
-      title: 'literal "a" (noLiterals)',
+      title: 'String literal with noLiterals (degrades to string)',
       description: 'degrades to string — typeof check',
       isTypeNotes: '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
       isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
@@ -449,7 +449,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_regexp_noLiterals: {
-      title: 'literal /abc/i (noLiterals)',
+      title: 'RegExp literal with noLiterals (degrades to RegExp)',
       description: 'degrades to RegExp — instanceof check',
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `RegExp`. Any RegExp instance passes (constructor form `new RegExp(...)` included); source + flags are no longer matched.',
@@ -466,7 +466,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_true_noLiterals: {
-      title: 'literal true (noLiterals)',
+      title: 'Boolean literal with noLiterals (degrades to boolean)',
       description: 'degrades to boolean — typeof check',
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
@@ -479,7 +479,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_1n_noLiterals: {
-      title: 'literal 1n (noLiterals)',
+      title: 'BigInt literal with noLiterals (degrades to bigint)',
       description: 'degrades to bigint — typeof check',
       isTypeNotes: '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
       isType: () => createIsType<1n>(undefined, {noLiterals: true}),
@@ -491,7 +491,7 @@ export const VALIDATION_SUITE = {
     },
 
     literal_symbol_noLiterals: {
-      title: 'literal Symbol("hello") (noLiterals)',
+      title: 'Symbol literal with noLiterals (degrades to symbol)',
       description: 'degrades to symbol — typeof check',
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `symbol`. The description-match is dropped — any symbol value passes.',
@@ -536,7 +536,7 @@ export const VALIDATION_SUITE = {
   //                   → mion jitCompilers/json/jsonSpec/02JsonArrays.spec.ts
   ARRAY: {
     string_array: {
-      title: 'string[]',
+      title: 'Array of strings',
       isTypeNotes: [
         'Top-level value must be an actual array (`Array.isArray`).',
         'Every element must satisfy the element type — the empty array `[]` is valid.',
@@ -557,7 +557,7 @@ export const VALIDATION_SUITE = {
     },
 
     number_array: {
-      title: 'number[]',
+      title: 'Array of numbers (rejects Infinity / NaN per element)',
       description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
       isType: () => createIsType<number[]>(),
       isTypeReflect: () => {
@@ -571,7 +571,7 @@ export const VALIDATION_SUITE = {
     },
 
     boolean_array: {
-      title: 'boolean[]',
+      title: 'Array of booleans',
       isType: () => createIsType<boolean[]>(),
       isTypeReflect: () => {
         const v: boolean[] = [];
@@ -584,7 +584,7 @@ export const VALIDATION_SUITE = {
     },
 
     bigint_array: {
-      title: 'bigint[]',
+      title: 'Array of bigints',
       isType: () => createIsType<bigint[]>(),
       isTypeReflect: () => {
         const v: bigint[] = [];
@@ -597,7 +597,7 @@ export const VALIDATION_SUITE = {
     },
 
     date_array: {
-      title: 'Date[]',
+      title: 'Array of Dates (rejects Invalid Date per element)',
       description: 'from mion serialization-suite ARRAYS.array_date',
       isTypeNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
       isType: () => createIsType<Date[]>(),
@@ -612,7 +612,7 @@ export const VALIDATION_SUITE = {
     },
 
     regexp_array: {
-      title: 'RegExp[]',
+      title: 'Array of RegExps',
       isType: () => createIsType<RegExp[]>(),
       isTypeReflect: () => {
         const v: RegExp[] = [];
@@ -625,7 +625,7 @@ export const VALIDATION_SUITE = {
     },
 
     undefined_array: {
-      title: 'undefined[]',
+      title: 'Array of undefined values',
       description: 'from mion serialization-suite ARRAYS.undefined_in_array',
       isTypeNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
       isType: () => createIsType<undefined[]>(),
@@ -640,7 +640,7 @@ export const VALIDATION_SUITE = {
     },
 
     null_array: {
-      title: 'null[]',
+      title: 'Array of nulls',
       isTypeNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
       isType: () => createIsType<null[]>(),
       isTypeReflect: () => {
@@ -654,7 +654,7 @@ export const VALIDATION_SUITE = {
     },
 
     array_generic: {
-      title: 'Array<string>',
+      title: 'Generic Array<T> form (same emit as T[])',
       description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
       isType: () => createIsType<Array<string>>(),
       isTypeReflect: () => {
@@ -668,7 +668,7 @@ export const VALIDATION_SUITE = {
     },
 
     string_array_2d: {
-      title: 'string[][]',
+      title: 'Two-dimensional string array (multi-level dependency call)',
       description:
         'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getJIT(...).fn(v[i0]))',
       isType: () => createIsType<string[][]>(),
@@ -694,7 +694,7 @@ export const VALIDATION_SUITE = {
     },
 
     string_array_3d: {
-      title: 'string[][][]',
+      title: 'Three-dimensional string array (depth stress)',
       description: 'depth stress for the dependency-call layer',
       isType: () => createIsType<string[][][]>(),
       isTypeReflect: () => {
@@ -708,7 +708,7 @@ export const VALIDATION_SUITE = {
     },
 
     string_array_noIsArrayCheck: {
-      title: 'string[] (noIsArrayCheck)',
+      title: 'Array with noIsArrayCheck (Array.isArray guard stripped)',
       description:
         'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
       isTypeNotes: [
@@ -733,7 +733,7 @@ export const VALIDATION_SUITE = {
     // ---- DEFERRED — sample payloads carried for future activation ----
 
     object_array: {
-      title: '{a: string}[]',
+      title: 'Array of object literals',
       description:
         "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
       isType: () => createIsType<{a: string}[]>(),
@@ -748,7 +748,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_array: {
-      title: '(string | number)[]',
+      title: 'Array of unions (OR-chain per element)',
       description: 'array of union — each element validates against the union OR-chain.',
       isType: () => createIsType<(string | number)[]>(),
       isTypeReflect: () => {
@@ -762,7 +762,7 @@ export const VALIDATION_SUITE = {
     },
 
     tuple_array: {
-      title: '[string, number][]',
+      title: 'Array of tuples',
       description: 'array of tuples — exercises tuple under array dependency call.',
       isType: () => createIsType<[string, number][]>(),
       isTypeReflect: () => {
@@ -782,7 +782,7 @@ export const VALIDATION_SUITE = {
     },
 
     circular_array: {
-      title: 'CircularArray = CircularArray[]',
+      title: 'Self-referential array (CircularArray = CircularArray[])',
       description:
         "mion array.spec.ts 'Array circular ref'. Self-referential array — handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall (emits the inner-function-name directly, no .fn).",
       isTypeNotes:
@@ -808,7 +808,7 @@ export const VALIDATION_SUITE = {
     },
 
     circular_object_with_array: {
-      title: 'ObjectType (mion Block 13)',
+      title: 'Recursive object whose cycle closes via an array property',
       description:
         'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — same dependency-call mechanism as the basic circular interface; the array property d?: ObjectType[] closes the cycle via Array → Object.',
       isType: () => {
@@ -841,7 +841,7 @@ export const VALIDATION_SUITE = {
     },
 
     symbol_array: {
-      title: 'symbol[]',
+      title: 'Array of symbols (non-serializable — always rejected)',
       description:
         'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time; we mirror the runtime-observable effect by emitting an always-false validator so any input is rejected.',
       isTypeNotes:
@@ -878,7 +878,7 @@ export const VALIDATION_SUITE = {
   // the sample shapes so a future adapter can re-import them.
   OBJECT: {
     simple_interface: {
-      title: '{a: string; b: number}',
+      title: 'Simple interface with string and number props',
       description:
         'mion interface.spec.ts "validate object" (simplified to the atomic-prop subset that the current Go port can validate end-to-end)',
       isTypeNotes: [
@@ -912,7 +912,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_as_const_literals: {
-      title: '{readonly name: "john"; readonly age: 30}',
+      title: 'Object pinned with `as const` (readonly literal props)',
       description:
         'Object literal pinned with `as const` — every property becomes a readonly literal type. Verifies that the type-id resolution and validator emit handle the readonly-literal-props shape end-to-end and that the static / reflect forms agree.',
       isTypeNotes:
@@ -937,7 +937,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_via_return_type_utility: {
-      title: '{id: number; name: string} via ReturnType<typeof fn>',
+      title: 'Object inferred via ReturnType<typeof factory>',
       description:
         'Static-form usage of the recommended `ReturnType<typeof fn>` idiom when you have a factory function whose return type you want to validate. The reflect form `createIsType(makeUser())` would invoke the function at runtime purely for type inference — anti-pattern that the resolver now flags as a build-time warning. The reflect-form thunk is intentionally omitted; the diagnostic test in vite-plugin-runtypes covers the warning.',
       isTypeNotes:
@@ -959,7 +959,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_via_property_access: {
-      title: '{id: number; name: string} via property access',
+      title: 'Object inferred via property access on a parent shape',
       description:
         "Reflect form with a property-access argument (`createIsType(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
       isType: () => createIsType<{id: number; name: string}>(),
@@ -977,7 +977,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_via_array_access: {
-      title: '{id: number; name: string} via array element access',
+      title: 'Object inferred via array element access',
       description:
         "Reflect form with an array-element-access argument (`createIsType(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
       isType: () => createIsType<{id: number; name: string}>(),
@@ -995,7 +995,7 @@ export const VALIDATION_SUITE = {
     },
 
     interface_with_optional: {
-      title: '{a: string; b?: number}',
+      title: 'Interface with one optional property',
       description: 'optional property — `(v.b === undefined || Number.isFinite(v.b))` per PropertyRunType.emitIsType',
       isTypeNotes:
         'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
@@ -1011,7 +1011,7 @@ export const VALIDATION_SUITE = {
     },
 
     interface_with_date: {
-      title: '{date: Date; name: string}',
+      title: 'Interface with a Date property',
       description:
         'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
       isTypeNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
@@ -1035,7 +1035,7 @@ export const VALIDATION_SUITE = {
     },
 
     interface_with_method: {
-      title: '{name: string; cb: () => any}',
+      title: 'Interface with a method (function prop skipped from check)',
       description:
         "mion: objectSkipProps — function-typed properties are skipped from isType (mion's `getJitChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
       isTypeNotes: [
@@ -1062,7 +1062,7 @@ export const VALIDATION_SUITE = {
     },
 
     nested_object: {
-      title: '{a: string; deep: {b: string; c: number}}',
+      title: 'Interface with a nested object property',
       description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
       isTypeNotes: 'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
       isType: () => createIsType<{a: string; deep: {b: string; c: number}}>(),
@@ -1085,7 +1085,7 @@ export const VALIDATION_SUITE = {
     },
 
     interface_string_array_prop: {
-      title: '{tags: string[]}',
+      title: 'Interface with a string-array property',
       description: 'an array-typed property — exercises the dependency-call layer through an object',
       isType: () => createIsType<{tags: string[]}>(),
       isTypeReflect: () => {
@@ -1099,7 +1099,7 @@ export const VALIDATION_SUITE = {
     },
 
     circular_interface: {
-      title: 'ICircular = {name: string; child?: ICircular}',
+      title: 'Self-referential interface (linked-list shape)',
       description:
         "mion interface.spec.ts 'validate circular object'. Exercises self-recursive dependency call (mion isSelf branch — `<innerFnName>(v.child)` without `.fn`).",
       isTypeNotes:
@@ -1128,7 +1128,7 @@ export const VALIDATION_SUITE = {
     },
 
     circular_interface_on_array: {
-      title: 'ICircularArray = {name: string; children?: ICircularArray[]}',
+      title: 'Self-referential interface via an array-of-self property',
       description:
         "mion interface.spec.ts 'validate circular interface on array' — circular type traversed via an array property.",
       isType: () => {
@@ -1151,7 +1151,7 @@ export const VALIDATION_SUITE = {
     },
 
     circular_interface_on_nested_object: {
-      title: 'ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}}',
+      title: 'Self-referential interface buried in a nested object',
       description:
         "mion interface.spec.ts 'validate circular interface on nested object' — circular reference deep inside a property.",
       isType: () => {
@@ -1173,7 +1173,7 @@ export const VALIDATION_SUITE = {
     },
 
     index_signature_string: {
-      title: '{[key: string]: string}',
+      title: 'Index signature with string values',
       description:
         "mion indexProperty.spec.ts 'validate index run type' — for-in loop over own keys, value must satisfy the value type.",
       isTypeNotes: [
@@ -1192,7 +1192,7 @@ export const VALIDATION_SUITE = {
     },
 
     index_signature_named_props: {
-      title: '{a: string; b: number; [key: string]: string | number}',
+      title: 'Index signature combined with named properties',
       description:
         "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
       isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
@@ -1211,7 +1211,7 @@ export const VALIDATION_SUITE = {
     },
 
     index_signature_nested: {
-      title: '{[key: string]: {[key: string]: number}}',
+      title: 'Nested index signatures (number leaf values)',
       description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
       isType: () => createIsType<{[key: string]: {[key: string]: number}}>(),
       isTypeReflect: () => {
@@ -1225,7 +1225,7 @@ export const VALIDATION_SUITE = {
     },
 
     index_signature_date_value: {
-      title: '{[key: string]: {[key: string]: Date}}',
+      title: 'Nested index signatures with Date leaf values',
       description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
       isType: () => createIsType<{[key: string]: {[key: string]: Date}}>(),
       isTypeReflect: () => {
@@ -1239,7 +1239,7 @@ export const VALIDATION_SUITE = {
     },
 
     index_signature_non_root: {
-      title: 'Obj2 { b: string; c: Obj1 } where Obj1 has [key: string]: string',
+      title: 'Index signature on a nested (non-root) object property',
       description:
         "mion indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
       isType: () => {
@@ -1275,7 +1275,7 @@ export const VALIDATION_SUITE = {
     },
 
     function_top_level: {
-      title: '() => void',
+      title: 'Function type at top level (any function passes)',
       description: "mion FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred (mion-level).",
       isTypeNotes: [
         'TS DIVERGENCE: ANY function passes, regardless of signature — arrow functions, async functions, class declarations (typeof === "function") all satisfy `() => void`.',
@@ -1295,7 +1295,7 @@ export const VALIDATION_SUITE = {
     // ---- DEFERRED — kept as data for future adapter activation ----
 
     interface_callable: {
-      title: 'CallableInterface = {(a: number, b: boolean): string; extra: string}',
+      title: 'Callable interface (function plus data properties)',
       description:
         'mion interface.spec.ts "validate callable interface" — the emit detects a CallSignature child and switches the typeof guard from `object` to `function`, then AND-chains the remaining properties on top (JS functions can carry properties).',
       isTypeNotes:
@@ -1331,7 +1331,7 @@ export const VALIDATION_SUITE = {
     },
 
     interface_all_optional: {
-      title: '{a?: string; b?: number}',
+      title: 'Interface with every property optional (plain-object guard)',
       description:
         "mion interface.spec.ts \"validate empty object for ObjectAllOptional type\". The `allOptionalCode` guard `(!Array.isArray(v) && Object.prototype.toString.call(v) === '[object Object]')` is added when every contributing child is optional, so arrays / Date / Map / Set are explicitly rejected (without the guard they'd slip through the bare `typeof === 'object'` check).",
       isTypeNotes: [
@@ -1351,7 +1351,7 @@ export const VALIDATION_SUITE = {
     },
 
     class_simple: {
-      title: 'class MySerializableClass with two atomic props',
+      title: 'Class with two atomic props (instance or plain match)',
       description:
         "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectIsType. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
       isTypeNotes: [
@@ -1412,7 +1412,7 @@ export const VALIDATION_SUITE = {
     },
 
     rpc_error_class: {
-      title: 'RpcError<"test-error"> — local equivalent shape',
+      title: 'RpcError-shaped class with branded discriminator',
       description:
         "mion classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual @mionjs/core RpcError isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in the @mionjs/core dependency for a single test.",
       isTypeNotes: [
@@ -1485,7 +1485,7 @@ export const VALIDATION_SUITE = {
     },
 
     call_signature_params: {
-      title: 'CallSignature params via Parameters<F> (tuple)',
+      title: 'Function parameters extracted via Parameters<F>',
       description:
         "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createJitParamsFunction(JitFunctions.isType)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
       isType: () => {
@@ -1521,7 +1521,7 @@ export const VALIDATION_SUITE = {
     },
 
     call_signature_params_with_optional: {
-      title: 'Parameters<(a: number, b: boolean, c?: string) => Date>',
+      title: 'Parameters<F> tuple with a trailing optional argument',
       description:
         "mion function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
       isType: () => {
@@ -1551,7 +1551,7 @@ export const VALIDATION_SUITE = {
     },
 
     call_signature_params_with_rest: {
-      title: 'Parameters<(a: number, b: boolean, ...c: Date[]) => Date>',
+      title: 'Parameters<F> tuple with a trailing rest segment',
       description:
         "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
       isType: () => {
@@ -1586,7 +1586,7 @@ export const VALIDATION_SUITE = {
     },
 
     record_union_keys: {
-      title: 'Record<"a" | "b", number>',
+      title: 'Record<UnionKey, V> — resolves to a fixed-property shape',
       description:
         '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.',
       isType: () => createIsType<Record<'a' | 'b', number>>(),
@@ -1616,7 +1616,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_value_index: {
-      title: '{[key: string]: string | number}',
+      title: 'Index signature with a union value type',
       description:
         'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
       isType: () => createIsType<{[key: string]: string | number}>(),
@@ -1631,7 +1631,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_with_union_prop: {
-      title: '{kind: "a" | "b"; n: number}',
+      title: 'Object with a discriminated-union string property',
       description:
         'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
       isType: () => createIsType<{kind: 'a' | 'b'; n: number}>(),
@@ -1658,7 +1658,7 @@ export const VALIDATION_SUITE = {
   // adapters will reuse.
   TUPLE: {
     string_number_pair: {
-      title: '[string, number]',
+      title: 'Two-element tuple (string plus number)',
       isTypeNotes: [
         'Tuples enforce exact length — both fewer (missing required) and more (excess) elements fail.',
         'Each slot runs the atomic check for its declared type.',
@@ -1689,7 +1689,7 @@ export const VALIDATION_SUITE = {
     },
 
     full_mion_tuple: {
-      title: '[Date, number, string, null, string[], bigint]',
+      title: 'Six-element heterogeneous tuple (mion fixture)',
       description: 'mion tuple.spec.ts "validate tuple"',
       isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
       isTypeReflect: () => {
@@ -1712,7 +1712,7 @@ export const VALIDATION_SUITE = {
     },
 
     tuple_with_optional: {
-      title: '[number, bigint?, boolean?, number?]',
+      title: 'Tuple with trailing optional elements',
       description: 'mion tuple.spec.ts "validate tuple with optional parameters"',
       isTypeNotes:
         'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
@@ -1728,7 +1728,7 @@ export const VALIDATION_SUITE = {
     },
 
     nested_tuple_in_array: {
-      title: '[string, number][]',
+      title: 'Tuple as array element (tuple inside array dependency call)',
       description: 'array of tuples — exercises tuple inside array dependency call',
       isType: () => createIsType<[string, number][]>(),
       isTypeReflect: () => {
@@ -1751,7 +1751,7 @@ export const VALIDATION_SUITE = {
     // ---- DEFERRED — features that aren't yet ported ----
 
     tuple_rest: {
-      title: '[number, ...string[]]',
+      title: 'Tuple with a trailing rest segment',
       description:
         "mion tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
       isTypeNotes:
@@ -1768,7 +1768,7 @@ export const VALIDATION_SUITE = {
     },
 
     tuple_circular: {
-      title: '[Date, number, string, null, string[], bigint, TupleCircular?]',
+      title: 'Self-referential tuple via trailing optional self-ref',
       description:
         'mion tuple.spec.ts circular tuple. Same mechanism as circular array — Tuple is always non-inlined, the self-recursive dependency call closes the cycle via the isSelf branch.',
       isType: () => {
@@ -1799,7 +1799,7 @@ export const VALIDATION_SUITE = {
     },
 
     tuple_multiple_trailing_optionals: {
-      title: '[number, bigint?, boolean?, number?]',
+      title: 'Tuple with multiple trailing optional slots',
       description:
         "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
@@ -1831,7 +1831,7 @@ export const VALIDATION_SUITE = {
     },
 
     tuple_named_labels: {
-      title: '[name: string, age: number]',
+      title: 'Tuple with named element labels (labels erased at runtime)',
       description:
         "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
       isType: () => createIsType<[name: string, age: number]>(),
@@ -1849,7 +1849,7 @@ export const VALIDATION_SUITE = {
     },
 
     tuple_with_non_serializable: {
-      title: '[number, () => any]',
+      title: 'Tuple with a function slot (must be undefined)',
       description:
         "mion serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per mion's non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.",
       isTypeNotes: [
@@ -1888,7 +1888,7 @@ export const VALIDATION_SUITE = {
   // emit only needs to know about ObjectLiteral.
   UNION: {
     atomic_union: {
-      title: 'Date | number | string | null | bigint',
+      title: 'Union of common atomic types (with Date and bigint)',
       description: 'mion union.spec.ts "validate union" — Atomic Union suite',
       isTypeNotes: [
         'Validates as an OR-chain — first matching arm wins.',
@@ -1906,7 +1906,7 @@ export const VALIDATION_SUITE = {
     },
 
     string_literal_union: {
-      title: "'UNO' | 'DOS' | 'TRES'",
+      title: 'Union of string literals (case-sensitive)',
       description: 'mion union.spec.ts "validate union discriminator string"',
       isTypeNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
       isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
@@ -1921,7 +1921,7 @@ export const VALIDATION_SUITE = {
     },
 
     string_or_number: {
-      title: 'string | number',
+      title: 'Two-arm union of string and number',
       isType: () => createIsType<string | number>(),
       isTypeReflect: () => {
         const v: string | number = 'hello';
@@ -1934,7 +1934,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_of_array_types: {
-      title: 'string[] | number[] | boolean[]',
+      title: 'Union of array types (whole-array dispatch)',
       description: 'mion union.spec.ts "Union Arr"',
       isTypeNotes:
         'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
@@ -1950,7 +1950,7 @@ export const VALIDATION_SUITE = {
     },
 
     array_of_union: {
-      title: '(string | bigint | boolean | Date)[]',
+      title: 'Array whose element type is a union',
       description: 'mion union.spec.ts "Arr with union of types"',
       isTypeNotes:
         'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
@@ -1975,7 +1975,7 @@ export const VALIDATION_SUITE = {
     // ---- DEFERRED ----
 
     union_of_object_shapes: {
-      title: '{a: string; aa: boolean} | {b: number} | {c: bigint}',
+      title: 'Union of disjoint object shapes',
       description:
         "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
@@ -1993,7 +1993,7 @@ export const VALIDATION_SUITE = {
     },
 
     discriminated_union: {
-      title: '{kind: "a"; n: number} | {kind: "b"; s: string}',
+      title: 'Discriminated union (shared kind literal, different payloads)',
       description:
         'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
       isTypeNotes:
@@ -2023,7 +2023,7 @@ export const VALIDATION_SUITE = {
     },
 
     circular_union: {
-      title: 'UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[]',
+      title: 'Self-referential union via object and array arms',
       description:
         'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
       isTypeNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
@@ -2043,7 +2043,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_with_methods: {
-      title: '{name: string; getName(): string} | {age: number; getAge(): number}',
+      title: 'Union of object arms each carrying a method',
       description:
         'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
       isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
@@ -2061,7 +2061,7 @@ export const VALIDATION_SUITE = {
     },
 
     intersection_to_object: {
-      title: '{a: string} & {b: number}',
+      title: 'Intersection of object shapes (resolved to one merged shape)',
       description:
         'mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
       isType: () => createIsType<{a: string} & {b: number}>(),
@@ -2090,7 +2090,7 @@ export const VALIDATION_SUITE = {
     // ---- additions migrated 1:1 from mion union.spec.ts ----
 
     union_with_index_arm: {
-      title: '{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}',
+      title: 'Union where one arm carries an index signature',
       description:
         "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
@@ -2114,7 +2114,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_same_prop_different_types: {
-      title: "{type:'a'; prop: boolean} | {type:'b'; prop: number} | {type:'c'; prop: string}",
+      title: 'Discriminated union sharing one prop with arm-dependent type',
       description:
         "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
       isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
@@ -2145,7 +2145,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_mixed_arrays_and_objects: {
-      title: "string[] | number[] | boolean[] | {a; aa} | {b} | {c; aa:'string'}",
+      title: 'Union mixing array types and object shapes',
       description:
         "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
       isType: () =>
@@ -2179,7 +2179,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_merged_property: {
-      title: '{a: boolean} | {a: number}',
+      title: 'Union of shapes sharing a prop with different value types',
       description:
         "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
       isType: () => createIsType<{a: boolean} | {a: number}>(),
@@ -2194,7 +2194,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_mixed_with_index: {
-      title: 'string[] | {a; aa} | {b} | {a; [k]: string} | {[k]: bigint; b}',
+      title: 'Union mixing arrays, plain objects, and index-signature shapes',
       description:
         "mion union.spec.ts 'Union mixed with index property' — arrays + objects (some with index signatures) in the same union.",
       isType: () =>
@@ -2227,7 +2227,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_with_any_fallback: {
-      title: 'string | any',
+      title: 'Union with an `any` arm (collapses to any)',
       description:
         "mion union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
       isTypeNotes:
@@ -2244,7 +2244,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_with_unknown_fallback: {
-      title: 'string | unknown',
+      title: 'Union with an `unknown` arm (collapses to unknown)',
       description:
         "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
       isType: () => createIsType<string | unknown>(),
@@ -2259,7 +2259,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_subset_small_first: {
-      title: 'SmallObj | LargeObj (subset relationship)',
+      title: 'Union with the smaller arm declared before its superset',
       description:
         "mion union.spec.ts 'sortUnreachableTypes' — `{a}` defined before `{a; b}`. Both arms must be reachable: matching SmallObj must not swallow LargeObj-shaped inputs (semantically the same since either arm matching returns true, but pins the regression).",
       isTypeNotes:
@@ -2295,7 +2295,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_subset_nested_levels: {
-      title: 'Tiny | Medium | Large (multi-level subset)',
+      title: 'Union with a three-level subset chain',
       description:
         "mion union.spec.ts 'multiple levels of subset relationships' — three arms, each a strict superset of the previous.",
       isType: () => {
@@ -2339,7 +2339,7 @@ export const VALIDATION_SUITE = {
     },
 
     union_subset_mixed_related_unrelated: {
-      title: 'Base | Extended | Unrelated',
+      title: 'Union mixing a subset pair with a disjoint arm',
       description:
         "mion union.spec.ts 'mixed related and unrelated types' — Base and Extended are subset-related, Unrelated is disjoint.",
       isType: () => {
@@ -2389,7 +2389,7 @@ export const VALIDATION_SUITE = {
   // research.
   TEMPLATE_LITERAL: {
     url_with_number_id: {
-      title: '`api/user/${number}`',
+      title: 'Template literal URL with a number placeholder',
       description:
         "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'. Compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at JIT-build time; isType emits `typeof v === 'string' && regex.test(v)`.",
       isTypeNotes: [
@@ -2419,7 +2419,7 @@ export const VALIDATION_SUITE = {
     },
 
     multi_segment_url: {
-      title: '`/api/v${number}/user/${string}/posts/${number}`',
+      title: 'Template literal URL with multiple placeholders',
       description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
       isType: () => createIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
       isTypeReflect: () => {
@@ -2441,7 +2441,7 @@ export const VALIDATION_SUITE = {
     },
 
     leading_string_placeholder: {
-      title: '`${string}/${number}`',
+      title: 'Template literal starting with a string placeholder',
       description:
         "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted (string span uses `[\\s\\S]*`, not `+`).",
       isTypeNotes: 'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
@@ -2457,7 +2457,7 @@ export const VALIDATION_SUITE = {
     },
 
     regex_special_chars: {
-      title: '`(${number})`',
+      title: 'Template literal with regex metacharacters in literal segments',
       description:
         "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
       isType: () => createIsType<`(${number})`>(),
@@ -2472,7 +2472,7 @@ export const VALIDATION_SUITE = {
     },
 
     template_literal_nested_in_object: {
-      title: '{url: `api/user/${number}`; method: string}',
+      title: 'Object with a template-literal-typed string property',
       description:
         "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
       isType: () => createIsType<{url: `api/user/${number}`; method: string}>(),
@@ -2495,7 +2495,7 @@ export const VALIDATION_SUITE = {
     },
 
     template_literal_index_key: {
-      title: '{[key: `api/${string}`]: number}',
+      title: 'Index signature whose key is a template literal pattern',
       description:
         "mion templateLiteral.spec.ts 'as index signature key' — index signature whose key type is a template literal pattern. The IndexSignature emit now compiles the key pattern to a regex (same path as standalone template literals) and adds a per-key `regex.test(k)` check to the for-in loop, mirroring mion's getKeyPatternVar.",
       isTypeNotes:
@@ -2512,7 +2512,7 @@ export const VALIDATION_SUITE = {
     },
 
     template_literal_union_placeholder: {
-      title: "`${'a' | 'b'}-${number}`",
+      title: 'Template literal with a union-of-literals placeholder',
       description:
         'Template literal with a union placeholder. tsgo distributes the union internally, so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} — anything outside the union must be rejected.',
       isTypeNotes:
@@ -2540,7 +2540,7 @@ export const VALIDATION_SUITE = {
   // the ATOMIC block above.
   NATIVE: {
     map_string_number: {
-      title: 'Map<string, number>',
+      title: 'Map with string keys and number values',
       description:
         'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
       isType: () => createIsType<Map<string, number>>(),
@@ -2566,7 +2566,7 @@ export const VALIDATION_SUITE = {
     },
 
     set_string: {
-      title: 'Set<string>',
+      title: 'Set of strings',
       description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
       isType: () => createIsType<Set<string>>(),
       isTypeReflect: () => {
@@ -2587,7 +2587,7 @@ export const VALIDATION_SUITE = {
     },
 
     promise_string: {
-      title: 'Promise<string>',
+      title: 'Promise — thenable check, wrapped type not validated',
       description:
         "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below).",
       isTypeNotes: [
@@ -2612,7 +2612,7 @@ export const VALIDATION_SUITE = {
     },
 
     awaited_promise: {
-      title: 'Awaited<Promise<string>>',
+      title: 'Awaited<Promise<T>> — resolves to the wrapped type',
       description:
         "TypeScript's built-in `Awaited<P>` utility unwraps the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit. The test verifies the utility threads through correctly.",
       isTypeNotes:
@@ -2645,7 +2645,7 @@ export const VALIDATION_SUITE = {
   // index signatures, and deeply nested object paths.
   CIRCULAR: {
     object_full_mion_shape: {
-      title: 'Circular { n: number; s: string; c?: Circular; d?: Date }',
+      title: 'Self-referential object with optional self-ref and Date prop',
       description:
         "mion circularRefs.spec.ts 'Circular object' — full mion fixture (number + string + self-ref + Date). Exercises the same self-recursive dependency call as OBJECT.circular_interface but pins the exact mion shape.",
       isTypeNotes: 'Self-referential shapes are validated recursively. Atomic rules apply at every level (NaN at `n`, Invalid Date at `d`, etc.).',
@@ -2688,7 +2688,7 @@ export const VALIDATION_SUITE = {
     },
 
     array_of_union_with_self_ref: {
-      title: 'CuArray = (CuArray | Date | number | string)[]',
+      title: 'Self-referential array whose union element includes the array itself',
       description:
         "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
       isType: () => {
@@ -2722,7 +2722,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_with_tuple_prop: {
-      title: 'CircularTuple { tuple: [bigint, CircularTuple?] }',
+      title: 'Self-referential object whose cycle closes via a tuple property',
       description:
         "mion circularRefs.spec.ts 'Circular object with tuple' — cycle closed via a tuple-typed property. Same mechanism as TUPLE.tuple_circular but the recursion goes through an object → tuple boundary.",
       isType: () => {
@@ -2754,7 +2754,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_with_index_prop: {
-      title: 'CircularIndex { index: { [key: string]: CircularIndex } }',
+      title: 'Self-referential object whose cycle closes via an index signature',
       description:
         "mion circularRefs.spec.ts 'Circular Object with index property' — cycle closed via an index-signature value type. Exercises the index-signature for-in loop calling back into the same validator.",
       isType: () => {
@@ -2786,7 +2786,7 @@ export const VALIDATION_SUITE = {
     },
 
     object_deeply_nested: {
-      title: 'CircularDeep { deep1: { deep2: { deep3: { deep4?: CircularDeep } } } }',
+      title: 'Self-referential object with the cycle buried four levels deep',
       description:
         "mion circularRefs.spec.ts 'Circular Object with deep nested properties' — cycle closed via four levels of nested object properties. Stresses the dependency-call layer when the self-ref is buried deep in an anonymous-shape chain.",
       isType: () => {
@@ -2835,7 +2835,7 @@ export const VALIDATION_SUITE = {
   // the cache + emit pipeline without surprises.
   UTILITY: {
     partial: {
-      title: 'Partial<Person>',
+      title: 'Partial<T> — all props become optional',
       description:
         'mion utility/partial.spec.ts — all properties become optional. Resolves to {name?: string; age?: number; createdAt?: Date}; reuses the object emit with allOptionalCode array-rejection guard.',
       isTypeNotes:
@@ -2875,7 +2875,7 @@ export const VALIDATION_SUITE = {
     },
 
     required: {
-      title: 'Required<MaybePerson>',
+      title: 'Required<T> — all optional props become required',
       description:
         'mion utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
       isType: () => {
@@ -2911,7 +2911,7 @@ export const VALIDATION_SUITE = {
     },
 
     pick: {
-      title: "Pick<Person, 'name' | 'createdAt'>",
+      title: 'Pick<T, K> — keeps only the named properties',
       description: 'mion utility/pick.spec.ts — selects a subset of properties. Resolves to {name: string; createdAt: Date}.',
       isTypeNotes: 'Resolves to a fixed-property object with only the picked keys. Extra properties on the input still pass (structural typing).',
       isType: () => {
@@ -2949,7 +2949,7 @@ export const VALIDATION_SUITE = {
     },
 
     omit: {
-      title: "Omit<Person, 'age'>",
+      title: 'Omit<T, K> — drops the named properties',
       description: 'mion utility/omit.spec.ts — removes selected properties. Resolves to {name: string; createdAt: Date}.',
       isTypeNotes: 'Resolves to the original shape minus the omitted keys. The omitted property can still appear on the input — structural typing accepts extras.',
       isType: () => {
@@ -2985,7 +2985,7 @@ export const VALIDATION_SUITE = {
     },
 
     exclude_atomic: {
-      title: "Exclude<'name' | 'age' | 'createdAt', 'age'>",
+      title: 'Exclude<U, X> on a string-literal union',
       description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
       isTypeReflect: () => {
@@ -2999,7 +2999,7 @@ export const VALIDATION_SUITE = {
     },
 
     extract_atomic: {
-      title: "Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>",
+      title: 'Extract<U, X> on a string-literal union',
       description:
         'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
@@ -3014,7 +3014,7 @@ export const VALIDATION_SUITE = {
     },
 
     exclude_from_object_union: {
-      title: "Exclude<Shape, {kind: 'circle'}>",
+      title: 'Exclude<U, X> on a discriminated object union',
       description: 'mion utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
       isType: () => {
         type Shape =
@@ -3049,7 +3049,7 @@ export const VALIDATION_SUITE = {
     },
 
     non_nullable: {
-      title: 'NonNullable<string | number | null | undefined>',
+      title: 'NonNullable<T> — strips null and undefined from a union',
       description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
       isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
       isTypeReflect: () => {
@@ -3063,7 +3063,7 @@ export const VALIDATION_SUITE = {
     },
 
     return_type: {
-      title: 'ReturnType<(...) => Date>',
+      title: 'ReturnType<F> — extracts the return type of a function',
       description: "mion utility/params-return.spec.ts — extracts a function's return type. Resolves to Date.",
       isType: () => {
         type Fn = (a: number, b: boolean) => Date;
@@ -3081,7 +3081,7 @@ export const VALIDATION_SUITE = {
     },
 
     readonly: {
-      title: 'Readonly<Person>',
+      title: 'Readonly<T> — readonly bit erased at runtime',
       description:
         'Readonly<T> marks properties readonly at the TS layer; the readonly bit is erased at runtime so the validator behaves identically to the source object. Regression check.',
       isType: () => {
@@ -3120,7 +3120,7 @@ export const VALIDATION_SUITE = {
     // same reason.
 
     intersection_with_required_override: {
-      title: "Partial<Person> & Required<Pick<Person, 'name'>>",
+      title: 'Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)',
       description:
         'Intersection that flips a property\'s optionality — `Partial<Person>` makes all props optional, then `& Required<Pick<Person, "name">>` re-requires only `name`. tsgo resolves the intersection to {name: string; age?: number; createdAt?: Date}; reuses the object emit.',
       isTypeNotes:
@@ -3163,7 +3163,7 @@ export const VALIDATION_SUITE = {
     },
 
     omit_keeping_optional: {
-      title: "Omit<{a: string; b?: number; c: boolean}, 'a'>",
+      title: 'Omit<T, K> preserves optionality of remaining props',
       description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
       isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
       isTypeReflect: () => {
