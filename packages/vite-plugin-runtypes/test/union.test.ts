@@ -190,7 +190,7 @@ getRuntypeId<T>();
     async (sources) => {
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'prim.ts');
-      expect(root.unionDiscriminators).toBeUndefined();
+      expect(root.unionDiscriminators).toBeNull();
     }
   );
 
