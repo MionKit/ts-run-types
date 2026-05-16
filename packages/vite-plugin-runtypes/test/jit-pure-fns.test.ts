@@ -19,15 +19,21 @@ interface ParsedFnEntry {
 }
 
 // evalParsedFnsModule strips `export`s from the rendered module,
-// evaluates its `initCache(jitUtils)` export, and returns the populated
-// flat cache (`{ 'ns::name': {bodyHash, paramNames, code} }`).
+// evaluates its `initCache(jitUtils)` export against a stub that
+// records every `addParsedFn(key, data)` call, and returns the
+// populated flat cache (`{ 'ns::name': {bodyHash, paramNames, code} }`).
 function evalParsedFnsModule(source: string): Record<string, ParsedFnEntry> {
-  const stripped = source
-    .replace(/^\s*export\s+function\s+/gm, 'function ')
-    .replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
+  const registered: Record<string, ParsedFnEntry> = {};
+  const stub = {
+    addParsedFn(key: string, data: ParsedFnEntry) {
+      registered[key] = data;
+    },
+  };
+  const stripped = source.replace(/^\s*export\s+function\s+/gm, 'function ');
   const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (jitUtils?: unknown) => Record<string, ParsedFnEntry>;
-  return initCache({});
+  const initCache = factory() as (jitUtils: typeof stub) => void;
+  initCache(stub);
+  return registered;
 }
 
 describe('vite-plugin-runtypes / parsed-fns virtual module', () => {

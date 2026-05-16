@@ -13,6 +13,24 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./caches/runTypesCache": {
+      "source": "./src/caches/runTypesCache.ts",
+      "types": "./dist/caches/runTypesCache.d.ts",
+      "import": "./dist/caches/runTypesCache.js",
+      "require": "./dist/caches/runTypesCache.cjs"
+    },
+    "./caches/isTypeCache": {
+      "source": "./src/caches/isTypeCache.ts",
+      "types": "./dist/caches/isTypeCache.d.ts",
+      "import": "./dist/caches/isTypeCache.js",
+      "require": "./dist/caches/isTypeCache.cjs"
+    },
+    "./caches/parsedFnsCache": {
+      "source": "./src/caches/parsedFnsCache.ts",
+      "types": "./dist/caches/parsedFnsCache.d.ts",
+      "import": "./dist/caches/parsedFnsCache.js",
+      "require": "./dist/caches/parsedFnsCache.cjs"
     }
   },
   "files": [

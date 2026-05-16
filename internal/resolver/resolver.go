@@ -213,26 +213,42 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			RunTypes: resolver.cache.Dump(),
 			Sites:    resolver.Sites(),
 		}
-		rendered, renderErr := renderModule(fullDump)
-		if renderErr != nil {
-			return protocol.Response{Error: renderErr.Error()}
+		response := protocol.Response{
+			RunTypes: fullDump.RunTypes,
+			Sites:    fullDump.Sites,
 		}
-		isTypeRendered, isTypeErr := renderIsTypeModule(fullDump)
-		if isTypeErr != nil {
-			return protocol.Response{Error: isTypeErr.Error()}
+		// Per-kind opt-in mirrors OpScanFiles. When IncludeCacheSources is
+		// omitted, callers get every cache source (legacy "give me
+		// everything" behavior preserved). When set, only the requested
+		// kinds are rendered — lets the Vite plugin's transform() ask
+		// for just the one cache it's serving in this hook call.
+		noFilter := len(request.IncludeCacheSources) == 0
+		wantRunType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
+		wantIsType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
+		wantParsedFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindParsedFns)
+		if wantRunType {
+			rendered, renderErr := renderModule(fullDump)
+			if renderErr != nil {
+				return protocol.Response{Error: renderErr.Error()}
+			}
+			response.RunTypeCacheSource = rendered
 		}
-		parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, nil)
-		if parsedFnsErr != nil {
-			return protocol.Response{Error: parsedFnsErr.Error()}
+		if wantIsType {
+			isTypeRendered, isTypeErr := renderIsTypeModule(fullDump)
+			if isTypeErr != nil {
+				return protocol.Response{Error: isTypeErr.Error()}
+			}
+			response.IsTypeCacheSource = isTypeRendered
 		}
-		return protocol.Response{
-			RunTypes:             fullDump.RunTypes,
-			Sites:                fullDump.Sites,
-			RunTypeCacheSource:   rendered,
-			IsTypeCacheSource:    isTypeRendered,
-			ParsedFnsCacheSource: parsedFnsRendered,
-			ParsedFnsDiagnostics: parsedFnsDiags,
+		if wantParsedFns {
+			parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, nil)
+			if parsedFnsErr != nil {
+				return protocol.Response{Error: parsedFnsErr.Error()}
+			}
+			response.ParsedFnsCacheSource = parsedFnsRendered
+			response.ParsedFnsDiagnostics = parsedFnsDiags
 		}
+		return response
 	case protocol.OpSetSources:
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {
 			return protocol.Response{Error: err.Error()}

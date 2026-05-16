@@ -98,29 +98,40 @@ getRuntypeId<string>();
   });
 });
 
-// stripExports rewrites `export function …` to `function …` and removes
-// `export {cache};` so the skeleton body evaluates inside a
-// `new Function` script body.
+// stripExports rewrites `export function …` to `function …` so the
+// skeleton body evaluates inside a `new Function` script body.
 function stripExports(source: string): string {
-  return source.replace(/^\s*export\s+function\s+/gm, 'function ').replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
+  return source.replace(/^\s*export\s+function\s+/gm, 'function ');
 }
 
 // evalRunTypesModule strips `export`s, evaluates the body, and calls
-// `initCache()` to obtain the populated runtypes cache.
+// `initCache(jitUtils)` against a minimal stub that records every
+// `addRunType` call. Returns the per-id map of entries the rendered
+// body emitted.
 function evalRunTypesModule(source: string): Record<string, RunType> {
+  const registered: Record<string, RunType> = {};
+  const stub = {
+    addRunType(id: string, runType: RunType) {
+      registered[id] = runType;
+    },
+    useRunType(id: string): RunType {
+      const entry = registered[id];
+      if (!entry) throw new Error(`stub useRunType: no entry for ${id}`);
+      return entry;
+    },
+  };
   const stripped = stripExports(source);
   const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (jitUtils?: unknown) => Record<string, RunType>;
-  return initCache({});
+  const initCache = factory() as (jitUtils: typeof stub) => void;
+  initCache(stub);
+  return registered;
 }
 
 // evalIsTypeModule evaluates the rendered isType module, calls its
 // `initCache(jitUtils)` export against a stub jitUtils, and returns
-// both:
-//   - `byHash`: the module-local cache object (returned by initCache);
-//   - `registered`: the stub's record of every `addToJitCache(entry)`
-//     call.
-// Both must end up pointing at the same entry objects.
+// the stub's record of every `addToJitCache(entry)` call keyed by
+// `jitFnHash`. With cache state now living in jitUtils only, the
+// stub's table IS the cache.
 function evalIsTypeModule(source: string): {byHash: Record<string, JitEntry>; registered: Record<string, JitEntry>} {
   const registered: Record<string, JitEntry> = {};
   const stub = {
@@ -130,7 +141,7 @@ function evalIsTypeModule(source: string): {byHash: Record<string, JitEntry>; re
   };
   const stripped = stripExports(source);
   const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (jitUtils: typeof stub) => Record<string, JitEntry>;
-  const byHash = initCache(stub);
-  return {byHash, registered};
+  const initCache = factory() as (jitUtils: typeof stub) => void;
+  initCache(stub);
+  return {byHash: registered, registered};
 }

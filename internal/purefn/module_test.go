@@ -42,7 +42,7 @@ func TestParsedFnsModule_SingleEntry(t *testing.T) {
 		t.Fatalf("ParsedFnsModule: %v", err)
 	}
 	got := buf.String()
-	want := "factory(jitUtils,'mion::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};');"
+	want := "factory('mion::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};');"
 	if !strings.Contains(got, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, got)
 	}

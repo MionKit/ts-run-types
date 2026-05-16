@@ -241,14 +241,25 @@ const myAPI = reflectRuntypeId(routes);
     expect(cacheSource).toContain('export function initCache');
 
     // Evaluate the module body the same way evalCacheFor does: strip
-    // top-level `export`s and call `initCache()` to obtain the cache.
-    const stripped = cacheSource
-      .replace(/^\s*export\s+function\s+/gm, 'function ')
-      .replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
+    // top-level `export`s and call `initCache(jitUtils)` against a stub
+    // that records each `addRunType` call and serves `useRunType` from
+    // the same table.
+    const stripped = cacheSource.replace(/^\s*export\s+function\s+/gm, 'function ');
+    const registered: Record<string, Record<string, any>> = {};
+    const stub = {
+      addRunType(id: string, rt: Record<string, any>) {
+        registered[id] = rt;
+      },
+      useRunType(id: string) {
+        const e = registered[id];
+        if (!e) throw new Error(`stub useRunType: missing id ${id}`);
+        return e;
+      },
+    };
     const factory = new Function(`${stripped}\nreturn initCache;`);
-    const initCache = factory() as (jitUtils?: unknown) => Record<string, Record<string, any>>;
-    const result = initCache({});
-    const entries = Object.values(result).filter(
+    const initCache = factory() as (jitUtils: typeof stub) => void;
+    initCache(stub);
+    const entries = Object.values(registered).filter(
       (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t
     );
     expect(entries.length).toBeGreaterThan(0);

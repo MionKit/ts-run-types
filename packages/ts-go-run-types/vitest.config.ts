@@ -11,8 +11,8 @@ const REPO_ROOT = resolve(HERE, '../..');
 // transformer as a Vite plugin so test source files (which import
 // `createIsType` and friends from `@mionjs/ts-go-run-types`) get
 // rewritten with the resolved runtype id at compile time, AND the
-// `virtual:runtypes-isType` / `virtual:runtypes-cache` modules become
-// importable.
+// three cache modules under `caches/*.ts` get their bodies overlaid by
+// the plugin's `transform()` hook with the Go binary's rendered output.
 //
 // `resolve.conditions: ['source']` picks up the `"source"` exports
 // entry on `@mionjs/ts-go-run-types`'s package.json (pointing at

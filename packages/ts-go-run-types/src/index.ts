@@ -56,15 +56,23 @@ export function reflectRuntypeId<T>(_value: T, id?: RuntypeId<T>): RuntypeId<T> 
 
 // JIT runtime registry — migrated from `@mionjs/core`. Consumers (currently
 // `createIsType`) build a `JITUtils` via `getJitUtils()` and hand it to the
-// virtual module's `install(utl)` export, which materializes entries and
-// registers them via `addToJitCache`.
+// cache modules' `initCache(jitUtils)` export, which registers every
+// entry via the corresponding `add*` method on the jitUtils singleton.
 //
 // Exported BEFORE `./createIsType.ts` so the jit module's evaluation
-// completes before createIsType.ts triggers the virtual:runtypes-isType
-// load — the virtual module's `install` runs synchronously against the
-// utl we pass in, and we want `getJitUtils` to be a real function by
+// completes before createIsType.ts and pureFn.ts trigger their cache-
+// module imports — those modules call `initCache(getJitUtils())` at
+// module top level, and we want `getJitUtils` to be a real function by
 // then through any ESM cycle.
 export {getJitUtils, addAOTCaches, addSerializedJitCaches, getJitFnCaches, type JITUtils} from './jit/jitUtils.ts';
+
+// Side-effect: populate the run-type registry from the precompiled cache
+// module. Pulled in here so the registry is ready before any consumer
+// queries it via `getJitUtils().getRunType(id)`. Idempotent — calling
+// initCache again (e.g. after HMR) overwrites entries by id.
+import {initCache as initRunTypesCache} from './caches/runTypesCache.ts';
+import {getJitUtils as _getJitUtilsForInit} from './jit/jitUtils.ts';
+initRunTypesCache(_getJitUtilsForInit());
 
 export {
   flattenUnionDiscriminators,
