@@ -56,6 +56,14 @@ describe('isType / ATOMIC', () => {
   it('undefined', () => assertIsType(VALIDATION_SUITE.ATOMIC.undefined));
   it('void', () => assertIsType(VALIDATION_SUITE.ATOMIC.void));
 
+  // noLiterals variants — literal types degrade to their base kind.
+  it('literal 2 (noLiterals)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
+  it('literal "a" (noLiterals)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
+  it('literal /abc/i (noLiterals)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_regexp_noLiterals));
+  it('literal true (noLiterals)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_true_noLiterals));
+  it('literal 1n (noLiterals)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
+  it('literal Symbol("hello") (noLiterals)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_symbol_noLiterals));
+
   // Coverage guard. Mirrors 01JsonAtomic.spec.ts's final
   // `it('all test ran', …)`. Fails if the suite gains a new atomic
   // case without a matching `it(...)` line above. Using a runtime

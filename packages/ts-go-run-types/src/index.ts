@@ -92,6 +92,6 @@ export {
   type FlattenedDiscriminator,
 } from './unionDiscriminator.ts';
 
-export {createIsType, type IsTypeFn} from './createIsType.ts';
+export {createIsType, type IsTypeFn, type RunTypeOptions} from './createIsType.ts';
 
 export {registerPureFnFactory} from './jit/pureFn.ts';
