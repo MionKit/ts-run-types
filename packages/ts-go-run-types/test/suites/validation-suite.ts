@@ -1490,8 +1490,17 @@ export const VALIDATION_SUITE = {
       title: 'Date | number | string | null | bigint',
       description: 'mion union.spec.ts "validate union" — Atomic Union suite',
       isType: () => createIsType<Date | number | string | null | bigint>(),
+      // UNION NARROWING TRAP: `const v: U = literal` triggers TS
+      // control-flow narrowing on const bindings, so v's type at the
+      // `createIsType(v)` use point degenerates to `typeof literal`
+      // instead of the declared union U. The validator then specializes
+      // to the narrowed arm and rejects the other union members. Cast
+      // the initializer with `as U` (or omit the annotation and let TS
+      // infer from the cast) so v's apparent type at the use point IS
+      // the full union. This trap is also documented for enums in
+      // docs/atomic-types.md — same root cause: TS's CFA on const.
       isTypeReflect: () => {
-        const v: Date | number | string | null | bigint = 123;
+        const v = 123 as Date | number | string | null | bigint;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1504,8 +1513,9 @@ export const VALIDATION_SUITE = {
       title: "'UNO' | 'DOS' | 'TRES'",
       description: 'mion union.spec.ts "validate union discriminator string"',
       isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
+      // Union narrowing trap — see atomic_union for the full explanation.
       isTypeReflect: () => {
-        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        const v = 'UNO' as 'UNO' | 'DOS' | 'TRES';
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1517,8 +1527,9 @@ export const VALIDATION_SUITE = {
     string_or_number: {
       title: 'string | number',
       isType: () => createIsType<string | number>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: string | number = 'hello';
+        const v = 'hello' as string | number;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1531,8 +1542,9 @@ export const VALIDATION_SUITE = {
       title: 'string[] | number[] | boolean[]',
       description: 'mion union.spec.ts "Union Arr"',
       isType: () => createIsType<string[] | number[] | boolean[]>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: string[] | number[] | boolean[] = ['a'];
+        const v = ['a'] as string[] | number[] | boolean[];
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1561,8 +1573,9 @@ export const VALIDATION_SUITE = {
       title: '{a: string; aa: boolean} | {b: number} | {c: bigint}',
       description: "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        const v = {b: 1} as {a: string; aa: boolean} | {b: number} | {c: bigint};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1578,8 +1591,9 @@ export const VALIDATION_SUITE = {
       title: '{kind: "a"; n: number} | {kind: "b"; s: string}',
       description: 'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
       isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        const v = {kind: 'a', n: 1} as {kind: 'a'; n: number} | {kind: 'b'; s: string};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1595,9 +1609,10 @@ export const VALIDATION_SUITE = {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createIsType<UnionC>();
       },
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        const v: UnionC = 'hello';
+        const v = 'hello' as UnionC;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1619,8 +1634,11 @@ export const VALIDATION_SUITE = {
       title: '{name: string; getName(): string} | {age: number; getAge(): number}',
       description: 'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
       isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {name: 'x', getName: () => 'x'};
+        const v = {name: 'x', getName: () => 'x'} as
+          | {name: string; getName(): string}
+          | {age: number; getAge(): number};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1649,8 +1667,9 @@ export const VALIDATION_SUITE = {
       title: '{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}',
       description: "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        const v = {b: 123} as {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1668,8 +1687,12 @@ export const VALIDATION_SUITE = {
       title: "{type:'a'; prop: boolean} | {type:'b'; prop: number} | {type:'c'; prop: string}",
       description: "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
       isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {type: 'a', prop: true};
+        const v = {type: 'a', prop: true} as
+          | {type: 'a'; prop: boolean}
+          | {type: 'b'; prop: number}
+          | {type: 'c'; prop: string};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1690,9 +1713,15 @@ export const VALIDATION_SUITE = {
           | {b: number}
           | {c: bigint; aa: 'string'}
         >(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} =
-          ['a', 'b', 'c'];
+        const v = ['a', 'b', 'c'] as
+          | string[]
+          | number[]
+          | boolean[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {c: bigint; aa: 'string'};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1715,8 +1744,9 @@ export const VALIDATION_SUITE = {
       title: '{a: boolean} | {a: number}',
       description: "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
       isType: () => createIsType<{a: boolean} | {a: number}>(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v: {a: boolean} | {a: number} = {a: true};
+        const v = {a: true} as {a: boolean} | {a: number};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1736,13 +1766,14 @@ export const VALIDATION_SUITE = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
-        const v:
+        const v = ['a'] as
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
           | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint} = ['a'];
+          | {[key: string]: bigint; b: bigint};
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1875,6 +1906,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Base | Extended | Unrelated>();
       },
+      // Union narrowing trap — see atomic_union.
       isTypeReflect: () => {
         interface Base {
           id: string;
@@ -1886,7 +1918,7 @@ export const VALIDATION_SUITE = {
         interface Unrelated {
           value: number;
         }
-        const v: Base | Extended | Unrelated = {id: '123'};
+        const v = {id: '123'} as Base | Extended | Unrelated;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -1996,8 +2028,11 @@ export const VALIDATION_SUITE = {
       title: "`${'a' | 'b'}-${number}`",
       description: 'Template literal with a union placeholder. tsgo distributes the union internally, so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} — anything outside the union must be rejected.',
       isType: () => createIsType<`${'a' | 'b'}-${number}`>(),
+      // tsgo distributes `${'a' | 'b'}-${number}` to the union
+      // `\`a-${number}\` | \`b-${number}\``. The const narrowing trap
+      // applies — see UNION.atomic_union — pin the union via `as`.
       isTypeReflect: () => {
-        const v: `${'a' | 'b'}-${number}` = 'a-42';
+        const v = 'a-42' as `${'a' | 'b'}-${number}`;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -2418,8 +2453,10 @@ export const VALIDATION_SUITE = {
       title: "Exclude<'name' | 'age' | 'createdAt', 'age'>",
       description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      // Resolves to `'name' | 'createdAt'` — union narrowing trap, see
+      // UNION.atomic_union.
       isTypeReflect: () => {
-        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
+        const v = 'name' as Exclude<'name' | 'age' | 'createdAt', 'age'>;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -2432,8 +2469,10 @@ export const VALIDATION_SUITE = {
       title: "Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>",
       description: 'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      // Resolves to `'name' | 'createdAt'` — union narrowing trap, see
+      // UNION.atomic_union.
       isTypeReflect: () => {
-        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
+        const v = 'name' as Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -2452,12 +2491,14 @@ export const VALIDATION_SUITE = {
           | {kind: 'triangle'; base: number; height: number};
         return createIsType<Exclude<Shape, {kind: 'circle'}>>();
       },
+      // Resolves to `{kind:'square';x} | {kind:'triangle';...}` —
+      // union narrowing trap, see UNION.atomic_union.
       isTypeReflect: () => {
         type Shape =
           | {kind: 'circle'; radius: number}
           | {kind: 'square'; x: number}
           | {kind: 'triangle'; base: number; height: number};
-        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+        const v = {kind: 'square', x: 5} as Exclude<Shape, {kind: 'circle'}>;
         return createIsType(v);
       },
       getSamples: () => ({
@@ -2473,8 +2514,10 @@ export const VALIDATION_SUITE = {
       title: 'NonNullable<string | number | null | undefined>',
       description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
       isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
+      // Resolves to `string | number` — union narrowing trap, see
+      // UNION.atomic_union.
       isTypeReflect: () => {
-        const v: NonNullable<string | number | null | undefined> = 'hello';
+        const v = 'hello' as NonNullable<string | number | null | undefined>;
         return createIsType(v);
       },
       getSamples: () => ({
