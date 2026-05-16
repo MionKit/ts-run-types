@@ -110,9 +110,9 @@ export interface WithInlineOpts {
   // When true, sends a `reset` op before installing the new sources.
   // `reset` wipes EVERYTHING (cache, sites, Program, overlay). With
   // per-request projection, most tests don't need it: scanFiles already
-  // scopes its runTypes / cacheSource response to the request's files,
-  // independent of anything else in the cache. Kept for tests that want
-  // a guaranteed-empty global cache (e.g. dump assertions).
+  // scopes its runTypes / runTypeCacheSource response to the request's
+  // files, independent of anything else in the cache. Kept for tests
+  // that want a guaranteed-empty global cache (e.g. dump assertions).
   reset?: boolean;
 }
 
@@ -158,25 +158,25 @@ export interface EvaluatedCache {
 }
 
 // Full pipeline: scan every test source in ONE scanFiles request. The
-// Go side projects runTypes / cacheSource over exactly those files,
-// independent of anything else in the cache. The rendered module body
-// is evaluated through `new Function` and returned as `{byHash, sites}`.
+// Go side projects runTypes / runTypeCacheSource over exactly those
+// files, independent of anything else in the cache. The rendered module
+// body is evaluated through `new Function` and returned as `{byHash, sites}`.
 export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
     async ({client, sources: augmented}) => {
       const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
       if (files.length === 0) throw new Error('evalCacheFor: no source files to scan');
-      const response = await client.scanFiles(files, {includeCacheSource: true});
+      const response = await client.scanFiles(files, {includeCacheSources: ['all']});
       recordResponse(response);
-      const {cacheSource} = response;
-      if (!cacheSource) throw new Error('evalCacheFor: resolver returned no cacheSource');
+      const {runTypeCacheSource} = response;
+      if (!runTypeCacheSource) throw new Error('evalCacheFor: resolver returned no runTypeCacheSource');
       // Rewrite each `export const t_X = …` to `var t_X = result.t_X = …`
       // so footer lines like `t_X.children = […];` continue to see the
       // binding by bare name AND every entry lands on `result` for
       // enumeration. `var` (not `let`/`const`) so `new Function` can
       // function-scope the declarations across the whole synthesized body.
-      const js = cacheSource.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
+      const js = runTypeCacheSource.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
       const factory = new Function(`const result = {}; ${js}; return result;`);
       return {byHash: factory() as Record<string, RunType>, sites: response.sites ?? []};
     },

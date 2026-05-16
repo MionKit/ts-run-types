@@ -48,15 +48,15 @@ getRuntypeId<string>();
     };
     await withInlineSources(sources, async ({client, sources: augmented}) => {
       const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
-      const response = await client.scanFiles(files, {includeCacheSource: true});
+      const response = await client.scanFiles(files, {includeCacheSources: ['all']});
 
       expect(response.sites.length).toBe(1);
       const site = response.sites[0];
 
       // 1. Evaluate the cache module to find the t_<hash> entry the
       //    resolver assigned to `string`.
-      const cacheSource = response.cacheSource;
-      if (!cacheSource) throw new Error('expected cacheSource in response');
+      const cacheSource = response.runTypeCacheSource;
+      if (!cacheSource) throw new Error('expected runTypeCacheSource in response');
       const byHash = evalCacheModule(cacheSource);
       const stringRunType = byHash[RUNTYPES_VAR_PREFIX + site.id];
       expect(stringRunType).toBeDefined();

@@ -232,7 +232,7 @@ const myAPI = reflectRuntypeId(routes);
     const cacheSource = await withInlineSources(sources, async ({client}) => {
       await rewrite(file, sources[file], client);
       const dump = await client.dump();
-      return dump.cacheSource ?? '';
+      return dump.runTypeCacheSource ?? '';
     });
 
     expect(cacheSource).toContain('export const t_');

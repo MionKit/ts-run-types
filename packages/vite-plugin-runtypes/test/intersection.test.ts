@@ -1,6 +1,6 @@
 // End-to-end intersection-collapse round-trip tests. Mirrors the Go-side
 // suite in internal/resolver/intersection_collapse_test.go but exercises
-// the full pipeline: rewrite → resolver → cacheSource → eval module →
+// the full pipeline: rewrite → resolver → runTypeCacheSource → eval module →
 // assert on the materialised RunType. Every scenario has paired *_static
 // and *_reflect tests per the marker test coverage rule (CLAUDE.md).
 //

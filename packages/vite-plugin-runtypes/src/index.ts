@@ -106,7 +106,7 @@ export default function runtypes(options: PluginOptions) {
       if (id === resolvedParsedFnsVirtualId) {
         return dump.parsedFnsCacheSource ?? 'export const parsedFns = {};\n';
       }
-      return dump.cacheSource ?? '// no runtypes resolved yet\n';
+      return dump.runTypeCacheSource ?? '// no runtypes resolved yet\n';
     },
 
     async transform(this: any, code: string, id: string) {

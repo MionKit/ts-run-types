@@ -12,7 +12,7 @@ import (
 // session. scanFiles([a]) → only a's ids; scanFiles([b]) → only b's ids;
 // scanFiles([a, b]) → union of both. The cache holds entries for every
 // scanned file (dump exposes the whole thing), but the request's
-// runTypes/cacheSource projection only sees the listed files.
+// runTypes/runTypeCacheSource projection only sees the listed files.
 func TestPerRequestScope_FilesOnly(t *testing.T) {
 	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 getRuntypeId<string>();
@@ -23,10 +23,10 @@ getRuntypeId<{a: number}>();
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
 
 	respA := r.Dispatch(protocol.Request{
-		Op:                 protocol.OpScanFiles,
-		Files:              []string{"a.ts"},
-		IncludeRunTypes:    true,
-		IncludeCacheSource: true,
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"a.ts"},
+		IncludeRunTypes:     true,
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
 	})
 	if respA.Error != "" {
 		t.Fatalf("scanFiles a.ts: %s", respA.Error)
@@ -36,10 +36,10 @@ getRuntypeId<{a: number}>();
 	// scanFiles([b]) — the projection should NOT include a's ids, even though
 	// a was scanned just above and the cache still holds those entries.
 	respB := r.Dispatch(protocol.Request{
-		Op:                 protocol.OpScanFiles,
-		Files:              []string{"b.ts"},
-		IncludeRunTypes:    true,
-		IncludeCacheSource: true,
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"b.ts"},
+		IncludeRunTypes:     true,
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
 	})
 	if respB.Error != "" {
 		t.Fatalf("scanFiles b.ts: %s", respB.Error)
@@ -51,17 +51,17 @@ getRuntypeId<{a: number}>();
 	if !containsID(respB.RunTypes, idB) {
 		t.Fatalf("scanFiles([b.ts]) missing its own id %q", idB)
 	}
-	// cacheSource scoping mirrors runTypes scoping.
-	if strings.Contains(respB.CacheSource, idA) {
-		t.Fatalf("scanFiles([b.ts]) cacheSource mentions a.ts's id %q; projection must be request-scoped", idA)
+	// runTypeCacheSource scoping mirrors runTypes scoping.
+	if strings.Contains(respB.RunTypeCacheSource, idA) {
+		t.Fatalf("scanFiles([b.ts]) runTypeCacheSource mentions a.ts's id %q; projection must be request-scoped", idA)
 	}
 
 	// scanFiles([a, b]) — single request, both files, both ids present.
 	respAB := r.Dispatch(protocol.Request{
-		Op:                 protocol.OpScanFiles,
-		Files:              []string{"a.ts", "b.ts"},
-		IncludeRunTypes:    true,
-		IncludeCacheSource: true,
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"a.ts", "b.ts"},
+		IncludeRunTypes:     true,
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindAll},
 	})
 	if respAB.Error != "" {
 		t.Fatalf("scanFiles [a, b]: %s", respAB.Error)
@@ -241,11 +241,11 @@ getRuntypeId<{a: number}>();
 	if !containsID(dumpResp.RunTypes, idB) {
 		t.Fatalf("dump missing b.ts's id %q (expected full in-memory cache)", idB)
 	}
-	if dumpResp.CacheSource == "" {
-		t.Fatalf("dump: expected populated cacheSource")
+	if dumpResp.RunTypeCacheSource == "" {
+		t.Fatalf("dump: expected populated runTypeCacheSource")
 	}
-	if !strings.Contains(dumpResp.CacheSource, "export const t_") {
-		t.Fatalf("dump cacheSource missing `export const t_…` declarations:\n%s", dumpResp.CacheSource)
+	if !strings.Contains(dumpResp.RunTypeCacheSource, "export const t_") {
+		t.Fatalf("dump runTypeCacheSource missing `export const t_…` declarations:\n%s", dumpResp.RunTypeCacheSource)
 	}
 }
 

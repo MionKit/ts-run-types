@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {Request, Response, RunType, Site} from './protocol.ts';
+import type {CacheKind, Request, Response, RunType, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // Optional marker overrides forwarded to the Go binary's CLI flags.
@@ -76,25 +76,25 @@ class MessageTransport {
   }
 }
 
-// ScanFilesOptions opts the scanFiles call into returning runTypes / a
-// pre-rendered cache module projected over the request's files. Both
-// flags are off by default so the rewrite pipeline (which only needs
-// site offsets) pays nothing extra.
+// ScanFilesOptions opts the scanFiles call into returning runTypes / one
+// or more pre-rendered cache module bodies projected over the request's
+// files. Both fields are off by default so the rewrite pipeline (which
+// only needs site offsets) pays nothing extra. Pass `['all']` to
+// includeCacheSources for the legacy "give me everything" behavior.
 export interface ScanFilesOptions {
   includeRunTypes?: boolean;
-  includeCacheSource?: boolean;
+  includeCacheSources?: CacheKind[];
 }
 
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
 // every site detected across the request's files, each tagged with .file
-// so callers can filter or group. runTypes / cacheSource /
-// isTypeCacheSource are populated only when the corresponding flag was
-// set on the call. cacheSource and isTypeCacheSource are paired —
-// includeCacheSource = true populates both.
+// so callers can filter or group. runTypes / runTypeCacheSource /
+// isTypeCacheSource / parsedFnsCacheSource are populated only when the
+// corresponding kind was opted into via includeCacheSources (or `'all'`).
 export interface ScanFilesResult {
   sites: Site[];
   runTypes?: RunType[];
-  cacheSource?: string;
+  runTypeCacheSource?: string;
   isTypeCacheSource?: string;
   parsedFnsCacheSource?: string;
   parsedFnsDiagnostics?: import('./protocol.ts').ParsedFnDiagnostic[];
@@ -121,13 +121,13 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (files.length === 0) throw new Error('scanFiles: files must be non-empty');
     const req: Request = {op: 'scanFiles', files};
     if (opts.includeRunTypes) req.includeRunTypes = true;
-    if (opts.includeCacheSource) req.includeCacheSource = true;
+    if (opts.includeCacheSources?.length) req.includeCacheSources = opts.includeCacheSources;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
     return {
       sites: resp.sites ?? [],
       runTypes: resp.runTypes,
-      cacheSource: resp.cacheSource,
+      runTypeCacheSource: resp.runTypeCacheSource,
       isTypeCacheSource: resp.isTypeCacheSource,
       parsedFnsCacheSource: resp.parsedFnsCacheSource,
       parsedFnsDiagnostics: resp.parsedFnsDiagnostics,

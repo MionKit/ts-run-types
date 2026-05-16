@@ -192,13 +192,19 @@ export interface Site {
   argsCount?: number;
 }
 
+// CacheKind enumerates the rendered cache-module bodies callers can opt
+// into on a scanFiles request via Request.includeCacheSources. Mirrors
+// the Go-side protocol.CacheKind. `'all'` is a forward-compatible
+// shortcut: when present every other kind is treated as requested.
+export type CacheKind = 'runType' | 'isType' | 'parsedFns' | 'all';
+
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
   // scanFiles only — the files to scan in this request. The response's
   // sites cover every listed file (each tagged with .file); when the
-  // include* flags are set, runTypes / cacheSource are projected over
-  // these files only (NOT the cache's session-wide contents — use dump
-  // for that).
+  // include* flags are set, runTypes / runTypeCacheSource are projected
+  // over these files only (NOT the cache's session-wide contents — use
+  // dump for that).
   files?: string[];
   // resolveId only — hash id of the RunType to look up in the cache.
   id?: string;
@@ -207,9 +213,11 @@ export interface Request {
   // scanFiles only — when set, the response includes a runTypes slice
   // covering the request's files.
   includeRunTypes?: boolean;
-  // scanFiles only — when set, the response carries a pre-rendered cache
-  // module body (cacheSource) scoped to the request's files.
-  includeCacheSource?: boolean;
+  // scanFiles only — the rendered cache-module bodies the caller wants
+  // populated in the response, scoped to the request's files. Per-kind
+  // opt-in lets callers pay only for what they need; `'all'` is the
+  // shortcut for every kind.
+  includeCacheSources?: CacheKind[];
 }
 
 export interface Response {
@@ -220,25 +228,26 @@ export interface Response {
   sites?: Site[];
   runTypes?: RunType[];
   // Always populated by `dump`; populated by `scanFiles` when the request
-  // sets includeCacheSource. The body is a JS module exporting one
-  // `export const <RUNTYPES_VAR_PREFIX><hash> = {…}` per cached RunType;
-  // consumers `import * as cache from 'virtual:runtypes-cache'` and look
-  // entries up by `cache[RUNTYPES_VAR_PREFIX + id]`.
-  cacheSource?: string;
-  // Sibling of `cacheSource` carrying the precompiled isType validator
-  // factories. Body shape:
+  // opts into `'runType'` (or `'all'`) via includeCacheSources. The body
+  // is a JS module exporting one `export const <RUNTYPES_VAR_PREFIX><hash>
+  // = {…}` per cached RunType; consumers `import * as cache from
+  // 'virtual:runtypes-cache'` and look entries up by
+  // `cache[RUNTYPES_VAR_PREFIX + id]`.
+  runTypeCacheSource?: string;
+  // Sibling of `runTypeCacheSource` carrying the precompiled isType
+  // validator factories. Body shape:
   //   export function get_isType_<hash>(utl){…}
   // Consumers import the factory and invoke it themselves with whatever
   // `utl` they want bound into the closure — the module never
-  // pre-invokes a factory. Populated under the same conditions as
-  // `cacheSource` (full cache on `dump`, scoped to request files on
-  // `scanFiles` with `includeCacheSource`).
+  // pre-invokes a factory. Populated by `dump` and on `scanFiles` when
+  // the caller opts into `'isType'` (or `'all'`).
   isTypeCacheSource?: string;
-  // Sibling of `cacheSource` carrying the parsed-fn data the Go binary
-  // extracted from every `registerPureFnFactory(<ns>, <fnName>, <factory>)`
-  // call. Body exports a single `parsedFns: Record<"<ns>::<fn>",
+  // Sibling of `runTypeCacheSource` carrying the parsed-fn data the Go
+  // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
+  // <factory>)` call. Body exports a single `parsedFns: Record<"<ns>::<fn>",
   // ParsedFactoryFn>` consumed by `@mionjs/ts-go-run-types`'s
-  // `registerPureFnFactory` at runtime.
+  // `registerPureFnFactory` at runtime. Populated by `dump` and on
+  // `scanFiles` when the caller opts into `'parsedFns'` (or `'all'`).
   parsedFnsCacheSource?: string;
   // Wire-side diagnostic records emitted alongside `parsedFnsCacheSource`.
   // The plugin re-emits each one via `this.warn` in canonical tsc format
