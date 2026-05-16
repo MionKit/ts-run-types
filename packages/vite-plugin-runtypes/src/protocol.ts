@@ -50,6 +50,17 @@ export enum ReflectionKind {
 // another type by id without inlining the referenced node.
 export const KIND_REF = -1;
 
+// Re-export the cache-module settings generated from
+// internal/constants/constants.go so callers have a single place to import
+// the prefix from. Single source of truth lives in Go; the .generated.ts
+// file is rebuilt via `pnpm run gen:ts-constants`.
+export {
+  CACHE_MODULES,
+  RUNTYPES_VAR_PREFIX,
+  RUNTYPES_MODULE_NAME,
+  type CacheModuleSettings,
+} from './runtypes-constants.generated.ts';
+
 export interface ClassRef {
   // builtin: "Date" | "Map" | "Set" | "RegExp" — footer wires
   // `t.classType = globalThis.<builtin>`.
@@ -169,9 +180,10 @@ export interface Response {
   sites?: Site[];
   runTypes?: RunType[];
   // Always populated by `dump`; populated by `scanFiles` when the request
-  // sets includeCacheSource. The body is a JS module exporting __runtypes
-  // and __sites; consumers evaluate it (or hand it to a bundler) without
-  // needing a TS loader.
+  // sets includeCacheSource. The body is a JS module exporting one
+  // `export const <RUNTYPES_VAR_PREFIX><hash> = {…}` per cached RunType;
+  // consumers `import * as cache from 'virtual:runtypes-cache'` and look
+  // entries up by `cache[RUNTYPES_VAR_PREFIX + id]`.
   cacheSource?: string;
   error?: string;
 }

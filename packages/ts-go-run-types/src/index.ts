@@ -53,31 +53,3 @@ export function reflectRuntypeId<T>(_value: T, id?: RuntypeId<T>): RuntypeId<T> 
   }
   return id;
 }
-
-// Cache lookup. The plugin emits a virtual module containing the
-// fully-knotted reflection-shape RunType graph keyed by hash id. Consumers use
-// `getMeta(id)` to read metadata for a given id.
-//
-// The lookup is resolved lazily so this package can be imported without a
-// hard dependency on the virtual cache module — useful for testing /
-// library code that wants the marker type without pulling in the runtime.
-let runtypeMetaResolver: ((id: RuntypeId<unknown>) => unknown | undefined) | undefined;
-
-/**
- * Install the cache resolver. The vite-plugin-runtypes virtual module
- * calls this on first import so subsequent `getMeta(id)` calls hit the
- * cache. Library consumers should not call this directly.
- */
-export function __setRuntypeMetaResolver(fn: (id: RuntypeId<unknown>) => unknown | undefined): void {
-  runtypeMetaResolver = fn;
-}
-
-/**
- * Look up the reflection-shape RunType metadata for a given id. Returns
- * `undefined` if the cache has not been wired up (no plugin active) or if
- * the id is unknown to the cache.
- */
-export function getMeta(id: RuntypeId<unknown>): unknown | undefined {
-  if (runtypeMetaResolver === undefined) return undefined;
-  return runtypeMetaResolver(id);
-}

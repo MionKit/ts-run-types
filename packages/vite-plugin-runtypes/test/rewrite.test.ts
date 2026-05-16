@@ -235,17 +235,19 @@ const myAPI = reflectRuntypeId(routes);
       return dump.cacheSource ?? '';
     });
 
-    expect(cacheSource).toContain('export const __runtypes');
-    expect(cacheSource).toMatch(/export const __runtypes = new Map\(/);
+    expect(cacheSource).toContain('export const t_');
 
-    const js = cacheSource.replace(/export const /g, 'result.');
+    // Same rewrite as inline.ts/evalCacheFor — see the comment there.
+    const js = cacheSource.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
     const factory = new Function(`const result = {}; ${js}; return result;`);
-    const result = factory() as {__runtypes: Map<string, any>; __sites: any[]};
-    const runtypesMap = result.__runtypes;
-    expect(runtypesMap).toBeInstanceOf(Map);
+    const result = factory() as Record<string, any>;
+    const entries = Object.values(result).filter(
+      (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t
+    );
+    expect(entries.length).toBeGreaterThan(0);
 
-    const roots = Array.from(runtypesMap.values()).filter(
-      (t: any) =>
+    const roots = entries.filter(
+      (t) =>
         t.kind === ReflectionKind.objectLiteral && Array.isArray(t.children) && t.children.some((m: any) => m.name === 'sayHello')
     );
     expect(roots.length).toBeGreaterThan(0);
@@ -254,7 +256,7 @@ const myAPI = reflectRuntypeId(routes);
     expect(sayHello).toBeDefined();
     expect(sayHello.parent).toBe(root);
     // Every cached RunType must carry its `id` (the primary cache handle).
-    for (const t of runtypesMap.values()) {
+    for (const t of entries) {
       expect(typeof t.id).toBe('string');
       expect(t.id.length).toBeGreaterThan(0);
     }
@@ -282,8 +284,7 @@ const myAPI = reflectRuntypeId(routes);
       });
       expect(out.status).toBe(0);
       const generated = fs.readFileSync(tmp, 'utf8');
-      expect(generated).toContain('export const __runtypes');
-      expect(generated).toMatch(/const t_[A-Za-z][A-Za-z0-9_]*\s*=/);
+      expect(generated).toMatch(/export const t_[A-Za-z][A-Za-z0-9_]*\s*=/);
       // Output is now plain JS — no TypeScript annotations to assert against.
       expect(generated).not.toContain(': any');
       fs.unlinkSync(tmp);

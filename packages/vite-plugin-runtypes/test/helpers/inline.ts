@@ -18,7 +18,7 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {it, type TestAPI} from 'vitest';
 import {ResolverClient} from '../../src/resolver-client.ts';
 import {rewrite} from '../../src/rewrite.ts';
-import type {Site, RunType} from '../../src/protocol.ts';
+import {RUNTYPES_VAR_PREFIX, type Site, type RunType} from '../../src/protocol.ts';
 
 const ROOT = path.resolve(__dirname, '../../../..');
 export const BIN = path.resolve(ROOT, 'bin/ts-go-run-types');
@@ -148,17 +148,19 @@ export async function rewriteInline(
 }
 
 // Cache shape produced by evaluating the rendered runtypes-cache module.
-// Mirrors what `virtual:runtypes-cache` exports at runtime.
+// `byHash` mirrors what `virtual:runtypes-cache` exports as a namespace
+// (one `<RUNTYPES_VAR_PREFIX><hash>` key per cached RunType). `sites` is
+// pulled straight off the daemon response — the cache module itself no
+// longer carries them.
 export interface EvaluatedCache {
-  __runtypes: Map<string, RunType>;
-  __sites: Site[];
+  byHash: Record<string, RunType>;
+  sites: Site[];
 }
 
 // Full pipeline: scan every test source in ONE scanFiles request. The
 // Go side projects runTypes / cacheSource over exactly those files,
 // independent of anything else in the cache. The rendered module body
-// is evaluated through `new Function` and returned as `{__runtypes,
-// __sites}`.
+// is evaluated through `new Function` and returned as `{byHash, sites}`.
 export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
@@ -169,9 +171,14 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
       recordResponse(response);
       const {cacheSource} = response;
       if (!cacheSource) throw new Error('evalCacheFor: resolver returned no cacheSource');
-      const js = cacheSource.replace(/export const /g, 'result.');
+      // Rewrite each `export const t_X = …` to `var t_X = result.t_X = …`
+      // so footer lines like `t_X.children = […];` continue to see the
+      // binding by bare name AND every entry lands on `result` for
+      // enumeration. `var` (not `let`/`const`) so `new Function` can
+      // function-scope the declarations across the whole synthesized body.
+      const js = cacheSource.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
       const factory = new Function(`const result = {}; ${js}; return result;`);
-      return factory() as EvaluatedCache;
+      return {byHash: factory() as Record<string, RunType>, sites: response.sites ?? []};
     },
     opts
   );
@@ -181,9 +188,9 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 // Throws if no site was recorded or the id is missing — both indicate the
 // source under test didn't match the marker the way the test expected.
 export function getTypeFor(cache: EvaluatedCache, file: string): RunType {
-  const site = cache.__sites.find((s) => s.file === file);
+  const site = cache.sites.find((s) => s.file === file);
   if (!site) throw new Error(`no site recorded for ${file}`);
-  const t = cache.__runtypes.get(site.id);
+  const t = cache.byHash[RUNTYPES_VAR_PREFIX + site.id];
   if (!t) throw new Error(`type ${site.id} not in cache for ${file}`);
   return t;
 }

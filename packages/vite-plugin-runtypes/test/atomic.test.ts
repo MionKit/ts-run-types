@@ -374,7 +374,7 @@ reflectRuntypeId(re);
   // ---- regexp — literal form (trace harvests source + flags) ----------
   //
   // End-to-end shape proof: the rendered cache must produce a real `RegExp`
-  // instance via the emitter's `new RegExp(source, flags)` footer expression.
+  // instance via the emitter's `/source/flags` regex-literal footer expression.
 
   runTest(
     'regexp literal reflect (direct /abc/i) -> real RegExp',
@@ -439,6 +439,52 @@ getRuntypeId<typeof re>();
       expect(t.kind).toBe(ReflectionKind.literal);
       expect((t.literal as RegExp).source).toBe('abc');
       expect((t.literal as RegExp).flags).toBe('i');
+    }
+  );
+
+  // ---- regexp — multi-escape (`\/` × N) ---------------------------------
+  //
+  // The split-on-last-/ harvest must keep every `\/` inside the source intact
+  // so the emitter can reproduce the literal verbatim. We exercise both the
+  // reflect (direct literal) and static (typeof binding) forms.
+
+  runTest(
+    'regexp literal reflect (multiple \\/ escapes) -> source/flags preserved',
+    {
+      'regexp_literal.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+reflectRuntypeId(/^https?:\\/\\/example\\/path$/gi);
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      const t: any = getTypeFor(cache, 'regexp_literal.ts');
+      expect(t.kind).toBe(ReflectionKind.literal);
+      expect(t.literal).toBeInstanceOf(RegExp);
+      const re = t.literal as RegExp;
+      expect(re.source).toBe('^https?:\\/\\/example\\/path$');
+      expect(re.flags).toBe('gi');
+      expect(re.test('https://example/path')).toBe(true);
+      expect(re.test('ftp://example/path')).toBe(false);
+    }
+  );
+
+  runTest(
+    'regexp literal static (typeof binding, multiple \\/ escapes)',
+    {
+      'regexp_literal.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+const re = /^https?:\\/\\/example\\/path$/gi;
+getRuntypeId<typeof re>();
+`,
+    },
+    async (sources) => {
+      const cache = await evalCacheFor(sources);
+      const t: any = getTypeFor(cache, 'regexp_literal.ts');
+      expect(t.kind).toBe(ReflectionKind.literal);
+      expect(t.literal).toBeInstanceOf(RegExp);
+      const re = t.literal as RegExp;
+      expect(re.source).toBe('^https?:\\/\\/example\\/path$');
+      expect(re.flags).toBe('gi');
+      expect(re.test('https://example/path')).toBe(true);
     }
   );
 
@@ -810,7 +856,7 @@ reflectRuntypeId(v);
     },
     async (sources) => {
       const cache = await evalCacheFor(sources);
-      const stringEntries = Array.from(cache.__runtypes.values()).filter((t) => t.kind === ReflectionKind.string);
+      const stringEntries = Object.values(cache.byHash).filter((t) => t.kind === ReflectionKind.string);
       expect(stringEntries.length).toBe(1);
     }
   );

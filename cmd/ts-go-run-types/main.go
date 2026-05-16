@@ -196,7 +196,7 @@ func main() {
 		}
 	}
 	if outTS != "" {
-		if err := writeFile(outTS, func(w io.Writer) error { return emit.TSModule(w, dump) }); err != nil {
+		if err := writeFile(outTS, func(w io.Writer) error { return emit.RunTypesModule(w, dump) }); err != nil {
 			fatal("out-ts: %v", err)
 		}
 	}

@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:logs": "vitest run --reporter=default --reporter=./scripts/runtypes-logs-reporter.mjs",
     "check:go-binary": "bash scripts/check-go-binary.sh",
+    "gen:ts-constants": "go run ./cmd/gen-ts-constants > packages/vite-plugin-runtypes/src/runtypes-constants.generated.ts",
     "format": "prettier --write 'packages/**/*.{ts,md}'",
     "check-format": "prettier --check 'packages/**/*.{ts,md}'",
     "check-format-pre-commit": "prettier --check",
