@@ -12,8 +12,8 @@ import (
 
 // RunTypesModule writes the runtime artifact: a self-contained JS module that
 // declares every cached type as a top-level `export const <prefix><hash>`,
-// then a footer block that resolves refs and wires up `parent` by direct
-// assignment so consumers receive a fully-knotted reflection `RunType` graph.
+// then a footer block that resolves refs by direct assignment so consumers
+// receive a fully-knotted reflection `RunType` graph.
 //
 // The variable prefix and module name are read from the
 // `CacheModules["runTypes"]` settings entry, so adding a sibling module is a
@@ -43,7 +43,7 @@ func RunTypesModule(writer io.Writer, dump protocol.Dump) error {
 	}
 
 	buffered.line("")
-	buffered.line("// --- knot refs, parents, and runtime values ---")
+	buffered.line("// --- knot refs and runtime values ---")
 	for _, runType := range dump.RunTypes {
 		if runType == nil {
 			continue
@@ -93,9 +93,6 @@ func headerLiteral(runType *protocol.RunType) string {
 	}
 	if runType.IsSafePropName {
 		fields["isSafePropName"] = true
-	}
-	if runType.IsUnionDiscriminator {
-		fields["isUnionDiscriminator"] = true
 	}
 	if runType.Position != nil {
 		fields["position"] = *runType.Position
@@ -157,29 +154,23 @@ func writeFooter(buffered *bufWriter, settings constants.CacheModuleSettings, ru
 	}
 	if len(runType.Parameters) > 0 {
 		buffered.line(fmt.Sprintf("%s.parameters = [%s];", name, joinRefs(settings, runType.Parameters)))
-		for _, parameter := range runType.Parameters {
-			if parameter.Kind == protocol.KindRef {
-				buffered.line(fmt.Sprintf("%s.parent = %s;", varName(settings, parameter.ID), name))
-			}
-		}
 	}
 	if len(runType.Children) > 0 {
 		buffered.line(fmt.Sprintf("%s.children = [%s];", name, joinRefs(settings, runType.Children)))
-		for _, child := range runType.Children {
-			if child.Kind == protocol.KindRef {
-				buffered.line(fmt.Sprintf("%s.parent = %s;", varName(settings, child.ID), name))
-			}
-		}
 	}
 	// safeUnionChildren — same ref objects as Children, reordered so
 	// superset shapes precede their subset equivalents. Emitted as a
 	// parallel array; consumers derive per-member safe position via
-	// `safeUnionChildren.indexOf(member)`. The JSON wire form carries
-	// per-ref `safeUnionPosition`; that field is intentionally NOT
-	// reproduced in the in-memory module shape because canonical nodes
-	// are shared singletons and can't hold a per-parent position.
+	// `safeUnionChildren.indexOf(member)`.
 	if len(runType.SafeUnionChildren) > 0 {
 		buffered.line(fmt.Sprintf("%s.safeUnionChildren = [%s];", name, joinRefs(settings, runType.SafeUnionChildren)))
+	}
+	// unionDiscriminators — parallel to safeUnionChildren; entry i is a
+	// ref to the discriminator property within safeUnionChildren[i].
+	// Non-object slots stay null/undefined; the slice is emitted only
+	// when at least one slot is populated.
+	if len(runType.UnionDiscriminators) > 0 {
+		buffered.line(fmt.Sprintf("%s.unionDiscriminators = [%s];", name, joinRefs(settings, runType.UnionDiscriminators)))
 	}
 	// decorators — surviving object-literal types from a collapsed
 	// `primitive & {brand}` intersection.

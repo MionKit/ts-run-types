@@ -11,16 +11,15 @@ import (
 //  2. Reorders the object-like bucket so superset shapes precede their
 //     subset equivalents (per mion's sortUnreachableTypes) — prevents
 //     unreachable union members at validate time;
-//  3. Records the resulting order on the union's SafeUnionChildren slice
-//     and stamps each child ref with its SafeUnionPosition;
-//  4. Runs the discriminator pass — marks property nodes that can serve
-//     as a fast-path discriminator for the union (named-shared or
-//     unique-prop).
+//  3. Records the resulting order on the union's SafeUnionChildren slice;
+//  4. Runs the discriminator pass — populates UnionDiscriminators with
+//     per-member refs to the property selected as the union's
+//     discriminator (named-shared or unique-prop). The slot at index i
+//     is parallel to SafeUnionChildren[i]; non-object members get nil.
 //
 // Children are ref RunTypes (Kind == KindRef) pointing at canonical
-// entries in cache.nodes. We inspect the canonical entry but write
-// SafeUnionPosition onto the ref wrapper so the same canonical node can
-// hold different positions in different parent unions.
+// entries in cache.nodes. SafeUnionChildren shares the same ref
+// pointers; consumers derive per-member position via indexOf.
 func (cache *Cache) finalizeUnion(node *protocol.RunType) {
 	if len(node.Children) <= 1 {
 		// Degenerate union — nothing to reorder, nothing to discriminate.
@@ -38,15 +37,7 @@ func (cache *Cache) finalizeUnion(node *protocol.RunType) {
 	}
 	node.SafeUnionChildren = safeOrder
 
-	// Map ref → safe position. Since refs in node.Children are the same
-	// pointers as those in safeOrder (we never copy), pointer-identity
-	// lookup is sufficient.
-	for i, ref := range safeOrder {
-		position := i
-		ref.SafeUnionPosition = &position
-	}
-
-	cache.markDiscriminators(sortedObjects)
+	cache.markDiscriminators(node, sortedObjects)
 }
 
 // splitUnionItems mirrors mion's splitUnionItems
@@ -173,28 +164,39 @@ func (cache *Cache) propertyTypeIDSet(ref *protocol.RunType) map[string]struct{}
 	return out
 }
 
-// markDiscriminators marks suitable property nodes as
-// IsUnionDiscriminator. Mirrors mion's markDiscriminators +
-// getDiscriminatorProperties + getUniqueDiscriminatorProperties (
-// unionDiscriminator.ts:122-251).
-func (cache *Cache) markDiscriminators(objectRefs []*protocol.RunType) {
+// discriminatorAssignment describes one (object member, chosen property)
+// pair selected by a discriminator pass. The object's slot in
+// node.SafeUnionChildren receives propRef.
+type discriminatorAssignment struct {
+	objectRef *protocol.RunType
+	propRef   *protocol.RunType
+	typeID    string
+}
+
+// markDiscriminators populates the union's UnionDiscriminators slot
+// with per-member refs to the property selected as the discriminator.
+// Mirrors mion's markDiscriminators + getDiscriminatorProperties +
+// getUniqueDiscriminatorProperties (unionDiscriminator.ts:122-251).
+// Tries shared-name first (every member has a property with the same
+// name and distinct type-ids); falls back to unique-prop (each member
+// picks its own property whose type-id is unique across the union).
+func (cache *Cache) markDiscriminators(node *protocol.RunType, objectRefs []*protocol.RunType) {
 	if len(objectRefs) < 2 {
 		return
 	}
-	if !cache.markSharedNameDiscriminator(objectRefs) {
-		cache.markUniquePropDiscriminator(objectRefs)
+	if cache.tryMarkSharedNameDiscriminator(node, objectRefs) {
+		return
 	}
+	cache.tryMarkUniquePropDiscriminator(node, objectRefs)
 }
 
-// markSharedNameDiscriminator finds the lowest-cost property name shared
-// across every object member whose type-id is unique per member.
-// Reports true when at least one qualifying name was marked.
-func (cache *Cache) markSharedNameDiscriminator(objectRefs []*protocol.RunType) bool {
-	type propEntry struct {
-		propNode *protocol.RunType
-		typeID   string
-	}
-	byName := make(map[string][]propEntry)
+// tryMarkSharedNameDiscriminator finds the lowest-cost property name
+// shared across every object member with distinct per-member type-ids.
+// On success, writes one ref per object member into the union's
+// UnionDiscriminators slot (parallel to SafeUnionChildren). Reports
+// true when a qualifying name was found.
+func (cache *Cache) tryMarkSharedNameDiscriminator(node *protocol.RunType, objectRefs []*protocol.RunType) bool {
+	byName := make(map[string][]discriminatorAssignment)
 	for _, ref := range objectRefs {
 		canonical := cache.nodes[ref.ID]
 		if canonical == nil {
@@ -212,17 +214,13 @@ func (cache *Cache) markSharedNameDiscriminator(objectRefs []*protocol.RunType) 
 			if memberNode.Child != nil {
 				childID = memberNode.Child.ID
 			}
-			byName[memberNode.Name] = append(byName[memberNode.Name], propEntry{memberNode, childID})
+			byName[memberNode.Name] = append(byName[memberNode.Name], discriminatorAssignment{objectRef: ref, propRef: childRef, typeID: childID})
 		}
 	}
 
 	type candidate struct {
-		name    string
-		entries []propEntry
-		// complexity proxy — count of children transitively walked.
-		// We use the entries' raw type-id strings sorted as a stable
-		// secondary key, then prefer the candidate whose total
-		// summed-length-of-typeids is smallest (least complex).
+		name       string
+		entries    []discriminatorAssignment
 		complexity int
 	}
 	var candidates []candidate
@@ -230,13 +228,12 @@ func (cache *Cache) markSharedNameDiscriminator(objectRefs []*protocol.RunType) 
 		if len(entries) != len(objectRefs) {
 			continue
 		}
-		// Each entry's type-id must be unique among the group's entries.
-		typeIDs := make(map[string]int, len(entries))
+		typeIDCounts := make(map[string]int, len(entries))
 		for _, entry := range entries {
-			typeIDs[entry.typeID]++
+			typeIDCounts[entry.typeID]++
 		}
 		allDistinct := true
-		for _, count := range typeIDs {
+		for _, count := range typeIDCounts {
 			if count != 1 {
 				allDistinct = false
 				break
@@ -261,18 +258,22 @@ func (cache *Cache) markSharedNameDiscriminator(objectRefs []*protocol.RunType) 
 			pick = cand
 		}
 	}
-	for _, entry := range pick.entries {
-		entry.propNode.IsUnionDiscriminator = true
-	}
+	cache.assignUnionDiscriminators(node, pick.entries)
 	return true
 }
 
-// markUniquePropDiscriminator marks, per object member, one property
-// whose type-id is unique across all other members in the union. If
-// multiple unique properties exist on a member, the one with the
-// shortest (least-complex) type-id wins.
-func (cache *Cache) markUniquePropDiscriminator(objectRefs []*protocol.RunType) {
-	memberProps := make([][]*protocol.RunType, len(objectRefs))
+// tryMarkUniquePropDiscriminator picks one property per object member
+// whose type-id is unique across the union. If multiple unique
+// properties exist on a member, the one with the shortest (least
+// complex) type-id wins. Members that have no unique property leave
+// their slot in UnionDiscriminators nil. Reports true when at least
+// one member was assigned.
+func (cache *Cache) tryMarkUniquePropDiscriminator(node *protocol.RunType, objectRefs []*protocol.RunType) bool {
+	type propCandidate struct {
+		propRef *protocol.RunType
+		typeID  string
+	}
+	memberCandidates := make([][]propCandidate, len(objectRefs))
 	memberTypeIDs := make([]map[string]struct{}, len(objectRefs))
 	for i, ref := range objectRefs {
 		canonical := cache.nodes[ref.ID]
@@ -280,7 +281,7 @@ func (cache *Cache) markUniquePropDiscriminator(objectRefs []*protocol.RunType) 
 			continue
 		}
 		ids := make(map[string]struct{})
-		var props []*protocol.RunType
+		var candidates []propCandidate
 		for _, childRef := range canonical.Children {
 			memberNode := cache.nodes[childRef.ID]
 			if memberNode == nil {
@@ -289,29 +290,29 @@ func (cache *Cache) markUniquePropDiscriminator(objectRefs []*protocol.RunType) 
 			if memberNode.Kind != protocol.KindProperty && memberNode.Kind != protocol.KindPropertySignature {
 				continue
 			}
-			props = append(props, memberNode)
+			childID := ""
 			if memberNode.Child != nil {
-				ids[memberNode.Child.ID] = struct{}{}
+				childID = memberNode.Child.ID
 			}
+			candidates = append(candidates, propCandidate{propRef: childRef, typeID: childID})
+			ids[childID] = struct{}{}
 		}
-		memberProps[i] = props
+		memberCandidates[i] = candidates
 		memberTypeIDs[i] = ids
 	}
 
-	for i, props := range memberProps {
-		var picked *protocol.RunType
+	var assigned []discriminatorAssignment
+	for i, candidates := range memberCandidates {
+		var picked *propCandidate
 		pickedComplexity := 0
-		for _, propNode := range props {
-			childID := ""
-			if propNode.Child != nil {
-				childID = propNode.Child.ID
-			}
+		for k := range candidates {
+			cand := &candidates[k]
 			unique := true
 			for j, otherIDs := range memberTypeIDs {
 				if i == j {
 					continue
 				}
-				if _, hit := otherIDs[childID]; hit {
+				if _, hit := otherIDs[cand.typeID]; hit {
 					unique = false
 					break
 				}
@@ -319,14 +320,51 @@ func (cache *Cache) markUniquePropDiscriminator(objectRefs []*protocol.RunType) 
 			if !unique {
 				continue
 			}
-			complexity := len(childID)
+			complexity := len(cand.typeID)
 			if picked == nil || complexity < pickedComplexity {
-				picked = propNode
+				picked = cand
 				pickedComplexity = complexity
 			}
 		}
 		if picked != nil {
-			picked.IsUnionDiscriminator = true
+			assigned = append(assigned, discriminatorAssignment{
+				objectRef: objectRefs[i],
+				propRef:   picked.propRef,
+				typeID:    picked.typeID,
+			})
 		}
 	}
+	if len(assigned) == 0 {
+		return false
+	}
+	cache.assignUnionDiscriminators(node, assigned)
+	return true
+}
+
+// assignUnionDiscriminators writes one entry per (objectRef, propRef)
+// pair into node.UnionDiscriminators, slotted at the position of
+// objectRef within node.SafeUnionChildren. Non-object slots (simple /
+// any) remain nil. The slice is allocated to len(SafeUnionChildren)
+// on first call.
+func (cache *Cache) assignUnionDiscriminators(node *protocol.RunType, entries []discriminatorAssignment) {
+	if node.UnionDiscriminators == nil {
+		node.UnionDiscriminators = make([]*protocol.RunType, len(node.SafeUnionChildren))
+	}
+	for _, entry := range entries {
+		slot := indexOfRef(node.SafeUnionChildren, entry.objectRef)
+		if slot >= 0 {
+			node.UnionDiscriminators[slot] = entry.propRef
+		}
+	}
+}
+
+// indexOfRef returns the position of ref in refs by pointer identity,
+// or -1 if not present.
+func indexOfRef(refs []*protocol.RunType, ref *protocol.RunType) int {
+	for i, candidate := range refs {
+		if candidate == ref {
+			return i
+		}
+	}
+	return -1
 }
