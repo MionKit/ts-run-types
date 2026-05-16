@@ -74,6 +74,17 @@ import {initCache as initRunTypesCache} from './caches/runTypesCache.ts';
 import {getJitUtils as _getJitUtilsForInit} from './jit/jitUtils.ts';
 initRunTypesCache(_getJitUtilsForInit());
 
+// HMR: refresh the run-type registry whenever the cache module
+// re-evaluates after a user-file change. Production builds strip the
+// `if (hot)` block at bundle time.
+type _HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
+const _hot = (import.meta as unknown as {hot?: _HMR}).hot;
+if (_hot) {
+  _hot.accept('./caches/runTypesCache.ts', (newMod) => {
+    newMod?.initCache?.(_getJitUtilsForInit());
+  });
+}
+
 export {
   flattenUnionDiscriminators,
   type DiscriminatorPropLike,

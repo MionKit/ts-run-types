@@ -52,3 +52,20 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   validatorCache.set(id, validator);
   return validator;
 }
+
+// HMR: when the isType cache module re-evaluates (because the plugin's
+// handleHotUpdate invalidated it after a user-file change), re-register
+// every entry against the live jitUtils. `initCache` is idempotent —
+// `addToJitCache` overwrites by jitFnHash — so existing entries are
+// safely refreshed and any new ones come online. The `validatorCache`
+// here keeps its old entries; new types get new structural ids so the
+// cache lookup for any new id misses → a fresh validator is built.
+// In a production build `import.meta.hot` is statically undefined and
+// Rollup tree-shakes the whole `if (hot)` block out.
+type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
+const hot = (import.meta as unknown as {hot?: HMR}).hot;
+if (hot) {
+  hot.accept('./caches/isTypeCache.ts', (newMod) => {
+    newMod?.initCache?.(getJitUtils());
+  });
+}

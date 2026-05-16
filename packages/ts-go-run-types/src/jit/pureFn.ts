@@ -82,6 +82,19 @@ export function registerPureFnFactory(
   return compiled;
 }
 
+// HMR: when the parsedFns cache module re-evaluates after a user-file
+// change, re-register every entry against the live jitUtils so future
+// `registerPureFnFactory` calls see updated metadata. `initCache` is
+// idempotent — `addParsedFn` overwrites by composite key. Production
+// builds strip the whole block at bundle time.
+type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
+const hot = (import.meta as unknown as {hot?: HMR}).hot;
+if (hot) {
+  hot.accept('../caches/parsedFnsCache.ts', (newMod) => {
+    newMod?.initCache?.(getJitUtils());
+  });
+}
+
 /** Creates a proxy of jitUtils that records all pure function accesses (getPureFn, usePureFn, etc.) */
 function createDependencyTrackingProxy(): {proxy: JITUtils; getDependencies: () => Set<string>} {
   const dependencies = new Set<string>();
