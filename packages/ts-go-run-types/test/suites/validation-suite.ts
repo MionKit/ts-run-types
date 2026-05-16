@@ -745,7 +745,21 @@ export const VALIDATION_SUITE = {
 
     class_simple: {
       title: 'class MySerializableClass with two atomic props',
-      description: "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectIsType. The serializer still has two known artifacts that block activation: (a) class.prototype is projected as a Property (mion strips it via getJitChildren); (b) classes leak references to lib.d.ts globals (e.g. VarDate) on their prototype chain, which our cache projects and the renderer renders. Both surface as extra Children in the AND chain that don't match the expected class instance. Activation will land alongside a serializer pass that filters these synthetic Children.",
+      description: "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectIsType. The serializer filters synthetic `prototype` members from class projections so the AND chain only includes user-declared properties + methods (methods drop out via the function-skip rule).",
+      isType: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        return createIsType<MySerializableClass>();
+      },
       getSamples: () => {
         class Match {
           date = new Date();
@@ -755,8 +769,8 @@ export const VALIDATION_SUITE = {
           }
         }
         return {
-          valid: [new Match(), {date: new Date(), name: 'x'}],
-          invalid: [{date: 'not date', name: 'x'}, null, 'not object'],
+          valid: [new Match(), {date: new Date(), name: 'x'}, {date: new Date(), name: 'x', someMethod: () => null}],
+          invalid: [{date: 'not date', name: 'x'}, {date: new Date()}, {name: 'x'}, null, 'not object'],
         };
       },
     },

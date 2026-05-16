@@ -857,6 +857,18 @@ func (cache *Cache) projectMembersInto(
 	asClass bool,
 ) {
 	for i, propertySymbol := range properties {
+		// Skip TypeScript-synthesized members that aren't part of
+		// the user's declared shape:
+		//   - `prototype`: the class constructor's prototype
+		//     reference. Shows up on class types via the constructor
+		//     symbol and produces self-recursive child entries.
+		//     Mion's `getJitChildren` filters it the same way.
+		// Apply only on class projections — interfaces / object
+		// literals can legally have a property literally named
+		// "prototype" (rare but possible).
+		if asClass && propertySymbol != nil && propertySymbol.Name == "prototype" {
+			continue
+		}
 		cache.appendProperty(node, propertySymbol, asClass, i)
 	}
 	for i, indexInfo := range cache.typeChecker.GetIndexInfosOfType(tsType) {
