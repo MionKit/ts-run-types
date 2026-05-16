@@ -46,6 +46,7 @@ describe('isType / OBJECT', () => {
   it('{[key: string]: {[key: string]: Date}}', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_date_value));
   it('() => void', () => assertIsType(VALIDATION_SUITE.OBJECT.function_top_level));
 
+  it('Record<"a" | "b", number>', () => assertIsType(VALIDATION_SUITE.OBJECT.record_union_keys));
   it('{[key: string]: string | number}', () => assertIsType(VALIDATION_SUITE.OBJECT.union_value_index));
   it('{kind: "a" | "b"; n: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.object_with_union_prop));
 

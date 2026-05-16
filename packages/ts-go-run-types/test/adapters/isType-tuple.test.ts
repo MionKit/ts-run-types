@@ -33,6 +33,8 @@ describe('isType / TUPLE', () => {
   it('TupleCircular = [..., TupleCircular?]', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_circular));
   it('[number, () => any] — function slot must be undefined', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
   it('[number, ...string[]] — Rest tuple member', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_rest));
+  it('[number, bigint?, boolean?, number?] — multiple trailing optionals', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
+  it('[name: string, age: number] — named labels', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_named_labels));
 
   it('all tuple isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.TUPLE).filter((c) => c.isType).length;
