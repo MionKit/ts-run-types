@@ -66,15 +66,20 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 		// Date is treated as atomic (see KindClass arm in Emit); other
 		// classes go through the same emit path as interfaces (Children
 		// AND-chain) since ClassRunType extends InterfaceRunType in mion.
-		// Non-serializable / Map / Set subkinds remain unsupported until
-		// their own emit lands.
-		if rt.SubKind == protocol.SubKindDate {
-			return true
-		}
-		if rt.SubKind == protocol.SubKindNone {
+		// Map / Set get their own arms that validate element types via
+		// `.entries()` / `.values()` iteration. NonSerializable remains
+		// unsupported.
+		switch rt.SubKind {
+		case protocol.SubKindDate, protocol.SubKindNone, protocol.SubKindMap, protocol.SubKindSet:
 			return true
 		}
 		return false
+	case protocol.KindPromise:
+		// Mion treats Promise<T> as a thenable check at the isType
+		// layer — the wrapped T isn't validated synchronously (the
+		// promise hasn't resolved yet). Use `Awaited<P>` for the
+		// resolved-value type.
+		return true
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return true
 	case protocol.KindIndexSignature:
@@ -237,11 +242,28 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 				Type: CodeE,
 			}
 		}
+		if rt.SubKind == protocol.SubKindMap {
+			return emitMapIsType(rt, ctx, v)
+		}
+		if rt.SubKind == protocol.SubKindSet {
+			return emitSetIsType(rt, ctx, v)
+		}
 		if rt.SubKind != protocol.SubKindNone {
 			panic(fmt.Sprintf("jitfn: isType emitter not implemented for KindClass subKind %d", rt.SubKind))
 		}
 		// Plain user class — fall through to the shared object emit.
 		return emitObjectIsType(rt, ctx, v)
+
+	case protocol.KindPromise:
+		// mion: Promise validation can only check thenable-ness at
+		// runtime — the wrapped T isn't validated synchronously
+		// because the promise hasn't resolved. Callers who want to
+		// validate the resolved value use `Awaited<P>` (tsgo
+		// resolves it to T directly).
+		return JitCode{
+			Code: "typeof " + v + " === 'object' && " + v + " !== null && typeof " + v + ".then === 'function'",
+			Type: CodeE,
+		}
 
 	case protocol.KindEnum:
 		// mion:nodes/atomic/enum.ts:14. Chain of `=== <value>` over
@@ -670,6 +692,153 @@ func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 		return JitCode{Code: "false", Type: CodeE}
 	}
 	return JitCode{Code: "(" + strings.Join(parts, " || ") + ")", Type: CodeE}
+}
+
+// emitMapIsType handles `Map<K, V>` (KindClass + SubKindMap). The
+// serializer projects the type args as two KindParameter wrappers
+// (SubKindMapKey / SubKindMapValue) each carrying the K/V child
+// type. The emit reaches through the wrappers, generates element
+// checks against the wrapper's Child types, and iterates
+// `v.entries()` so each key/value pair gets validated.
+//
+// Body shape (CodeRB):
+//
+//	if (!(v instanceof Map)) return false;
+//	for (const entry0 of v.entries()) {
+//	  const k0 = entry0[0]; const val0 = entry0[1];
+//	  const rk0 = <keyCheck>;   if (!(rk0))  return false;
+//	  const rv0 = <valueCheck>; if (!(rv0))  return false;
+//	}
+//	return true
+//
+// If a key/value type has no validator (e.g. KindAny), that arm of
+// the check collapses and only the surviving side runs.
+func emitMapIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	keyType, valueType := mapKeyValueTypes(rt, ctx)
+	entryVar := ctx.NextLocalVar("entry")
+	var body strings.Builder
+	body.WriteString("if (!(")
+	body.WriteString(v)
+	body.WriteString(" instanceof Map)) return false;\n")
+	body.WriteString("for (const ")
+	body.WriteString(entryVar)
+	body.WriteString(" of ")
+	body.WriteString(v)
+	body.WriteString(".entries()) {\n")
+	if keyType != nil {
+		keyVar := ctx.NextLocalVar("k")
+		body.WriteString("const ")
+		body.WriteString(keyVar)
+		body.WriteString(" = ")
+		body.WriteString(entryVar)
+		body.WriteString("[0];\n")
+		ctx.SetChildAccessor(keyVar)
+		keyJit := ctx.CompileChild(keyType, CodeE)
+		ctx.SetChildAccessor("")
+		if keyJit.Code != "" {
+			resVar := ctx.NextLocalVar("rk")
+			body.WriteString("const ")
+			body.WriteString(resVar)
+			body.WriteString(" = ")
+			body.WriteString(keyJit.Code)
+			body.WriteString(";\nif (!(")
+			body.WriteString(resVar)
+			body.WriteString(")) return false;\n")
+		}
+	}
+	if valueType != nil {
+		valVar := ctx.NextLocalVar("val")
+		body.WriteString("const ")
+		body.WriteString(valVar)
+		body.WriteString(" = ")
+		body.WriteString(entryVar)
+		body.WriteString("[1];\n")
+		ctx.SetChildAccessor(valVar)
+		valJit := ctx.CompileChild(valueType, CodeE)
+		ctx.SetChildAccessor("")
+		if valJit.Code != "" {
+			resVar := ctx.NextLocalVar("rv")
+			body.WriteString("const ")
+			body.WriteString(resVar)
+			body.WriteString(" = ")
+			body.WriteString(valJit.Code)
+			body.WriteString(";\nif (!(")
+			body.WriteString(resVar)
+			body.WriteString(")) return false;\n")
+		}
+	}
+	body.WriteString("}\nreturn true")
+	return JitCode{Code: body.String(), Type: CodeRB}
+}
+
+// emitSetIsType handles `Set<T>` (KindClass + SubKindSet). Same
+// pattern as Map but with a single Argument wrapper (SubKindSetItem)
+// and `.values()` iteration.
+func emitSetIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	itemType := setItemType(rt, ctx)
+	itemVar := ctx.NextLocalVar("item")
+	var body strings.Builder
+	body.WriteString("if (!(")
+	body.WriteString(v)
+	body.WriteString(" instanceof Set)) return false;\n")
+	body.WriteString("for (const ")
+	body.WriteString(itemVar)
+	body.WriteString(" of ")
+	body.WriteString(v)
+	body.WriteString(".values()) {\n")
+	if itemType != nil {
+		ctx.SetChildAccessor(itemVar)
+		itemJit := ctx.CompileChild(itemType, CodeE)
+		ctx.SetChildAccessor("")
+		if itemJit.Code != "" {
+			resVar := ctx.NextLocalVar("ri")
+			body.WriteString("const ")
+			body.WriteString(resVar)
+			body.WriteString(" = ")
+			body.WriteString(itemJit.Code)
+			body.WriteString(";\nif (!(")
+			body.WriteString(resVar)
+			body.WriteString(")) return false;\n")
+		}
+	}
+	body.WriteString("}\nreturn true")
+	return JitCode{Code: body.String(), Type: CodeRB}
+}
+
+// mapKeyValueTypes reaches through the synthetic KindParameter
+// wrappers the serializer puts in Map.Arguments — entry [0] is the
+// key wrapper (SubKindMapKey), entry [1] is the value wrapper
+// (SubKindMapValue) — and returns the wrapped child types. Returns
+// nil for missing slots so the caller can collapse the matching arm
+// of the emit.
+func mapKeyValueTypes(rt *protocol.RunType, ctx *EmitContext) (key, value *protocol.RunType) {
+	if len(rt.Arguments) >= 1 {
+		wrapper := ctx.ResolveRef(rt.Arguments[0])
+		if wrapper != nil {
+			key = wrapper.Child
+		}
+	}
+	if len(rt.Arguments) >= 2 {
+		wrapper := ctx.ResolveRef(rt.Arguments[1])
+		if wrapper != nil {
+			value = wrapper.Child
+		}
+	}
+	return key, value
+}
+
+// setItemType reaches through the synthetic KindParameter wrapper
+// (SubKindSetItem) the serializer puts in Set.Arguments to return
+// the wrapped element type.
+func setItemType(rt *protocol.RunType, ctx *EmitContext) *protocol.RunType {
+	if len(rt.Arguments) == 0 {
+		return nil
+	}
+	wrapper := ctx.ResolveRef(rt.Arguments[0])
+	if wrapper == nil {
+		return nil
+	}
+	return wrapper.Child
 }
 
 // isObjectLikeKind reports whether kind's isType emit needs the

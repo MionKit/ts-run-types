@@ -187,8 +187,15 @@ func jitTypeName(runType *protocol.RunType) string {
 	if runType.TypeName != "" {
 		return runType.TypeName
 	}
-	if runType.Kind == protocol.KindClass && runType.SubKind == protocol.SubKindDate {
-		return "date"
+	if runType.Kind == protocol.KindClass {
+		switch runType.SubKind {
+		case protocol.SubKindDate:
+			return "date"
+		case protocol.SubKindMap:
+			return "map"
+		case protocol.SubKindSet:
+			return "set"
+		}
 	}
 	switch runType.Kind {
 	case protocol.KindAny:
@@ -251,6 +258,8 @@ func jitTypeName(runType *protocol.RunType) string {
 		return "union"
 	case protocol.KindTemplateLiteral:
 		return "templateLiteral"
+	case protocol.KindPromise:
+		return "promise"
 	}
 	return ""
 }
@@ -302,7 +311,32 @@ func subtreeFullySupported(rt *protocol.RunType, refTable map[string]*protocol.R
 	case protocol.KindArray:
 		// Mirrors istype.go KindArray Emit — descends only into Child.
 		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
-	case protocol.KindObjectLiteral, protocol.KindClass:
+	case protocol.KindPromise:
+		// Promise emit is a thenable check; the wrapped T isn't
+		// validated synchronously (mion semantics). No descent.
+		return true
+	case protocol.KindClass:
+		// Map / Set reach through their KindParameter wrappers in
+		// Arguments to validate key / value / item types. Walk those
+		// wrapped children for supportability so an unrenderable
+		// element type rejects the whole Map / Set silently.
+		if rt.SubKind == protocol.SubKindMap || rt.SubKind == protocol.SubKindSet {
+			for _, arg := range rt.Arguments {
+				wrapper := resolveRefForSupport(arg, refTable)
+				if wrapper == nil || wrapper.Child == nil {
+					continue
+				}
+				if !subtreeFullySupported(wrapper.Child, refTable, emitter, seen) {
+					return false
+				}
+			}
+			return true
+		}
+		// Other class subkinds (Date is atomic; SubKindNone uses the
+		// shared object emit) fall through to the ObjectLiteral arm
+		// below.
+		fallthrough
+	case protocol.KindObjectLiteral:
 		// Mirrors emitObjectIsType — walks Children, but with the same
 		// skip rules the emit applies: static members and direct
 		// method-shaped children never participate in the AND chain
