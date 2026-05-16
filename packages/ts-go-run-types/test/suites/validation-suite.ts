@@ -1,7 +1,8 @@
-// Shared validation suite for atomic types — the single source of
-// truth for every behavioral assertion ported from mion's
-// packages/run-types/src/nodes/atomic/*.spec.ts on the mion-run-types
-// branch.
+// Shared validation suite — single source of truth for every
+// behavioral assertion ported from mion's
+// packages/run-types/src/nodes/**/*.spec.ts (atomic, collection,
+// member, utility, native) plus the entries in
+// packages/run-types/src/jitCompilers/serialization-suite.ts.
 //
 // Shape per case:
 //   - `title`         human label used in test reports
@@ -10,21 +11,27 @@
 //                     vite-plugin-runtypes plugin rewrites this call
 //                     site at build time, injecting the runtype hash.
 //                     Omit a thunk to opt a case out of the isType
-//                     adapter (future per-API thunks: getTypeErrors,
-//                     prepareForJson, mock, …).
+//                     adapter (per-API thunks for getTypeErrors,
+//                     prepareForJson, mock, … land alongside their
+//                     own adapter files when those emits are ported).
 //   - `getSamples`    pure data: valid + invalid arrays. Same samples
 //                     drive every adapter — and a future docs renderer
 //                     can consume them without spinning up a validator.
 //
-// Cases are organized by ReflectionFamily (currently just ATOMIC).
-// Literal types live under sibling keys (`literal_2`, `literal_a`, …)
-// since each literal flavour is a distinct case per mion's
-// literal.spec.ts.
+// Cases are organized by category at the top level:
+//   ATOMIC / ARRAY / OBJECT / TUPLE / UNION / TEMPLATE_LITERAL /
+//   NATIVE (Map / Set / Promise / Awaited) / UTILITY (Partial /
+//   Required / Pick / Omit / Exclude / Extract / …).
+// Each category has its own isType adapter file under
+// test/adapters/isType-*.test.ts that registers `it()` per active
+// case + `it.todo()` per deferred case, with a counter-guard test
+// that catches drift between this file and the adapter.
 //
-// noLiterals option variants are deferred until createIsType accepts
-// options end-to-end (see plan file → step 2). They will land as
-// parallel keys (`literal_2_noLiterals`, …) consuming the same
-// samples shape.
+// The literal-type variants (`literal_2`, `literal_a`, …) live
+// under sibling ATOMIC keys since each literal flavour is a
+// distinct case per mion's literal.spec.ts. noLiterals option
+// variants are sibling `<key>_noLiterals` entries — the
+// createIsType option threading is in place end-to-end.
 
 import {createIsType, type IsTypeFn} from '@mionjs/ts-go-run-types';
 
