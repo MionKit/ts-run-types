@@ -190,31 +190,30 @@ export interface SerializationCase {
   title: string;
   description?: string;
 
-  // Round-trip thunks. Static is required; reflect / deserialize
-  // variants are optional. Same 4-variant pattern as validation-suite.ts.
+  // Round-trip thunks. Static is required; the deserialize/restore
+  // variant is optional. Reflect-marker resolution is exercised by the
+  // validation-suite adapters (isType / getTypeErrors), so the
+  // serialization suite covers only the static (and deserialize) form.
   prepareForJson: () => PrepareForJsonFn;
-  prepareForJsonReflect?: () => PrepareForJsonFn;
   deserializePrepareForJson?: () => PrepareForJsonFn;
-  deserializePrepareForJsonReflect?: () => PrepareForJsonFn;
   /** stringifyJson factory — single-pass serialiser ported from
    *  mion's stringifyJson JIT family. Same T as `prepareForJson`;
-   *  the safe-path adapter
-   *  (`test/adapters/serializationStringifyJsonRoundTrip.test.ts`)
-   *  uses this for the serialise half. **/
-  stringifyJson?: () => StringifyJsonFn;
+   *  the merged adapter drives the safe-mode loop with this. **/
+  stringifyJson: () => StringifyJsonFn;
 
-  /** Safe adapter: when set, the case's input produces a JSON string
+  /** Safe-mode only: when set, the case's input produces a JSON string
    *  that is not parseable by `JSON.parse` — e.g. number-at-root
    *  with `Infinity` (mion's `String(Infinity)` = `"Infinity"`).
    *  Mirrors mion's number-not-supported spec, which accepts either
    *  a throw OR a non-matching round-trip as a "value not supported
-   *  by JSON" signal. The safe adapter wraps the parse in try/catch
-   *  and asserts the throw rather than a deep-equal round-trip. **/
+   *  by JSON" signal. The safe loop asserts the parse-throws instead
+   *  of a deep-equal round-trip. The unsafe loop ignores this flag —
+   *  on that path `JSON.stringify(Infinity)` returns `"null"` (not a
+   *  throw) and the case's own `deserializedValues` already handles
+   *  the round-trip. **/
   safeAdapterStringifyJsonNotParseable?: boolean;
   restoreFromJson: () => RestoreFromJsonFn;
-  restoreFromJsonReflect?: () => RestoreFromJsonFn;
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
-  deserializeRestoreFromJsonReflect?: () => RestoreFromJsonFn;
 
   /** Sample values to round-trip via the **unsafe** path
    *  (`prepareForJson + JSON.stringify` / `JSON.parse + restoreFromJson`).
