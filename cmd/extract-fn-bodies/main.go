@@ -6,7 +6,7 @@
 //
 // The Node-side docs pipeline (scripts/export-validation-suite.mjs) spawns
 // this binary, parses stdout, and merges the bodies with the runtime
-// JIT_SUITE structure. Keeping the Go side narrow — bodies only —
+// VALIDATION_SUITE structure. Keeping the Go side narrow — bodies only —
 // lets the Node side own the docs output shape and extend later
 // (performance measurement, running validators, evaluated samples).
 //

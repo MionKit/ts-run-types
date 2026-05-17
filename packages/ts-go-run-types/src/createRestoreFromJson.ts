@@ -37,7 +37,7 @@ export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?:
   const entry = getJitUtils().getJIT('rj_' + id) as JitCompiledFn | undefined;
   if (!entry) {
     // Identity fallback for unsupported types. See createPrepareForJson
-    // for the rationale — throwing here regresses jit-suite cases that
+    // for the rationale — throwing here regresses serialization-suite cases that
     // use prepareForJson/restoreFromJson thunks on non-serializable
     // types with empty `valid` samples.
     if (getJitUtils().hasRunType(id)) {
