@@ -56,6 +56,10 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindIndexSignature:
 		return true
+	case protocol.KindTuple:
+		return true
+	case protocol.KindTupleMember:
+		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Functions are non-serializable. Top-level support emits a
@@ -177,6 +181,12 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 
 	case protocol.KindIndexSignature:
 		return emitIndexSignaturePrepareForJson(rt, ctx, v)
+
+	case protocol.KindTuple:
+		return emitTuplePrepareForJson(rt, ctx, v)
+
+	case protocol.KindTupleMember:
+		return emitTupleMemberPrepareForJson(rt, ctx, v)
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
@@ -366,6 +376,86 @@ func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 	return JitCode{Code: body, Type: CodeS}
 }
 
+// emitTuplePrepareForJson mirrors mion's
+// nodes/collection/tuple.ts:emitPrepareForJson — iterate tuple members,
+// emit each one's code, join with `;`. Empty tuple → noop.
+func emitTuplePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if len(rt.Children) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	var parts []string
+	for _, child := range rt.Children {
+		childJit := ctx.CompileChild(child, CodeS)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			parts = append(parts, childJit.Code)
+		}
+	}
+	if len(parts) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+}
+
+// emitTupleMemberPrepareForJson mirrors mion's
+// nodes/member/tupleMember.ts:emitPrepareForJson. Sets the element
+// accessor `v[<position>]`, then composes:
+//
+//   - non-rest, non-optional: pass child code through unchanged
+//   - non-rest, optional:
+//     `if (v[i] === undefined) { if (v.length > i) v[i] = null } else { <childCode> }`
+//     (replace undefined slots with null so the array survives JSON
+//     without losing length — JSON.stringify renders [, , 1] as [null,
+//     null, 1] in some engines and the inverse round-trip diverges)
+//   - rest: for-loop iterating from position to v.length, applying
+//     child emit on each element
+func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+		// Non-serializable element — leave it for the validator to flag;
+		// no transformation here.
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isRestTupleMember(rt) {
+		iVar := ctx.NextLocalVar("i")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		childJit := ctx.CompileChild(rt.Child, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		return JitCode{Code: body, Type: CodeS}
+	}
+	idxLit := positionStr(rt)
+	accessor := v + "[" + idxLit + "]"
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if rt.Optional {
+		optionalCode := "if (" + accessor + " === undefined) {if (" + v + ".length > " + idxLit + ") " + accessor + " = null}"
+		if childJit.Code == "" {
+			return JitCode{Code: optionalCode, Type: CodeS}
+		}
+		return JitCode{Code: optionalCode + " else {" + childJit.Code + "}", Type: CodeS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return childJit
+}
+
 // EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a
 // prepareForJson dependency call mutates v INSIDE the inner function
 // (e.g. `return v = v.toString()`) so the outer caller must capture
@@ -397,13 +487,21 @@ func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 	return ctx.Vλl + " = " + call
 }
 
-// Finalize collapses empty / noop bodies to `return v` + noop flag.
-// Mion's noop pattern for prepareForJson is an empty body — `return v`
-// is the identity transform.
+// Finalize normalises the body. Unlike isType / typeErrors — where
+// noop entries are dropped (the JS-side createIsType falls back to
+// `() => true` automatically) — the serializer pair MUST emit an
+// identity factory for every supported runtype, including noop ones.
+// Reason: a non-inlined parent that reaches a noop child via
+// EmitDependencyCall emits `v[i] = childHash.fn(v[i])`. If the noop
+// child has no factory in the cache, that call throws at runtime.
+// Always emitting `function pj_<hash>(v){ return v }` for noop entries
+// keeps the dep chain intact at minimal payload cost (~30 bytes per
+// noop factory). isNoop is always false; the renderer treats every
+// supported entry as a live factory.
 func (PrepareForJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
-	if code == "" || code == "return v" {
-		return "return v", true
+	if code == "" {
+		return "return v", false
 	}
 	return code, false
 }
