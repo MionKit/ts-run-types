@@ -2,10 +2,17 @@ package jitfn
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
+
+// debugInlineEnv resolves mion's `getENV('DEBUG_JIT') === 'INLINED'`
+// branch once per process. Cheap (env vars are cached at runtime
+// startup); a package-level var matches mion's process-wide
+// resolution and avoids threading the lookup through every Walker.
+var debugInlineEnv = os.Getenv("DEBUG_JIT") == "INLINED"
 
 // StackItem mirrors mion's StackItem (jitFnCompiler.ts:33). One frame
 // per RunType the walker is currently inside. Vλl is snapshotted on
@@ -149,18 +156,28 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCo
 }
 
 // dispatch decides between inline emission and a dependency call.
-// v1's atomic-only scope only ever hits the inline branch; the
-// dependency branch panics with a TODO so the first non-atomic kind
-// forces the conversation about how to wire
-// `Emitter.EmitDependencyCall` into the interface.
+// Mirrors mion's BaseFnCompiler.shouldCallDependency
+// (jitFnCompiler.ts:218–221): a dependency call happens only when
+// BOTH (a) the predicate says the node is NOT inline-cheap AND
+// (b) the walker is past depth 1 — the root always inlines so the
+// top-level factory has a body. v1's atomic-only scope hits the
+// inline branch every time; the dependency branch panics with a
+// TODO so the first non-atomic kind forces the conversation about
+// how to wire `Emitter.EmitDependencyCall` into the interface.
 func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) JitCode {
-	if !isJitInlined(rt) {
+	inlineCtx := &InlineContext{
+		RT:          rt,
+		DebugInline: debugInlineEnv,
+		walker:      w,
+	}
+	shouldDepend := !w.Emitter.IsJitInlined(inlineCtx) && len(w.Stack) > 1
+	if shouldDepend {
 		// Future: w.Emitter.EmitDependencyCall(rt, childHash, ctx).
 		// See refactor plan "Inline-vs-dependent: two pieces, two homes".
 		panic(fmt.Sprintf("jitfn: dependency calls not yet implemented (kind=%d)", rt.Kind))
 	}
-	ctx := &EmitContext{Vλl: w.Vλl, walker: w}
-	return w.Emitter.Emit(rt, ctx, expectedCType)
+	emitCtx := &EmitContext{Vλl: w.Vλl, walker: w}
+	return w.Emitter.Emit(rt, emitCtx, expectedCType)
 }
 
 // pushStack snapshots the current Vλl onto a new stack frame.

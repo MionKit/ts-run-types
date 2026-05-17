@@ -88,10 +88,18 @@ type RunType struct {
 	// each carry their own SubKind, and Map/Set parameter slots carry the
 	// mapKey/mapValue/setItem subkinds. See internal/protocol/subkind.go.
 	// Zero (SubKindNone) is "not applicable"; only set on nodes that need it.
-	SubKind       ReflectionSubKind `json:"subKind,omitempty"`
-	TypeName      string            `json:"typeName,omitempty"`
-	TypeArguments []*RunType        `json:"typeArguments,omitempty"`
-	Inlined       bool              `json:"inlined,omitempty"`
+	SubKind ReflectionSubKind `json:"subKind,omitempty"`
+	// Family classifies the runtype into Atomic/Collection/Member/Function
+	// per mion's RunTypeFamily (run-types/src/types.ts:41). Derived from
+	// Kind via FamilyOf in family.go; populated by PopulateFamily at
+	// cache-exit time (Cache.Dump / Cache.Added / Cache.NodesForIDs).
+	// Refs (Kind=KindRef) and reserved kinds get FamilyUnknown (the empty
+	// string), which omitempty strips. The JIT compiler uses this to
+	// decide whether to inline a node or emit a dependency call.
+	Family        Family     `json:"family,omitempty"`
+	TypeName      string     `json:"typeName,omitempty"`
+	TypeArguments []*RunType `json:"typeArguments,omitempty"`
+	Inlined       bool       `json:"inlined,omitempty"`
 
 	// TypeLiteral
 	Literal any `json:"literal,omitempty"`

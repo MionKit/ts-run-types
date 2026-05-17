@@ -141,7 +141,9 @@ func (cache *Cache) Dump() []*protocol.RunType {
 	sort.Strings(ids)
 	out := make([]*protocol.RunType, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, cache.nodes[id])
+		node := cache.nodes[id]
+		protocol.PopulateFamily(node)
+		out = append(out, node)
 	}
 	return out
 }
@@ -155,6 +157,7 @@ func (cache *Cache) Added(before int) []*protocol.RunType {
 	out := make([]*protocol.RunType, 0, len(cache.insertOrder)-before)
 	for _, id := range cache.insertOrder[before:] {
 		if node, ok := cache.nodes[id]; ok {
+			protocol.PopulateFamily(node)
 			out = append(out, node)
 		}
 	}
@@ -223,7 +226,9 @@ func (cache *Cache) SerializeTopLevel(tsType *checker.Type) *protocol.RunType {
 // has been interned. Backs the OpResolveID query op for callers walking a
 // member type's child KindRef slots.
 func (cache *Cache) NodeByID(id string) *protocol.RunType {
-	return cache.nodes[id]
+	node := cache.nodes[id]
+	protocol.PopulateFamily(node)
+	return node
 }
 
 // RecordFileID associates id with file in the per-file scope map. Called by
@@ -281,6 +286,7 @@ func (cache *Cache) NodesForIDs(ids []string) []*protocol.RunType {
 	out := make([]*protocol.RunType, 0, len(ids))
 	for _, id := range ids {
 		if node := cache.nodes[id]; node != nil {
+			protocol.PopulateFamily(node)
 			out = append(out, node)
 		}
 	}
