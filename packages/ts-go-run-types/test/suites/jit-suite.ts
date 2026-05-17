@@ -7448,6 +7448,28 @@ export const JIT_SUITE = {
         const v: Date | number | string | null | bigint = 123;
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<Date | number | string | null | bigint>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Date | number | string | null | bigint>(),
+      prepareForJsonReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Date | number | string | null | bigint>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date | number | string | null | bigint>(),
+      restoreFromJsonReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
         invalid: [{}, [], true, undefined, new Date('invalid'), Infinity, Symbol(), () => null],
@@ -7488,6 +7510,26 @@ export const JIT_SUITE = {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<'UNO' | 'DOS' | 'TRES'>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<'UNO' | 'DOS' | 'TRES'>(),
+      prepareForJsonReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<'UNO' | 'DOS' | 'TRES'>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<'UNO' | 'DOS' | 'TRES'>(),
+      restoreFromJsonReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: ['UNO', 'DOS', 'TRES'],
         invalid: ['INVALID', 'uno', '', 42, null, undefined, true, 'Uno', {}],
@@ -7526,6 +7568,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string | number = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<string | number>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string | number>(),
+      prepareForJsonReflect: () => {
+        const v: string | number = 'hello';
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string | number = 'hello';
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string | number>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string | number>(),
+      restoreFromJsonReflect: () => {
+        const v: string | number = 'hello';
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string | number = 'hello';
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0, ''],
@@ -7568,6 +7630,26 @@ export const JIT_SUITE = {
         const v: string[] | number[] | boolean[] = ['a'];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<string[] | number[] | boolean[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string[] | number[] | boolean[]>(),
+      prepareForJsonReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string[] | number[] | boolean[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[] | number[] | boolean[]>(),
+      restoreFromJsonReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [['a'], [1], [true, false], [], ['a', 'b']],
         invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [Infinity], [null], [BigInt(1)]],
@@ -7609,6 +7691,28 @@ export const JIT_SUITE = {
         const v: (string | bigint | boolean | Date)[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<(string | bigint | boolean | Date)[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<(string | bigint | boolean | Date)[]>(),
+      prepareForJsonReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<(string | bigint | boolean | Date)[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<(string | bigint | boolean | Date)[]>(),
+      restoreFromJsonReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
         invalid: [
@@ -7657,6 +7761,28 @@ export const JIT_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      prepareForJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      restoreFromJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
         // because `{b: number}` is satisfied. Our emit accepts any
@@ -7702,6 +7828,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      prepareForJsonReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      restoreFromJsonReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -7774,6 +7920,44 @@ export const JIT_SUITE = {
         const v: UnionC = 'hello';
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createPrepareForJson<UnionC>();
+      },
+      deserializePrepareForJson: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return deserializePrepareForJson<UnionC>();
+      },
+      prepareForJsonReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createRestoreFromJson<UnionC>();
+      },
+      deserializeRestoreFromJson: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return deserializeRestoreFromJson<UnionC>();
+      },
+      restoreFromJsonReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
         invalid: [true, null, undefined, {a: true}, [true], new Date('invalid'), Infinity, Symbol()],
@@ -7827,6 +8011,42 @@ export const JIT_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      deserializePrepareForJson: () =>
+        deserializePrepareForJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      prepareForJsonReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      deserializeRestoreFromJson: () =>
+        deserializeRestoreFromJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      restoreFromJsonReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
@@ -7867,6 +8087,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string} & {b: number} = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<{a: string} & {b: number}>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<{a: string} & {b: number}>(),
+      prepareForJsonReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{a: string} & {b: number}>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string} & {b: number}>(),
+      restoreFromJsonReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -7928,6 +8168,30 @@ export const JIT_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      deserializePrepareForJson: () =>
+        deserializePrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      prepareForJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      deserializeRestoreFromJson: () =>
+        deserializeRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      restoreFromJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
         invalid: [
@@ -7990,6 +8254,42 @@ export const JIT_SUITE = {
           prop: true,
         };
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () =>
+        createPrepareForJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      deserializePrepareForJson: () =>
+        deserializePrepareForJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      prepareForJsonReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () =>
+        createRestoreFromJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      deserializeRestoreFromJson: () =>
+        deserializeRestoreFromJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      restoreFromJsonReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -8064,6 +8364,48 @@ export const JIT_SUITE = {
         ];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () =>
+        createPrepareForJson<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      deserializePrepareForJson: () =>
+        deserializePrepareForJson<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      prepareForJsonReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () =>
+        createRestoreFromJson<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      deserializeRestoreFromJson: () =>
+        deserializeRestoreFromJson<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      restoreFromJsonReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -8116,6 +8458,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: boolean} | {a: number} = {a: true};
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<{a: boolean} | {a: number}>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<{a: boolean} | {a: number}>(),
+      prepareForJsonReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{a: boolean} | {a: number}>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: boolean} | {a: number}>(),
+      restoreFromJsonReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
@@ -8204,6 +8566,76 @@ export const JIT_SUITE = {
           | {[key: string]: bigint; b: bigint} = ['a'];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () =>
+        createPrepareForJson<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      deserializePrepareForJson: () =>
+        deserializePrepareForJson<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      prepareForJsonReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () =>
+        createRestoreFromJson<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      deserializeRestoreFromJson: () =>
+        deserializeRestoreFromJson<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      restoreFromJsonReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return deserializeRestoreFromJson(v);
+      },
+      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
+      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -8250,6 +8682,26 @@ export const JIT_SUITE = {
         const v: string | any = 'hello';
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<string | any>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string | any>(),
+      prepareForJsonReflect: () => {
+        const v: string | any = 'hello';
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string | any = 'hello';
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string | any>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string | any>(),
+      restoreFromJsonReflect: () => {
+        const v: string | any = 'hello';
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string | any = 'hello';
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
@@ -8281,6 +8733,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string | unknown = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<string | unknown>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string | unknown>(),
+      prepareForJsonReflect: () => {
+        const v: string | unknown = 'hello';
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string | unknown = 'hello';
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string | unknown>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string | unknown>(),
+      restoreFromJsonReflect: () => {
+        const v: string | unknown = 'hello';
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string | unknown = 'hello';
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -8378,6 +8850,90 @@ export const JIT_SUITE = {
         }
         const v: SmallObj | LargeObj = {a: 'hello'};
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return createPrepareForJson<SmallObj | LargeObj>();
+      },
+      deserializePrepareForJson: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return deserializePrepareForJson<SmallObj | LargeObj>();
+      },
+      prepareForJsonReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return createRestoreFromJson<SmallObj | LargeObj>();
+      },
+      deserializeRestoreFromJson: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return deserializeRestoreFromJson<SmallObj | LargeObj>();
+      },
+      restoreFromJsonReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -8523,6 +9079,130 @@ export const JIT_SUITE = {
         const v: Tiny | Medium | Large = {x: 'hello'};
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return createPrepareForJson<Tiny | Medium | Large>();
+      },
+      deserializePrepareForJson: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return deserializePrepareForJson<Tiny | Medium | Large>();
+      },
+      prepareForJsonReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return createRestoreFromJson<Tiny | Medium | Large>();
+      },
+      deserializeRestoreFromJson: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return deserializeRestoreFromJson<Tiny | Medium | Large>();
+      },
+      restoreFromJsonReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
         // Note: `{x: 'hello', ...}` passes the Tiny arm regardless of
@@ -8651,6 +9331,114 @@ export const JIT_SUITE = {
         }
         const v: Base | Extended | Unrelated = {id: '123'};
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return createPrepareForJson<Base | Extended | Unrelated>();
+      },
+      deserializePrepareForJson: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return deserializePrepareForJson<Base | Extended | Unrelated>();
+      },
+      prepareForJsonReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return createRestoreFromJson<Base | Extended | Unrelated>();
+      },
+      deserializeRestoreFromJson: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return deserializeRestoreFromJson<Base | Extended | Unrelated>();
+      },
+      restoreFromJsonReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],

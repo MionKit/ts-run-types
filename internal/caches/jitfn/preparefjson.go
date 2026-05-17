@@ -60,6 +60,17 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindTupleMember:
 		return true
+	case protocol.KindUnion:
+		// Phase 7: unions ship as noop (identity factory). The full
+		// mion-style emit encodes as `[memberIndex, transformedValue]`
+		// using the union's isType discriminator — that requires
+		// cross-fn cache lookups (the union's prepareForJson calls
+		// into each member's isType) and lands when a transforming
+		// union member (e.g. `string | Date`) needs the round-trip
+		// to actually convert. Today most union samples round-trip
+		// cleanly via identity; transforming-member cases mark
+		// `getRoundTripValid: () => []` to skip the assertion.
+		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Functions are non-serializable. Top-level support emits a
@@ -210,6 +221,15 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// mion:nodes/function/function.ts — functions are non-serializable;
 		// JSON.stringify drops function values. Top-level emit is a noop
 		// (caller's responsibility to know functions don't round-trip).
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindUnion:
+		// Phase 7 — noop. The full union emit encodes as
+		// `[memberIndex, transformedValue]` using a per-member isType
+		// discriminator; until that lands, identity is the best we
+		// can do and round-trip tests for transforming-member unions
+		// (e.g. `string | Date`) must mark `getRoundTripValid: () =>
+		// []` to opt out.
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
