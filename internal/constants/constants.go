@@ -23,4 +23,16 @@ var CacheModules = CacheModuleGroup{
 		Name:      "runTypesModule",
 		VarPrefix: "t_",
 	},
+	// isType is a sibling virtual module of `runTypes`. Each entry is a
+	// precompiled `get_isType_<hash>(utl)` factory — consumers import
+	// the factory and invoke it themselves to materialise a fresh
+	// validator. The VarPrefix matches the emitted JS export name's
+	// prefix, so consumers can do `cache[ISTYPE_VAR_PREFIX + hash]` to
+	// look up a factory. The `get_` prefix mirrors mion's printClosure
+	// convention (jitFnCompiler.ts:732): outer "get_<fnName>" is the
+	// factory, inner "<fnName>" is the validator the factory returns.
+	"isType": {
+		Name:      "isTypeModule",
+		VarPrefix: "get_isType_",
+	},
 }

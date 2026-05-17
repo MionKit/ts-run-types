@@ -8,9 +8,12 @@ export interface CacheModuleSettings {
 }
 
 export const CACHE_MODULES = {
+  isType: {name: 'isTypeModule', varPrefix: 'get_isType_'},
   runTypes: {name: 'runTypesModule', varPrefix: 't_'},
 } as const satisfies Record<string, CacheModuleSettings>;
 
+export const ISTYPE_VAR_PREFIX = 'get_isType_';
+export const ISTYPE_MODULE_NAME = 'isTypeModule';
 export const RUNTYPES_VAR_PREFIX = 't_';
 export const RUNTYPES_MODULE_NAME = 'runTypesModule';
 
