@@ -163,6 +163,15 @@ export function deserializeIsType<T>(val?: T, options?: RunTypeOptions, id?: Run
       `deserializeIsType(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a validator for that runtype.`
     );
   }
+  // Noop entries carry no serializable code — the cache module's
+  // init() pre-populated `entry.fn` with the family-specific identity
+  // (`() => true` for isType). Reuse it directly; there's nothing to
+  // rebuild via `new Function('utl', code)`.
+  if (entry.isNoop) {
+    const validator = entry.fn as IsTypeFn;
+    deserializedValidatorCache.set(id, validator);
+    return validator;
+  }
   const factory = buildFactoryFromCode(entry.code);
   const validator = factory(getJitUtils()) as IsTypeFn;
   deserializedValidatorCache.set(id, validator);

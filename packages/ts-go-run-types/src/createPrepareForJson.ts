@@ -100,6 +100,13 @@ export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, 
       `deserializePrepareForJson(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a transformer for that runtype.`
     );
   }
+  if (entry.isNoop) {
+    // Noop entries carry no serializable code — fn was pre-set to
+    // the family-specific identity by the cache module's init().
+    const transformer = entry.fn as PrepareForJsonFn;
+    deserializedValidatorCache.set(id, transformer);
+    return transformer;
+  }
   const factory = buildFactoryFromCode(entry.code);
   const transformer = factory(getJitUtils()) as PrepareForJsonFn;
   deserializedValidatorCache.set(id, transformer);

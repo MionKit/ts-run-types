@@ -25,7 +25,14 @@ export function initCache(jitUtils) {
   // undefined`. The fn closure is materialized lazily on first
   // `jitUtils.getJIT(hash)` / `getJitFn(hash)` call — see
   // isTypeCache.ts for the rationale.
+  //
+  // Noop entries use the short-form init: only jitFnHash, typeName,
+  // and isNoop=true reach this call. fn is set immediately to the
+  // family-specific identity (`(v, pth, er) => er` — typeErrors
+  // returns the accumulated error array unchanged), letting consumers
+  // skip the lazy-materialize path entirely.
   function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+    const fn = isNoop ? noopTypeErrors : undefined;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'te',
@@ -37,12 +44,16 @@ export function initCache(jitUtils) {
       jitDependencies,
       pureFnDependencies,
       createJitFn,
-      fn: undefined,
+      fn,
     });
   }
   void init;
   void k_nRT;
   void k_sIK;
+  function noopTypeErrors(_v, _pth, er) {
+    return er || [];
+  }
+  void noopTypeErrors;
 
   // #### REPLACE HERE ####
 }

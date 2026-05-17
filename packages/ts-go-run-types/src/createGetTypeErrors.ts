@@ -118,6 +118,13 @@ export function deserializeGetTypeErrors<T>(val?: T, options?: RunTypeOptions, i
       `deserializeGetTypeErrors(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a validator for that runtype.`
     );
   }
+  if (entry.isNoop) {
+    // Noop entries carry no serializable code — fn was pre-set to the
+    // family-specific identity by the cache module's init().
+    const validator = entry.fn as GetTypeErrorsFn;
+    deserializedValidatorCache.set(id, validator);
+    return validator;
+  }
   const factory = buildFactoryFromCode(entry.code);
   const validator = factory(getJitUtils()) as GetTypeErrorsFn;
   deserializedValidatorCache.set(id, validator);
