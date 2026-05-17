@@ -1,11 +1,7 @@
 import {defineConfig} from 'vitest/config';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-// Sibling workspace package imported by relative path rather than name.
-// pnpm's workspace-dep declaration would trigger a lockfile-refresh that
-// the minimumReleaseAge policy on transitives blocks; a path import
-// works equivalently without touching the lockfile.
-import runtypesPlugin from '../vite-plugin-runtypes/src/index.ts';
+import runtypesPlugin from 'vite-plugin-runtypes';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PACKAGE_ROOT = resolve(HERE);
@@ -18,10 +14,14 @@ const REPO_ROOT = resolve(HERE, '../..');
 // `virtual:runtypes-isType` / `virtual:runtypes-cache` modules become
 // importable.
 //
-// `resolve.conditions: ['source']` makes the `@mionjs/ts-go-run-types`
-// self-import in tests resolve to `src/index.ts` (via the `"source"`
-// condition in package.json `exports`) instead of the unbuilt `dist/`.
-// Same trick as mion uses for its own self-imports in tests.
+// `resolve.alias` redirects the package self-import to the in-tree
+// source. tsgo (Go-side checker) resolves `@mionjs/ts-go-run-types` to
+// the local workspace package by package-name match before walking up
+// to node_modules — but its handling of our particular dist+src layout
+// breaks for self-imports. The runtime alias here keeps Vite's
+// resolution clean; tsgo's resolution is handled separately by the
+// test/runtypes.d.ts ambient overlay (auto-included via
+// tsconfig.test.json's include glob).
 //
 // `cwd` is the package dir + `tsconfig.test.json` extends the build
 // config to also include `test/**`, so the Go resolver's Program
@@ -29,16 +29,10 @@ const REPO_ROOT = resolve(HERE, '../..');
 // (src-only) so `pnpm build` doesn't compile test files into dist.
 export default defineConfig({
   resolve: {
-    conditions: ['source'],
-    // Resolve the package's self-import to the in-tree source so tests
-    // don't depend on a node_modules symlink. Mirrors mion's setup for
-    // its own self-tests (run-types package importing from
-    // `@mionjs/run-types`).
     alias: {
       '@mionjs/ts-go-run-types': resolve(PACKAGE_ROOT, 'src/index.ts'),
     },
   },
-  ssr: {resolve: {conditions: ['source']}},
   plugins: [
     runtypesPlugin({
       binary: resolve(REPO_ROOT, 'bin/ts-go-run-types'),
