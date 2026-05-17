@@ -57,6 +57,16 @@ func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, RestoreFromJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJson)
 }
 
+// StringifyJsonModule writes the runtime artifact for the
+// stringifyJson cache module — mion's single-pass JSON serialiser
+// that builds the output string directly from the type. Output is
+// observably equivalent to JSON.stringify(prepareForJson(v))
+// modulo property order and the no-mutation contract on `v`.
+func StringifyJsonModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["stringifyJson"]
+	return RenderFnModule(writer, dump, settings, StringifyJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJson)
+}
+
 // HasUnknownKeysModule writes the runtime artifact for the
 // hasUnknownKeys cache module — boolean predicate per mion's
 // emitHasUnknownKeys.

@@ -15,6 +15,7 @@ export const CACHE_MODULES = {
   pureFns: {name: "pureFnsModule", varPrefix: "", tag: ""},
   restoreFromJson: {name: "restoreFromJsonModule", varPrefix: "g_rj_", tag: "rj"},
   runTypes: {name: "runTypesModule", varPrefix: "t_", tag: "t"},
+  stringifyJson: {name: "stringifyJsonModule", varPrefix: "g_sj_", tag: "sj"},
   stripUnknownKeys: {name: "stripUnknownKeysModule", varPrefix: "g_suk_", tag: "suk"},
   typeErrors: {name: "typeErrorsModule", varPrefix: "g_te_", tag: "te"},
   unknownKeyErrors: {name: "unknownKeyErrorsModule", varPrefix: "g_uke_", tag: "uke"},
@@ -39,6 +40,9 @@ export const RESTOREFROMJSON_TAG = "rj";
 export const RUNTYPES_VAR_PREFIX = "t_";
 export const RUNTYPES_MODULE_NAME = "runTypesModule";
 export const RUNTYPES_TAG = "t";
+export const STRINGIFYJSON_VAR_PREFIX = "g_sj_";
+export const STRINGIFYJSON_MODULE_NAME = "stringifyJsonModule";
+export const STRINGIFYJSON_TAG = "sj";
 export const STRIPUNKNOWNKEYS_VAR_PREFIX = "g_suk_";
 export const STRIPUNKNOWNKEYS_MODULE_NAME = "stripUnknownKeysModule";
 export const STRIPUNKNOWNKEYS_TAG = "suk";
