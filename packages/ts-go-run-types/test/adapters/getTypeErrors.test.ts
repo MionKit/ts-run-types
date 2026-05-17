@@ -327,6 +327,9 @@ describe('getTypeErrors / UTILITY', () => {
   it('Indexed access type — Person["name"] resolves to string', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.indexed_access_type));
   it('Conditional type — T extends string ? boolean : number', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
   it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.mapped_type_custom));
+  it('Mapped type whose value is a conditional — per-prop shape diverges', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.mapped_type_with_conditional_value));
+  it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.distributive_conditional_over_union));
+  it('DeepPartial<T> — recursive mapped type with nested optionality', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.deep_partial_recursive_mapped));
 
   it('all utility getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UTILITY).length);

@@ -8876,6 +8876,368 @@ export const VALIDATION_SUITE = {
         [{path: [], expected: 'objectLiteral'}],
       ],
     },
+
+    mapped_type_with_conditional_value: {
+      title: 'Mapped type whose value is a conditional — per-prop shape diverges',
+      description:
+        '`{[K in keyof T]: FieldFor<T[K]>}` where `FieldFor<X>` is a conditional that produces a different object shape for each input type. The resolver evaluates the conditional per prop at the type-checker layer, so each prop ends up with its own concrete (and different) validator. Stress-tests the "two-different-validations-from-one-mapping" pattern.',
+      isTypeNotes:
+        'Each prop ends up with a structurally distinct shape — `name` validates as a text field, `age` as a number field, `admin` as a checkbox. The validator emits independent per-prop checks.',
+      isType: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        return createIsType<UserForm>();
+      },
+      deserializeIsType: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        return deserializeIsType<UserForm>();
+      },
+      isTypeReflect: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        const v: UserForm = {
+          name: {kind: 'text', value: 'x'},
+          age: {kind: 'number', value: 1},
+          admin: {kind: 'checkbox', value: true},
+        };
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        const v: UserForm = {
+          name: {kind: 'text', value: 'x'},
+          age: {kind: 'number', value: 1},
+          admin: {kind: 'checkbox', value: true},
+        };
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        return createGetTypeErrors<UserForm>();
+      },
+      deserializeGetTypeErrors: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        return deserializeGetTypeErrors<UserForm>();
+      },
+      getTypeErrorsReflect: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        const v: UserForm = {
+          name: {kind: 'text', value: 'x'},
+          age: {kind: 'number', value: 1},
+          admin: {kind: 'checkbox', value: true},
+        };
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        const v: UserForm = {
+          name: {kind: 'text', value: 'x'},
+          age: {kind: 'number', value: 1},
+          admin: {kind: 'checkbox', value: true},
+        };
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {
+            name: {kind: 'text', value: 'Alice'},
+            age: {kind: 'number', value: 30},
+            admin: {kind: 'checkbox', value: true},
+          },
+          // age.min is optional
+          {
+            name: {kind: 'text', value: 'B'},
+            age: {kind: 'number', value: 1, min: 0},
+            admin: {kind: 'checkbox', value: false},
+          },
+        ],
+        invalid: [
+          // age.kind wrong literal
+          {
+            name: {kind: 'text', value: 'x'},
+            age: {kind: 'text', value: 1},
+            admin: {kind: 'checkbox', value: true},
+          },
+          // name.value wrong type
+          {
+            name: {kind: 'text', value: 42},
+            age: {kind: 'number', value: 1},
+            admin: {kind: 'checkbox', value: true},
+          },
+          // missing required prop
+          {
+            name: {kind: 'text', value: 'x'},
+            age: {kind: 'number', value: 1},
+          },
+          null,
+          undefined,
+        ],
+      }),
+      getExpectedErrors: () => [
+        // age.kind is 'text' but the resolved type for age says it
+        // must be 'number' literal.
+        [{path: ['age', 'kind'], expected: 'literal'}],
+        // name.value wrong type — must be string.
+        [{path: ['name', 'value'], expected: 'string'}],
+        // missing admin → admin is undefined → object check at ['admin'] fails.
+        [{path: ['admin'], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+      ],
+    },
+
+    distributive_conditional_over_union: {
+      title: 'Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`',
+      description:
+        'When a conditional type is applied to a generic union, TS distributes the conditional over each member, producing a union of the per-arm results. `T extends any ? {w: T} : never` applied to `string | number` resolves to `{w: string} | {w: number}`. Validator dispatches through the union emit.',
+      isType: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        return createIsType<Wrap<string | number>>();
+      },
+      deserializeIsType: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        return deserializeIsType<Wrap<string | number>>();
+      },
+      isTypeReflect: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        const v: Wrap<string | number> = {w: 'x'};
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        const v: Wrap<string | number> = {w: 'x'};
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        return createGetTypeErrors<Wrap<string | number>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        return deserializeGetTypeErrors<Wrap<string | number>>();
+      },
+      getTypeErrorsReflect: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        const v: Wrap<string | number> = {w: 'x'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        const v: Wrap<string | number> = {w: 'x'};
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [{w: 'hello'}, {w: 42}],
+        invalid: [{w: true}, {w: null}, {}, null, undefined, {w: NaN}],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
+    },
+
+    deep_partial_recursive_mapped: {
+      title: 'DeepPartial<T> — recursive mapped type with nested optionality',
+      description:
+        '`type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]}`. Recursively makes every nested object-typed property optional. The resolver evaluates the recursion at the type-checker layer; the validator sees the fully flattened all-optional-deep shape.',
+      isTypeNotes:
+        'Every nested object becomes all-optional. The `allOptionalCode` guard fires at every level so non-plain-object inputs (arrays, Date, …) are rejected even though the all-optional shape would otherwise accept them.',
+      isType: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        return createIsType<DeepPartial<Settings>>();
+      },
+      deserializeIsType: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        return deserializeIsType<DeepPartial<Settings>>();
+      },
+      isTypeReflect: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        const v: DeepPartial<Settings> = {};
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        const v: DeepPartial<Settings> = {};
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        return createGetTypeErrors<DeepPartial<Settings>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        return deserializeGetTypeErrors<DeepPartial<Settings>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        const v: DeepPartial<Settings> = {};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        const v: DeepPartial<Settings> = {};
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {},
+          {display: {}},
+          {audio: {volume: 1}},
+          {display: {theme: 'light'}, audio: {muted: true}},
+          {display: {theme: 'dark', brightness: 0.5}, audio: {volume: 1, muted: false}},
+        ],
+        invalid: [
+          [], // allOptionalCode guard rejects arrays at the outer level
+          new Date(), // same — Date is not '[object Object]'
+          {display: 'not object'}, // nested object expected
+          {display: {theme: 'invalid'}}, // literal-union arm fails
+          {audio: {volume: NaN}}, // NaN fails number
+          null,
+          undefined,
+        ],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['display'], expected: 'objectLiteral'}],
+        // theme is a literal union 'light'|'dark', 'invalid' fails the
+        // union check at ['display', 'theme'].
+        [{path: ['display', 'theme'], expected: 'union'}],
+        [{path: ['audio', 'volume'], expected: 'number'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+      ],
+    },
   },
 } as const satisfies {
   ATOMIC: Record<string, ValidationCase>;
