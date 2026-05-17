@@ -103,6 +103,9 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		// typeErrors. Same set of supported unions as isType (gate on
 		// non-empty children).
 		return len(rt.Children) > 0
+	case protocol.KindTemplateLiteral:
+		// Same gate as IsTypeEmitter — non-empty Literal payload.
+		return rt.Literal != nil
 	}
 	return false
 }
@@ -324,6 +327,9 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	case protocol.KindUnion:
 		return emitUnionTypeErrors(rt, ctx, v)
+
+	case protocol.KindTemplateLiteral:
+		return emitTemplateLiteralTypeErrors(rt, ctx, v)
 
 	case protocol.KindArray:
 		// mion:nodes/member/array.ts:emitTypeErrors. Allocates a loop
@@ -654,12 +660,13 @@ func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v stri
 	if keyRegexVar != "" {
 		// Template-literal key failure → 'never' error at path
 		// [..., keyVar]. Mirrors mion's callJitErrWithPath('never', keyVar).
+		// `extra=keyVar` appends the key as the trailing path segment.
 		body.WriteString("if (!")
 		body.WriteString(keyRegexVar)
 		body.WriteString(".test(")
 		body.WriteString(keyVar)
 		body.WriteString(")) ")
-		body.WriteString(callJitErr(ctx, "never", ""))
+		body.WriteString(callJitErr(ctx, "never", keyVar))
 		body.WriteString("; else ")
 	}
 	if childJit.Code != "" {
@@ -828,6 +835,22 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 	body := inner.String()
 	return JitCode{
 		Code: "if (!(" + v + " instanceof Map)) {" + callJitErr(ctx, "map", "") + "} else {" + body + "}",
+		Type: CodeS,
+	}
+}
+
+// emitTemplateLiteralTypeErrors mirrors mion's
+// nodes/collection/templateLiteral.ts:emitTypeErrors. Reuses
+// emitTemplateLiteralIsType to get the boolean expression
+// (`typeof v === 'string' && reTL.test(v)`), wraps in
+// `if (!<expr>) callJitErr('templateLiteral')`.
+func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isTypeExpr := emitTemplateLiteralIsType(rt, ctx, v)
+	if isTypeExpr.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return JitCode{
+		Code: "if (!(" + isTypeExpr.Code + ")) " + callJitErr(ctx, "templateLiteral", ""),
 		Type: CodeS,
 	}
 }
