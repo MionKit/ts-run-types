@@ -2818,6 +2818,127 @@ export const VALIDATION_SUITE = {
         ],
       }),
     },
+
+    multiple_circular_types_cross_referenced: {
+      title: 'Multiple circular types cross-referenced from a non-circular root',
+      description:
+        "mion interface.spec.ts 'Interface with nested circular + multiple circular' — RootCircular carries an optional self-ref AND two distinct circular siblings (ICircularDeep, ICircularDate), and ICircularDate also references ICircularDeep. Stresses the resolver / dependency-call layer when more than one recursive type is in flight at once and the cycles cross.",
+      isType: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createIsType<RootCircular>();
+      },
+      isTypeReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        const v: RootCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+          ciDate: {date: new Date(), month: 1, year: 2021},
+        };
+        return createIsType(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {
+            isRoot: true,
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+            ciDate: {date: new Date(), month: 1, year: 2021},
+          },
+          {
+            isRoot: true,
+            ciChild: {
+              name: 'hello',
+              big: 1n,
+              embedded: {hello: 'world', child: {name: 'world1', big: 1n, embedded: {hello: 'world2'}}},
+            },
+            ciDate: {date: new Date(), month: 1, year: 2021},
+          },
+          {
+            isRoot: true,
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+            ciDate: {
+              date: new Date(),
+              month: 1,
+              year: 2021,
+              embedded: {date: new Date(), month: 1, year: 2021},
+            },
+          },
+          {
+            isRoot: true,
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+            ciRoort: {
+              isRoot: true,
+              ciChild: {name: 'inner', big: 2n, embedded: {hello: 'world'}},
+              ciDate: {date: new Date(), month: 6, year: 2022},
+            },
+            ciDate: {date: new Date(), month: 1, year: 2021},
+          },
+        ],
+        invalid: [
+          {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 123}}}, // missing ciDate, embedded.hello wrong type
+          {
+            isRoot: true,
+            ciChild: {
+              name: 'hello',
+              big: 1n,
+              embedded: {hello: 'world', child: {name: 'world1', big: 1n, embedded: {hello: 123}}},
+            },
+            ciDate: {date: new Date(), month: 1, year: 2021},
+          }, // deep embedded.hello wrong type
+          {
+            isRoot: false, // not the literal true
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+            ciDate: {date: new Date(), month: 1, year: 2021},
+          },
+          {
+            isRoot: true,
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+            ciDate: {date: 'not date', month: 1, year: 2021}, // ciDate.date wrong type
+          },
+          {
+            isRoot: true,
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+            ciDate: {date: new Date(), month: 1, year: 2021, embedded: true}, // ciDate.embedded wrong type
+          },
+          null,
+          undefined,
+          {},
+        ],
+      }),
+    },
   },
 
   // UTILITY — TypeScript's built-in utility types (Partial, Required,
