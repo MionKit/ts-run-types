@@ -490,12 +490,28 @@ func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	// Every member was tuple-wrapped on the prepare side (see
-	// emitUnionPrepareForJson — unions always wrap, no member-noop
-	// optimization). Generate a decode clause for every member.
+	// Per-member tuple-wrap decision — shared with
+	// emitUnionPrepareForJson / emitUnionStringifyJson via
+	// unionMemberNeedsTuple. Only members that were tuple-wrapped on the
+	// encode side need a decode clause here; skip-wrapped members are
+	// noop on both halves so their raw values land in the "gate
+	// fails → pass through unchanged" branch below.
 	needsTuple := make([]bool, len(children))
-	for i := range children {
-		needsTuple[i] = true
+	anyWrapped := false
+	for i, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		needsTuple[i] = unionMemberNeedsTuple(member, ctx)
+		if needsTuple[i] {
+			anyWrapped = true
+		}
+	}
+	// If no member needs the wrap, the whole union round-trips raw —
+	// the decoder is identity, no shape gate / dispatch required.
+	if !anyWrapped {
+		return JitCode{Code: "", Type: CodeS}
 	}
 
 	decVar := ctx.NextLocalVar("dec")

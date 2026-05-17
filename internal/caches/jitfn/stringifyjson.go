@@ -773,13 +773,17 @@ func emitUnionStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 		if isObjectLikeKind(member.Kind) {
 			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
 		}
-		// Tuple-wrap decision — match emitUnionPrepareForJson's
-		// always-wrap stance for now. Refinement to mion's
-		// skipEncode optimisation (skip wrap when both pj and rj
-		// would be noop) is a later perf pass.
+		// Tuple-wrap decision — shared with emitUnionPrepareForJson /
+		// emitUnionRestoreFromJson via unionMemberNeedsTuple so all
+		// three emit families agree on the wire shape per member.
 		stringified := childJit.Code
-		tupleWrap := "'[" + strconv.Itoa(i) + ",' + " + stringified + " + ']'"
-		clause := "if (" + guard + ") { return " + tupleWrap + ";}"
+		var emitted string
+		if unionMemberNeedsTuple(member, ctx) {
+			emitted = "'[" + strconv.Itoa(i) + ",' + " + stringified + " + ']'"
+		} else {
+			emitted = stringified
+		}
+		clause := "if (" + guard + ") { return " + emitted + ";}"
 		if len(clauses) > 0 {
 			clause = " else " + clause
 		}

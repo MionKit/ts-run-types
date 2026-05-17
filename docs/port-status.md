@@ -225,35 +225,42 @@ plain `() => { throw … }`, which is what we emit.
 
 Documented divergence; not a bug.
 
-### 5. Union encoding strictly `[memberIndex, value]`, no shortcut
+### 5. ~~Union encoding strictly `[memberIndex, value]`, no shortcut~~ — RESOLVED
 
-**Where**:
-- `internal/caches/jitfn/preparefjson.go` `emitUnionPrepareForJson`
-- `internal/caches/jitfn/stringifyjson.go` `emitUnionStringifyJson`
+**Closed by**: per-member `skipEncode + needsTupleEncoding` port.
+The shared `unionMemberNeedsTuple(member, ctx)` helper in
+`internal/caches/jitfn/preparefjson.go` is now the single source of
+truth used by all three union emitters (`emitUnionPrepareForJson`,
+`emitUnionStringifyJson`, `emitUnionRestoreFromJson`). A member skips
+the `[memberIndex, value]` envelope iff BOTH its `prepareForJson`
+AND `restoreFromJson` compile to a noop — matches mion's
+`needsTupleEncoding = !!encJit?.code || !!decJit?.code`
+(`jitCompilers/json/stringifyJson.ts:295-306`).
 
-**Mion**: per-member, only wraps `[memberIndex, value]` when the
-member's own prepare/restore is non-noop; for an all-atomic-noop
-member the value is returned as-is and the decode shape-check
-distinguishes encoded vs raw. Mion's stringifyJson exposes this in
-the union spec's code-introspection tests
-(`stringifySpec/09StringifyUnions.spec.ts:51-77, 70-77`) which
-assert the generated JIT source does NOT contain a `[<idx>,`
-wrap-marker for noop members.
+Implementation notes:
+- The encoders peek into the *opposite* emitter via the existing
+  `peekMemberIsNoop` helper, now refactored to memoise results on
+  `Walker.peekedNoops` keyed by `<emitterTag>:<memberID>`. The cache
+  is per-Compile-pass (one Walker = one entry) so the three emit
+  families share the same per-member answer without re-compiling
+  each member's subtree three times.
+- `peekMemberIsNoop` distinguishes "truly unsupported" (no emit at
+  all → counts as noop) from "JitThrow with ErrorMessage" (the member
+  emits a runtime throw → counts as NON-noop). Without this split,
+  a union containing a function / never / Promise member would skip
+  the wrap on the rj side and the throw would never propagate to the
+  parent walker, silently swallowing the compile-time throw contract.
+- The restore side bails to empty (full noop union) when no member
+  needs the wrap — the shape gate / dispatch would be dead code.
+- Wire-shape contract verified by spot-check: `string | number`
+  emits no `[<idx>,` markers on pj or sj; `string | bigint` wraps
+  only the bigint arm on both encoders, and the rj dispatch only
+  contains a clause for the wrapped index. Round-trip tests
+  (`serializationRoundTrip.test.ts`,
+  `serializationStringifyJsonRoundTrip.test.ts`,
+  `serializationNoop.test.ts`) all green.
 
-**Us**: always wraps every encoded value, in both prepareForJson AND
-stringifyJson. Less efficient (extra 2-element array per union
-member) but simpler dispatch on decode. The two emit families
-agree on wire shape, so the round-trip is correct; restoreFromJson's
-shape-check still handles both wrapped and unwrapped inputs, so
-mion's wire format is also readable by our restoreFromJson — only
-our emit-time output differs.
-
-Trade-off, not a bug. Mion's `skipEncode + needsTupleEncoding`
-optimisation
-(`mion/.../stringifyJson.ts:295-306` and
-`union.ts:127`) is the canonical fix; porting it requires
-coordinating BOTH our prepareForJson + stringifyJson + restoreFromJson
-shape-check at once, which is queued as a follow-up.
+Documented divergence cleared; behaviour now matches mion.
 
 ### 6. `JIT_SUITE` → `VALIDATION_SUITE` rename
 
@@ -614,56 +621,30 @@ parsed-equality still holds with our current emit. Listed here so
 they're easy to find when revisiting wire-shape / payload-size
 work.
 
-### Union per-member skip-encode (`skipEncode + needsTupleEncoding`)
+### ~~Union per-member skip-encode (`skipEncode + needsTupleEncoding`)~~ — DONE
 
-**Reference**:
-- mion `jitCompilers/json/stringifyJson.ts:295-306` (per-arm
-  `needsTupleEncoding` check)
-- mion `nodes/collection/union.ts:114-152` (matching prepareForJson
-  shape via `comp.compilePrepareForJson` / `compileRestoreFromJson`
-  noop-detection)
-- Our impl: `internal/caches/jitfn/preparefjson.go`
-  `emitUnionPrepareForJson` and `internal/caches/jitfn/stringifyjson.go`
-  `emitUnionStringifyJson` — both always wrap.
+Ported. See deviation #5 above for the consolidated changelog and
+implementation notes. Summary:
 
-**What mion does**: for each union member, computes
-`needsTupleEncoding = !!encJit?.code || !!decJit?.code` —
-true when EITHER the member's `prepareForJson` or `restoreFromJson`
-is non-noop. When false (the member is a pure-atomic-noop on both
-halves), the encoded value is emitted DIRECTLY without the
-`[memberIndex, value]` envelope. The decode side
-(`emitRestoreFromJson` in `union.ts:161+`) has a shape-check
-(`v?.length === 2 && Array.isArray(v) && typeof v[0] === 'number'`)
-that distinguishes wrapped vs raw at runtime, so the round-trip
-stays correct even when only some members are wrapped.
-
-**What we do**: every union member always gets the `[memberIndex,
-value]` envelope, in both `prepareForJson` and `stringifyJson`.
-Less efficient (extra 2-element array per member ≈ 5+ bytes per
-union encode) but the dispatch is simpler. See deviation #5 for the
-full trade-off.
-
-**Why we left it**: porting requires coordinated changes across
-THREE emit families (prepareForJson + stringifyJson + restoreFromJson's
-shape-check) — the shape-check already exists on the restore side
-(mirrors mion), so the change is mostly emit-side. Estimated
-~40-60 lines of Go across `preparefjson.go` + `stringifyjson.go`
-adding the noop-check via the existing `peekMemberIsNoop` helper
-(`internal/caches/jitfn/preparefjson.go:573`).
-
-**Risk**: low. `restoreFromJson` already tolerates both wire shapes
-(verified — the existing shape-check has been there since the
-initial port). Wire-byte payload changes for callers comparing
-serialised output strings byte-for-byte; tests that assert parsed
-equality (the full safe-path adapter + all our existing suites)
-continue to pass.
-
-**Tests blocked by this**: mion's
-`stringifySpec/09StringifyUnions.spec.ts:51-77` lines (the
-`stringifyCode.not.toContain('[0,')` assertions) — we don't run
-those today because they'd fail under our always-wrap. Round-trip
-parts of the same spec pass via our `serializationStringifyJsonRoundTrip.test.ts`
-adapter.
+- Shared `unionMemberNeedsTuple(member, ctx)` helper in
+  `internal/caches/jitfn/preparefjson.go` is the single source of
+  truth, consumed by all three union emitters.
+- `peekMemberIsNoop` was refactored to take `*EmitContext` and
+  memoise on `Walker.peekedNoops` (`internal/caches/jitfn/walker.go`)
+  so the three emit families share answers per-Compile-pass instead
+  of re-walking each member subtree.
+- `peekMemberIsNoop` now distinguishes JitThrow-emitting members
+  (NON-noop — the throw must propagate) from truly-unsupported
+  kinds (noop — identity passes). Without this split, a union
+  containing a function / never / Promise member would silently
+  swallow the compile-time-throw contract on the rj side.
+- Restore side returns empty when no member needs the wrap (whole
+  union → identity) instead of emitting a dead shape gate.
+- Mion's `stringifySpec/09StringifyUnions.spec.ts:51-77`
+  `stringifyCode.not.toContain('[<idx>,')` assertions would now
+  pass under our emit — adding them as permanent tests is a
+  follow-up (needs a fixture-style capture of the rendered module
+  body).
 
 ## Reference
 

@@ -74,12 +74,25 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     expect(rjEntry(encId)?.isNoop).toBe(false);
   });
 
-  it('json encode/decode should never be marked as noop as encoding/decoding is always required', () => {
+  it('atomic union — pj keeps the dispatch, rj collapses when no member needs the wrap', () => {
+    // Per mion's per-member `skipEncode + needsTupleEncoding` optimisation
+    // (jitCompilers/json/stringifyJson.ts:295-306), a union member skips
+    // the `[memberIndex, value]` envelope when BOTH its prepareForJson
+    // and restoreFromJson would compile to noop. For `number | string`,
+    // every member is noop on both halves, so:
+    //   - prepareForJson keeps the if/else dispatch (with the trailing
+    //     throw on unmatched inputs) — the dispatch survives so isNoop
+    //     stays false on pj.
+    //   - restoreFromJson has nothing to decode (no member is wrapped),
+    //     so the whole body collapses to identity → isNoop=true on rj.
+    // For `bigint | Date`, both members are non-noop on at least one
+    // half (bigint pj/rj are non-noop, Date rj is non-noop), so the
+    // wrap is preserved on every member and both halves stay non-noop.
     const noopId = getRuntypeId<AtomicNoEncRequired>();
     const encId = getRuntypeId<AtomicEncRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(false);
-    expect(rjEntry(noopId)?.isNoop).toBe(false);
+    expect(rjEntry(noopId)?.isNoop).toBe(true);
     expect(pjEntry(encId)?.isNoop).toBe(false);
     expect(rjEntry(encId)?.isNoop).toBe(false);
   });
