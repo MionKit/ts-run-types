@@ -376,3 +376,18 @@ describe('isType / UTILITY', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UTILITY).length);
   });
 });
+
+describe('isType / TYPE_MAPPINGS', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Key prefix via template literal — `prefix_${K}` rename', () => assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_prefix_rename));
+  it('Conditional key rename — swap one key, leave the rest', () => assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_conditional_rename));
+  it('Filter keys via `never` — drop sensitive props', () => assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_filter_via_never));
+
+  it('all type-mappings isType tests ran', () => {
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TYPE_MAPPINGS).length);
+  });
+});
