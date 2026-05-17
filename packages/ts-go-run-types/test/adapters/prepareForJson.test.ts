@@ -29,8 +29,16 @@ import {normalizeForComparison} from '../util/equalsHelpers.ts';
 // (the round-trip is just JSON.stringify / JSON.parse).
 const identityFn = (v: unknown) => v;
 
-function assertRoundTrip(label: string, prepare: (v: unknown) => unknown, restore: (v: unknown) => unknown, valid: unknown[]) {
-  valid.forEach((v, i) => {
+function assertRoundTrip(label: string, prepare: (v: unknown) => unknown, restore: (v: unknown) => unknown, getValid: () => unknown[]) {
+  // Fetch the samples twice so we have a separate reference copy for
+  // comparison. The serializer mutates the input in place (mion's
+  // contract — see emit code in nodes/atomic/bigInt.ts: `v.toString()`,
+  // emit code in nodes/member/array.ts wraps with the for loop that
+  // overwrites `v[i0]`). If we passed the same object to both sides,
+  // the comparison would see the post-mutation value.
+  const inputs = getValid();
+  const references = getValid();
+  inputs.forEach((v, i) => {
     const prepared = prepare(v);
     const serialized = JSON.stringify(prepared);
     // Top-level undefined cannot be JSON-encoded — JSON.stringify
@@ -41,7 +49,7 @@ function assertRoundTrip(label: string, prepare: (v: unknown) => unknown, restor
     if (serialized === undefined) return;
     const parsed = JSON.parse(serialized);
     const restored = restore(parsed);
-    const {actual, expected} = normalizeForComparison(restored, v);
+    const {actual, expected} = normalizeForComparison(restored, references[i]);
     expect(actual, `${label}: valid[${i}] round-trip should deep-equal original`).toEqual(expected);
   });
 }
@@ -51,7 +59,7 @@ function assertPrepareForJson(c: JitCase): void {
   // Use getRoundTripValid when defined — narrower sample set for cases
   // whose static type is too broad to preserve class info through the
   // round-trip (e.g. `object` excludes Date / RegExp).
-  const valid = c.getRoundTripValid ? c.getRoundTripValid() : c.getSamples().valid;
+  const getValid = c.getRoundTripValid ?? (() => c.getSamples().valid);
   // Paired thunks for the round-trip. When a half is undefined the
   // pair is presumed identity (covers atomic noops cleanly).
   const restoreStatic = c.restoreFromJson?.() ?? identityFn;
@@ -60,23 +68,23 @@ function assertPrepareForJson(c: JitCase): void {
   const restoreDeserReflect = c.deserializeRestoreFromJsonReflect?.() ?? identityFn;
 
   // Static form: createPrepareForJson<T>() + createRestoreFromJson<T>().
-  assertRoundTrip(`${c.title} [static]`, c.prepareForJson(), restoreStatic, valid);
+  assertRoundTrip(`${c.title} [static]`, c.prepareForJson(), restoreStatic, getValid);
 
   // Reflect form. Optional — cases that omit `prepareForJsonReflect`
   // skip the second pass.
   if (c.prepareForJsonReflect) {
-    assertRoundTrip(`${c.title} [reflect]`, c.prepareForJsonReflect(), restoreReflect, valid);
+    assertRoundTrip(`${c.title} [reflect]`, c.prepareForJsonReflect(), restoreReflect, getValid);
   }
 
   // Deserialize-static form — rebuilds the transformer from the
   // serialized JitCompiledFnData.code body.
   if (c.deserializePrepareForJson) {
-    assertRoundTrip(`${c.title} [deserialize-static]`, c.deserializePrepareForJson(), restoreDeserStatic, valid);
+    assertRoundTrip(`${c.title} [deserialize-static]`, c.deserializePrepareForJson(), restoreDeserStatic, getValid);
   }
 
   // Deserialize-reflect form.
   if (c.deserializePrepareForJsonReflect) {
-    assertRoundTrip(`${c.title} [deserialize-reflect]`, c.deserializePrepareForJsonReflect(), restoreDeserReflect, valid);
+    assertRoundTrip(`${c.title} [deserialize-reflect]`, c.deserializePrepareForJsonReflect(), restoreDeserReflect, getValid);
   }
 }
 
@@ -117,5 +125,36 @@ describe('prepareForJson / ATOMIC', () => {
 
   it('all atomic prepareForJson tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.ATOMIC).length);
+  });
+});
+
+describe('prepareForJson / ARRAY', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Array of strings', () => assertPrepareForJson(JIT_SUITE.ARRAY.string_array));
+  it('Array of numbers (rejects Infinity / NaN per element)', () => assertPrepareForJson(JIT_SUITE.ARRAY.number_array));
+  it('Array of booleans', () => assertPrepareForJson(JIT_SUITE.ARRAY.boolean_array));
+  it('Array of bigints', () => assertPrepareForJson(JIT_SUITE.ARRAY.bigint_array));
+  it('Array of Dates (rejects Invalid Date per element)', () => assertPrepareForJson(JIT_SUITE.ARRAY.date_array));
+  it('Array of RegExps', () => assertPrepareForJson(JIT_SUITE.ARRAY.regexp_array));
+  it('Array of undefined values', () => assertPrepareForJson(JIT_SUITE.ARRAY.undefined_array));
+  it('Array of nulls', () => assertPrepareForJson(JIT_SUITE.ARRAY.null_array));
+  it('Generic Array<T> form (same emit as T[])', () => assertPrepareForJson(JIT_SUITE.ARRAY.array_generic));
+  it('Two-dimensional string array (multi-level dependency call)', () => assertPrepareForJson(JIT_SUITE.ARRAY.string_array_2d));
+  it('Three-dimensional string array (depth stress)', () => assertPrepareForJson(JIT_SUITE.ARRAY.string_array_3d));
+  it('Array with noIsArrayCheck (Array.isArray guard stripped)', () => assertPrepareForJson(JIT_SUITE.ARRAY.string_array_noIsArrayCheck));
+  it('Array of object literals', () => assertPrepareForJson(JIT_SUITE.ARRAY.object_array));
+  it('Array of unions (OR-chain per element)', () => assertPrepareForJson(JIT_SUITE.ARRAY.union_array));
+  it('Array of tuples', () => assertPrepareForJson(JIT_SUITE.ARRAY.tuple_array));
+  it('Self-referential array (CircularArray = CircularArray[])', () => assertPrepareForJson(JIT_SUITE.ARRAY.circular_array));
+  it('Recursive object whose cycle closes via an array property', () => assertPrepareForJson(JIT_SUITE.ARRAY.circular_object_with_array));
+  it('Array of symbols (non-serializable — always rejected)', () => assertPrepareForJson(JIT_SUITE.ARRAY.symbol_array));
+  it('Readonly array (ReadonlyArray<T> / readonly T[])', () => assertPrepareForJson(JIT_SUITE.ARRAY.readonly_string_array));
+
+  it('all array prepareForJson tests ran', () => {
+    expect(ranTests).toBe(Object.keys(JIT_SUITE.ARRAY).length);
   });
 });
