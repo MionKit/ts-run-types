@@ -84,6 +84,13 @@ type Emitter interface {
 	//   typeErrors: empty → ("return εrr", true)
 	//   prepareForJson et al: empty → ("return v", true)
 	Finalize(rawCode string) (code string, isNoop bool)
+
+	// ReturnName is the JS identifier the walker appends after a
+	// statement-shaped body via `… return <ReturnName>`. For isType /
+	// prepareForJson / format / mock this is the first arg's Name
+	// (`v`). For typeErrors the accumulator is the third arg (`er`),
+	// so the emitter overrides this method to return `"er"` instead.
+	ReturnName() string
 }
 
 // EmitContext is the narrow surface Emit implementations see. They
@@ -141,6 +148,50 @@ func (ctx *EmitContext) SetChildAccessor(accessor string) {
 	ctx.walker.setChildAccessor(accessor)
 }
 
+// SetChildPathLiteral records the path-literal contribution the next
+// pushStack frame inherits. Symmetric with SetChildAccessor — collection
+// emitters call it before each CompileChild so the child frame's
+// PathLiteral reflects the property name, tuple index, or loop counter
+// the child sits at relative to the parent. Used by typeErrors-style
+// emitters to build access-path arrays for error reporting; isType
+// ignores it.
+func (ctx *EmitContext) SetChildPathLiteral(literal string) {
+	ctx.walker.setChildPathLiteral(literal)
+}
+
+// AccessPathLiteral returns a JS array-literal expression listing every
+// non-empty PathLiteral on the current stack, with `extra` appended as a
+// trailing segment when non-empty. Empty path → empty string (caller
+// omits the argument). Used by typeErrors emitters when calling
+// cpf_newRunTypeErr to embed the static path segments at error sites.
+//
+// Mirrors mion's `getAccessPath` + `getAccessPathLiteral`
+// (jitFnCompiler.ts:677-681) — same join, same `extra` semantics.
+func (ctx *EmitContext) AccessPathLiteral(extra string) string {
+	segments := ctx.walker.accessPath()
+	if extra != "" {
+		segments = append(segments, extra)
+	}
+	if len(segments) == 0 {
+		return ""
+	}
+	return "[" + joinComma(segments) + "]"
+}
+
+// AccessPathLength returns the number of static path segments the
+// current stack contributes (with `extra` counted when non-empty).
+// Used by typeErrors EmitDependencyCall to size the `pth.splice(-N)`
+// pop that unwinds the path after a dependency-call returns. Mirrors
+// mion's `getAccessPathLength` (jitFnCompiler.ts implicit via array
+// length on getAccessPath result).
+func (ctx *EmitContext) AccessPathLength(extra string) int {
+	n := len(ctx.walker.accessPath())
+	if extra != "" {
+		n++
+	}
+	return n
+}
+
 // SetContextItem registers a closure-prologue `const xyz = …;`
 // declaration. WrapClosure emits these before the inner function so
 // they're evaluated once per factory call, not on every validator
@@ -157,4 +208,53 @@ func (ctx *EmitContext) HasContextItem(key string) bool {
 // GetContextItem mirrors jitFnCompiler.ts:248.
 func (ctx *EmitContext) GetContextItem(key string) (string, bool) {
 	return ctx.walker.ContextItems.get(key)
+}
+
+// AddPureFnDependency records that the emitted body reaches a pure-fn
+// at `utl.getPureFn(<namespace>, <fnName>)`. The walker forwards each
+// dependency to the resolver's integrity check at end of compilation —
+// see internal/caches/jitfn/walker.go's AddPureFnDependency for the
+// recording contract. Used by typeErrors to register `cpf_newRunTypeErr`
+// before emitting calls into it.
+func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) {
+	ctx.walker.AddPureFnDependency(namespace, fnName, filePath)
+}
+
+// ArgName looks up the JS identifier the inner function uses for a
+// conceptual arg slot ("vλl", "pλth", "εrr") via the emitter's Args
+// list. Returns "" when the slot isn't declared on this emitter — eg
+// isType has no "pλth" / "εrr", so callers gating on those slots
+// short-circuit cleanly without panicking. Mirrors mion's
+// `this.args.<key>` access (jitFnCompiler.ts:671).
+func (ctx *EmitContext) ArgName(key string) string {
+	for _, arg := range ctx.walker.Emitter.Args() {
+		if arg.Key == key {
+			return arg.Name
+		}
+	}
+	return ""
+}
+
+// joinComma is a private helper to concatenate path-literal segments
+// without depending on strings.Join (avoids an import here; the file
+// otherwise stays import-free).
+func joinComma(parts []string) string {
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return parts[0]
+	}
+	total := 0
+	for _, p := range parts {
+		total += len(p) + 1
+	}
+	buf := make([]byte, 0, total)
+	for i, p := range parts {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = append(buf, p...)
+	}
+	return string(buf)
 }

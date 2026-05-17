@@ -208,7 +208,7 @@ export interface Replacement {
 // into on a scanFiles request via Request.includeCacheSources. Mirrors
 // the Go-side protocol.CacheKind. `'all'` is a forward-compatible
 // shortcut: when present every other kind is treated as requested.
-export type CacheKind = 'runType' | 'isType' | 'pureFns' | 'all';
+export type CacheKind = 'runType' | 'isType' | 'typeErrors' | 'pureFns' | 'all';
 
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
@@ -244,6 +244,10 @@ export interface Response {
   // any pure-fn entry's bodyHash flipped or appeared.
   addedRunTypes?: boolean;
   addedIsType?: boolean;
+  // Sibling of addedIsType — true when at least one newly-interned
+  // RunType has a supported emitTypeErrors arm, so the typeErrors
+  // cache module needs invalidating.
+  addedTypeErrors?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
   // Replacements is the byte-range rewrite list the Vite plugin
@@ -269,6 +273,13 @@ export interface Response {
   // pre-invokes a factory. Populated by `dump` and on `scanFiles` when
   // the caller opts into `'isType'` (or `'all'`).
   isTypeCacheSource?: string;
+  // Sibling of `isTypeCacheSource` carrying the precompiled typeErrors
+  // validator factories. Body shape:
+  //   export function get_typeErrors_<hash>(utl){…}
+  // Same consumer pattern as isTypeCacheSource — populated by `dump`
+  // and on `scanFiles` when the caller opts into `'typeErrors'`
+  // (or `'all'`).
+  typeErrorsCacheSource?: string;
   // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
   // <factory>)` call. Body is a sequence of `factory(key, bodyHash,

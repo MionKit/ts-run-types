@@ -42,6 +42,16 @@ func renderIsTypeModule(dump protocol.Dump) (string, error) {
 	})
 }
 
+// renderTypeErrorsModule emits the `virtual:runtypes-typeErrors` module —
+// sibling of renderIsTypeModule, same factory shape with three-arg
+// validators (value, path, errors) that accumulate RunTypeError
+// entries instead of returning a boolean. Backed by jitfn.TypeErrorsEmitter.
+func renderTypeErrorsModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderTypeErrorsModule", func(w io.Writer) error {
+		return jitfn.TypeErrorsModule(w, dump)
+	})
+}
+
 // renderPureFnsModule renders the pureFns cache-module body for the
 // program. When `entries` is non-nil it's used directly (the
 // OpScanFiles caller already ran extractPureFnsForScan and passes its

@@ -34,6 +34,10 @@ var CacheModules = CacheModuleGroup{
 		Name:      "isTypeModule",
 		VarPrefix: "get_isType_",
 	},
+	"typeErrors": {
+		Name:      "typeErrorsModule",
+		VarPrefix: "get_typeErrors_",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",

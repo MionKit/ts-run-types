@@ -63,7 +63,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 	}
 	out := renderToString(t, dump)
 	want := "factory(" +
-		"'abc123'," +
+		"'isType_abc123'," +
 		"'string'," +
 		"'return function isType_abc123(v){return typeof v === \\'string\\'}'," +
 		"false," +
@@ -112,7 +112,7 @@ func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
 			if row.noop {
 				// Noop factories are skipped entirely — no `factory('<id>',` line
 				// should appear in the rendered module.
-				marker := "factory('" + row.rt.ID + "',"
+				marker := "factory('isType_" + row.rt.ID + "',"
 				if strings.Contains(out, marker) {
 					t.Errorf("noop kind %s should be skipped, but found %q in:\n%s", row.name, marker, out)
 				}
@@ -250,8 +250,8 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}}
 	out := renderToString(t, dump)
 
-	innerFactory := "factory('inn',"
-	outerFactory := "factory('out',"
+	innerFactory := "factory('isType_inn',"
+	outerFactory := "factory('isType_out',"
 	innerIdx := strings.Index(out, innerFactory)
 	outerIdx := strings.Index(out, outerFactory)
 	if innerIdx < 0 {
@@ -263,13 +263,13 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 	if innerIdx >= outerIdx {
 		t.Errorf("inner factory must render before outer (topo sort); got innerIdx=%d outerIdx=%d in:\n%s", innerIdx, outerIdx, out)
 	}
-	if !strings.Contains(out, "['inn']") {
-		t.Errorf("outer factory's jitDependencies arg must contain ['inn'], got:\n%s", out)
+	if !strings.Contains(out, "['isType_inn']") {
+		t.Errorf("outer factory's jitDependencies arg must contain ['isType_inn'], got:\n%s", out)
 	}
-	if !strings.Contains(out, "const inn = utl.getJIT('inn')") {
+	if !strings.Contains(out, "const isType_inn = utl.getJIT('isType_inn')") {
 		t.Errorf("outer factory must register context item resolving the inner hash, got:\n%s", out)
 	}
-	if !strings.Contains(out, "inn.fn(v[i0])") {
+	if !strings.Contains(out, "isType_inn.fn(v[i0])") {
 		t.Errorf("outer body must call inner via `<hash>.fn(args)`, got:\n%s", out)
 	}
 }
@@ -330,7 +330,7 @@ func TestIsTypeModule_InterfaceEmitBody(t *testing.T) {
 	}
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propA, propB, stringRT, numberRT}}
 	out := renderToString(t, dump)
-	if !strings.Contains(out, "factory('if1',") {
+	if !strings.Contains(out, "factory('isType_if1',") {
 		t.Fatalf("interface factory missing in:\n%s", out)
 	}
 	want := "(typeof v === 'object' && v !== null && typeof v.a === 'string' && Number.isFinite(v.b))"
@@ -575,13 +575,13 @@ func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if strings.Contains(out, "'u1'") {
+	if strings.Contains(out, "'isType_u1'") {
 		t.Error("empty KindUnion should be skipped (unsupported), but u1 was rendered")
 	}
-	if strings.Contains(out, "'x1'") {
+	if strings.Contains(out, "'isType_x1'") {
 		t.Error("KindIntersection should be skipped (unsupported), but x1 was rendered")
 	}
-	if !strings.Contains(out, "factory('s1',") {
+	if !strings.Contains(out, "factory('isType_s1',") {
 		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)
 	}
 }
@@ -608,10 +608,10 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{arr, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "factory('ar1',") {
+		if strings.Contains(out, "factory('isType_ar1',") {
 			t.Errorf("array with unsupported child must be skipped, got:\n%s", out)
 		}
-		if !strings.Contains(out, "factory('str',") {
+		if !strings.Contains(out, "factory('isType_str',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)
 		}
 	})
@@ -641,7 +641,7 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propUns, propOk, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "factory('if1',") {
+		if strings.Contains(out, "factory('isType_if1',") {
 			t.Errorf("object with one unsupported property must be skipped, got:\n%s", out)
 		}
 	})
@@ -657,7 +657,7 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{un, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "factory('un1',") {
+		if strings.Contains(out, "factory('isType_un1',") {
 			t.Errorf("union with one unsupported member must be skipped, got:\n%s", out)
 		}
 	})
@@ -679,10 +679,10 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{outerArr, innerArr, unsupportedLeaf}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "factory('ao',") {
+		if strings.Contains(out, "factory('isType_ao',") {
 			t.Errorf("outer array of unsupported must be skipped, got:\n%s", out)
 		}
-		if strings.Contains(out, "factory('ai',") {
+		if strings.Contains(out, "factory('isType_ai',") {
 			t.Errorf("inner array of unsupported must be skipped, got:\n%s", out)
 		}
 	})
@@ -693,10 +693,10 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "factory('ns1',") {
+		if strings.Contains(out, "factory('isType_ns1',") {
 			t.Errorf("KindClass+SubKindNonSerializable must be skipped, got:\n%s", out)
 		}
-		if !strings.Contains(out, "factory('str',") {
+		if !strings.Contains(out, "factory('isType_str',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)
 		}
 	})
@@ -711,7 +711,7 @@ func TestIsTypeModule_NilRunTypeSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if !strings.Contains(out, "factory('s1',") {
+	if !strings.Contains(out, "factory('isType_s1',") {
 		t.Error("nil entries should be skipped without affecting the real one")
 	}
 }

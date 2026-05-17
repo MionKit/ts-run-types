@@ -16,6 +16,11 @@ import (
 // place this prefix still surfaces in the emitted JS.
 const isTypeInnerPrefix = "isType_"
 
+// typeErrorsInnerPrefix mirrors isTypeInnerPrefix for the typeErrors
+// emit pipeline — the inner validator name inside each createJitFn
+// closure is `typeErrors_<hash>`.
+const typeErrorsInnerPrefix = "typeErrors_"
+
 // IsTypeModule writes the runtime artifact for the isType cache module:
 // the hand-authored skeleton with the marker line replaced by one
 // `factory(…);` call per cached RunType the IsTypeEmitter supports.
@@ -23,10 +28,16 @@ const isTypeInnerPrefix = "isType_"
 // parameter, so the per-entry call site doesn't repeat the argument.
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is one
-// line once the Emitter is implemented. Adding typeErrors later is a
-// one-line `TypeErrorsModule` next to this one.
+// line once the Emitter is implemented.
 func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, constants.CacheModules["isType"], IsTypeEmitter{}, isTypeInnerPrefix, cachetpl.SkeletonIsType)
+}
+
+// TypeErrorsModule writes the runtime artifact for the typeErrors
+// cache module — sibling of IsTypeModule, same structure (skeleton +
+// generated factories), different emitter and skeleton.
+func TypeErrorsModule(writer io.Writer, dump protocol.Dump) error {
+	return RenderFnModule(writer, dump, constants.CacheModules["typeErrors"], TypeErrorsEmitter{}, typeErrorsInnerPrefix, cachetpl.SkeletonTypeErrors)
 }
 
 // RenderFnModule is the fn-agnostic module renderer. Emits one
@@ -80,6 +91,11 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		line string
 		deps []string
 	}
+	// Entries are keyed by the namespaced JS cache hash (innerPrefix +
+	// runtype ID, e.g. "isType_abc123"). Sharing this key with the
+	// factory registration's first arg means downstream tooling
+	// (dangling-dep cascade, topo sort) operates on the same identifier
+	// the JS side sees in jitUtils.
 	entries := make(map[string]compiled, len(dump.RunTypes))
 	order := make([]string, 0, len(dump.RunTypes))
 	for _, runType := range dump.RunTypes {
@@ -98,11 +114,12 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		if line == "" {
 			continue
 		}
-		if _, exists := entries[runType.ID]; exists {
+		namespacedID := innerPrefix + runType.ID
+		if _, exists := entries[namespacedID]; exists {
 			continue
 		}
-		entries[runType.ID] = compiled{line: line, deps: deps}
-		order = append(order, runType.ID)
+		entries[namespacedID] = compiled{line: line, deps: deps}
+		order = append(order, namespacedID)
 	}
 
 	// Dangling-dep cascade: an entry whose body holds a
@@ -182,6 +199,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	innerName := innerPrefix + runType.ID
 	walker := NewWalker(runType, innerName, emitter)
 	walker.RefTable = refTable
+	// InnerPrefix lets dispatch namespace child cache keys consistently
+	// with the factory registration's first arg (innerName below).
+	walker.InnerPrefix = innerPrefix
 	innerFn, isNoop, isUnsupported := walker.Compile()
 	if isUnsupported {
 		// The compile reached a kind with no emit; skip emitting any
@@ -199,8 +219,12 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// via `new Function('utl', code)(jitUtils)`. The inner-validator
 	// body remains embedded in `code` (as `return function …(v){…}`)
 	// AND is the entire payload of `createJitFn` for live invocation.
+	//
+	// First arg is the namespaced cache key (innerPrefix + runType.ID)
+	// so the JS-side jitFnsCache slot is distinct from the same
+	// runtype's isType / prepareForJson / … entries.
 	args := []string{
-		quoteJS(runType.ID),
+		quoteJS(innerName),
 		quoteJS(jitTypeName(runType)),
 		quoteJS(factoryBody),
 		boolJS(isNoop),
