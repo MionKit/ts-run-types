@@ -36,6 +36,23 @@ type Emitter interface {
 	// handle should panic loudly so the bug surfaces at compile time.
 	Supports(rt *protocol.RunType) bool
 
+	// IsJitInlined reports whether the walker should inline rt's
+	// emitted code at the call site (true) or emit a dependency call
+	// to a precompiled factory (false). The walker enforces an
+	// independent depth gate (only dependency-call at depth > 1, so
+	// the root always inlines); this predicate answers the intrinsic
+	// "is rt cheap enough to inline?" question.
+	//
+	// Mion's run-types/src/lib/baseRunTypes.ts:52 defines this once
+	// on BaseRunType — shared across every jit fn. Our equivalent
+	// is `DefaultIsJitInlined` (inlining.go); emitters that want
+	// mion's behaviour delegate to it. Emitters that need different
+	// rules (the user's stated reason for surfacing this on the
+	// Emitter interface) override the body. Per-fn override is
+	// CAPABILITY, not policy — share unless you have a concrete
+	// reason to diverge.
+	IsJitInlined(ctx *InlineContext) bool
+
 	// Emit dispatches the giant per-kind switch. The Walker calls
 	// this once per node in the RunType graph. EmitContext exposes
 	// the current value accessor + the hooks the emitter needs

@@ -46,6 +46,17 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
+// IsJitInlined delegates to DefaultIsJitInlined. Mion's
+// run-types/src/lib/baseRunTypes.ts:52 defines the predicate ONCE
+// for every jit fn (no per-class overrides exist in the upstream
+// runtype package), so the isType emitter inherits the shared
+// behaviour: arrays and named collections become dependency calls,
+// everything else inlines. Override here only if a concrete need
+// surfaces — there isn't one today.
+func (IsTypeEmitter) IsJitInlined(ctx *InlineContext) bool {
+	return DefaultIsJitInlined(ctx)
+}
+
 // Emit is the single big switch over ReflectionKind. Replaces mion's
 // per-class `emitIsType` methods (one per node class under
 // run-types/src/nodes/atomic/*.ts) — same pattern mion uses for
