@@ -61,7 +61,31 @@ const (
 // JitCode is one emitter's output. `Code == ""` means "no code emitted"
 // (mion uses `undefined` for the same state — both halves treat empty
 // snippets as a noop the orchestrator can drop).
+//
+// ErrorMessage rides along the CodeNS sentinel to flip the renderer's
+// "silent skip" into "emit a throwing factory". Mion's per-runtype
+// throws inside emitPrepareForJson / emitRestoreFromJson (never,
+// Promise, NonSerializableRunType, the `Arrays can not have non
+// serializable types` check in array.ts) propagate as JS exceptions out
+// of createJitFunction; our equivalent lands the message here, the
+// walker latches it onto Walker.ThrowMessage on the first encounter,
+// and module.go emits a `function(utl){ throw new Error(<msg>) }`
+// factory so the throw surfaces at createPrepareForJson()-call time
+// (matching mion's "throws at JIT compile" semantic).
 type JitCode struct {
-	Code string
-	Type CodeType
+	Code         string
+	Type         CodeType
+	ErrorMessage string
+}
+
+// JitThrow returns a CodeNS JitCode carrying a message. Renderer emits
+// a throw-factory whose body raises `new Error(message)` when invoked,
+// so the throw surfaces at `createPrepareForJson<T>()` call time (which
+// triggers the entry's first getJIT lookup → materialize →
+// createJitFn(utl) → throw). Mirrors mion's per-runtype throws in
+// nodes/atomic/never.ts, nodes/native/promise.ts,
+// nodes/native/nonSerializable.ts, and the explicit
+// checkNonSkipTypes() in nodes/member/array.ts.
+func JitThrow(message string) JitCode {
+	return JitCode{Code: "", Type: CodeNS, ErrorMessage: message}
 }

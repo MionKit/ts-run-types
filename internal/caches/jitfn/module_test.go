@@ -694,14 +694,21 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 	})
 
-	t.Run("plain_user_class_with_unsupported_subkind_skipped", func(t *testing.T) {
-		// KindClass + SubKindNonSerializable was a panic path before
-		// the refactor; now it returns CodeNS so the entry skips.
+	t.Run("plain_user_class_with_nonserializable_subkind_throws", func(t *testing.T) {
+		// KindClass + SubKindNonSerializable mirrors mion's
+		// NonSerializableRunType.emitIsType which throws "Jit
+		// compilation disabled for Non Serializable types.". The
+		// renderer emits a throw-factory raising the same message
+		// at createIsType()-call time — same observable behaviour
+		// as mion's `expect(() => rt.createJitFunction(...)).toThrow()`.
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "init('it_ns1',") {
-			t.Errorf("KindClass+SubKindNonSerializable must be skipped, got:\n%s", out)
+		if !strings.Contains(out, "init('it_ns1',") {
+			t.Errorf("KindClass+SubKindNonSerializable must emit a throw-factory, got:\n%s", out)
+		}
+		if !strings.Contains(out, `throw new Error('Jit compilation disabled for Non Serializable types.')`) {
+			t.Errorf("throw-factory body must carry mion's message, got:\n%s", out)
 		}
 		if !strings.Contains(out, "init('it_str',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)
