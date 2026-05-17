@@ -1,6 +1,7 @@
 package jitfn
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -54,9 +55,9 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 	case protocol.KindTupleMember:
 		return true
 	case protocol.KindUnion:
-		// Phase 7 — noop. See preparefjson.go union case for the
-		// rationale.
-		return true
+		// Decodes the `[memberIndex, encodedValue]` envelope produced
+		// by prepareForJson — see preparefjson.go union case.
+		return len(rt.Children) > 0
 	case protocol.KindIntersection:
 		// Defensive noop — see preparefjson.go intersection case.
 		return true
@@ -196,8 +197,9 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindUnion:
-		// Phase 7 — noop. See preparefjson.go union case.
-		return JitCode{Code: "", Type: CodeS}
+		// mion:nodes/collection/union.ts:emitRestoreFromJson — decode
+		// the `[memberIndex, encodedValue]` envelope and dispatch.
+		return emitUnionRestoreFromJson(rt, ctx, v)
 
 	case protocol.KindIntersection:
 		return JitCode{Code: "", Type: CodeS}
@@ -441,6 +443,85 @@ func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v st
 	return childJit
 }
 
+// emitUnionRestoreFromJson mirrors mion's
+// nodes/collection/union.ts:emitRestoreFromJson. Checks whether the
+// incoming value is the `[memberIndex, encodedValue]` envelope produced
+// by emitUnionPrepareForJson; if so, dispatches on the index to run
+// the matching member's restoreFromJson. If not a tuple, the value is
+// a noop-member's raw form — pass through unchanged.
+//
+// Only members that needed tuple-encoding on the prepare side get
+// decode clauses here — same per-member peek as emitUnionPrepareForJson
+// keeps the two halves in sync.
+func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	children := rt.SafeUnionChildren
+	if len(children) == 0 {
+		children = rt.Children
+	}
+	if len(children) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+
+	refTable := ctx.walker.RefTable
+
+	// Per-member peek: which members got tuple-encoded on the prepare
+	// side? Only those need decode clauses here.
+	needsTuple := make([]bool, len(children))
+	anyNeedsTuple := false
+	for i, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, refTable)
+		rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, refTable)
+		nt := !pjNoop || !rjNoop
+		needsTuple[i] = nt
+		if nt {
+			anyNeedsTuple = true
+		}
+	}
+	if !anyNeedsTuple {
+		// Nothing was tuple-encoded — restore is identity.
+		return JitCode{Code: "", Type: CodeS}
+	}
+
+	decVar := ctx.NextLocalVar("dec")
+	var clauses []string
+	for i, childRef := range children {
+		if !needsTuple[i] {
+			continue
+		}
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		restoreJit := ctx.CompileChild(childRef, CodeS)
+		body := strings.TrimSpace(restoreJit.Code)
+		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
+			body += ";"
+		}
+		clause := "if (" + decVar + " === " + strconv.Itoa(i) + ") {" + body + "}"
+		if len(clauses) > 0 {
+			clause = " else " + clause
+		}
+		clauses = append(clauses, clause)
+	}
+
+	errVar := ctx.NextLocalVar("uErr")
+	if !ctx.HasContextItem(errVar) {
+		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not json decode union: invalid union index'")
+	}
+	inner := strings.Join(clauses, "") + " else { throw new Error(" + errVar + ") }"
+
+	// Tuple-shape gate — a raw (non-tuple-encoded) value matches no
+	// member-encoded sample shape, so pass it through unchanged.
+	body := "if (Array.isArray(" + v + ") && " + v + ".length === 2 && typeof " + v + "[0] === 'number') {" +
+		"const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" +
+		inner + "}"
+	return JitCode{Code: body, Type: CodeS}
+}
+
 // EmitDependencyCall mirrors PrepareForJsonEmitter's — the parent
 // frame's `<vλl>` must capture the call's return so the
 // `v = new Date(v)` style rebind inside the inner function propagates
@@ -461,12 +542,12 @@ func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID s
 	return ctx.Vλl + " = " + call
 }
 
-// Finalize — mirror of PrepareForJsonEmitter.Finalize. Always emits
-// an identity factory for noop entries so dep chains stay valid; see
-// the prepareForJson side for the full rationale.
+// Finalize — same shape as PrepareForJsonEmitter.Finalize. Mirrors
+// mion's handleFunctionReturn for restoreFromJson: identity body for
+// noops, factory still emitted so dep-call chains resolve.
 func (RestoreFromJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
-	if code == "" {
+	if code == "" || code == "return v" {
 		return "return v", false
 	}
 	return code, false
