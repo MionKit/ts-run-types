@@ -1,6 +1,8 @@
 package jitfn
 
 import (
+	"strings"
+
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -41,8 +43,19 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindArray:
 		return rt.Child != nil
+	case protocol.KindObjectLiteral:
+		return true
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return true
+	case protocol.KindIndexSignature:
+		return true
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// Top-level function types: noop body (caller's responsibility).
+		return true
 	case protocol.KindClass:
-		if rt.SubKind == protocol.SubKindDate {
+		switch rt.SubKind {
+		case protocol.SubKindDate, protocol.SubKindNone:
 			return true
 		}
 		return false
@@ -132,7 +145,25 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			// mion:nodes/atomic/date.ts:23 — `new Date(v)`.
 			return JitCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
 		}
+		if rt.SubKind == protocol.SubKindNone {
+			// User class — same emit body as KindObjectLiteral.
+			return emitObjectRestoreFromJson(rt, ctx, v)
+		}
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindObjectLiteral:
+		return emitObjectRestoreFromJson(rt, ctx, v)
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return emitPropertyRestoreFromJson(rt, ctx, v)
+
+	case protocol.KindIndexSignature:
+		return emitIndexSignatureRestoreFromJson(rt, ctx, v)
+
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// Non-serializable — noop body.
+		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
 		// mion:nodes/atomic/literal.ts:80 — defers to the underlying
@@ -189,6 +220,111 @@ func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) JitCode {
 	}
 	// Primitive literal — noop.
 	return JitCode{Code: "", Type: CodeS}
+}
+
+// emitObjectRestoreFromJson — sibling of emitObjectPrepareForJson
+// (preparefjson.go). Mirrors mion's
+// nodes/collection/interface.ts:emitRestoreFromJson.
+func emitObjectRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	var parts []string
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		childJit := ctx.CompileChild(child, CodeS)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			continue
+		}
+		parts = append(parts, childJit.Code)
+	}
+	if len(parts) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+}
+
+// emitPropertyRestoreFromJson — sibling of emitPropertyPrepareForJson.
+func emitPropertyRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if rt.Optional {
+		return JitCode{
+			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+			Type: CodeS,
+		}
+	}
+	return childJit
+}
+
+// emitIndexSignatureRestoreFromJson — sibling of
+// emitIndexSignaturePrepareForJson.
+func emitIndexSignatureRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	keyRegexVar := ""
+	if rt.Index != nil {
+		indexResolved := ctx.ResolveRef(rt.Index)
+		if indexResolved != nil && indexResolved.Kind == protocol.KindTemplateLiteral {
+			if regex, ok := buildTemplateLiteralRegex(indexResolved); ok {
+				keyRegexVar = ctx.NextLocalVar("reIdx")
+				if !ctx.HasContextItem(keyRegexVar) {
+					ctx.SetContextItem(keyRegexVar, "const "+keyRegexVar+" = new RegExp("+quoteJSDouble(regex)+")")
+				}
+			}
+		}
+	}
+	keyVar := ctx.NextLocalVar("k")
+	ctx.SetChildAccessor(v + "[" + keyVar + "]")
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	body := "for (const " + keyVar + " in " + v + ") {"
+	if keyRegexVar != "" {
+		body += "if (!" + keyRegexVar + ".test(" + keyVar + ")) continue;"
+	}
+	body += childJit.Code + "}"
+	return JitCode{Code: body, Type: CodeS}
 }
 
 // EmitDependencyCall mirrors PrepareForJsonEmitter's — the parent
