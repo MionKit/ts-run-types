@@ -86,6 +86,10 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		// children of an object they're skipped via the function-
 		// property-dropped rule in emitObjectTypeErrors.
 		return true
+	case protocol.KindTuple:
+		return true
+	case protocol.KindTupleMember:
+		return true
 	}
 	return false
 }
@@ -284,6 +288,12 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 			Code: "if (typeof " + v + " !== 'function') " + callJitErr(ctx, jitTypeNameForKind(rt.Kind), ""),
 			Type: CodeS,
 		}
+
+	case protocol.KindTuple:
+		return emitTupleTypeErrors(rt, ctx, v)
+
+	case protocol.KindTupleMember:
+		return emitTupleMemberTypeErrors(rt, ctx, v)
 
 	case protocol.KindArray:
 		// mion:nodes/member/array.ts:emitTypeErrors. Allocates a loop
@@ -648,4 +658,119 @@ func jitTypeNameForKind(kind protocol.ReflectionKind) string {
 		return "callSignature"
 	}
 	return ""
+}
+
+// emitTupleTypeErrors mirrors mion's
+// nodes/collection/tuple.ts:emitTypeErrors. Body shape (CodeS):
+//
+//	if (!Array.isArray(v) [|| v.length > N]) {
+//	  <callJitErr 'tuple'>
+//	} else {
+//	  <member0Code>; <member1Code>; …
+//	}
+//
+// Empty tuple gets the `Array.isArray && length === 0` shape (an
+// empty array is the only valid value). Rest-bearing tuples skip the
+// upper-length-bound check; rest-member emit handles the per-element
+// loop and accumulates errors with the loop counter as the path.
+func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if len(rt.Children) == 0 {
+		// Empty tuple — only the empty array passes.
+		return JitCode{
+			Code: "if (!(Array.isArray(" + v + ") && " + v + ".length === 0)) " + callJitErr(ctx, "tuple", ""),
+			Type: CodeS,
+		}
+	}
+	// Build the per-member body.
+	var bodyParts []string
+	for _, child := range rt.Children {
+		childJit := ctx.CompileChild(child, CodeS)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			bodyParts = append(bodyParts, childJit.Code)
+		}
+	}
+	body := strings.Join(bodyParts, ";")
+
+	lengthCheck := ""
+	if !tupleHasRest(rt, ctx) {
+		lengthCheck = " || " + v + ".length > " + strconv.Itoa(len(rt.Children))
+	}
+	if body == "" {
+		return JitCode{
+			Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") " + callJitErr(ctx, "tuple", ""),
+			Type: CodeS,
+		}
+	}
+	return JitCode{
+		Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") {" + callJitErr(ctx, "tuple", "") + "} else {" + body + "}",
+		Type: CodeS,
+	}
+}
+
+// emitTupleMemberTypeErrors mirrors mion's
+// nodes/member/tupleMember.ts:emitTypeErrors. Sets the element
+// accessor (`v[i]`) + path literal (the position index) before
+// recursing into the wrapped child. Rest members produce a for-loop
+// in their own emit; optional members get the undefined-guard wrap.
+func emitTupleMemberTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+		// Non-serializable element — mion: `if (v[i] !== undefined)
+		// callJitErrWithPath('undefined', i)`. The slot must be
+		// undefined.
+		idxLit := positionStr(rt)
+		accessor := v + "[" + idxLit + "]"
+		// Use the extra path literal to thread the index through the
+		// access path (callJitErr second arg).
+		return JitCode{
+			Code: "if (" + accessor + " !== undefined) " + callJitErr(ctx, "undefined", idxLit),
+			Type: CodeS,
+		}
+	}
+	if isRestTupleMember(rt) {
+		// Rest member — for-loop iterating from position to v.length.
+		iVar := ctx.NextLocalVar("i")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		ctx.SetChildPathLiteral(iVar)
+		childJit := ctx.CompileChild(rt.Child, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		return JitCode{
+			Code: "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}",
+			Type: CodeS,
+		}
+	}
+	// Regular (possibly optional) member.
+	idxLit := positionStr(rt)
+	accessor := v + "[" + idxLit + "]"
+	ctx.SetChildAccessor(accessor)
+	ctx.SetChildPathLiteral(idxLit)
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	ctx.SetChildPathLiteral("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if rt.Optional {
+		return JitCode{
+			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+			Type: CodeS,
+		}
+	}
+	return childJit
 }

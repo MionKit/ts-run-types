@@ -134,6 +134,7 @@ describe('getTypeErrors / ARRAY', () => {
   it('Array of symbols (non-serializable — always rejected)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.symbol_array));
   it('Array of object literals', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.object_array));
   it('Recursive object whose cycle closes via an array property', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_object_with_array));
+  it('Array of tuples', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.tuple_array));
 
   it('all array getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.ARRAY).filter((c) => c.getTypeErrors).length;
@@ -169,6 +170,26 @@ describe('getTypeErrors / OBJECT', () => {
 
   it('all object getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.OBJECT).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+describe('getTypeErrors / TUPLE', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Two-element tuple (string plus number)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.string_number_pair));
+  it('Six-element heterogeneous tuple (mion fixture)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.full_mion_tuple));
+  it('Tuple as array element (tuple inside array dependency call)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
+  it('Self-referential tuple via trailing optional self-ref', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_circular));
+  it('Tuple with a function slot (must be undefined)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
+  it('Tuple with a trailing rest segment', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_rest));
+  it('Tuple with named element labels (labels erased at runtime)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_named_labels));
+
+  it('all tuple getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.TUPLE).filter((c) => c.getTypeErrors).length;
     expect(ranTests).toBe(activeCount);
   });
 });
