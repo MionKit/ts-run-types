@@ -1,6 +1,7 @@
 package jitfn
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -508,30 +509,59 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 // jsonPropPrefix renders the JS string literal contents (without the
 // outer single quotes — the caller wraps them) for one property's
 // `"name":` prefix.
+//
+// Critical detail: the prefix needs to survive TWO levels of
+// interpretation — JS parsing of the source literal AND the eventual
+// JSON.parse over the emitted output. A property name like
+// `weird name \n?` (with a literal newline char) must end up in the
+// JSON output as `"weird name \n?"` (with the JSON escape sequence,
+// NOT a literal newline — JSON.parse rejects literal control chars
+// inside string literals).
+//
+// Approach:
+//   1. JSON-marshal the name to get a valid JSON string literal —
+//      `json.Marshal("weird name \n?")` → `"weird name \n?"` (with
+//      backslash + n as text).
+//   2. JS-escape the result for embedding in a single-quoted JS
+//      literal — backslashes and single quotes get escaped.
+//   3. Append the `:` separator inside the same JS literal.
+//
+// When JS evaluates the emitted literal, the result is the
+// JSON-encoded property prefix (`"weird name \n?":` as a text
+// string). Concatenated into the JSON output, it produces valid
+// JSON; JSON.parse then interprets `\n` as a newline char in the
+// returned object's key.
 func jsonPropPrefix(name string, isSafeName bool) string {
 	if isSafeName {
-		// Identifier-safe name: emit `"<name>":` directly.
+		// Identifier-safe name: emit `"<name>":` directly. No
+		// escaping needed — safe names contain only ASCII identifier
+		// chars.
 		return `"` + name + `":`
 	}
-	// Non-safe name (contains spaces, special chars, …): escape via
-	// JSON.stringify at compile time so the emitted constant is
-	// already a valid JS string literal that produces valid JSON
-	// when concatenated.
-	escaped := jsonEscapeForSingleQuote(name)
-	return `"` + escaped + `":`
+	// JSON-encode the name first to produce a valid JSON string
+	// literal. Result is bytes like `"weird name \n?"` where the
+	// backslash and `n` are SEPARATE characters in the byte stream.
+	jsonEncoded, err := json.Marshal(name)
+	if err != nil {
+		// json.Marshal on a string can't fail under normal
+		// circumstances; fall back to the unsafe-escape path on
+		// error.
+		jsonEncoded = []byte(`"` + name + `"`)
+	}
+	// Embed inside a single-quoted JS literal — escape backslashes
+	// and single quotes so JS evaluates the literal to the original
+	// JSON-encoded bytes verbatim.
+	return jsEscapeForSingleQuote(string(jsonEncoded)) + ":"
 }
 
-// jsonEscapeForSingleQuote escapes a string for embedding inside a
-// single-quoted JS string literal that will be parsed by JS and
-// then included as a JSON property name. Mirrors what mion does via
-// `JSON.stringify(name)` at compile time but produces only the
-// inner characters (without the surrounding quotes mion's JSON.stringify
-// adds — we add those ourselves).
-//
-// Escaped chars: single-quote (for the JS literal), backslash, control
-// chars (\n, \r, \t), and double-quote (for the embedded JSON name
-// quotes — already handled by the surrounding `"` in jsonPropPrefix).
-func jsonEscapeForSingleQuote(s string) string {
+// jsEscapeForSingleQuote escapes only the two characters that JS's
+// single-quoted-string parser would interpret: backslash and
+// single-quote. Mirrors the canonical approach for embedding
+// JSON-encoded text inside a JS source literal — JS evaluates the
+// literal to recover the original byte sequence, which is then a
+// valid JSON fragment ready for concatenation into a larger JSON
+// output.
+func jsEscapeForSingleQuote(s string) string {
 	var b strings.Builder
 	b.Grow(len(s) + 4)
 	for _, r := range s {
@@ -540,14 +570,6 @@ func jsonEscapeForSingleQuote(s string) string {
 			b.WriteString(`\\`)
 		case '\'':
 			b.WriteString(`\'`)
-		case '"':
-			b.WriteString(`\"`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
 		default:
 			b.WriteRune(r)
 		}
@@ -623,11 +645,17 @@ func emitTupleStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	return JitCode{Code: "'['+" + strings.Join(parts, "+") + "+']'", Type: CodeE}
 }
 
-// emitTupleMemberStringifyJson — mion:stringifyJson.ts:239-249.
-// Each slot emits its child code prefixed by a separator (`,` unless
-// the slot is at index 0). Optional slots emit `'null'` when
-// undefined.
+// emitTupleMemberStringifyJson — mion:stringifyJson.ts:239-249 for
+// non-rest slots, mion:stringifyJson.ts:217-238 (the KindRest case)
+// for rest slots. Each non-rest slot emits its child code prefixed by
+// a separator (`,` unless the slot is at index 0). Optional slots
+// emit `'null'` when undefined. Rest slots emit a for-loop that
+// builds a `,`-joined string of the trailing items, prefixed by the
+// separator and an early-return for the empty-trailing case.
 func emitTupleMemberStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if isRestTupleMember(rt) {
+		return emitTupleRestStringifyJson(rt, ctx, v)
+	}
 	if rt.Child == nil {
 		// Non-serializable / function-shaped slot — emit `'null'`.
 		isFirst := positionInt(rt) == 0
@@ -667,6 +695,46 @@ func emitTupleMemberStringifyJson(rt *protocol.RunType, ctx *EmitContext, v stri
 		return JitCode{Code: "(" + accessor + " === undefined ? " + sep + "'null' : " + sep + childCode + ")", Type: CodeE}
 	}
 	return JitCode{Code: sep + childCode, Type: CodeE}
+}
+
+// emitTupleRestStringifyJson handles the trailing `...rest: T[]` slot
+// of a tuple — mion:stringifyJson.ts:217-238 (the KindRest case).
+// Emits a for-loop that walks v from the rest's start index, builds
+// per-item JSON fragments, and joins with `,`. Early-returns the
+// empty string when there are no trailing items. Prefixed with `,`
+// when the rest slot is not at position 0.
+func emitTupleRestStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	startPos := positionStr(rt)
+	isFirst := positionInt(rt) == 0
+	sep := "','+"
+	if isFirst {
+		sep = ""
+	}
+	if rt.Child == nil {
+		// No element type — emit the empty tail.
+		return JitCode{Code: sep + "''", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: sep + "''", Type: CodeE}
+	}
+	iVar := ctx.NextLocalVar("i")
+	arrName := ctx.NextLocalVar("res")
+	itemName := ctx.NextLocalVar("its")
+	ctx.SetChildAccessor(v + "[" + iVar + "]")
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	itemCodeStr := childJit.Code
+	if itemCodeStr == "" {
+		itemCodeStr = "JSON.stringify(" + v + "[" + iVar + "])"
+	}
+	body := "const " + arrName + " = []; for (let " + iVar + " = " + startPos + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" +
+		"const " + itemName + " = " + itemCodeStr + "; if (" + itemName + ") " + arrName + ".push(" + itemName + ");" +
+		"} if (!" + arrName + ".length) {return '';} else {return " + sep + arrName + ".join(',');}"
+	return JitCode{Code: body, Type: CodeRB}
 }
 
 // emitUnionStringifyJson — mion:stringifyJson.ts:283-322.

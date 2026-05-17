@@ -25,8 +25,10 @@ import {
   deserializePrepareForJson,
   createRestoreFromJson,
   deserializeRestoreFromJson,
+  createStringifyJson,
   type PrepareForJsonFn,
   type RestoreFromJsonFn,
+  type StringifyJsonFn,
 } from '@mionjs/ts-go-run-types';
 
 // ========================================================================
@@ -194,6 +196,21 @@ export interface SerializationCase {
   prepareForJsonReflect?: () => PrepareForJsonFn;
   deserializePrepareForJson?: () => PrepareForJsonFn;
   deserializePrepareForJsonReflect?: () => PrepareForJsonFn;
+  /** stringifyJson factory — single-pass serialiser ported from
+   *  mion's stringifyJson JIT family. Same T as `prepareForJson`;
+   *  the safe-path adapter
+   *  (`test/adapters/serializationStringifyJsonRoundTrip.test.ts`)
+   *  uses this for the serialise half. **/
+  stringifyJson?: () => StringifyJsonFn;
+
+  /** Safe adapter: when set, the case's input produces a JSON string
+   *  that is not parseable by `JSON.parse` — e.g. number-at-root
+   *  with `Infinity` (mion's `String(Infinity)` = `"Infinity"`).
+   *  Mirrors mion's number-not-supported spec, which accepts either
+   *  a throw OR a non-matching round-trip as a "value not supported
+   *  by JSON" signal. The safe adapter wraps the parse in try/catch
+   *  and asserts the throw rather than a deep-equal round-trip. **/
+  safeAdapterStringifyJsonNotParseable?: boolean;
   restoreFromJson: () => RestoreFromJsonFn;
   restoreFromJsonReflect?: () => RestoreFromJsonFn;
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
@@ -264,6 +281,7 @@ export const SERIALIZATION_SPEC = {
     string: {
       title: 'string',
       prepareForJson: () => createPrepareForJson<string>(),
+      stringifyJson: () => createStringifyJson<string>(),
       restoreFromJson: () => createRestoreFromJson<string>(),
       deserializePrepareForJson: () => deserializePrepareForJson<string>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<string>(),
@@ -272,6 +290,7 @@ export const SERIALIZATION_SPEC = {
     number: {
       title: 'number',
       prepareForJson: () => createPrepareForJson<number>(),
+      stringifyJson: () => createStringifyJson<number>(),
       restoreFromJson: () => createRestoreFromJson<number>(),
       deserializePrepareForJson: () => deserializePrepareForJson<number>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<number>(),
@@ -296,16 +315,24 @@ export const SERIALIZATION_SPEC = {
       title: 'number values not supported by all protocols',
       description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
       prepareForJson: () => createPrepareForJson<number>(),
+      stringifyJson: () => createStringifyJson<number>(),
       restoreFromJson: () => createRestoreFromJson<number>(),
       getTestData: () => ({
         values: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN],
         // After JSON.stringify(Infinity) === 'null', restore yields null.
         deserializedValues: [null, null, null],
       }),
+      // Safe-path adapter: stringifyJson at root uses `String(v)` per
+      // mion (stringifyJson.ts:97). `String(Infinity) === "Infinity"`
+      // which is not valid JSON — JSON.parse throws. The flag opts the
+      // safe adapter into mion's loose "throw OR non-equal" semantic
+      // for this case.
+      safeAdapterStringifyJsonNotParseable: true,
     },
     regexp: {
       title: 'regexp',
       prepareForJson: () => createPrepareForJson<RegExp>(),
+      stringifyJson: () => createStringifyJson<RegExp>(),
       restoreFromJson: () => createRestoreFromJson<RegExp>(),
       deserializePrepareForJson: () => deserializePrepareForJson<RegExp>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<RegExp>(),
@@ -314,6 +341,7 @@ export const SERIALIZATION_SPEC = {
     bigint: {
       title: 'bigint',
       prepareForJson: () => createPrepareForJson<bigint>(),
+      stringifyJson: () => createStringifyJson<bigint>(),
       restoreFromJson: () => createRestoreFromJson<bigint>(),
       deserializePrepareForJson: () => deserializePrepareForJson<bigint>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<bigint>(),
@@ -322,6 +350,7 @@ export const SERIALIZATION_SPEC = {
     boolean: {
       title: 'boolean',
       prepareForJson: () => createPrepareForJson<boolean>(),
+      stringifyJson: () => createStringifyJson<boolean>(),
       restoreFromJson: () => createRestoreFromJson<boolean>(),
       deserializePrepareForJson: () => deserializePrepareForJson<boolean>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<boolean>(),
@@ -330,6 +359,7 @@ export const SERIALIZATION_SPEC = {
     any: {
       title: 'any',
       prepareForJson: () => createPrepareForJson<any>(),
+      stringifyJson: () => createStringifyJson<any>(),
       restoreFromJson: () => createRestoreFromJson<any>(),
       deserializePrepareForJson: () => deserializePrepareForJson<any>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<any>(),
@@ -341,6 +371,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
       prepareForJson: () => createPrepareForJson<any>(),
+      stringifyJson: () => createStringifyJson<any>(),
       restoreFromJson: () => createRestoreFromJson<any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [undefined, [undefined, 123, null], new Date('2000-08-06T02:13:00.000Z'), BigInt(1)]}),
@@ -348,6 +379,7 @@ export const SERIALIZATION_SPEC = {
     null: {
       title: 'null',
       prepareForJson: () => createPrepareForJson<null>(),
+      stringifyJson: () => createStringifyJson<null>(),
       restoreFromJson: () => createRestoreFromJson<null>(),
       deserializePrepareForJson: () => deserializePrepareForJson<null>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<null>(),
@@ -356,6 +388,7 @@ export const SERIALIZATION_SPEC = {
     undefined: {
       title: 'undefined',
       prepareForJson: () => createPrepareForJson<undefined>(),
+      stringifyJson: () => createStringifyJson<undefined>(),
       restoreFromJson: () => createRestoreFromJson<undefined>(),
       deserializePrepareForJson: () => deserializePrepareForJson<undefined>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<undefined>(),
@@ -364,6 +397,7 @@ export const SERIALIZATION_SPEC = {
     date: {
       title: 'date',
       prepareForJson: () => createPrepareForJson<Date>(),
+      stringifyJson: () => createStringifyJson<Date>(),
       restoreFromJson: () => createRestoreFromJson<Date>(),
       deserializePrepareForJson: () => deserializePrepareForJson<Date>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date>(),
@@ -372,6 +406,7 @@ export const SERIALIZATION_SPEC = {
     enum_color: {
       title: 'enum',
       prepareForJson: () => createPrepareForJson<Color>(),
+      stringifyJson: () => createStringifyJson<Color>(),
       restoreFromJson: () => createRestoreFromJson<Color>(),
       deserializePrepareForJson: () => deserializePrepareForJson<Color>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<Color>(),
@@ -380,6 +415,7 @@ export const SERIALIZATION_SPEC = {
     symbol: {
       title: 'symbol',
       prepareForJson: () => createPrepareForJson<symbol>(),
+      stringifyJson: () => createStringifyJson<symbol>(),
       restoreFromJson: () => createRestoreFromJson<symbol>(),
       deserializePrepareForJson: () => deserializePrepareForJson<symbol>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<symbol>(),
@@ -388,6 +424,7 @@ export const SERIALIZATION_SPEC = {
     object: {
       title: 'object',
       prepareForJson: () => createPrepareForJson<object>(),
+      stringifyJson: () => createStringifyJson<object>(),
       restoreFromJson: () => createRestoreFromJson<object>(),
       deserializePrepareForJson: () => deserializePrepareForJson<object>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<object>(),
@@ -397,6 +434,7 @@ export const SERIALIZATION_SPEC = {
     void: {
       title: 'void',
       prepareForJson: () => createPrepareForJson<void>(),
+      stringifyJson: () => createStringifyJson<void>(),
       restoreFromJson: () => createRestoreFromJson<void>(),
       deserializePrepareForJson: () => deserializePrepareForJson<void>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<void>(),
@@ -406,6 +444,7 @@ export const SERIALIZATION_SPEC = {
       title: 'never',
       description: 'never type cannot be JSON-encoded or decoded — invoking the factory throws.',
       prepareForJson: () => createPrepareForJson<never>(),
+      stringifyJson: () => createStringifyJson<never>(),
       restoreFromJson: () => createRestoreFromJson<never>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -413,6 +452,7 @@ export const SERIALIZATION_SPEC = {
     literal_string: {
       title: 'string literal',
       prepareForJson: () => createPrepareForJson<'hello'>(),
+      stringifyJson: () => createStringifyJson<'hello'>(),
       restoreFromJson: () => createRestoreFromJson<'hello'>(),
       deserializePrepareForJson: () => deserializePrepareForJson<'hello'>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<'hello'>(),
@@ -421,6 +461,7 @@ export const SERIALIZATION_SPEC = {
     literal_number: {
       title: 'number literal',
       prepareForJson: () => createPrepareForJson<42>(),
+      stringifyJson: () => createStringifyJson<42>(),
       restoreFromJson: () => createRestoreFromJson<42>(),
       deserializePrepareForJson: () => deserializePrepareForJson<42>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<42>(),
@@ -429,6 +470,7 @@ export const SERIALIZATION_SPEC = {
     literal_boolean: {
       title: 'boolean literal',
       prepareForJson: () => createPrepareForJson<true>(),
+      stringifyJson: () => createStringifyJson<true>(),
       restoreFromJson: () => createRestoreFromJson<true>(),
       deserializePrepareForJson: () => deserializePrepareForJson<true>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<true>(),
@@ -439,6 +481,10 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => {
         const reg = /abc/;
         return createPrepareForJson<typeof reg>();
+      },
+      stringifyJson: () => {
+        const reg = /abc/;
+        return createStringifyJson<typeof reg>();
       },
       restoreFromJson: () => {
         const reg = /abc/;
@@ -452,6 +498,7 @@ export const SERIALIZATION_SPEC = {
     array: {
       title: 'array',
       prepareForJson: () => createPrepareForJson<string[]>(),
+      stringifyJson: () => createStringifyJson<string[]>(),
       restoreFromJson: () => createRestoreFromJson<string[]>(),
       deserializePrepareForJson: () => deserializePrepareForJson<string[]>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(),
@@ -460,6 +507,7 @@ export const SERIALIZATION_SPEC = {
     array_date: {
       title: 'array of dates',
       prepareForJson: () => createPrepareForJson<Date[]>(),
+      stringifyJson: () => createStringifyJson<Date[]>(),
       restoreFromJson: () => createRestoreFromJson<Date[]>(),
       deserializePrepareForJson: () => deserializePrepareForJson<Date[]>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date[]>(),
@@ -470,12 +518,14 @@ export const SERIALIZATION_SPEC = {
     undefined_in_array: {
       title: 'undefined is serialized as null in array',
       prepareForJson: () => createPrepareForJson<undefined[]>(),
+      stringifyJson: () => createStringifyJson<undefined[]>(),
       restoreFromJson: () => createRestoreFromJson<undefined[]>(),
       getTestData: () => ({values: [[undefined, undefined]]}),
     },
     multi_dimensional: {
       title: 'multi dimensional array',
       prepareForJson: () => createPrepareForJson<string[][]>(),
+      stringifyJson: () => createStringifyJson<string[][]>(),
       restoreFromJson: () => createRestoreFromJson<string[][]>(),
       deserializePrepareForJson: () => deserializePrepareForJson<string[][]>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][]>(),
@@ -485,6 +535,7 @@ export const SERIALIZATION_SPEC = {
       title: 'non serializable items throws an error',
       description: 'symbol[] should throw at JIT-compile time per mion semantic.',
       prepareForJson: () => createPrepareForJson<symbol[]>(),
+      stringifyJson: () => createStringifyJson<symbol[]>(),
       restoreFromJson: () => createRestoreFromJson<symbol[]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -494,6 +545,10 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => {
         type CircularArray = CircularArray[];
         return createPrepareForJson<CircularArray>();
+      },
+      stringifyJson: () => {
+        type CircularArray = CircularArray[];
+        return createStringifyJson<CircularArray>();
       },
       restoreFromJson: () => {
         type CircularArray = CircularArray[];
@@ -515,6 +570,17 @@ export const SERIALIZATION_SPEC = {
       title: 'interface',
       prepareForJson: () =>
         createPrepareForJson<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(),
+      stringifyJson: () =>
+        createStringifyJson<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -562,6 +628,17 @@ export const SERIALIZATION_SPEC = {
         };
         return createPrepareForJson<ManyOptional>();
       },
+      stringifyJson: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createStringifyJson<ManyOptional>();
+      },
       restoreFromJson: () => {
         type N = number;
         // prettier-ignore
@@ -580,6 +657,7 @@ export const SERIALIZATION_SPEC = {
     class: {
       title: 'class',
       prepareForJson: () => createPrepareForJson<MySerializableClass>(),
+      stringifyJson: () => createStringifyJson<MySerializableClass>(),
       restoreFromJson: () => createRestoreFromJson<MySerializableClass>(),
       getTestData: () => {
         const item = new MySerializableClass();
@@ -597,6 +675,15 @@ export const SERIALIZATION_SPEC = {
           extendedProp: string = 'extended';
         }
         return createPrepareForJson<ExtendedClass>();
+      },
+      stringifyJson: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createStringifyJson<ExtendedClass>();
       },
       restoreFromJson: () => {
         class BaseClass {
@@ -622,6 +709,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
       prepareForJson: () => createPrepareForJson<NonSerializableClass>(),
+      stringifyJson: () => createStringifyJson<NonSerializableClass>(),
       restoreFromJson: () => createRestoreFromJson<NonSerializableClass>(),
       getTestData: () => {
         const item = new NonSerializableClass('John', 'Doe', 0, new Date('2000-08-06T02:13:00.000Z'));
@@ -632,6 +720,7 @@ export const SERIALIZATION_SPEC = {
     undefined_in_object: {
       title: 'undefined is omitted in object prop',
       prepareForJson: () => createPrepareForJson<{a: string; b: number; c: undefined}>(),
+      stringifyJson: () => createStringifyJson<{a: string; b: number; c: undefined}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; b: number; c: undefined}>(),
       getTestData: () => ({
         values: [{a: 'hello', b: 42, c: undefined}],
@@ -641,12 +730,14 @@ export const SERIALIZATION_SPEC = {
     optional_properties_order: {
       title: 'optional properties order',
       prepareForJson: () => createPrepareForJson<{a: string; b?: string}>(),
+      stringifyJson: () => createStringifyJson<{a: string; b?: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
     },
     all_optional_fields: {
       title: 'all optional fields',
       prepareForJson: () => createPrepareForJson<{a?: string; b?: string}>(),
+      stringifyJson: () => createStringifyJson<{a?: string; b?: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a?: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
     },
@@ -656,6 +747,19 @@ export const SERIALIZATION_SPEC = {
         "Canonical baseline for the `prepareForJson + JSON.stringify` path: declared children get transformed, structural extras (both top-level and nested-in-declared-composites) pass through unchanged. Mirrors mion's `03JsonObjects.spec.ts` strip-extras case where the strip expectation is explicitly commented out (`// native JSON.stringify do not strip extra params`). The safe path (`stripUnknownKeys + prepareForJson + JSON.stringify`) strips the extras — that divergence is exercised in EXTRA_PARAMS.",
       prepareForJson: () =>
         createPrepareForJson<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(),
+      stringifyJson: () =>
+        createStringifyJson<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -741,6 +845,13 @@ export const SERIALIZATION_SPEC = {
         }
         return createPrepareForJson<ICircular>();
       },
+      stringifyJson: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createStringifyJson<ICircular>();
+      },
       restoreFromJson: () => {
         interface ICircular {
           name: string;
@@ -753,6 +864,7 @@ export const SERIALIZATION_SPEC = {
     interface_circular_array: {
       title: 'interface circular array',
       prepareForJson: () => createPrepareForJson<ICircularArray>(),
+      stringifyJson: () => createStringifyJson<ICircularArray>(),
       restoreFromJson: () => createRestoreFromJson<ICircularArray>(),
       getTestData: () => ({
         values: [
@@ -764,6 +876,7 @@ export const SERIALIZATION_SPEC = {
     interface_circular_deep: {
       title: 'interface circular deep',
       prepareForJson: () => createPrepareForJson<ICircularDeep>(),
+      stringifyJson: () => createStringifyJson<ICircularDeep>(),
       restoreFromJson: () => createRestoreFromJson<ICircularDeep>(),
       getTestData: () => ({
         values: [
@@ -779,6 +892,7 @@ export const SERIALIZATION_SPEC = {
     interface_root_not_circular: {
       title: 'interface root not circular',
       prepareForJson: () => createPrepareForJson<RootNotCircular>(),
+      stringifyJson: () => createStringifyJson<RootNotCircular>(),
       restoreFromJson: () => createRestoreFromJson<RootNotCircular>(),
       getTestData: () => ({
         values: [
@@ -797,6 +911,7 @@ export const SERIALIZATION_SPEC = {
     interface_multiple_circular: {
       title: 'interface multiple circular',
       prepareForJson: () => createPrepareForJson<RootCircular>(),
+      stringifyJson: () => createStringifyJson<RootCircular>(),
       restoreFromJson: () => createRestoreFromJson<RootCircular>(),
       getTestData: () => {
         const ciDate: ICircularDate = {date: new Date('2000-08-06T02:13:00.000Z'), month: 1, year: 2021};
@@ -819,6 +934,7 @@ export const SERIALIZATION_SPEC = {
     interface_with_methods: {
       title: 'methods should be excluded from interface when serializing',
       prepareForJson: () => createPrepareForJson<ObjectWithMethods>(),
+      stringifyJson: () => createStringifyJson<ObjectWithMethods>(),
       restoreFromJson: () => createRestoreFromJson<ObjectWithMethods>(),
       getTestData: () => {
         const objWithMethod = {
@@ -836,24 +952,28 @@ export const SERIALIZATION_SPEC = {
     index_property: {
       title: 'index property',
       prepareForJson: () => createPrepareForJson<{[key: string]: string}>(),
+      stringifyJson: () => createStringifyJson<{[key: string]: string}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: string}>(),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
     },
     index_property_and_prop: {
       title: 'interface with a single property and index property',
       prepareForJson: () => createPrepareForJson<{a: string; [key: string]: string}>(),
+      stringifyJson: () => createStringifyJson<{a: string; [key: string]: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; [key: string]: string}>(),
       getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
     },
     index_property_extra: {
       title: 'index property with extra props and unions',
       prepareForJson: () => createPrepareForJson<{a: string; b: number; [key: string]: string | number}>(),
+      stringifyJson: () => createStringifyJson<{a: string; b: number; [key: string]: string | number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; b: number; [key: string]: string | number}>(),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
     },
     multiple_index_props: {
       title: 'multiple index properties (symbol keys skipped)',
       prepareForJson: () => createPrepareForJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      stringifyJson: () => createStringifyJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       getTestData: () => {
         const objWithSymbolKeys = {
@@ -874,12 +994,14 @@ export const SERIALIZATION_SPEC = {
     index_property_nested: {
       title: 'index property nested',
       prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: number}}>(),
+      stringifyJson: () => createStringifyJson<{[key: string]: {[key: string]: number}}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: number}}>(),
       getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
     },
     index_property_nested_date: {
       title: 'index property nested with Date values',
       prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: Date}}>(),
+      stringifyJson: () => createStringifyJson<{[key: string]: {[key: string]: Date}}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: Date}}>(),
       getTestData: () => ({
         values: [
@@ -895,6 +1017,7 @@ export const SERIALIZATION_SPEC = {
     index_property_bigint: {
       title: 'index property with bigint values',
       prepareForJson: () => createPrepareForJson<{[key: string]: bigint}>(),
+      stringifyJson: () => createStringifyJson<{[key: string]: bigint}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: bigint}>(),
       getTestData: () => ({
         values: [
@@ -906,6 +1029,7 @@ export const SERIALIZATION_SPEC = {
     index_property_non_root: {
       title: 'index property non-root',
       prepareForJson: () => createPrepareForJson<{b: string; c: {a: string; [key: string]: string}}>(),
+      stringifyJson: () => createStringifyJson<{b: string; c: {a: string; [key: string]: string}}>(),
       restoreFromJson: () => createRestoreFromJson<{b: string; c: {a: string; [key: string]: string}}>(),
       getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
     },
@@ -915,6 +1039,7 @@ export const SERIALIZATION_SPEC = {
     tuple: {
       title: 'tuple',
       prepareForJson: () => createPrepareForJson<[Date, number, string, null, string[], bigint]>(),
+      stringifyJson: () => createStringifyJson<[Date, number, string, null, string[], bigint]>(),
       restoreFromJson: () => createRestoreFromJson<[Date, number, string, null, string[], bigint]>(),
       getTestData: () => ({
         values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
@@ -923,6 +1048,7 @@ export const SERIALIZATION_SPEC = {
     tuple_with_optional: {
       title: 'tuple with optional params',
       prepareForJson: () => createPrepareForJson<[number, bigint?, boolean?, number?]>(),
+      stringifyJson: () => createStringifyJson<[number, bigint?, boolean?, number?]>(),
       restoreFromJson: () => createRestoreFromJson<[number, bigint?, boolean?, number?]>(),
       getTestData: () => ({
         values: [
@@ -934,12 +1060,14 @@ export const SERIALIZATION_SPEC = {
     tuple_rest_parameter: {
       title: 'tuple rest parameter',
       prepareForJson: () => createPrepareForJson<[number, ...bigint[]]>(),
+      stringifyJson: () => createStringifyJson<[number, ...bigint[]]>(),
       restoreFromJson: () => createRestoreFromJson<[number, ...bigint[]]>(),
       getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
     },
     tuple_with_non_serializable: {
       title: 'tuple with non serializable types are transformed to undefined',
       prepareForJson: () => createPrepareForJson<[number, () => any]>(),
+      stringifyJson: () => createStringifyJson<[number, () => any]>(),
       restoreFromJson: () => createRestoreFromJson<[number, () => any]>(),
       getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
     },
@@ -948,6 +1076,10 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createPrepareForJson<TupleCircular>();
+      },
+      stringifyJson: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createStringifyJson<TupleCircular>();
       },
       restoreFromJson: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -979,6 +1111,7 @@ export const SERIALIZATION_SPEC = {
     interface_circular_tuple: {
       title: 'interface circular tuple',
       prepareForJson: () => createPrepareForJson<ICircularTuple>(),
+      stringifyJson: () => createStringifyJson<ICircularTuple>(),
       restoreFromJson: () => createRestoreFromJson<ICircularTuple>(),
       getTestData: () => {
         const obj1: ICircularTuple = {name: 'hello', parent: ['world', {name: 'world'}]};
@@ -996,6 +1129,7 @@ export const SERIALIZATION_SPEC = {
     parameters: {
       title: 'function parameters',
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnNoOptional>>(),
+      stringifyJson: () => createStringifyJson<Parameters<typeof fnNoOptional>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnNoOptional>>(),
       getTestData: () => ({
         values: [
@@ -1007,6 +1141,7 @@ export const SERIALIZATION_SPEC = {
     optional_params: {
       title: 'optional parameters',
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnOptionalParams>>(),
+      stringifyJson: () => createStringifyJson<Parameters<typeof fnOptionalParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOptionalParams>>(),
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
@@ -1016,12 +1151,14 @@ export const SERIALIZATION_SPEC = {
     function_return: {
       title: 'function return',
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnOptionalParam>>(),
+      stringifyJson: () => createStringifyJson<ReturnType<typeof fnOptionalParam>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnOptionalParam>>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     function_with_rest_parameters: {
       title: 'function with rest parameters',
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnRestParams>>(),
+      stringifyJson: () => createStringifyJson<Parameters<typeof fnRestParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnRestParams>>(),
       getTestData: () => ({
         values: [
@@ -1033,6 +1170,7 @@ export const SERIALIZATION_SPEC = {
     function_with_date_parameters: {
       title: 'function with Date parameters',
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnOptionalParams>>(),
+      stringifyJson: () => createStringifyJson<Parameters<typeof fnOptionalParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOptionalParams>>(),
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
@@ -1042,18 +1180,21 @@ export const SERIALIZATION_SPEC = {
     required_function_return: {
       title: 'required function return',
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnOptionalParams>>(),
+      stringifyJson: () => createStringifyJson<ReturnType<typeof fnOptionalParams>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnOptionalParams>>(),
       getTestData: () => ({values: [1n]}),
     },
     function_with_only_rest_parameters: {
       title: 'function with only rest parameters',
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnOnlyRestParams>>(),
+      stringifyJson: () => createStringifyJson<Parameters<typeof fnOnlyRestParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOnlyRestParams>>(),
       getTestData: () => ({values: [[3, 2, 1], []]}),
     },
     non_serializable_params: {
       title: 'non serializable params',
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnWithCallback>>(),
+      stringifyJson: () => createStringifyJson<Parameters<typeof fnWithCallback>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnWithCallback>>(),
       getTestData: () => ({
         values: [
@@ -1070,6 +1211,7 @@ export const SERIALIZATION_SPEC = {
       title: 'function returns a promise',
       description: 'Promise<T> as a return type — Promises are non-serializable in mion.',
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnReturnsPromise>>(),
+      stringifyJson: () => createStringifyJson<ReturnType<typeof fnReturnsPromise>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnReturnsPromise>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1078,6 +1220,7 @@ export const SERIALIZATION_SPEC = {
       title: 'return type of a closure',
       description: 'fn returns another fn — non-serializable.',
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnReturnsFunction>>(),
+      stringifyJson: () => createStringifyJson<ReturnType<typeof fnReturnsFunction>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnReturnsFunction>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1085,12 +1228,14 @@ export const SERIALIZATION_SPEC = {
     call_signature_params: {
       title: 'call signature params',
       prepareForJson: () => createPrepareForJson<Parameters<{(a: number, b: boolean): string}>>(),
+      stringifyJson: () => createStringifyJson<Parameters<{(a: number, b: boolean): string}>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<{(a: number, b: boolean): string}>>(),
       getTestData: () => ({values: [[3, true]]}),
     },
     call_signature_return: {
       title: 'call signature return',
       prepareForJson: () => createPrepareForJson<ReturnType<{(a: number, b: boolean): string}>>(),
+      stringifyJson: () => createStringifyJson<ReturnType<{(a: number, b: boolean): string}>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<{(a: number, b: boolean): string}>>(),
       getTestData: () => ({values: ['result']}),
     },
@@ -1100,12 +1245,14 @@ export const SERIALIZATION_SPEC = {
     awaited: {
       title: 'Awaited<Promise<T>>',
       prepareForJson: () => createPrepareForJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      stringifyJson: () => createStringifyJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       restoreFromJson: () => createRestoreFromJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     exclude_atomic: {
       title: 'Exclude on atomic union',
       prepareForJson: () => createPrepareForJson<Exclude<'name' | 'age' | number, 'age'>>(),
+      stringifyJson: () => createStringifyJson<Exclude<'name' | 'age' | number, 'age'>>(),
       restoreFromJson: () => createRestoreFromJson<Exclude<'name' | 'age' | number, 'age'>>(),
       getTestData: () => ({values: ['name', 3, 4]}),
     },
@@ -1117,6 +1264,13 @@ export const SERIALIZATION_SPEC = {
         type Triangle = {kind: 'triangle'; x: number; y: number};
         type Shape = Circle | Square | Triangle;
         return createPrepareForJson<Exclude<Shape, Circle>>();
+      },
+      stringifyJson: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createStringifyJson<Exclude<Shape, Circle>>();
       },
       restoreFromJson: () => {
         type Circle = {kind: 'circle'; radius: number};
@@ -1135,6 +1289,7 @@ export const SERIALIZATION_SPEC = {
     required_properties: {
       title: 'Required<T>',
       prepareForJson: () => createPrepareForJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      stringifyJson: () => createStringifyJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       restoreFromJson: () => createRestoreFromJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       getTestData: () => ({
         values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
@@ -1143,6 +1298,7 @@ export const SERIALIZATION_SPEC = {
     extract_atomic: {
       title: 'Extract on atomic union',
       prepareForJson: () => createPrepareForJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      stringifyJson: () => createStringifyJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       restoreFromJson: () => createRestoreFromJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       getTestData: () => ({values: ['name']}),
     },
@@ -1152,6 +1308,11 @@ export const SERIALIZATION_SPEC = {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createPrepareForJson<Extract<Shape, ToExtract>>();
+      },
+      stringifyJson: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createStringifyJson<Extract<Shape, ToExtract>>();
       },
       restoreFromJson: () => {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
@@ -1163,6 +1324,7 @@ export const SERIALIZATION_SPEC = {
     partial_properties: {
       title: 'Partial<T>',
       prepareForJson: () => createPrepareForJson<Partial<{name: string; age: number; createdAt: Date}>>(),
+      stringifyJson: () => createStringifyJson<Partial<{name: string; age: number; createdAt: Date}>>(),
       restoreFromJson: () => createRestoreFromJson<Partial<{name: string; age: number; createdAt: Date}>>(),
       getTestData: () => {
         const createdAt = new Date('2000-08-06T02:13:00.000Z');
@@ -1173,6 +1335,8 @@ export const SERIALIZATION_SPEC = {
       title: 'Pick<T, K>',
       prepareForJson: () =>
         createPrepareForJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      stringifyJson: () =>
+        createStringifyJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       restoreFromJson: () =>
         createRestoreFromJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
@@ -1180,12 +1344,14 @@ export const SERIALIZATION_SPEC = {
     omit_properties: {
       title: 'Omit<T, K>',
       prepareForJson: () => createPrepareForJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      stringifyJson: () => createStringifyJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       restoreFromJson: () => createRestoreFromJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     record_type: {
       title: 'Record<string, Date>',
       prepareForJson: () => createPrepareForJson<Record<string, Date>>(),
+      stringifyJson: () => createStringifyJson<Record<string, Date>>(),
       restoreFromJson: () => createRestoreFromJson<Record<string, Date>>(),
       getTestData: () => ({
         values: [
@@ -1203,12 +1369,14 @@ export const SERIALIZATION_SPEC = {
     union: {
       title: 'atomic union',
       prepareForJson: () => createPrepareForJson<Date | number | string | null | bigint>(),
+      stringifyJson: () => createStringifyJson<Date | number | string | null | bigint>(),
       restoreFromJson: () => createRestoreFromJson<Date | number | string | null | bigint>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
     },
     union_array: {
       title: 'union of arrays',
       prepareForJson: () => createPrepareForJson<string[] | number[] | boolean[] | Date[]>(),
+      stringifyJson: () => createStringifyJson<string[] | number[] | boolean[] | Date[]>(),
       restoreFromJson: () => createRestoreFromJson<string[] | number[] | boolean[] | Date[]>(),
       getTestData: () => ({
         values: [
@@ -1223,6 +1391,7 @@ export const SERIALIZATION_SPEC = {
     with_discriminator: {
       title: 'array of union with discriminator',
       prepareForJson: () => createPrepareForJson<(string | bigint | boolean | Date)[]>(),
+      stringifyJson: () => createStringifyJson<(string | bigint | boolean | Date)[]>(),
       restoreFromJson: () => createRestoreFromJson<(string | bigint | boolean | Date)[]>(),
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -1239,6 +1408,7 @@ export const SERIALIZATION_SPEC = {
     union_object_with_discriminator: {
       title: 'union of object shapes',
       prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      stringifyJson: () => createStringifyJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
     },
@@ -1246,6 +1416,13 @@ export const SERIALIZATION_SPEC = {
       title: 'union with discriminator property',
       prepareForJson: () =>
         createPrepareForJson<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(),
+      stringifyJson: () =>
+        createStringifyJson<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
@@ -1273,6 +1450,10 @@ export const SERIALIZATION_SPEC = {
         createPrepareForJson<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
+      stringifyJson: () =>
+        createStringifyJson<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(),
       restoreFromJson: () =>
         createRestoreFromJson<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
@@ -1283,6 +1464,14 @@ export const SERIALIZATION_SPEC = {
       title: 'union with index property and discriminator',
       prepareForJson: () =>
         createPrepareForJson<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      stringifyJson: () =>
+        createStringifyJson<
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
@@ -1304,6 +1493,10 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createPrepareForJson<UnionC>();
+      },
+      stringifyJson: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createStringifyJson<UnionC>();
       },
       restoreFromJson: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -1331,6 +1524,10 @@ export const SERIALIZATION_SPEC = {
       title: 'union with methods — methods should be excluded',
       prepareForJson: () =>
         createPrepareForJson<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(),
+      stringifyJson: () =>
+        createStringifyJson<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
       restoreFromJson: () =>
@@ -1365,6 +1562,7 @@ export const SERIALIZATION_SPEC = {
     union_with_any: {
       title: 'union with any — checked last as fallback',
       prepareForJson: () => createPrepareForJson<number | {name: string} | any>(),
+      stringifyJson: () => createStringifyJson<number | {name: string} | any>(),
       restoreFromJson: () => createRestoreFromJson<number | {name: string} | any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [42, {name: 'test'}, 'fallback to any', true, null]}),
@@ -1373,6 +1571,7 @@ export const SERIALIZATION_SPEC = {
       title: 'union with non-serializable type throws',
       description: 'function in union — mion throws at JIT-compile time.',
       prepareForJson: () => createPrepareForJson<Date | number | string | (() => any)>(),
+      stringifyJson: () => createStringifyJson<Date | number | string | (() => any)>(),
       restoreFromJson: () => createRestoreFromJson<Date | number | string | (() => any)>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1397,9 +1596,14 @@ export const SERIALIZATION_SPEC = {
       description:
         'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
       prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
+      stringifyJson: () => createStringifyJson<{a: string} | {b: number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{b: 123, c: 123n}]}),
+      // Safe-path adapter: stringifyJson strips the extra `c: 123n` in
+      // the emit, so the round-trip succeeds with a declared-only
+      // result. Captured here as a stringify-specific expectation.
+      getTestDataForStringify: () => ({values: [{b: 123, c: 123n}], deserializedValues: [{b: 123}]}),
     },
 
     union_extra_symbol_prop_drops: {
@@ -1407,6 +1611,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
       prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
+      stringifyJson: () => createStringifyJson<{a: string} | {b: number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
       // Symbol-valued props are silently dropped by JSON.stringify
       // (per ECMAScript spec) — no throw, no round-trip mismatch
@@ -1424,12 +1629,14 @@ export const SERIALIZATION_SPEC = {
     set_string: {
       title: 'Set<string>',
       prepareForJson: () => createPrepareForJson<Set<string>>(),
+      stringifyJson: () => createStringifyJson<Set<string>>(),
       restoreFromJson: () => createRestoreFromJson<Set<string>>(),
       getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
     },
     set_small_object: {
       title: 'Set<SmallObject>',
       prepareForJson: () => createPrepareForJson<Set<SmallObject>>(),
+      stringifyJson: () => createStringifyJson<Set<SmallObject>>(),
       restoreFromJson: () => createRestoreFromJson<Set<SmallObject>>(),
       getTestData: () => ({
         values: [
@@ -1451,6 +1658,15 @@ export const SERIALIZATION_SPEC = {
           c: Set1;
         }
         return createPrepareForJson<DeepWithSet>();
+      },
+      stringifyJson: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createStringifyJson<DeepWithSet>();
       },
       restoreFromJson: () => {
         type Set1 = Set<{s: string; arr: number[]}>;
@@ -1476,6 +1692,7 @@ export const SERIALIZATION_SPEC = {
     map_string_number: {
       title: 'Map<string, number>',
       prepareForJson: () => createPrepareForJson<Map<string, number>>(),
+      stringifyJson: () => createStringifyJson<Map<string, number>>(),
       restoreFromJson: () => createRestoreFromJson<Map<string, number>>(),
       getTestData: () => ({
         values: [
@@ -1490,6 +1707,7 @@ export const SERIALIZATION_SPEC = {
     map_string_small_object: {
       title: 'Map<string, SmallObject>',
       prepareForJson: () => createPrepareForJson<Map<string, SmallObject>>(),
+      stringifyJson: () => createStringifyJson<Map<string, SmallObject>>(),
       restoreFromJson: () => createRestoreFromJson<Map<string, SmallObject>>(),
       getTestData: () => ({
         values: [
@@ -1504,6 +1722,7 @@ export const SERIALIZATION_SPEC = {
     map_small_object_number: {
       title: 'Map<SmallObject, number>',
       prepareForJson: () => createPrepareForJson<Map<SmallObject, number>>(),
+      stringifyJson: () => createStringifyJson<Map<SmallObject, number>>(),
       restoreFromJson: () => createRestoreFromJson<Map<SmallObject, number>>(),
       getTestData: () => ({
         values: [
@@ -1523,6 +1742,13 @@ export const SERIALIZATION_SPEC = {
           b: Map<string, {sm: {s: string; arr: number[]}}>;
         }
         return createPrepareForJson<DeepWithMap>();
+      },
+      stringifyJson: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createStringifyJson<DeepWithMap>();
       },
       restoreFromJson: () => {
         interface DeepWithMap {
@@ -1546,6 +1772,7 @@ export const SERIALIZATION_SPEC = {
     map_with_bigint_keys: {
       title: 'Map with bigint keys',
       prepareForJson: () => createPrepareForJson<Map<bigint, number>>(),
+      stringifyJson: () => createStringifyJson<Map<bigint, number>>(),
       restoreFromJson: () => createRestoreFromJson<Map<bigint, number>>(),
       getTestData: () => ({
         values: [
@@ -1560,6 +1787,7 @@ export const SERIALIZATION_SPEC = {
     map_with_date_values: {
       title: 'Map with Date values',
       prepareForJson: () => createPrepareForJson<Map<string, Date>>(),
+      stringifyJson: () => createStringifyJson<Map<string, Date>>(),
       restoreFromJson: () => createRestoreFromJson<Map<string, Date>>(),
       getTestData: () => ({
         values: [
@@ -1579,6 +1807,10 @@ export const SERIALIZATION_SPEC = {
         type CircularObject = {name: string; child?: CircularObject};
         return createPrepareForJson<CircularObject>();
       },
+      stringifyJson: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createStringifyJson<CircularObject>();
+      },
       restoreFromJson: () => {
         type CircularObject = {name: string; child?: CircularObject};
         return createRestoreFromJson<CircularObject>();
@@ -1590,6 +1822,10 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createPrepareForJson<CuArray>();
+      },
+      stringifyJson: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createStringifyJson<CuArray>();
       },
       restoreFromJson: () => {
         type CuArray = (CuArray | Date | number | string)[];
@@ -1614,6 +1850,12 @@ export const SERIALIZATION_SPEC = {
         }
         return createPrepareForJson<CircularTuple>();
       },
+      stringifyJson: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createStringifyJson<CircularTuple>();
+      },
       restoreFromJson: () => {
         interface CircularTuple {
           list: [bigint, CircularTuple?];
@@ -1631,6 +1873,12 @@ export const SERIALIZATION_SPEC = {
           index: {[key: string]: CircularIndex};
         }
         return createPrepareForJson<CircularIndex>();
+      },
+      stringifyJson: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createStringifyJson<CircularIndex>();
       },
       restoreFromJson: () => {
         interface CircularIndex {
@@ -1650,6 +1898,12 @@ export const SERIALIZATION_SPEC = {
         }
         return createPrepareForJson<CircularDeep>();
       },
+      stringifyJson: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createStringifyJson<CircularDeep>();
+      },
       restoreFromJson: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
@@ -1666,6 +1920,10 @@ export const SERIALIZATION_SPEC = {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createPrepareForJson<CircularTupleComplex>();
       },
+      stringifyJson: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createStringifyJson<CircularTupleComplex>();
+      },
       restoreFromJson: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createRestoreFromJson<CircularTupleComplex>();
@@ -1675,6 +1933,7 @@ export const SERIALIZATION_SPEC = {
     object_with_circular_array: {
       title: 'object with circular array',
       prepareForJson: () => createPrepareForJson<ObjCircularArr>(),
+      stringifyJson: () => createStringifyJson<ObjCircularArr>(),
       restoreFromJson: () => createRestoreFromJson<ObjCircularArr>(),
       getTestData: () => ({
         values: [
@@ -1692,6 +1951,7 @@ export const SERIALIZATION_SPEC = {
     url_string: {
       title: 'template literal as string type',
       prepareForJson: () => createPrepareForJson<`api/users/${number}`>(),
+      stringifyJson: () => createStringifyJson<`api/users/${number}`>(),
       restoreFromJson: () => createRestoreFromJson<`api/users/${number}`>(),
       getTestData: () => ({
         values: [
@@ -1707,6 +1967,7 @@ export const SERIALIZATION_SPEC = {
     url_in_object: {
       title: 'template literal as object property type',
       prepareForJson: () => createPrepareForJson<{url: `api/user/${number}`; method: string}>(),
+      stringifyJson: () => createStringifyJson<{url: `api/user/${number}`; method: string}>(),
       restoreFromJson: () => createRestoreFromJson<{url: `api/user/${number}`; method: string}>(),
       getTestData: () => ({
         values: [
@@ -1719,12 +1980,14 @@ export const SERIALIZATION_SPEC = {
     url_index_key: {
       title: 'template literal as index signature key',
       prepareForJson: () => createPrepareForJson<{[key: `api/${string}`]: number}>(),
+      stringifyJson: () => createStringifyJson<{[key: `api/${string}`]: number}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: `api/${string}`]: number}>(),
       getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
     },
     url_index_key_with_named: {
       title: 'template literal index key + sibling named property',
       prepareForJson: () => createPrepareForJson<{meta: string; [key: `api/${string}`]: string | number}>(),
+      stringifyJson: () => createStringifyJson<{meta: string; [key: `api/${string}`]: string | number}>(),
       restoreFromJson: () => createRestoreFromJson<{meta: string; [key: `api/${string}`]: string | number}>(),
       getTestData: () => ({
         values: [{meta: 'a'}, {meta: 'b', 'api/users': 1}, {meta: 'c', 'api/users': 1, 'api/posts': 2}],
@@ -1736,6 +1999,7 @@ export const SERIALIZATION_SPEC = {
     promise_jsonStringify_error: {
       title: 'Promise top-level throws',
       prepareForJson: () => createPrepareForJson<Promise<string>>(),
+      stringifyJson: () => createStringifyJson<Promise<string>>(),
       restoreFromJson: () => createRestoreFromJson<Promise<string>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1743,6 +2007,7 @@ export const SERIALIZATION_SPEC = {
     non_serializable: {
       title: 'non-serializable type throws (Int8Array)',
       prepareForJson: () => createPrepareForJson<Int8Array>(),
+      stringifyJson: () => createStringifyJson<Int8Array>(),
       restoreFromJson: () => createRestoreFromJson<Int8Array>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1750,6 +2015,7 @@ export const SERIALIZATION_SPEC = {
     non_serializable_interface: {
       title: 'non-serializable inside interface throws',
       prepareForJson: () => createPrepareForJson<{a: Int8Array}>(),
+      stringifyJson: () => createStringifyJson<{a: Int8Array}>(),
       restoreFromJson: () => createRestoreFromJson<{a: Int8Array}>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1757,6 +2023,7 @@ export const SERIALIZATION_SPEC = {
     non_serializable_array: {
       title: 'non-serializable inside array throws',
       prepareForJson: () => createPrepareForJson<Int8Array[]>(),
+      stringifyJson: () => createStringifyJson<Int8Array[]>(),
       restoreFromJson: () => createRestoreFromJson<Int8Array[]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1764,6 +2031,7 @@ export const SERIALIZATION_SPEC = {
     non_serializable_tuple: {
       title: 'non-serializable inside tuple throws',
       prepareForJson: () => createPrepareForJson<[Int8Array]>(),
+      stringifyJson: () => createStringifyJson<[Int8Array]>(),
       restoreFromJson: () => createRestoreFromJson<[Int8Array]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1798,6 +2066,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `extra: "hello"` is JSON-encodable (string). Unsafe path round-trips with the extra intact (prepareForJson never visits it, JSON.stringify keeps it). Safe path strips it before serialise — restored value contains only the declared key.',
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', extra: 'hello'}],
@@ -1814,6 +2083,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `extra: 123n` is not JSON-encodable. Unsafe path: prepareForJson never visits the extra, JSON.stringify throws on the bigint. Safe path: stripUnknownKeys removes the extra before prepareForJson runs, so the bigint never reaches JSON.stringify and the output is the clean declared-only shape.',
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
@@ -1828,6 +2098,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `sym: Symbol("x")` is silently dropped by JSON.stringify per ECMAScript spec (symbol-valued own props are non-enumerable for JSON purposes). Unsafe path: prepareForJson preserves it, JSON.stringify drops it. Safe path: strip removes it before stringify. Same observable, different mechanism — document the lossy round-trip in both paths.',
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', sym: Symbol('extra')}],
@@ -1842,6 +2113,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `fn: () => 0` is silently dropped by JSON.stringify (function-valued props serialise to undefined and the key is omitted). Both paths produce declared-only output — strip removes the function on the safe path; JSON.stringify drops it on the unsafe path.',
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', fn: () => 0}],
@@ -1855,6 +2127,7 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `outer.extra` sits inside a declared `outer: {declared: string}` composite. Confirms the extras semantic recurses through declared composites: unsafe preserves the nested extra; safe strips it.',
       prepareForJson: () => createPrepareForJson<{outer: {declared: string}}>(),
+      stringifyJson: () => createStringifyJson<{outer: {declared: string}}>(),
       restoreFromJson: () => createRestoreFromJson<{outer: {declared: string}}>(),
       getTestData: () => ({
         values: [{outer: {declared: 'x', extra: 'y'}}],
