@@ -306,6 +306,9 @@ const (
 	CacheKindPrepareForJson         CacheKind = "prepareForJson"
 	CacheKindRestoreFromJson        CacheKind = "restoreFromJson"
 	CacheKindStringifyJson          CacheKind = "stringifyJson"
+	CacheKindPrepareForJsonFlat     CacheKind = "prepareForJsonFlat"
+	CacheKindRestoreFromJsonFlat    CacheKind = "restoreFromJsonFlat"
+	CacheKindStringifyJsonFlat      CacheKind = "stringifyJsonFlat"
 	CacheKindHasUnknownKeys         CacheKind = "hasUnknownKeys"
 	CacheKindStripUnknownKeys       CacheKind = "stripUnknownKeys"
 	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
@@ -369,6 +372,13 @@ type Response struct {
 	// the type rather than `v`. Set per emitter so the Vite plugin
 	// invalidates the stringifyJson cache module independently.
 	AddedStringifyJson bool `json:"addedStringifyJson,omitempty"`
+	// AddedPrepareForJsonFlat / AddedRestoreFromJsonFlat /
+	// AddedStringifyJsonFlat mirror their non-flat siblings for the
+	// optimised JSON serialiser family. The two families coexist;
+	// either emit pass can independently fire its cache invalidation.
+	AddedPrepareForJsonFlat  bool `json:"addedPrepareForJsonFlat,omitempty"`
+	AddedRestoreFromJsonFlat bool `json:"addedRestoreFromJsonFlat,omitempty"`
+	AddedStringifyJsonFlat   bool `json:"addedStringifyJsonFlat,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
 	// / AddedUnknownKeysToUndefined mirror AddedIsType for the
 	// unknown-keys family ported from mion's
@@ -413,6 +423,15 @@ type Response struct {
 	// PrepareForJsonCacheSource; same factory shape and projection
 	// semantics.
 	StringifyJsonCacheSource string `json:"stringifyJsonCacheSource,omitempty"`
+	// PrepareForJsonFlatCacheSource / RestoreFromJsonFlatCacheSource /
+	// StringifyJsonFlatCacheSource carry the rendered bodies of the
+	// optimised JSON serialiser family — wire shape diverges from the
+	// non-flat siblings only at unions (object members merge into
+	// `[-1, mergedObject]`). Same factory shape and projection
+	// semantics as PrepareForJsonCacheSource.
+	PrepareForJsonFlatCacheSource  string `json:"prepareForJsonFlatCacheSource,omitempty"`
+	RestoreFromJsonFlatCacheSource string `json:"restoreFromJsonFlatCacheSource,omitempty"`
+	StringifyJsonFlatCacheSource   string `json:"stringifyJsonFlatCacheSource,omitempty"`
 	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
@@ -550,6 +569,15 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedStringifyJson {
 		out["addedStringifyJson"] = true
 	}
+	if response.AddedPrepareForJsonFlat {
+		out["addedPrepareForJsonFlat"] = true
+	}
+	if response.AddedRestoreFromJsonFlat {
+		out["addedRestoreFromJsonFlat"] = true
+	}
+	if response.AddedStringifyJsonFlat {
+		out["addedStringifyJsonFlat"] = true
+	}
 	if response.AddedHasUnknownKeys {
 		out["addedHasUnknownKeys"] = true
 	}
@@ -591,6 +619,15 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.StringifyJsonCacheSource != "" {
 		out["stringifyJsonCacheSource"] = response.StringifyJsonCacheSource
+	}
+	if response.PrepareForJsonFlatCacheSource != "" {
+		out["prepareForJsonFlatCacheSource"] = response.PrepareForJsonFlatCacheSource
+	}
+	if response.RestoreFromJsonFlatCacheSource != "" {
+		out["restoreFromJsonFlatCacheSource"] = response.RestoreFromJsonFlatCacheSource
+	}
+	if response.StringifyJsonFlatCacheSource != "" {
+		out["stringifyJsonFlatCacheSource"] = response.StringifyJsonFlatCacheSource
 	}
 	if response.HasUnknownKeysCacheSource != "" {
 		out["hasUnknownKeysCacheSource"] = response.HasUnknownKeysCacheSource

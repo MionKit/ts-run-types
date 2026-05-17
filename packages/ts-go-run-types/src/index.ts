@@ -117,6 +117,20 @@ export {createRestoreFromJson, deserializeRestoreFromJson, type RestoreFromJsonF
 
 export {createStringifyJson, deserializeStringifyJson, type StringifyJsonFn} from './createStringifyJson.ts';
 
+// Optimised JSON serialiser family — wire shape diverges from the
+// non-flat siblings ONLY at union boundaries: object members are
+// merged into a `[-1, mergedObject]` envelope so encode bypasses the
+// per-member isType walk. Atomic members keep the `[memberIndex,value]`
+// shape. Round-trip the same way: pair createPrepareForJsonFlat with
+// createRestoreFromJsonFlat (or createStringifyJsonFlat for single-pass).
+export {createPrepareForJsonFlat, deserializePrepareForJsonFlat, type PrepareForJsonFlatFn} from './createPrepareForJsonFlat.ts';
+export {
+  createRestoreFromJsonFlat,
+  deserializeRestoreFromJsonFlat,
+  type RestoreFromJsonFlatFn,
+} from './createRestoreFromJsonFlat.ts';
+export {createStringifyJsonFlat, deserializeStringifyJsonFlat, type StringifyJsonFlatFn} from './createStringifyJsonFlat.ts';
+
 export {
   createHasUnknownKeys,
   deserializeHasUnknownKeys,
@@ -145,9 +159,4 @@ export {
 export {createUnsafeJsonStringify, type UnsafeJsonStringifyFn} from './createUnsafeJsonStringify.ts';
 export {createSafeJsonStringify, type SafeJsonStringifyFn} from './createSafeJsonStringify.ts';
 export {createUnsafeJsonParse, type UnsafeJsonParseFn} from './createUnsafeJsonParse.ts';
-export {
-  createSafeJsonParse,
-  type SafeJsonParseFn,
-  type SafeJsonParseOptions,
-  SafeJsonParseError,
-} from './createSafeJsonParse.ts';
+export {createSafeJsonParse, type SafeJsonParseFn, type SafeJsonParseOptions, SafeJsonParseError} from './createSafeJsonParse.ts';
