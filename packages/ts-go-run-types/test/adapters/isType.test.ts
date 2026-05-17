@@ -149,8 +149,7 @@ describe('isType / ARRAY', () => {
   it('Array of symbols (non-serializable — always rejected)', () => assertIsType(VALIDATION_SUITE.ARRAY.symbol_array));
 
   it('all array isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.ARRAY).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.ARRAY).length);
   });
 });
 
@@ -195,8 +194,7 @@ describe('isType / OBJECT', () => {
   it('Parameters<F> tuple with a trailing rest segment', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
 
   it('all object isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.OBJECT).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.OBJECT).length);
   });
 });
 
@@ -218,8 +216,7 @@ describe('isType / TUPLE', () => {
   it('Tuple with named element labels (labels erased at runtime)', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_named_labels));
 
   it('all tuple isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.TUPLE).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TUPLE).length);
   });
 });
 
@@ -255,8 +252,7 @@ describe('isType / UNION', () => {
   it('Union mixing a subset pair with a disjoint arm', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_mixed_related_unrelated));
 
   it('all union isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UNION).length);
   });
 });
 
@@ -281,8 +277,7 @@ describe('isType / TEMPLATE_LITERAL', () => {
   it('Template literal with a union-of-literals placeholder', () => assertIsType(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
 
   it('all template-literal isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.TEMPLATE_LITERAL).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TEMPLATE_LITERAL).length);
   });
 });
 
@@ -302,8 +297,7 @@ describe('isType / NATIVE', () => {
   it('Awaited<Promise<T>> — resolves to the wrapped type', () => assertIsType(VALIDATION_SUITE.NATIVE.awaited_promise));
 
   it('all native isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.NATIVE).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.NATIVE).length);
   });
 });
 
@@ -327,8 +321,7 @@ describe('isType / CIRCULAR', () => {
   it('Multiple circular types cross-referenced from a non-circular root', () => assertIsType(VALIDATION_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
 
   it('all circular isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.CIRCULAR).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.CIRCULAR).length);
   });
 });
 
@@ -363,7 +356,6 @@ describe('isType / UTILITY', () => {
   it('Omit<T, K> preserves optionality of remaining props', () => assertIsType(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
 
   it('all utility isType tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.UTILITY).filter((c) => c.isType).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UTILITY).length);
   });
 });
