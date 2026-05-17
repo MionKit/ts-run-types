@@ -173,8 +173,10 @@ describe('isType / OBJECT', () => {
   it('Interface with a nested object property', () => assertIsType(JIT_SUITE.OBJECT.nested_object));
   it('Interface with a string-array property', () => assertIsType(JIT_SUITE.OBJECT.interface_string_array_prop));
   it('Self-referential interface (linked-list shape)', () => assertIsType(JIT_SUITE.OBJECT.circular_interface));
-  it('Self-referential interface via an array-of-self property', () => assertIsType(JIT_SUITE.OBJECT.circular_interface_on_array));
-  it('Self-referential interface buried in a nested object', () => assertIsType(JIT_SUITE.OBJECT.circular_interface_on_nested_object));
+  it('Self-referential interface via an array-of-self property', () =>
+    assertIsType(JIT_SUITE.OBJECT.circular_interface_on_array));
+  it('Self-referential interface buried in a nested object', () =>
+    assertIsType(JIT_SUITE.OBJECT.circular_interface_on_nested_object));
   it('Index signature with string values', () => assertIsType(JIT_SUITE.OBJECT.index_signature_string));
   it('Index signature combined with named properties', () => assertIsType(JIT_SUITE.OBJECT.index_signature_named_props));
   it('Nested index signatures (number leaf values)', () => assertIsType(JIT_SUITE.OBJECT.index_signature_nested));
@@ -196,7 +198,8 @@ describe('isType / OBJECT', () => {
   it('Class with two atomic props (instance or plain match)', () => assertIsType(JIT_SUITE.OBJECT.class_simple));
   it('RpcError-shaped class with branded discriminator', () => assertIsType(JIT_SUITE.OBJECT.rpc_error_class));
   it('Function parameters extracted via Parameters<F>', () => assertIsType(JIT_SUITE.OBJECT.call_signature_params));
-  it('Parameters<F> tuple with a trailing optional argument', () => assertIsType(JIT_SUITE.OBJECT.call_signature_params_with_optional));
+  it('Parameters<F> tuple with a trailing optional argument', () =>
+    assertIsType(JIT_SUITE.OBJECT.call_signature_params_with_optional));
   it('Parameters<F> tuple with a trailing rest segment', () => assertIsType(JIT_SUITE.OBJECT.call_signature_params_with_rest));
 
   it('all object isType tests ran', () => {
@@ -250,10 +253,12 @@ describe('isType / UNION', () => {
 
   // mion union.spec.ts ports — additional arms / shapes
   it('Union where one arm carries an index signature', () => assertIsType(JIT_SUITE.UNION.union_with_index_arm));
-  it('Discriminated union sharing one prop with arm-dependent type', () => assertIsType(JIT_SUITE.UNION.union_same_prop_different_types));
+  it('Discriminated union sharing one prop with arm-dependent type', () =>
+    assertIsType(JIT_SUITE.UNION.union_same_prop_different_types));
   it('Union mixing array types and object shapes', () => assertIsType(JIT_SUITE.UNION.union_mixed_arrays_and_objects));
   it('Union of shapes sharing a prop with different value types', () => assertIsType(JIT_SUITE.UNION.union_merged_property));
-  it('Union mixing arrays, plain objects, and index-signature shapes', () => assertIsType(JIT_SUITE.UNION.union_mixed_with_index));
+  it('Union mixing arrays, plain objects, and index-signature shapes', () =>
+    assertIsType(JIT_SUITE.UNION.union_mixed_with_index));
   it('Union with an `any` arm (collapses to any)', () => assertIsType(JIT_SUITE.UNION.union_with_any_fallback));
   it('Union with an `unknown` arm (collapses to unknown)', () => assertIsType(JIT_SUITE.UNION.union_with_unknown_fallback));
   it('Union with the smaller arm declared before its superset', () => assertIsType(JIT_SUITE.UNION.union_subset_small_first));
@@ -279,11 +284,16 @@ describe('isType / TEMPLATE_LITERAL', () => {
 
   it('Template literal URL with a number placeholder', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.url_with_number_id));
   it('Template literal URL with multiple placeholders', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.multi_segment_url));
-  it('Template literal starting with a string placeholder', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.leading_string_placeholder));
-  it('Template literal with regex metacharacters in literal segments', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.regex_special_chars));
-  it('Object with a template-literal-typed string property', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.template_literal_nested_in_object));
-  it('Index signature whose key is a template literal pattern', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.template_literal_index_key));
-  it('Template literal with a union-of-literals placeholder', () => assertIsType(JIT_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
+  it('Template literal starting with a string placeholder', () =>
+    assertIsType(JIT_SUITE.TEMPLATE_LITERAL.leading_string_placeholder));
+  it('Template literal with regex metacharacters in literal segments', () =>
+    assertIsType(JIT_SUITE.TEMPLATE_LITERAL.regex_special_chars));
+  it('Object with a template-literal-typed string property', () =>
+    assertIsType(JIT_SUITE.TEMPLATE_LITERAL.template_literal_nested_in_object));
+  it('Index signature whose key is a template literal pattern', () =>
+    assertIsType(JIT_SUITE.TEMPLATE_LITERAL.template_literal_index_key));
+  it('Template literal with a union-of-literals placeholder', () =>
+    assertIsType(JIT_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
 
   it('all template-literal isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.TEMPLATE_LITERAL).length);
@@ -321,13 +331,20 @@ describe('isType / CIRCULAR', () => {
     ranTests++;
   });
 
-  it('Self-referential object with optional self-ref and Date prop', () => assertIsType(JIT_SUITE.CIRCULAR.object_full_mion_shape));
-  it('Self-referential array whose union element includes the array itself', () => assertIsType(JIT_SUITE.CIRCULAR.array_of_union_with_self_ref));
-  it('Self-referential object whose cycle closes via a tuple property', () => assertIsType(JIT_SUITE.CIRCULAR.object_with_tuple_prop));
-  it('Self-referential object whose cycle closes via an index signature', () => assertIsType(JIT_SUITE.CIRCULAR.object_with_index_prop));
-  it('Self-referential object with the cycle buried four levels deep', () => assertIsType(JIT_SUITE.CIRCULAR.object_deeply_nested));
-  it('Non-circular root holding a circular child interface', () => assertIsType(JIT_SUITE.CIRCULAR.circular_child_under_literal_root));
-  it('Multiple circular types cross-referenced from a non-circular root', () => assertIsType(JIT_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
+  it('Self-referential object with optional self-ref and Date prop', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.object_full_mion_shape));
+  it('Self-referential array whose union element includes the array itself', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.array_of_union_with_self_ref));
+  it('Self-referential object whose cycle closes via a tuple property', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.object_with_tuple_prop));
+  it('Self-referential object whose cycle closes via an index signature', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.object_with_index_prop));
+  it('Self-referential object with the cycle buried four levels deep', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.object_deeply_nested));
+  it('Non-circular root holding a circular child interface', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.circular_child_under_literal_root));
+  it('Multiple circular types cross-referenced from a non-circular root', () =>
+    assertIsType(JIT_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
 
   it('all circular isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.CIRCULAR).length);
@@ -361,16 +378,20 @@ describe('isType / UTILITY', () => {
   // validation-constraints library (alongside number brand types).
   // See the comment above `intersection_with_required_override` in
   // jit-suite.ts.
-  it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () => assertIsType(JIT_SUITE.UTILITY.intersection_with_required_override));
+  it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () =>
+    assertIsType(JIT_SUITE.UTILITY.intersection_with_required_override));
   it('Omit<T, K> preserves optionality of remaining props', () => assertIsType(JIT_SUITE.UTILITY.omit_keeping_optional));
   it('keyof T — resolves to a union of string-literal keys', () => assertIsType(JIT_SUITE.UTILITY.keyof_to_literal_union));
   it('typeof variable — type query on a runtime value', () => assertIsType(JIT_SUITE.UTILITY.typeof_variable_query));
   it('Indexed access type — Person["name"] resolves to string', () => assertIsType(JIT_SUITE.UTILITY.indexed_access_type));
   it('Conditional type — T extends string ? boolean : number', () => assertIsType(JIT_SUITE.UTILITY.conditional_type_resolved));
   it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertIsType(JIT_SUITE.UTILITY.mapped_type_custom));
-  it('Mapped type whose value is a conditional — per-prop shape diverges', () => assertIsType(JIT_SUITE.UTILITY.mapped_type_with_conditional_value));
-  it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () => assertIsType(JIT_SUITE.UTILITY.distributive_conditional_over_union));
-  it('DeepPartial<T> — recursive mapped type with nested optionality', () => assertIsType(JIT_SUITE.UTILITY.deep_partial_recursive_mapped));
+  it('Mapped type whose value is a conditional — per-prop shape diverges', () =>
+    assertIsType(JIT_SUITE.UTILITY.mapped_type_with_conditional_value));
+  it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () =>
+    assertIsType(JIT_SUITE.UTILITY.distributive_conditional_over_union));
+  it('DeepPartial<T> — recursive mapped type with nested optionality', () =>
+    assertIsType(JIT_SUITE.UTILITY.deep_partial_recursive_mapped));
 
   it('all utility isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.UTILITY).length);

@@ -71,6 +71,19 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		// cleanly via identity; transforming-member cases mark
 		// `getRoundTripValid: () => []` to skip the assertion.
 		return true
+	case protocol.KindIntersection:
+		// Intersection types are resolved by tsgo at the type-checker
+		// layer (`A & B` → merged object literal, `string & number` →
+		// `never`). Mion throws if its IntersectionRunType is ever
+		// invoked. We support it as a defensive noop in case some
+		// resolution path produces an unresolved intersection.
+		return true
+	case protocol.KindTemplateLiteral:
+		// Template literals validate at compile time against a regex
+		// (handled by isType). The value is always a string at runtime,
+		// so prepareForJson / restoreFromJson are atomic-string-like
+		// (noop). Same emit shape as KindString.
+		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Functions are non-serializable. Top-level support emits a
@@ -230,6 +243,15 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// can do and round-trip tests for transforming-member unions
 		// (e.g. `string | Date`) must mark `getRoundTripValid: () =>
 		// []` to opt out.
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindIntersection:
+		// Defensive noop — intersections should be pre-resolved by the
+		// type checker. See Supports's comment for details.
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindTemplateLiteral:
+		// String-flavoured at runtime — noop.
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:

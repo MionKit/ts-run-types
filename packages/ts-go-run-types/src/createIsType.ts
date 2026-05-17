@@ -79,11 +79,7 @@ const validatorCache = new Map<string, IsTypeFn>();
  *  Throws when called without the plugin active (no `id` injected) or
  *  when jitUtils doesn't contain an entry for the expected hash —
  *  both indicate the build pipeline didn't wire correctly. **/
-export function createIsType<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): IsTypeFn {
+export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): IsTypeFn {
   void val; // runtime-ignored; only used by type-checker to infer T
   void options; // runtime-ignored; baked into id at compile time
   if (id === undefined) {
@@ -143,11 +139,7 @@ const deserializedValidatorCache = new Map<string, IsTypeFn>();
  *  Same call shapes as `createIsType` (static + reflect) and the same
  *  sync return type — `new Function(…)` is synchronous, the validator
  *  is built and cached on first call. **/
-export function deserializeIsType<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): IsTypeFn {
+export function deserializeIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): IsTypeFn {
   void val;
   void options;
   if (id === undefined) {

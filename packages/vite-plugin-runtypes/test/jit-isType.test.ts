@@ -90,7 +90,7 @@ getRuntypeId<string>();
       expect(fromCache.defaultParamValues).toEqual({vλl: undefined});
       // `code` carries the factory body (suitable for `new Function('utl', code)(jitUtils)`
       // reconstruction), not just the inner validator body.
-      expect(fromCache.code).toBe("return function it_" + site.id + "(v){return typeof v === 'string'}");
+      expect(fromCache.code).toBe('return function it_' + site.id + "(v){return typeof v === 'string'}");
       expect(fromCache.isNoop).toBe(false);
       expect(fromCache.jitDependencies).toEqual([]);
       expect(fromCache.pureFnDependencies).toEqual([]);

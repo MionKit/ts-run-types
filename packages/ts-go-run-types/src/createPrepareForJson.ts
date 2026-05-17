@@ -30,11 +30,7 @@ const validatorCache = new Map<string, PrepareForJsonFn>();
  *
  *  Throws when called without the plugin active or when jitUtils
  *  doesn't contain an entry for the expected hash. **/
-export function createPrepareForJson<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): PrepareForJsonFn {
+export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn {
   void val;
   void options;
   if (id === undefined) {
@@ -77,11 +73,7 @@ const deserializedValidatorCache = new Map<string, PrepareForJsonFn>();
  *  `new Function('utl', code)(jitUtils)` instead of reusing the cache
  *  module's already-materialised `entry.fn`. Mirrors `deserializeIsType`
  *  — exercises the over-the-wire reconstruction path. **/
-export function deserializePrepareForJson<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): PrepareForJsonFn {
+export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn {
   void val;
   void options;
   if (id === undefined) {

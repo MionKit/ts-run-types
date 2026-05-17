@@ -9,24 +9,24 @@ export interface CacheModuleSettings {
 }
 
 export const CACHE_MODULES = {
-  isType: {name: "isTypeModule", varPrefix: "g_it_", tag: "it"},
-  pureFns: {name: "pureFnsModule", varPrefix: "", tag: ""},
-  runTypes: {name: "runTypesModule", varPrefix: "t_", tag: "t"},
-  typeErrors: {name: "typeErrorsModule", varPrefix: "g_te_", tag: "te"},
+  isType: {name: 'isTypeModule', varPrefix: 'g_it_', tag: 'it'},
+  pureFns: {name: 'pureFnsModule', varPrefix: '', tag: ''},
+  runTypes: {name: 'runTypesModule', varPrefix: 't_', tag: 't'},
+  typeErrors: {name: 'typeErrorsModule', varPrefix: 'g_te_', tag: 'te'},
 } as const satisfies Record<string, CacheModuleSettings>;
 
-export const ISTYPE_VAR_PREFIX = "g_it_";
-export const ISTYPE_MODULE_NAME = "isTypeModule";
-export const ISTYPE_TAG = "it";
-export const PUREFNS_VAR_PREFIX = "";
-export const PUREFNS_MODULE_NAME = "pureFnsModule";
-export const PUREFNS_TAG = "";
-export const RUNTYPES_VAR_PREFIX = "t_";
-export const RUNTYPES_MODULE_NAME = "runTypesModule";
-export const RUNTYPES_TAG = "t";
-export const TYPEERRORS_VAR_PREFIX = "g_te_";
-export const TYPEERRORS_MODULE_NAME = "typeErrorsModule";
-export const TYPEERRORS_TAG = "te";
+export const ISTYPE_VAR_PREFIX = 'g_it_';
+export const ISTYPE_MODULE_NAME = 'isTypeModule';
+export const ISTYPE_TAG = 'it';
+export const PUREFNS_VAR_PREFIX = '';
+export const PUREFNS_MODULE_NAME = 'pureFnsModule';
+export const PUREFNS_TAG = '';
+export const RUNTYPES_VAR_PREFIX = 't_';
+export const RUNTYPES_MODULE_NAME = 'runTypesModule';
+export const RUNTYPES_TAG = 't';
+export const TYPEERRORS_VAR_PREFIX = 'g_te_';
+export const TYPEERRORS_MODULE_NAME = 'typeErrorsModule';
+export const TYPEERRORS_TAG = 'te';
 
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,
@@ -40,34 +40,34 @@ export const REFLECTION_SUB_KIND = {
 export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];
 
 export const NON_SERIALIZABLE_GLOBALS = [
-  "Error",
-  "EvalError",
-  "RangeError",
-  "ReferenceError",
-  "SyntaxError",
-  "TypeError",
-  "URIError",
-  "AggregateError",
-  "WeakMap",
-  "WeakSet",
-  "DataView",
-  "ArrayBuffer",
-  "SharedArrayBuffer",
-  "Float32Array",
-  "Float64Array",
-  "Int8Array",
-  "Int16Array",
-  "Int32Array",
-  "Uint8Array",
-  "Uint8ClampedArray",
-  "Uint16Array",
-  "Uint32Array",
-  "BigInt64Array",
-  "BigUint64Array",
-  "Generator",
-  "GeneratorFunction",
-  "AsyncGenerator",
-  "Iterator",
-  "AsyncGeneratorFunction",
-  "AsyncIterator",
+  'Error',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+  'AggregateError',
+  'WeakMap',
+  'WeakSet',
+  'DataView',
+  'ArrayBuffer',
+  'SharedArrayBuffer',
+  'Float32Array',
+  'Float64Array',
+  'Int8Array',
+  'Int16Array',
+  'Int32Array',
+  'Uint8Array',
+  'Uint8ClampedArray',
+  'Uint16Array',
+  'Uint32Array',
+  'BigInt64Array',
+  'BigUint64Array',
+  'Generator',
+  'GeneratorFunction',
+  'AsyncGenerator',
+  'Iterator',
+  'AsyncGeneratorFunction',
+  'AsyncIterator',
 ] as const;
