@@ -64,21 +64,26 @@ getRuntypeId<string>();
 
       // 2. Evaluate the isType module via its initCache(jitUtils) export.
       //    The stub records every `addToJitCache` call and the returned
-      //    cache map is keyed by raw `jitFnHash` (no prefix).
+      //    cache map is keyed by the namespaced `jitFnHash`
+      //    (`isType_<id>`) — see internal/caches/jitfn/module.go which
+      //    namespaces the cache key per fn so isType / typeErrors /
+      //    prepareForJson entries for the same runtype don't collide
+      //    in the shared jitFnsCache.
       const isTypeSource = response.isTypeCacheSource;
       if (!isTypeSource) throw new Error('expected isTypeCacheSource in response');
       const {byHash: isTypeCache, registered} = evalIsTypeModule(isTypeSource);
 
       // Both the returned map entry and the stub-registered cache entry
       // must point at the same `JitCompiledFn` object — there's no copy.
-      const fromCache = isTypeCache[site.id];
-      const fromRegistry = registered[site.id];
+      const cacheKey = 'isType_' + site.id;
+      const fromCache = isTypeCache[cacheKey];
+      const fromRegistry = registered[cacheKey];
       expect(fromCache).toBeDefined();
       expect(fromRegistry).toBeDefined();
       expect(fromCache).toBe(fromRegistry);
 
       // 3. Every JitCompiledFnData field is populated.
-      expect(fromCache.jitFnHash).toBe(site.id);
+      expect(fromCache.jitFnHash).toBe(cacheKey);
       expect(fromCache.fnID).toBe('isType');
       expect(fromCache.typeName).toBe('string');
       expect(fromCache.args).toEqual({vλl: 'v'});
