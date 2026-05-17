@@ -166,7 +166,10 @@ describe('getTypeErrors / OBJECT', () => {
   it('Nested index signatures with Date leaf values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_date_value));
   it('Index signature on a nested (non-root) object property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_non_root));
   it('Function type at top level (any function passes)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.function_top_level));
+  it('Interface with every property optional (plain-object guard)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_all_optional));
+  it('Callable interface (function plus data properties)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_callable));
   it('Class with two atomic props (instance or plain match)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.class_simple));
+  it('RpcError-shaped class with branded discriminator', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.rpc_error_class));
   it('Function parameters extracted via Parameters<F>', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params));
   it('Parameters<F> tuple with a trailing optional argument', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params_with_optional));
   it('Parameters<F> tuple with a trailing rest segment', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
@@ -246,6 +249,12 @@ describe('getTypeErrors / CIRCULAR', () => {
   });
 
   it('Self-referential object with optional self-ref and Date prop', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.object_full_mion_shape));
+  it('Self-referential array whose union element includes the array itself', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.array_of_union_with_self_ref));
+  it('Self-referential object whose cycle closes via a tuple property', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.object_with_tuple_prop));
+  it('Self-referential object whose cycle closes via an index signature', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.object_with_index_prop));
+  it('Self-referential object with the cycle buried four levels deep', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.object_deeply_nested));
+  it('Non-circular root holding a circular child interface', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.circular_child_under_literal_root));
+  it('Multiple circular types cross-referenced from a non-circular root', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
 
   it('all circular getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.CIRCULAR).filter((c) => c.getTypeErrors).length;
@@ -270,6 +279,18 @@ describe('getTypeErrors / UNION', () => {
   it('Self-referential union via object and array arms', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.circular_union));
   it('Intersection of object shapes (resolved to one merged shape)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.intersection_to_object));
 
+  // mion union.spec.ts ports — additional arms / shapes
+  it('Union where one arm carries an index signature', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_with_index_arm));
+  it('Discriminated union sharing one prop with arm-dependent type', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_same_prop_different_types));
+  it('Union mixing array types and object shapes', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
+  it('Union of shapes sharing a prop with different value types', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_merged_property));
+  it('Union mixing arrays, plain objects, and index-signature shapes', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_mixed_with_index));
+  it('Union with an `any` arm (collapses to any)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_with_any_fallback));
+  it('Union with an `unknown` arm (collapses to unknown)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_with_unknown_fallback));
+  it('Union with the smaller arm declared before its superset', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_subset_small_first));
+  it('Union with a three-level subset chain', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_subset_nested_levels));
+  it('Union mixing a subset pair with a disjoint arm', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_subset_mixed_related_unrelated));
+
   it('all union getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.getTypeErrors).length;
     expect(ranTests).toBe(activeCount);
@@ -282,10 +303,18 @@ describe('getTypeErrors / UTILITY', () => {
     ranTests++;
   });
 
+  it('Partial<T> — all props become optional', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.partial));
+  it('Required<T> — all optional props become required', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.required));
+  it('Pick<T, K> — keeps only the named properties', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.pick));
+  it('Omit<T, K> — drops the named properties', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit));
   it('Exclude<U, X> on a string-literal union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.exclude_atomic));
   it('Extract<U, X> on a string-literal union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.extract_atomic));
+  it('Exclude<U, X> on a discriminated object union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.exclude_from_object_union));
   it('NonNullable<T> — strips null and undefined from a union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.non_nullable));
   it('ReturnType<F> — extracts the return type of a function', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.return_type));
+  it('Readonly<T> — readonly bit erased at runtime', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.readonly));
+  it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.intersection_with_required_override));
+  it('Omit<T, K> preserves optionality of remaining props', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
 
   it('all utility getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.UTILITY).filter((c) => c.getTypeErrors).length;

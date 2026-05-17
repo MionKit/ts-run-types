@@ -3026,6 +3026,26 @@ export const VALIDATION_SUITE = {
         );
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
+      getTypeErrorsReflect: () => {
+        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
+          function (_a: number, _b: boolean) {
+            return 'x';
+          },
+          {extra: 'x'}
+        );
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
+          function (_a: number, _b: boolean) {
+            return 'x';
+          },
+          {extra: 'x'}
+        );
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           Object.assign(
@@ -3044,6 +3064,18 @@ export const VALIDATION_SUITE = {
           Object.assign(() => {}, {extra: null}), // extra wrong type (null)
         ],
       }),
+      // Callable interface emits `typeof v === 'function'` as the
+      // top-level guard (instead of object). Non-functions report
+      // `expected: 'function'`; functions that pass the guard fall
+      // through to per-property checks.
+      getExpectedErrors: () => [
+        [{path: [], expected: 'function'}],
+        [{path: ['extra'], expected: 'string'}],
+        [{path: ['extra'], expected: 'string'}],
+        [{path: [], expected: 'function'}],
+        [{path: [], expected: 'function'}],
+        [{path: ['extra'], expected: 'string'}],
+      ],
     },
 
     interface_all_optional: {
@@ -3065,18 +3097,35 @@ export const VALIDATION_SUITE = {
         const v: {a?: string; b?: number} = {};
         return deserializeIsType(v);
       },
-      // getTypeErrors thunks intentionally omitted for `interface_all_optional`:
-      // mion's `allOptionalCode` adds an extra `(!Array.isArray(v) &&
-      // Object.prototype.toString.call(v) === '[object Object]')`
-      // guard for the all-optional case to reject arrays/Date/Map/Set.
-      // Our typeErrors emit doesn't yet replicate that guard (it
-      // would emit the bare `typeof === 'object'` check, which lets
-      // arrays/Date slip through). Activates in a follow-up that
-      // ports the `allOptionalCode` logic to the typeErrors emitter.
+      getTypeErrors: () => createGetTypeErrors<{a?: string; b?: number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a?: string; b?: number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {a?: string; b?: number} = {};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {a?: string; b?: number} = {};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
         invalid: [[], new Date(), new Map(), new Set(), null, 'hello', 42, undefined, /regex/, true],
       }),
+      // The `allOptionalCode` guard rejects arrays / Date / Map / Set /
+      // RegExp at the top level so every invalid sample fails the
+      // objectLiteral check (the children body never runs).
+      getExpectedErrors: () => [
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+      ],
     },
 
     class_simple: {
@@ -3319,6 +3368,64 @@ export const VALIDATION_SUITE = {
         const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        return createGetTypeErrors<RpcError<'test-error'>>();
+      },
+      deserializeGetTypeErrors: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        return deserializeGetTypeErrors<RpcError<'test-error'>>();
+      },
+      getTypeErrorsReflect: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const validInstance = {
           'mion@isΣrrθr': true,
@@ -3345,6 +3452,30 @@ export const VALIDATION_SUITE = {
           ],
         };
       },
+      getExpectedErrors: () => [
+        // brand wrong (mion@isΣrrθr: false) → literal check fails
+        [{path: ['mion@isΣrrθr'], expected: 'literal'}],
+        // type discriminator wrong → literal check fails
+        [{path: ['type'], expected: 'literal'}],
+        // missing publicMessage (undefined fails string)
+        [{path: ['publicMessage'], expected: 'string'}],
+        [{path: [], expected: 'class'}],
+        [{path: [], expected: 'class'}],
+        [{path: [], expected: 'class'}],
+        // {} — all three required props missing → 3 errors
+        [
+          {path: ['mion@isΣrrθr'], expected: 'literal'},
+          {path: ['type'], expected: 'literal'},
+          {path: ['publicMessage'], expected: 'string'},
+        ],
+        // {publicMessage: 'x'} — brand + type missing
+        [
+          {path: ['mion@isΣrrθr'], expected: 'literal'},
+          {path: ['type'], expected: 'literal'},
+        ],
+        // publicMessage wrong type
+        [{path: ['publicMessage'], expected: 'string'}],
+      ],
     },
 
     call_signature_params: {
@@ -4732,6 +4863,17 @@ export const VALIDATION_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      deserializeGetTypeErrors: () =>
+        deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      getTypeErrorsReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
         invalid: [
@@ -4745,6 +4887,16 @@ export const VALIDATION_SUITE = {
           {b: NaN}, // b is number but NaN fails
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_same_prop_different_types: {
@@ -4767,6 +4919,24 @@ export const VALIDATION_SUITE = {
         };
         return deserializeIsType(v);
       },
+      getTypeErrors: () =>
+        createGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      deserializeGetTypeErrors: () =>
+        deserializeGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      getTypeErrorsReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {type: 'a', prop: true},
@@ -4784,6 +4954,16 @@ export const VALIDATION_SUITE = {
           {type: 'd', prop: true}, // invalid discriminator
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_mixed_arrays_and_objects: {
@@ -4810,6 +4990,26 @@ export const VALIDATION_SUITE = {
         ];
         return deserializeIsType(v);
       },
+      getTypeErrors: () =>
+        createGetTypeErrors<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      deserializeGetTypeErrors: () =>
+        deserializeGetTypeErrors<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      getTypeErrorsReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -4828,6 +5028,15 @@ export const VALIDATION_SUITE = {
           'not in any arm',
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_merged_property: {
@@ -4844,10 +5053,29 @@ export const VALIDATION_SUITE = {
         const v: {a: boolean} | {a: number} = {a: true};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{a: boolean} | {a: number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: boolean} | {a: number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
         invalid: [{a: 'hello'}, {}, null, undefined, {a: 'string not boolean or number'}, {a: null}, {a: NaN}],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_mixed_with_index: {
@@ -4888,6 +5116,40 @@ export const VALIDATION_SUITE = {
           | {[key: string]: bigint; b: bigint} = ['a'];
         return deserializeIsType(v);
       },
+      getTypeErrors: () =>
+        createGetTypeErrors<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      deserializeGetTypeErrors: () =>
+        deserializeGetTypeErrors<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      getTypeErrorsReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -4898,6 +5160,14 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [[1, 'b'], {}, {a: 'hello', b: 123n}, null, undefined, [null]],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_with_any_fallback: {
@@ -4916,10 +5186,22 @@ export const VALIDATION_SUITE = {
         const v: string | any = 'hello';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string | any>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | any>(),
+      getTypeErrorsReflect: () => {
+        const v: string | any = 'hello';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string | any = 'hello';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
       }),
+      // `T | any` collapses to `any` — no errors are emitted for any input.
+      getExpectedErrors: () => [],
     },
 
     union_with_unknown_fallback: {
@@ -4936,10 +5218,21 @@ export const VALIDATION_SUITE = {
         const v: string | unknown = 'hello';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string | unknown>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | unknown>(),
+      getTypeErrorsReflect: () => {
+        const v: string | unknown = 'hello';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string | unknown = 'hello';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
       }),
+      getExpectedErrors: () => [],
     },
 
     union_subset_small_first: {
@@ -4990,6 +5283,48 @@ export const VALIDATION_SUITE = {
         const v: SmallObj | LargeObj = {a: 'hello'};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return createGetTypeErrors<SmallObj | LargeObj>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return deserializeGetTypeErrors<SmallObj | LargeObj>();
+      },
+      getTypeErrorsReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{a: 'hello'}, {a: 'hello', b: 123}],
         // Note: `{a: 'hello', b: <anything>}` passes the SmallObj arm
@@ -4997,6 +5332,13 @@ export const VALIDATION_SUITE = {
         // miss BOTH arms' required-prop sets belong here.
         invalid: [{b: 123}, {a: 123}, {}, null, undefined],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_subset_nested_levels: {
@@ -5065,6 +5407,68 @@ export const VALIDATION_SUITE = {
         const v: Tiny | Medium | Large = {x: 'hello'};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return createGetTypeErrors<Tiny | Medium | Large>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return deserializeGetTypeErrors<Tiny | Medium | Large>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
         // Note: `{x: 'hello', ...}` passes the Tiny arm regardless of
@@ -5072,6 +5476,14 @@ export const VALIDATION_SUITE = {
         // samples that miss EVERY arm's required-prop set belong here.
         invalid: [{}, {y: 123}, {z: true}, {x: 1}, null, undefined],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_subset_mixed_related_unrelated: {
@@ -5132,10 +5544,73 @@ export const VALIDATION_SUITE = {
         const v: Base | Extended | Unrelated = {id: '123'};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return createGetTypeErrors<Base | Extended | Unrelated>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return deserializeGetTypeErrors<Base | Extended | Unrelated>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
         invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}, null, undefined, {value: NaN}],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
   },
   // TEMPLATE_LITERAL — ports `isType` test coverage from
@@ -5832,6 +6307,24 @@ export const VALIDATION_SUITE = {
         const v: CuArray = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createGetTypeErrors<CuArray>();
+      },
+      deserializeGetTypeErrors: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return deserializeGetTypeErrors<CuArray>();
+      },
+      getTypeErrorsReflect: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        const v: CuArray = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        const v: CuArray = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const date = new Date();
         const cu1: any = [date, 123, 'hello', ['a', 'b', 'c']];
@@ -5851,6 +6344,21 @@ export const VALIDATION_SUITE = {
           ],
         };
       },
+      getExpectedErrors: () => [
+        // index 4 is {a:1, b:2} which isn't in the union.
+        [{path: [4], expected: 'union'}],
+        // index 2 is [{a,b}] — the inner array fails the union check
+        // (its element doesn't match any arm), so the OUTER union
+        // reports one error at index 2 (union emit doesn't recurse —
+        // it's a boolean delegation to isType per mion semantic).
+        [{path: [2], expected: 'union'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'union'}],
+        [{path: [0], expected: 'union'}],
+        [{path: [0], expected: 'union'}],
+      ],
     },
 
     object_with_tuple_prop: {
@@ -5883,6 +6391,32 @@ export const VALIDATION_SUITE = {
         const v: CircularTuple = {tuple: [1n]};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        return createGetTypeErrors<CircularTuple>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        return deserializeGetTypeErrors<CircularTuple>();
+      },
+      getTypeErrorsReflect: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        const v: CircularTuple = {tuple: [1n]};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        const v: CircularTuple = {tuple: [1n]};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
         invalid: [
@@ -5896,6 +6430,24 @@ export const VALIDATION_SUITE = {
           {}, // missing required tuple prop
         ],
       }),
+      getExpectedErrors: () => [
+        // {tuple: [1n, {tuple: 'hello'}]} — inner.tuple is not an array.
+        [{path: ['tuple', 1, 'tuple'], expected: 'tuple'}],
+        // {tuple: [1n, {tuple: []}]} — inner tuple [] has slot 0 missing.
+        [{path: ['tuple', 1, 'tuple', 0], expected: 'bigint'}],
+        // [] — typeof === 'object' && !== null passes (arrays are objects);
+        // descends to check `tuple` prop. v.tuple is undefined → tuple
+        // check fails at ['tuple'].
+        [{path: ['tuple'], expected: 'tuple'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        // {tuple: ['not bigint']} — slot 0 wrong type.
+        [{path: ['tuple', 0], expected: 'bigint'}],
+        // {tuple: [1n, 'not object']} — slot 1 is non-undefined but not an object.
+        [{path: ['tuple', 1], expected: 'objectLiteral'}],
+        // {} — missing required tuple prop → tuple defaults to undefined.
+        [{path: ['tuple'], expected: 'tuple'}],
+      ],
     },
 
     object_with_index_prop: {
@@ -5928,6 +6480,32 @@ export const VALIDATION_SUITE = {
         const v: CircularIndex = {index: {}};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createGetTypeErrors<CircularIndex>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return deserializeGetTypeErrors<CircularIndex>();
+      },
+      getTypeErrorsReflect: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        const v: CircularIndex = {index: {}};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        const v: CircularIndex = {index: {}};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
         invalid: [
@@ -5941,6 +6519,21 @@ export const VALIDATION_SUITE = {
           {index: {a: null}},
         ],
       }),
+      getExpectedErrors: () => [
+        // {index: {a: 1234}} — index['a'] is not a CircularIndex object.
+        [{path: ['index', 'a'], expected: 'objectLiteral'}],
+        // {index: {a: {index: 'hello'}}} — nested .index is not an object.
+        [{path: ['index', 'a', 'index'], expected: 'objectLiteral'}],
+        // new Date() — Date doesn't have an `index` prop matching the shape.
+        // It IS a plain `typeof === 'object' && !== null` — but
+        // missing `index` prop → typeErrors at ['index'].
+        [{path: ['index'], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['index'], expected: 'objectLiteral'}],
+        [{path: ['index'], expected: 'objectLiteral'}],
+        [{path: ['index', 'a'], expected: 'objectLiteral'}],
+      ],
     },
 
     object_deeply_nested: {
@@ -5973,6 +6566,32 @@ export const VALIDATION_SUITE = {
         const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createGetTypeErrors<CircularDeep>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return deserializeGetTypeErrors<CircularDeep>();
+      },
+      getTypeErrorsReflect: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
         invalid: [
@@ -5988,6 +6607,25 @@ export const VALIDATION_SUITE = {
           {deep1: {deep2: null}},
         ],
       }),
+      getExpectedErrors: () => [
+        // deep4.deep1.deep2.deep3 = 1234 → not an object.
+        [{path: ['deep1', 'deep2', 'deep3', 'deep4', 'deep1', 'deep2', 'deep3'], expected: 'objectLiteral'}],
+        // {deep1: {}} — deep1 missing deep2.
+        [{path: ['deep1', 'deep2'], expected: 'objectLiteral'}],
+        // deep1.deep2.deep3 = 12435.
+        [{path: ['deep1', 'deep2', 'deep3'], expected: 'objectLiteral'}],
+        // deep1.deep2.deep3.deep4 = 'hello' — optional but non-undefined → recurse → not object.
+        [{path: ['deep1', 'deep2', 'deep3', 'deep4'], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        // {} — missing deep1.
+        [{path: ['deep1'], expected: 'objectLiteral'}],
+        // {deep1: null} — deep1 is null, fails object check.
+        [{path: ['deep1'], expected: 'objectLiteral'}],
+        // {deep1: {deep2: null}} — deep2 is null.
+        [{path: ['deep1', 'deep2'], expected: 'objectLiteral'}],
+      ],
     },
 
     circular_child_under_literal_root: {
@@ -6050,6 +6688,62 @@ export const VALIDATION_SUITE = {
         };
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createGetTypeErrors<RootNotCircular>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return deserializeGetTypeErrors<RootNotCircular>();
+      },
+      getTypeErrorsReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        const v: RootNotCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        };
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        const v: RootNotCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        };
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}}},
@@ -6083,6 +6777,29 @@ export const VALIDATION_SUITE = {
           {},
         ],
       }),
+      getExpectedErrors: () => [
+        // ciChild.embedded.hello wrong type (123 not string).
+        [{path: ['ciChild', 'embedded', 'hello'], expected: 'string'}],
+        // ciChild.embedded.child.embedded.hello wrong type.
+        [{path: ['ciChild', 'embedded', 'child', 'embedded', 'hello'], expected: 'string'}],
+        // isRoot=false fails literal; child=123 is not an object (recurses
+        // through optional, fails object check at the next ICircularDeep).
+        [
+          {path: ['isRoot'], expected: 'literal'},
+          {path: ['ciChild', 'embedded', 'child'], expected: 'objectLiteral'},
+        ],
+        // ciChild missing `embedded` → fails object check at ['ciChild', 'embedded'].
+        [{path: ['ciChild', 'embedded'], expected: 'objectLiteral'}],
+        // {isRoot: true} — missing ciChild.
+        [{path: ['ciChild'], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        // {} — both required props missing.
+        [
+          {path: ['isRoot'], expected: 'literal'},
+          {path: ['ciChild'], expected: 'objectLiteral'},
+        ],
+      ],
     },
 
     multiple_circular_types_cross_referenced: {
@@ -6183,6 +6900,100 @@ export const VALIDATION_SUITE = {
         };
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createGetTypeErrors<RootCircular>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return deserializeGetTypeErrors<RootCircular>();
+      },
+      getTypeErrorsReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        const v: RootCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+          ciDate: {date: new Date(), month: 1, year: 2021},
+        };
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        const v: RootCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+          ciDate: {date: new Date(), month: 1, year: 2021},
+        };
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {
@@ -6251,6 +7062,30 @@ export const VALIDATION_SUITE = {
           {},
         ],
       }),
+      getExpectedErrors: () => [
+        // missing ciDate + ciChild.embedded.hello wrong type → 2 errors.
+        [
+          {path: ['ciChild', 'embedded', 'hello'], expected: 'string'},
+          {path: ['ciDate'], expected: 'objectLiteral'},
+        ],
+        // deep embedded.hello wrong type.
+        [{path: ['ciChild', 'embedded', 'child', 'embedded', 'hello'], expected: 'string'}],
+        // isRoot=false fails literal.
+        [{path: ['isRoot'], expected: 'literal'}],
+        // ciDate.date wrong type.
+        [{path: ['ciDate', 'date'], expected: 'date'}],
+        // ciDate.embedded is true (boolean), optional but non-undefined →
+        // recurses into ICircularDate check, which fails the object guard.
+        [{path: ['ciDate', 'embedded'], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        // {} — all 3 required props missing.
+        [
+          {path: ['isRoot'], expected: 'literal'},
+          {path: ['ciChild'], expected: 'objectLiteral'},
+          {path: ['ciDate'], expected: 'objectLiteral'},
+        ],
+      ],
     },
   },
 
@@ -6308,6 +7143,40 @@ export const VALIDATION_SUITE = {
         const v: Partial<Person> = {};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createGetTypeErrors<Partial<Person>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeGetTypeErrors<Partial<Person>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> = {};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> = {};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
         invalid: [
@@ -6323,6 +7192,22 @@ export const VALIDATION_SUITE = {
           {age: NaN}, // NaN at optional number
         ],
       }),
+      // allOptionalCode guards the outer check, so non-plain-object
+      // inputs (arrays, Date, Map, Set) report 'objectLiteral'.
+      // Plain objects with bad prop types pass the outer guard and
+      // fall through to per-property error accumulation.
+      getExpectedErrors: () => [
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: ['createdAt'], expected: 'date'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['createdAt'], expected: 'date'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['age'], expected: 'number'}],
+      ],
     },
 
     required: {
@@ -6363,6 +7248,40 @@ export const VALIDATION_SUITE = {
         const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        return createGetTypeErrors<Required<MaybePerson>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        return deserializeGetTypeErrors<Required<MaybePerson>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{name: 'John', age: 30, createdAt: new Date()}],
         invalid: [
@@ -6376,6 +7295,24 @@ export const VALIDATION_SUITE = {
           {name: 'John', age: 30, createdAt: new Date('invalid')}, // Invalid Date
         ],
       }),
+      getExpectedErrors: () => [
+        // {} — every required prop missing.
+        [
+          {path: ['name'], expected: 'string'},
+          {path: ['age'], expected: 'number'},
+          {path: ['createdAt'], expected: 'date'},
+        ],
+        [
+          {path: ['age'], expected: 'number'},
+          {path: ['createdAt'], expected: 'date'},
+        ],
+        [{path: ['createdAt'], expected: 'date'}],
+        [{path: ['createdAt'], expected: 'date'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['age'], expected: 'number'}],
+        [{path: ['createdAt'], expected: 'date'}],
+      ],
     },
 
     pick: {
@@ -6416,6 +7353,40 @@ export const VALIDATION_SUITE = {
         const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createGetTypeErrors<Pick<Person, 'name' | 'createdAt'>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeGetTypeErrors<Pick<Person, 'name' | 'createdAt'>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -6431,6 +7402,14 @@ export const VALIDATION_SUITE = {
           {name: 'John', createdAt: new Date('invalid')},
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: ['createdAt'], expected: 'date'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['createdAt'], expected: 'date'}],
+      ],
     },
 
     omit: {
@@ -6471,6 +7450,40 @@ export const VALIDATION_SUITE = {
         const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createGetTypeErrors<Omit<Person, 'age'>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeGetTypeErrors<Omit<Person, 'age'>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -6484,6 +7497,13 @@ export const VALIDATION_SUITE = {
           {name: 'John', createdAt: new Date('invalid')},
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: ['createdAt'], expected: 'date'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['createdAt'], expected: 'date'}],
+      ],
     },
 
     exclude_atomic: {
@@ -6598,6 +7618,36 @@ export const VALIDATION_SUITE = {
         const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        return createGetTypeErrors<Exclude<Shape, {kind: 'circle'}>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        return deserializeGetTypeErrors<Exclude<Shape, {kind: 'circle'}>>();
+      },
+      getTypeErrorsReflect: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {kind: 'square', x: 5},
@@ -6613,6 +7663,15 @@ export const VALIDATION_SUITE = {
           {kind: 'triangle', base: 4}, // missing height
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     non_nullable: {
@@ -6742,6 +7801,36 @@ export const VALIDATION_SUITE = {
         const v: Readonly<Person> = {name: 'John', age: 30};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return createGetTypeErrors<Readonly<Person>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return deserializeGetTypeErrors<Readonly<Person>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Readonly<Person> = {name: 'John', age: 30};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Readonly<Person> = {name: 'John', age: 30};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John', age: 30},
@@ -6749,6 +7838,14 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [{name: 'John'}, {age: 30}, null, undefined, {name: 1, age: 30}, {name: 'John', age: NaN}],
       }),
+      getExpectedErrors: () => [
+        [{path: ['age'], expected: 'number'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: ['age'], expected: 'number'}],
+      ],
     },
 
     // String-mapping utilities (Uppercase / Lowercase / Capitalize /
@@ -6802,6 +7899,40 @@ export const VALIDATION_SUITE = {
         const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createGetTypeErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeGetTypeErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John'},
@@ -6820,6 +7951,16 @@ export const VALIDATION_SUITE = {
           {name: 'John', createdAt: new Date('invalid')}, // Invalid Date in optional
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: ['name'], expected: 'string'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: ['name'], expected: 'string'}],
+        [{path: ['age'], expected: 'number'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['age'], expected: 'number'}],
+        [{path: ['createdAt'], expected: 'date'}],
+      ],
     },
 
     omit_keeping_optional: {
@@ -6835,10 +7976,33 @@ export const VALIDATION_SUITE = {
         const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      getTypeErrorsReflect: () => {
+        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
         invalid: [{}, {b: 1}, {c: 'not boolean'}, null, undefined, {c: true, b: NaN}, {c: 0}, {b: 1, c: 1}],
       }),
+      // `c` is required, `b` is optional. `c` defaults to undefined when
+      // missing → boolean check fails. NaN/non-boolean values at `b` or
+      // `c` fall through to their atomic checks.
+      getExpectedErrors: () => [
+        [{path: ['c'], expected: 'boolean'}],
+        [{path: ['c'], expected: 'boolean'}],
+        [{path: ['c'], expected: 'boolean'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['b'], expected: 'number'}],
+        [{path: ['c'], expected: 'boolean'}],
+        [{path: ['c'], expected: 'boolean'}],
+      ],
     },
   },
 } as const satisfies {
