@@ -87,12 +87,15 @@ export interface ScanFilesOptions {
 
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
 // every site detected across the request's files, each tagged with .file
-// so callers can filter or group. runTypes / cacheSource are populated
-// only when the corresponding flag was set on the call.
+// so callers can filter or group. runTypes / cacheSource /
+// isTypeCacheSource are populated only when the corresponding flag was
+// set on the call. cacheSource and isTypeCacheSource are paired —
+// includeCacheSource = true populates both.
 export interface ScanFilesResult {
   sites: Site[];
   runTypes?: RunType[];
   cacheSource?: string;
+  isTypeCacheSource?: string;
 }
 
 // Common operation surface. Spawn-based and socket-based clients both
@@ -123,6 +126,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       sites: resp.sites ?? [],
       runTypes: resp.runTypes,
       cacheSource: resp.cacheSource,
+      isTypeCacheSource: resp.isTypeCacheSource,
     };
   }
 
