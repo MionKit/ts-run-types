@@ -7,12 +7,18 @@ import type {RunTypeOptions} from './createIsType.ts';
 
 /** Mirror of mion's RunTypeError shape
  *  (mion-run-types:packages/core/src/types/general.types.ts). Path
- *  segments are string|number; `expected` is mion's ReflectionKindName
- *  string (e.g. 'string', 'objectLiteral', 'tuple'). The `format`
- *  field that mion's full type ships with is intentionally NOT
- *  surfaced here — format validation is out of scope for the v1 port. **/
+ *  segments are `string | number` for normal accessors; Map / Set
+ *  emitters add object segments of the shape
+ *  `{key, index, failed: 'mapKey' | 'mapValue'}` per mion's
+ *  `getStaticPathLiteral` — segments are JSON-serializable but not
+ *  always primitive, so the array type allows `object`.
+ *  `expected` is mion's ReflectionKindName string (e.g. 'string',
+ *  'objectLiteral', 'tuple'). The `format` field mion's full type
+ *  ships with is intentionally NOT surfaced here — format validation
+ *  is out of scope for the v1 port. **/
+export type RunTypeErrorPathSegment = string | number | object;
 export interface RunTypeError {
-  path: (string | number)[];
+  path: RunTypeErrorPathSegment[];
   expected: string;
 }
 
@@ -21,7 +27,7 @@ export interface RunTypeError {
  *  `errors` slots so the validator can be chained / pre-seeded.
  *  Default behaviour with no extra args matches what mion's
  *  createJitFunction(typeErrors) returns. **/
-export type GetTypeErrorsFn = (value: unknown, path?: (string | number)[], errors?: RunTypeError[]) => RunTypeError[];
+export type GetTypeErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
 
 // Side-effect: the cache module's `initCache(jitUtils)` registers every
 // compiled JitCompiledFn entry via `jitUtils.addToJitCache`. Mirrors

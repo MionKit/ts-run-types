@@ -108,4 +108,5 @@ export {
   deserializeGetTypeErrors,
   type GetTypeErrorsFn,
   type RunTypeError,
+  type RunTypeErrorPathSegment,
 } from './createGetTypeErrors.ts';

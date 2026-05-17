@@ -68,13 +68,18 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindClass:
 		// Date, non-Date class instances (treated as interface),
-		// and Map / Set / Promise variants. Other classes (NonSerializable)
-		// land in later phases (Map/Set in phase 6).
+		// and Map / Set variants. Other classes (NonSerializable)
+		// remain unsupported.
 		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone:
+		case protocol.SubKindDate, protocol.SubKindNone,
+			protocol.SubKindMap, protocol.SubKindSet:
 			return true
 		}
 		return false
+	case protocol.KindPromise:
+		// Mion treats Promise<T> as a thenable check — the wrapped T
+		// isn't validated synchronously. Same as the isType emit.
+		return true
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return true
 	case protocol.KindIndexSignature:
@@ -90,6 +95,14 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindTupleMember:
 		return true
+	case protocol.KindUnion:
+		// mion:nodes/collection/union.ts:emitTypeErrors — delegates to
+		// the isType validator for the boolean check, emits a single
+		// 'union' error if the whole shape fails. Per-arm error
+		// breakdown is intentionally NOT a feature of mion's
+		// typeErrors. Same set of supported unions as isType (gate on
+		// non-empty children).
+		return len(rt.Children) > 0
 	}
 	return false
 }
@@ -267,8 +280,22 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 			// per mion's class.ts (extends InterfaceRunType).
 			return emitObjectTypeErrors(rt, ctx, v)
 		}
-		// Map / Set / NonSerializable land in later phases.
+		if rt.SubKind == protocol.SubKindMap {
+			return emitMapTypeErrors(rt, ctx, v)
+		}
+		if rt.SubKind == protocol.SubKindSet {
+			return emitSetTypeErrors(rt, ctx, v)
+		}
+		// NonSerializable and any future subkinds.
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindPromise:
+		// mion:nodes/native/promise.ts — thenable check, wrapped T
+		// not validated synchronously.
+		return JitCode{
+			Code: "if (!(typeof " + v + " === 'object' && " + v + " !== null && typeof " + v + ".then === 'function')) " + callJitErr(ctx, "promise", ""),
+			Type: CodeS,
+		}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectTypeErrors(rt, ctx, v)
@@ -294,6 +321,9 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	case protocol.KindTupleMember:
 		return emitTupleMemberTypeErrors(rt, ctx, v)
+
+	case protocol.KindUnion:
+		return emitUnionTypeErrors(rt, ctx, v)
 
 	case protocol.KindArray:
 		// mion:nodes/member/array.ts:emitTypeErrors. Allocates a loop
@@ -706,6 +736,160 @@ func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCo
 	}
 	return JitCode{
 		Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") {" + callJitErr(ctx, "tuple", "") + "} else {" + body + "}",
+		Type: CodeS,
+	}
+}
+
+// cpf_safeIterableKey is registered via the JS-side run-types-pure-fns
+// alongside cpf_newRunTypeErr. emitMapTypeErrors references it to wrap
+// runtime keys into safe-for-JSON values (mirroring mion's
+// _safeKey helper at run-types-pure-fns.ts:97 — primitives pass
+// through, objects/symbols/etc become null so the path is still
+// JSON-serializable).
+func mapSafeKeyContextItem(ctx *EmitContext) string {
+	const key = "cpf_safeIterableKey"
+	if !ctx.HasContextItem(key) {
+		ctx.AddPureFnDependency("mion", "safeIterableKey", typeErrorsPureFnFilePath)
+		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::safeIterableKey')")
+	}
+	return key
+}
+
+// emitMapTypeErrors mirrors mion's nodes/native/map emitTypeErrors.
+// Body shape (CodeS):
+//
+//	if (!(v instanceof Map)) {
+//	  <callJitErr 'map'>
+//	} else {
+//	  for (const entry0 of v.entries()) {
+//	    const k0 = entry0[0]; const val0 = entry0[1];
+//	    <keyCode using k0 as v, path += {key:safe(k0), index:i0, failed:'mapKey'}>
+//	    <valCode using val0 as v, path += {key:safe(k0), index:i0, failed:'mapValue'}>
+//	  }
+//	}
+//
+// Path segments are JS object literals carrying the runtime key (after
+// `cpf_safeIterableKey` sanitisation), the entry index, and a `failed`
+// marker indicating which side of the entry the error came from.
+// Matches mion's getStaticPathLiteral output.
+func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	keyType, valueType := mapKeyValueTypes(rt, ctx)
+	entryVar := ctx.NextLocalVar("entry")
+	idxVar := ctx.NextLocalVar("i")
+	safeKey := mapSafeKeyContextItem(ctx)
+	var inner strings.Builder
+	inner.WriteString("let ")
+	inner.WriteString(idxVar)
+	inner.WriteString(" = 0; for (const ")
+	inner.WriteString(entryVar)
+	inner.WriteString(" of ")
+	inner.WriteString(v)
+	inner.WriteString(".entries()) {")
+	if keyType != nil {
+		keyVar := ctx.NextLocalVar("k")
+		inner.WriteString("const ")
+		inner.WriteString(keyVar)
+		inner.WriteString(" = ")
+		inner.WriteString(entryVar)
+		inner.WriteString("[0];")
+		ctx.SetChildAccessor(keyVar)
+		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + keyVar + "),index:" + idxVar + ",failed:'mapKey'}")
+		keyJit := ctx.CompileChild(keyType, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if keyJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if keyJit.Code != "" {
+			inner.WriteString(keyJit.Code)
+		}
+	}
+	if valueType != nil {
+		valVar := ctx.NextLocalVar("val")
+		inner.WriteString("const ")
+		inner.WriteString(valVar)
+		inner.WriteString(" = ")
+		inner.WriteString(entryVar)
+		inner.WriteString("[1];")
+		ctx.SetChildAccessor(valVar)
+		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapValue'}")
+		valJit := ctx.CompileChild(valueType, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if valJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if valJit.Code != "" {
+			inner.WriteString(valJit.Code)
+		}
+	}
+	inner.WriteString(idxVar)
+	inner.WriteString("++;}")
+	body := inner.String()
+	return JitCode{
+		Code: "if (!(" + v + " instanceof Map)) {" + callJitErr(ctx, "map", "") + "} else {" + body + "}",
+		Type: CodeS,
+	}
+}
+
+// emitUnionTypeErrors mirrors mion's
+// nodes/collection/union.ts:emitTypeErrors. The validator delegates
+// to the isType boolean check — `if (!isType_<hash>.fn(v)) <err>`.
+// Per-arm error breakdown is explicitly NOT a feature of mion's
+// typeErrors (mion's stance: a union failure is one error, not N).
+//
+// The cross-fn lookup happens at runtime via the shared jitUtils
+// cache. We register a closure-prologue context item but DO NOT add
+// the isType hash to walker.JitDependencies — the dangling-dep
+// cascade in module.go operates per-fn (entries map only carries
+// typeErrors entries), so a typeErrors entry can't satisfy an
+// isType dep ref. The runtime load order (isType cache → typeErrors
+// cache) means the entry is always populated by the time the
+// typeErrors closure invokes `utl.getJIT('isType_<hash>')`.
+func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isTypeHash := "isType_" + rt.ID
+	if !ctx.HasContextItem(isTypeHash) {
+		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getJIT("+quoteJS(isTypeHash)+")")
+	}
+	return JitCode{
+		Code: "if (!" + isTypeHash + ".fn(" + v + ")) " + callJitErr(ctx, "union", ""),
+		Type: CodeS,
+	}
+}
+
+// emitSetTypeErrors mirrors mion's nodes/native/set emitTypeErrors.
+// Same pattern as Map but with a single item type and `.values()`
+// iteration. Path segment for an item error: the item index.
+func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	itemType := setItemType(rt, ctx)
+	itemVar := ctx.NextLocalVar("item")
+	idxVar := ctx.NextLocalVar("i")
+	var inner strings.Builder
+	inner.WriteString("let ")
+	inner.WriteString(idxVar)
+	inner.WriteString(" = 0; for (const ")
+	inner.WriteString(itemVar)
+	inner.WriteString(" of ")
+	inner.WriteString(v)
+	inner.WriteString(".values()) {")
+	if itemType != nil {
+		ctx.SetChildAccessor(itemVar)
+		ctx.SetChildPathLiteral(idxVar)
+		itemJit := ctx.CompileChild(itemType, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if itemJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if itemJit.Code != "" {
+			inner.WriteString(itemJit.Code)
+		}
+	}
+	inner.WriteString(idxVar)
+	inner.WriteString("++;}")
+	body := inner.String()
+	return JitCode{
+		Code: "if (!(" + v + " instanceof Set)) {" + callJitErr(ctx, "set", "") + "} else {" + body + "}",
 		Type: CodeS,
 	}
 }
