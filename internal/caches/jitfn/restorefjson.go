@@ -1,0 +1,187 @@
+package jitfn
+
+import (
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
+
+// RestoreFromJsonEmitter implements the `restoreFromJson` jit function —
+// reconstructs the runtime shape from a value produced by JSON.parse
+// (Dates from ISO strings, BigInts from decimal strings, Symbols from
+// "Symbol:<desc>" strings, RegExps from "/source/flags" strings).
+//
+// Paired with PrepareForJsonEmitter — round-trip
+// `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
+// must deep-equal v for every valid sample.
+//
+// Mirrors mion's per-kind emitRestoreFromJson methods under
+// mion/packages/run-types/src/nodes/**.
+type RestoreFromJsonEmitter struct{}
+
+// Args mirrors mion's `jitArgs.vλl = 'v'` — same single-arg shape as
+// PrepareForJsonEmitter; restoreFromJson reassigns v to the
+// reconstructed value.
+func (RestoreFromJsonEmitter) Args() []ArgSpec {
+	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
+}
+
+// Supports mirrors PrepareForJsonEmitter.Supports — every kind the
+// prepare side handles has a corresponding restore arm.
+func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
+	if rt == nil {
+		return false
+	}
+	switch rt.Kind {
+	case protocol.KindAny, protocol.KindUnknown,
+		protocol.KindVoid,
+		protocol.KindNull, protocol.KindUndefined,
+		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
+		protocol.KindBigInt, protocol.KindSymbol,
+		protocol.KindObject, protocol.KindRegexp,
+		protocol.KindLiteral, protocol.KindEnum:
+		return true
+	case protocol.KindClass:
+		if rt.SubKind == protocol.SubKindDate {
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// AnyRestoreFromJsonSupported reports whether at least one runtype in
+// the slice is supported by the RestoreFromJsonEmitter. Sibling of
+// AnyPrepareForJsonSupported.
+func AnyRestoreFromJsonSupported(runTypes []*protocol.RunType) bool {
+	emitter := RestoreFromJsonEmitter{}
+	for _, rt := range runTypes {
+		if emitter.Supports(rt) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsJitInlined delegates to DefaultIsJitInlined.
+func (RestoreFromJsonEmitter) IsJitInlined(ctx *InlineContext) bool {
+	return DefaultIsJitInlined(ctx)
+}
+
+// ReturnName is `v` — restoreFromJson mutates / rebinds v and returns
+// the reconstructed value.
+func (RestoreFromJsonEmitter) ReturnName() string {
+	return "v"
+}
+
+// Emit dispatches the per-kind switch. Each arm mirrors mion's
+// emitRestoreFromJson method for the corresponding kind. Non-noop
+// atomics:
+//   - date:    `v = new Date(v)` (rebuild from ISO string)
+//   - bigint:  `v = BigInt(v)` (parse decimal string)
+//   - symbol:  `v = Symbol(v.substring(7))` (strip "Symbol:" prefix)
+//   - regexp:  `v = <parsed regex>` (split on /.../flags and rebuild)
+//   - void / undefined: `v = undefined`
+//
+// Mion's bare expression form (e.g. `BigInt(v)`) becomes `v = BigInt(v)`
+// on our side so the walker's expression-shape handling actually
+// mutates v before the trailing `return v` lands.
+func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+	if rt == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	v := ctx.Vλl
+	switch rt.Kind {
+
+	case protocol.KindAny, protocol.KindUnknown,
+		protocol.KindNull,
+		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
+		protocol.KindObject, protocol.KindEnum:
+		// mion: AtomicRunType default — noop.
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindUndefined:
+		// mion:nodes/atomic/undefined.ts:20 — `undefined`.
+		// JSON has no undefined, so the parsed input might be null or
+		// missing; force-rebind to undefined.
+		return JitCode{Code: v + " = undefined", Type: CodeE}
+
+	case protocol.KindVoid:
+		// mion:nodes/atomic/void.ts:23 — `v = undefined`.
+		return JitCode{Code: v + " = undefined", Type: CodeE}
+
+	case protocol.KindBigInt:
+		// mion:nodes/atomic/bigInt.ts:23 — `BigInt(v)`.
+		return JitCode{Code: v + " = BigInt(" + v + ")", Type: CodeE}
+
+	case protocol.KindSymbol:
+		// mion:nodes/atomic/symbol.ts:28 — `Symbol(v.substring(7))`.
+		// "Symbol:" is 7 chars; strip it to recover the description.
+		return JitCode{Code: v + " = Symbol(" + v + ".substring(7))", Type: CodeE}
+
+	case protocol.KindRegexp:
+		// mion:nodes/atomic/regexp.ts:23 — IIFE that splits the
+		// stringified form back into source + flags. Single-quoted to
+		// fit our JS-source quoting convention.
+		expr := "(function(){const parts = " + v + ".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');})()"
+		return JitCode{Code: v + " = " + expr, Type: CodeE}
+
+	case protocol.KindClass:
+		// Date is reconstructed from its ISO string via `new Date(v)`.
+		if rt.SubKind == protocol.SubKindDate {
+			// mion:nodes/atomic/date.ts:23 — `new Date(v)`.
+			return JitCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
+		}
+		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindLiteral:
+		// mion:nodes/atomic/literal.ts:80 — defers to the underlying
+		// kind's emit.
+		return emitLiteralRestoreFromJson(rt, v)
+	}
+	return JitCode{Code: "", Type: CodeNS}
+}
+
+// emitLiteralRestoreFromJson mirrors mion's literal.ts:80 — defers to
+// the base kind's emit. Same flag-based dispatch as
+// emitLiteralPrepareForJson.
+func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) JitCode {
+	flagSet := make(map[string]bool, len(rt.Flags))
+	for _, flag := range rt.Flags {
+		flagSet[flag] = true
+	}
+	if flagSet["bigint"] {
+		return JitCode{Code: v + " = BigInt(" + v + ")", Type: CodeE}
+	}
+	if flagSet["symbol"] {
+		return JitCode{Code: v + " = Symbol(" + v + ".substring(7))", Type: CodeE}
+	}
+	if entry, isMap := rt.Literal.(map[string]any); isMap {
+		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
+			expr := "(function(){const parts = " + v + ".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');})()"
+			return JitCode{Code: v + " = " + expr, Type: CodeE}
+		}
+	}
+	// Primitive literal — noop.
+	return JitCode{Code: "", Type: CodeS}
+}
+
+// EmitDependencyCall mirrors PrepareForJsonEmitter's.
+func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
+	args := ctx.Vλl
+	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	if isSelf {
+		return ctx.walker.FnName + "(" + args + ")"
+	}
+	if !ctx.HasContextItem(childID) {
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+	}
+	return childID + ".fn(" + args + ")"
+}
+
+// Finalize collapses empty / identity bodies to `return v` + noop flag.
+func (RestoreFromJsonEmitter) Finalize(raw string) (string, bool) {
+	code := normaliseWhitespace(raw)
+	if code == "" || code == "return v" {
+		return "return v", true
+	}
+	return code, false
+}

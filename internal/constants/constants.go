@@ -42,6 +42,16 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_te_",
 		Tag:       "te",
 	},
+	"prepareForJson": {
+		Name:      "prepareForJsonModule",
+		VarPrefix: "g_pj_",
+		Tag:       "pj",
+	},
+	"restoreFromJson": {
+		Name:      "restoreFromJsonModule",
+		VarPrefix: "g_rj_",
+		Tag:       "rj",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",

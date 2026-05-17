@@ -300,11 +300,13 @@ const (
 type CacheKind string
 
 const (
-	CacheKindRunType    CacheKind = "runType"
-	CacheKindIsType     CacheKind = "isType"
-	CacheKindTypeErrors CacheKind = "typeErrors"
-	CacheKindPureFns    CacheKind = "pureFns"
-	CacheKindAll        CacheKind = "all"
+	CacheKindRunType         CacheKind = "runType"
+	CacheKindIsType          CacheKind = "isType"
+	CacheKindTypeErrors      CacheKind = "typeErrors"
+	CacheKindPrepareForJson  CacheKind = "prepareForJson"
+	CacheKindRestoreFromJson CacheKind = "restoreFromJson"
+	CacheKindPureFns         CacheKind = "pureFns"
+	CacheKindAll             CacheKind = "all"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -352,6 +354,11 @@ type Response struct {
 	// invalidate the typeErrors cache module independently of the
 	// isType / runTypes modules.
 	AddedTypeErrors bool `json:"addedTypeErrors,omitempty"`
+	// AddedPrepareForJson / AddedRestoreFromJson mirror AddedIsType for
+	// the JSON serializer pair. True when at least one newly-interned
+	// RunType has a supported emit arm in the corresponding emitter.
+	AddedPrepareForJson  bool `json:"addedPrepareForJson,omitempty"`
+	AddedRestoreFromJson bool `json:"addedRestoreFromJson,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -374,6 +381,11 @@ type Response struct {
 	// cached RunType the precompiler's TypeErrorsEmitter knows how to
 	// handle. Sibling of IsTypeCacheSource, same projection semantics.
 	TypeErrorsCacheSource string `json:"typeErrorsCacheSource,omitempty"`
+	// PrepareForJsonCacheSource / RestoreFromJsonCacheSource are the
+	// rendered bodies of the JSON serializer/deserializer pair. Same
+	// factory shape and projection semantics as IsTypeCacheSource.
+	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
+	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -493,6 +505,12 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedTypeErrors {
 		out["addedTypeErrors"] = true
 	}
+	if response.AddedPrepareForJson {
+		out["addedPrepareForJson"] = true
+	}
+	if response.AddedRestoreFromJson {
+		out["addedRestoreFromJson"] = true
+	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
 	}
@@ -513,6 +531,12 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.TypeErrorsCacheSource != "" {
 		out["typeErrorsCacheSource"] = response.TypeErrorsCacheSource
+	}
+	if response.PrepareForJsonCacheSource != "" {
+		out["prepareForJsonCacheSource"] = response.PrepareForJsonCacheSource
+	}
+	if response.RestoreFromJsonCacheSource != "" {
+		out["restoreFromJsonCacheSource"] = response.RestoreFromJsonCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource
