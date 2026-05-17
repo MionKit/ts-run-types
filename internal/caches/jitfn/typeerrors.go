@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -12,10 +13,10 @@ import (
 // a validator that accumulates RunTypeError entries into the third arg
 // `er` instead of returning a boolean. The factory shape it emits:
 //
-//	export function get_typeErrors_<hash>(utl){
+//	export function g_te_<hash>(utl){
 //	  'use strict';
-//	  const cpf_newRunTypeErr = utl.getPureFn('mion','newRunTypeErr');
-//	  return function typeErrors_<hash>(v,pth=[],er=[]){ <body>; return er }
+//	  const nRT = utl.getPureFn(k_nRT); // k_nRT = 'mion::newRunTypeErr' (declared in skeleton)
+//	  return function te_<hash>(v,pth=[],er=[]){ <body>; return er }
 //	}
 //
 // Mirrors `IsTypeEmitter` (istype.go) but with the three-arg shape and
@@ -456,11 +457,17 @@ func (TypeErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // segment, AccessPathLiteral handles the empty-array short-circuit.
 func callJitErr(ctx *EmitContext, expected string, extra string) string {
 	ctx.AddPureFnDependency("mion", "newRunTypeErr", typeErrorsPureFnFilePath)
-	const key = "cpf_newRunTypeErr"
+	key := pureFnAlias("newRunTypeErr")
 	if !ctx.HasContextItem(key) {
 		// jitUtils.getPureFn takes a single composite key
 		// `<namespace>::<fnName>` (see pureFnKey helper in
-		// packages/ts-go-run-types/src/jit/jitUtils.ts:45).
+		// packages/ts-go-run-types/src/jit/jitUtils.ts:45). The literal
+		// is duplicated in both the body STRING and the createJitFn
+		// closure because the body is also evaluated through
+		// `new Function('utl', code)` where module-level consts like
+		// `k_nRT` are not in scope — only pureFnDependencies (which
+		// lives outside the body string) gets to reference the hoisted
+		// const directly. See purefn_aliases.go for the alias table.
 		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::newRunTypeErr')")
 	}
 	pthArg := ctx.ArgName("pλth")
@@ -776,9 +783,11 @@ func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCo
 // through, objects/symbols/etc become null so the path is still
 // JSON-serializable).
 func mapSafeKeyContextItem(ctx *EmitContext) string {
-	const key = "cpf_safeIterableKey"
+	key := pureFnAlias("safeIterableKey")
 	if !ctx.HasContextItem(key) {
 		ctx.AddPureFnDependency("mion", "safeIterableKey", typeErrorsPureFnFilePath)
+		// Literal duplicated in body + closure — see callJitErr for the
+		// reason `k_<alias>` hoist is restricted to pureFnDependencies.
 		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::safeIterableKey')")
 	}
 	return key
@@ -879,7 +888,7 @@ func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v str
 
 // emitUnionTypeErrors mirrors mion's
 // nodes/collection/union.ts:emitTypeErrors. The validator delegates
-// to the isType boolean check — `if (!isType_<hash>.fn(v)) <err>`.
+// to the isType boolean check — `if (!it_<hash>.fn(v)) <err>`.
 // Per-arm error breakdown is explicitly NOT a feature of mion's
 // typeErrors (mion's stance: a union failure is one error, not N).
 //
@@ -890,9 +899,9 @@ func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v str
 // typeErrors entries), so a typeErrors entry can't satisfy an
 // isType dep ref. The runtime load order (isType cache → typeErrors
 // cache) means the entry is always populated by the time the
-// typeErrors closure invokes `utl.getJIT('isType_<hash>')`.
+// typeErrors closure invokes `utl.getJIT('it_<hash>')`.
 func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	isTypeHash := "isType_" + rt.ID
+	isTypeHash := constants.CacheModules["isType"].Tag + "_" + rt.ID
 	if !ctx.HasContextItem(isTypeHash) {
 		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getJIT("+quoteJS(isTypeHash)+")")
 	}

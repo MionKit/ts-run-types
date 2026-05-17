@@ -10,6 +10,7 @@ package constants
 type CacheModuleSettings struct {
 	Name      string // function/export identifier (e.g. "runTypesModule")
 	VarPrefix string // identifier prefix for emitted `export const <prefix><hash>`
+	Tag       string // short family tag for emitted inner-fn name + fnID (e.g. "te" → inner "te_<hash>", fnID "te")
 }
 
 // CacheModuleGroup mirrors mion's JitFunctionsGroup pattern: a map of named
@@ -29,17 +30,21 @@ var CacheModules = CacheModuleGroup{
 	"runTypes": {
 		Name:      "runTypesModule",
 		VarPrefix: "t_",
+		Tag:       "t",
 	},
 	"isType": {
 		Name:      "isTypeModule",
-		VarPrefix: "get_isType_",
+		VarPrefix: "g_it_",
+		Tag:       "it",
 	},
 	"typeErrors": {
 		Name:      "typeErrorsModule",
-		VarPrefix: "get_typeErrors_",
+		VarPrefix: "g_te_",
+		Tag:       "te",
 	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",
+		Tag:       "",
 	},
 }

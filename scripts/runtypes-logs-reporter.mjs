@@ -8,9 +8,23 @@ import {fileURLToPath} from 'node:url';
 // for the side-effect). The helpers in
 // packages/vite-plugin-runtypes/test/helpers/inline.ts attach
 // `task.meta.mionRuntypes = {title, sources, mode, responses}`; this
-// reporter walks the task tree on completion and emits one `.ts` file per
-// test under <repo-root>/logs/ with the input sources at the top and the
-// daemon response(s) appended as exported constants.
+// reporter walks the task tree on completion and emits one .ts file PER
+// CACHE per test under a three-level layout — bucketed by source test
+// file, then by test title, then split per cache kind:
+//   logs/<testFile>/<titleSlug>/daemon.ts        — daemon response with
+//                                                  every *CacheSource
+//                                                  field stripped (plus
+//                                                  the input sources).
+//   logs/<testFile>/<titleSlug>/<cacheKind>.ts   — one file per non-empty
+//                                                  *CacheSource field on
+//                                                  the response;
+//                                                  cacheKind is the field
+//                                                  name minus the
+//                                                  "CacheSource" suffix
+//                                                  (e.g. runType, isType,
+//                                                  typeErrors, pureFns).
+// Every file repeats the input sources at the top so it's self-contained
+// when opened in isolation.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -39,7 +53,10 @@ function* walkTasks(tasks) {
   }
 }
 
-function renderBody(meta) {
+// renderSourcesHeader returns the input sources as a series of
+// "// === <name> ===" blocks. Shared across every emitted file so each
+// log file is self-contained.
+function renderSourcesHeader(meta) {
   const parts = [];
   for (const [name, code] of Object.entries(meta.sources ?? {})) {
     if (name === DTS_KEY) continue;
@@ -47,18 +64,15 @@ function renderBody(meta) {
     parts.push(code.endsWith('\n') ? code.slice(0, -1) : code);
     parts.push('');
   }
-  // Strip every cache-source field off each response so the JSON view
-  // stays compact and the caches render as readable JS at the bottom of
-  // the file. Any field whose name ends in "CacheSource" is treated as
-  // a cache body — that covers the protocol's runTypeCacheSource,
-  // isTypeCacheSource, and pureFnsCacheSource (and any future
-  // sibling that follows the same naming convention).
+  return parts;
+}
+
+// renderDaemonFile builds the `<slug>.daemon.ts` body: input sources
+// followed by the response(s) with every *CacheSource field stripped.
+function renderDaemonFile(meta) {
+  const parts = renderSourcesHeader(meta);
   const responses = meta.responses ?? [];
   const stripped = responses.map(stripCacheSources);
-  // caches[i] is a {fieldName -> body} record for response i, holding
-  // only the non-empty cache-source bodies.
-  const caches = responses.map(collectCacheSources);
-
   parts.push('// === daemon response ===');
   if (responses.length === 0) {
     parts.push('// (no evalCacheFor / scanFiles call recorded for this test)');
@@ -69,18 +83,19 @@ function renderBody(meta) {
     parts.push(`export const daemonResponses = ${JSON.stringify(stripped, null, 2)};`);
   }
   parts.push('');
+  return parts.join('\n');
+}
 
-  // One "// === <fieldName> ===" block per non-empty cache-source body,
-  // tagged by response index when there's more than one response.
-  const responseCount = caches.length;
-  caches.forEach((perResponse, responseIdx) => {
-    for (const [fieldName, body] of Object.entries(perResponse)) {
-      const label = responseCount > 1 ? `${fieldName} [${responseIdx}]` : fieldName;
-      parts.push(`// === ${label} ===`);
-      parts.push(body.endsWith('\n') ? body.slice(0, -1) : body);
-      parts.push('');
-    }
-  });
+// renderCacheFile builds a single per-cache file body: input sources at
+// the top so the file is self-contained, then a banner naming the cache
+// (with response index when more than one response was recorded), then
+// the rendered cache module body verbatim.
+function renderCacheFile(meta, fieldName, body, responseIdx, responseCount) {
+  const parts = renderSourcesHeader(meta);
+  const label = responseCount > 1 ? `${fieldName} [${responseIdx}]` : fieldName;
+  parts.push(`// === ${label} ===`);
+  parts.push(body.endsWith('\n') ? body.slice(0, -1) : body);
+  parts.push('');
   return parts.join('\n');
 }
 
@@ -90,6 +105,14 @@ function renderBody(meta) {
 // without enumerating each one — new kinds light up automatically.
 function isCacheSourceField(name) {
   return typeof name === 'string' && name.endsWith('CacheSource');
+}
+
+// cacheKindOf returns the short kind name used in output filenames —
+// the field name minus its "CacheSource" suffix (e.g. "runTypeCacheSource"
+// → "runType"). New cache kinds light up automatically as long as they
+// follow the same naming convention.
+function cacheKindOf(fieldName) {
+  return fieldName.slice(0, -'CacheSource'.length);
 }
 
 function stripCacheSources(response) {
@@ -117,7 +140,7 @@ export default class RuntypesLogsReporter {
   onInit() {
     fs.rmSync(LOGS_DIR, {recursive: true, force: true});
     fs.mkdirSync(LOGS_DIR, {recursive: true});
-    this.usedNames = new Set();
+    this.usedSlugs = new Set();
   }
 
   onFinished(files) {
@@ -126,13 +149,40 @@ export default class RuntypesLogsReporter {
       const meta = task.meta?.mionRuntypes;
       if (!meta) continue;
       const filePath = task.file?.filepath ?? task.file?.name ?? 'unknown';
-      const baseSlug = `${fileBasename(filePath)}.${slugify(meta.title)}`;
-      let name = baseSlug;
+      const bucket = fileBasename(filePath);
+      const titleSlug = slugify(meta.title);
+      // Per-bucket de-dup so two tests in different test files can share a
+      // title without colliding, while two tests in the same file with
+      // matching titles still get unique filenames.
+      const key = `${bucket}/${titleSlug}`;
+      let slug = titleSlug;
       let i = 1;
-      while (this.usedNames.has(name)) name = `${baseSlug}-${++i}`;
-      this.usedNames.add(name);
-      fs.writeFileSync(path.join(LOGS_DIR, `${name}.ts`), renderBody(meta));
+      while (this.usedSlugs.has(`${bucket}/${slug}`)) slug = `${titleSlug}-${++i}`;
+      this.usedSlugs.add(`${bucket}/${slug}`);
+
+      const testDir = path.join(LOGS_DIR, bucket, slug);
+      fs.mkdirSync(testDir, {recursive: true});
+
+      // 1) daemon-response file (sources + response sans cache fields).
+      fs.writeFileSync(path.join(testDir, 'daemon.ts'), renderDaemonFile(meta));
       written++;
+
+      // 2) one file per non-empty cache-source body, per response.
+      const responses = meta.responses ?? [];
+      responses.forEach((response, responseIdx) => {
+        const caches = collectCacheSources(response);
+        for (const [fieldName, body] of Object.entries(caches)) {
+          const kind = cacheKindOf(fieldName);
+          // When more than one response, suffix the kind with the index
+          // so the files don't collide.
+          const basename = responses.length > 1 ? `${kind}.${responseIdx}` : kind;
+          fs.writeFileSync(
+            path.join(testDir, `${basename}.ts`),
+            renderCacheFile(meta, fieldName, body, responseIdx, responses.length)
+          );
+          written++;
+        }
+      });
     }
     if (written > 0) {
       const rel = path.relative(REPO_ROOT, LOGS_DIR) || 'logs';

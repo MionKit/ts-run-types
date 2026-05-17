@@ -1,10 +1,10 @@
 // @ts-nocheck
 // Hand-authored skeleton for the isType cache module. Served by the Go
 // binary via the Vite plugin's `transform()` hook after replacing the
-// marker line below with generated `factory(…)` calls — one per cached
+// marker line below with generated `init(…)` calls — one per cached
 // RunType the isType emitter supports.
 //
-// `factory` closes over `jitUtils` from the surrounding `initCache`
+// `init` closes over `jitUtils` from the surrounding `initCache`
 // parameter and registers each compiled JitCompiledFn via
 // `jitUtils.addToJitCache(entry)`. There is no module-local table — the
 // jitUtils singleton is the only owner of the cached entries, which
@@ -15,20 +15,20 @@
 export function initCache(jitUtils) {
   // Two-phase registration so cyclic dependency graphs (X depends
   // on Y, Y depends on X) resolve correctly:
-  //   Phase 1 — each `factory(...)` call registers a stub entry on
+  //   Phase 1 — each `init(...)` call registers a stub entry on
   //     the JIT cache with `fn: undefined`. The entry is the canonical
   //     object identity for that hash.
-  //   Phase 2 — after every factory line has run, we walk the pending
+  //   Phase 2 — after every init line has run, we walk the pending
   //     list and invoke each entry's `createJitFn(jitUtils)` to
   //     materialise `entry.fn`. Any `const X = utl.getJIT('X')`
-  //     captured at factory time points at the SAME entry, so its
+  //     captured at init time points at the SAME entry, so its
   //     `.fn` is now populated by the time the outer validator
   //     actually runs.
   const pending = [];
-  function factory(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
     const entry = {
       jitFnHash,
-      fnID: 'isType',
+      fnID: 'it',
       typeName,
       args: {vλl: 'v'},
       defaultParamValues: {vλl: undefined},
@@ -42,7 +42,7 @@ export function initCache(jitUtils) {
     jitUtils.addToJitCache(entry);
     pending.push(entry);
   }
-  void factory;
+  void init;
 
   // #### REPLACE HERE ####
 

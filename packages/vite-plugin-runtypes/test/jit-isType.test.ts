@@ -25,7 +25,7 @@ import {hasBinary, withInlineSources} from './helpers/inline.ts';
 // mion/general.types.ts:145 for the full type).
 interface JitEntry {
   jitFnHash: string;
-  fnID: 'isType';
+  fnID: 'it';
   typeName: string;
   args: {vλl: string};
   defaultParamValues: {vλl: unknown};
@@ -65,7 +65,7 @@ getRuntypeId<string>();
       // 2. Evaluate the isType module via its initCache(jitUtils) export.
       //    The stub records every `addToJitCache` call and the returned
       //    cache map is keyed by the namespaced `jitFnHash`
-      //    (`isType_<id>`) — see internal/caches/jitfn/module.go which
+      //    (`it_<id>`) — see internal/caches/jitfn/module.go which
       //    namespaces the cache key per fn so isType / typeErrors /
       //    prepareForJson entries for the same runtype don't collide
       //    in the shared jitFnsCache.
@@ -75,7 +75,7 @@ getRuntypeId<string>();
 
       // Both the returned map entry and the stub-registered cache entry
       // must point at the same `JitCompiledFn` object — there's no copy.
-      const cacheKey = 'isType_' + site.id;
+      const cacheKey = 'it_' + site.id;
       const fromCache = isTypeCache[cacheKey];
       const fromRegistry = registered[cacheKey];
       expect(fromCache).toBeDefined();
@@ -84,13 +84,13 @@ getRuntypeId<string>();
 
       // 3. Every JitCompiledFnData field is populated.
       expect(fromCache.jitFnHash).toBe(cacheKey);
-      expect(fromCache.fnID).toBe('isType');
+      expect(fromCache.fnID).toBe('it');
       expect(fromCache.typeName).toBe('string');
       expect(fromCache.args).toEqual({vλl: 'v'});
       expect(fromCache.defaultParamValues).toEqual({vλl: undefined});
       // `code` carries the factory body (suitable for `new Function('utl', code)(jitUtils)`
       // reconstruction), not just the inner validator body.
-      expect(fromCache.code).toBe("return function isType_" + site.id + "(v){return typeof v === 'string'}");
+      expect(fromCache.code).toBe("return function it_" + site.id + "(v){return typeof v === 'string'}");
       expect(fromCache.isNoop).toBe(false);
       expect(fromCache.jitDependencies).toEqual([]);
       expect(fromCache.pureFnDependencies).toEqual([]);
