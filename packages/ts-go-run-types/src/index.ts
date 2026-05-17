@@ -131,3 +131,21 @@ export {
   deserializeUnknownKeysToUndefined,
   type UnknownKeysToUndefinedFn,
 } from './createUnknownKeysToUndefined.ts';
+
+// JSON serialise/parse wrappers — compose existing primitives into
+// one-call APIs that mirror mion's two serialise paths (jsonSpec
+// = unsafe, stringifySpec = safe). The safe variants strip extras
+// before serialise; the unsafe variants preserve extras (may throw
+// on bigint extras at JSON.stringify). See
+// docs/port-status.md "JSON serialisation semantics" for the
+// contract and the EXTRA_PARAMS section of serialization-suite.ts
+// for the executable spec.
+export {createUnsafeJsonStringify, type UnsafeJsonStringifyFn} from './createUnsafeJsonStringify.ts';
+export {createSafeJsonStringify, type SafeJsonStringifyFn} from './createSafeJsonStringify.ts';
+export {createUnsafeJsonParse, type UnsafeJsonParseFn} from './createUnsafeJsonParse.ts';
+export {
+  createSafeJsonParse,
+  type SafeJsonParseFn,
+  type SafeJsonParseOptions,
+  SafeJsonParseError,
+} from './createSafeJsonParse.ts';
