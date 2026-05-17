@@ -208,7 +208,8 @@ describe('serialization / OBJECTS', () => {
   it('undefined is omitted in object prop', () => runCase(SERIALIZATION_SPEC.OBJECTS.undefined_in_object));
   it('optional properties order', () => runCase(SERIALIZATION_SPEC.OBJECTS.optional_properties_order));
   it('all optional fields', () => runCase(SERIALIZATION_SPEC.OBJECTS.all_optional_fields));
-  it('strip extra params (mion semantic — extras pass through)', () => runCase(SERIALIZATION_SPEC.OBJECTS.strip_extra_params));
+  it('unsafe path preserves extras (mion semantic — JSON.stringify does not strip)', () =>
+    runCase(SERIALIZATION_SPEC.OBJECTS.extras_passthrough_unsafe));
   it('interface circular', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular));
   it('interface circular array', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_array));
   it('interface circular deep', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_deep));
@@ -328,7 +329,7 @@ describe('serialization / UNIONS', () => {
   it('union member with extra bigint prop → JSON.stringify throws', () =>
     runCase(SERIALIZATION_SPEC.UNIONS.union_extra_bigint_prop_throws));
   it('union member with extra symbol prop → JSON.stringify drops it', () =>
-    runCase(SERIALIZATION_SPEC.UNIONS.union_extra_symbol_prop_throws));
+    runCase(SERIALIZATION_SPEC.UNIONS.union_extra_symbol_prop_drops));
 
   it('all UNIONS serialization tests ran', () => {
     expect(ranTests).toBe(Object.keys(SERIALIZATION_SPEC.UNIONS).length);
@@ -406,5 +407,37 @@ describe('serialization / OTHERS', () => {
 
   it('all OTHERS serialization tests ran', () => {
     expect(ranTests).toBe(Object.keys(SERIALIZATION_SPEC.OTHERS).length);
+  });
+});
+
+// EXTRA_PARAMS section — documents the divergence between the unsafe
+// path (this adapter: prepareForJson + JSON.stringify) and the safe
+// path (forthcoming serializationSafeRoundTrip.test.ts: strip +
+// prepareForJson + JSON.stringify). On the unsafe path, only the
+// `getTestData` expectations are asserted — extras pass through to
+// JSON.stringify, which preserves JSON-compatible ones, throws on
+// bigint extras (via `jsonStringifyThrows`), and silently drops
+// symbol/function-valued extras. `getTestDataForStringify` on these
+// cases describes the safe-path expectation (stripped output) and is
+// ignored by this adapter.
+describe('serialization / EXTRA_PARAMS', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('JSON-compatible extra prop — unsafe preserves, safe strips', () =>
+    runCase(SERIALIZATION_SPEC.EXTRA_PARAMS.extras_passthrough_compatible));
+  it('bigint extra prop — unsafe throws at JSON.stringify, safe strips it', () =>
+    runCase(SERIALIZATION_SPEC.EXTRA_PARAMS.extras_throws_bigint));
+  it('symbol-valued extra prop — both paths produce declared-only output', () =>
+    runCase(SERIALIZATION_SPEC.EXTRA_PARAMS.extras_dropped_symbol));
+  it('function-valued extra prop — both paths produce declared-only output', () =>
+    runCase(SERIALIZATION_SPEC.EXTRA_PARAMS.extras_dropped_function));
+  it('extras nested inside a declared composite child', () =>
+    runCase(SERIALIZATION_SPEC.EXTRA_PARAMS.nested_extras_in_declared_child));
+
+  it('all EXTRA_PARAMS serialization tests ran', () => {
+    expect(ranTests).toBe(Object.keys(SERIALIZATION_SPEC.EXTRA_PARAMS).length);
   });
 });
