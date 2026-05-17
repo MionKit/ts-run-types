@@ -2,7 +2,14 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    // Resolve `@mionjs/ts-go-run-types` (this package's self-import in
+    // tests) to `src/index.ts` via the `"source"` exports condition in
+    // package.json, instead of the un-built `dist/index.d.ts`.
+    // Mirrors what `resolve.conditions: ['source']` does for vite at
+    // runtime — keeps test-time module resolution pinned to the
+    // workspace source we're actually exercising.
+    "customConditions": ["source"]
   },
   "include": ["src/**/*", "test/**/*", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
