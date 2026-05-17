@@ -62,8 +62,8 @@ func TestStaticForm(t *testing.T) {
 		},
 	}
 	out := emit(t, runTypes)
-	if !strings.Contains(out, `export const t_BxzL39 = RT('BxzL39',15,u,u,'kind',u,u,u,u,u,u,true);`) {
-		t.Errorf("expected Property to emit `RT('BxzL39',15,u,u,'kind',u,u,u,u,u,u,true);`, got:\n%s", out)
+	if !strings.Contains(out, `export const t_BxzL39 = RT('BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0);`) {
+		t.Errorf("expected Property to emit `RT('BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0);`, got:\n%s", out)
 	}
 	if !strings.Contains(out, `t_BxzL39.child = t_LrjxT1;`) {
 		t.Errorf("expected footer ref assignment `t_BxzL39.child = t_LrjxT1;`, got:\n%s", out)
@@ -151,10 +151,10 @@ func TestCycle(t *testing.T) {
 	a := &protocol.RunType{ID: "A1", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: protocol.NewRef("B1")}
 	b := &protocol.RunType{ID: "B1", Kind: protocol.KindProperty, Name: "b", IsSafeName: true, Child: protocol.NewRef("A1")}
 	out := emit(t, []*protocol.RunType{a, b})
-	if !strings.Contains(out, `export const t_A1 = RT('A1',15,u,u,'a',u,u,u,u,u,u,true);`) {
+	if !strings.Contains(out, `export const t_A1 = RT('A1',15,u,u,'a',u,u,u,u,u,u,!0);`) {
 		t.Errorf("expected A1 factory call, got:\n%s", out)
 	}
-	if !strings.Contains(out, `export const t_B1 = RT('B1',15,u,u,'b',u,u,u,u,u,u,true);`) {
+	if !strings.Contains(out, `export const t_B1 = RT('B1',15,u,u,'b',u,u,u,u,u,u,!0);`) {
 		t.Errorf("expected B1 factory call, got:\n%s", out)
 	}
 	if !strings.Contains(out, `t_A1.child = t_B1;`) || !strings.Contains(out, `t_B1.child = t_A1;`) {
@@ -202,7 +202,7 @@ func TestKnownFieldsCovered(t *testing.T) {
 	}})
 	// Every scalar arg position should carry a non-`u` value. The trailing
 	// `values` arg is 'v' → rendered as ['v'], so no trimming happens.
-	expected := `RT('FULL',20,2004,'TN','NM','L',true,true,true,true,2,true,7,true,['f1'],'D','DEF',{'k':1},['v']);`
+	expected := `RT('FULL',20,2004,'TN','NM','L',!0,!0,!0,!0,2,!0,7,!0,['f1'],'D','DEF',{'k':1},['v']);`
 	if !strings.Contains(out, expected) {
 		t.Errorf("expected fully-populated factory call:\n  %s\ngot:\n%s", expected, out)
 	}
