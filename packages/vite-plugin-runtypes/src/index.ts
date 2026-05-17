@@ -40,6 +40,12 @@ export default function runtypes(options: PluginOptions) {
 
   return {
     name: 'vite-plugin-runtypes',
+    // Must run BEFORE vite/esbuild's built-in TypeScript transform. The
+    // resolver returns byte offsets into the ORIGINAL source — if the
+    // plugin saw code after esbuild stripped type syntax, every offset
+    // would land past the new EOF. enforce: 'pre' guarantees the
+    // resolver sees the raw .ts file.
+    enforce: 'pre',
 
     configResolved(this: any, cfg: {root: string}) {
       const cwd = path.resolve(options.cwd ?? cfg.root);
@@ -55,8 +61,12 @@ export default function runtypes(options: PluginOptions) {
     },
 
     resolveId(this: any, id: string) {
-      if (id === virtualId) return resolvedVirtualId;
-      if (id === isTypeVirtualId) return resolvedIsTypeVirtualId;
+      // Accept both the bare virtual id and the already-resolved \0-prefixed
+      // form. Vitest's SSR module loader sometimes re-asks resolveId with
+      // the resolved id (during dep analysis of an importer); returning
+      // null there would orphan the module so load() never fires.
+      if (id === virtualId || id === resolvedVirtualId) return resolvedVirtualId;
+      if (id === isTypeVirtualId || id === resolvedIsTypeVirtualId) return resolvedIsTypeVirtualId;
       return null;
     },
 
