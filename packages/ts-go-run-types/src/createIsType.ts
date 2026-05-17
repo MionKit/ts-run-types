@@ -1,5 +1,6 @@
 import {initCache as initIsTypeCache} from './caches/isTypeCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
+import {buildFactoryFromCode} from './jit/restoreJitFns.ts';
 import type {JitCompiledFn} from './jit/types.ts';
 import type {RuntypeId} from './index.ts';
 
@@ -110,6 +111,60 @@ export async function createIsType<T>(
   }
   const validator = entry.fn as IsTypeFn;
   validatorCache.set(id, validator);
+  return validator;
+}
+
+// Deserialize-path companion cache. `deserializeIsType<T>()` rebuilds
+// validators from the serialized `JitCompiledFnData.code` string via
+// `new Function('utl', code)(jitUtils)`, exercising the over-the-wire
+// reconstruction path that `restoreCreateJitFn` in restoreJitFns.ts
+// uses. Cached per-id mirrors `createIsType` behaviour: equivalent T
+// shares one fresh-built validator instance.
+const deserializedValidatorCache = new Map<string, IsTypeFn>();
+
+/** Like `createIsType<T>()`, but rebuilds the validator from the
+ *  serialized `JitCompiledFnData.code` body via `new Function('utl',
+ *  code)(jitUtils)` instead of reusing the cache module's already-
+ *  materialised `entry.fn`. This is the path a consumer takes after
+ *  ingesting a serialized cache over the wire (see
+ *  `restoreCompiledJitFns` in `jit/restoreJitFns.ts`); shipping a
+ *  thunk in every ValidationCase lets the test suite verify the
+ *  serialize → deserialize round-trip produces an equivalent validator.
+ *
+ *  Same call shapes as `createIsType` (static + reflect). Async only
+ *  for signature parity with the existing API — both flip to sync in a
+ *  follow-up. **/
+export async function deserializeIsType<T>(
+  val?: T,
+  options?: RunTypeOptions,
+  id?: RuntypeId<T>,
+): Promise<IsTypeFn> {
+  void val;
+  void options;
+  if (id === undefined) {
+    throw new Error(
+      'deserializeIsType(): no id injected. vite-plugin-runtypes must be active for deserializeIsType to dispatch to a precompiled factory.'
+    );
+  }
+  const cached = deserializedValidatorCache.get(id);
+  if (cached) return cached;
+  const entry = getJitUtils().getJIT(id) as JitCompiledFn | undefined;
+  if (!entry) {
+    // Same fallback semantics as createIsType: registered runtypes with
+    // no factory (noop-collapsed body) get a trivial passthrough so the
+    // deserialize path doesn't trip on `any` / `unknown`.
+    if (getJitUtils().hasRunType(id)) {
+      const validator: IsTypeFn = () => true;
+      deserializedValidatorCache.set(id, validator);
+      return validator;
+    }
+    throw new Error(
+      `deserializeIsType(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a validator for that runtype.`
+    );
+  }
+  const factory = buildFactoryFromCode(entry.code);
+  const validator = factory(getJitUtils()) as IsTypeFn;
+  deserializedValidatorCache.set(id, validator);
   return validator;
 }
 
