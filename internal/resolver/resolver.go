@@ -66,6 +66,12 @@ type Resolver struct {
 	// signal in handleHotUpdate to decide whether the pureFns cache
 	// module needs invalidating after a user-file change.
 	pureFnHashes map[string]string
+	// scannedFiles tracks every file the resolver has scanned via
+	// dispatchScanFiles, regardless of whether the scan found any
+	// markers. Used by scanAllProgramFiles to avoid double-scanning
+	// (which would duplicate site entries on resolver.sites). Cleared
+	// alongside the cache + sites on Rebind / Clear.
+	scannedFiles map[string]struct{}
 }
 
 // New builds a Resolver against prog. Defaults to hashid's default lengths when
@@ -90,6 +96,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		marker:       marker.WithDefaults(opts.Marker),
 		opts:         opts,
 		pureFnHashes: map[string]string{},
+		scannedFiles: map[string]struct{}{},
 	}, nil
 }
 
@@ -105,6 +112,7 @@ func NewServer(opts Options) *Resolver {
 		marker:       marker.WithDefaults(opts.Marker),
 		opts:         opts,
 		pureFnHashes: map[string]string{},
+		scannedFiles: map[string]struct{}{},
 	}
 }
 
@@ -129,6 +137,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.releaseLease = releaseLease
 	resolver.cache.Rebind(typeChecker)
 	resolver.sites = resolver.sites[:0]
+	resolver.scannedFiles = map[string]struct{}{}
 	return nil
 }
 
@@ -154,6 +163,7 @@ func (resolver *Resolver) Reset() {
 	resolver.cache.Rebind(nil)
 	resolver.sites = resolver.sites[:0]
 	resolver.pureFnHashes = map[string]string{}
+	resolver.scannedFiles = map[string]struct{}{}
 }
 
 func (resolver *Resolver) Close() {

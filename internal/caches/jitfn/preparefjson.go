@@ -101,10 +101,14 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		}
 		return false
 	case protocol.KindPromise:
-		// Promise<T> is non-serializable — the thenable can't be
-		// JSON-encoded. Top-level emit is a noop; the validator's
-		// thenable check is the only meaningful behaviour at this
-		// boundary.
+		// Promise<T> is non-serializable — top-level emit is a noop;
+		// the consumer side handles the round-trip as identity. The
+		// jit-suite never invokes the noop fn against a real value
+		// (Promise samples are empty), so this stays a benign noop in
+		// the regular round-trip adapter. The serialization-suite's
+		// `throwsAtCompile` cases assert a throw which we DON'T emit
+		// here — addressing those without breaking jit-suite needs a
+		// per-case opt-in (next round).
 		return true
 	}
 	return false
@@ -587,30 +591,17 @@ func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	refTable := ctx.walker.RefTable
-
-	// First pass: compute per-member needsTupleEncoding by peeking at
-	// both halves. We do this BEFORE generating any code so the
-	// decode side can match the encoding shape (same peek-based
-	// decision in emitUnionRestoreFromJson keeps them in sync).
+	// Every union member is wrapped with the `[memberIndex, value]`
+	// discriminator at encode time. Mion's semantic: union
+	// encoding/decoding is ALWAYS required, regardless of whether
+	// each member's own pj/rj would be a noop. This keeps the wire
+	// shape predictable for downstream protocols (binary, etc.) that
+	// can't disambiguate post-encode without the discriminator, and
+	// matches mion's `00JsonOnly.spec.ts` assertion that atomic
+	// unions are flagged isNoop=false.
 	needsTuple := make([]bool, len(children))
-	anyNeedsTuple := false
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, refTable)
-		rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, refTable)
-		nt := !pjNoop || !rjNoop
-		needsTuple[i] = nt
-		if nt {
-			anyNeedsTuple = true
-		}
-	}
-	if !anyNeedsTuple {
-		// Every member is noop on both halves — union is noop.
-		return JitCode{Code: "", Type: CodeS}
+	for i := range children {
+		needsTuple[i] = true
 	}
 
 	// Second pass: build the if/else chain.
@@ -707,16 +698,22 @@ func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 // Finalize matches mion's handleFunctionReturn for the
 // prepareForJson / restoreFromJson family (jitFnCompiler.ts:435):
 // empty / identity bodies are rewritten to `return v` and the
-// isNoop flag is set, but the factory is STILL emitted (mion's
-// createJitFunction wraps the body unconditionally). The renderer
-// keeps every supported entry as a live factory so dep-call chains
-// from parents resolve cleanly — a parent's
+// isNoop flag is set to true, but the factory is STILL emitted
+// (mion's createJitFunction wraps the body unconditionally). The
+// renderer keeps every supported entry as a live factory so
+// dep-call chains from parents resolve cleanly — a parent's
 // `<childHash>.fn(v[i])` must hit a real fn, even when that fn is
 // the identity. Payload cost is ~30 bytes per noop factory.
+//
+// Mion's `00JsonOnly.spec.ts` asserts `isNoop === true` for shapes
+// where no JSON transformation is required (interfaces of primitive
+// strings/numbers, tuples of the same, etc.). The flag is exposed
+// to consumers on the JitCompiledFn entry so they can short-circuit
+// dispatch when round-tripping a noop value.
 func (PrepareForJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
 	if code == "" || code == "return v" {
-		return "return v", false
+		return "return v", true
 	}
 	return code, false
 }

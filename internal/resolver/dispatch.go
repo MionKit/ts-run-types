@@ -111,6 +111,19 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		}
 		return response
 	case protocol.OpDump:
+		// Ensure every source file in the Program has been scanned for
+		// marker calls before the dump is serialized. Without this,
+		// the Vite plugin's cache module transform — which fires on
+		// the first import of any cache file — may run BEFORE the
+		// user's marker-bearing source files have been transformed
+		// (and therefore scanned). The cache module would then be
+		// rendered with an empty `init(...)` body, even though the
+		// runtypes will appear in the resolver state moments later.
+		// The eager scan amortises any per-file scan that hasn't
+		// happened yet, so OpDump always returns the complete picture.
+		if resolver.Program != nil {
+			resolver.scanAllProgramFiles()
+		}
 		fullDump := protocol.Dump{
 			RunTypes: resolver.cache.Dump(),
 			Sites:    resolver.Sites(),

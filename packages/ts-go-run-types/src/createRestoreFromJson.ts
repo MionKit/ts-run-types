@@ -36,10 +36,11 @@ export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?:
   // `pj_<id>` so both halves of the pair coexist in jitFnsCache.
   const entry = getJitUtils().getJIT('rj_' + id) as JitCompiledFn | undefined;
   if (!entry) {
+    // Identity fallback for unsupported types. See createPrepareForJson
+    // for the rationale — throwing here regresses jit-suite cases that
+    // use prepareForJson/restoreFromJson thunks on non-serializable
+    // types with empty `valid` samples.
     if (getJitUtils().hasRunType(id)) {
-      // Noop fallback: identity. JSON.parse already produced the right
-      // primitive shape for kinds whose restoreFromJson is a noop
-      // (string / number / boolean / null / any / unknown / enum / object).
       const transformer: RestoreFromJsonFn = (v) => v;
       validatorCache.set(id, transformer);
       return transformer;

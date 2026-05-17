@@ -226,9 +226,15 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		// createIsType-side hasRunType-but-no-jit fallback.
 		return "", nil
 	}
-	if isNoop {
-		return "", nil
-	}
+	// Noop factories are STILL emitted — the wrapped identity body
+	// (`return true` for isType, `return v` for the JSON pair, etc.) is
+	// trivial in size but:
+	//   1. lets dep-call chains keep resolving — a parent's
+	//      `<childHash>.fn(v[i])` hits a real fn even when that fn
+	//      is the identity, no JS-side fallback branch required.
+	//   2. exposes the `isNoop: true` flag on the cache entry so
+	//      consumers can short-circuit dispatch on noop shapes (mion's
+	//      `00JsonOnly.spec.ts` asserts this contract for the JSON pair).
 	createJitFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	// The 3rd arg (`code`) carries the factory BODY — the contents
 	// between the `function(utl){ … }` braces — so a consumer holding

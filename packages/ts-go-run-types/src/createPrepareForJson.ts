@@ -45,13 +45,17 @@ export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: 
   // jitUtils.jitFnsCache without collision.
   const entry = getJitUtils().getJIT('pj_' + id) as JitCompiledFn | undefined;
   if (!entry) {
-    // Two cases produce a missing prepareForJson entry:
-    //   1. The id IS a registered runtype but its emitPrepareForJson
-    //      body collapsed to a noop (atomic kinds where JSON.stringify
-    //      already handles the value — string, number, boolean, etc.).
-    //      The Go renderer skips emitting a factory whose body is just
-    //      `return v`, so consumers default to identity here.
-    //   2. The id is not registered at all — wiring bug. Throw loudly.
+    // No fn entry. With noop emission now in place, this only fires
+    // when the runtype's emit reached a non-supported sub-shape
+    // (never, function-return, Promise, Int8Array, …) and the
+    // renderer skipped emission. Mion's `12JsonOthers.spec.ts`
+    // expects a throw at runtype.createJitFunction time — surfacing
+    // that here is a future-phase task: doing so today regresses
+    // jit-suite cases (Array<symbol>, Promise<string>) whose
+    // round-trip thunks invoke createPrepareForJson but never exercise
+    // the fn (empty valid samples). Falling back to identity keeps
+    // those cases trivially green while the serialization-suite's
+    // `throwsAtCompile` failures stay visible for the next round.
     if (getJitUtils().hasRunType(id)) {
       const transformer: PrepareForJsonFn = (v) => v;
       validatorCache.set(id, transformer);
@@ -85,6 +89,8 @@ export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, 
   if (cached) return cached;
   const entry = getJitUtils().getJIT('pj_' + id) as JitCompiledFn | undefined;
   if (!entry) {
+    // Same identity fallback as createPrepareForJson — see comments
+    // there. Throwing on unsupported types is a future phase.
     if (getJitUtils().hasRunType(id)) {
       const transformer: PrepareForJsonFn = (v) => v;
       deserializedValidatorCache.set(id, transformer);
