@@ -177,10 +177,8 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			return JitCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
 		case protocol.SubKindNone:
 			return emitObjectRestoreFromJson(rt, ctx, v)
-		case protocol.SubKindMap:
-			return JitCode{Code: v + " = new Map(" + v + ")", Type: CodeE}
-		case protocol.SubKindSet:
-			return JitCode{Code: v + " = new Set(" + v + ")", Type: CodeE}
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return emitNativeIterableRestoreFromJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
 			// mion:nodes/native/nonSerializable.ts:27-28 —
 			// `emitRestoreFromJson(): JitCode { throw new Error('Jit
@@ -352,9 +350,14 @@ func emitPropertyRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v strin
 }
 
 // emitIndexSignatureRestoreFromJson — sibling of
-// emitIndexSignaturePrepareForJson.
+// emitIndexSignaturePrepareForJson. Skips symbol-keyed sigs per
+// mion's IndexSignatureRunType.skipJit (indexProperty.ts:30-36); see
+// the prepareForJson mirror for the full rationale.
 func emitIndexSignatureRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isSymbolKeyedIndexSig(rt, ctx) {
 		return JitCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
@@ -528,6 +531,73 @@ func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 	body := "if (Array.isArray(" + v + ") && " + v + ".length === 2 && typeof " + v + "[0] === 'number') {" +
 		"const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" +
 		inner + "}"
+	return JitCode{Code: body, Type: CodeS}
+}
+
+// emitNativeIterableRestoreFromJson mirrors mion's
+// nodes/native/Iterable.ts:66-82 emitRestoreFromJson. Inverse of the
+// prepare side: walk the array-form produced by JSON.parse, apply
+// each wrapped child's restore code, then wrap the array back into
+// a Map / Set via the constructor.
+//
+// Shape (with non-noop key, value, or element transforms):
+//
+//	for (let e0 = 0; e0 < v.length; e0++) {
+//	  <key/element transform>; <value transform>;
+//	}
+//	v = new Map(v)        // or new Set(v) — pick by SubKind
+//
+// Note the loop counter (`e0`) is the INDEX here, not the entry — mion
+// uses an index loop on restore because the array form has length-based
+// access. Accessors:
+//   - Set: v[e0] (the element)
+//   - Map: v[e0][0] (key) and v[e0][1] (value)
+//
+// When every wrapped child compiles to empty, fall back to the no-loop
+// `v = new Map(v)` / `v = new Set(v)` shape.
+func emitNativeIterableRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isMap := rt.SubKind == protocol.SubKindMap
+	ctorName := "Map"
+	if !isMap {
+		ctorName = "Set"
+	}
+
+	var innerTypes []*protocol.RunType
+	if isMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		innerTypes = []*protocol.RunType{keyType, valueType}
+	} else {
+		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
+	}
+
+	indexVar := ctx.NextLocalVar("e")
+	var childCodes []string
+	for i, innerType := range innerTypes {
+		if innerType == nil {
+			continue
+		}
+		accessor := v + "[" + indexVar + "]"
+		if isMap {
+			accessor = v + "[" + indexVar + "][" + strconv.Itoa(i) + "]"
+		}
+		ctx.SetChildAccessor(accessor)
+		childJit := ctx.CompileChild(innerType, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			childCodes = append(childCodes, childJit.Code)
+		}
+	}
+
+	if len(childCodes) == 0 {
+		return JitCode{Code: v + " = new " + ctorName + "(" + v + ")", Type: CodeS}
+	}
+
+	body := "for (let " + indexVar + " = 0; " + indexVar + " < " + v + ".length; " + indexVar + "++) {" +
+		strings.Join(childCodes, ";") + "} " +
+		v + " = new " + ctorName + "(" + v + ")"
 	return JitCode{Code: body, Type: CodeS}
 }
 

@@ -688,6 +688,13 @@ func positionStr(rt *protocol.RunType) string {
 // access — mirrors mion's
 // `(typeof v === 'object' && v !== null && (objCheck1 || objCheck2))`
 // shape.
+//
+// All-optional object members get the property-presence gate via
+// looseCheckGate (see preparefjson.go) — mirrors mion's
+// getChildIsTypeWithLooseCheck (union.ts:56-78). Without this, an
+// input like `{c: 'foo'}` would match `{a?: string; b?: string}`
+// (no required props to fail on), which is mion-incorrect per TS's
+// weak-type rules.
 func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	children := rt.SafeUnionChildren
 	if len(children) == 0 {
@@ -711,10 +718,14 @@ func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 		if childJit.Code == "" {
 			continue
 		}
+		childCode := childJit.Code
+		if gate := looseCheckGate(resolved, ctx, v); gate != "" {
+			childCode = "(" + childCode + " && " + gate + ")"
+		}
 		if isObjectLikeKind(resolved.Kind) {
-			objectChecks = append(objectChecks, childJit.Code)
+			objectChecks = append(objectChecks, childCode)
 		} else {
-			simpleChecks = append(simpleChecks, childJit.Code)
+			simpleChecks = append(simpleChecks, childCode)
 		}
 	}
 	parts := simpleChecks
@@ -1271,6 +1282,9 @@ func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) 
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeE}
 	}
+	if isSymbolKeyedIndexSig(rt, ctx) {
+		return JitCode{Code: "", Type: CodeE}
+	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
 		return JitCode{Code: "", Type: CodeE}
@@ -1363,6 +1377,22 @@ func isNonSerializableElementKind(kind protocol.ReflectionKind) bool {
 		return true
 	}
 	return isFunctionLikeKind(kind)
+}
+
+// isSymbolKeyedIndexSig reports whether a KindIndexSignature has a
+// symbol-typed key (`{[k: symbol]: T}`). Mirrors mion's
+// IndexSignatureRunType.skipJit (indexProperty.ts:30-36), which
+// returns true for every JIT fn except toJSCode (we don't emit a
+// toJSCode equivalent in this binary, so the skip applies
+// unconditionally for us). The for-in loop in our emits would never
+// enumerate a symbol-keyed property anyway (per JS semantics), so
+// skipping is observable parity with mion and elides dead emit.
+func isSymbolKeyedIndexSig(rt *protocol.RunType, ctx *EmitContext) bool {
+	if rt == nil || rt.Index == nil {
+		return false
+	}
+	indexResolved := ctx.ResolveRef(rt.Index)
+	return indexResolved != nil && indexResolved.Kind == protocol.KindSymbol
 }
 
 // propertyAccessor builds the JS subscript expression for `parent.name`
