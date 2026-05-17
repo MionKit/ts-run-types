@@ -27,7 +27,7 @@ const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
 const CACHE_FILE_RE =
-  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',
@@ -35,6 +35,10 @@ const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   getTypeErrorsCache: 'typeErrors',
   prepareForJsonCache: 'prepareForJson',
   restoreFromJsonCache: 'restoreFromJson',
+  hasUnknownKeysCache: 'hasUnknownKeys',
+  stripUnknownKeysCache: 'stripUnknownKeys',
+  unknownKeyErrorsCache: 'unknownKeyErrors',
+  unknownKeysToUndefinedCache: 'unknownKeysToUndefined',
   pureFnsCache: 'pureFns',
 };
 
@@ -170,6 +174,10 @@ export default function runtypes(options: PluginOptions) {
         if (result.addedTypeErrors) kindsToInvalidate.push('typeErrors');
         if (result.addedPrepareForJson) kindsToInvalidate.push('prepareForJson');
         if (result.addedRestoreFromJson) kindsToInvalidate.push('restoreFromJson');
+        if (result.addedHasUnknownKeys) kindsToInvalidate.push('hasUnknownKeys');
+        if (result.addedStripUnknownKeys) kindsToInvalidate.push('stripUnknownKeys');
+        if (result.addedUnknownKeyErrors) kindsToInvalidate.push('unknownKeyErrors');
+        if (result.addedUnknownKeysToUndefined) kindsToInvalidate.push('unknownKeysToUndefined');
         if (result.addedPureFns) kindsToInvalidate.push('pureFns');
         for (const kind of kindsToInvalidate) {
           const cacheId = cacheModuleIds[kind];
@@ -195,6 +203,10 @@ function pickCacheSource(
     typeErrorsCacheSource?: string;
     prepareForJsonCacheSource?: string;
     restoreFromJsonCacheSource?: string;
+    hasUnknownKeysCacheSource?: string;
+    stripUnknownKeysCacheSource?: string;
+    unknownKeyErrorsCacheSource?: string;
+    unknownKeysToUndefinedCacheSource?: string;
     pureFnsCacheSource?: string;
   },
   kind: CacheKind
@@ -204,6 +216,10 @@ function pickCacheSource(
   if (kind === 'typeErrors') return dump.typeErrorsCacheSource;
   if (kind === 'prepareForJson') return dump.prepareForJsonCacheSource;
   if (kind === 'restoreFromJson') return dump.restoreFromJsonCacheSource;
+  if (kind === 'hasUnknownKeys') return dump.hasUnknownKeysCacheSource;
+  if (kind === 'stripUnknownKeys') return dump.stripUnknownKeysCacheSource;
+  if (kind === 'unknownKeyErrors') return dump.unknownKeyErrorsCacheSource;
+  if (kind === 'unknownKeysToUndefined') return dump.unknownKeysToUndefinedCacheSource;
   if (kind === 'pureFns') return dump.pureFnsCacheSource;
   return undefined;
 }

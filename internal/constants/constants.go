@@ -52,6 +52,26 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_rj_",
 		Tag:       "rj",
 	},
+	"hasUnknownKeys": {
+		Name:      "hasUnknownKeysModule",
+		VarPrefix: "g_huk_",
+		Tag:       "huk",
+	},
+	"stripUnknownKeys": {
+		Name:      "stripUnknownKeysModule",
+		VarPrefix: "g_suk_",
+		Tag:       "suk",
+	},
+	"unknownKeyErrors": {
+		Name:      "unknownKeyErrorsModule",
+		VarPrefix: "g_uke_",
+		Tag:       "uke",
+	},
+	"unknownKeysToUndefined": {
+		Name:      "unknownKeysToUndefinedModule",
+		VarPrefix: "g_uku_",
+		Tag:       "uku",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",
