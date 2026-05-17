@@ -1282,6 +1282,16 @@ export const VALIDATION_SUITE = {
         const v: string[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(),
+      getTypeErrorsReflect: () => {
+        const v: string[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello', 'world']],
         // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
@@ -1290,6 +1300,15 @@ export const VALIDATION_SUITE = {
         // string check, so the whole array fails isType.
         invalid: ['hello', ['hello', 2], ['hello', 'world', {hello: 'world'}], null, undefined, [42], [null]],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'array'}],
+        [{path: [1], expected: 'string'}],
+        [{path: [2], expected: 'string'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'string'}],
+        [{path: [0], expected: 'string'}],
+      ],
     },
 
     number_array: {
@@ -1305,10 +1324,31 @@ export const VALIDATION_SUITE = {
         const v: number[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<number[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<number[]>(),
+      getTypeErrorsReflect: () => {
+        const v: number[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: number[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [1, 2, 3], [42]],
         invalid: [[1, '2'], 'not-array', [Infinity], [-Infinity], [NaN], null, undefined, [null], [BigInt(1)]],
       }),
+      getExpectedErrors: () => [
+        [{path: [1], expected: 'number'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [0], expected: 'number'}],
+      ],
     },
 
     boolean_array: {
@@ -1323,10 +1363,29 @@ export const VALIDATION_SUITE = {
         const v: boolean[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<boolean[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean[]>(),
+      getTypeErrorsReflect: () => {
+        const v: boolean[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: boolean[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [true, false]],
         invalid: [[true, 42], 'nope', null, undefined, [0], [1], [null]],
       }),
+      getExpectedErrors: () => [
+        [{path: [1], expected: 'boolean'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'boolean'}],
+        [{path: [0], expected: 'boolean'}],
+        [{path: [0], expected: 'boolean'}],
+      ],
     },
 
     bigint_array: {
@@ -1341,10 +1400,28 @@ export const VALIDATION_SUITE = {
         const v: bigint[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<bigint[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint[]>(),
+      getTypeErrorsReflect: () => {
+        const v: bigint[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: bigint[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [1n, 2n]],
         invalid: [[1n, 2], 'nope', null, undefined, [null], [Infinity]],
       }),
+      getExpectedErrors: () => [
+        [{path: [1], expected: 'bigint'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'bigint'}],
+        [{path: [0], expected: 'bigint'}],
+      ],
     },
 
     date_array: {
@@ -1361,10 +1438,27 @@ export const VALIDATION_SUITE = {
         const v: Date[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Date[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date[]>(),
+      getTypeErrorsReflect: () => {
+        const v: Date[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Date[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
         invalid: [['2024'], [42], [new Date('invalid')], null, undefined],
       }),
+      getExpectedErrors: () => [
+        [{path: [0], expected: 'date'}],
+        [{path: [0], expected: 'date'}],
+        [{path: [0], expected: 'date'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+      ],
     },
 
     regexp_array: {
@@ -1379,10 +1473,28 @@ export const VALIDATION_SUITE = {
         const v: RegExp[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<RegExp[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<RegExp[]>(),
+      getTypeErrorsReflect: () => {
+        const v: RegExp[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: RegExp[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [/abc/, new RegExp('abc')]],
         invalid: [['/abc/'], [42], null, undefined, [null], [{}]],
       }),
+      getExpectedErrors: () => [
+        [{path: [0], expected: 'regexp'}],
+        [{path: [0], expected: 'regexp'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'regexp'}],
+        [{path: [0], expected: 'regexp'}],
+      ],
     },
 
     undefined_array: {
@@ -1399,10 +1511,29 @@ export const VALIDATION_SUITE = {
         const v: undefined[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<undefined[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined[]>(),
+      getTypeErrorsReflect: () => {
+        const v: undefined[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: undefined[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [undefined, undefined]],
         invalid: [[null], [42], null, undefined, [0], [''], [false]],
       }),
+      getExpectedErrors: () => [
+        [{path: [0], expected: 'undefined'}],
+        [{path: [0], expected: 'undefined'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'undefined'}],
+        [{path: [0], expected: 'undefined'}],
+        [{path: [0], expected: 'undefined'}],
+      ],
     },
 
     null_array: {
@@ -1418,10 +1549,29 @@ export const VALIDATION_SUITE = {
         const v: null[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<null[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<null[]>(),
+      getTypeErrorsReflect: () => {
+        const v: null[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: null[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [null]],
         invalid: [[undefined], [42], null, undefined, [0], [''], [false]],
       }),
+      getExpectedErrors: () => [
+        [{path: [0], expected: 'null'}],
+        [{path: [0], expected: 'null'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'null'}],
+        [{path: [0], expected: 'null'}],
+        [{path: [0], expected: 'null'}],
+      ],
     },
 
     array_generic: {
@@ -1437,10 +1587,26 @@ export const VALIDATION_SUITE = {
         const v: Array<string> = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Array<string>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Array<string>>(),
+      getTypeErrorsReflect: () => {
+        const v: Array<string> = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Array<string> = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         invalid: ['hello', [42], null, undefined],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'string'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+      ],
     },
 
     string_array_2d: {
@@ -1457,6 +1623,16 @@ export const VALIDATION_SUITE = {
         const v: string[][] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string[][]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][]>(),
+      getTypeErrorsReflect: () => {
+        const v: string[][] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string[][] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           [],
@@ -1472,6 +1648,23 @@ export const VALIDATION_SUITE = {
         // not an array".
         invalid: [[['hello', 2]], ['hello'], ['hello', 'world'], 'hello', null, undefined, [[null]], [[42]]],
       }),
+      getExpectedErrors: () => [
+        [{path: [0, 1], expected: 'string'}],
+        [{path: [0], expected: 'array'}],
+        // `['hello', 'world']` — both elements fail the inner array
+        // check; the loop walks every element and accumulates one error
+        // per failure (mirror of mion's emitTypeErrors emitting per-
+        // element callJitErr without early-exit).
+        [
+          {path: [0], expected: 'array'},
+          {path: [1], expected: 'array'},
+        ],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0, 0], expected: 'string'}],
+        [{path: [0, 0], expected: 'string'}],
+      ],
     },
 
     string_array_3d: {
@@ -1487,10 +1680,32 @@ export const VALIDATION_SUITE = {
         const v: string[][][] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string[][][]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][][]>(),
+      getTypeErrorsReflect: () => {
+        const v: string[][][] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string[][][] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
         invalid: [[[['a', 2]]], [['a']], ['a'], null, undefined, [[[null]]], [[[42]]]],
       }),
+      getExpectedErrors: () => [
+        // [[['a', 2]]] — inner-of-inner index 1 is non-string at [0,0,1]
+        [{path: [0, 0, 1], expected: 'string'}],
+        // [['a']] — second-level 'a' is not an array at [0,0]
+        [{path: [0, 0], expected: 'array'}],
+        // ['a'] — first-level 'a' is not an array at [0]
+        [{path: [0], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0, 0, 0], expected: 'string'}],
+        [{path: [0, 0, 0], expected: 'string'}],
+      ],
     },
 
     string_array_noIsArrayCheck: {
@@ -1511,6 +1726,16 @@ export const VALIDATION_SUITE = {
         const v: string[] = [];
         return deserializeIsType(v, {noIsArrayCheck: true});
       },
+      getTypeErrors: () => createGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
+      getTypeErrorsReflect: () => {
+        const v: string[] = [];
+        return createGetTypeErrors(v, {noIsArrayCheck: true});
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string[] = [];
+        return deserializeGetTypeErrors(v, {noIsArrayCheck: true});
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         // Without the guard, non-array inputs may not be rejected by
@@ -1519,6 +1744,9 @@ export const VALIDATION_SUITE = {
         // itself catches.
         invalid: [[42]],
       }),
+      getExpectedErrors: () => [
+        [{path: [0], expected: 'string'}],
+      ],
     },
 
     // ---- DEFERRED — sample payloads carried for future activation ----
@@ -1611,6 +1839,24 @@ export const VALIDATION_SUITE = {
         const v: CircularArray = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type CircularArray = CircularArray[];
+        return createGetTypeErrors<CircularArray>();
+      },
+      deserializeGetTypeErrors: () => {
+        type CircularArray = CircularArray[];
+        return deserializeGetTypeErrors<CircularArray>();
+      },
+      getTypeErrorsReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
         const arrA: any = [];
@@ -1620,6 +1866,20 @@ export const VALIDATION_SUITE = {
           invalid: [[[[]], 'A'], 'not array', null, undefined, [42], [[42]]],
         };
       },
+      getExpectedErrors: () => [
+        // [[[]], 'A'] — index 0 is a valid nested array; index 1 is 'A'
+        // which fails the self-recurse array check at path [1].
+        [{path: [1], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        // [42] — outer is array; element at index 0 is 42, which fails
+        // the self-recurse array check at path [0].
+        [{path: [0], expected: 'array'}],
+        // [[42]] — outer is array; element at index 0 is [42] (still
+        // array); inner-of-inner index 0 is 42 which fails at [0, 0].
+        [{path: [0, 0], expected: 'array'}],
+      ],
     },
 
     circular_object_with_array: {
@@ -1680,10 +1940,30 @@ export const VALIDATION_SUITE = {
         const v: symbol[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<symbol[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<symbol[]>(),
+      getTypeErrorsReflect: () => {
+        const v: symbol[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: symbol[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [],
         invalid: [[Symbol('a')], [], 'not array', null, [42]],
       }),
+      // Non-serializable element type → typeErrors emits an
+      // unconditional `[{expected: 'array'}]` error for every input
+      // (mirrors the always-fail isType behaviour for this shape).
+      getExpectedErrors: () => [
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+      ],
     },
   },
 
