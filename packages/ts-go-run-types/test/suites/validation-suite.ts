@@ -52,22 +52,22 @@ export interface ValidationCase {
   isTypeNotes?: string | string[];
   /** Plugin-rewritten thunk returning the isType validator — STATIC
    *  form. Caller supplies `T` explicitly via the type argument. */
-  isType?: () => Promise<IsTypeFn>;
+  isType?: () => IsTypeFn;
   /** Plugin-rewritten thunk returning the isType validator — REFLECT
    *  form. Calls `createIsType(value)` with a runtime value annotated
    *  to type T; the type checker infers T from the annotation, the
    *  value itself is discarded at runtime. Paired with `isType` per
    *  the CLAUDE.md "Marker test coverage rule" to verify both call
    *  shapes produce the same validator end-to-end. **/
-  isTypeReflect?: () => Promise<IsTypeFn>;
+  isTypeReflect?: () => IsTypeFn;
   /** Plugin-rewritten thunk returning the validator rebuilt from the
    *  serialized `JitCompiledFnData.code` body via
    *  `new Function('utl', code)(jitUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `isType` (static form). **/
-  deserializeIsType?: () => Promise<IsTypeFn>;
+  deserializeIsType?: () => IsTypeFn;
   /** Reflect-form companion to `deserializeIsType`. **/
-  deserializeIsTypeReflect?: () => Promise<IsTypeFn>;
+  deserializeIsTypeReflect?: () => IsTypeFn;
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }

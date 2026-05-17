@@ -37,7 +37,8 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
     strictTypes?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): Promise<IsTypeFn>;
+  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): IsTypeFn;
+  export function deserializeIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): IsTypeFn;
 }
 `;
 

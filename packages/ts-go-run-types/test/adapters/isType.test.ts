@@ -22,12 +22,12 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.ts';
 
-async function assertIsType(c: ValidationCase): Promise<void> {
+function assertIsType(c: ValidationCase): void {
   if (!c.isType) throw new Error(`case ${c.title}: missing isType thunk`);
   const {valid, invalid} = c.getSamples();
 
   // Static form: createIsType<T>().
-  const isTypeStatic = await c.isType();
+  const isTypeStatic = c.isType();
   valid.forEach((v, i) => {
     expect(isTypeStatic(v), `${c.title} [static]: valid[${i}] should pass`).toBe(true);
   });
@@ -39,7 +39,7 @@ async function assertIsType(c: ValidationCase): Promise<void> {
   // `isTypeReflect` (typically because of a documented divergence with
   // the static form) skip the second pass.
   if (c.isTypeReflect) {
-    const isTypeReflect = await c.isTypeReflect();
+    const isTypeReflect = c.isTypeReflect();
     valid.forEach((v, i) => {
       expect(isTypeReflect(v), `${c.title} [reflect]: valid[${i}] should pass`).toBe(true);
     });
@@ -53,7 +53,7 @@ async function assertIsType(c: ValidationCase): Promise<void> {
   // `new Function('utl', code)(jitUtils)` — verifies that the
   // over-the-wire round-trip produces an equivalent validator.
   if (c.deserializeIsType) {
-    const deserializedStatic = await c.deserializeIsType();
+    const deserializedStatic = c.deserializeIsType();
     valid.forEach((v, i) => {
       expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] should pass`).toBe(true);
     });
@@ -65,7 +65,7 @@ async function assertIsType(c: ValidationCase): Promise<void> {
   // Deserialize-reflect form: same as above but T inferred from a
   // runtime value's declared type.
   if (c.deserializeIsTypeReflect) {
-    const deserializedReflect = await c.deserializeIsTypeReflect();
+    const deserializedReflect = c.deserializeIsTypeReflect();
     valid.forEach((v, i) => {
       expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] should pass`).toBe(true);
     });
