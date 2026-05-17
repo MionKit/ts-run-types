@@ -33,6 +33,11 @@ minimumReleaseAge: 43200
 # Keep empty by default; add per-package entries only if a future bump is
 # blocked by a transitive we trust.
 #
+# `@mionjs/core` — our own @mionjs/* sibling package on npm. The marker
+# package pulls `getJitUtils` from it at runtime. Trusted implicitly
+# (same org as this repo); the release-age policy exists to defend
+# against compromised third-party publishers, which doesn't apply here.
+#
 # `@rollup/rollup-*` — platform-specific native binaries for the rollup
 # version vite pulls in. These ship lockstep as a single release, so a
 # fresh rollup point release temporarily blocks any lockfile refresh
@@ -40,6 +45,7 @@ minimumReleaseAge: 43200
 # whose source is the audited `rollup` package (which we already accept);
 # excluding them from the policy is a small, contained relaxation.
 minimumReleaseAgeExclude:
+  - '@mionjs/core'
   - '@rollup/rollup-android-arm-eabi'
   - '@rollup/rollup-android-arm64'
   - '@rollup/rollup-darwin-arm64'
