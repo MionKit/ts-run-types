@@ -45,7 +45,11 @@ importers:
         specifier: 2.1.9
         version: 2.1.9(@types/node@24.12.2)
 
-  packages/ts-go-run-types: {}
+  packages/ts-go-run-types:
+    devDependencies:
+      vite-plugin-runtypes:
+        specifier: workspace:*
+        version: link:../vite-plugin-runtypes
 
   packages/vite-plugin-runtypes:
     devDependencies:

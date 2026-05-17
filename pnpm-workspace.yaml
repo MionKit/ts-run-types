@@ -32,7 +32,40 @@ minimumReleaseAge: 43200
 # (tracked upstream by pnpm PR #11583, currently unmerged).
 # Keep empty by default; add per-package entries only if a future bump is
 # blocked by a transitive we trust.
-minimumReleaseAgeExclude: []
+#
+# `@rollup/rollup-*` — platform-specific native binaries for the rollup
+# version vite pulls in. These ship lockstep as a single release, so a
+# fresh rollup point release temporarily blocks any lockfile refresh
+# until 30 days pass. The binaries themselves are precompiled artifacts
+# whose source is the audited `rollup` package (which we already accept);
+# excluding them from the policy is a small, contained relaxation.
+minimumReleaseAgeExclude:
+  - '@rollup/rollup-android-arm-eabi'
+  - '@rollup/rollup-android-arm64'
+  - '@rollup/rollup-darwin-arm64'
+  - '@rollup/rollup-darwin-x64'
+  - '@rollup/rollup-freebsd-arm64'
+  - '@rollup/rollup-freebsd-x64'
+  - '@rollup/rollup-linux-arm-gnueabihf'
+  - '@rollup/rollup-linux-arm-musleabihf'
+  - '@rollup/rollup-linux-arm64-gnu'
+  - '@rollup/rollup-linux-arm64-musl'
+  - '@rollup/rollup-linux-loong64-gnu'
+  - '@rollup/rollup-linux-loong64-musl'
+  - '@rollup/rollup-linux-powerpc64le-gnu'
+  - '@rollup/rollup-linux-ppc64-musl'
+  - '@rollup/rollup-linux-riscv64-gnu'
+  - '@rollup/rollup-linux-riscv64-musl'
+  - '@rollup/rollup-linux-s390x-gnu'
+  - '@rollup/rollup-linux-x64-gnu'
+  - '@rollup/rollup-linux-x64-musl'
+  - '@rollup/rollup-openharmony-arm64'
+  - '@rollup/rollup-win32-arm64-msvc'
+  - '@rollup/rollup-win32-ia32-msvc'
+  - '@rollup/rollup-win32-x64-msvc'
+  - '@rollup/rollup-openbsd-x64'
+  - '@rollup/rollup-win32-x64-gnu'
+  - '@rollup/rollup-linux-ppc64-gnu'
 
 # ── Block lifecycle scripts ──────────────────────────────
 # Hard-block ALL build scripts. Specific packages are re-enabled
