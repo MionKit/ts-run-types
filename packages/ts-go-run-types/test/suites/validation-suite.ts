@@ -1241,8 +1241,40 @@ export const VALIDATION_SUITE = {
       ],
     },
 
-    // mion has no unknown.spec.ts — UnknownRunType extends AnyRunType
-    // with no spec coverage. Intentionally omitted.
+    // `unknown` — like `any`, every value passes. UnknownRunType
+    // extends AnyRunType in mion (no isType emit), so both kinds
+    // collapse to a noop validator. Mion's own suite skips this; we
+    // include it here for full TS keyword coverage so a regression
+    // can't silently change the always-pass semantics.
+    unknown: {
+      title: 'Unknown type — every value passes',
+      isTypeNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
+      isType: () => createIsType<unknown>(),
+      deserializeIsType: () => deserializeIsType<unknown>(),
+      isTypeReflect: () => {
+        const v: unknown = null;
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: unknown = null;
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<unknown>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<unknown>(),
+      getTypeErrorsReflect: () => {
+        const v: unknown = null;
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: unknown = null;
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [null, undefined, 42, 'hello', true, {}, [], Symbol(), () => null, new Date()],
+        invalid: [],
+      }),
+      getExpectedErrors: () => [],
+    },
   },
 
   // ARRAY — ported from mion's packages/run-types/src/nodes/member/array.spec.ts
@@ -2064,6 +2096,45 @@ export const VALIDATION_SUITE = {
         [{path: [], expected: 'array'}],
         [{path: [], expected: 'array'}],
         [{path: [], expected: 'array'}],
+      ],
+    },
+
+    readonly_string_array: {
+      title: 'Readonly array (ReadonlyArray<T> / readonly T[])',
+      description:
+        '`readonly T[]` and `ReadonlyArray<T>` are the same type at runtime — the readonly bit is a TS-only modifier erased at emit. Regression check that both forms produce the same validator as the bare `T[]` shape.',
+      isTypeNotes:
+        'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
+      isType: () => createIsType<ReadonlyArray<string>>(),
+      deserializeIsType: () => deserializeIsType<ReadonlyArray<string>>(),
+      isTypeReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<ReadonlyArray<string>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<ReadonlyArray<string>>(),
+      getTypeErrorsReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [[], ['hello'], ['a', 'b', 'c']],
+        invalid: ['not array', null, undefined, [42], [null]],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'string'}],
+        [{path: [0], expected: 'string'}],
       ],
     },
   },
@@ -3895,6 +3966,251 @@ export const VALIDATION_SUITE = {
         [{path: ['n'], expected: 'number'}],
       ],
     },
+
+    interface_inheritance: {
+      title: 'Interface that extends a parent interface',
+      description:
+        "TS `interface Child extends Base {…}` — inherited props are merged into the child's RunType.Children by tsgo's GetPropertiesOfType. The validator's emit walks the merged set; runtime behaviour matches a hand-flattened object literal.",
+      isTypeNotes:
+        '`extends` is resolved at the type-checker layer — the runtype carries every inherited prop directly in its children list, so the validator does NOT separately walk the parent type.',
+      isType: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        return createIsType<Child>();
+      },
+      deserializeIsType: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        return deserializeIsType<Child>();
+      },
+      isTypeReflect: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        const v: Child = {a: 'x', b: 1};
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        const v: Child = {a: 'x', b: 1};
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        return createGetTypeErrors<Child>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        return deserializeGetTypeErrors<Child>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        const v: Child = {a: 'x', b: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        const v: Child = {a: 'x', b: 1};
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {a: 'x', b: 1},
+          {a: '', b: 0},
+        ],
+        invalid: [
+          {a: 'x'}, // missing b (inherited check still applies)
+          {b: 1}, // missing a (parent prop)
+          {a: 1, b: 1}, // a wrong type
+          null,
+          undefined,
+        ],
+      }),
+      getExpectedErrors: () => [
+        [{path: ['b'], expected: 'number'}],
+        [{path: ['a'], expected: 'string'}],
+        [{path: ['a'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+      ],
+    },
+
+    class_inheritance: {
+      title: 'Class that extends a parent class',
+      description:
+        'TS `class Sub extends Base {…}` — same merging as interface inheritance, but on the KindClass branch. Inherited data members appear in the child class\'s Children alongside its own.',
+      isType: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return createIsType<Sub>();
+      },
+      deserializeIsType: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return deserializeIsType<Sub>();
+      },
+      isTypeReflect: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        const v: Sub = new Sub();
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        const v: Sub = new Sub();
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return createGetTypeErrors<Sub>();
+      },
+      deserializeGetTypeErrors: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return deserializeGetTypeErrors<Sub>();
+      },
+      getTypeErrorsReflect: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        const v: Sub = new Sub();
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        const v: Sub = new Sub();
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {a: 'x', b: 1},
+          {a: '', b: 0},
+        ],
+        invalid: [
+          {a: 'x'}, // missing inherited b
+          {b: 1}, // missing inherited a
+          {a: 'x', b: 'not number'},
+          null,
+          undefined,
+        ],
+      }),
+      getExpectedErrors: () => [
+        [{path: ['b'], expected: 'number'}],
+        [{path: ['a'], expected: 'string'}],
+        [{path: ['b'], expected: 'number'}],
+        [{path: [], expected: 'class'}],
+        [{path: [], expected: 'class'}],
+      ],
+    },
+
+    index_signature_number_key: {
+      title: 'Index signature with a number key',
+      description:
+        '`{[k: number]: T}` — TS lets you declare number-keyed index signatures. JS object keys are always strings at runtime, so the resolver normalises this to the same shape as `{[k: string]: T}` and the validator behaves identically.',
+      isTypeNotes:
+        'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
+      isType: () => createIsType<{[k: number]: string}>(),
+      deserializeIsType: () => deserializeIsType<{[k: number]: string}>(),
+      isTypeReflect: () => {
+        const v: {[k: number]: string} = {};
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {[k: number]: string} = {};
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<{[k: number]: string}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[k: number]: string}>(),
+      getTypeErrorsReflect: () => {
+        const v: {[k: number]: string} = {};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {[k: number]: string} = {};
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [{}, {0: 'x'}, {1: 'x', 2: 'y'}],
+        invalid: [{0: 1}, null, 'not object', undefined, {0: null}],
+      }),
+      getExpectedErrors: () => [
+        [{path: ['0'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['0'], expected: 'string'}],
+      ],
+    },
   },
   // TUPLE — ports `isType` test coverage from mion's
   // packages/run-types/src/nodes/collection/tuple.spec.ts and
@@ -4405,6 +4721,135 @@ export const VALIDATION_SUITE = {
         [{path: [], expected: 'tuple'}],
         [{path: [1], expected: 'undefined'}],
         [{path: [0], expected: 'number'}],
+      ],
+    },
+
+    empty_tuple: {
+      title: 'Empty tuple `[]` (only the empty array passes)',
+      description:
+        'Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors mion\'s `children.length === 0` branch.',
+      isType: () => createIsType<[]>(),
+      deserializeIsType: () => deserializeIsType<[]>(),
+      isTypeReflect: () => {
+        const v: [] = [];
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [] = [];
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[]>(),
+      getTypeErrorsReflect: () => {
+        const v: [] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [] = [];
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [[]],
+        invalid: [['extra'], [1], null, undefined, {}, 'not array', [null]],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+      ],
+    },
+
+    single_element_tuple: {
+      title: 'Single-element tuple `[T]`',
+      description:
+        'One-slot tuple — corner case for the length-bound check (length must be exactly 1 modulo optional / rest). Exercises the same emit shape as multi-element tuples but with a single member.',
+      isType: () => createIsType<[string]>(),
+      deserializeIsType: () => deserializeIsType<[string]>(),
+      isTypeReflect: () => {
+        const v: [string] = ['x'];
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [string] = ['x'];
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<[string]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string]>(),
+      getTypeErrorsReflect: () => {
+        const v: [string] = ['x'];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [string] = ['x'];
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [['hello'], ['']],
+        invalid: [[], [42], ['hello', 'extra'], null, undefined, [null], 'not array'],
+      }),
+      getExpectedErrors: () => [
+        // [] — length 0, falls into else; slot 0 (undefined) fails string.
+        [{path: [0], expected: 'string'}],
+        // [42] — slot 0 wrong type.
+        [{path: [0], expected: 'string'}],
+        // ['hello', 'extra'] — length 2 > 1.
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'string'}],
+        [{path: [], expected: 'tuple'}],
+      ],
+    },
+
+    readonly_tuple: {
+      title: 'Readonly tuple (readonly [T, U])',
+      description:
+        '`readonly [T, U]` — readonly modifier on a tuple type. As with arrays, the readonly bit is TS-only and erased at runtime; the validator is identical to the bare `[T, U]` shape.',
+      isType: () => createIsType<readonly [string, number]>(),
+      deserializeIsType: () => deserializeIsType<readonly [string, number]>(),
+      isTypeReflect: () => {
+        const v: readonly [string, number] = ['x', 1];
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: readonly [string, number] = ['x', 1];
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<readonly [string, number]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<readonly [string, number]>(),
+      getTypeErrorsReflect: () => {
+        const v: readonly [string, number] = ['x', 1];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: readonly [string, number] = ['x', 1];
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [
+          ['x', 1],
+          ['', 0],
+        ],
+        invalid: [[], ['x'], [1, 'x'], null, undefined, 'not array', ['x', 1, 'extra']],
+      }),
+      getExpectedErrors: () => [
+        [
+          {path: [0], expected: 'string'},
+          {path: [1], expected: 'number'},
+        ],
+        [{path: [1], expected: 'number'}],
+        [
+          {path: [0], expected: 'string'},
+          {path: [1], expected: 'number'},
+        ],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
       ],
     },
   },
@@ -8052,6 +8497,383 @@ export const VALIDATION_SUITE = {
         [{path: ['b'], expected: 'number'}],
         [{path: ['c'], expected: 'boolean'}],
         [{path: ['c'], expected: 'boolean'}],
+      ],
+    },
+
+    keyof_to_literal_union: {
+      title: 'keyof T — resolves to a union of string-literal keys',
+      description:
+        '`keyof Person` where Person has `name: string; age: number; createdAt: Date` resolves to the union `"name" | "age" | "createdAt"`. The validator is the union of three string literals.',
+      isTypeNotes:
+        '`keyof T` is resolved at the type-checker layer to a union of the prop names as literals. Validation is identical to a hand-written string literal union.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createIsType<keyof Person>();
+      },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeIsType<keyof Person>();
+      },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: keyof Person = 'name';
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: keyof Person = 'name';
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createGetTypeErrors<keyof Person>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeGetTypeErrors<keyof Person>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: keyof Person = 'name';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: keyof Person = 'name';
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: ['name', 'age', 'createdAt'],
+        invalid: ['other', '', 42, null, undefined, true, 'Name'],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
+    },
+
+    typeof_variable_query: {
+      title: 'typeof variable — type query on a runtime value',
+      description:
+        '`typeof config` where `config` is a bound value resolves to the value\'s static type. Without `as const` the type is widened (`url: string`, `port: number`); with `as const` it pins to literals. This case verifies the widened path.',
+      isTypeNotes:
+        '`typeof <variable>` reads the declared / inferred type of a value. Validation runs against the resolved shape; the value itself is discarded at type-check time.',
+      isType: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return createIsType<typeof config>();
+      },
+      deserializeIsType: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return deserializeIsType<typeof config>();
+      },
+      isTypeReflect: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return createIsType(config);
+      },
+      deserializeIsTypeReflect: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return deserializeIsType(config);
+      },
+      getTypeErrors: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return createGetTypeErrors<typeof config>();
+      },
+      deserializeGetTypeErrors: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return deserializeGetTypeErrors<typeof config>();
+      },
+      getTypeErrorsReflect: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return createGetTypeErrors(config);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return deserializeGetTypeErrors(config);
+      },
+      getSamples: () => ({
+        valid: [
+          {url: 'http://example.com', port: 8080},
+          {url: '', port: 0},
+        ],
+        invalid: [
+          {url: 'x'}, // missing port
+          {port: 80}, // missing url
+          {url: 42, port: 8080}, // wrong type
+          null,
+          undefined,
+        ],
+      }),
+      getExpectedErrors: () => [
+        [{path: ['port'], expected: 'number'}],
+        [{path: ['url'], expected: 'string'}],
+        [{path: ['url'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+      ],
+    },
+
+    indexed_access_type: {
+      title: 'Indexed access type — Person["name"] resolves to string',
+      description:
+        '`T[K]` reads the value type of a property. `Person["name"]` resolves to `string` at the type-checker layer; the validator is identical to the atomic `string` shape. Pins the resolution path through the cache.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return createIsType<Person['name']>();
+      },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return deserializeIsType<Person['name']>();
+      },
+      isTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Person['name'] = 'x';
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Person['name'] = 'x';
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return createGetTypeErrors<Person['name']>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return deserializeGetTypeErrors<Person['name']>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Person['name'] = 'x';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Person['name'] = 'x';
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: ['hello', ''],
+        invalid: [42, null, undefined, true],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+      ],
+    },
+
+    conditional_type_resolved: {
+      title: 'Conditional type — T extends string ? boolean : number',
+      description:
+        '`T extends U ? X : Y` resolves at the type-checker layer to either X or Y depending on T. `IsString<"hello">` resolves to `boolean` here. Validation pins that the conditional threads through to the resolved shape.',
+      isType: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        return createIsType<IsString<'hello'>>();
+      },
+      deserializeIsType: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        return deserializeIsType<IsString<'hello'>>();
+      },
+      isTypeReflect: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        const v: IsString<'hello'> = true;
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        const v: IsString<'hello'> = true;
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        return createGetTypeErrors<IsString<'hello'>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        return deserializeGetTypeErrors<IsString<'hello'>>();
+      },
+      getTypeErrorsReflect: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        const v: IsString<'hello'> = true;
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        const v: IsString<'hello'> = true;
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [true, false],
+        invalid: [42, 'x', null, undefined, 0, 1],
+      }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'boolean'}],
+        [{path: [], expected: 'boolean'}],
+        [{path: [], expected: 'boolean'}],
+        [{path: [], expected: 'boolean'}],
+        [{path: [], expected: 'boolean'}],
+        [{path: [], expected: 'boolean'}],
+      ],
+    },
+
+    mapped_type_custom: {
+      title: 'Custom mapped type — {[K in keyof T]: T[K] | null}',
+      description:
+        'A user-authored mapped type that augments every prop with `| null`. Tests that resolver + emit thread custom mapped types correctly; Partial / Required / Pick etc. exercise the same machinery via the built-in utility paths.',
+      isType: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        return createIsType<Nullable<Source>>();
+      },
+      deserializeIsType: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        return deserializeIsType<Nullable<Source>>();
+      },
+      isTypeReflect: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        const v: Nullable<Source> = {a: 'x', b: 1};
+        return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        const v: Nullable<Source> = {a: 'x', b: 1};
+        return deserializeIsType(v);
+      },
+      getTypeErrors: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        return createGetTypeErrors<Nullable<Source>>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        return deserializeGetTypeErrors<Nullable<Source>>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        const v: Nullable<Source> = {a: 'x', b: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        const v: Nullable<Source> = {a: 'x', b: 1};
+        return deserializeGetTypeErrors(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {a: 'x', b: 1},
+          {a: null, b: 1},
+          {a: 'x', b: null},
+          {a: null, b: null},
+        ],
+        invalid: [
+          {a: 42, b: 1}, // a not string|null
+          {a: 'x', b: 'not number'}, // b not number|null
+          {b: 1}, // missing a (undefined ∉ string|null)
+          null,
+          undefined,
+        ],
+      }),
+      // Each prop's value is a union (string|null or number|null), so
+      // mismatched values produce union-failure errors at the prop path.
+      getExpectedErrors: () => [
+        [{path: ['a'], expected: 'union'}],
+        [{path: ['b'], expected: 'union'}],
+        [{path: ['a'], expected: 'union'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
       ],
     },
   },
