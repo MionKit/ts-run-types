@@ -59,10 +59,13 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindClass:
 		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone:
+		case protocol.SubKindDate, protocol.SubKindNone,
+			protocol.SubKindMap, protocol.SubKindSet:
 			return true
 		}
 		return false
+	case protocol.KindPromise:
+		return true
 	}
 	return false
 }
@@ -145,15 +148,22 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 
 	case protocol.KindClass:
 		// Date is reconstructed from its ISO string via `new Date(v)`.
-		if rt.SubKind == protocol.SubKindDate {
-			// mion:nodes/atomic/date.ts:23 — `new Date(v)`.
+		switch rt.SubKind {
+		case protocol.SubKindDate:
 			return JitCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
-		}
-		if rt.SubKind == protocol.SubKindNone {
-			// User class — same emit body as KindObjectLiteral.
+		case protocol.SubKindNone:
 			return emitObjectRestoreFromJson(rt, ctx, v)
+		case protocol.SubKindMap:
+			return JitCode{Code: v + " = new Map(" + v + ")", Type: CodeE}
+		case protocol.SubKindSet:
+			return JitCode{Code: v + " = new Set(" + v + ")", Type: CodeE}
 		}
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindPromise:
+		// Promise — non-serializable. Noop restore (round-trip is
+		// intentionally lossy on this boundary).
+		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectRestoreFromJson(rt, ctx, v)

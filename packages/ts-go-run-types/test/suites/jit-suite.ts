@@ -9037,6 +9037,26 @@ export const JIT_SUITE = {
         const v: Map<string, number> = new Map();
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<Map<string, number>>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Map<string, number>>(),
+      prepareForJsonReflect: () => {
+        const v: Map<string, number> = new Map();
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Map<string, number> = new Map();
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Map<string, number>>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Map<string, number>>(),
+      restoreFromJsonReflect: () => {
+        const v: Map<string, number> = new Map();
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Map<string, number> = new Map();
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => {
         const empty = new Map();
         const one = new Map([['a', 1]]);
@@ -9091,6 +9111,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Set<string> = new Set();
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<Set<string>>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Set<string>>(),
+      prepareForJsonReflect: () => {
+        const v: Set<string> = new Set();
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Set<string> = new Set();
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Set<string>>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Set<string>>(),
+      restoreFromJsonReflect: () => {
+        const v: Set<string> = new Set();
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Set<string> = new Set();
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => {
         const empty = new Set<string>();
@@ -9147,6 +9187,32 @@ export const JIT_SUITE = {
         const v: Promise<string> = Promise.resolve('x');
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<Promise<string>>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Promise<string>>(),
+      prepareForJsonReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Promise<string>>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Promise<string>>(),
+      restoreFromJsonReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return deserializeRestoreFromJson(v);
+      },
+      // Promise / thenable round-trip is inherently lossy: JSON.stringify
+      // produces `{}` for both (no enumerable own props on a Promise;
+      // the `then` function gets dropped on a thenable). mion's emit
+      // throws for non-serializable types at JIT-compile time; we
+      // soft-skip the round-trip samples instead.
+      getRoundTripValid: () => [],
       getSamples: () => {
         const realPromise = Promise.resolve('x');
         const thenable = {then: () => null};
@@ -9194,6 +9260,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Awaited<Promise<string>> = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<Awaited<Promise<string>>>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Awaited<Promise<string>>>(),
+      prepareForJsonReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Awaited<Promise<string>>>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Awaited<Promise<string>>>(),
+      restoreFromJsonReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', ''],

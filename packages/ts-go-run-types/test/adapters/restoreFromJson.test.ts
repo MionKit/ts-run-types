@@ -202,3 +202,19 @@ describe('restoreFromJson / TUPLE', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.TUPLE).length);
   });
 });
+
+describe('restoreFromJson / NATIVE', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Map with string keys and number values', () => assertRestoreFromJson(JIT_SUITE.NATIVE.map_string_number));
+  it('Set of strings', () => assertRestoreFromJson(JIT_SUITE.NATIVE.set_string));
+  it('Promise — thenable check, wrapped type not validated', () => assertRestoreFromJson(JIT_SUITE.NATIVE.promise_string));
+  it('Awaited<Promise<T>> — resolves to the wrapped type', () => assertRestoreFromJson(JIT_SUITE.NATIVE.awaited_promise));
+
+  it('all native restoreFromJson tests ran', () => {
+    expect(ranTests).toBe(Object.keys(JIT_SUITE.NATIVE).length);
+  });
+});
