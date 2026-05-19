@@ -115,8 +115,8 @@ function evalCacheModule(source: string): Record<string, RunType> {
 // `getJitUtils()` so the import-time `addToJitCache(entry)` call lands
 // in a local cache we can inspect. Two rewrites:
 //
-//   1. The `import {getJitUtils} from '@mionjs/core';` statement is
-//      stripped — `new Function` evaluates in script scope, not module
+//   1. The `import {getJitUtils} from '@mionjs/ts-go-run-types';` statement
+//      is stripped — `new Function` evaluates in script scope, not module
 //      scope, so `import` is a syntax error. The stub is supplied as
 //      a positional arg to the generated function instead.
 //   2. `export const get_isType_X = J(…);` becomes
@@ -129,7 +129,7 @@ function evalIsTypeModule(source: string): {byName: Record<string, JitEntry>; ca
       cache[entry.jitFnHash] = entry;
     },
   });
-  const js = source.replace(/^import .*from '@mionjs\/core';\s*$/m, '').replace(/export const (\w+) = /g, 'byName.$1 = ');
+  const js = source.replace(/^import .*from '@mionjs\/ts-go-run-types';\s*$/m, '').replace(/export const (\w+) = /g, 'byName.$1 = ');
   const factory = new Function('getJitUtils', 'byName', js);
   const byName: Record<string, JitEntry> = {};
   factory(stub, byName);

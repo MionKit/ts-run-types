@@ -45,7 +45,7 @@ func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 //     redundant. ES modules are strict by default, but the directive
 //     is kept as a marker for readers and for non-ESM evaluation paths
 //     (e.g. tests that eval the module body via `new Function`).
-//   - `import {getJitUtils} from '@mionjs/core';` — the runtime registry.
+//   - `import {getJitUtils} from '@mionjs/ts-go-run-types';` — the runtime registry.
 //   - `const u = undefined;` — same wire-size trick the runtypes module
 //     uses (internal/emit/runtypes_module.go's `RT` preamble).
 //   - `const J = (…) => {…};` — the shared factory that builds a
@@ -59,7 +59,7 @@ func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 // multiple lines without awkward formatting around trailing commas.
 var isTypeFactoryPreambleLines = []string{
 	"'use strict';",
-	"import {getJitUtils} from '@mionjs/core';",
+	"import {getJitUtils} from '@mionjs/ts-go-run-types';",
 	"",
 	"const u = undefined;",
 	"const J = (jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) => {",
