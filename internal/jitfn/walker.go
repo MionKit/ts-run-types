@@ -106,12 +106,32 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 		panic("jitfn: emitter returned empty Args()")
 	}
 	return &Walker{
-		RootType:     rt,
-		FnName:       fnName,
-		Emitter:      emitter,
-		Vλl:          args[0].Name,
-		ContextItems: newOrderedItems(),
+		RootType:           rt,
+		FnName:             fnName,
+		Emitter:            emitter,
+		Vλl:                args[0].Name,
+		ContextItems:       newOrderedItems(),
+		JitDependencies:    []string{},
+		PureFnDependencies: []string{},
 	}
+}
+
+// UpdateDependencies records childHash as a jit dependency unless it's
+// a noop or already tracked. v1 atomic emitters never call this; future
+// composite-kind emitters invoke it at child-emit points so the parent's
+// `jitDependencies` slot on the rendered JitCompiledFn entry reflects
+// every nested validator the body reaches via `utl.getJIT(<hash>)(…)`.
+// Mirrors mion's BaseFnCompiler.updateDependencies (jitFnCompiler.ts:222).
+func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
+	if childIsNoop {
+		return
+	}
+	for _, existing := range w.JitDependencies {
+		if existing == childHash {
+			return
+		}
+	}
+	w.JitDependencies = append(w.JitDependencies, childHash)
 }
 
 // Compile walks RootType, drives the Emitter, finalizes, and returns
