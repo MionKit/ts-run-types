@@ -21,11 +21,12 @@ func TestIsTypeModule_PreamblePresent(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	for _, line := range []string{
 		"'use strict';",
-		"import {getJitUtils} from '@mionjs/ts-go-run-types';",
 		"const u = undefined;",
+		"export function install(utl) {",
 		"const J = (jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) => {",
 		"utl.addToJitCache(entry);",
 		"return entry;",
+		"return {",
 	} {
 		if !strings.Contains(out, line) {
 			t.Errorf("preamble missing line %q in:\n%s", line, out)
@@ -33,10 +34,23 @@ func TestIsTypeModule_PreamblePresent(t *testing.T) {
 	}
 }
 
+func TestIsTypeModule_NoSideEffectImport(t *testing.T) {
+	out := renderToString(t, protocol.Dump{})
+	if strings.Contains(out, "import ") {
+		t.Errorf("rendered module must not import anything at top-level (pure module), got:\n%s", out)
+	}
+	if strings.Contains(out, "getJitUtils()") {
+		t.Errorf("rendered module must not invoke getJitUtils() — utl is supplied via install(utl), got:\n%s", out)
+	}
+}
+
 func TestIsTypeModule_EmptyDump(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	if strings.Contains(out, "export const") {
-		t.Errorf("expected no entries in empty dump, got:\n%s", out)
+		t.Errorf("module no longer emits named export consts; got:\n%s", out)
+	}
+	if !strings.Contains(out, "export function install") {
+		t.Errorf("empty dump must still emit the install() function shell, got:\n%s", out)
 	}
 }
 
@@ -45,7 +59,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
 	out := renderToString(t, dump)
-	want := "export const get_isType_abc123 = J(" +
+	want := "    get_isType_abc123: J(" +
 		"'abc123'," +
 		"'string'," +
 		"'return typeof v === \\'string\\''," +
@@ -53,7 +67,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 		"[]," +
 		"[]," +
 		"function get_isType_abc123(utl){return function isType_abc123(v){return typeof v === 'string'}}" +
-		");"
+		"),"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
 	}
