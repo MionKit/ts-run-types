@@ -46,10 +46,6 @@ importers:
         version: 2.1.9(@types/node@24.12.2)
 
   packages/ts-go-run-types:
-    dependencies:
-      '@mionjs/core':
-        specifier: 0.8.10
-        version: 0.8.10
     devDependencies:
       vite-plugin-runtypes:
         specifier: workspace:*
@@ -451,9 +447,6 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
-
-  '@mionjs/core@0.8.10':
-    resolution: {integrity: sha512-52jjhynFDeuOEx6fpt8ljXkKFcyy0CqFMyXVZ2SRGyydwXVOrUBb5kzy3yicnnchT6QdKMUVd3ieuGBBlsJp5g==}
 
   '@napi-rs/wasm-runtime@0.2.4':
     resolution: {integrity: sha512-9zESzOO5aDByvhIAsOy9TbpZ0Ur2AJbUI7UT73kcUTS2mxAMHOBaa1st/jAymNoCtvrit99kkzT1FZuXVcgfIQ==}
@@ -3392,8 +3385,6 @@ snapshots:
       '@sinclair/typebox': 0.34.49
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
-
-  '@mionjs/core@0.8.10': {}
 
   '@napi-rs/wasm-runtime@0.2.4':
     dependencies:

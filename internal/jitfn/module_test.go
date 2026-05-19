@@ -21,7 +21,7 @@ func TestIsTypeModule_PreamblePresent(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	for _, line := range []string{
 		"'use strict';",
-		"import {getJitUtils} from '@mionjs/core';",
+		"import {getJitUtils} from '@mionjs/ts-go-run-types';",
 		"const u = undefined;",
 		"const J = (jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) => {",
 		"utl.addToJitCache(entry);",
