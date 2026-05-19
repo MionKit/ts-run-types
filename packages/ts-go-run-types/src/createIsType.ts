@@ -1,4 +1,3 @@
-import {getJitUtils, type JITUtils} from '@mionjs/core';
 import * as factories from 'virtual:runtypes-isType';
 import type {RuntypeId} from './index.ts';
 
@@ -29,11 +28,18 @@ const validatorCache = new Map<string, IsTypeFn>();
  *
  *  At compile time `vite-plugin-runtypes` rewrites every call site to
  *  inject the trailing `RuntypeId<T>` hash, so the runtime path just
- *  looks the factory up by name and caches the returned validator.
+ *  reads the precompiled `JitCompiledFn` entry off the named export and
+ *  caches its `.fn` validator.
+ *
+ *  The `virtual:runtypes-isType` module is self-registering — each
+ *  named export is the same `JitCompiledFn` entry the module already
+ *  pushed into mion's shared `jitFnsCache` via `addToJitCache` at
+ *  import time. We read `.fn` off the named export rather than going
+ *  through the cache so the lookup stays local to this package.
  *
  *  Throws when called without the plugin active (no `id` injected) or
- *  when the factory module doesn't contain the expected hash — both
- *  indicate the build pipeline didn't wire correctly. **/
+ *  when the module doesn't contain an entry for the expected hash —
+ *  both indicate the build pipeline didn't wire correctly. **/
 export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   if (id === undefined) {
     throw new Error(
@@ -43,18 +49,13 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   const cached = validatorCache.get(id);
   if (cached) return cached;
   const factoryName = ISTYPE_FACTORY_PREFIX + id;
-  const factory = (factories as unknown as Record<string, (utl: JITUtils) => IsTypeFn>)[factoryName];
-  if (!factory) {
+  const entry = (factories as unknown as Record<string, {fn: IsTypeFn} | undefined>)[factoryName];
+  if (!entry) {
     throw new Error(
-      `createIsType(): no factory named "${factoryName}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for runtype "${id}".`
+      `createIsType(): no entry named "${factoryName}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for runtype "${id}".`
     );
   }
-  // `utl` is mion's shared JIT registry. Factory bodies look up nested
-  // jit functions and pure helpers through it (`utl.getJitFn(hash)`,
-  // `utl.usePureFn(ns, name)`, etc), and mion guarantees single-instance
-  // state across the process — so resolving it once per call is fine.
-  // Primitives like `isString` ignore the param; composite types use it.
-  const validator = factory(getJitUtils());
+  const validator = entry.fn;
   validatorCache.set(id, validator);
   return validator;
 }
