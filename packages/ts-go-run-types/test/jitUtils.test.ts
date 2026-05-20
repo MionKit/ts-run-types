@@ -16,156 +16,155 @@ const {jitFnsCache, pureFnsCache} = getJitFnCaches() as {jitFnsCache: JitFunctio
  * This function merges the provided cache data into the existing caches without overwriting existing entries.
  */
 function loadJitCachesCaches(caches: {jitFnsCache?: JitFunctionsCache; pureFnsCache?: PureFunctionsCache}) {
-    if (caches.jitFnsCache) {
-        for (const [key, value] of Object.entries(caches.jitFnsCache)) {
-            if (!(key in jitFnsCache)) {
-                jitFnsCache[key] = value;
-            }
-        }
+  if (caches.jitFnsCache) {
+    for (const [key, value] of Object.entries(caches.jitFnsCache)) {
+      if (!(key in jitFnsCache)) {
+        jitFnsCache[key] = value;
+      }
     }
-    if (caches.pureFnsCache) {
-        for (const [key, value] of Object.entries(caches.pureFnsCache)) {
-            if (!(key in pureFnsCache)) {
-                pureFnsCache[key] = value;
-            }
-        }
+  }
+  if (caches.pureFnsCache) {
+    for (const [key, value] of Object.entries(caches.pureFnsCache)) {
+      if (!(key in pureFnsCache)) {
+        pureFnsCache[key] = value;
+      }
     }
+  }
 }
 
 describe('jitUtils', () => {
-    it('should load compiled JIT functions cache from cache data', () => {
-        // Create a test JIT cache data
-        const testJitCache = {
-            testJitFn: {
-                typeName: 'TestType',
-                fnID: 'isType',
-                jitFnHash: 'testJitFn',
-                args: {vλl: 'v'},
-                defaultParamValues: {vλl: ''},
-                code: 'return true;',
-                jitDependencies: new Set<string>(),
-                pureFnDependencies: new Set<string>(),
-                fn: () => true,
-                createJitFn: () => () => true,
-            },
-        };
+  it('should load compiled JIT functions cache from cache data', () => {
+    // Create a test JIT cache data
+    const testJitCache = {
+      testJitFn: {
+        typeName: 'TestType',
+        fnID: 'isType',
+        jitFnHash: 'testJitFn',
+        args: {vλl: 'v'},
+        defaultParamValues: {vλl: ''},
+        code: 'return true;',
+        jitDependencies: new Set<string>(),
+        pureFnDependencies: new Set<string>(),
+        fn: () => true,
+        createJitFn: () => () => true,
+      },
+    };
 
-        // Get initial cache state
-        const initialCaches = getJitFnCaches();
-        const initialJitCacheSize = Object.keys(initialCaches.jitFnsCache).length;
+    // Get initial cache state
+    const initialCaches = getJitFnCaches();
+    const initialJitCacheSize = Object.keys(initialCaches.jitFnsCache).length;
 
-        // Load the compiled cache
-        loadJitCachesCaches({jitFnsCache: testJitCache});
+    // Load the compiled cache
+    loadJitCachesCaches({jitFnsCache: testJitCache});
 
-        // Verify the cache was loaded
-        const updatedCaches = getJitFnCaches();
-        const updatedJitCacheSize = Object.keys(updatedCaches.jitFnsCache).length;
+    // Verify the cache was loaded
+    const updatedCaches = getJitFnCaches();
+    const updatedJitCacheSize = Object.keys(updatedCaches.jitFnsCache).length;
 
-        expect(updatedJitCacheSize).toBeGreaterThan(initialJitCacheSize);
-        expect(updatedCaches.jitFnsCache).toHaveProperty('testJitFn');
-    });
+    expect(updatedJitCacheSize).toBeGreaterThan(initialJitCacheSize);
+    expect(updatedCaches.jitFnsCache).toHaveProperty('testJitFn');
+  });
 
-    it('should load compiled pure functions cache from cache data', () => {
-        // Create a test pure functions cache data (namespaced structure)
-        const testPureCache: PureFunctionsCache = {
-            testNamespace: {
-                testPureFn: {
-                    namespace: 'testNamespace',
-                    paramNames: ['a', 'b'],
-                    fnName: 'testPureFn',
-                    bodyHash: 'testPureFn_hash',
-                    code: 'return (a, b) => a + b;',
-                    pureFnDependencies: [],
-                    createPureFn: () => (a: number, b: number) => a + b,
-                    fn: (a: number, b: number) => a + b,
-                },
-            },
-        };
+  it('should load compiled pure functions cache from cache data', () => {
+    // Create a test pure functions cache data (namespaced structure)
+    const testPureCache: PureFunctionsCache = {
+      testNamespace: {
+        testPureFn: {
+          namespace: 'testNamespace',
+          paramNames: ['a', 'b'],
+          fnName: 'testPureFn',
+          bodyHash: 'testPureFn_hash',
+          code: 'return (a, b) => a + b;',
+          pureFnDependencies: [],
+          createPureFn: () => (a: number, b: number) => a + b,
+          fn: (a: number, b: number) => a + b,
+        },
+      },
+    };
 
-        // Get initial cache state
-        const initialCaches = getJitFnCaches();
-        const initialPureCacheSize = Object.keys(initialCaches.pureFnsCache).length;
+    // Get initial cache state
+    const initialCaches = getJitFnCaches();
+    const initialPureCacheSize = Object.keys(initialCaches.pureFnsCache).length;
 
-        // Load the compiled cache
-        loadJitCachesCaches({pureFnsCache: testPureCache});
+    // Load the compiled cache
+    loadJitCachesCaches({pureFnsCache: testPureCache});
 
-        // Verify the cache was loaded
-        const updatedCaches = getJitFnCaches();
-        const updatedPureCacheSize = Object.keys(updatedCaches.pureFnsCache).length;
+    // Verify the cache was loaded
+    const updatedCaches = getJitFnCaches();
+    const updatedPureCacheSize = Object.keys(updatedCaches.pureFnsCache).length;
 
-        expect(updatedPureCacheSize).toBeGreaterThan(initialPureCacheSize);
-        expect(updatedCaches.pureFnsCache).toHaveProperty('testNamespace');
-        expect(updatedCaches.pureFnsCache.testNamespace).toHaveProperty('testPureFn');
-    });
+    expect(updatedPureCacheSize).toBeGreaterThan(initialPureCacheSize);
+    expect(updatedCaches.pureFnsCache).toHaveProperty('testNamespace');
+    expect(updatedCaches.pureFnsCache.testNamespace).toHaveProperty('testPureFn');
+  });
 
-    it('should handle empty cache data gracefully', () => {
-        // This should not throw an error
-        expect(() => loadJitCachesCaches({})).not.toThrow();
-        expect(() => loadJitCachesCaches({jitFnsCache: {}})).not.toThrow();
-        expect(() => loadJitCachesCaches({pureFnsCache: {}})).not.toThrow();
-    });
+  it('should handle empty cache data gracefully', () => {
+    // This should not throw an error
+    expect(() => loadJitCachesCaches({})).not.toThrow();
+    expect(() => loadJitCachesCaches({jitFnsCache: {}})).not.toThrow();
+    expect(() => loadJitCachesCaches({pureFnsCache: {}})).not.toThrow();
+  });
 
-    it('should not overwrite existing cache entries', () => {
-        const firstCache = {
-            testFn1: {
-                typeName: 'TestType1',
-                fnID: 'isType',
-                jitFnHash: 'testFn1',
-                args: {vλl: 'v'},
-                defaultParamValues: {vλl: ''},
-                code: 'return true;',
-                jitDependencies: new Set<string>(),
-                pureFnDependencies: new Set<string>(),
-                fn: () => true,
-                createJitFn: () => () => true,
-            },
-        };
+  it('should not overwrite existing cache entries', () => {
+    const firstCache = {
+      testFn1: {
+        typeName: 'TestType1',
+        fnID: 'isType',
+        jitFnHash: 'testFn1',
+        args: {vλl: 'v'},
+        defaultParamValues: {vλl: ''},
+        code: 'return true;',
+        jitDependencies: new Set<string>(),
+        pureFnDependencies: new Set<string>(),
+        fn: () => true,
+        createJitFn: () => () => true,
+      },
+    };
 
-        const secondCache = {
-            testFn1: {
-                // Same key as first cache - should NOT overwrite
-                typeName: 'TestType2',
-                fnID: 'isType',
-                jitFnHash: 'testFn1',
-                args: {vλl: 'v'},
-                defaultParamValues: {vλl: ''},
-                code: 'return false;',
-                jitDependencies: new Set<string>(),
-                pureFnDependencies: new Set<string>(),
-                fn: () => false,
-                createJitFn: () => () => false,
-            },
-            testFn2: {
-                // New key - should be added
-                typeName: 'TestType2',
-                fnID: 'isType',
-                jitFnHash: 'testFn2',
-                args: {vλl: 'v'},
-                defaultParamValues: {vλl: ''},
-                code: 'return false;',
-                jitDependencies: new Set<string>(),
-                pureFnDependencies: new Set<string>(),
-                fn: () => false,
-                createJitFn: () => () => false,
-            },
-        };
+    const secondCache = {
+      testFn1: {
+        // Same key as first cache - should NOT overwrite
+        typeName: 'TestType2',
+        fnID: 'isType',
+        jitFnHash: 'testFn1',
+        args: {vλl: 'v'},
+        defaultParamValues: {vλl: ''},
+        code: 'return false;',
+        jitDependencies: new Set<string>(),
+        pureFnDependencies: new Set<string>(),
+        fn: () => false,
+        createJitFn: () => () => false,
+      },
+      testFn2: {
+        // New key - should be added
+        typeName: 'TestType2',
+        fnID: 'isType',
+        jitFnHash: 'testFn2',
+        args: {vλl: 'v'},
+        defaultParamValues: {vλl: ''},
+        code: 'return false;',
+        jitDependencies: new Set<string>(),
+        pureFnDependencies: new Set<string>(),
+        fn: () => false,
+        createJitFn: () => () => false,
+      },
+    };
 
-        // Load first cache
-        loadJitCachesCaches({jitFnsCache: firstCache});
+    // Load first cache
+    loadJitCachesCaches({jitFnsCache: firstCache});
 
-        const cachesAfterFirst = getJitFnCaches();
-        expect(cachesAfterFirst.jitFnsCache).toHaveProperty('testFn1');
-        expect(cachesAfterFirst.jitFnsCache.testFn1?.typeName).toBe('TestType1');
+    const cachesAfterFirst = getJitFnCaches();
+    expect(cachesAfterFirst.jitFnsCache).toHaveProperty('testFn1');
+    expect(cachesAfterFirst.jitFnsCache.testFn1?.typeName).toBe('TestType1');
 
-        // Load second cache - should not overwrite testFn1 but should add testFn2
-        loadJitCachesCaches({jitFnsCache: secondCache});
+    // Load second cache - should not overwrite testFn1 but should add testFn2
+    loadJitCachesCaches({jitFnsCache: secondCache});
 
-        const cachesAfterSecond = getJitFnCaches();
-        expect(cachesAfterSecond.jitFnsCache).toHaveProperty('testFn1');
-        expect(cachesAfterSecond.jitFnsCache).toHaveProperty('testFn2');
-        // testFn1 should still have the original value (not overwritten)
-        expect(cachesAfterSecond.jitFnsCache.testFn1?.typeName).toBe('TestType1');
-        expect(cachesAfterSecond.jitFnsCache.testFn2?.typeName).toBe('TestType2');
-    });
-
+    const cachesAfterSecond = getJitFnCaches();
+    expect(cachesAfterSecond.jitFnsCache).toHaveProperty('testFn1');
+    expect(cachesAfterSecond.jitFnsCache).toHaveProperty('testFn2');
+    // testFn1 should still have the original value (not overwritten)
+    expect(cachesAfterSecond.jitFnsCache.testFn1?.typeName).toBe('TestType1');
+    expect(cachesAfterSecond.jitFnsCache.testFn2?.typeName).toBe('TestType2');
+  });
 });
