@@ -64,13 +64,7 @@ export function reflectRuntypeId<T>(_value: T, id?: RuntypeId<T>): RuntypeId<T> 
 // load — the virtual module's `install` runs synchronously against the
 // utl we pass in, and we want `getJitUtils` to be a real function by
 // then through any ESM cycle.
-export {
-  getJitUtils,
-  addAOTCaches,
-  addSerializedJitCaches,
-  getJitFnCaches,
-  type JITUtils,
-} from './jit/jitUtils.ts';
+export {getJitUtils, addAOTCaches, addSerializedJitCaches, getJitFnCaches, type JITUtils} from './jit/jitUtils.ts';
 
 export {
   flattenUnionDiscriminators,
@@ -80,3 +74,6 @@ export {
 } from './unionDiscriminator.ts';
 
 export {createIsType, type IsTypeFn} from './createIsType.ts';
+
+export {registerPureFnFactory} from './jit/pureFn.ts';
+export type {ParsedFactoryFn} from './jit/types.ts';
