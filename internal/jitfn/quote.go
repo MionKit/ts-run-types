@@ -1,6 +1,10 @@
 package jitfn
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
 
 // quoteJS produces a single-quoted JS string literal, escaping the
 // characters single-quote JS evaluation cares about. Single quotes are
@@ -42,6 +46,22 @@ func stringSliceJS(xs []string) string {
 	parts := make([]string, len(xs))
 	for i, x := range xs {
 		parts[i] = quoteJS(x)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+// pureFnDepsJS projects PureFnDep triples down to the wire shape mion's
+// restoreJitFns consumes — a flat array of "<namespace>::<fnName>"
+// strings. FilePath is intentionally NOT emitted: it's a Go-only
+// safety check used at walk time to assert the referenced pure-fn
+// exists in source, not part of the runtime contract.
+func pureFnDepsJS(deps []protocol.PureFnDep) string {
+	if len(deps) == 0 {
+		return "[]"
+	}
+	parts := make([]string, len(deps))
+	for i, dep := range deps {
+		parts[i] = quoteJS(dep.Namespace + "::" + dep.FunctionName)
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }

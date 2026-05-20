@@ -158,7 +158,7 @@ func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettin
 		quoteJS(walker.Code),
 		boolJS(isNoop),
 		stringSliceJS(walker.JitDependencies),
-		stringSliceJS(walker.PureFnDependencies),
+		pureFnDepsJS(walker.PureFnDependencies),
 		createJitFn,
 	}
 	return "    " + factoryName + ": J(" + joinArgs(args) + "),"

@@ -21,27 +21,37 @@ export type PureFunction = (...args: any[]) => any;
 export type PureFunctionFactory = (jitUtils: JITUtils) => PureFunction;
 
 export interface PureFunctionData {
-    /** The namespace this pure function belongs to */
-    readonly namespace: string;
-    /** The names of the arguments of the function */
-    readonly paramNames: string[];
-    /** The code of the function closure */
-    readonly code: string;
-    /** Unique id of the function */
-    readonly fnName: string;
-    /** Hash of the function body for version validation */
-    readonly bodyHash: string;
-    /** The list of all pure functions that are used by this function and it's children. */
-    readonly pureFnDependencies?: Array<string>;
+  /** The namespace this pure function belongs to */
+  readonly namespace: string;
+  /** The names of the arguments of the function */
+  readonly paramNames: string[];
+  /** The code of the function closure */
+  readonly code: string;
+  /** Unique id of the function */
+  readonly fnName: string;
+  /** Hash of the function body for version validation */
+  readonly bodyHash: string;
+  /** The list of all pure functions that are used by this function and it's children. */
+  readonly pureFnDependencies?: Array<string>;
 }
 
 export interface CompiledPureFunction extends PureFunctionData {
-    createPureFn: PureFunctionFactory;
-    fn?: PureFunction;
+  createPureFn: PureFunctionFactory;
+  fn?: PureFunction;
 }
 
 export interface PersistedPureFunction extends CompiledPureFunction {
-    fn: undefined;
+  fn: undefined;
+}
+
+/** Pre-parsed factory function data injected at build time by the mion vite plugin */
+export interface ParsedFactoryFn {
+  /** Hash of the function body */
+  readonly bodyHash: string;
+  /** The names of the factory function parameters */
+  readonly paramNames: string[];
+  /** The normalized function body code */
+  readonly code: string;
 }
 
 // ########################################### JIT functions ##########################################
@@ -49,50 +59,50 @@ export interface PersistedPureFunction extends CompiledPureFunction {
 export type AnyFn = (...args: any[]) => any;
 
 export type JitFnArgs = {
-    /** The name of the value of to be */
-    vλl: string;
-    /** Other argument names */
-    [key: string]: string;
+  /** The name of the value of to be */
+  vλl: string;
+  /** Other argument names */
+  [key: string]: string;
 };
 
 export interface JitCompiledFnData {
-    readonly typeName: string;
-    /** The id of the function (operation) to be compiled (isType, typeErrors, prepareForJson, restoreFromJson, etc) */
-    readonly fnID: string;
-    /** Unique id of the function */
-    readonly jitFnHash: string;
-    /** The names of the arguments of the function */
-    readonly args: JitFnArgs;
-    /** Default values for the arguments */
-    readonly defaultParamValues: JitFnArgs;
-    /**
-     * This flag is set to true when the result of a jit compilation is a no operation (empty function).
-     * if this flag is set to true, the function should not be called as it will not do anything.
-     */
-    readonly isNoop?: boolean;
-    /** Code for the jit function. after the operation has been compiled */
-    readonly code: string;
-    /** The list of all jit functions that are used by this function and it's children. */
-    readonly jitDependencies?: Array<string>;
-    /** Pure function dependencies in format "namespace::fnHash" */
-    readonly pureFnDependencies?: Array<string>;
-    /** function param names if the compiled type is function params */
-    paramNames?: string[];
+  readonly typeName: string;
+  /** The id of the function (operation) to be compiled (isType, typeErrors, prepareForJson, restoreFromJson, etc) */
+  readonly fnID: string;
+  /** Unique id of the function */
+  readonly jitFnHash: string;
+  /** The names of the arguments of the function */
+  readonly args: JitFnArgs;
+  /** Default values for the arguments */
+  readonly defaultParamValues: JitFnArgs;
+  /**
+   * This flag is set to true when the result of a jit compilation is a no operation (empty function).
+   * if this flag is set to true, the function should not be called as it will not do anything.
+   */
+  readonly isNoop?: boolean;
+  /** Code for the jit function. after the operation has been compiled */
+  readonly code: string;
+  /** The list of all jit functions that are used by this function and it's children. */
+  readonly jitDependencies?: Array<string>;
+  /** Pure function dependencies in format "namespace::fnHash" */
+  readonly pureFnDependencies?: Array<string>;
+  /** function param names if the compiled type is function params */
+  paramNames?: string[];
 }
 
 export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnData {
-    /** The closure function that contains the jit function, this one contains the context code */
-    readonly createJitFn: (utl: JITUtils) => Fn;
-    /** The Jit Generated function once the compilation is finished */
-    readonly fn: Fn;
+  /** The closure function that contains the jit function, this one contains the context code */
+  readonly createJitFn: (utl: JITUtils) => Fn;
+  /** The Jit Generated function once the compilation is finished */
+  readonly fn: Fn;
 }
 
 /** Jit Functions serialized to src code file, it contains the create jit function
  * but not the actual fn as this one can not be serialized to code.
  */
 export interface PersistedJitFn extends Omit<JitCompiledFn, 'fn'> {
-    /** The Jit Generated function once the compilation is finished */
-    readonly fn: undefined;
+  /** The Jit Generated function once the compilation is finished */
+  readonly fn: undefined;
 }
 
 // ############################# JIT CACHES ###################################
@@ -117,27 +127,39 @@ export type PureFnsDataCache = Record<string, Record<string, PureFunctionData>>;
 // ########################################### Classes / helpers #########################################
 
 export interface AnyClass<T = any> {
-    new (...args: any[]): T;
+  new (...args: any[]): T;
 }
 
 export interface SerializableClass<T = any> {
-    new (): T;
+  new (): T;
 }
 
 export type Mutable<T> = {
-    -readonly [P in keyof T]: T[P];
+  -readonly [P in keyof T]: T[P];
 };
 
 // Web/DOM globals referenced by the `Native` union below — declared as
 // opaque interfaces so this file stays compilable under the package's
 // strict `types: []` config (no `dom` or `node` lib in scope). At runtime
 // each `instanceof` check resolves against the platform's real global.
-interface URL {readonly __webURL?: never}
-interface URLSearchParams {readonly __webURLSearchParams?: never}
-interface Blob {readonly __webBlob?: never}
-interface File {readonly __webFile?: never}
-interface FileList {readonly __webFileList?: never}
-interface FormData {readonly __webFormData?: never}
+interface URL {
+  readonly __webURL?: never;
+}
+interface URLSearchParams {
+  readonly __webURLSearchParams?: never;
+}
+interface Blob {
+  readonly __webBlob?: never;
+}
+interface File {
+  readonly __webFile?: never;
+}
+interface FileList {
+  readonly __webFileList?: never;
+}
+interface FormData {
+  readonly __webFormData?: never;
+}
 
 // prettier-ignore
 type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | FormData | ArrayBuffer | SharedArrayBuffer | DataView | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
@@ -146,19 +168,19 @@ type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | F
  * it takes into account, dates, objects, classes, arrays, maps and sets.
  */
 export type DataOnly<T> = T extends object
-    ? T extends Native
-        ? T
-        : T extends Function
-          ? never
-          : T extends new (...args: any[]) => any
-            ? never
-            : T extends Array<infer U>
-              ? Array<DataOnly<U>>
-              : T extends Map<infer K, infer V>
-                ? Map<DataOnly<K>, DataOnly<V>>
-                : T extends Set<infer U>
-                  ? Set<DataOnly<U>>
-                  : {[K in keyof T as T[K] extends Function ? never : K]: DataOnly<T[K]>}
-    : T;
+  ? T extends Native
+    ? T
+    : T extends Function
+      ? never
+      : T extends new (...args: any[]) => any
+        ? never
+        : T extends Array<infer U>
+          ? Array<DataOnly<U>>
+          : T extends Map<infer K, infer V>
+            ? Map<DataOnly<K>, DataOnly<V>>
+            : T extends Set<infer U>
+              ? Set<DataOnly<U>>
+              : {[K in keyof T as T[K] extends Function ? never : K]: DataOnly<T[K]>}
+  : T;
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
