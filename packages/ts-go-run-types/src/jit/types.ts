@@ -170,7 +170,7 @@ type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | F
 export type DataOnly<T> = T extends object
   ? T extends Native
     ? T
-    : T extends Function
+    : T extends (...args: any[]) => any
       ? never
       : T extends new (...args: any[]) => any
         ? never
@@ -180,7 +180,7 @@ export type DataOnly<T> = T extends object
             ? Map<DataOnly<K>, DataOnly<V>>
             : T extends Set<infer U>
               ? Set<DataOnly<U>>
-              : {[K in keyof T as T[K] extends Function ? never : K]: DataOnly<T[K]>}
+              : {[K in keyof T as T[K] extends (...args: any[]) => any ? never : K]: DataOnly<T[K]>}
   : T;
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
