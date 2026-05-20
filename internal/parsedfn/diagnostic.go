@@ -13,6 +13,16 @@ const (
 	CodeFactoryNotInline     = "PFE9003"
 	CodeBodyHashCollision    = "PFE9004"
 	CodeDestructuredParam    = "PFE9005"
+
+	// Purity-check codes — port of mion's eslint-plugin-mion
+	// `pure-functions.ts` rule. Each violation maps to a separate code so
+	// editors can show code-specific quick-fixes / docs links.
+	CodePurityThis          = "PFE9006"
+	CodePurityAwait         = "PFE9007"
+	CodePurityYield         = "PFE9008"
+	CodePurityDynamicImport = "PFE9009"
+	CodePurityForbidden     = "PFE9010"
+	CodePurityClosure       = "PFE9011"
 )
 
 // Diagnostic is a single non-fatal extractor error. The Vite plugin re-emits

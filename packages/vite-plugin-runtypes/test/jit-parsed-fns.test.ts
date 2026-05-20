@@ -121,6 +121,28 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
     });
   });
 
+  register('emits PFE9010 (forbidden identifier) for eval inside a factory body', async () => {
+    const sources = {
+      'impure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+export const x = registerPureFnFactory('mion', 'evilFn', function () {
+  return function _evil() {
+    return eval('1+1');
+  };
+});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSource: true});
+      const diags = response.parsedFnsDiagnostics ?? [];
+      const evalDiag = diags.find((diag) => diag.code === 'PFE9010' && diag.message.includes('eval'));
+      expect(evalDiag).toBeDefined();
+      // Ensure the formatted line matches the $tsc problem-matcher regex
+      // — VS Code parses build-task output through that pattern.
+      const line = formatTscDiagnostic(evalDiag!);
+      expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+error\s+PFE9010:/);
+    });
+  });
+
   register('formatTscDiagnostic renders the canonical $tsc problem-matcher line', () => {
     const line = formatTscDiagnostic({
       code: 'PFE9001',
