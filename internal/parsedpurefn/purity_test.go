@@ -1,4 +1,4 @@
-package parsedfn
+package parsedpurefn
 
 import (
 	"strings"
