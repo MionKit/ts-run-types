@@ -60,33 +60,29 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]ParsedFn, []
 		if sourceFile == nil {
 			continue
 		}
-		table := buildSymbolTable(sourceFile)
-		findCalls(sourceFile, func(call *ast.Node) {
-			entry, diags := extractOne(sourceFile, table, call)
-			diagnostics = append(diagnostics, diags...)
-			if entry == nil {
-				return
-			}
+		fileEntries, fileDiags := extractFromSourceFile(sourceFile)
+		diagnostics = append(diagnostics, fileDiags...)
+		for _, entry := range fileEntries {
 			if winnerIdx, dup := seen[entry.Key()]; dup {
 				winner := entries[winnerIdx]
 				if winner.BodyHash == entry.BodyHash {
-					return // idempotent re-registration
+					continue // idempotent re-registration
 				}
 				diagnostics = append(diagnostics, Diagnostic{
 					Code:     CodeBodyHashCollision,
 					Category: "error",
 					Message:  "Duplicate registration of \"" + entry.Key() + "\" with mismatched bodyHash",
-					Site:     siteFromCall(sourceFile, call),
+					Site:     siteFromFile(entry.sourceFile, entry.callPos),
 					Related: []RelatedSite{{
 						DiagnosticSite: siteFromFile(winner.sourceFile, winner.callPos),
 						Message:        "First registered here with bodyHash=" + winner.BodyHash,
 					}},
 				})
-				return
+				continue
 			}
 			seen[entry.Key()] = len(entries)
-			entries = append(entries, *entry)
-		})
+			entries = append(entries, entry)
+		}
 	}
 
 	sort.SliceStable(entries, func(i, j int) bool {
@@ -101,6 +97,42 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]ParsedFn, []
 			return a.StartLine < b.StartLine
 		}
 		return a.StartCol < b.StartCol
+	})
+	return entries, diagnostics
+}
+
+// extractFromFile walks a single source file resolved from lookup and
+// returns its parsed-fn entries + extractor-side diagnostics (PFE9001-
+// PFE9003 + PFE9005 + purity violations). Called both by
+// ExtractFromProgram in the main pass and by index lazy-expansion when
+// a recorded jit dep points at an unscanned file.
+//
+// Does NOT perform cross-file collision detection (PFE9004) — the
+// caller folds entries into a shared map and surfaces collisions there.
+// A nil/missing source file yields (nil, nil); the caller decides
+// whether that is an error.
+func extractFromFile(lookup SourceFileLookup, filePath string) ([]ParsedFn, []Diagnostic) {
+	sourceFile := lookup.SourceFile(filePath)
+	if sourceFile == nil {
+		return nil, nil
+	}
+	return extractFromSourceFile(sourceFile)
+}
+
+// extractFromSourceFile is the per-file extraction core: build symbol
+// table, walk every CallExpression, dispatch to extractOne. Shared by
+// the lookup-driven helper above and the original ExtractFromProgram
+// loop body (which already holds a *SourceFile in hand).
+func extractFromSourceFile(sourceFile *ast.SourceFile) ([]ParsedFn, []Diagnostic) {
+	var entries []ParsedFn
+	var diagnostics []Diagnostic
+	table := buildSymbolTable(sourceFile)
+	findCalls(sourceFile, func(call *ast.Node) {
+		entry, diags := extractOne(sourceFile, table, call)
+		diagnostics = append(diagnostics, diags...)
+		if entry != nil {
+			entries = append(entries, *entry)
+		}
 	})
 	return entries, diagnostics
 }

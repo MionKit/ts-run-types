@@ -5,18 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/walker"
 )
-
-// SourceFileLookup is the narrow program-side surface the Walker needs
-// for pure-fn integrity checks. *program.Program satisfies it without
-// jitfn taking a direct dependency on internal/program — keeps the
-// package edge clean and lets tests stub the lookup.
-type SourceFileLookup interface {
-	SourceFile(absPath string) *ast.SourceFile
-}
 
 // debugInlineEnv resolves mion's `getENV('DEBUG_JIT') === 'INLINED'`
 // branch once per process. Cheap (env vars are cached at runtime
@@ -109,10 +99,6 @@ type Walker struct {
 	// JS wire shape is unchanged.
 	JitDependencies    []string
 	PureFnDependencies []protocol.PureFnDep
-	// SourceLookup is used by AddPureFnDependency to load the file
-	// being asserted against. Optional — callers that never invoke
-	// AddPureFnDependency may leave it nil.
-	SourceLookup SourceFileLookup
 }
 
 // NewWalker primes a Walker for the given RunType + Emitter pair.
@@ -134,87 +120,28 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	}
 }
 
-// NewWalkerWithLookup is NewWalker plus a SourceFileLookup so
-// AddPureFnDependency can run its integrity check. Use this from the
-// production path (resolver / scan flow) where a *program.Program is
-// already in hand; tests that don't exercise pure-fn deps can keep
-// using the plain NewWalker.
-func NewWalkerWithLookup(rt *protocol.RunType, fnName string, emitter Emitter, lookup SourceFileLookup) *Walker {
-	w := NewWalker(rt, fnName, emitter)
-	w.SourceLookup = lookup
-	return w
-}
-
-// AddPureFnDependency validates that registerPureFnFactory(<namespace>,
-// <fnName>, ...) actually appears in filePath (Go-side AST integrity
-// check) and appends the triple to PureFnDependencies. Returns an error
-// if the file isn't in the program or no matching call is found.
-// Dedupes against existing entries on the full triple.
-func (w *Walker) AddPureFnDependency(namespace, fnName, filePath string) error {
+// AddPureFnDependency records a (namespace, fnName, filePath) triple
+// that the emitted JIT function will reach via `utl.getPureFn(<ns>,
+// <fn>)`. Idempotent on the full triple.
+//
+// No source-file walk happens here — validation is deferred to
+// end-of-compilation in the resolver. The resolver builds a single
+// *purefn.Index from the program-wide extraction and runs
+// purefn.ValidatePureFnDependencies(deps, idx, lookup) which checks
+// every dep against the index in O(1) and lazily expands the index by
+// parsing any dep filePath not yet scanned. See
+// internal/purefn/index.go for the validation surface.
+func (w *Walker) AddPureFnDependency(namespace, fnName, filePath string) {
 	for _, dep := range w.PureFnDependencies {
 		if dep.Namespace == namespace && dep.FunctionName == fnName && dep.FilePath == filePath {
-			return nil
+			return
 		}
-	}
-	if w.SourceLookup == nil {
-		return fmt.Errorf("jitfn: AddPureFnDependency requires a SourceLookup")
-	}
-	sourceFile := w.SourceLookup.SourceFile(filePath)
-	if sourceFile == nil {
-		return fmt.Errorf("jitfn: pure-fn integrity: source file not in program: %s", filePath)
-	}
-	if !findRegisterPureFnCall(sourceFile, namespace, fnName) {
-		return fmt.Errorf("jitfn: pure-fn integrity: registerPureFnFactory(%q, %q, ...) not found in %s",
-			namespace, fnName, filePath)
 	}
 	w.PureFnDependencies = append(w.PureFnDependencies, protocol.PureFnDep{
 		Namespace:    namespace,
 		FunctionName: fnName,
 		FilePath:     filePath,
 	})
-	return nil
-}
-
-// findRegisterPureFnCall scans sourceFile for a CallExpression of the
-// shape `registerPureFnFactory(<namespace>, <fnName>, ...)` with matching
-// string-literal args. Reuses internal/walker.ForEachCallExpression.
-func findRegisterPureFnCall(sourceFile *ast.SourceFile, namespace, fnName string) bool {
-	found := false
-	walker.ForEachCallExpression(sourceFile, func(call *ast.Node) bool {
-		if isRegisterPureFnFactoryCall(call, namespace, fnName) {
-			found = true
-			return false // stop descending; outer traversal still continues siblings
-		}
-		return true
-	})
-	return found
-}
-
-// isRegisterPureFnFactoryCall returns true when call is
-// `registerPureFnFactory('<namespace>', '<fnName>', ...)`. The callee
-// must be a bare Identifier (no member expression — matches the
-// vite-plugin's parsing assumption), and the first two args must be
-// string literals matching namespace/fnName.
-func isRegisterPureFnFactoryCall(call *ast.Node, namespace, fnName string) bool {
-	callExpression := call.AsCallExpression()
-	if callExpression == nil {
-		return false
-	}
-	callee := callExpression.Expression
-	if callee == nil || callee.Kind != ast.KindIdentifier || callee.Text() != "registerPureFnFactory" {
-		return false
-	}
-	if callExpression.Arguments == nil || len(callExpression.Arguments.Nodes) < 3 {
-		return false
-	}
-	args := callExpression.Arguments.Nodes
-	if args[0].Kind != ast.KindStringLiteral || args[0].Text() != namespace {
-		return false
-	}
-	if args[1].Kind != ast.KindStringLiteral || args[1].Text() != fnName {
-		return false
-	}
-	return true
 }
 
 // UpdateDependencies records childHash as a jit dependency unless it's
