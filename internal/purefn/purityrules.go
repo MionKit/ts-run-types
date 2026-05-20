@@ -1,4 +1,4 @@
-package parsedpurefn
+package purefn
 
 // Source of truth for the allow/forbid sets:
 // /home/user/mion/packages/devtools/src/eslint/rules/purityRules.ts
