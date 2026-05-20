@@ -23,6 +23,12 @@ const (
 	CodePurityDynamicImport = "PFE9009"
 	CodePurityForbidden     = "PFE9010"
 	CodePurityClosure       = "PFE9011"
+
+	// CodeMissingPureFnDep surfaces when a JIT function recorded a
+	// `utl.getPureFn(<ns>, <fn>)` dep that no scanned source file
+	// satisfies. Authored by ValidatePureFnDependencies at the end of
+	// compilation, after every contributing file has been indexed.
+	CodeMissingPureFnDep = "PFE9012"
 )
 
 // Diagnostic is a single non-fatal extractor error. The Vite plugin re-emits
