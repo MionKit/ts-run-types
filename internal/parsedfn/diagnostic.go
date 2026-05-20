@@ -1,0 +1,60 @@
+package parsedfn
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Diagnostic codes — private namespace PFE9xxx to avoid collision with
+// anything TypeScript's compiler emits (TS2xxx/TS6xxx ranges are taken).
+const (
+	CodeNamespaceNotLiteral  = "PFE9001"
+	CodeFunctionIDNotLiteral = "PFE9002"
+	CodeFactoryNotInline     = "PFE9003"
+	CodeBodyHashCollision    = "PFE9004"
+	CodeDestructuredParam    = "PFE9005"
+)
+
+// Diagnostic is a single non-fatal extractor error. The Vite plugin re-emits
+// each one via `this.warn(FormatTsc(diag))` so VS Code's `$tsc` problem
+// matcher picks it up; the build never fails on these.
+type Diagnostic struct {
+	Code     string
+	Category string // always "error" for now — see plan
+	Message  string
+	Site     DiagnosticSite
+	Related  []RelatedSite
+}
+
+// DiagnosticSite is a 1-based source location.
+type DiagnosticSite struct {
+	FilePath  string
+	StartLine int
+	StartCol  int
+	EndLine   int
+	EndCol    int
+}
+
+type RelatedSite struct {
+	DiagnosticSite
+	Message string
+}
+
+// FormatTsc renders diag in the canonical `tsc --pretty=false` line format:
+//
+//	<absPath>(<line>,<col>): <category> <code>: <message>
+//	  Related: <absPath>(<line>,<col>): <message>
+//
+// VS Code's built-in $tsc problem matcher parses this regex out of build-task
+// output and surfaces it in the Problems panel.
+func FormatTsc(diag Diagnostic) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s(%d,%d): %s %s: %s",
+		diag.Site.FilePath, diag.Site.StartLine, diag.Site.StartCol,
+		diag.Category, diag.Code, diag.Message)
+	for _, related := range diag.Related {
+		fmt.Fprintf(&b, "\n  Related: %s(%d,%d): %s",
+			related.FilePath, related.StartLine, related.StartCol, related.Message)
+	}
+	return b.String()
+}

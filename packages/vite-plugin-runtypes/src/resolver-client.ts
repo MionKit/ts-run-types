@@ -96,6 +96,8 @@ export interface ScanFilesResult {
   runTypes?: RunType[];
   cacheSource?: string;
   isTypeCacheSource?: string;
+  parsedFnsCacheSource?: string;
+  parsedFnsDiagnostics?: import('./protocol.ts').ParsedFnDiagnostic[];
 }
 
 // Common operation surface. Spawn-based and socket-based clients both
@@ -127,6 +129,8 @@ abstract class ResolverClientBase implements ResolverConnection {
       runTypes: resp.runTypes,
       cacheSource: resp.cacheSource,
       isTypeCacheSource: resp.isTypeCacheSource,
+      parsedFnsCacheSource: resp.parsedFnsCacheSource,
+      parsedFnsDiagnostics: resp.parsedFnsDiagnostics,
     };
   }
 
