@@ -24,3 +24,19 @@ declare module 'virtual:runtypes-isType' {
    *  entry. **/
   export function install(utl: JITUtils): Record<string, unknown>;
 }
+
+// `vite-plugin-runtypes` populates `virtual:runtypes-parsed-fns` by walking
+// every TS file in the program and extracting each
+// `registerPureFnFactory(<ns>, <fnName>, <factory>)` call site. The Go
+// binary AST-walks, strips TS types from the factory body, computes a
+// 14-char bodyHash, and emits the result as a JS map keyed by
+// "<namespace>::<functionID>".
+//
+// `pureFn.ts`'s `registerPureFnFactory` imports `parsedFns` from here and
+// looks up its own parsed-fn data — eliminating the prior 4th-argument
+// injection pattern.
+declare module 'virtual:runtypes-parsed-fns' {
+  import type {ParsedFactoryFn} from './jit/types.ts';
+
+  export const parsedFns: Record<string, ParsedFactoryFn>;
+}

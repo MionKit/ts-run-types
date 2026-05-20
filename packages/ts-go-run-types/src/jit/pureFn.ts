@@ -5,41 +5,47 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-import type {CompiledPureFunction, ParsedFactoryFn, PureFunctionFactory} from './types.ts';
+import {parsedFns} from 'virtual:runtypes-parsed-fns';
+import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
 import {getJitUtils, type JITUtils} from './jitUtils.ts';
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║  WARNING: This function's call signature is parsed at build time by a       ║
-// ║  vite plugin (currently @mionjs/devtools' extractPureFn; will move into     ║
-// ║  vite-plugin-runtypes in tandem with the pure-fn module emitter).           ║
-// ║  Do NOT rename, change the parameter order, or modify the function          ║
-// ║  signature without updating the corresponding AST extraction and            ║
-// ║  transformer logic.                                                         ║
+// ║  WARNING: the Go binary's AST walker keys its parsed-fn cache on the         ║
+// ║  string-literal arguments at arg-0 (namespace) and arg-1 (functionID), and   ║
+// ║  extracts {paramNames, code, bodyHash} from the inline factory at arg-2.     ║
+// ║  Do NOT rename this function, change parameter order, or replace the         ║
+// ║  factory with a non-traceable reference — the extractor emits a PFE9xxx     ║
+// ║  diagnostic (shown in the editor's Problems panel) when it can't resolve     ║
+// ║  any arg to a local literal/function.                                        ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 
 /**
- * Registers a pure function factory with automatic dependency tracking.
- * The `parsedFn` argument (containing bodyHash, paramNames, and code) is injected
- * at build time by the mion vite plugin's transform hook — it must never be passed manually.
- * If the function is already registered under the same namespace + functionID, the existing
- * compiled entry is returned (idempotent). Dependencies on other pure functions are
- * auto-detected by running the factory once with a tracking proxy.
- *
- * This is intended to share util functions between server and clients
+ * Registers a pure function factory. Looks up pre-parsed factory metadata
+ * (bodyHash, paramNames, code) from `virtual:runtypes-parsed-fns`, which the
+ * Go binary populates by AST-walking every source file in the program.
+ * Idempotent on (namespace, functionID). Auto-detects pure-fn deps by
+ * running the factory once with a tracking proxy.
  */
 export function registerPureFnFactory(
   namespace: string,
   functionID: string,
-  createPureFn: PureFunctionFactory,
-  parsedFn?: ParsedFactoryFn // injected by mion vite plugin
+  createPureFn: PureFunctionFactory
 ): CompiledPureFunction {
-  if (!parsedFn) throw new Error('registerPureFnFactory requires mion vite plugin transform to inject parsedFn');
+  const key = `${namespace}::${functionID}`;
+  const parsedFn = parsedFns[key];
+  if (!parsedFn) {
+    throw new Error(
+      `registerPureFnFactory: no parsed-fn data for "${key}". ` +
+        `vite-plugin-runtypes (via the Go binary) must process the source file containing this call.`
+    );
+  }
+
   const existing = getJitUtils().getCompiledPureFn(namespace, functionID);
   if (existing) return existing;
 
   const compiled: CompiledPureFunction = {
     createPureFn,
-    fn: null as any, // will be set later so all possible dependencies are resolved
+    fn: null as any, // resolved after dep tracking
     namespace,
     fnName: functionID,
     bodyHash: parsedFn.bodyHash,
@@ -47,13 +53,13 @@ export function registerPureFnFactory(
     code: parsedFn.code,
   };
 
-  // Run the factory once with a tracking proxy to auto-detect dependencies
+  // Run the factory once with a tracking proxy to auto-detect dependencies.
   const {proxy, getDependencies} = createDependencyTrackingProxy();
   try {
     createPureFn(proxy);
   } catch {
-    // Factory may fail if dependencies aren't registered yet, that's ok
-    // We still capture whatever was accessed before the error
+    // Factory may fail if dependencies aren't registered yet, that's ok.
+    // We still capture whatever was accessed before the error.
   }
   const detectedDeps = getDependencies();
   for (const dep of detectedDeps) {
