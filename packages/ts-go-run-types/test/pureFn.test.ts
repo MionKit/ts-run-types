@@ -78,7 +78,7 @@ it('auto-detects dependencies via proxy when factory calls getPureFn', () => {
     };
   });
   registerPureFnFactory(TEST_NAMESPACE, 'pureFunctionB', function (jUtils: JITUtils) {
-    const isA = jUtils.getPureFn(TEST_NAMESPACE, 'pureFunctionA') as (s: string, p: Params) => boolean;
+    const isA = jUtils.getPureFn('test', 'pureFunctionA') as (s: string, p: Params) => boolean;
     return function is_b(s: string, p: Params): boolean {
       const isAResult = isA(s, p);
       if (p.isB) return isAResult && s.includes('b');
@@ -146,7 +146,7 @@ describe('arrow function factory functions', () => {
       };
     });
     registerPureFnFactory(TEST_NAMESPACE, 'arrowFnB', (jUtils: JITUtils) => {
-      const isA = jUtils.getPureFn(TEST_NAMESPACE, 'arrowFnA') as (s: string, p: Params) => boolean;
+      const isA = jUtils.getPureFn('test', 'arrowFnA') as (s: string, p: Params) => boolean;
       return function is_b(s: string, p: Params): boolean {
         const isAResult = isA(s, p);
         if (p.isB) return isAResult && s.includes('b');
