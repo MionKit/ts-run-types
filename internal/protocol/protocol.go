@@ -334,7 +334,7 @@ type Response struct {
 	Error                string               `json:"error,omitempty"`
 }
 
-// ParsedFnDiagnostic is the wire shape of parsedfn.Diagnostic. The Vite
+// ParsedFnDiagnostic is the wire shape of parsedpurefn.Diagnostic. The Vite
 // plugin re-emits each one as a build warning so VS Code's $tsc problem
 // matcher surfaces it in the Problems panel.
 type ParsedFnDiagnostic struct {

@@ -16,7 +16,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/emit"
 	"github.com/mionkit/ts-run-types/internal/jitfn"
 	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/parsedfn"
+	"github.com/mionkit/ts-run-types/internal/parsedpurefn"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 	"github.com/mionkit/ts-run-types/internal/serialize"
@@ -660,10 +660,10 @@ func renderParsedFnsModule(prog *program.Program, files []string) (string, []pro
 			walkFiles = append(walkFiles, sf.FileName())
 		}
 	}
-	entries, diagnostics := parsedfn.ExtractFromProgram(prog, walkFiles)
+	entries, diagnostics := parsedpurefn.ExtractFromProgram(prog, walkFiles)
 
 	var buf bytes.Buffer
-	if err := parsedfn.ParsedFnsModule(&buf, entries); err != nil {
+	if err := parsedpurefn.ParsedFnsModule(&buf, entries); err != nil {
 		return "", nil, fmt.Errorf("renderParsedFnsModule: %w", err)
 	}
 
@@ -676,7 +676,7 @@ func renderParsedFnsModule(prog *program.Program, files []string) (string, []pro
 
 // toWireDiagnostic translates the in-Go diagnostic shape to the protocol's
 // JSON-friendly mirror. Same fields, different package edge.
-func toWireDiagnostic(diag parsedfn.Diagnostic) protocol.ParsedFnDiagnostic {
+func toWireDiagnostic(diag parsedpurefn.Diagnostic) protocol.ParsedFnDiagnostic {
 	out := protocol.ParsedFnDiagnostic{
 		Code:     diag.Code,
 		Category: diag.Category,
@@ -692,7 +692,7 @@ func toWireDiagnostic(diag parsedfn.Diagnostic) protocol.ParsedFnDiagnostic {
 	return out
 }
 
-func toWireSite(site parsedfn.DiagnosticSite) protocol.ParsedFnDiagSite {
+func toWireSite(site parsedpurefn.DiagnosticSite) protocol.ParsedFnDiagSite {
 	return protocol.ParsedFnDiagSite{
 		FilePath:  site.FilePath,
 		StartLine: site.StartLine,
