@@ -18,6 +18,10 @@ import type {
   FnsDataCache,
   CompiledPureFunction,
   PureFunction,
+  RunType,
+  RunTypesCache,
+  ParsedFn,
+  ParsedFnsDataCache,
 } from './types.ts';
 import {restoreCompiledJitFns} from './restoreJitFns.ts';
 
@@ -30,6 +34,15 @@ declare const console: {warn(...args: any[]): void};
 const jitFnsCache: JitFunctionsCache = {};
 /** Flat pure-function cache keyed by "<namespace>::<fnName>". */
 const pureFnsCache: PureFunctionsCache = {};
+/** Run-type registry keyed by canonical type id. Populated by the runTypes
+ *  cache module (the Go binary's emit replaces the marker line with
+ *  `jitUtils.addRunType(...)` calls). */
+const runTypesCache: RunTypesCache = {};
+/** Parsed-function data registry keyed by "<namespace>::<fnName>". Populated
+ *  by the parsedFns cache module; consumed by `registerPureFnFactory`. The
+ *  overlap with `pureFnsCache` (same key shape, overlapping fields) is
+ *  intentional for now — reconciliation is a separate pass. */
+const parsedFnsDataCache: ParsedFnsDataCache = {};
 const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
 const serializableClassRegistry = new Map<string, SerializableClass>();
 
@@ -61,6 +74,16 @@ export interface JITUtils {
   hasPureFn(key: string): boolean;
   /** Find a pure function across all namespaces. Returns the compiled function or undefined. */
   findCompiledPureFn(fnName: string): CompiledPureFunction | undefined;
+  /** Add (or overwrite) a run-type entry keyed by canonical id. Returns the stored entry. */
+  addRunType(id: string, runType: RunType): RunType;
+  removeRunType(id: string): void;
+  getRunType(id: string): RunType | undefined;
+  /** Look up a run-type by id; throws when missing. Use when absence is a bug. */
+  useRunType(id: string): RunType;
+  hasRunType(id: string): boolean;
+  /** Add parsed-function metadata keyed by "<namespace>::<fnName>". */
+  addParsedFn(key: string, data: ParsedFn): void;
+  getParsedFn(key: string): ParsedFn | undefined;
   setSerializableClass<C extends SerializableClass>(cls: C): void;
   useSerializeClass(className: string): SerializableClass;
   getSerializeClass(className: string): SerializableClass | undefined;
@@ -135,6 +158,33 @@ const jitUtils: JITUtils = {
       if (key === fnName || key.endsWith(suffix)) return pureFnsCache[key];
     }
     return undefined;
+  },
+  addRunType(id: string, runType: RunType): RunType {
+    if (!id) throw new Error('Run-type id must be a non-empty string');
+    runTypesCache[id] = runType;
+    return runType;
+  },
+  removeRunType(id: string) {
+    if (!runTypesCache[id]) return;
+    (runTypesCache[id] as any) = undefined;
+  },
+  getRunType(id: string): RunType | undefined {
+    return runTypesCache[id];
+  },
+  useRunType(id: string): RunType {
+    const rt = runTypesCache[id];
+    if (!rt) throw new Error(`Run-type not found for id "${id}"`);
+    return rt;
+  },
+  hasRunType(id: string): boolean {
+    return !!runTypesCache[id];
+  },
+  addParsedFn(key: string, data: ParsedFn) {
+    if (!key) throw new Error('Parsed-function key must be a non-empty "namespace::fnName" string');
+    parsedFnsDataCache[key] = data;
+  },
+  getParsedFn(key: string): ParsedFn | undefined {
+    return parsedFnsDataCache[key];
   },
   setSerializableClass<C extends SerializableClass>(cls: C) {
     const className = cls.name;

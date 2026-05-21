@@ -6,8 +6,8 @@
  * ######## */
 
 import {describe, it, expect} from 'vitest';
-import {getJitFnCaches} from '../src/jit/jitUtils.ts';
-import type {JitFunctionsCache, PureFunctionsCache} from '../src/jit/types.ts';
+import {getJitFnCaches, getJitUtils} from '../src/jit/jitUtils.ts';
+import type {JitFunctionsCache, PureFunctionsCache, RunType, ParsedFn} from '../src/jit/types.ts';
 
 const {jitFnsCache, pureFnsCache} = getJitFnCaches() as {jitFnsCache: JitFunctionsCache; pureFnsCache: PureFunctionsCache};
 
@@ -93,6 +93,68 @@ describe('jitUtils', () => {
     expect(() => loadJitCachesCaches({})).not.toThrow();
     expect(() => loadJitCachesCaches({jitFnsCache: {}})).not.toThrow();
     expect(() => loadJitCachesCaches({pureFnsCache: {}})).not.toThrow();
+  });
+
+  describe('runType registry', () => {
+    it('addRunType stores an entry and getRunType reads it back', () => {
+      const id = 'rt-test-add-get';
+      const entry: RunType = {id, kind: 'object', typeName: 'Foo'};
+      const stored = getJitUtils().addRunType(id, entry);
+      expect(stored).toBe(entry);
+      expect(getJitUtils().getRunType(id)).toBe(entry);
+      expect(getJitUtils().hasRunType(id)).toBe(true);
+    });
+
+    it('useRunType returns the entry, or throws when missing', () => {
+      const id = 'rt-test-use';
+      const entry: RunType = {id, kind: 'primitive'};
+      getJitUtils().addRunType(id, entry);
+      expect(getJitUtils().useRunType(id)).toBe(entry);
+      expect(() => getJitUtils().useRunType('rt-test-missing')).toThrow(/Run-type not found/);
+    });
+
+    it('addRunType overwrites existing entries (idempotent re-init)', () => {
+      const id = 'rt-test-overwrite';
+      getJitUtils().addRunType(id, {id, kind: 'a'});
+      getJitUtils().addRunType(id, {id, kind: 'b'});
+      expect((getJitUtils().getRunType(id) as RunType).kind).toBe('b');
+    });
+
+    it('removeRunType clears the entry', () => {
+      const id = 'rt-test-remove';
+      getJitUtils().addRunType(id, {id, kind: 'gone'});
+      getJitUtils().removeRunType(id);
+      expect(getJitUtils().hasRunType(id)).toBe(false);
+      expect(getJitUtils().getRunType(id)).toBeUndefined();
+    });
+
+    it('addRunType rejects empty id', () => {
+      expect(() => getJitUtils().addRunType('', {id: '', kind: 'x'})).toThrow(/non-empty/);
+    });
+  });
+
+  describe('parsedFn data registry', () => {
+    it('addParsedFn / getParsedFn round-trip', () => {
+      const key = 'ns::fn-test-add';
+      const data: ParsedFn = {bodyHash: 'hash-a', paramNames: ['x', 'y'], code: 'return x + y;'};
+      getJitUtils().addParsedFn(key, data);
+      expect(getJitUtils().getParsedFn(key)).toBe(data);
+    });
+
+    it('addParsedFn overwrites on repeated key (idempotent re-init)', () => {
+      const key = 'ns::fn-test-overwrite';
+      getJitUtils().addParsedFn(key, {bodyHash: 'old', paramNames: [], code: ''});
+      getJitUtils().addParsedFn(key, {bodyHash: 'new', paramNames: ['a'], code: 'return a;'});
+      expect(getJitUtils().getParsedFn(key)?.bodyHash).toBe('new');
+    });
+
+    it('addParsedFn rejects empty key', () => {
+      expect(() => getJitUtils().addParsedFn('', {bodyHash: '', paramNames: [], code: ''})).toThrow(/non-empty/);
+    });
+
+    it('getParsedFn returns undefined for unknown key', () => {
+      expect(getJitUtils().getParsedFn('ns::never-added')).toBeUndefined();
+    });
   });
 
   it('should not overwrite existing cache entries', () => {

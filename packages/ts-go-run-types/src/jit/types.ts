@@ -54,6 +54,69 @@ export interface ParsedFactoryFn {
   readonly code: string;
 }
 
+/** Cached parsed-function data emitted by the Go binary into the parsedFns
+ *  cache module. Same fields as `ParsedFactoryFn`; the alias makes the
+ *  jitUtils-registry intent clear at call sites. Stored value is mutable
+ *  so the binary's emitter can layer fields without reallocating. */
+export interface ParsedFn {
+  bodyHash: string;
+  paramNames: string[];
+  code: string;
+}
+
+/** Flat parsed-function data cache keyed by "<namespace>::<fnName>". */
+export type ParsedFnsDataCache = Record<string, ParsedFn>;
+
+// ########################################### Run types ##############################################
+
+/** Runtime representation of a single reflected type, populated by the Go
+ *  binary into the runTypes cache module. Shape mirrors the `rt(...)`
+ *  factory in `caches/runTypesCache.ts`: identification fields are filled
+ *  in by the factory call; ref slots (`child`, `parameters`, …) start as
+ *  `undefined` and are patched post-construction by the emitter's footer
+ *  assignments. Fields are typed permissively because their concrete
+ *  schema lives on the Go side. */
+export interface RunType {
+  id: string;
+  kind: unknown;
+  subKind?: unknown;
+  typeName?: unknown;
+  name?: unknown;
+  literal?: unknown;
+  optional?: unknown;
+  readonly?: unknown;
+  isAbstract?: unknown;
+  isStatic?: unknown;
+  visibility?: unknown;
+  isSafeName?: unknown;
+  position?: unknown;
+  inlined?: unknown;
+  flags?: unknown;
+  description?: unknown;
+  defaultVal?: unknown;
+  enumVal?: unknown;
+  values?: unknown;
+  child?: RunType;
+  index?: RunType;
+  return?: RunType;
+  indexType?: RunType;
+  parameters?: RunType[];
+  children?: RunType[];
+  safeUnionChildren?: RunType[];
+  unionDiscriminators?: unknown;
+  decorators?: unknown;
+  typeArguments?: RunType[];
+  arguments?: RunType[];
+  extendsArguments?: RunType[];
+  implements?: RunType[];
+  extends?: RunType;
+  classType?: RunType;
+  [extra: string]: unknown;
+}
+
+/** Flat run-type cache keyed by canonical type id. */
+export type RunTypesCache = Record<string, RunType>;
+
 // ########################################### JIT functions ##########################################
 
 export type AnyFn = (...args: any[]) => any;
