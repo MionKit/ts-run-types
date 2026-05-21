@@ -95,4 +95,3 @@ export {
 export {createIsType, type IsTypeFn} from './createIsType.ts';
 
 export {registerPureFnFactory} from './jit/pureFn.ts';
-export type {ParsedFactoryFn} from './jit/types.ts';

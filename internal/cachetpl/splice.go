@@ -28,9 +28,9 @@ const MarkerLine = "// #### REPLACE HERE ####"
 // Skeleton names — match the file names under
 // packages/ts-go-run-types/src/caches/.
 const (
-	SkeletonRunTypes  = "runTypesCache.ts"
-	SkeletonIsType    = "isTypeCache.ts"
-	SkeletonParsedFns = "parsedFnsCache.ts"
+	SkeletonRunTypes = "runTypesCache.ts"
+	SkeletonIsType   = "isTypeCache.ts"
+	SkeletonPureFns  = "pureFnsCache.ts"
 )
 
 // Splice loads the named skeleton, replaces the single MarkerLine line

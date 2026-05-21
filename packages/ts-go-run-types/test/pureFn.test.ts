@@ -42,15 +42,14 @@ it('register and get pure function with extracted data', () => {
   expect(restoredFn('A', {isLowercase: true})).toBe(false);
 });
 
-it('throws when no parsed-fn entry is found', () => {
+it('throws when no cache entry is found', () => {
   // The Go binary only emits entries for source files it walks. Tests like
   // this one — which dynamically constructs a key the binary never saw —
-  // should throw on lookup.
-  expect(() =>
-    registerPureFnFactory(TEST_NAMESPACE + '_unscanned_' + Math.random(), 'noSuchFn', function () {
-      return function noop() {};
-    })
-  ).toThrow(/no parsed-fn data/);
+  // should throw on lookup. (Vite plugin rewrites the factory arg to
+  // `null`, so the runtime path is purely the cache lookup.)
+  expect(() => registerPureFnFactory(TEST_NAMESPACE + '_unscanned_' + Math.random(), 'noSuchFn', null)).toThrow(
+    /no cache entry for/
+  );
 });
 
 it('populates bodyHash, paramNames, and code from extracted data', () => {
@@ -92,10 +91,13 @@ it('auto-detects dependencies via proxy when factory calls getPureFn', () => {
   const compiledIsB = getCompiledPureFn(TEST_NAMESPACE, 'pureFunctionB');
   expect(compiledIsA).toBeDefined();
   expect(compiledIsB).toBeDefined();
-  expect(compiledIsA?.fn).toBeDefined();
-  expect(compiledIsB?.fn).toBeDefined();
-  expect(compiledIsB?.pureFnDependencies?.includes('pureFunctionA')).toBeTruthy();
-  expect(compiledIsA?.pureFnDependencies).toBeUndefined();
+  // Materialise `fn` lazily — the cache module sets fn=undefined until
+  // a getPureFn / usePureFn caller forces createPureFn to run.
+  expect(getJitUtils().getPureFn(pureFnKey(TEST_NAMESPACE, 'pureFunctionA'))).toBeInstanceOf(Function);
+  expect(getJitUtils().getPureFn(pureFnKey(TEST_NAMESPACE, 'pureFunctionB'))).toBeInstanceOf(Function);
+  // Static dep extraction emits full `"<namespace>::<fnName>"` keys.
+  expect(compiledIsB?.pureFnDependencies?.includes('test::pureFunctionA')).toBeTruthy();
+  expect(compiledIsA?.pureFnDependencies ?? []).toEqual([]);
   expect(compiledIsA?.namespace).toBe(TEST_NAMESPACE);
   expect(compiledIsB?.namespace).toBe(TEST_NAMESPACE);
 });
@@ -166,7 +168,7 @@ describe('arrow function factory functions', () => {
     const compiledB = getCompiledPureFn(TEST_NAMESPACE, 'arrowFnB');
     expect(compiledA).toBeDefined();
     expect(compiledB).toBeDefined();
-    expect(compiledB?.pureFnDependencies?.includes('arrowFnA')).toBeTruthy();
-    expect(compiledA?.pureFnDependencies).toBeUndefined();
+    expect(compiledB?.pureFnDependencies?.includes('test::arrowFnA')).toBeTruthy();
+    expect(compiledA?.pureFnDependencies ?? []).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {CacheKind, Request, Response, RunType, Site} from './protocol.ts';
+import type {CacheKind, Replacement, Request, Response, RunType, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // Optional marker overrides forwarded to the Go binary's CLI flags.
@@ -88,20 +88,24 @@ export interface ScanFilesOptions {
 
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
 // every site detected across the request's files, each tagged with .file
-// so callers can filter or group. runTypes / runTypeCacheSource /
-// isTypeCacheSource / parsedFnsCacheSource are populated only when the
-// corresponding kind was opted into via includeCacheSources (or `'all'`).
+// so callers can filter or group. Replacements are byte-range rewrites
+// for the user's source (pure-fn factory-arg-to-null); the plugin
+// applies them in `rewrite.ts` alongside Site insertions. runTypes /
+// runTypeCacheSource / isTypeCacheSource / pureFnsCacheSource are
+// populated only when the corresponding kind was opted into via
+// includeCacheSources (or `'all'`).
 export interface ScanFilesResult {
   sites: Site[];
+  replacements?: Replacement[];
   runTypes?: RunType[];
   runTypeCacheSource?: string;
   isTypeCacheSource?: string;
-  parsedFnsCacheSource?: string;
-  parsedFnsDiagnostics?: import('./protocol.ts').ParsedFnDiagnostic[];
+  pureFnsCacheSource?: string;
+  pureFnsDiagnostics?: import('./protocol.ts').PureFnDiagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
   addedIsType?: boolean;
-  addedParsedFns?: boolean;
+  addedPureFns?: boolean;
 }
 
 // DumpOptions opts the dump call into returning only a subset of
@@ -140,14 +144,15 @@ abstract class ResolverClientBase implements ResolverConnection {
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
     return {
       sites: resp.sites ?? [],
+      replacements: resp.replacements,
       runTypes: resp.runTypes,
       runTypeCacheSource: resp.runTypeCacheSource,
       isTypeCacheSource: resp.isTypeCacheSource,
-      parsedFnsCacheSource: resp.parsedFnsCacheSource,
-      parsedFnsDiagnostics: resp.parsedFnsDiagnostics,
+      pureFnsCacheSource: resp.pureFnsCacheSource,
+      pureFnsDiagnostics: resp.pureFnsDiagnostics,
       addedRunTypes: resp.addedRunTypes,
       addedIsType: resp.addedIsType,
-      addedParsedFns: resp.addedParsedFns,
+      addedPureFns: resp.addedPureFns,
     };
   }
 

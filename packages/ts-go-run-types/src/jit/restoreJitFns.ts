@@ -63,13 +63,14 @@ function restoreCompiledPureFn(
   if (!pureCompiled) throw new Error(`Pure function ${key} not found`);
   if ((pureCompiled as CompiledPureFunction).fn) return;
   const dependencies = pureCompiled.pureFnDependencies || [];
-  // Dependencies are bare fnNames (no namespace prefix). Resolve them
-  // within the current namespace — `key` is "<namespace>::<fnName>",
-  // so we re-compose using the same namespace.
-  const sepIndex = key.indexOf('::');
-  const namespace = sepIndex >= 0 ? key.slice(0, sepIndex) : '';
-  dependencies.forEach((depName) => {
-    const depKey = namespace ? namespace + '::' + depName : depName;
+  // Dependencies are full `"<namespace>::<fnName>"` composite keys —
+  // emitted that way by the Go-side static extractor. The Go side
+  // also emits `"::<fnName>"` for `findCompiledPureFn(fnName)` deps
+  // where the namespace isn't known statically; those resolve via
+  // suffix match in jitUtils.findCompiledPureFn at runtime, not
+  // here, so we skip them in restore.
+  dependencies.forEach((depKey) => {
+    if (depKey.startsWith('::')) return;
     restoreCompiledPureFn(pureCache, depKey, jUtil, visited);
   });
   // persisted pure functions (AOT code caches) have the createJitFn but not the fn
