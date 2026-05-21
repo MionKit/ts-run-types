@@ -50,13 +50,20 @@ type Options struct {
 // Subsequent setSources calls swap the Program in place — the structural
 // type cache survives across swaps so dedup IDs stay stable.
 type Resolver struct {
-	Program     *program.Program
-	cache       *serialize.Cache
-	checker     *checker.Checker
+	Program      *program.Program
+	cache        *serialize.Cache
+	checker      *checker.Checker
 	releaseLease func()
-	sites       []protocol.Site
-	marker      marker.Options
-	opts        Options
+	sites        []protocol.Site
+	marker       marker.Options
+	opts         Options
+	// parsedFnHashes is the session-wide index of every parsedFn entry
+	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
+	// the entry's bodyHash as the value. Used by dispatchScanFiles to
+	// emit `AddedParsedFns` on the wire — the Vite plugin reads that
+	// signal in handleHotUpdate to decide whether the parsedFns cache
+	// module needs invalidating after a user-file change.
+	parsedFnHashes map[string]string
 }
 
 // New builds a Resolver against prog. Defaults to hashid's default lengths when
@@ -76,10 +83,11 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		checker:      typeChecker,
-		releaseLease: releaseLease,
-		marker:       marker.WithDefaults(opts.Marker),
-		opts:         opts,
+		checker:        typeChecker,
+		releaseLease:   releaseLease,
+		marker:         marker.WithDefaults(opts.Marker),
+		opts:           opts,
+		parsedFnHashes: map[string]string{},
 	}, nil
 }
 
@@ -92,8 +100,9 @@ func NewServer(opts Options) *Resolver {
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		marker: marker.WithDefaults(opts.Marker),
-		opts:   opts,
+		marker:         marker.WithDefaults(opts.Marker),
+		opts:           opts,
+		parsedFnHashes: map[string]string{},
 	}
 }
 
@@ -142,6 +151,7 @@ func (resolver *Resolver) Reset() {
 	resolver.cache.Clear()
 	resolver.cache.Rebind(nil)
 	resolver.sites = resolver.sites[:0]
+	resolver.parsedFnHashes = map[string]string{}
 }
 
 func (resolver *Resolver) Close() {
@@ -174,7 +184,24 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
-		response := protocol.Response{Sites: sites, Added: resolver.cache.Added(before)}
+		added := resolver.cache.Added(before)
+		// Per-cache "did this scan change anything?" signals consumed by
+		// the Vite plugin's handleHotUpdate.
+		addedRunTypes := len(added) > 0
+		addedIsType := addedRunTypes && anyIsTypeSupported(added)
+		// parsedFn delta needs an explicit walk: a file may add or
+		// modify a registerPureFnFactory call without producing any new
+		// RunTypes. detectParsedFnsDelta updates the session index in
+		// place and returns whether anything changed for the request's
+		// files.
+		addedParsedFns := resolver.detectParsedFnsDelta(request.Files)
+		response := protocol.Response{
+			Sites:          sites,
+			Added:          added,
+			AddedRunTypes:  addedRunTypes,
+			AddedIsType:    addedIsType,
+			AddedParsedFns: addedParsedFns,
+		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
 		wantParsedFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindParsedFns)
@@ -650,6 +677,44 @@ func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
 		}
 	}
 	return protocol.Dump{RunTypes: runTypes, Sites: sites}
+}
+
+// anyIsTypeSupported reports whether at least one of `runTypes` is
+// supported by the IsType emitter. Used to set the AddedIsType signal
+// independently of AddedRunTypes (a runtype can be added without the
+// isType cache changing, e.g. an unsupported kind).
+func anyIsTypeSupported(runTypes []*protocol.RunType) bool {
+	emitter := jitfn.IsTypeEmitter{}
+	for _, rt := range runTypes {
+		if rt != nil && emitter.Supports(rt) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectParsedFnsDelta extracts parsedFn entries for `files`, compares
+// each `key→bodyHash` against the resolver's session index, and reports
+// whether the request changed anything (additions OR bodyHash flips).
+// Updates the index in place so subsequent scanFiles calls see the new
+// state. Removals are not detected here — a file that drops one of its
+// parsedFn calls still leaves the session entry behind (matches the
+// runTypes cache's structural-dedup contract; the orphan is harmless
+// until the next process restart).
+func (resolver *Resolver) detectParsedFnsDelta(files []string) bool {
+	if resolver.Program == nil || len(files) == 0 {
+		return false
+	}
+	entries, _ := purefn.ExtractFromProgram(resolver.Program, files)
+	changed := false
+	for _, entry := range entries {
+		key := entry.Key()
+		if existing, ok := resolver.parsedFnHashes[key]; !ok || existing != entry.BodyHash {
+			resolver.parsedFnHashes[key] = entry.BodyHash
+			changed = true
+		}
+	}
+	return changed
 }
 
 // wantsCache reports whether a scanFiles caller asked for `kind` — either

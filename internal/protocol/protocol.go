@@ -322,6 +322,20 @@ type Response struct {
 	HasID             bool       `json:"-"`
 	OK                bool       `json:"-"`
 	Added              []*RunType `json:"added,omitempty"`
+	// AddedRunTypes is true when this scanFiles call interned at least one
+	// new RunType into the cache. The Vite plugin reads it from
+	// handleHotUpdate to decide whether the runTypes cache module needs
+	// invalidating after a user-file change.
+	AddedRunTypes bool `json:"addedRunTypes,omitempty"`
+	// AddedIsType is true when at least one of the newly-interned RunTypes
+	// is supported by the IsType emitter — i.e. the isType cache module
+	// would render at least one new entry. Set independently of
+	// AddedRunTypes so cache-by-cache invalidation stays surgical.
+	AddedIsType bool `json:"addedIsType,omitempty"`
+	// AddedParsedFns is true when the scan introduced (or modified) at
+	// least one parsedFn entry across the request's files — checked
+	// against the resolver's session-wide bodyHash index.
+	AddedParsedFns bool `json:"addedParsedFns,omitempty"`
 	Sites              []Site     `json:"sites,omitempty"`
 	RunTypes           []*RunType `json:"runTypes,omitempty"`
 	RunTypeCacheSource string     `json:"runTypeCacheSource,omitempty"`
@@ -406,6 +420,15 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.Added) > 0 {
 		out["added"] = response.Added
+	}
+	if response.AddedRunTypes {
+		out["addedRunTypes"] = true
+	}
+	if response.AddedIsType {
+		out["addedIsType"] = true
+	}
+	if response.AddedParsedFns {
+		out["addedParsedFns"] = true
 	}
 	if len(response.Sites) > 0 {
 		out["sites"] = response.Sites

@@ -225,6 +225,14 @@ export interface Response {
   // Acknowledgement for ops that don't return data (setSources / resetCache).
   ok?: true;
   added?: RunType[];
+  // Per-cache "did this scan change anything?" signals consumed by the
+  // Vite plugin's handleHotUpdate. `addedRunTypes` is true when this
+  // scan interned new RunTypes; `addedIsType` when at least one of
+  // those is supported by the IsType emitter; `addedParsedFns` when
+  // any parsedFn entry's bodyHash flipped or appeared.
+  addedRunTypes?: boolean;
+  addedIsType?: boolean;
+  addedParsedFns?: boolean;
   sites?: Site[];
   runTypes?: RunType[];
   // Always populated by `dump`; populated by `scanFiles` when the request

@@ -98,6 +98,10 @@ export interface ScanFilesResult {
   isTypeCacheSource?: string;
   parsedFnsCacheSource?: string;
   parsedFnsDiagnostics?: import('./protocol.ts').ParsedFnDiagnostic[];
+  // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
+  addedRunTypes?: boolean;
+  addedIsType?: boolean;
+  addedParsedFns?: boolean;
 }
 
 // DumpOptions opts the dump call into returning only a subset of
@@ -141,6 +145,9 @@ abstract class ResolverClientBase implements ResolverConnection {
       isTypeCacheSource: resp.isTypeCacheSource,
       parsedFnsCacheSource: resp.parsedFnsCacheSource,
       parsedFnsDiagnostics: resp.parsedFnsDiagnostics,
+      addedRunTypes: resp.addedRunTypes,
+      addedIsType: resp.addedIsType,
+      addedParsedFns: resp.addedParsedFns,
     };
   }
 
