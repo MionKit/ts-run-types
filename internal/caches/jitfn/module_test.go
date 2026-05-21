@@ -76,20 +76,142 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 	}
 }
 
+// TestIsTypeModule_AtomicEmitBodies asserts the emit body for each
+// atomic kind we ported from mion. One row per kind keeps the
+// regression surface explicit — drift in any single arm of
+// IsTypeEmitter.Emit lands as a focused failure here.
+//
+// Bodies must match the corresponding mion node's emitIsType output
+// (mion-run-types:packages/run-types/src/nodes/atomic/<name>.ts).
+// `return ` prefix is added by the walker / Finalize.
+func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
+	rows := []struct {
+		name string
+		rt   *protocol.RunType
+		body string // expected inner-fn body (post-Finalize)
+		noop bool   // true for any/unknown — Finalize collapses to noop, factory is skipped entirely
+	}{
+		{"number", &protocol.RunType{ID: "num", Kind: protocol.KindNumber}, "return Number.isFinite(v)", false},
+		{"boolean", &protocol.RunType{ID: "boo", Kind: protocol.KindBoolean}, "return typeof v === 'boolean'", false},
+		{"bigint", &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}, "return typeof v === 'bigint'", false},
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "return typeof v === 'symbol'", false},
+		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
+		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
+		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
+		{"never", &protocol.RunType{ID: "nev", Kind: protocol.KindNever}, "return false", false},
+		{"any", &protocol.RunType{ID: "any", Kind: protocol.KindAny}, "", true},
+		{"unknown", &protocol.RunType{ID: "unk", Kind: protocol.KindUnknown}, "", true},
+		{"object", &protocol.RunType{ID: "obj", Kind: protocol.KindObject}, "return (typeof v === 'object' && v !== null)", false},
+		{"regexp", &protocol.RunType{ID: "reg", Kind: protocol.KindRegexp}, "return (v instanceof RegExp)", false},
+		{"date", &protocol.RunType{ID: "dat", Kind: protocol.KindClass, SubKind: protocol.SubKindDate}, "return (v instanceof Date && !isNaN(v.getTime()))", false},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			dump := protocol.Dump{RunTypes: []*protocol.RunType{row.rt}}
+			out := renderToString(t, dump)
+			if row.noop {
+				// Noop factories are skipped entirely — no `factory('<id>',` line
+				// should appear in the rendered module.
+				marker := "factory('" + row.rt.ID + "',"
+				if strings.Contains(out, marker) {
+					t.Errorf("noop kind %s should be skipped, but found %q in:\n%s", row.name, marker, out)
+				}
+				return
+			}
+			if !strings.Contains(out, row.body) {
+				t.Errorf("expected body %q for kind %s in:\n%s", row.body, row.name, out)
+			}
+		})
+	}
+}
+
+// TestIsTypeModule_LiteralEmitBodies covers the literal sub-cases
+// (mion:literal.ts:88-105). One row per literal flavour: string,
+// number, boolean, bigint (via Flags), symbol (via Flags + map),
+// regexp (via map).
+func TestIsTypeModule_LiteralEmitBodies(t *testing.T) {
+	rows := []struct {
+		name string
+		rt   *protocol.RunType
+		body string
+	}{
+		{
+			"string", &protocol.RunType{ID: "ls", Kind: protocol.KindLiteral, Literal: "a"},
+			"return v === 'a'",
+		},
+		{
+			"number int", &protocol.RunType{ID: "li", Kind: protocol.KindLiteral, Literal: int64(2)},
+			"return v === 2",
+		},
+		{
+			"number float", &protocol.RunType{ID: "lf", Kind: protocol.KindLiteral, Literal: float64(1.5)},
+			"return v === 1.5",
+		},
+		{
+			"boolean", &protocol.RunType{ID: "lb", Kind: protocol.KindLiteral, Literal: true},
+			"return v === true",
+		},
+		{
+			"bigint", &protocol.RunType{ID: "lbi", Kind: protocol.KindLiteral, Literal: "1", Flags: []string{"bigint"}},
+			"return v === 1n",
+		},
+		{
+			"symbol", &protocol.RunType{ID: "lsy", Kind: protocol.KindLiteral, Literal: map[string]any{"symbol": "hello"}, Flags: []string{"symbol"}},
+			"return typeof v === 'symbol' && v.description === 'hello'",
+		},
+		{
+			"regexp", &protocol.RunType{ID: "lre", Kind: protocol.KindLiteral, Literal: map[string]any{"regexp": map[string]any{"source": "abc", "flags": "i"}}},
+			"return v instanceof RegExp && v.source === 'abc' && v.flags === 'i'",
+		},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			dump := protocol.Dump{RunTypes: []*protocol.RunType{row.rt}}
+			out := renderToString(t, dump)
+			if !strings.Contains(out, row.body) {
+				t.Errorf("expected body %q for literal %s in:\n%s", row.body, row.name, out)
+			}
+		})
+	}
+}
+
+// TestIsTypeModule_EnumEmitBody covers KindEnum's mixed-value chain
+// (mion:nodes/atomic/enum.ts:14). Uses the Color enum from
+// enum.spec.ts: {Red=0, Green='green', Blue=2}. The Values slice
+// carries the resolved values in declaration order; chain order
+// follows.
+func TestIsTypeModule_EnumEmitBody(t *testing.T) {
+	rt := &protocol.RunType{
+		ID:     "enm",
+		Kind:   protocol.KindEnum,
+		Values: []any{int64(0), "green", int64(2)},
+	}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{rt}})
+	want := "return (v === 0 || v === 'green' || v === 2)"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected enum body %q in:\n%s", want, out)
+	}
+}
+
 func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
+	// KindFunction and KindUnion remain unsupported after the atomic
+	// emitIsType port — they belong to mion's function/collection
+	// families, not the atomic family this emitter implements. The
+	// renderer must skip them silently rather than panic, so kind-by-kind
+	// rollout of follow-up families (collection, function) stays possible.
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
-			{ID: "n1", Kind: protocol.KindNumber},
-			{ID: "b1", Kind: protocol.KindBoolean},
+			{ID: "f1", Kind: protocol.KindFunction},
+			{ID: "u1", Kind: protocol.KindUnion},
 			{ID: "s1", Kind: protocol.KindString},
 		},
 	}
 	out := renderToString(t, dump)
-	if strings.Contains(out, "'n1'") {
-		t.Error("KindNumber should be skipped (unsupported), but n1 was rendered")
+	if strings.Contains(out, "'f1'") {
+		t.Error("KindFunction should be skipped (unsupported), but f1 was rendered")
 	}
-	if strings.Contains(out, "'b1'") {
-		t.Error("KindBoolean should be skipped (unsupported), but b1 was rendered")
+	if strings.Contains(out, "'u1'") {
+		t.Error("KindUnion should be skipped (unsupported), but u1 was rendered")
 	}
 	if !strings.Contains(out, "factory('s1',") {
 		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)

@@ -105,14 +105,49 @@ func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettin
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.
 // Mion uses the RunType's declared TypeName when present; for anonymous
-// atomics it falls back to a name derived from the kind.
+// atomics it falls back to a name derived from the kind. Names mirror
+// mion's ReflectionKindName table at
+// mion-run-types:packages/run-types/src/constants.kind.ts.
 func jitTypeName(runType *protocol.RunType) string {
 	if runType.TypeName != "" {
 		return runType.TypeName
 	}
+	if runType.Kind == protocol.KindClass && runType.SubKind == protocol.SubKindDate {
+		return "date"
+	}
 	switch runType.Kind {
+	case protocol.KindAny:
+		return "any"
+	case protocol.KindUnknown:
+		return "unknown"
+	case protocol.KindNever:
+		return "never"
+	case protocol.KindVoid:
+		return "void"
+	case protocol.KindNull:
+		return "null"
+	case protocol.KindUndefined:
+		return "undefined"
 	case protocol.KindString:
 		return "string"
+	case protocol.KindNumber:
+		return "number"
+	case protocol.KindBoolean:
+		return "boolean"
+	case protocol.KindBigInt:
+		return "bigint"
+	case protocol.KindSymbol:
+		return "symbol"
+	case protocol.KindObject:
+		// mion's ReflectionKindName maps deepkit's KindObject (4) to
+		// 'objectLiteral'; the atomic node lives at nodes/atomic/object.ts.
+		return "objectLiteral"
+	case protocol.KindRegexp:
+		return "regexp"
+	case protocol.KindLiteral:
+		return "literal"
+	case protocol.KindEnum:
+		return "enum"
 	}
 	return ""
 }
