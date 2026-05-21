@@ -235,12 +235,19 @@ const myAPI = reflectRuntypeId(routes);
       return dump.runTypeCacheSource ?? '';
     });
 
-    expect(cacheSource).toContain('export const t_');
+    // Splice-based emitter — one `rt('id', …);` call per entry inside
+    // the skeleton's exported initCache() function.
+    expect(cacheSource).toMatch(/rt\('[A-Za-z0-9_]+',\d+/);
+    expect(cacheSource).toContain('export function initCache');
 
-    // Same rewrite as inline.ts/evalCacheFor — see the comment there.
-    const js = cacheSource.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
-    const factory = new Function(`const result = {}; ${js}; return result;`);
-    const result = factory() as Record<string, any>;
+    // Evaluate the module body the same way evalCacheFor does: strip
+    // top-level `export`s and call `initCache()` to obtain the cache.
+    const stripped = cacheSource
+      .replace(/^\s*export\s+function\s+/gm, 'function ')
+      .replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
+    const factory = new Function(`${stripped}\nreturn initCache;`);
+    const initCache = factory() as (jitUtils?: unknown) => Record<string, Record<string, any>>;
+    const result = initCache({});
     const entries = Object.values(result).filter(
       (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t
     );
@@ -283,9 +290,10 @@ const myAPI = reflectRuntypeId(routes);
       });
       expect(out.status).toBe(0);
       const generated = fs.readFileSync(tmp, 'utf8');
-      expect(generated).toMatch(/export const t_[A-Za-z][A-Za-z0-9_]*\s*=/);
-      // Output is now plain JS — no TypeScript annotations to assert against.
-      expect(generated).not.toContain(': any');
+      // Splice-based emitter — output should include the skeleton's
+      // initCache() shell and at least one rt(…) factory call.
+      expect(generated).toContain('export function initCache');
+      expect(generated).toMatch(/rt\('[A-Za-z0-9_]+',\d+/);
       fs.unlinkSync(tmp);
     }
   );

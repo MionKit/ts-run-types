@@ -5,16 +5,22 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-import {parsedFns} from 'virtual:runtypes-parsed-fns';
-import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
-import {getJitUtils, type JITUtils} from './jitUtils.ts';
+import {initCache as initParsedFnsCache} from 'virtual:runtypes-parsed-fns';
+import type {CompiledPureFunction, ParsedFactoryFn, PureFunctionFactory} from './types.ts';
+import {getJitUtils, pureFnKey, type JITUtils} from './jitUtils.ts';
+
+// One-shot call to the parsedFns virtual module's `initCache(jitUtils)`.
+// Returns the same module-local `cache` object on every call (idempotent
+// behind the `isInitialised` guard), so we hoist the reference and read
+// it directly when a registration arrives.
+const parsedFns = initParsedFnsCache(getJitUtils()) as Record<string, ParsedFactoryFn>;
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
 // ║  WARNING: the Go binary's AST walker keys its parsed-fn cache on the         ║
 // ║  string-literal arguments at arg-0 (namespace) and arg-1 (functionID), and   ║
 // ║  extracts {paramNames, code, bodyHash} from the inline factory at arg-2.     ║
 // ║  Do NOT rename this function, change parameter order, or replace the         ║
-// ║  factory with a non-traceable reference — the extractor emits a PFE9xxx     ║
+// ║  factory with a non-traceable reference — the extractor emits a PFE9xxx      ║
 // ║  diagnostic (shown in the editor's Problems panel) when it can't resolve     ║
 // ║  any arg to a local literal/function.                                        ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -31,7 +37,7 @@ export function registerPureFnFactory(
   functionID: string,
   createPureFn: PureFunctionFactory
 ): CompiledPureFunction {
-  const key = `${namespace}::${functionID}`;
+  const key = pureFnKey(namespace, functionID);
   const parsedFn = parsedFns[key];
   if (!parsedFn) {
     throw new Error(
@@ -40,7 +46,7 @@ export function registerPureFnFactory(
     );
   }
 
-  const existing = getJitUtils().getCompiledPureFn(namespace, functionID);
+  const existing = getJitUtils().getCompiledPureFn(key);
   if (existing) return existing;
 
   const compiled: CompiledPureFunction = {
@@ -69,7 +75,7 @@ export function registerPureFnFactory(
     compiled.pureFnDependencies!.push(dep);
   }
 
-  getJitUtils().addPureFn(namespace, compiled);
+  getJitUtils().addPureFn(key, compiled);
   return compiled;
 }
 
@@ -80,26 +86,34 @@ function createDependencyTrackingProxy(): {proxy: JITUtils; getDependencies: () 
 
   const noopFn = () => () => {};
 
+  // Single-string-key API now: every pureFn method takes one
+  // `"namespace::fnName"` key. We strip the namespace prefix off so
+  // callers see the same bare `fnName` they used pre-flattening when
+  // they inspect dependencies later.
+  const recordKey = (key: string): string => {
+    const sepIndex = key.indexOf('::');
+    return sepIndex >= 0 ? key.slice(sepIndex + 2) : key;
+  };
+
   const proxy = new Proxy(realUtils, {
     get(target, prop, receiver) {
       if (prop === 'getPureFn' || prop === 'usePureFn') {
-        return (ns: string, fnName: string) => {
-          dependencies.add(fnName);
-          // Return a noop function so the factory can execute without errors
-          const real = target.getPureFn(ns, fnName);
+        return (key: string) => {
+          dependencies.add(recordKey(key));
+          const real = target.getPureFn(key);
           return real ?? noopFn;
         };
       }
       if (prop === 'getCompiledPureFn') {
-        return (ns: string, fnName: string) => {
-          dependencies.add(fnName);
-          return target.getCompiledPureFn(ns, fnName);
+        return (key: string) => {
+          dependencies.add(recordKey(key));
+          return target.getCompiledPureFn(key);
         };
       }
       if (prop === 'hasPureFn') {
-        return (ns: string, fnName: string) => {
-          dependencies.add(fnName);
-          return target.hasPureFn(ns, fnName);
+        return (key: string) => {
+          dependencies.add(recordKey(key));
+          return target.hasPureFn(key);
         };
       }
       if (prop === 'findCompiledPureFn') {

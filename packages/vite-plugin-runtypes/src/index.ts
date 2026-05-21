@@ -82,12 +82,11 @@ export default function runtypes(options: PluginOptions) {
 
     async load(this: any, id: string) {
       if (id !== resolvedVirtualId && id !== resolvedIsTypeVirtualId && id !== resolvedParsedFnsVirtualId) return null;
-      // Empty body so `import * as cache from 'virtual:runtypes-cache'`
-      // returns an empty namespace until the resolver has produced anything.
-      if (!resolver) {
-        if (id === resolvedParsedFnsVirtualId) return 'export const parsedFns = {};\n';
-        return '// no runtypes resolved yet\n';
-      }
+      // Empty-shape fallback for the brief window before the resolver
+      // is wired up. Every cache module's contract is an idempotent
+      // `initCache(jitUtils)` returning a cache object — return that
+      // exact shape so consumers don't need null checks.
+      if (!resolver) return emptyCacheModuleBody();
       // The Go binary renders all three virtual modules from its in-memory
       // dump in a single call. Full cache (not just scanned-files union) —
       // Vite's load() runs once per import and consumers expect every
@@ -124,6 +123,23 @@ export default function runtypes(options: PluginOptions) {
       return {code: result.code, map: null};
     },
   };
+}
+
+// emptyCacheModuleBody returns the minimal module body served before
+// the resolver is wired up. Matches the cache-module contract: an
+// idempotent `initCache(jitUtils)` returning a cache object plus a
+// re-export of `cache` for direct imports.
+function emptyCacheModuleBody(): string {
+  return `// no runtypes resolved yet
+const cache = {};
+let isInitialised = false;
+export function initCache(jitUtils) {
+  if (isInitialised) return cache;
+  isInitialised = true;
+  return cache;
+}
+export {cache};
+`;
 }
 
 // formatTscDiagnostic renders a parsedFn diagnostic in the canonical

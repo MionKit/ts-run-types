@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-run-types/internal/cachetpl"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -17,20 +18,22 @@ func renderToString(t *testing.T, dump protocol.Dump) string {
 	return buf.String()
 }
 
-func TestIsTypeModule_PreamblePresent(t *testing.T) {
+// TestIsTypeModule_SkeletonPresent — the rendered body must include the
+// hand-authored skeleton wrappers, with the marker replaced.
+func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
-	for _, line := range []string{
+	for _, fragment := range []string{
 		"'use strict';",
-		"const u = undefined;",
-		"export function install(utl) {",
-		"const J = (jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) => {",
-		"utl.addToJitCache(entry);",
-		"return entry;",
-		"return {",
+		"export function initCache(jitUtils)",
+		"function factory(jitUtils,",
+		"jitUtils.addToJitCache(entry);",
 	} {
-		if !strings.Contains(out, line) {
-			t.Errorf("preamble missing line %q in:\n%s", line, out)
+		if !strings.Contains(out, fragment) {
+			t.Errorf("expected fragment %q in:\n%s", fragment, out)
 		}
+	}
+	if strings.Contains(out, cachetpl.MarkerLine) {
+		t.Errorf("marker line should be replaced, but is still present:\n%s", out)
 	}
 }
 
@@ -40,7 +43,7 @@ func TestIsTypeModule_NoSideEffectImport(t *testing.T) {
 		t.Errorf("rendered module must not import anything at top-level (pure module), got:\n%s", out)
 	}
 	if strings.Contains(out, "getJitUtils()") {
-		t.Errorf("rendered module must not invoke getJitUtils() — utl is supplied via install(utl), got:\n%s", out)
+		t.Errorf("rendered module must not invoke getJitUtils() — utl is supplied via initCache(jitUtils), got:\n%s", out)
 	}
 }
 
@@ -49,8 +52,8 @@ func TestIsTypeModule_EmptyDump(t *testing.T) {
 	if strings.Contains(out, "export const") {
 		t.Errorf("module no longer emits named export consts; got:\n%s", out)
 	}
-	if !strings.Contains(out, "export function install") {
-		t.Errorf("empty dump must still emit the install() function shell, got:\n%s", out)
+	if !strings.Contains(out, "export function initCache") {
+		t.Errorf("empty dump must still emit the initCache() function shell, got:\n%s", out)
 	}
 }
 
@@ -59,7 +62,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
 	out := renderToString(t, dump)
-	want := "    get_isType_abc123: J(" +
+	want := "factory(jitUtils," +
 		"'abc123'," +
 		"'string'," +
 		"'return typeof v === \\'string\\''," +
@@ -67,7 +70,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 		"[]," +
 		"[]," +
 		"function get_isType_abc123(utl){return function isType_abc123(v){return typeof v === 'string'}}" +
-		"),"
+		");"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
 	}
@@ -82,14 +85,14 @@ func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if strings.Contains(out, "get_isType_n1") {
+	if strings.Contains(out, "'n1'") {
 		t.Error("KindNumber should be skipped (unsupported), but n1 was rendered")
 	}
-	if strings.Contains(out, "get_isType_b1") {
+	if strings.Contains(out, "'b1'") {
 		t.Error("KindBoolean should be skipped (unsupported), but b1 was rendered")
 	}
-	if !strings.Contains(out, "get_isType_s1") {
-		t.Error("KindString should be rendered, but s1 is missing")
+	if !strings.Contains(out, "factory(jitUtils,'s1',") {
+		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)
 	}
 }
 
@@ -102,7 +105,7 @@ func TestIsTypeModule_NilRunTypeSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if !strings.Contains(out, "get_isType_s1") {
+	if !strings.Contains(out, "factory(jitUtils,'s1',") {
 		t.Error("nil entries should be skipped without affecting the real one")
 	}
 }
@@ -178,8 +181,6 @@ func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
 }
 
 func TestIsTypeModule_PureFnDepsRendered(t *testing.T) {
-	// Emission shape sanity: when a walker carries triples, the rendered
-	// J(…) entry receives a flat ["ns::fn", …] array (filePath stripped).
 	deps := pureFnDepsJS([]protocol.PureFnDep{
 		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/some/abs/run-types-pure-fns.ts"},
 	})

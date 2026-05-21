@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/mionkit/ts-run-types/internal/cachetpl"
 )
 
 func TestParsedFnsModule_EmptyInput(t *testing.T) {
@@ -12,11 +14,18 @@ func TestParsedFnsModule_EmptyInput(t *testing.T) {
 		t.Fatalf("ParsedFnsModule: %v", err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "export const parsedFns") {
-		t.Errorf("expected `export const parsedFns` in empty render:\n%s", got)
+	// Skeleton wrappers must always be present, even with zero entries.
+	for _, fragment := range []string{
+		"'use strict';",
+		"export function initCache(jitUtils)",
+		"function factory(",
+	} {
+		if !strings.Contains(got, fragment) {
+			t.Errorf("expected fragment %q in empty render:\n%s", fragment, got)
+		}
 	}
-	if !strings.Contains(got, "'use strict'") {
-		t.Errorf("expected 'use strict' directive:\n%s", got)
+	if strings.Contains(got, cachetpl.MarkerLine) {
+		t.Errorf("marker line should be replaced even with empty body, got:\n%s", got)
 	}
 }
 
@@ -33,7 +42,7 @@ func TestParsedFnsModule_SingleEntry(t *testing.T) {
 		t.Fatalf("ParsedFnsModule: %v", err)
 	}
 	got := buf.String()
-	want := "'mion::asJSONString': {bodyHash: 'aBcDeFgHiJkLmN', paramNames: [], code: 'return function _f() {};'}"
+	want := "factory(jitUtils,'mion::asJSONString','aBcDeFgHiJkLmN',[],'return function _f() {};');"
 	if !strings.Contains(got, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, got)
 	}
@@ -52,10 +61,9 @@ func TestParsedFnsModule_QuoteEscapes(t *testing.T) {
 		t.Fatalf("ParsedFnsModule: %v", err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, `paramNames: ['x']`) {
+	if !strings.Contains(got, `['x']`) {
 		t.Errorf("paramNames not rendered correctly:\n%s", got)
 	}
-	// Code contains backslashes + single quotes — both must be escaped.
 	if !strings.Contains(got, `\\`) {
 		t.Errorf("backslashes not escaped in code field:\n%s", got)
 	}

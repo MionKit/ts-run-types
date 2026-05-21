@@ -1,42 +1,57 @@
 // Ambient declarations for vite-plugin-runtypes-served virtual modules.
 //
-// `vite-plugin-runtypes` registers `virtual:runtypes-isType` as a bundler-
-// resolved module whose body is rendered by the Go-side jitfn pipeline.
-// The rendered module is pure — importing it has no side effect. Its
-// single export is an `install(utl)` function: caller passes any
-// JITUtils-shaped object, and `install` materializes every
-// `JitCompiledFn` entry against that utl (calling `createJitFn(utl)` and
-// `utl.addToJitCache(entry)` for each), then returns a map of entries
-// keyed by `get_isType_<hash>`.
+// `vite-plugin-runtypes` registers `virtual:runtypes-cache`,
+// `virtual:runtypes-isType`, and `virtual:runtypes-parsed-fns` as
+// bundler-resolved modules whose body the Go binary renders by:
 //
-// In non-vite environments the import fails — by design, since the
-// validators only exist when the plugin pipeline produced them.
+//   1. Reading the hand-authored skeleton at
+//      `packages/ts-go-run-types/src/caches/<kind>Cache.ts`.
+//   2. Replacing the `// #### REPLACE HERE ####` marker line with
+//      generated `factory(jitUtils, …);` calls (and, for the runtypes
+//      module, follow-up `cache['<id>'].<slot> = cache['<id2>'];`
+//      lines).
+//
+// Every module exports the SAME shape: an idempotent
+// `initCache(jitUtils)` function that materialises the cache against
+// the supplied JITUtils and returns the populated `cache` object.
+//
+// In non-vite environments the skeleton itself is what gets imported —
+// `initCache` returns an empty cache, callers see no entries. That's
+// the fallback contract: zero-config import works, virtual-module
+// magic happens only when the plugin is wired in.
+
+declare module 'virtual:runtypes-cache' {
+  import type {JITUtils} from './jit/jitUtils.ts';
+
+  /** Materialises every cached RunType into the module-local table and
+   *  returns it. Keyed by the canonical runtype id (raw hash, no
+   *  prefix). `jitUtils` is part of the shared cache shape but the
+   *  runtypes cache does not register entries with it. **/
+  export function initCache(jitUtils: JITUtils): Record<string, unknown>;
+  export const cache: Record<string, unknown>;
+}
 
 declare module 'virtual:runtypes-isType' {
   import type {JITUtils} from './jit/jitUtils.ts';
 
-  /** Materialize every precompiled isType entry against `utl`. Each entry
-   *  is registered into `utl` via `addToJitCache(entry)` and also surfaces
-   *  on the returned map under its `get_isType_<hash>` key for direct
-   *  lookup by consumers (e.g. `createIsType`). Calling install more than
-   *  once with the same utl is safe — `addToJitCache` is keyed by
-   *  jitFnHash so the second call just overwrites with an equivalent
-   *  entry. **/
-  export function install(utl: JITUtils): Record<string, unknown>;
+  /** Materialises every precompiled isType entry against `jitUtils`. Each
+   *  entry is registered into `jitUtils` via `addToJitCache(entry)` and
+   *  also surfaces on the returned map under its raw `jitFnHash` key for
+   *  direct lookup by consumers (e.g. `createIsType`). Calling more than
+   *  once with the same jitUtils is safe — the second call is a no-op
+   *  thanks to the skeleton's idempotency guard. **/
+  export function initCache(jitUtils: JITUtils): Record<string, unknown>;
+  export const cache: Record<string, unknown>;
 }
 
-// `vite-plugin-runtypes` populates `virtual:runtypes-parsed-fns` by walking
-// every TS file in the program and extracting each
-// `registerPureFnFactory(<ns>, <fnName>, <factory>)` call site. The Go
-// binary AST-walks, strips TS types from the factory body, computes a
-// 14-char bodyHash, and emits the result as a JS map keyed by
-// "<namespace>::<functionID>".
-//
-// `pureFn.ts`'s `registerPureFnFactory` imports `parsedFns` from here and
-// looks up its own parsed-fn data — eliminating the prior 4th-argument
-// injection pattern.
 declare module 'virtual:runtypes-parsed-fns' {
+  import type {JITUtils} from './jit/jitUtils.ts';
   import type {ParsedFactoryFn} from './jit/types.ts';
 
-  export const parsedFns: Record<string, ParsedFactoryFn>;
+  /** Materialises the parsed-fn table and returns it. Keyed by the
+   *  composite `"namespace::fnName"` string. The `jitUtils` parameter
+   *  is part of the shared cache shape but unused — parsedFns is pure
+   *  data and does not need utl interaction. **/
+  export function initCache(jitUtils: JITUtils): Record<string, ParsedFactoryFn>;
+  export const cache: Record<string, ParsedFactoryFn>;
 }

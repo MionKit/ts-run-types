@@ -2,7 +2,7 @@
 // Go side over the same inline-server pipeline the other vite-plugin
 // tests use, then evaluates both rendered modules:
 //
-//   - virtual:runtypes-cache  → look up the hash assigned to `string`
+//   - virtual:runtypes-cache  → look up the cache entry assigned to `string`
 //   - virtual:runtypes-isType → register the precompiled JitCompiledFn
 //     entry into a stubbed JitUtils cache and assert the entry's
 //     `.fn(value)` validator behaves correctly for true / false /
@@ -11,13 +11,13 @@
 // Sibling test packages/ts-go-run-types/test/createIsType.test.ts
 // exercises the same module through the public `createIsType<T>()`
 // API. This file goes a level lower: it asserts the rendered output
-// shape (every `JitCompiledFnData` field is populated, the named
-// export and the auto-registered cache entry point at the same
-// object), so regressions in the J(...) emitter surface here before
-// they break downstream consumers.
+// shape (every `JitCompiledFnData` field is populated, the cache map
+// and the auto-registered jitUtils cache point at the same object),
+// so regressions in the factory(...) emitter surface here before they
+// break downstream consumers.
 
 import {describe, expect, it} from 'vitest';
-import {ISTYPE_VAR_PREFIX, RUNTYPES_VAR_PREFIX, type RunType} from '../src/protocol.ts';
+import {type RunType} from '../src/protocol.ts';
 import {hasBinary, withInlineSources} from './helpers/inline.ts';
 
 // Subset of mion's JitCompiledFn relevant to this test. Each entry the
@@ -53,84 +53,84 @@ getRuntypeId<string>();
       expect(response.sites.length).toBe(1);
       const site = response.sites[0];
 
-      // 1. Evaluate the cache module to find the t_<hash> entry the
-      //    resolver assigned to `string`.
+      // 1. Evaluate the runtypes-cache module via its initCache()
+      //    export; look up the entry by raw site.id.
       const cacheSource = response.runTypeCacheSource;
       if (!cacheSource) throw new Error('expected runTypeCacheSource in response');
-      const byHash = evalCacheModule(cacheSource);
-      const stringRunType = byHash[RUNTYPES_VAR_PREFIX + site.id];
+      const byHash = evalRunTypesModule(cacheSource);
+      const stringRunType = byHash[site.id];
       expect(stringRunType).toBeDefined();
       expect(stringRunType.kind).toBe(5); // ReflectionKind.string
 
-      // 2. Evaluate the isType module against a stub JitUtils. The
-      //    module is pure: importing it does nothing. Calling its
-      //    single `install(utl)` export materializes every entry,
-      //    registers each via `utl.addToJitCache`, and returns the
-      //    entries map keyed by factoryName.
+      // 2. Evaluate the isType module via its initCache(jitUtils) export.
+      //    The stub records every `addToJitCache` call and the returned
+      //    cache map is keyed by raw `jitFnHash` (no prefix).
       const isTypeSource = response.isTypeCacheSource;
       if (!isTypeSource) throw new Error('expected isTypeCacheSource in response');
-      const {byName, cache} = evalIsTypeModule(isTypeSource);
+      const {byHash: isTypeCache, registered} = evalIsTypeModule(isTypeSource);
 
       // Both the returned map entry and the stub-registered cache entry
       // must point at the same `JitCompiledFn` object — there's no copy.
-      const named = byName[ISTYPE_VAR_PREFIX + site.id];
-      const cached = cache[site.id];
-      expect(named).toBeDefined();
-      expect(cached).toBeDefined();
-      expect(cached).toBe(named);
+      const fromCache = isTypeCache[site.id];
+      const fromRegistry = registered[site.id];
+      expect(fromCache).toBeDefined();
+      expect(fromRegistry).toBeDefined();
+      expect(fromCache).toBe(fromRegistry);
 
-      // 3. Every JitCompiledFnData field is populated. Downstream
-      //    serialization paths (AOT cache restoration, network handoff)
-      //    rely on this shape — assert it explicitly so a regression
-      //    surfaces here instead of much later.
-      expect(named.jitFnHash).toBe(site.id);
-      expect(named.fnID).toBe('isType');
-      expect(named.typeName).toBe('string');
-      expect(named.args).toEqual({vλl: 'v'});
-      expect(named.defaultParamValues).toEqual({vλl: undefined});
-      expect(named.code).toBe("return typeof v === 'string'");
-      expect(named.isNoop).toBe(false);
-      expect(named.jitDependencies).toEqual([]);
-      expect(named.pureFnDependencies).toEqual([]);
-      expect(named.createJitFn).toBeTypeOf('function');
-      expect(named.fn).toBeTypeOf('function');
+      // 3. Every JitCompiledFnData field is populated.
+      expect(fromCache.jitFnHash).toBe(site.id);
+      expect(fromCache.fnID).toBe('isType');
+      expect(fromCache.typeName).toBe('string');
+      expect(fromCache.args).toEqual({vλl: 'v'});
+      expect(fromCache.defaultParamValues).toEqual({vλl: undefined});
+      expect(fromCache.code).toBe("return typeof v === 'string'");
+      expect(fromCache.isNoop).toBe(false);
+      expect(fromCache.jitDependencies).toEqual([]);
+      expect(fromCache.pureFnDependencies).toEqual([]);
+      expect(fromCache.createJitFn).toBeTypeOf('function');
+      expect(fromCache.fn).toBeTypeOf('function');
 
       // 4. The materialised validator behaves correctly.
-      expect(named.fn('abc')).toBe(true);
-      expect(named.fn(42)).toBe(false);
-      expect(named.fn(undefined)).toBe(false);
+      expect(fromCache.fn('abc')).toBe(true);
+      expect(fromCache.fn(42)).toBe(false);
+      expect(fromCache.fn(undefined)).toBe(false);
     });
   });
 });
 
-// evalCacheModule mirrors the regex-rewrite trick evalCacheFor uses in
-// helpers/inline.ts (each `export const t_X = …` becomes a `var` binding
-// that also writes to a result object so we can enumerate by hash).
-function evalCacheModule(source: string): Record<string, RunType> {
-  const js = source.replace(/export const (\w+) = /g, 'var $1 = result.$1 = ');
-  const factory = new Function(`const result = {}; ${js}; return result;`);
-  return factory() as Record<string, RunType>;
+// stripExports rewrites `export function …` to `function …` and removes
+// `export {cache};` so the skeleton body evaluates inside a
+// `new Function` script body.
+function stripExports(source: string): string {
+  return source.replace(/^\s*export\s+function\s+/gm, 'function ').replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
 }
 
-// evalIsTypeModule evaluates the rendered isType module and calls its
-// `install(utl)` export against a stub JitUtils. The stub records every
-// `addToJitCache(entry)` call in a local map so we can assert the install
-// call wired entries through the supplied utl. The returned object from
-// install — keyed by factoryName — is the consumer-facing entries map.
-//
-// One rewrite: strip the `export` keyword off `function install` so the
-// declaration becomes a regular function we can pick up in `new Function`
-// (which evaluates in script scope where `export` is a syntax error).
-function evalIsTypeModule(source: string): {byName: Record<string, JitEntry>; cache: Record<string, JitEntry>} {
-  const cache: Record<string, JitEntry> = {};
+// evalRunTypesModule strips `export`s, evaluates the body, and calls
+// `initCache()` to obtain the populated runtypes cache.
+function evalRunTypesModule(source: string): Record<string, RunType> {
+  const stripped = stripExports(source);
+  const factory = new Function(`${stripped}\nreturn initCache;`);
+  const initCache = factory() as (jitUtils?: unknown) => Record<string, RunType>;
+  return initCache({});
+}
+
+// evalIsTypeModule evaluates the rendered isType module, calls its
+// `initCache(jitUtils)` export against a stub jitUtils, and returns
+// both:
+//   - `byHash`: the module-local cache object (returned by initCache);
+//   - `registered`: the stub's record of every `addToJitCache(entry)`
+//     call.
+// Both must end up pointing at the same entry objects.
+function evalIsTypeModule(source: string): {byHash: Record<string, JitEntry>; registered: Record<string, JitEntry>} {
+  const registered: Record<string, JitEntry> = {};
   const stub = {
     addToJitCache(entry: JitEntry) {
-      cache[entry.jitFnHash] = entry;
+      registered[entry.jitFnHash] = entry;
     },
   };
-  const js = source.replace(/^export function install/m, 'function install');
-  const factory = new Function(`${js}\nreturn install;`);
-  const install = factory() as (utl: typeof stub) => Record<string, JitEntry>;
-  const byName = install(stub);
-  return {byName, cache};
+  const stripped = stripExports(source);
+  const factory = new Function(`${stripped}\nreturn initCache;`);
+  const initCache = factory() as (jitUtils: typeof stub) => Record<string, JitEntry>;
+  const byHash = initCache(stub);
+  return {byHash, registered};
 }

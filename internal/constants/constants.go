@@ -18,21 +18,24 @@ type CacheModuleSettings struct {
 type CacheModuleGroup map[string]CacheModuleSettings
 
 // CacheModules is the registry of every emitted cache-module shape.
+//
+// `VarPrefix` is retained as the prefix the renderer uses for inner
+// closure names inside the body of an isType validator (mion's
+// printClosure convention — outer "get_<fnName>" wraps inner "<fnName>"
+// at jitFnCompiler.ts:732). After the move to the splice-based emitter
+// the prefix is NOT used to key cache entries any more: every cache is
+// now `{ [rawId]: value }`, keyed by the canonical hash id directly.
 var CacheModules = CacheModuleGroup{
 	"runTypes": {
 		Name:      "runTypesModule",
 		VarPrefix: "t_",
 	},
-	// isType is a sibling virtual module of `runTypes`. Each entry is a
-	// precompiled `get_isType_<hash>(utl)` factory — consumers import
-	// the factory and invoke it themselves to materialise a fresh
-	// validator. The VarPrefix matches the emitted JS export name's
-	// prefix, so consumers can do `cache[ISTYPE_VAR_PREFIX + hash]` to
-	// look up a factory. The `get_` prefix mirrors mion's printClosure
-	// convention (jitFnCompiler.ts:732): outer "get_<fnName>" is the
-	// factory, inner "<fnName>" is the validator the factory returns.
 	"isType": {
 		Name:      "isTypeModule",
 		VarPrefix: "get_isType_",
+	},
+	"parsedFns": {
+		Name:      "parsedFnsModule",
+		VarPrefix: "",
 	},
 }

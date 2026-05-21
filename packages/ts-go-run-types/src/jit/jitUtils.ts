@@ -28,10 +28,17 @@ declare const console: {warn(...args: any[]): void};
 // Module-local caches. Plain objects/Maps — no globalThis singleton trick;
 // dual-loading (CJS + ESM) is solved elsewhere in the bundler config.
 const jitFnsCache: JitFunctionsCache = {};
-/** Namespaced pure functions cache: { namespace: { fnHash: CompiledPureFunction } } */
+/** Flat pure-function cache keyed by "<namespace>::<fnName>". */
 const pureFnsCache: PureFunctionsCache = {};
 const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
 const serializableClassRegistry = new Map<string, SerializableClass>();
+
+/** Composes the flat-cache key from a namespace + function name pair.
+ *  Both halves of the composite key are required to be non-empty; the
+ *  helper centralises the `::` separator so callers don't repeat it. **/
+export function pureFnKey(namespace: string, fnName: string): string {
+  return namespace + '::' + fnName;
+}
 
 /**
  * Interface defining the shape of jitUtils
@@ -46,13 +53,14 @@ export interface JITUtils {
   getJIT(jitFnHash: string): JitCompiledFn | undefined;
   getJitFn(jitFnHash: string): (...args: any[]) => any;
   hasJitFn(jitFnHash: string): boolean;
-  addPureFn(namespace: string, compiledFn: CompiledPureFunction): void;
-  usePureFn(namespace: string, name: string): PureFunction;
-  getPureFn(namespace: string, name: string): PureFunction | undefined;
-  getCompiledPureFn(namespace: string, name: string): CompiledPureFunction | undefined;
-  hasPureFn(namespace: string, name: string): boolean;
+  /** Adds a compiled pure function. `key` is the composite `"namespace::fnName"`. */
+  addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction;
+  usePureFn(key: string): PureFunction;
+  getPureFn(key: string): PureFunction | undefined;
+  getCompiledPureFn(key: string): CompiledPureFunction | undefined;
+  hasPureFn(key: string): boolean;
   /** Find a pure function across all namespaces. Returns the compiled function or undefined. */
-  findCompiledPureFn(name: string): CompiledPureFunction | undefined;
+  findCompiledPureFn(fnName: string): CompiledPureFunction | undefined;
   setSerializableClass<C extends SerializableClass>(cls: C): void;
   useSerializeClass(className: string): SerializableClass;
   getSerializeClass(className: string): SerializableClass | undefined;
@@ -80,64 +88,51 @@ const jitUtils: JITUtils = {
   hasJitFn(jitFnHash: string) {
     return !!jitFnsCache[jitFnHash]?.fn;
   },
-  /**
-   * Checks if key map can be serialized/deserialized with json and still works as a key for a map.
-   * ie: if a map key is an string, it can be serialized to json and deserialized back an still will identify the correct map entry.
-   * ie: if a map entry is an object, the object can not be serialized/deserialized and wont work as the same key for entry map as they are not same memory ref.
-   *  */
 
-  addPureFn(namespace: string, compiledFn: CompiledPureFunction): CompiledPureFunction {
-    const fnHash = compiledFn.fnName;
-    if (!fnHash) throw new Error('Pure function must have a name and must be unique');
-    const nsCache = ensureNamespace(namespace);
-    const existing = nsCache[fnHash];
+  addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction {
+    if (!key) throw new Error('Pure function key must be a non-empty "namespace::fnName" string');
+    const existing = pureFnsCache[key];
     if (existing) {
       // Validate body hash matches - if not, this is a version conflict
       if (existing.bodyHash && compiledFn.bodyHash && existing.bodyHash !== compiledFn.bodyHash) {
         console.warn(
-          `Pure function ${namespace}::${fnHash} body hash mismatch. ` +
+          `Pure function ${key} body hash mismatch. ` +
             `Existing: ${existing.bodyHash}, New: ${compiledFn.bodyHash}. ` +
             `Replacing with new version.`
         );
-        nsCache[fnHash] = compiledFn;
+        pureFnsCache[key] = compiledFn;
         return compiledFn;
       }
       return existing;
     }
-
-    nsCache[fnHash] = compiledFn;
+    pureFnsCache[key] = compiledFn;
     return compiledFn;
   },
-  usePureFn(namespace: string, fnHash: string): PureFunction {
-    const nsCache = pureFnsCache[namespace];
-    if (!nsCache) throw new Error(`Pure function namespace ${namespace} not found`);
-    const compiled = nsCache[fnHash];
-    if (!compiled) throw new Error(`Pure function with name ${fnHash} not found in namespace ${namespace}`);
+  usePureFn(key: string): PureFunction {
+    const compiled = pureFnsCache[key];
+    if (!compiled) throw new Error(`Pure function not found for key "${key}"`);
     initPureFunction(compiled);
     return compiled.fn;
   },
-  getPureFn(namespace: string, fnHash: string): PureFunction | undefined {
-    const nsCache = pureFnsCache[namespace];
-    if (!nsCache) return;
-    const compiled = nsCache[fnHash];
+  getPureFn(key: string): PureFunction | undefined {
+    const compiled = pureFnsCache[key];
     if (!compiled) return;
     initPureFunction(compiled);
     return compiled.fn;
   },
-  getCompiledPureFn(namespace: string, fnHash: string): CompiledPureFunction | undefined {
-    const nsCache = pureFnsCache[namespace];
-    if (!nsCache) return;
-    return nsCache[fnHash];
+  getCompiledPureFn(key: string): CompiledPureFunction | undefined {
+    return pureFnsCache[key];
   },
-  hasPureFn(namespace: string, fnHash: string): boolean {
-    const nsCache = pureFnsCache[namespace];
-    if (!nsCache) return false;
-    return !!nsCache[fnHash];
+  hasPureFn(key: string): boolean {
+    return !!pureFnsCache[key];
   },
-  findCompiledPureFn(fnHash: string): CompiledPureFunction | undefined {
-    for (const namespace of Object.keys(pureFnsCache)) {
-      const nsCache = pureFnsCache[namespace];
-      if (nsCache && nsCache[fnHash]) return nsCache[fnHash];
+  findCompiledPureFn(fnName: string): CompiledPureFunction | undefined {
+    // Cross-namespace lookup: scan the flat keys for one ending in
+    // `::<fnName>`. Behaves identically to the old nested walk but
+    // without the namespace indirection.
+    const suffix = '::' + fnName;
+    for (const key of Object.keys(pureFnsCache)) {
+      if (key === fnName || key.endsWith(suffix)) return pureFnsCache[key];
     }
     return undefined;
   },
@@ -209,29 +204,21 @@ function restoreCaches(
       jitFnsCache[key] = {...fnsCache[key]} as JitCompiledFn;
     }
   }
-  // Load namespaced pure functions with hash validation
-  for (const namespace in pureCache) {
-    const nsCache = ensureNamespace(namespace);
-    const sourceNsCache = pureCache[namespace];
-    for (const key in sourceNsCache) {
-      const existing = nsCache[key];
-      const incoming = sourceNsCache[key];
-
-      if (existing) {
-        // Validate body hash - evict if mismatch
-        if (existing.bodyHash && incoming.bodyHash && existing.bodyHash !== incoming.bodyHash) {
-          console.warn(
-            `Pure function ${namespace}::${key} cache eviction: ` +
-              `bodyHash mismatch (cached: ${existing.bodyHash}, server: ${incoming.bodyHash})`
-          );
-          // Replace with incoming version
-          nsCache[key] = {...incoming} as CompiledPureFunction;
-        }
-        // If hashes match or one is missing, keep existing
-      } else {
-        // No existing entry, add new one
-        nsCache[key] = {...incoming} as CompiledPureFunction;
+  // Load pure functions with hash validation. Flat map — one composite
+  // key per entry.
+  for (const key in pureCache) {
+    const existing = pureFnsCache[key];
+    const incoming = pureCache[key];
+    if (existing) {
+      if (existing.bodyHash && incoming.bodyHash && existing.bodyHash !== incoming.bodyHash) {
+        console.warn(
+          `Pure function ${key} cache eviction: ` +
+            `bodyHash mismatch (cached: ${existing.bodyHash}, server: ${incoming.bodyHash})`
+        );
+        pureFnsCache[key] = {...incoming} as CompiledPureFunction;
       }
+    } else {
+      pureFnsCache[key] = {...incoming} as CompiledPureFunction;
     }
   }
   // Then restore/initialize the functions (invoke createJitFn to set the fn property)
@@ -255,12 +242,4 @@ export function getJitFnCaches() {
 function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
   if (compiled.fn) return;
   compiled.fn = compiled.createPureFn(jitUtils);
-}
-
-/** Helper function to ensure namespace exists in the cache */
-function ensureNamespace(namespace: string): Record<string, CompiledPureFunction> {
-  if (!pureFnsCache[namespace]) {
-    pureFnsCache[namespace] = {};
-  }
-  return pureFnsCache[namespace];
 }

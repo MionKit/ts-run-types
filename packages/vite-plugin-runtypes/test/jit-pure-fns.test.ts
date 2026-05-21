@@ -18,13 +18,16 @@ interface ParsedFnEntry {
   code: string;
 }
 
-// evalParsedFnsModule extracts the `parsedFns` map from the rendered
-// virtual module body. The module uses `export const parsedFns = {…};`
-// — strip the `export` and capture into a result var.
+// evalParsedFnsModule strips `export`s from the rendered module,
+// evaluates its `initCache(jitUtils)` export, and returns the populated
+// flat cache (`{ 'ns::name': {bodyHash, paramNames, code} }`).
 function evalParsedFnsModule(source: string): Record<string, ParsedFnEntry> {
-  const js = source.replace(/export const parsedFns = /, 'var parsedFns = result.parsedFns = ');
-  const factory = new Function(`const result = {parsedFns: {}}; ${js}; return result.parsedFns;`);
-  return factory() as Record<string, ParsedFnEntry>;
+  const stripped = source
+    .replace(/^\s*export\s+function\s+/gm, 'function ')
+    .replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
+  const factory = new Function(`${stripped}\nreturn initCache;`);
+  const initCache = factory() as (jitUtils?: unknown) => Record<string, ParsedFnEntry>;
+  return initCache({});
 }
 
 describe('vite-plugin-runtypes / parsed-fns virtual module', () => {
