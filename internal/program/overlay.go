@@ -11,9 +11,9 @@ import (
 // Writes are not propagated; reads of virtual paths return the overlay text.
 // Mirrors the pattern used in tsgolint's internal/utils/overlay_vfs.go.
 type overlayFS struct {
-	base             vfspkg.FS
-	files            map[string]string
-	caseSensitive    bool
+	base          vfspkg.FS
+	files         map[string]string
+	caseSensitive bool
 }
 
 func newOverlayFS(base vfspkg.FS, files map[string]string) vfspkg.FS {
