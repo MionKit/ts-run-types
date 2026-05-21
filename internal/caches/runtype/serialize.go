@@ -180,6 +180,33 @@ func (cache *Cache) AssignID(tsType *checker.Type) string {
 	return cache.assignID(tsType)
 }
 
+// SerializeAtomicKind registers (or reuses) a synthetic canonical
+// RunType entry for an atomic ReflectionKind without going through
+// the type checker. Used by the `noLiterals` resolver path to
+// redirect a unique-symbol literal type to the canonical `symbol`
+// kind — tsgo's `getBaseTypeOfLiteralType` doesn't handle
+// TypeFlagsUniqueESSymbol, so the resolver does the swap explicitly
+// after detecting the unhandled case (see internal/resolver/scan.go).
+//
+// Two calls with the same kind deduplicate via the structural map.
+// Today only `KindSymbol` is needed; if other atomic kinds ever
+// require the same escape hatch, the switch grows in lockstep with
+// the JIT emit switch in internal/caches/jitfn/istype.go.
+func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
+	structural := strconv.Itoa(int(kind)) + ":atomic"
+	if id, ok := cache.byStructural[structural]; ok {
+		return id
+	}
+	id, err := cache.literals.Unique(structural, cache.opts.literalHashLength())
+	if err != nil {
+		id = "x_at_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
+	}
+	cache.byStructural[structural] = id
+	cache.nodes[id] = &protocol.RunType{ID: id, Kind: kind}
+	cache.insertOrder = append(cache.insertOrder, id)
+	return id
+}
+
 // SerializeRegexLiteral registers a synthetic regex-literal RunType entry and
 // returns its hash id. Two calls with the same (source, flags) deduplicate.
 //

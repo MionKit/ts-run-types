@@ -232,6 +232,56 @@ export const VALIDATION_SUITE = {
       }),
     },
 
+    // noLiterals variants — mirror the `noLiterals: true` block in
+    // mion's literal.spec.ts. Each literal degrades to its base-type
+    // check: the validator accepts any value of the base type instead
+    // of only the exact literal. The Go-side resolver swaps the
+    // literal type for its base via Checker_getBaseTypeOfLiteralType
+    // before assigning the hash (see internal/resolver/scan.go), so
+    // these cases reuse the existing base-kind emit code.
+
+    literal_2_noLiterals: {
+      title: 'literal 2 (noLiterals)',
+      description: 'degrades to number — Number.isFinite check',
+      isType: () => createIsType<2>({noLiterals: true}),
+      getSamples: () => ({valid: [4], invalid: ['4']}),
+    },
+
+    literal_a_noLiterals: {
+      title: 'literal "a" (noLiterals)',
+      description: 'degrades to string — typeof check',
+      isType: () => createIsType<'a'>({noLiterals: true}),
+      getSamples: () => ({valid: ['c'], invalid: [1]}),
+    },
+
+    literal_regexp_noLiterals: {
+      title: 'literal /abc/i (noLiterals)',
+      description: 'degrades to RegExp — instanceof check',
+      isType: () => createIsType<typeof reg>({noLiterals: true}),
+      getSamples: () => ({valid: [/otherReg/], invalid: ['otherReg']}),
+    },
+
+    literal_true_noLiterals: {
+      title: 'literal true (noLiterals)',
+      description: 'degrades to boolean — typeof check',
+      isType: () => createIsType<true>({noLiterals: true}),
+      getSamples: () => ({valid: [false], invalid: [1]}),
+    },
+
+    literal_1n_noLiterals: {
+      title: 'literal 1n (noLiterals)',
+      description: 'degrades to bigint — typeof check',
+      isType: () => createIsType<1n>({noLiterals: true}),
+      getSamples: () => ({valid: [3n], invalid: [3]}),
+    },
+
+    literal_symbol_noLiterals: {
+      title: 'literal Symbol("hello") (noLiterals)',
+      description: 'degrades to symbol — typeof check',
+      isType: () => createIsType<typeof sym>({noLiterals: true}),
+      getSamples: () => ({valid: [Symbol('world')], invalid: ['world']}),
+    },
+
     // mion has no unknown.spec.ts — UnknownRunType extends AnyRunType
     // with no spec coverage. Intentionally omitted.
   },
