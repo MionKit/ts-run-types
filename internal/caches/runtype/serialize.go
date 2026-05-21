@@ -18,9 +18,9 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/mionkit/ts-run-types/internal/caches/runtype/typeid"
 	"github.com/mionkit/ts-run-types/internal/hashid"
 	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/caches/runtype/typeid"
 )
 
 // Options configures the serializer's hash budget. Zero values use the
