@@ -19,6 +19,24 @@ type ParsedFn struct {
 	ParamNames   []string
 	Code         string
 	BodyHash     string
+	// PureFnDependencies is the sorted, deduped list of
+	// `"<namespace>::<fnName>"` keys this pure-fn factory accesses via
+	// `utl.getPureFn` / `usePureFn` / `getCompiledPureFn` /
+	// `findCompiledPureFn` calls. Statically extracted by extractDeps
+	// during the same purity walk; absent when the factory has no first
+	// parameter to identify utl through.
+	PureFnDependencies []string
+	// FactoryArgStart / FactoryArgEnd are the byte offsets of the user's
+	// factory argument expression in the `registerPureFnFactory(ns, fn,
+	// factory)` call. Used by the Vite plugin to replace that span with
+	// `null` so the canonical fn body lives only in the emitted pureFns
+	// cache module.
+	FactoryArgStart int
+	FactoryArgEnd   int
+	// FilePath is the absolute source path the entry was extracted from.
+	// Stable across requests for one Program. Used by the emitter when
+	// the wire `Replacement.File` field needs to be populated.
+	FilePath string
 
 	sourceFile *ast.SourceFile
 	callPos    int
@@ -171,6 +189,15 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 		return nil, nil
 	}
 	args := callExpr.Arguments.Nodes
+	// Post-rewrite calls carry `null` as the factory argument — the
+	// Vite plugin nulls out the inline factory once the original
+	// extraction has produced a cache entry. Re-scanning the
+	// rewritten source must be a quiet no-op: no entry, no
+	// replacement, no diagnostic. Detection is intentionally narrow
+	// — exactly `null` as the third arg.
+	if args[2].Kind == ast.KindNullKeyword {
+		return nil, nil
+	}
 	var diags []Diagnostic
 
 	nsLit, nsReason := resolveStringArg(table, args[0])
@@ -243,6 +270,23 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	// emits even when violations exist (same posture as PFE9001/9003).
 	diags = append(diags, checkPurity(sourceFile, factoryFn)...)
 
+	// Static dep extraction — walk the factory body for calls like
+	// `<utlName>.getPureFn('ns::fn')` and collect the literal keys as
+	// the entry's pureFnDependencies. Replaces the old runtime
+	// tracking-proxy approach in pureFn.ts.
+	utlName := ""
+	if len(fnLike.Parameters.Nodes) > 0 {
+		firstParamDecl := fnLike.Parameters.Nodes[0].AsParameterDeclaration()
+		if firstParamDecl != nil {
+			firstParamName := firstParamDecl.Name()
+			if firstParamName != nil && firstParamName.Kind == ast.KindIdentifier {
+				utlName = firstParamName.Text()
+			}
+		}
+	}
+	pureFnDependencies, depDiags := extractDeps(sourceFile, factoryFn, table, utlName)
+	diags = append(diags, depDiags...)
+
 	var code string
 	if body.Kind == ast.KindBlock {
 		code = stripTypesFromBlock(sourceFile, body)
@@ -251,13 +295,17 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	}
 
 	entry := &ParsedFn{
-		Namespace:    namespace,
-		FunctionName: functionName,
-		ParamNames:   paramNames,
-		Code:         code,
-		BodyHash:     BodyHash(namespace, functionName, code),
-		sourceFile:   sourceFile,
-		callPos:      call.Pos(),
+		Namespace:          namespace,
+		FunctionName:       functionName,
+		ParamNames:         paramNames,
+		Code:               code,
+		BodyHash:           BodyHash(namespace, functionName, code),
+		PureFnDependencies: pureFnDependencies,
+		FactoryArgStart:    args[2].Pos(),
+		FactoryArgEnd:      args[2].End(),
+		FilePath:           sourceFile.FileName(),
+		sourceFile:         sourceFile,
+		callPos:            call.Pos(),
 	}
 	return entry, diags
 }

@@ -57,13 +57,13 @@ type Resolver struct {
 	sites        []protocol.Site
 	marker       marker.Options
 	opts         Options
-	// parsedFnHashes is the session-wide index of every parsedFn entry
+	// pureFnHashes is the session-wide index of every pure-fn entry
 	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
 	// the entry's bodyHash as the value. Used by dispatchScanFiles to
-	// emit `AddedParsedFns` on the wire — the Vite plugin reads that
-	// signal in handleHotUpdate to decide whether the parsedFns cache
+	// emit `AddedPureFns` on the wire — the Vite plugin reads that
+	// signal in handleHotUpdate to decide whether the pureFns cache
 	// module needs invalidating after a user-file change.
-	parsedFnHashes map[string]string
+	pureFnHashes map[string]string
 }
 
 // New builds a Resolver against prog. Defaults to hashid's default lengths when
@@ -87,7 +87,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		releaseLease:   releaseLease,
 		marker:         marker.WithDefaults(opts.Marker),
 		opts:           opts,
-		parsedFnHashes: map[string]string{},
+		pureFnHashes: map[string]string{},
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func NewServer(opts Options) *Resolver {
 		}),
 		marker:         marker.WithDefaults(opts.Marker),
 		opts:           opts,
-		parsedFnHashes: map[string]string{},
+		pureFnHashes: map[string]string{},
 	}
 }
 
@@ -151,7 +151,7 @@ func (resolver *Resolver) Reset() {
 	resolver.cache.Clear()
 	resolver.cache.Rebind(nil)
 	resolver.sites = resolver.sites[:0]
-	resolver.parsedFnHashes = map[string]string{}
+	resolver.pureFnHashes = map[string]string{}
 }
 
 func (resolver *Resolver) Close() {
@@ -189,23 +189,26 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
 		addedIsType := addedRunTypes && anyIsTypeSupported(added)
-		// parsedFn delta needs an explicit walk: a file may add or
-		// modify a registerPureFnFactory call without producing any new
-		// RunTypes. detectParsedFnsDelta updates the session index in
-		// place and returns whether anything changed for the request's
-		// files.
-		addedParsedFns := resolver.detectParsedFnsDelta(request.Files)
+		// Pure-fn extraction runs every scanFiles call: the request's
+		// files may add or modify registerPureFnFactory calls without
+		// producing any new RunTypes, AND every accepted entry yields
+		// one Replacement record the Vite plugin uses to null out the
+		// factory argument in the user's source. Diagnostics flow
+		// unconditionally so editor surfaces update as the user types.
+		pureFnEntries, pureFnDiags, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
 		response := protocol.Response{
-			Sites:          sites,
-			Added:          added,
-			AddedRunTypes:  addedRunTypes,
-			AddedIsType:    addedIsType,
-			AddedParsedFns: addedParsedFns,
+			Sites:              sites,
+			Replacements:       pureFnReplacements,
+			Added:              added,
+			AddedRunTypes:      addedRunTypes,
+			AddedIsType:        addedIsType,
+			AddedPureFns:       addedPureFns,
+			PureFnsDiagnostics: pureFnDiags,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
-		wantParsedFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindParsedFns)
-		anyCache := wantRunType || wantIsType || wantParsedFns
+		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
+		anyCache := wantRunType || wantIsType || wantPureFns
 		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
@@ -225,13 +228,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				}
 				response.IsTypeCacheSource = isTypeRendered
 			}
-			if wantParsedFns {
-				parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, request.Files)
-				if parsedFnsErr != nil {
-					return protocol.Response{Error: parsedFnsErr.Error()}
+			if wantPureFns {
+				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.Program, pureFnEntries, true)
+				if pureFnsErr != nil {
+					return protocol.Response{Error: pureFnsErr.Error()}
 				}
-				response.ParsedFnsCacheSource = parsedFnsRendered
-				response.ParsedFnsDiagnostics = parsedFnsDiags
+				response.PureFnsCacheSource = pureFnsRendered
 			}
 		}
 		return response
@@ -252,7 +254,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		noFilter := len(request.IncludeCacheSources) == 0
 		wantRunType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
-		wantParsedFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindParsedFns)
+		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		if wantRunType {
 			rendered, renderErr := renderModule(fullDump)
 			if renderErr != nil {
@@ -267,13 +269,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			}
 			response.IsTypeCacheSource = isTypeRendered
 		}
-		if wantParsedFns {
-			parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, nil)
-			if parsedFnsErr != nil {
-				return protocol.Response{Error: parsedFnsErr.Error()}
+		if wantPureFns {
+			pureFnsRendered, pureFnsDiags, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)
+			if pureFnsErr != nil {
+				return protocol.Response{Error: pureFnsErr.Error()}
 			}
-			response.ParsedFnsCacheSource = parsedFnsRendered
-			response.ParsedFnsDiagnostics = parsedFnsDiags
+			response.PureFnsCacheSource = pureFnsRendered
+			response.PureFnsDiagnostics = pureFnsDiags
 		}
 		return response
 	case protocol.OpSetSources:
@@ -693,28 +695,36 @@ func anyIsTypeSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-// detectParsedFnsDelta extracts parsedFn entries for `files`, compares
-// each `key→bodyHash` against the resolver's session index, and reports
-// whether the request changed anything (additions OR bodyHash flips).
-// Updates the index in place so subsequent scanFiles calls see the new
-// state. Removals are not detected here — a file that drops one of its
-// parsedFn calls still leaves the session entry behind (matches the
-// runTypes cache's structural-dedup contract; the orphan is harmless
-// until the next process restart).
-func (resolver *Resolver) detectParsedFnsDelta(files []string) bool {
+// extractPureFnsForScan runs the pure-fn extractor once per scanFiles
+// request and returns everything downstream code needs: the entries
+// (so renderPureFnsModule doesn't extract a second time), the wire
+// diagnostics, the byte-range replacements for the user's source
+// (factory-arg-to-null), and a `changed` flag indicating that at
+// least one entry's bodyHash differs from the session index.
+//
+// The session index (pureFnHashes) is mutated in place so subsequent
+// scans see the new state. Removals are not detected here — a file
+// that drops one of its pure-fn calls still leaves the session entry
+// behind (matches the runTypes cache's structural-dedup contract;
+// the orphan is harmless until the next process restart).
+func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefn.ParsedFn, diags []protocol.PureFnDiagnostic, replacements []protocol.Replacement, changed bool) {
 	if resolver.Program == nil || len(files) == 0 {
-		return false
+		return nil, nil, nil, false
 	}
-	entries, _ := purefn.ExtractFromProgram(resolver.Program, files)
-	changed := false
+	entries, rawDiags := purefn.ExtractFromProgram(resolver.Program, files)
 	for _, entry := range entries {
 		key := entry.Key()
-		if existing, ok := resolver.parsedFnHashes[key]; !ok || existing != entry.BodyHash {
-			resolver.parsedFnHashes[key] = entry.BodyHash
+		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {
+			resolver.pureFnHashes[key] = entry.BodyHash
 			changed = true
 		}
 	}
-	return changed
+	diags = make([]protocol.PureFnDiagnostic, 0, len(rawDiags))
+	for _, diag := range rawDiags {
+		diags = append(diags, toWireDiagnostic(diag))
+	}
+	replacements = purefn.Replacements(entries)
+	return entries, diags, replacements, changed
 }
 
 // wantsCache reports whether a scanFiles caller asked for `kind` — either
@@ -739,36 +749,36 @@ func renderModule(dump protocol.Dump) (string, error) {
 	return buf.String(), nil
 }
 
-// renderParsedFnsModule walks `files` (or every file in the program when
-// `files` is nil), extracts registerPureFnFactory call data, and returns
-// the rendered virtual-module source plus any wire-shaped diagnostics.
-// nil `files` is the OpDump path; a non-nil slice is OpScanFiles with
-// CacheKindParsedFns (or CacheKindAll) in IncludeCacheSources — we scope
-// to the request's files for parity with RunTypeCacheSource /
-// IsTypeCacheSource.
-func renderParsedFnsModule(prog *program.Program, files []string) (string, []protocol.ParsedFnDiagnostic, error) {
+// renderPureFnsModule renders the pureFns cache-module body for the
+// program. When `entries` is non-nil it's used directly (the
+// OpScanFiles caller already ran extractPureFnsForScan and passes its
+// result through); otherwise the function walks every file in the
+// program and runs the extractor itself (the OpDump path). Returns the
+// rendered source plus any wire-shaped diagnostics from the in-place
+// extraction.
+func renderPureFnsModule(prog *program.Program, entries []purefn.ParsedFn, ranExtraction bool) (string, []protocol.PureFnDiagnostic, error) {
 	if prog == nil {
 		return "", nil, nil
 	}
-	walkFiles := files
-	if walkFiles == nil {
+	var diagnostics []purefn.Diagnostic
+	if !ranExtraction {
 		sourceFiles := prog.TS.SourceFiles()
-		walkFiles = make([]string, 0, len(sourceFiles))
+		walkFiles := make([]string, 0, len(sourceFiles))
 		for _, sf := range sourceFiles {
 			if sf == nil {
 				continue
 			}
 			walkFiles = append(walkFiles, sf.FileName())
 		}
+		entries, diagnostics = purefn.ExtractFromProgram(prog, walkFiles)
 	}
-	entries, diagnostics := purefn.ExtractFromProgram(prog, walkFiles)
 
 	var buf bytes.Buffer
-	if err := purefn.ParsedFnsModule(&buf, entries); err != nil {
-		return "", nil, fmt.Errorf("renderParsedFnsModule: %w", err)
+	if err := purefn.PureFnsModule(&buf, entries); err != nil {
+		return "", nil, fmt.Errorf("renderPureFnsModule: %w", err)
 	}
 
-	wireDiags := make([]protocol.ParsedFnDiagnostic, 0, len(diagnostics))
+	wireDiags := make([]protocol.PureFnDiagnostic, 0, len(diagnostics))
 	for _, diag := range diagnostics {
 		wireDiags = append(wireDiags, toWireDiagnostic(diag))
 	}
@@ -777,24 +787,24 @@ func renderParsedFnsModule(prog *program.Program, files []string) (string, []pro
 
 // toWireDiagnostic translates the in-Go diagnostic shape to the protocol's
 // JSON-friendly mirror. Same fields, different package edge.
-func toWireDiagnostic(diag purefn.Diagnostic) protocol.ParsedFnDiagnostic {
-	out := protocol.ParsedFnDiagnostic{
+func toWireDiagnostic(diag purefn.Diagnostic) protocol.PureFnDiagnostic {
+	out := protocol.PureFnDiagnostic{
 		Code:     diag.Code,
 		Category: diag.Category,
 		Message:  diag.Message,
 		Site:     toWireSite(diag.Site),
 	}
 	for _, related := range diag.Related {
-		out.Related = append(out.Related, protocol.ParsedFnRelated{
-			ParsedFnDiagSite: toWireSite(related.DiagnosticSite),
-			Message:          related.Message,
+		out.Related = append(out.Related, protocol.PureFnRelated{
+			PureFnDiagSite: toWireSite(related.DiagnosticSite),
+			Message:        related.Message,
 		})
 	}
 	return out
 }
 
-func toWireSite(site purefn.DiagnosticSite) protocol.ParsedFnDiagSite {
-	return protocol.ParsedFnDiagSite{
+func toWireSite(site purefn.DiagnosticSite) protocol.PureFnDiagSite {
+	return protocol.PureFnDiagSite{
 		FilePath:  site.FilePath,
 		StartLine: site.StartLine,
 		StartCol:  site.StartCol,

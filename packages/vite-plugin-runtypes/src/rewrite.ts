@@ -1,36 +1,71 @@
 import type {ResolverClient} from './resolver-client.ts';
-import type {Site} from './protocol.ts';
+import type {Replacement, Site} from './protocol.ts';
 
-// Rewritten carries the patched source + the sites the Go binary returned.
-// `sites[i].pos` is the byte offset of the close-paren in the ORIGINAL
-// source; consumers using these positions after applying `code` must
-// account for the offset shift introduced by the inserted ids.
+// Rewritten carries the patched source + the sites and replacements
+// the Go binary returned. `sites[i].pos` is the byte offset of the
+// close-paren in the ORIGINAL source; replacements are also against
+// the original source. Consumers using these positions after applying
+// `code` must account for the offset shift introduced by the rewrites.
 export interface Rewritten {
   code: string;
   sites: Site[];
+  replacements: Replacement[];
 }
 
-// rewrite asks the resolver to scan the given file and inject the resolved
-// id at each detected call site. The injection is purely textual: the id is
-// stringified and slipped in just before the call's closing `)`. The
-// transformer doesn't reparse the file — the Go binary already has the AST.
+// rewrite asks the resolver to scan the given file and apply two kinds
+// of byte-offset edits returned from the Go binary:
 //
-// Sites are applied right-to-left so earlier offsets remain valid as we
-// edit. Positions from the resolver are UTF-8 BYTE offsets (because tsgo
-// internally indexes its source files by byte), so we operate on a Buffer
-// rather than a JS string — UTF-16 code-unit math would skew on any
-// multibyte char like an em-dash in a comment.
+//   1. Site insertions: the resolved runtypes id is slipped in just
+//      before each call's closing `)`.
+//   2. Replacements: byte-range substitutions (e.g. the pure-fn
+//      extractor nulls out the factory argument of every
+//      `registerPureFnFactory(ns, fn, factory)` call so the factory
+//      body lives only in the emitted pureFns cache module).
+//
+// Both edit kinds are sorted right-to-left by start position and
+// applied in one pass — earlier offsets remain valid as we edit.
+// Positions from the resolver are UTF-8 BYTE offsets (because tsgo
+// internally indexes its source files by byte), so we operate on a
+// Buffer rather than a JS string — UTF-16 code-unit math would skew on
+// any multibyte char like an em-dash in a comment.
 export async function rewrite(file: string, code: string, resolver: ResolverClient): Promise<Rewritten> {
-  const {sites} = await resolver.scanFiles([file]);
-  if (sites.length === 0) return {code, sites: []};
+  const result = await resolver.scanFiles([file]);
+  const sites = result.sites;
+  const replacements = result.replacements ?? [];
+  if (sites.length === 0 && replacements.length === 0) {
+    return {code, sites, replacements};
+  }
+
+  // Sort all edits right-to-left so earlier byte offsets stay valid.
+  // Sites are zero-width insertions keyed on `pos`; replacements are
+  // span edits keyed on `start`. Both share the same offset space.
+  type Edit = {kind: 'site'; pos: number; site: Site} | {kind: 'replace'; start: number; end: number; text: string};
+  const edits: Edit[] = [
+    ...sites.map<Edit>((site) => ({kind: 'site', pos: site.pos, site})),
+    ...replacements.map<Edit>((rep) => ({
+      kind: 'replace',
+      start: rep.start,
+      end: rep.end,
+      text: rep.text,
+    })),
+  ];
+  edits.sort((a, b) => {
+    const ax = a.kind === 'site' ? a.pos : a.start;
+    const bx = b.kind === 'site' ? b.pos : b.start;
+    return bx - ax;
+  });
 
   let buf = Buffer.from(code, 'utf8');
-  const sorted = [...sites].sort((a, b) => b.pos - a.pos);
-  for (const s of sorted) {
-    const insertion = Buffer.from(buildInsertion(s), 'utf8');
-    buf = Buffer.concat([buf.subarray(0, s.pos), insertion, buf.subarray(s.pos)]);
+  for (const edit of edits) {
+    if (edit.kind === 'site') {
+      const insertion = Buffer.from(buildInsertion(edit.site), 'utf8');
+      buf = Buffer.concat([buf.subarray(0, edit.pos), insertion, buf.subarray(edit.pos)]);
+    } else {
+      const replacement = Buffer.from(edit.text, 'utf8');
+      buf = Buffer.concat([buf.subarray(0, edit.start), replacement, buf.subarray(edit.end)]);
+    }
   }
-  return {code: buf.toString('utf8'), sites};
+  return {code: buf.toString('utf8'), sites, replacements};
 }
 
 // buildInsertion produces the text to splice in just before the call's

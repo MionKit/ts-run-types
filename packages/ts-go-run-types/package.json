@@ -26,11 +26,11 @@
       "import": "./dist/caches/isTypeCache.js",
       "require": "./dist/caches/isTypeCache.cjs"
     },
-    "./caches/parsedFnsCache": {
-      "source": "./src/caches/parsedFnsCache.ts",
-      "types": "./dist/caches/parsedFnsCache.d.ts",
-      "import": "./dist/caches/parsedFnsCache.js",
-      "require": "./dist/caches/parsedFnsCache.cjs"
+    "./caches/pureFnsCache": {
+      "source": "./src/caches/pureFnsCache.ts",
+      "types": "./dist/caches/pureFnsCache.d.ts",
+      "import": "./dist/caches/pureFnsCache.js",
+      "require": "./dist/caches/pureFnsCache.cjs"
     }
   },
   "files": [

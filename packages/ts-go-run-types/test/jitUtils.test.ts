@@ -7,7 +7,7 @@
 
 import {describe, it, expect} from 'vitest';
 import {getJitFnCaches, getJitUtils} from '../src/jit/jitUtils.ts';
-import type {JitFunctionsCache, PureFunctionsCache, RunType, ParsedFn} from '../src/jit/types.ts';
+import type {JitFunctionsCache, PureFunctionsCache, RunType} from '../src/jit/types.ts';
 
 const {jitFnsCache, pureFnsCache} = getJitFnCaches() as {jitFnsCache: JitFunctionsCache; pureFnsCache: PureFunctionsCache};
 
@@ -130,30 +130,6 @@ describe('jitUtils', () => {
 
     it('addRunType rejects empty id', () => {
       expect(() => getJitUtils().addRunType('', {id: '', kind: 'x'})).toThrow(/non-empty/);
-    });
-  });
-
-  describe('parsedFn data registry', () => {
-    it('addParsedFn / getParsedFn round-trip', () => {
-      const key = 'ns::fn-test-add';
-      const data: ParsedFn = {bodyHash: 'hash-a', paramNames: ['x', 'y'], code: 'return x + y;'};
-      getJitUtils().addParsedFn(key, data);
-      expect(getJitUtils().getParsedFn(key)).toBe(data);
-    });
-
-    it('addParsedFn overwrites on repeated key (idempotent re-init)', () => {
-      const key = 'ns::fn-test-overwrite';
-      getJitUtils().addParsedFn(key, {bodyHash: 'old', paramNames: [], code: ''});
-      getJitUtils().addParsedFn(key, {bodyHash: 'new', paramNames: ['a'], code: 'return a;'});
-      expect(getJitUtils().getParsedFn(key)?.bodyHash).toBe('new');
-    });
-
-    it('addParsedFn rejects empty key', () => {
-      expect(() => getJitUtils().addParsedFn('', {bodyHash: '', paramNames: [], code: ''})).toThrow(/non-empty/);
-    });
-
-    it('getParsedFn returns undefined for unknown key', () => {
-      expect(getJitUtils().getParsedFn('ns::never-added')).toBeUndefined();
     });
   });
 

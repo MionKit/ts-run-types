@@ -11,7 +11,7 @@
 //   2. Re-scan of the same source content with no changes
 //      → all three signals false (cache hits, no deltas).
 //   3. Adding a `registerPureFnFactory` call to a file
-//      → addedParsedFns=true.
+//      → addedPureFns=true.
 
 import {describe, expect, it} from 'vitest';
 import {hasBinary, withInlineSources} from './helpers/inline.ts';
@@ -48,18 +48,18 @@ getRuntypeId<string>();
         // Prime the cache.
         await client.scanFiles(['idempotent.ts']);
         // Re-scan the same content. Structural dedup hits; no new
-        // entries get interned. parsedFn extraction yields the same
+        // entries get interned. pureFn extraction yields the same
         // (empty) set, so its delta is false too.
         const second = await client.scanFiles(['idempotent.ts']);
         expect(second.addedRunTypes).toBeFalsy();
         expect(second.addedIsType).toBeFalsy();
-        expect(second.addedParsedFns).toBeFalsy();
+        expect(second.addedPureFns).toBeFalsy();
       },
       {reset: true}
     );
   });
 
-  register('scanning a file with registerPureFnFactory sets addedParsedFns', async () => {
+  register('scanning a file with registerPureFnFactory sets addedPureFns', async () => {
     const sources = {
       'pure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
 export const a = registerPureFnFactory('hmrns', 'pureFnA', function () {
@@ -71,13 +71,13 @@ export const a = registerPureFnFactory('hmrns', 'pureFnA', function () {
       sources,
       async ({client}) => {
         const response = await client.scanFiles(['pure.ts']);
-        expect(response.addedParsedFns).toBe(true);
+        expect(response.addedPureFns).toBe(true);
       },
       {reset: true}
     );
   });
 
-  register('re-scanning the same parsedFn content does not re-set addedParsedFns', async () => {
+  register('re-scanning the same pureFn content does not re-set addedPureFns', async () => {
     const sources = {
       'stable-pure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
 export const a = registerPureFnFactory('hmrns', 'stableFn', function () {
@@ -92,7 +92,7 @@ export const a = registerPureFnFactory('hmrns', 'stableFn', function () {
         await client.scanFiles(['stable-pure.ts']);
         // Re-scan the same content — bodyHash matches, no delta.
         const second = await client.scanFiles(['stable-pure.ts']);
-        expect(second.addedParsedFns).toBeFalsy();
+        expect(second.addedPureFns).toBeFalsy();
       },
       {reset: true}
     );

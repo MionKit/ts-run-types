@@ -287,10 +287,10 @@ const (
 type CacheKind string
 
 const (
-	CacheKindRunType   CacheKind = "runType"
-	CacheKindIsType    CacheKind = "isType"
-	CacheKindParsedFns CacheKind = "parsedFns"
-	CacheKindAll       CacheKind = "all"
+	CacheKindRunType CacheKind = "runType"
+	CacheKindIsType  CacheKind = "isType"
+	CacheKindPureFns CacheKind = "pureFns"
+	CacheKindAll     CacheKind = "all"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -332,11 +332,12 @@ type Response struct {
 	// would render at least one new entry. Set independently of
 	// AddedRunTypes so cache-by-cache invalidation stays surgical.
 	AddedIsType bool `json:"addedIsType,omitempty"`
-	// AddedParsedFns is true when the scan introduced (or modified) at
-	// least one parsedFn entry across the request's files — checked
+	// AddedPureFns is true when the scan introduced (or modified) at
+	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
-	AddedParsedFns bool `json:"addedParsedFns,omitempty"`
+	AddedPureFns       bool       `json:"addedPureFns,omitempty"`
 	Sites              []Site     `json:"sites,omitempty"`
+	Replacements       []Replacement `json:"replacements,omitempty"`
 	RunTypes           []*RunType `json:"runTypes,omitempty"`
 	RunTypeCacheSource string     `json:"runTypeCacheSource,omitempty"`
 	// IsTypeCacheSource is the rendered body of the `virtual:runtypes-isType`
@@ -347,34 +348,39 @@ type Response struct {
 	// caller opts into CacheKindIsType / CacheKindAll via
 	// IncludeCacheSources).
 	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
-	// ParsedFnsCacheSource is the rendered body of the
-	// `virtual:runtypes-parsed-fns` module — a `Record<"<ns>::<fn>",
-	// ParsedFactoryFn>` consumed by `registerPureFnFactory` at runtime.
-	// Sibling of RunTypeCacheSource: populated on OpDump and on
-	// OpScanFiles when the caller opts into CacheKindParsedFns /
-	// CacheKindAll via IncludeCacheSources.
-	ParsedFnsCacheSource string `json:"parsedFnsCacheSource,omitempty"`
-	// ParsedFnsDiagnostics carries non-fatal extractor errors (bad arg
-	// shapes, body-hash collisions, etc.) — emitted by the Vite plugin
-	// via `this.warn` in canonical tsc line format. Schema mirrors the
-	// LSP Diagnostic shape so downstream tooling (LSP servers, ESLint
-	// reporters, problem matchers) can ingest with minimal glue.
-	ParsedFnsDiagnostics []ParsedFnDiagnostic `json:"parsedFnsDiagnostics,omitempty"`
-	Error                string               `json:"error,omitempty"`
+	// PureFnsCacheSource is the rendered body of the
+	// `virtual:runtypes-pure-fns` module — one
+	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
+	// call per registered pure function. The module is the canonical
+	// runtime home of every pure-fn body; the Vite plugin separately
+	// rewrites the user's `registerPureFnFactory(ns, fn, factory)` call
+	// to pass `null` as the factory argument (see Replacements) so the
+	// function body is not duplicated in the user bundle.
+	// Populated on OpDump and on OpScanFiles when the caller opts into
+	// CacheKindPureFns / CacheKindAll via IncludeCacheSources.
+	PureFnsCacheSource string `json:"pureFnsCacheSource,omitempty"`
+	// PureFnsDiagnostics carries non-fatal extractor errors (bad arg
+	// shapes, body-hash collisions, purity violations, dep-arg shape
+	// errors). The Vite plugin re-emits each one via `this.warn` in
+	// canonical tsc line format. Schema mirrors the LSP Diagnostic shape
+	// so downstream tooling (LSP servers, ESLint reporters, problem
+	// matchers) can ingest with minimal glue.
+	PureFnsDiagnostics []PureFnDiagnostic `json:"pureFnsDiagnostics,omitempty"`
+	Error              string             `json:"error,omitempty"`
 }
 
-// ParsedFnDiagnostic is the wire shape of purefn.Diagnostic. The Vite
+// PureFnDiagnostic is the wire shape of purefn.Diagnostic. The Vite
 // plugin re-emits each one as a build warning so VS Code's $tsc problem
 // matcher surfaces it in the Problems panel.
-type ParsedFnDiagnostic struct {
-	Code     string            `json:"code"`
-	Category string            `json:"category"` // "error" | "warning"
-	Message  string            `json:"message"`
-	Site     ParsedFnDiagSite  `json:"site"`
-	Related  []ParsedFnRelated `json:"related,omitempty"`
+type PureFnDiagnostic struct {
+	Code     string           `json:"code"`
+	Category string           `json:"category"` // "error" | "warning"
+	Message  string           `json:"message"`
+	Site     PureFnDiagSite   `json:"site"`
+	Related  []PureFnRelated  `json:"related,omitempty"`
 }
 
-type ParsedFnDiagSite struct {
+type PureFnDiagSite struct {
 	FilePath  string `json:"filePath"`
 	StartLine int    `json:"startLine"`
 	StartCol  int    `json:"startCol"`
@@ -382,8 +388,8 @@ type ParsedFnDiagSite struct {
 	EndCol    int    `json:"endCol"`
 }
 
-type ParsedFnRelated struct {
-	ParsedFnDiagSite
+type PureFnRelated struct {
+	PureFnDiagSite
 	Message string `json:"message"`
 }
 
@@ -400,6 +406,18 @@ type Site struct {
 	ID         string `json:"id"`
 	ParamIndex int    `json:"paramIndex,omitempty"`
 	ArgsCount  int    `json:"argsCount,omitempty"`
+}
+
+// Replacement is a byte-range rewrite on a source file: replace the
+// bytes [Start, End) with Text. Used by the pure-fn extractor to null
+// out the factory argument of every `registerPureFnFactory(ns, fn,
+// factory)` call so the canonical fn body lives only in the emitted
+// pureFns cache module (no duplication in the user bundle).
+type Replacement struct {
+	File  string `json:"file"`
+	Start int    `json:"start"`
+	End   int    `json:"end"`
+	Text  string `json:"text"`
 }
 
 // Dump is the build-end manifest written to runtypes-cache.json.
@@ -427,11 +445,14 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedIsType {
 		out["addedIsType"] = true
 	}
-	if response.AddedParsedFns {
-		out["addedParsedFns"] = true
+	if response.AddedPureFns {
+		out["addedPureFns"] = true
 	}
 	if len(response.Sites) > 0 {
 		out["sites"] = response.Sites
+	}
+	if len(response.Replacements) > 0 {
+		out["replacements"] = response.Replacements
 	}
 	if len(response.RunTypes) > 0 {
 		out["runTypes"] = response.RunTypes
@@ -442,11 +463,11 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.IsTypeCacheSource != "" {
 		out["isTypeCacheSource"] = response.IsTypeCacheSource
 	}
-	if response.ParsedFnsCacheSource != "" {
-		out["parsedFnsCacheSource"] = response.ParsedFnsCacheSource
+	if response.PureFnsCacheSource != "" {
+		out["pureFnsCacheSource"] = response.PureFnsCacheSource
 	}
-	if len(response.ParsedFnsDiagnostics) > 0 {
-		out["parsedFnsDiagnostics"] = response.ParsedFnsDiagnostics
+	if len(response.PureFnsDiagnostics) > 0 {
+		out["pureFnsDiagnostics"] = response.PureFnsDiagnostics
 	}
 	if response.Error != "" {
 		out["error"] = response.Error

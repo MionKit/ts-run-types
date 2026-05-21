@@ -34,8 +34,8 @@ var CacheModules = CacheModuleGroup{
 		Name:      "isTypeModule",
 		VarPrefix: "get_isType_",
 	},
-	"parsedFns": {
-		Name:      "parsedFnsModule",
+	"pureFns": {
+		Name:      "pureFnsModule",
 		VarPrefix: "",
 	},
 }

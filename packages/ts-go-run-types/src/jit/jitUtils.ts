@@ -20,8 +20,6 @@ import type {
   PureFunction,
   RunType,
   RunTypesCache,
-  ParsedFn,
-  ParsedFnsDataCache,
 } from './types.ts';
 import {restoreCompiledJitFns} from './restoreJitFns.ts';
 
@@ -38,11 +36,6 @@ const pureFnsCache: PureFunctionsCache = {};
  *  cache module (the Go binary's emit replaces the marker line with
  *  `jitUtils.addRunType(...)` calls). */
 const runTypesCache: RunTypesCache = {};
-/** Parsed-function data registry keyed by "<namespace>::<fnName>". Populated
- *  by the parsedFns cache module; consumed by `registerPureFnFactory`. The
- *  overlap with `pureFnsCache` (same key shape, overlapping fields) is
- *  intentional for now — reconciliation is a separate pass. */
-const parsedFnsDataCache: ParsedFnsDataCache = {};
 const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
 const serializableClassRegistry = new Map<string, SerializableClass>();
 
@@ -81,9 +74,6 @@ export interface JITUtils {
   /** Look up a run-type by id; throws when missing. Use when absence is a bug. */
   useRunType(id: string): RunType;
   hasRunType(id: string): boolean;
-  /** Add parsed-function metadata keyed by "<namespace>::<fnName>". */
-  addParsedFn(key: string, data: ParsedFn): void;
-  getParsedFn(key: string): ParsedFn | undefined;
   setSerializableClass<C extends SerializableClass>(cls: C): void;
   useSerializeClass(className: string): SerializableClass;
   getSerializeClass(className: string): SerializableClass | undefined;
@@ -178,13 +168,6 @@ const jitUtils: JITUtils = {
   },
   hasRunType(id: string): boolean {
     return !!runTypesCache[id];
-  },
-  addParsedFn(key: string, data: ParsedFn) {
-    if (!key) throw new Error('Parsed-function key must be a non-empty "namespace::fnName" string');
-    parsedFnsDataCache[key] = data;
-  },
-  getParsedFn(key: string): ParsedFn | undefined {
-    return parsedFnsDataCache[key];
   },
   setSerializableClass<C extends SerializableClass>(cls: C) {
     const className = cls.name;

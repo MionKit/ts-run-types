@@ -1,32 +1,40 @@
-// End-to-end acceptance test for the parsedFns virtual module. Drives the
+// End-to-end acceptance test for the pureFns virtual module. Drives the
 // Go binary over inline sources, then verifies:
 //
-//   1. response.parsedFnsCacheSource exports a `parsedFns` map keyed
-//      by "<namespace>::<functionID>" with structurally-valid entries.
-//   2. response.parsedFnsDiagnostics surfaces PFE9xxx diagnostics for
+//   1. response.pureFnsCacheSource exports `factory(...)` calls keyed
+//      by "<namespace>::<functionID>" with structurally-valid entries
+//      including the inline `createPureFn` literal.
+//   2. response.replacements carries one byte-range null-out per
+//      accepted call site.
+//   3. response.pureFnsDiagnostics surfaces PFE9xxx diagnostics for
 //      bad-shape calls (non-literal args, body-hash collisions, etc.).
-//   3. The diagnostic wire format renders via formatTscDiagnostic into
+//   4. The diagnostic wire format renders via formatTscDiagnostic into
 //      VS Code's `$tsc` problem-matcher line shape.
 
 import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
 import {hasBinary, withInlineSources} from './helpers/inline.ts';
 
-interface ParsedFnEntry {
+interface PureFnEntry {
+  namespace: string;
+  fnName: string;
   bodyHash: string;
   paramNames: string[];
   code: string;
+  pureFnDependencies: string[];
+  createPureFn: unknown;
+  fn: unknown;
 }
 
-// evalParsedFnsModule strips `export`s from the rendered module,
+// evalPureFnsModule strips `export`s from the rendered module,
 // evaluates its `initCache(jitUtils)` export against a stub that
-// records every `addParsedFn(key, data)` call, and returns the
-// populated flat cache (`{ 'ns::name': {bodyHash, paramNames, code} }`).
-function evalParsedFnsModule(source: string): Record<string, ParsedFnEntry> {
-  const registered: Record<string, ParsedFnEntry> = {};
+// records every `addPureFn(key, entry)` call, and returns the
+// populated flat cache (`{ 'ns::name': CompiledPureFunction-ish }`).
+function evalPureFnsModule(source: string): Record<string, PureFnEntry> {
+  const registered: Record<string, PureFnEntry> = {};
   const stub = {
-    addParsedFn(key: string, data: ParsedFnEntry) {
-      registered[key] = data;
+    addPureFn(key: string, entry: PureFnEntry) {
+      registered[key] = entry;
     },
   };
   const stripped = source.replace(/^\s*export\s+function\s+/gm, 'function ');
@@ -36,10 +44,10 @@ function evalParsedFnsModule(source: string): Record<string, ParsedFnEntry> {
   return registered;
 }
 
-describe('vite-plugin-runtypes / parsed-fns virtual module', () => {
+describe('vite-plugin-runtypes / pure-fns virtual module', () => {
   const register = hasBinary() ? it : it.skip;
 
-  register('emits parsedFns entries with structurally-valid metadata', async () => {
+  register('emits pureFns entries with structurally-valid metadata', async () => {
     const sources = {
       'pure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
 export const a = registerPureFnFactory('mion', 'asJSONString', function () {
@@ -56,18 +64,73 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      expect(response.parsedFnsCacheSource).toBeDefined();
-      expect(response.parsedFnsDiagnostics ?? []).toEqual([]);
+      expect(response.pureFnsCacheSource).toBeDefined();
+      expect(response.pureFnsDiagnostics ?? []).toEqual([]);
 
-      const parsedFns = evalParsedFnsModule(response.parsedFnsCacheSource!);
-      expect(Object.keys(parsedFns).sort()).toEqual(['mion::asJSONString', 'mion::safeKey']);
+      const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
+      expect(Object.keys(pureFns).sort()).toEqual(['mion::asJSONString', 'mion::safeKey']);
 
-      const asJSON = parsedFns['mion::asJSONString'];
+      const asJSON = pureFns['mion::asJSONString'];
+      expect(asJSON.namespace).toBe('mion');
+      expect(asJSON.fnName).toBe('asJSONString');
       expect(asJSON.bodyHash).toMatch(/^[A-Za-z0-9_-]{14}$/);
       expect(asJSON.paramNames).toEqual([]);
       // Body must be JS-stripped — no `: string` annotation should remain.
       expect(asJSON.code).not.toContain(': string');
       expect(asJSON.code).toContain('return JSON.stringify');
+      // Dependencies array is always present (empty when no deps).
+      expect(asJSON.pureFnDependencies).toEqual([]);
+      // createPureFn is a function — the cache module IS the canonical
+      // runtime home of the body.
+      expect(typeof asJSON.createPureFn).toBe('function');
+      // Calling it with a utl stub yields the actual pure function.
+      const inner = (asJSON.createPureFn as (utl: unknown) => (s: string) => string)({});
+      expect(typeof inner).toBe('function');
+      expect(inner('hi')).toBe('"hi"');
+    });
+  });
+
+  register('emits Replacement entries that null out each factory argument', async () => {
+    const sources = {
+      'src.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+export const _ = registerPureFnFactory('mion', 'foo', function () {
+  return function _f(x: number) { return x + 1; };
+});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources));
+      const reps = response.replacements ?? [];
+      expect(reps.length).toBe(1);
+      expect(reps[0].text).toBe('null');
+      expect(reps[0].end).toBeGreaterThan(reps[0].start);
+      // Verify the rewrite produces a syntactically clean nulled-out
+      // call form when applied to the source.
+      const buf = Buffer.from(sources['src.ts'], 'utf8');
+      const after = Buffer.concat([
+        buf.subarray(0, reps[0].start),
+        Buffer.from(reps[0].text, 'utf8'),
+        buf.subarray(reps[0].end),
+      ]).toString('utf8');
+      expect(after).toContain("registerPureFnFactory('mion', 'foo',null)");
+    });
+  });
+
+  register('extracts pureFnDependencies statically from utl.getPureFn calls', async () => {
+    const sources = {
+      'deps.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+type Utl = {getPureFn(key: string): (x: any) => any};
+export const _ = registerPureFnFactory('mion', 'consumer', function (utl: Utl) {
+  return function _f(x: any) {
+    return utl.getPureFn('mion::dep')(x);
+  };
+});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
+      expect(pureFns['mion::consumer'].pureFnDependencies).toEqual(['mion::dep']);
     });
   });
 
@@ -80,7 +143,7 @@ export const x = registerPureFnFactory(getNs(), 'fn', function () { return funct
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const codes = (response.parsedFnsDiagnostics ?? []).map((diag) => diag.code);
+      const codes = (response.pureFnsDiagnostics ?? []).map((diag) => diag.code);
       expect(codes).toContain('PFE9001');
     });
   });
@@ -94,7 +157,7 @@ export const x = registerPureFnFactory('mion', 'fn', externalFn);
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const codes = (response.parsedFnsDiagnostics ?? []).map((diag) => diag.code);
+      const codes = (response.pureFnsDiagnostics ?? []).map((diag) => diag.code);
       expect(codes).toContain('PFE9003');
     });
   });
@@ -114,7 +177,7 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const collisions = (response.parsedFnsDiagnostics ?? []).filter((diag) => diag.code === 'PFE9004');
+      const collisions = (response.pureFnsDiagnostics ?? []).filter((diag) => diag.code === 'PFE9004');
       expect(collisions.length).toBe(1);
 
       const collision = collisions[0];
@@ -125,8 +188,8 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
       expect(collision.message).toContain('mion::collideFn');
 
       // Virtual module still loads, with the first-occurrence winner.
-      const parsedFns = evalParsedFnsModule(response.parsedFnsCacheSource!);
-      expect(parsedFns['mion::collideFn']).toBeDefined();
+      const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
+      expect(pureFns['mion::collideFn']).toBeDefined();
     });
   });
 
@@ -142,13 +205,35 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const diags = response.parsedFnsDiagnostics ?? [];
+      const diags = response.pureFnsDiagnostics ?? [];
       const evalDiag = diags.find((diag) => diag.code === 'PFE9010' && diag.message.includes('eval'));
       expect(evalDiag).toBeDefined();
       // Ensure the formatted line matches the $tsc problem-matcher regex
       // — VS Code parses build-task output through that pattern.
       const line = formatTscDiagnostic(evalDiag!);
       expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+error\s+PFE9010:/);
+    });
+  });
+
+  register('emits PFE9011 (closure variable) for module-level const captured by factory', async () => {
+    // The whole point of the source-rewrite-to-null design: closure
+    // captures must blow up at scan time, since the cached fn body
+    // can't see anything outside its own scope.
+    const sources = {
+      'closure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+const PRECISION = 0.001;
+export const x = registerPureFnFactory('mion', 'rounder', function () {
+  return function _round(n: number) {
+    return Math.round(n / PRECISION) * PRECISION;
+  };
+});
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
+      const diags = response.pureFnsDiagnostics ?? [];
+      const closureDiag = diags.find((diag) => diag.code === 'PFE9011' && diag.message.includes('PRECISION'));
+      expect(closureDiag).toBeDefined();
     });
   });
 
