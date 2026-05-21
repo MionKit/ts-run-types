@@ -181,10 +181,13 @@ func trimTrailingUndefined(args []string) []string {
 	return args[:end]
 }
 
-// cacheRef turns a hash id into the bracket-access expression the
-// generated code uses for the new cache table, e.g. `cache['Lrjx']`.
+// cacheRef turns a hash id into the function-call expression the
+// generated code uses to look up a cached RunType, e.g. `c('Lrjx')`.
+// `c` is a short alias for `jitUtils.useRunType` declared inside the
+// skeleton's `initCache(jitUtils)` body — both the `rt(...)` factory
+// and the footer ref-assignment lines close over it.
 func cacheRef(id string) string {
-	return "cache[" + quoteJS(id) + "]"
+	return "c(" + quoteJS(id) + ")"
 }
 
 // isFooterLiteral reports whether runType.Literal needs special construction

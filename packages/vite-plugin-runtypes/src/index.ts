@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
-import type {ParsedFnDiagnostic} from './protocol.ts';
+import type {CacheKind, ParsedFnDiagnostic} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -15,34 +15,26 @@ export interface PluginOptions {
   // Package the marker is declared in. Defaults to "@mionjs/ts-go-run-types".
   // Files that don't import the marker module are short-circuited.
   markerModule?: string;
-  // Id of the runtypes metadata virtual module. Consumers import this
-  // module to get the type-metadata table. Defaults to
-  // "virtual:runtypes-cache".
-  virtualModuleId?: string;
-  // Id of the precompiled isType-validator virtual module. Consumers
-  // import the `get_isType_<hash>(utl)` factories from this module and
-  // invoke them to materialise validators. Defaults to
-  // "virtual:runtypes-isType".
-  isTypeVirtualModuleId?: string;
-  // Id of the parsedFns virtual module — consumed by
-  // `@mionjs/ts-go-run-types`'s `registerPureFnFactory` to look up
-  // {bodyHash, paramNames, code} extracted at build time.
-  // Defaults to "virtual:runtypes-parsed-fns".
-  parsedFnsVirtualModuleId?: string;
 }
 
-const DEFAULT_VIRTUAL = 'virtual:runtypes-cache';
-const DEFAULT_ISTYPE_VIRTUAL = 'virtual:runtypes-isType';
-const DEFAULT_PARSED_FNS_VIRTUAL = 'virtual:runtypes-parsed-fns';
 const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 
+// CACHE_FILE_RE matches the three on-disk cache module files the plugin
+// transforms in place: `…/caches/runTypesCache.ts` (source mode under
+// vitest) or `…/caches/runTypesCache.js` (built dist mode in production).
+// The same regex matches both flavours so the plugin doesn't have to
+// resolve the package's `exports` map at startup. Anchored on the
+// `/caches/` parent dir to avoid colliding with same-named files
+// outside the marker package.
+const CACHE_FILE_RE = /[/\\]caches[/\\](runTypesCache|isTypeCache|parsedFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+
+const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
+  runTypesCache: 'runType',
+  isTypeCache: 'isType',
+  parsedFnsCache: 'parsedFns',
+};
+
 export default function runtypes(options: PluginOptions) {
-  const virtualId = options.virtualModuleId ?? DEFAULT_VIRTUAL;
-  const resolvedVirtualId = '\0' + virtualId;
-  const isTypeVirtualId = options.isTypeVirtualModuleId ?? DEFAULT_ISTYPE_VIRTUAL;
-  const resolvedIsTypeVirtualId = '\0' + isTypeVirtualId;
-  const parsedFnsVirtualId = options.parsedFnsVirtualModuleId ?? DEFAULT_PARSED_FNS_VIRTUAL;
-  const resolvedParsedFnsVirtualId = '\0' + parsedFnsVirtualId;
   const markerModule = options.markerModule ?? DEFAULT_MARKER_MODULE;
 
   let resolver: ResolverClient | null = null;
@@ -69,47 +61,30 @@ export default function runtypes(options: PluginOptions) {
       resolver = null;
     },
 
-    resolveId(this: any, id: string) {
-      // Accept both the bare virtual id and the already-resolved \0-prefixed
-      // form. Vitest's SSR module loader sometimes re-asks resolveId with
-      // the resolved id (during dep analysis of an importer); returning
-      // null there would orphan the module so load() never fires.
-      if (id === virtualId || id === resolvedVirtualId) return resolvedVirtualId;
-      if (id === isTypeVirtualId || id === resolvedIsTypeVirtualId) return resolvedIsTypeVirtualId;
-      if (id === parsedFnsVirtualId || id === resolvedParsedFnsVirtualId) return resolvedParsedFnsVirtualId;
-      return null;
-    },
-
-    async load(this: any, id: string) {
-      if (id !== resolvedVirtualId && id !== resolvedIsTypeVirtualId && id !== resolvedParsedFnsVirtualId) return null;
-      // Empty-shape fallback for the brief window before the resolver
-      // is wired up. Every cache module's contract is an idempotent
-      // `initCache(jitUtils)` returning a cache object — return that
-      // exact shape so consumers don't need null checks.
-      if (!resolver) return emptyCacheModuleBody();
-      // The Go binary renders all three virtual modules from its in-memory
-      // dump in a single call. Full cache (not just scanned-files union) —
-      // Vite's load() runs once per import and consumers expect every
-      // emitted key to be reachable.
-      const dump = await resolver.dump();
-      // Surface parsedFn diagnostics on every dump. `this.warn` is the
-      // Rollup/Vite plugin context method that emits a build warning
-      // without failing the build. Vite collapses duplicate messages
-      // within a single build pass.
-      for (const diag of dump.parsedFnsDiagnostics ?? []) {
-        this.warn(formatTscDiagnostic(diag));
-      }
-      if (id === resolvedIsTypeVirtualId) {
-        return dump.isTypeCacheSource ?? '// no isType validators emitted yet\n';
-      }
-      if (id === resolvedParsedFnsVirtualId) {
-        return dump.parsedFnsCacheSource ?? 'export const parsedFns = {};\n';
-      }
-      return dump.runTypeCacheSource ?? '// no runtypes resolved yet\n';
-    },
-
     async transform(this: any, code: string, id: string) {
       if (!resolver) return null;
+
+      // Cache module file? Replace its body in-place with the Go binary's
+      // rendered cache source for the matching kind. The on-disk
+      // skeleton is the legitimate empty-state fallback when the plugin
+      // isn't active; the transform only overlays it when it has data.
+      const cacheMatch = CACHE_FILE_RE.exec(id);
+      if (cacheMatch) {
+        const kind = CACHE_KIND_BY_FILE[cacheMatch[1]];
+        const dump = await resolver.dump({includeCacheSources: [kind]});
+        // ParsedFn diagnostics flow alongside parsedFnsCacheSource only —
+        // surface them on that one transform call so each diagnostic is
+        // emitted exactly once per build pass.
+        if (kind === 'parsedFns') {
+          for (const diag of dump.parsedFnsDiagnostics ?? []) {
+            this.warn(formatTscDiagnostic(diag));
+          }
+        }
+        const body = pickCacheSource(dump, kind);
+        if (!body) return null;
+        return {code: body, map: null};
+      }
+
       if (!/\.[mc]?[jt]sx?$/.test(id)) return null;
       // Short-circuit: a file that doesn't reference the marker module
       // can't contain rewritable sites. Cheap textual check before the
@@ -125,21 +100,16 @@ export default function runtypes(options: PluginOptions) {
   };
 }
 
-// emptyCacheModuleBody returns the minimal module body served before
-// the resolver is wired up. Matches the cache-module contract: an
-// idempotent `initCache(jitUtils)` returning a cache object plus a
-// re-export of `cache` for direct imports.
-function emptyCacheModuleBody(): string {
-  return `// no runtypes resolved yet
-const cache = {};
-let isInitialised = false;
-export function initCache(jitUtils) {
-  if (isInitialised) return cache;
-  isInitialised = true;
-  return cache;
-}
-export {cache};
-`;
+// pickCacheSource pulls the rendered body field matching `kind` off a
+// dump response. Centralised so the transform hook stays terse.
+function pickCacheSource(
+  dump: {runTypeCacheSource?: string; isTypeCacheSource?: string; parsedFnsCacheSource?: string},
+  kind: CacheKind
+): string | undefined {
+  if (kind === 'runType') return dump.runTypeCacheSource;
+  if (kind === 'isType') return dump.isTypeCacheSource;
+  if (kind === 'parsedFns') return dump.parsedFnsCacheSource;
+  return undefined;
 }
 
 // formatTscDiagnostic renders a parsedFn diagnostic in the canonical

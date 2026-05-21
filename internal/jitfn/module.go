@@ -16,10 +16,11 @@ import (
 // place this prefix still surfaces in the emitted JS.
 const isTypeInnerPrefix = "isType_"
 
-// IsTypeModule writes the runtime artifact for the
-// `virtual:runtypes-isType` module: the hand-authored skeleton with the
-// marker line replaced by one `factory(jitUtils, …);` call per cached
-// RunType the IsTypeEmitter supports.
+// IsTypeModule writes the runtime artifact for the isType cache module:
+// the hand-authored skeleton with the marker line replaced by one
+// `factory(…);` call per cached RunType the IsTypeEmitter supports.
+// The skeleton's `factory` closes over the surrounding `initCache(jitUtils)`
+// parameter, so the per-entry call site doesn't repeat the argument.
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is one
 // line once the Emitter is implemented. Adding typeErrors later is a
@@ -29,8 +30,10 @@ func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
 }
 
 // RenderFnModule is the fn-agnostic module renderer. Emits one
-// `factory(jitUtils, 'hash', …);` line per supported RunType then
-// splices the result into the named skeleton.
+// `factory('hash', …);` line per supported RunType then splices the
+// result into the named skeleton. The skeleton's `factory` closes over
+// `jitUtils` from its enclosing `initCache(jitUtils)`, so call sites
+// stay compact.
 //
 // Kinds the emitter's Supports gate doesn't accept are silently
 // skipped — the alternative (panicking) would crash the whole module
@@ -97,7 +100,7 @@ func renderEntry(runType *protocol.RunType, settings constants.CacheModuleSettin
 		pureFnDepsJS(walker.PureFnDependencies),
 		createJitFn,
 	}
-	return "factory(jitUtils," + joinArgs(args) + ");"
+	return "factory(" + joinArgs(args) + ");"
 }
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.

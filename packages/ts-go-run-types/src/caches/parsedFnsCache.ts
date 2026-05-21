@@ -1,26 +1,22 @@
 // @ts-nocheck
 // Hand-authored skeleton for the parsedFns cache module. Served by the
-// Go binary as `virtual:runtypes-parsed-fns` after replacing the marker
-// line below with generated `factory(jitUtils, …)` calls.
+// Go binary via the Vite plugin's `transform()` hook after replacing
+// the marker line below with generated `factory(…)` calls — one per
+// extracted `registerPureFnFactory` call site.
 //
-// Cache values are pure data (bodyHash + paramNames + code) consumed by
-// `registerPureFnFactory`. `jitUtils` is part of the shared cache shape
-// but unused here.
+// `factory` closes over `jitUtils` and pushes the entry into the shared
+// jitUtils parsedFn registry via `addParsedFn(key, data)`. There is no
+// module-local table — every consumer (currently `registerPureFnFactory`
+// inside @mionjs/ts-go-run-types) reads back through
+// `jitUtils.getParsedFn(key)`.
 
 'use strict';
 
-const cache = {};
-let isInitialised = false;
-
-function factory(_jitUtils, key, bodyHash, paramNames, code) {
-  cache[key] = {bodyHash, paramNames, code};
-}
-
 export function initCache(jitUtils) {
-  if (isInitialised) return cache;
-  isInitialised = true;
+  function factory(key, bodyHash, paramNames, code) {
+    jitUtils.addParsedFn(key, {bodyHash, paramNames, code});
+  }
+  void factory;
 
   // #### REPLACE HERE ####
-
-  return cache;
 }

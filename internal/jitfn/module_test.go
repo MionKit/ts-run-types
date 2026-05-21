@@ -25,7 +25,7 @@ func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 	for _, fragment := range []string{
 		"'use strict';",
 		"export function initCache(jitUtils)",
-		"function factory(jitUtils,",
+		"function factory(jitFnHash,",
 		"jitUtils.addToJitCache(entry);",
 	} {
 		if !strings.Contains(out, fragment) {
@@ -62,7 +62,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
 	out := renderToString(t, dump)
-	want := "factory(jitUtils," +
+	want := "factory(" +
 		"'abc123'," +
 		"'string'," +
 		"'return typeof v === \\'string\\''," +
@@ -91,7 +91,7 @@ func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
 	if strings.Contains(out, "'b1'") {
 		t.Error("KindBoolean should be skipped (unsupported), but b1 was rendered")
 	}
-	if !strings.Contains(out, "factory(jitUtils,'s1',") {
+	if !strings.Contains(out, "factory('s1',") {
 		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)
 	}
 }
@@ -105,7 +105,7 @@ func TestIsTypeModule_NilRunTypeSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if !strings.Contains(out, "factory(jitUtils,'s1',") {
+	if !strings.Contains(out, "factory('s1',") {
 		t.Error("nil entries should be skipped without affecting the real one")
 	}
 }

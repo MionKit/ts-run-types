@@ -65,8 +65,8 @@ func TestStaticForm(t *testing.T) {
 	if !strings.Contains(out, `rt('BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0);`) {
 		t.Errorf("expected Property to emit `rt('BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0);`, got:\n%s", out)
 	}
-	if !strings.Contains(out, `cache['BxzL39'].child = cache['LrjxT1'];`) {
-		t.Errorf("expected footer cache-ref assignment `cache['BxzL39'].child = cache['LrjxT1'];`, got:\n%s", out)
+	if !strings.Contains(out, `c('BxzL39').child = c('LrjxT1');`) {
+		t.Errorf("expected footer cache-ref assignment `c('BxzL39').child = c('LrjxT1');`, got:\n%s", out)
 	}
 }
 
@@ -114,7 +114,7 @@ func TestFooterLiteralPassesUForLiteralArg(t *testing.T) {
 	if !strings.Contains(out, `rt('bigID',13,u,u,u,u`) {
 		t.Errorf("expected bigint literal to pass `u` at literal slot, got:\n%s", out)
 	}
-	if !strings.Contains(out, `cache['bigID'].literal = BigInt('42');`) {
+	if !strings.Contains(out, `c('bigID').literal = BigInt('42');`) {
 		t.Errorf("expected footer BigInt assignment via cache ref, got:\n%s", out)
 	}
 }
@@ -131,7 +131,7 @@ func TestClassBuiltinUnchanged(t *testing.T) {
 	if !strings.Contains(out, `rt('dateID',20,u,'Date');`) {
 		t.Errorf("expected class factory call with typeName, got:\n%s", out)
 	}
-	if !strings.Contains(out, `cache['dateID'].classType = globalThis.Date;`) {
+	if !strings.Contains(out, `c('dateID').classType = globalThis.Date;`) {
 		t.Errorf("expected footer classType assignment via cache ref, got:\n%s", out)
 	}
 }
@@ -147,8 +147,8 @@ func TestCycle(t *testing.T) {
 	if !strings.Contains(out, `rt('B1',15,u,u,'b',u,u,u,u,u,u,!0);`) {
 		t.Errorf("expected B1 factory call, got:\n%s", out)
 	}
-	if !strings.Contains(out, `cache['A1'].child = cache['B1'];`) || !strings.Contains(out, `cache['B1'].child = cache['A1'];`) {
-		t.Errorf("expected both cycle ref assignments via cache, got:\n%s", out)
+	if !strings.Contains(out, `c('A1').child = c('B1');`) || !strings.Contains(out, `c('B1').child = c('A1');`) {
+		t.Errorf("expected both cycle ref assignments via c() accessor, got:\n%s", out)
 	}
 }
 

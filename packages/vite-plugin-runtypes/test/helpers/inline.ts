@@ -179,22 +179,34 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 }
 
 // evalRunTypesModule evaluates the rendered runtypes cache module body
-// (skeleton + spliced rt(...) / cache['…'].slot assignments) via
-// `new Function` and returns the populated cache object. Strips the
-// two `export …` declarations (the function `initCache` and the
-// re-export of `cache`) so the module body is valid script-scope JS.
+// (skeleton + spliced rt(...) / c('id').slot assignments) via
+// `new Function` against a stub jitUtils that records every `addRunType`
+// call into a local table and serves `useRunType` lookups from that
+// same table. Returns the populated cache object.
 function evalRunTypesModule(source: string): Record<string, RunType> {
+  const registered: Record<string, RunType> = {};
+  const stub = {
+    addRunType(id: string, runType: RunType) {
+      registered[id] = runType;
+    },
+    useRunType(id: string): RunType {
+      const entry = registered[id];
+      if (!entry) throw new Error(`stub useRunType: no entry for ${id}`);
+      return entry;
+    },
+  };
   const stripped = stripExports(source);
   const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (jitUtils?: unknown) => Record<string, RunType>;
-  return initCache({});
+  const initCache = factory() as (jitUtils: typeof stub) => void;
+  initCache(stub);
+  return registered;
 }
 
-// stripExports rewrites `export function …` to `function …` and removes
-// `export {cache};` so the skeleton body evaluates inside a `new Function`
-// script body (which doesn't accept `export` syntax).
+// stripExports rewrites `export function …` to `function …` so the
+// skeleton body evaluates inside a `new Function` script body (which
+// doesn't accept `export` syntax).
 function stripExports(source: string): string {
-  return source.replace(/^\s*export\s+function\s+/gm, 'function ').replace(/^\s*export\s*\{[^}]*\};\s*$/gm, '');
+  return source.replace(/^\s*export\s+function\s+/gm, 'function ');
 }
 
 // Look up the resolved RunType for a given source file in an evaluated cache.
