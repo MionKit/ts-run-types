@@ -26,16 +26,6 @@ if ! command -v go >/dev/null 2>&1; then
   fail "Go toolchain not found on PATH (needed to build $BIN)."
 fi
 
-# Sync the hand-authored cache skeletons before doing anything else.
-# The Go binary `//go:embed`s its copy from internal/cachetpl/skeletons/;
-# editing the canonical source under packages/ts-go-run-types/src/caches/
-# would otherwise look up-to-date here while the binary keeps embedding
-# the stale mirror. Running the sync first ensures both halves agree, and
-# any change ripples into the staleness check below as a different
-# embedded blob → different build ID → automatic rebuild.
-echo -e "${YELLOW}→ Syncing cache skeletons...${NC}"
-bash "$ROOT_DIR/scripts/sync-cache-skeletons.sh"
-
 echo -e "${YELLOW}→ Checking ts-go-run-types staleness...${NC}"
 
 # Build a reference binary into a temp path (cache-hot, sub-second) so we
