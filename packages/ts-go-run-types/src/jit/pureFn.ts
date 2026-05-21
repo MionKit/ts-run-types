@@ -5,15 +5,18 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-import {initCache as initParsedFnsCache} from 'virtual:runtypes-parsed-fns';
-import type {CompiledPureFunction, ParsedFactoryFn, PureFunctionFactory} from './types.ts';
+import {initCache as initParsedFnsCache} from '../caches/parsedFnsCache.ts';
+import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
 import {getJitUtils, pureFnKey, type JITUtils} from './jitUtils.ts';
 
-// One-shot call to the parsedFns virtual module's `initCache(jitUtils)`.
-// Returns the same module-local `cache` object on every call (idempotent
-// behind the `isInitialised` guard), so we hoist the reference and read
-// it directly when a registration arrives.
-const parsedFns = initParsedFnsCache(getJitUtils()) as Record<string, ParsedFactoryFn>;
+// Side-effect: the parsedFns cache module's `initCache(jitUtils)`
+// registers every `{bodyHash, paramNames, code}` entry via
+// `jitUtils.addParsedFn(key, data)`. No local table is held here —
+// `registerPureFnFactory` reads metadata back through
+// `jitUtils.getParsedFn(key)`. Keeps the data inside the long-lived
+// singleton so HMR's re-evaluation of the cache module just overwrites
+// entries by key without stranding any stale reference.
+initParsedFnsCache(getJitUtils());
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
 // ║  WARNING: the Go binary's AST walker keys its parsed-fn cache on the         ║
@@ -38,7 +41,7 @@ export function registerPureFnFactory(
   createPureFn: PureFunctionFactory
 ): CompiledPureFunction {
   const key = pureFnKey(namespace, functionID);
-  const parsedFn = parsedFns[key];
+  const parsedFn = getJitUtils().getParsedFn(key);
   if (!parsedFn) {
     throw new Error(
       `registerPureFnFactory: no parsed-fn data for "${key}". ` +

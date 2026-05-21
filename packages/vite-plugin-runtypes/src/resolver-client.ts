@@ -100,12 +100,22 @@ export interface ScanFilesResult {
   parsedFnsDiagnostics?: import('./protocol.ts').ParsedFnDiagnostic[];
 }
 
+// DumpOptions opts the dump call into returning only a subset of
+// cache-module bodies. With no opts, dump returns every cache source
+// (legacy "give me everything" behavior). Passing a non-empty
+// `includeCacheSources` restricts the response to the requested kinds —
+// the Vite plugin uses this to ask for just the cache it's serving in
+// a given transform() call.
+export interface DumpOptions {
+  includeCacheSources?: CacheKind[];
+}
+
 // Common operation surface. Spawn-based and socket-based clients both
 // implement this interface so consumers can be typed against the connection
 // without caring which transport is in use.
 export interface ResolverConnection {
   scanFiles(files: string[], opts?: ScanFilesOptions): Promise<ScanFilesResult>;
-  dump(): Promise<Response>;
+  dump(opts?: DumpOptions): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
   close(): void;
@@ -134,8 +144,10 @@ abstract class ResolverClientBase implements ResolverConnection {
     };
   }
 
-  async dump(): Promise<Response> {
-    return this.transport.request({op: 'dump'});
+  async dump(opts: DumpOptions = {}): Promise<Response> {
+    const req: Request = {op: 'dump'};
+    if (opts.includeCacheSources?.length) req.includeCacheSources = opts.includeCacheSources;
+    return this.transport.request(req);
   }
 
   async setSources(sources: Record<string, string>): Promise<void> {

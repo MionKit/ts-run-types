@@ -1,18 +1,18 @@
-import {initCache as initIsTypeCache} from 'virtual:runtypes-isType';
+import {initCache as initIsTypeCache} from './caches/isTypeCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
+import type {JitCompiledFn} from './jit/types.ts';
 import type {RuntypeId} from './index.ts';
 
 /** Validator function returned by `createIsType<T>()`. Same shape as
  *  mion's `IsTypeFn` in run-types/src/types.ts. **/
 export type IsTypeFn = (value: unknown) => boolean;
 
-// One-shot call to the virtual module's `initCache(jitUtils)` export.
-// Materialises every JitCompiledFn entry against the supplied jitUtils,
-// registers each via `jitUtils.addToJitCache`, and returns the
-// module-local cache table keyed by raw `jitFnHash`. The legacy
-// `get_isType_<hash>` factory prefix is no longer part of the cache
-// key — entries are looked up by the canonical hash directly.
-const cache = initIsTypeCache(getJitUtils()) as Record<string, {fn: IsTypeFn} | undefined>;
+// Side-effect: the cache module's `initCache(jitUtils)` registers every
+// compiled JitCompiledFn entry via `jitUtils.addToJitCache`. No local
+// table is held here — every lookup goes through the jitUtils singleton,
+// which is what makes HMR work cleanly (re-evaluating the cache module
+// just rewrites entries on the same singleton).
+initIsTypeCache(getJitUtils());
 
 // Validator cache keyed by runtype id (the hash injected at compile
 // time by vite-plugin-runtypes). Two `createIsType<T>()` calls for the
@@ -28,11 +28,11 @@ const validatorCache = new Map<string, IsTypeFn>();
  *
  *  At compile time `vite-plugin-runtypes` rewrites every call site to
  *  inject the trailing `RuntypeId<T>` hash, so the runtime path just
- *  reads the precompiled `JitCompiledFn` entry off the cache by raw
+ *  reads the precompiled `JitCompiledFn` entry off jitUtils by raw
  *  hash and caches its `.fn` validator.
  *
  *  Throws when called without the plugin active (no `id` injected) or
- *  when the cache doesn't contain an entry for the expected hash —
+ *  when jitUtils doesn't contain an entry for the expected hash —
  *  both indicate the build pipeline didn't wire correctly. **/
 export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   if (id === undefined) {
@@ -42,13 +42,13 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   }
   const cached = validatorCache.get(id);
   if (cached) return cached;
-  const entry = cache[id];
+  const entry = getJitUtils().getJIT(id) as JitCompiledFn | undefined;
   if (!entry) {
     throw new Error(
-      `createIsType(): no entry for "${id}" in virtual:runtypes-isType. The build pipeline didn't emit a validator for that runtype.`
+      `createIsType(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a validator for that runtype.`
     );
   }
-  const validator = entry.fn;
+  const validator = entry.fn as IsTypeFn;
   validatorCache.set(id, validator);
   return validator;
 }

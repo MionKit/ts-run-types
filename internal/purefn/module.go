@@ -7,11 +7,13 @@ import (
 	"github.com/mionkit/ts-run-types/internal/cachetpl"
 )
 
-// ParsedFnsModule writes the JS source body for the
-// `virtual:runtypes-parsed-fns` module: the hand-authored skeleton at
+// ParsedFnsModule writes the JS source body for the parsedFns cache
+// module: the hand-authored skeleton at
 // packages/ts-go-run-types/src/caches/parsedFnsCache.ts with the marker
-// line replaced by one `factory(jitUtils, '<ns>::<fn>', '<bodyHash>',
-// [paramNames], '<code>');` call per extracted entry.
+// line replaced by one `factory('<ns>::<fn>', '<bodyHash>',
+// [paramNames], '<code>');` call per extracted entry. The skeleton's
+// `factory` closes over `jitUtils` from its enclosing
+// `initCache(jitUtils)` parameter.
 //
 // Output is deterministic: entries are emitted in the order they appear
 // in the input slice (ExtractFromProgram already sorts alphabetically
@@ -19,7 +21,7 @@ import (
 func ParsedFnsModule(writer io.Writer, entries []ParsedFn) error {
 	var body strings.Builder
 	for _, entry := range entries {
-		body.WriteString("factory(jitUtils,")
+		body.WriteString("factory(")
 		body.WriteString(quoteJS(entry.Key()))
 		body.WriteByte(',')
 		body.WriteString(quoteJS(entry.BodyHash))
