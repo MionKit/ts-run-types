@@ -372,7 +372,7 @@ func joinRefs(settings constants.CacheModuleSettings, runTypes []*protocol.RunTy
 // quoteJS renders a Go string as a JS source-level **single-quoted** string
 // literal. Single quotes are preferred over `strconv.Quote`'s double quotes
 // because the emitted module body is shipped over the resolver protocol as
-// a JSON-encoded `cacheSource` string — every `"` inside the JS source then
+// a JSON-encoded `runTypeCacheSource` string — every `"` inside the JS source then
 // costs an extra escape byte (`\"`) on the wire. Single-quoting keeps the
 // JSON envelope unescaped for the overwhelmingly common case of JS strings
 // that contain no apostrophes (hash ids, kind names, property names, …).

@@ -255,7 +255,7 @@ const (
 	// returns one Site per call whose resolved signature opts into
 	// transformer injection (trailing `RuntypeId<T>` parameter with a
 	// concretely-bound T). When Request.IncludeRunTypes or
-	// IncludeCacheSource is set, the response also carries a projection
+	// IncludeCacheSources is set, the response also carries a projection
 	// scoped to Request.Files only — NOT to the cache's session-wide
 	// contents. Callers that want the full in-memory cache use OpDump.
 	OpScanFiles = "scanFiles"
@@ -280,21 +280,34 @@ const (
 	OpResolveID = "resolveId"
 )
 
+// CacheKind enumerates the rendered cache-module bodies callers can opt into
+// on a scanFiles request via Request.IncludeCacheSources. New kinds are
+// expected as the precompiler grows; CacheKindAll is the forward-compatible
+// "give me everything" shortcut.
+type CacheKind string
+
+const (
+	CacheKindRunType   CacheKind = "runType"
+	CacheKindIsType    CacheKind = "isType"
+	CacheKindParsedFns CacheKind = "parsedFns"
+	CacheKindAll       CacheKind = "all"
+)
+
 // Request is the union of all query operations (see resolver/dispatch).
 //
 // Files carries the scanFiles op's input — every file the caller wants
 // scanned in this request. The response's Sites carries entries for
 // every listed file (each tagged with .File), and IncludeRunTypes /
-// IncludeCacheSource scope their payload to **this request's Files
+// IncludeCacheSources scope their payload to **this request's Files
 // only**, not to any session-wide accumulation. Callers that want the
 // whole in-memory cache call OpDump.
 type Request struct {
-	Op                 string            `json:"op"`
-	Files              []string          `json:"files,omitempty"`
-	ID                 string            `json:"id,omitempty"`
-	Sources            map[string]string `json:"sources,omitempty"`
-	IncludeRunTypes    bool              `json:"includeRunTypes,omitempty"`
-	IncludeCacheSource bool              `json:"includeCacheSource,omitempty"`
+	Op                  string            `json:"op"`
+	Files               []string          `json:"files,omitempty"`
+	ID                  string            `json:"id,omitempty"`
+	Sources             map[string]string `json:"sources,omitempty"`
+	IncludeRunTypes     bool              `json:"includeRunTypes,omitempty"`
+	IncludeCacheSources []CacheKind       `json:"includeCacheSources,omitempty"`
 }
 
 // Response is returned per request. ID is the hash key into the shared
@@ -308,22 +321,24 @@ type Response struct {
 	ID                string     `json:"-"`
 	HasID             bool       `json:"-"`
 	OK                bool       `json:"-"`
-	Added             []*RunType `json:"added,omitempty"`
-	Sites             []Site     `json:"sites,omitempty"`
-	RunTypes          []*RunType `json:"runTypes,omitempty"`
-	CacheSource       string     `json:"cacheSource,omitempty"`
+	Added              []*RunType `json:"added,omitempty"`
+	Sites              []Site     `json:"sites,omitempty"`
+	RunTypes           []*RunType `json:"runTypes,omitempty"`
+	RunTypeCacheSource string     `json:"runTypeCacheSource,omitempty"`
 	// IsTypeCacheSource is the rendered body of the `virtual:runtypes-isType`
 	// module — one `export function get_isType_<hash>(utl){…}` factory
-	// per cached RunType the precompiler knows how to handle. Paired
-	// with CacheSource: populated whenever CacheSource is, and over the
-	// same projection (full cache for OpDump, scoped to request files
-	// for OpScanFiles with IncludeCacheSource).
+	// per cached RunType the precompiler knows how to handle. Sibling of
+	// RunTypeCacheSource: populated under the same projection (full cache
+	// for OpDump, scoped to request files for OpScanFiles when the
+	// caller opts into CacheKindIsType / CacheKindAll via
+	// IncludeCacheSources).
 	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
 	// ParsedFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-parsed-fns` module — a `Record<"<ns>::<fn>",
 	// ParsedFactoryFn>` consumed by `registerPureFnFactory` at runtime.
-	// Populated alongside CacheSource on OpDump and OpScanFiles
-	// (when IncludeCacheSource is set).
+	// Sibling of RunTypeCacheSource: populated on OpDump and on
+	// OpScanFiles when the caller opts into CacheKindParsedFns /
+	// CacheKindAll via IncludeCacheSources.
 	ParsedFnsCacheSource string `json:"parsedFnsCacheSource,omitempty"`
 	// ParsedFnsDiagnostics carries non-fatal extractor errors (bad arg
 	// shapes, body-hash collisions, etc.) — emitted by the Vite plugin
@@ -398,8 +413,8 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if len(response.RunTypes) > 0 {
 		out["runTypes"] = response.RunTypes
 	}
-	if response.CacheSource != "" {
-		out["cacheSource"] = response.CacheSource
+	if response.RunTypeCacheSource != "" {
+		out["runTypeCacheSource"] = response.RunTypeCacheSource
 	}
 	if response.IsTypeCacheSource != "" {
 		out["isTypeCacheSource"] = response.IsTypeCacheSource

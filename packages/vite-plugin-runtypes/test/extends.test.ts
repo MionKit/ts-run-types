@@ -1,6 +1,6 @@
 // End-to-end class / interface `extends` round-trip tests. Mirrors the
 // Go-side suite in internal/resolver/extends_test.go and exercises the
-// full pipeline: rewrite → resolver → cacheSource → eval module →
+// full pipeline: rewrite → resolver → runTypeCacheSource → eval module →
 // assert on the materialised RunType.
 //
 // Wire fields covered:

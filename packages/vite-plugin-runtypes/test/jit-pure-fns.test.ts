@@ -46,7 +46,7 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSource: true});
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       expect(response.parsedFnsCacheSource).toBeDefined();
       expect(response.parsedFnsDiagnostics ?? []).toEqual([]);
 
@@ -70,7 +70,7 @@ export const x = registerPureFnFactory(getNs(), 'fn', function () { return funct
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSource: true});
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       const codes = (response.parsedFnsDiagnostics ?? []).map((diag) => diag.code);
       expect(codes).toContain('PFE9001');
     });
@@ -84,7 +84,7 @@ export const x = registerPureFnFactory('mion', 'fn', externalFn);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSource: true});
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       const codes = (response.parsedFnsDiagnostics ?? []).map((diag) => diag.code);
       expect(codes).toContain('PFE9003');
     });
@@ -104,7 +104,7 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSource: true});
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       const collisions = (response.parsedFnsDiagnostics ?? []).filter((diag) => diag.code === 'PFE9004');
       expect(collisions.length).toBe(1);
 
@@ -132,7 +132,7 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
 `,
     };
     await withInlineSources(sources, async ({client}) => {
-      const response = await client.scanFiles(Object.keys(sources), {includeCacheSource: true});
+      const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       const diags = response.parsedFnsDiagnostics ?? [];
       const evalDiag = diags.find((diag) => diag.code === 'PFE9010' && diag.message.includes('eval'));
       expect(evalDiag).toBeDefined();

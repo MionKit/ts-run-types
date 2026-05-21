@@ -175,22 +175,30 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			return protocol.Response{Error: err.Error()}
 		}
 		response := protocol.Response{Sites: sites, Added: resolver.cache.Added(before)}
-		if request.IncludeRunTypes || request.IncludeCacheSource {
+		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
+		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
+		wantParsedFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindParsedFns)
+		anyCache := wantRunType || wantIsType || wantParsedFns
+		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
 				response.RunTypes = scoped.RunTypes
 			}
-			if request.IncludeCacheSource {
+			if wantRunType {
 				rendered, renderErr := renderModule(scoped)
 				if renderErr != nil {
 					return protocol.Response{Error: renderErr.Error()}
 				}
-				response.CacheSource = rendered
+				response.RunTypeCacheSource = rendered
+			}
+			if wantIsType {
 				isTypeRendered, isTypeErr := renderIsTypeModule(scoped)
 				if isTypeErr != nil {
 					return protocol.Response{Error: isTypeErr.Error()}
 				}
 				response.IsTypeCacheSource = isTypeRendered
+			}
+			if wantParsedFns {
 				parsedFnsRendered, parsedFnsDiags, parsedFnsErr := renderParsedFnsModule(resolver.Program, request.Files)
 				if parsedFnsErr != nil {
 					return protocol.Response{Error: parsedFnsErr.Error()}
@@ -220,7 +228,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		return protocol.Response{
 			RunTypes:             fullDump.RunTypes,
 			Sites:                fullDump.Sites,
-			CacheSource:          rendered,
+			RunTypeCacheSource:   rendered,
 			IsTypeCacheSource:    isTypeRendered,
 			ParsedFnsCacheSource: parsedFnsRendered,
 			ParsedFnsDiagnostics: parsedFnsDiags,
@@ -306,7 +314,7 @@ func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 // After each per-file scan, recordFileIDs walks the sites' RunType graphs
 // and notes the reached wire ids against that file in the cache's per-file
 // scope map. The map drives the per-request projection that
-// scopedDump uses for IncludeRunTypes / IncludeCacheSource.
+// scopedDump uses for IncludeRunTypes / IncludeCacheSources.
 func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, error) {
 	var sites []protocol.Site
 	for _, file := range files {
@@ -498,7 +506,7 @@ unwrapped:
 // recordFileIDs walks every RunType transitively reachable from `sites` and
 // notes the visited wire ids against `file` in the per-file scope map. The
 // resulting map drives the "scanned files" semantics for IncludeRunTypes /
-// IncludeCacheSource — see scopedDump.
+// IncludeCacheSources — see scopedDump.
 func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 	if file == "" || len(sites) == 0 {
 		return
@@ -628,6 +636,17 @@ func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
 	return protocol.Dump{RunTypes: runTypes, Sites: sites}
 }
 
+// wantsCache reports whether a scanFiles caller asked for `kind` — either
+// explicitly or via the CacheKindAll shortcut.
+func wantsCache(requested []protocol.CacheKind, kind protocol.CacheKind) bool {
+	for _, k := range requested {
+		if k == kind || k == protocol.CacheKindAll {
+			return true
+		}
+	}
+	return false
+}
+
 // renderModule emits the JS cache module for dump to a string. The emit
 // layer is the single source of truth; the plugin no longer renders the
 // module on the JS side.
@@ -643,8 +662,9 @@ func renderModule(dump protocol.Dump) (string, error) {
 // `files` is nil), extracts registerPureFnFactory call data, and returns
 // the rendered virtual-module source plus any wire-shaped diagnostics.
 // nil `files` is the OpDump path; a non-nil slice is OpScanFiles with
-// IncludeCacheSource (we scope to the request's files for parity with
-// CacheSource / IsTypeCacheSource).
+// CacheKindParsedFns (or CacheKindAll) in IncludeCacheSources — we scope
+// to the request's files for parity with RunTypeCacheSource /
+// IsTypeCacheSource.
 func renderParsedFnsModule(prog *program.Program, files []string) (string, []protocol.ParsedFnDiagnostic, error) {
 	if prog == nil {
 		return "", nil, nil
