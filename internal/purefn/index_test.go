@@ -54,7 +54,7 @@ func programForSources(t *testing.T, files map[string]string) (*program.Program,
 }
 
 func TestNewIndex_GetAndScanned(t *testing.T) {
-	entries := []ParsedFn{
+	entries := []Entry{
 		{Namespace: "mion", FunctionName: "asJSONString", BodyHash: "h1"},
 		{Namespace: "mion", FunctionName: "safeKey", BodyHash: "h2"},
 	}

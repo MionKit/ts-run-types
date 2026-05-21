@@ -8,7 +8,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/program"
 )
 
-func extractFromOverlay(t *testing.T, files map[string]string) ([]ParsedFn, []Diagnostic) {
+func extractFromOverlay(t *testing.T, files map[string]string) ([]Entry, []Diagnostic) {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := map[string]string{}

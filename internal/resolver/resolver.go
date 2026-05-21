@@ -707,7 +707,7 @@ func anyIsTypeSupported(runTypes []*protocol.RunType) bool {
 // that drops one of its pure-fn calls still leaves the session entry
 // behind (matches the runTypes cache's structural-dedup contract;
 // the orphan is harmless until the next process restart).
-func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefn.ParsedFn, diags []protocol.PureFnDiagnostic, replacements []protocol.Replacement, changed bool) {
+func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefn.Entry, diags []protocol.PureFnDiagnostic, replacements []protocol.Replacement, changed bool) {
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
@@ -756,7 +756,7 @@ func renderModule(dump protocol.Dump) (string, error) {
 // program and runs the extractor itself (the OpDump path). Returns the
 // rendered source plus any wire-shaped diagnostics from the in-place
 // extraction.
-func renderPureFnsModule(prog *program.Program, entries []purefn.ParsedFn, ranExtraction bool) (string, []protocol.PureFnDiagnostic, error) {
+func renderPureFnsModule(prog *program.Program, entries []purefn.Entry, ranExtraction bool) (string, []protocol.PureFnDiagnostic, error) {
 	if prog == nil {
 		return "", nil, nil
 	}
