@@ -6,14 +6,14 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 )
 
-// ParsedFn is the in-Go shape that mirrors TS-side `ParsedFactoryFn`.
+// Entry is the in-Go shape that mirrors TS-side `Entry`.
 // Code is the JS-stripped factory body; BodyHash is mion-byte-compatible.
 //
 // sourceFile/callPos are unexported origin-tracking fields used internally
 // by ExtractFromProgram to build cross-file collision diagnostics. They're
 // elided from JSON serialisation (unexported) and from the module render
 // (the module emitter reads only Key()/ParamNames/Code/BodyHash).
-type ParsedFn struct {
+type Entry struct {
 	Namespace    string
 	FunctionName string
 	ParamNames   []string
@@ -43,7 +43,7 @@ type ParsedFn struct {
 }
 
 // Key returns the cache key the virtual module uses to look up this entry.
-func (p ParsedFn) Key() string {
+func (p Entry) Key() string {
 	return p.Namespace + "::" + p.FunctionName
 }
 
@@ -68,8 +68,8 @@ type SourceFileLookup interface {
 //
 // Order: entries sorted by Key (alphabetical); diagnostics sorted by Site
 // (filepath, line, col) — both deterministic for stable test fixtures.
-func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]ParsedFn, []Diagnostic) {
-	var entries []ParsedFn
+func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []Diagnostic) {
+	var entries []Entry
 	var diagnostics []Diagnostic
 	seen := map[string]int{} // key → index in entries (the winner)
 
@@ -120,7 +120,7 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]ParsedFn, []
 }
 
 // extractFromFile walks a single source file resolved from lookup and
-// returns its parsed-fn entries + extractor-side diagnostics (PFE9001-
+// returns its pure-fn entries + extractor-side diagnostics (PFE9001-
 // PFE9003 + PFE9005 + purity violations). Called both by
 // ExtractFromProgram in the main pass and by index lazy-expansion when
 // a recorded jit dep points at an unscanned file.
@@ -129,7 +129,7 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]ParsedFn, []
 // caller folds entries into a shared map and surfaces collisions there.
 // A nil/missing source file yields (nil, nil); the caller decides
 // whether that is an error.
-func extractFromFile(lookup SourceFileLookup, filePath string) ([]ParsedFn, []Diagnostic) {
+func extractFromFile(lookup SourceFileLookup, filePath string) ([]Entry, []Diagnostic) {
 	sourceFile := lookup.SourceFile(filePath)
 	if sourceFile == nil {
 		return nil, nil
@@ -141,8 +141,8 @@ func extractFromFile(lookup SourceFileLookup, filePath string) ([]ParsedFn, []Di
 // table, walk every CallExpression, dispatch to extractOne. Shared by
 // the lookup-driven helper above and the original ExtractFromProgram
 // loop body (which already holds a *SourceFile in hand).
-func extractFromSourceFile(sourceFile *ast.SourceFile) ([]ParsedFn, []Diagnostic) {
-	var entries []ParsedFn
+func extractFromSourceFile(sourceFile *ast.SourceFile) ([]Entry, []Diagnostic) {
+	var entries []Entry
 	var diagnostics []Diagnostic
 	table := buildSymbolTable(sourceFile)
 	findCalls(sourceFile, func(call *ast.Node) {
@@ -173,10 +173,10 @@ func findCalls(sourceFile *ast.SourceFile, cb func(*ast.Node)) {
 
 // extractOne processes a single CallExpression. Returns (nil, diagnostics)
 // when the call isn't a registerPureFnFactory invocation, or when an arg
-// can't be resolved. The returned ParsedFn carries internal-only fields
+// can't be resolved. The returned Entry carries internal-only fields
 // (sourceFile, callPos) that the caller uses for cross-file collision
 // reporting; these never reach the wire.
-func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (*ParsedFn, []Diagnostic) {
+func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (*Entry, []Diagnostic) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil {
 		return nil, nil
@@ -294,7 +294,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 		code = stripTypesFromExpr(sourceFile, body)
 	}
 
-	entry := &ParsedFn{
+	entry := &Entry{
 		Namespace:          namespace,
 		FunctionName:       functionName,
 		ParamNames:         paramNames,

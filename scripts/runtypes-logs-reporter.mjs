@@ -51,7 +51,7 @@ function renderBody(meta) {
   // stays compact and the caches render as readable JS at the bottom of
   // the file. Any field whose name ends in "CacheSource" is treated as
   // a cache body — that covers the protocol's runTypeCacheSource,
-  // isTypeCacheSource, and parsedFnsCacheSource (and any future
+  // isTypeCacheSource, and pureFnsCacheSource (and any future
   // sibling that follows the same naming convention).
   const responses = meta.responses ?? [];
   const stripped = responses.map(stripCacheSources);
