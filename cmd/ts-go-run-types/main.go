@@ -55,15 +55,15 @@ func main() {
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
 	var (
-		tsconfigPath      string
-		cwdFlag           string
-		oneShot           bool
-		daemon            bool
-		socketPath        string
-		outJSON           string
-		outTS             string
-		hashLength        int
-		literalHashLength int
+		tsconfigPath       string
+		cwdFlag            string
+		oneShot            bool
+		daemon             bool
+		socketPath         string
+		outJSON            string
+		outTS              string
+		hashLength         int
+		literalHashLength  int
 		markerName         string
 		markerModule       string
 		singleThreaded     bool
@@ -188,7 +188,7 @@ func main() {
 	// caller already saw on stdout.
 	dump := protocol.Dump{
 		RunTypes: r.Cache().Dump(),
-		Sites: r.Sites(),
+		Sites:    r.Sites(),
 	}
 	if outJSON != "" {
 		if err := writeFile(outJSON, func(w io.Writer) error { return protocol.JSON(w, dump) }); err != nil {

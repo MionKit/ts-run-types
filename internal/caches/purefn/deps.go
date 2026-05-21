@@ -14,10 +14,10 @@ import (
 // composite key. `findCompiledPureFn` is the bare-name overload — its
 // argument is just the fnName, cross-namespace.
 var pureFnDepMethods = map[string]bool{
-	"getPureFn":         true,
-	"usePureFn":         true,
-	"getCompiledPureFn": true,
-	"hasPureFn":         true,
+	"getPureFn":          true,
+	"usePureFn":          true,
+	"getCompiledPureFn":  true,
+	"hasPureFn":          true,
 	"findCompiledPureFn": true,
 }
 

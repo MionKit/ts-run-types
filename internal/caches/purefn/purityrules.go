@@ -77,10 +77,10 @@ var forbiddenIdentifiers = map[string]bool{
 	"Function": true,
 
 	// Network / timing — side-effectful by definition.
-	"fetch":          true,
-	"setTimeout":     true,
-	"setInterval":    true,
-	"clearTimeout":   true,
+	"fetch":         true,
+	"setTimeout":    true,
+	"setInterval":   true,
+	"clearTimeout":  true,
 	"clearInterval": true,
 
 	// Host / environment objects.

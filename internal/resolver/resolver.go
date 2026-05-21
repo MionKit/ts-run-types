@@ -82,10 +82,10 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		checker:        typeChecker,
-		releaseLease:   releaseLease,
-		marker:         marker.WithDefaults(opts.Marker),
-		opts:           opts,
+		checker:      typeChecker,
+		releaseLease: releaseLease,
+		marker:       marker.WithDefaults(opts.Marker),
+		opts:         opts,
 		pureFnHashes: map[string]string{},
 	}, nil
 }
@@ -99,8 +99,8 @@ func NewServer(opts Options) *Resolver {
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		marker:         marker.WithDefaults(opts.Marker),
-		opts:           opts,
+		marker:       marker.WithDefaults(opts.Marker),
+		opts:         opts,
 		pureFnHashes: map[string]string{},
 	}
 }
