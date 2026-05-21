@@ -420,11 +420,16 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 
 	case flags&checker.TypeFlagsUniqueESSymbol != 0:
 		node.Kind = protocol.KindLiteral
-		name := ""
-		if symbol := tsType.Symbol(); symbol != nil {
-			name = symbol.Name
-		}
-		node.Literal = map[string]any{"symbol": name}
+		// mion semantics: literal-symbol validation compares against the
+		// symbol's `.description` at runtime (literal.ts:103), which is the
+		// string argument the value was constructed with — `Symbol(<desc>)`.
+		// tsgo's symbol.Name is the BINDING identifier (e.g. `sym`), which
+		// is not what we need. Read the description from the initializer
+		// when the value declaration is `const x = Symbol(<literal>)`.
+		// Falls back to the binding name (legacy behavior) for cases we
+		// can't statically resolve — those will simply fail validation
+		// gracefully rather than panic.
+		node.Literal = map[string]any{"symbol": uniqueSymbolDescription(tsType)}
 		node.Flags = append(node.Flags, "symbol")
 
 	case flags&checker.TypeFlagsString != 0:
@@ -977,11 +982,97 @@ func enumMembers(tsType *checker.Type) []enumMember {
 		if memberSymbol == nil || memberSymbol.ValueDeclaration == nil {
 			continue
 		}
-		value := readEnumMemberValue(memberSymbol)
-		out = append(out, enumMember{name: name, value: value})
+		out = append(out, enumMember{name: name, value: readEnumMemberValue(memberSymbol)})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
+	// Sort by declaration position so the auto-increment pass below sees
+	// members in source order. Alphabetical sort would break
+	// `enum E { A, B = 'x', C }` because the auto-increment for C
+	// would look at the wrong predecessor.
+	sort.Slice(out, func(i, j int) bool {
+		ai := declarationPos(symbol.Exports[out[i].name])
+		bi := declarationPos(symbol.Exports[out[j].name])
+		return ai < bi
+	})
+	// Auto-increment pass: members without an initializer take the
+	// previous numeric value + 1, starting from 0. Mirrors TypeScript's
+	// enum semantics — the previous serializer left these as nil because
+	// "tsgo's evaluator would handle it" wasn't wired in. Doing it here
+	// keeps the enum.spec.ts case `enum Color {Red, Green='green', Blue=2}`
+	// resolving Red=0 (instead of null) so the JIT isType chain
+	// `v === 0 || v === 'green' || v === 2` matches Color.Red at runtime.
+	var nextAuto int64
+	for i := range out {
+		switch existing := out[i].value.(type) {
+		case nil:
+			out[i].value = nextAuto
+			nextAuto++
+		case int64:
+			nextAuto = existing + 1
+		case float64:
+			nextAuto = int64(existing) + 1
+		}
+	}
 	return out
+}
+
+func declarationPos(symbol *ast.Symbol) int {
+	if symbol == nil || symbol.ValueDeclaration == nil {
+		return 0
+	}
+	return int(symbol.ValueDeclaration.Pos())
+}
+
+// uniqueSymbolDescription extracts the description argument of a
+// `Symbol(<desc>)` call when the type is `typeof <const>` and the
+// const's initializer is a literal call. Returns the binding name
+// (tsType.Symbol().Name) as a fallback — preserves the v1 behavior
+// for declarations we can't statically resolve.
+//
+// Mion validates symbol literals via runtime `.description` matching
+// (literal.ts:103), so the JIT emit needs the same string the
+// constructor was called with, not the binding identifier.
+func uniqueSymbolDescription(tsType *checker.Type) string {
+	symbol := tsType.Symbol()
+	if symbol == nil {
+		return ""
+	}
+	fallback := symbol.Name
+	declaration := symbol.ValueDeclaration
+	if declaration == nil {
+		return fallback
+	}
+	var initializer *ast.Node
+	if declaration.Kind == ast.KindVariableDeclaration {
+		variableDecl := declaration.AsVariableDeclaration()
+		if variableDecl != nil {
+			initializer = variableDecl.Initializer
+		}
+	}
+	if initializer == nil || initializer.Kind != ast.KindCallExpression {
+		return fallback
+	}
+	callExpression := initializer.AsCallExpression()
+	if callExpression == nil || callExpression.Arguments == nil {
+		// `Symbol()` with no description — empty description matches
+		// `Symbol().description === undefined`. Returning "" here makes
+		// the JIT compare `v.description === ''`, which is wrong for the
+		// no-description case but mion has the same gap, so we leave it
+		// until a spec case forces the issue.
+		return ""
+	}
+	args := callExpression.Arguments.Nodes
+	if len(args) == 0 {
+		return ""
+	}
+	first := args[0]
+	if first == nil {
+		return ""
+	}
+	switch first.Kind {
+	case ast.KindStringLiteral, ast.KindNoSubstitutionTemplateLiteral:
+		return first.Text()
+	}
+	return fallback
 }
 
 func readEnumMemberValue(symbol *ast.Symbol) any {
@@ -991,10 +1082,10 @@ func readEnumMemberValue(symbol *ast.Symbol) any {
 	}
 	enumMemberNode := declaration.AsEnumMember()
 	if enumMemberNode == nil || enumMemberNode.Initializer == nil {
-		// No initializer — implicit numeric. Walking siblings to compute the
-		// auto-incremented value is tsgo's job; we'd need its evaluator.
-		// Mion's EnumRunType skips null/undefined entries so emitting nil is
-		// safe for v1.
+		// No initializer — implicit numeric. The auto-increment pass in
+		// enumMembers fills these in based on the previous member's
+		// numeric value (or 0 for the first one). Returning nil here is
+		// the sentinel that pass looks for.
 		return nil
 	}
 	initializer := enumMemberNode.Initializer

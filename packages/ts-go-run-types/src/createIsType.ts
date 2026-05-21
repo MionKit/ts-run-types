@@ -44,6 +44,20 @@ export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
   if (cached) return cached;
   const entry = getJitUtils().getJIT(id) as JitCompiledFn | undefined;
   if (!entry) {
+    // Two cases produce a missing isType entry:
+    //   1. The id IS a registered runtype but its emitIsType body
+    //      collapsed to a noop (always-true kinds: `any`, `unknown`).
+    //      The Go-side renderer skips emitting a factory whose body is
+    //      just `return true`, so consumers default to a trivial
+    //      passthrough validator here — see
+    //      internal/caches/jitfn/istype.go Finalize + module.go
+    //      renderEntry's `if isNoop { return "" }` skip.
+    //   2. The id is not registered at all — wiring bug. Throw loudly.
+    if (getJitUtils().hasRunType(id)) {
+      const validator: IsTypeFn = () => true;
+      validatorCache.set(id, validator);
+      return validator;
+    }
     throw new Error(
       `createIsType(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a validator for that runtype.`
     );
