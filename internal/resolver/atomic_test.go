@@ -679,8 +679,15 @@ reflectRuntypeId(sym);
 	if !ok {
 		t.Fatalf("expected literal to be a map, got %T", tn.Literal)
 	}
-	if name, _ := m["symbol"].(string); name != "sym" {
-		t.Fatalf("expected literal.symbol=sym, got %v", m["symbol"])
+	// Mion validates symbol literals against the runtime `.description`
+	// of the constructed symbol (literal.ts:103), so the resolver carries
+	// the description argument from the `Symbol(<desc>)` call site —
+	// NOT the binding name. For `const sym = Symbol('hello')` the
+	// description is `'hello'`. Previously this field held the binding
+	// identifier `'sym'` which produced JIT code that never matched the
+	// runtime symbol's actual description.
+	if name, _ := m["symbol"].(string); name != "hello" {
+		t.Fatalf("expected literal.symbol=hello (description argument), got %v", m["symbol"])
 	}
 }
 
