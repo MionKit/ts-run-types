@@ -16,7 +16,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 
-	"github.com/mionkit/ts-run-types/internal/emit"
+	"github.com/mionkit/ts-run-types/internal/caches/runtype"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -191,12 +191,12 @@ func main() {
 		Sites: r.Sites(),
 	}
 	if outJSON != "" {
-		if err := writeFile(outJSON, func(w io.Writer) error { return emit.JSON(w, dump) }); err != nil {
+		if err := writeFile(outJSON, func(w io.Writer) error { return protocol.JSON(w, dump) }); err != nil {
 			fatal("out-json: %v", err)
 		}
 	}
 	if outTS != "" {
-		if err := writeFile(outTS, func(w io.Writer) error { return emit.RunTypesModule(w, dump) }); err != nil {
+		if err := writeFile(outTS, func(w io.Writer) error { return runtype.RunTypesModule(w, dump) }); err != nil {
 			fatal("out-ts: %v", err)
 		}
 	}

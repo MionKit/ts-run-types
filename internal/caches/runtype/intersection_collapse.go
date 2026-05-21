@@ -1,11 +1,11 @@
-package serialize
+package runtype
 
 import (
 	"fmt"
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/typeid"
+	"github.com/mionkit/ts-run-types/internal/caches/runtype/typeid"
 )
 
 // collapseIntersection projects a TS intersection type into a single

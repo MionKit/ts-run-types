@@ -13,13 +13,12 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/emit"
-	"github.com/mionkit/ts-run-types/internal/jitfn"
+	"github.com/mionkit/ts-run-types/internal/caches/jitfn"
+	"github.com/mionkit/ts-run-types/internal/caches/purefn"
+	"github.com/mionkit/ts-run-types/internal/caches/runtype"
 	"github.com/mionkit/ts-run-types/internal/marker"
-	"github.com/mionkit/ts-run-types/internal/purefn"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/serialize"
 	"github.com/mionkit/ts-run-types/internal/walker"
 )
 
@@ -51,7 +50,7 @@ type Options struct {
 // type cache survives across swaps so dedup IDs stay stable.
 type Resolver struct {
 	Program      *program.Program
-	cache        *serialize.Cache
+	cache        *runtype.Cache
 	checker      *checker.Checker
 	releaseLease func()
 	sites        []protocol.Site
@@ -79,7 +78,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 	}
 	return &Resolver{
 		Program: prog,
-		cache: serialize.NewCache(typeChecker, serialize.Options{
+		cache: runtype.NewCache(typeChecker, runtype.Options{
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
@@ -96,7 +95,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 // up front with a nil checker; Rebind is called on first SetProgram.
 func NewServer(opts Options) *Resolver {
 	return &Resolver{
-		cache: serialize.NewCache(nil, serialize.Options{
+		cache: runtype.NewCache(nil, runtype.Options{
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
@@ -161,7 +160,7 @@ func (resolver *Resolver) Close() {
 	}
 }
 
-func (resolver *Resolver) Cache() *serialize.Cache { return resolver.cache }
+func (resolver *Resolver) Cache() *runtype.Cache { return resolver.cache }
 
 // Sites returns the running list of resolved call-site ids. Callers (CLI,
 // plugin) read this at end-of-build to write out the manifest.
@@ -743,7 +742,7 @@ func wantsCache(requested []protocol.CacheKind, kind protocol.CacheKind) bool {
 // module on the JS side.
 func renderModule(dump protocol.Dump) (string, error) {
 	var buf bytes.Buffer
-	if err := emit.RunTypesModule(&buf, dump); err != nil {
+	if err := runtype.RunTypesModule(&buf, dump); err != nil {
 		return "", fmt.Errorf("renderModule: %w", err)
 	}
 	return buf.String(), nil

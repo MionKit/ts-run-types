@@ -1,4 +1,7 @@
-package emit
+// Package runtype is the runType cache generator: it serializes resolved
+// tsgo types into protocol.RunType records and renders the runtime
+// `runTypesCache.ts` module that consumers import.
+package runtype
 
 import (
 	"encoding/json"
