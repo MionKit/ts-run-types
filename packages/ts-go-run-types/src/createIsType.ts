@@ -7,6 +7,28 @@ import type {RuntypeId} from './index.ts';
  *  mion's `IsTypeFn` in run-types/src/types.ts. **/
 export type IsTypeFn = (value: unknown) => boolean;
 
+/** Subset of mion's RunTypeOptions
+ *  (mion-run-types:packages/run-types/src/types.ts:110-127) that
+ *  affects atomic-type isType validation. Currently only `noLiterals`
+ *  is plumbed end-to-end; the other fields are typed for forward
+ *  compatibility with mion's full surface.
+ *
+ *  Pass an OBJECT LITERAL at the call site — the Go-side marker
+ *  scanner extracts the option values at build time from the literal
+ *  AST node and bakes them into the validator's hash. Identifier or
+ *  spread expressions are ignored; if you need dynamic options the
+ *  v2 plan is to surface a separate factory API. **/
+export interface RunTypeOptions {
+  /** When true, compiled literal validators degrade to their base-type
+   *  check — `literal 'a'` accepts any string, `literal 2` accepts any
+   *  finite number, etc. Mirrors mion's literal.ts:56-59 behavior. **/
+  noLiterals?: boolean;
+  /** Reserved — see mion's RunTypeOptions. Not yet plumbed. **/
+  noIsArrayCheck?: boolean;
+  /** Reserved — see mion's RunTypeOptions. Not yet plumbed. **/
+  strictTypes?: boolean;
+}
+
 // Side-effect: the cache module's `initCache(jitUtils)` registers every
 // compiled JitCompiledFn entry via `jitUtils.addToJitCache`. No local
 // table is held here — every lookup goes through the jitUtils singleton,
@@ -23,18 +45,24 @@ const validatorCache = new Map<string, IsTypeFn>();
 
 /** Returns a validator for `T`. Mirrors mion's contract from
  *  run-types/src/createRunTypeFunctions.ts:31
- *  (`createIsTypeFn<T>(): Promise<IsTypeFn>`). Async only for signature
- *  parity with mion — our AOT pipeline resolves synchronously.
+ *  (`createIsTypeFn<T>(opts?): Promise<IsTypeFn>`). Async only for
+ *  signature parity with mion — our AOT pipeline resolves synchronously.
  *
  *  At compile time `vite-plugin-runtypes` rewrites every call site to
- *  inject the trailing `RuntypeId<T>` hash, so the runtime path just
- *  reads the precompiled `JitCompiledFn` entry off jitUtils by raw
- *  hash and caches its `.fn` validator.
+ *  inject the trailing `RuntypeId<T>` hash. The options object (if any)
+ *  is read by the Go-side marker scanner at build time and folded into
+ *  the hash so `(T, {})` and `(T, {noLiterals: true})` resolve to
+ *  distinct validators. The `options` param at runtime is therefore
+ *  IGNORED — the hash already encodes the chosen behavior.
  *
  *  Throws when called without the plugin active (no `id` injected) or
  *  when jitUtils doesn't contain an entry for the expected hash —
  *  both indicate the build pipeline didn't wire correctly. **/
-export async function createIsType<T>(id?: RuntypeId<T>): Promise<IsTypeFn> {
+export async function createIsType<T>(
+  options?: RunTypeOptions,
+  id?: RuntypeId<T>,
+): Promise<IsTypeFn> {
+  void options; // runtime-ignored; baked into id at compile time
   if (id === undefined) {
     throw new Error(
       'createIsType(): no id injected. vite-plugin-runtypes must be active for createIsType to dispatch to a precompiled factory.'

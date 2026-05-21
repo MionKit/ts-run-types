@@ -88,14 +88,44 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if argsCount > lastIndex {
 		return protocol.Site{}, false
 	}
-	// Regex-literal harvest: if we can trace the call to a regex-literal
-	// source expression, synthesize a KindLiteral{regexp} entry instead of
-	// resolving typeArgument through the type system. TS has no regex-literal type,
-	// so this is the only path that produces literal-kind regex entries.
+	// Extract any literal RunTypeOptions object passed at a slot before
+	// the id slot. Today only `noLiterals: true` is honored; other
+	// fields are reserved (see createIsType.ts RunTypeOptions). Options
+	// are folded into the id hash by swapping the resolved type below,
+	// so `(T, {})` and `(T, {noLiterals: true})` resolve distinct ids.
+	options := extractRunTypeOptions(call, lastIndex, argsCount)
+	// noLiterals semantics (literal.ts:28-54): the literal node swaps to
+	// its base-kind runtype for validation purposes. We mirror this at
+	// resolver time by walking the literal type up to its base type
+	// before assigning the id — the existing emit code then handles
+	// the base kind unchanged, no per-arm noLiterals branching needed.
+	//
+	// Two escape hatches are needed because tsgo's
+	// getBaseTypeOfLiteralType doesn't cover them:
+	//   1. Unique ESSymbol → plain symbol (KindSymbol). tsgo returns
+	//      the type unchanged for TypeFlagsUniqueESSymbol because
+	//      there's no `c.esSymbolType` lookup in that switch arm.
+	//   2. Regex-literal harvest is suppressed here so a `typeof reg`
+	//      with `reg = /abc/i` resolves through the normal type-checker
+	//      path to the generic RegExp class (KindRegexp).
 	id := ""
-	if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
-		id = resolver.cache.SerializeRegexLiteral(source, flags)
-	} else {
+	if options.NoLiterals {
+		flags := checker.Type_flags(typeArgument)
+		if flags&checker.TypeFlagsUniqueESSymbol != 0 {
+			// Escape hatch #1.
+			id = resolver.cache.SerializeAtomicKind(protocol.KindSymbol)
+		} else {
+			typeArgument = checker.Checker_getBaseTypeOfLiteralType(resolver.checker, typeArgument)
+		}
+	}
+	if id == "" && !options.NoLiterals {
+		// Regex-literal harvest — TS has no regex-literal type, so the
+		// marker scanner reconstructs one from the AST when it can.
+		if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
+			id = resolver.cache.SerializeRegexLiteral(source, flags)
+		}
+	}
+	if id == "" {
 		id = resolver.cache.AssignID(typeArgument)
 	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
@@ -115,9 +145,14 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 // when a regex literal is reachable; (_, _, false) otherwise — in which case
 // the caller falls through to standard type-based resolution.
 //
-// Two entry points:
-//   - reflect form  (argsCount > 0)   — look at the single value argument
-//   - static form   (argsCount == 0)  — look at the first type argument (must be `typeof <id>`)
+// Dispatch rule (now signature-shape-agnostic, since marker functions
+// can have user-options slots between the value/type and the id):
+//   - If TypeArguments has nodes → static form. Harvest from the first
+//     type argument. Works for any signature whose user supplied <T>
+//     explicitly, regardless of how many value args came before the id.
+//   - Else if a reflect-form pattern applies (the value at the slot the
+//     id occupies came from the user, paramIndex==argsCount-1 layout
+//     for `reflectRuntypeId(value)`) → harvest from Arguments[paramIndex].
 //
 // The trace itself: unwrap `as` / parenthesised expressions, then either
 // harvest a RegularExpressionLiteral directly, recurse through a TypeQuery,
@@ -129,21 +164,91 @@ func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, 
 	}
 	var node *ast.Node
 	switch {
+	case callExpression.TypeArguments != nil && len(callExpression.TypeArguments.Nodes) > 0:
+		// Static form: user supplied <T> explicitly. Use that node
+		// regardless of how many value args were passed (those are
+		// user options, not T).
+		node = callExpression.TypeArguments.Nodes[0]
 	case argsCount > 0 && argsCount == paramIndex:
-		// Reflect form: T is inferred from the value at slot 0.
-		if callExpression.Arguments != nil && len(callExpression.Arguments.Nodes) > 0 {
-			node = callExpression.Arguments.Nodes[0]
-		}
-	case argsCount == 0 && paramIndex == 0:
-		// Static form: T is the first type argument.
-		if callExpression.TypeArguments != nil && len(callExpression.TypeArguments.Nodes) > 0 {
-			node = callExpression.TypeArguments.Nodes[0]
+		// Reflect form: T inferred from the value at slot
+		// (paramIndex-1) — the last user value before the id slot.
+		if callExpression.Arguments != nil && len(callExpression.Arguments.Nodes) >= argsCount {
+			node = callExpression.Arguments.Nodes[argsCount-1]
 		}
 	}
 	if node == nil {
 		return "", "", false
 	}
 	return resolver.traceRegexLiteral(node, 0)
+}
+
+// runTypeOptions mirrors the JS-side RunTypeOptions interface
+// (packages/ts-go-run-types/src/createIsType.ts). Resolver-side
+// representation is a Go struct so the rest of the pipeline can read
+// fields without re-walking the AST.
+type runTypeOptions struct {
+	NoLiterals bool
+}
+
+// extractRunTypeOptions reads literal options from the first argument
+// of a marker call when the signature has a `RunTypeOptions` slot
+// before the id slot. The argument must be an object literal — variable
+// references / spreads / function calls are ignored (return zero
+// options) because the resolver runs at build time and can't evaluate
+// arbitrary expressions. This matches mion's compile-time-baked
+// options model (baseRunTypes.ts:82-86 hashes options into the JIT
+// cache key).
+//
+// Layout convention: when the trailing param is `id?: RuntypeId<T>` at
+// `lastIndex`, slot 0 is reserved for options. We harvest from
+// args[0] specifically. Functions whose options live elsewhere would
+// need a different harvest rule — none exist today.
+func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOptions {
+	var opts runTypeOptions
+	// Options live before the id slot. If lastIndex==0 the function
+	// has no options param at all (e.g. getRuntypeId<T>(id?)).
+	if lastIndex == 0 || argsCount == 0 {
+		return opts
+	}
+	callExpression := call.AsCallExpression()
+	if callExpression == nil || callExpression.Arguments == nil {
+		return opts
+	}
+	if len(callExpression.Arguments.Nodes) == 0 {
+		return opts
+	}
+	first := callExpression.Arguments.Nodes[0]
+	if first == nil || first.Kind != ast.KindObjectLiteralExpression {
+		return opts
+	}
+	objectLiteral := first.AsObjectLiteralExpression()
+	if objectLiteral == nil || objectLiteral.Properties == nil {
+		return opts
+	}
+	for _, property := range objectLiteral.Properties.Nodes {
+		if property == nil || property.Kind != ast.KindPropertyAssignment {
+			continue
+		}
+		propertyAssignment := property.AsPropertyAssignment()
+		if propertyAssignment == nil {
+			continue
+		}
+		name := propertyAssignment.Name()
+		if name == nil {
+			continue
+		}
+		initializer := propertyAssignment.Initializer
+		if initializer == nil {
+			continue
+		}
+		switch name.Text() {
+		case "noLiterals":
+			if initializer.Kind == ast.KindTrueKeyword {
+				opts.NoLiterals = true
+			}
+		}
+	}
+	return opts
 }
 
 // traceRegexLiteral walks through AST wrappers, typeof references, and const
