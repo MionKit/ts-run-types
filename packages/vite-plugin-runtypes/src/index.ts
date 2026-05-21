@@ -38,6 +38,11 @@ export default function runtypes(options: PluginOptions) {
   const markerModule = options.markerModule ?? DEFAULT_MARKER_MODULE;
 
   let resolver: ResolverClient | null = null;
+  let cwdAbs = '';
+  // Resolved absolute ids of the three cache modules — stashed when the
+  // transform hook first sees each one. handleHotUpdate uses these to
+  // look the modules up in Vite's module graph and invalidate them.
+  const cacheModuleIds: Partial<Record<CacheKind, string>> = {};
 
   return {
     name: 'vite-plugin-runtypes',
@@ -49,8 +54,8 @@ export default function runtypes(options: PluginOptions) {
     enforce: 'pre',
 
     configResolved(this: any, cfg: {root: string}) {
-      const cwd = path.resolve(options.cwd ?? cfg.root);
-      resolver = new ResolverClient(options.binary, cwd, options.tsconfig ?? 'tsconfig.json', {
+      cwdAbs = path.resolve(options.cwd ?? cfg.root);
+      resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         markerName: options.markerName,
         markerModule: options.markerModule,
       });
@@ -71,6 +76,7 @@ export default function runtypes(options: PluginOptions) {
       const cacheMatch = CACHE_FILE_RE.exec(id);
       if (cacheMatch) {
         const kind = CACHE_KIND_BY_FILE[cacheMatch[1]];
+        cacheModuleIds[kind] = id;
         const dump = await resolver.dump({includeCacheSources: [kind]});
         // ParsedFn diagnostics flow alongside parsedFnsCacheSource only —
         // surface them on that one transform call so each diagnostic is
@@ -96,6 +102,74 @@ export default function runtypes(options: PluginOptions) {
       if (result.sites.length === 0) return null;
 
       return {code: result.code, map: null};
+    },
+
+    // handleHotUpdate is the HMR pivot. When a user file changes:
+    //   1. Push the new contents into the resolver (full Program rebuild
+    //      under the hood — single biggest HMR cost; tracked in
+    //      docs/ROADMAP.md as a follow-up for incremental rebind).
+    //   2. Re-scan the changed file so the cache is up to date AND we
+    //      get per-cache "did this scan change anything?" signals.
+    //   3. Invalidate only the cache modules whose backing data grew
+    //      (addedRunTypes / addedIsType / addedParsedFns), then return
+    //      the changed user file batched with those invalidated modules
+    //      so Vite ships them in a single HMR message. The cache
+    //      module's `accept` callback fires before the user file's swap,
+    //      so any new hash id rewritten into the user file already has
+    //      a backing jitUtils entry.
+    async handleHotUpdate(this: any, ctx: any) {
+      if (!resolver) return;
+      const file: string = ctx.file;
+      if (!file || !/\.[mc]?[jt]sx?$/.test(file)) return;
+      // Editing one of the cache module skeletons itself is a developer-
+      // tool moment, not a runtime update — let Vite's default HMR
+      // handle it (the transform hook will overlay the new body).
+      if (CACHE_FILE_RE.test(file)) return;
+
+      const rel = path.relative(cwdAbs || process.cwd(), file);
+      const content = typeof ctx.read === 'function' ? await ctx.read() : undefined;
+      if (typeof content === 'string') {
+        try {
+          await resolver.setSources({[rel]: content});
+        } catch {
+          // setSources can fail if the changed file is outside the
+          // resolver's known set (e.g. a config file). Fall through to
+          // default HMR — nothing for the resolver to do here.
+          return;
+        }
+      }
+
+      let result;
+      try {
+        result = await resolver.scanFiles([rel], {includeCacheSources: ['all']});
+      } catch {
+        return;
+      }
+
+      // ParsedFn diagnostics from this scan — surface immediately so
+      // the editor's problem panel updates as the user types.
+      for (const diag of result.parsedFnsDiagnostics ?? []) {
+        this.warn?.(formatTscDiagnostic(diag));
+      }
+
+      const invalidated: any[] = [];
+      const moduleGraph = ctx.server?.moduleGraph;
+      if (moduleGraph) {
+        const kindsToInvalidate: CacheKind[] = [];
+        if (result.addedRunTypes) kindsToInvalidate.push('runType');
+        if (result.addedIsType) kindsToInvalidate.push('isType');
+        if (result.addedParsedFns) kindsToInvalidate.push('parsedFns');
+        for (const kind of kindsToInvalidate) {
+          const cacheId = cacheModuleIds[kind];
+          if (!cacheId) continue;
+          const mod = moduleGraph.getModuleById(cacheId);
+          if (!mod) continue;
+          moduleGraph.invalidateModule(mod);
+          invalidated.push(mod);
+        }
+      }
+      if (invalidated.length === 0) return;
+      return [...(ctx.modules ?? []), ...invalidated];
     },
   };
 }
