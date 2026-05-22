@@ -129,6 +129,16 @@ type Walker struct {
 	// JS wire shape is unchanged.
 	JitDependencies    []string
 	PureFnDependencies []protocol.PureFnDep
+	// IsUnsupported flips to true the first time compileNode sees a
+	// CodeNS sentinel anywhere in the traversal. Once set it stays
+	// true — the rest of the compile becomes a no-op (compileNode
+	// short-circuits without descending) and the renderer skips
+	// emitting a factory for this RunType. Replaces the per-entry
+	// `subtreeFullySupported` pre-walk that used to live in
+	// module.go: instead of walking each subtree TWICE (once to
+	// check, once to compile), the single compile pass detects
+	// unsupported leaves and bubbles the signal up via CodeNS.
+	IsUnsupported bool
 }
 
 // NewWalker primes a Walker for the given RunType + Emitter pair.
@@ -223,17 +233,24 @@ func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
 // Compile walks RootType, drives the Emitter, finalizes, and returns
 // the inner function declaration `function <FnName>(<args>){<body>}`
 // ready for WrapClosure. isNoop reports whether the body was a noop
-// (renderer skips noop factories).
+// (renderer skips noop factories). isUnsupported reports whether the
+// compile reached a kind with no emit implementation — when true,
+// the renderer skips this RunType entirely (no factory at all);
+// the runtime cache miss is caught by createIsType's
+// hasRunType-but-no-jit fallback.
 //
 // Mirrors mion's BaseFnCompiler.compile (jitFnCompiler.ts:279) +
 // createJitFunction (jitFnCompiler.ts:175) + getJitFnCode helper
 // (createJitFunction.ts:71).
-func (w *Walker) Compile() (innerFnDecl string, isNoop bool) {
+func (w *Walker) Compile() (innerFnDecl string, isNoop bool, isUnsupported bool) {
 	w.compileNode(w.RootType, CodeE)
+	if w.IsUnsupported {
+		return "", false, true
+	}
 	finalCode, noop := w.Emitter.Finalize(w.Code)
 	w.Code = finalCode
 	innerFnDecl = fmt.Sprintf("function %s(%s){%s}", w.FnName, w.argsList(true), w.Code)
-	return innerFnDecl, noop
+	return innerFnDecl, noop, false
 }
 
 // ContextLines returns the `const xyz = …` declarations in insertion
@@ -245,14 +262,24 @@ func (w *Walker) ContextLines() string {
 }
 
 // compileNode is the recursive entry point. The Walker pushes the
-// frame, dispatches through the Emitter (or panics if the kind isn't
-// inline-supported — see inlining.go for the predicate), reconciles
-// the result against the parent's expected code type, then pops.
+// frame, dispatches through the Emitter, reconciles the result
+// against the parent's expected code type, then pops.
 //
 // KindRef sentinels are transparently resolved against w.RefTable
 // before pushStack — the per-kind switch always sees the real
 // RunType, never the ref placeholder.
+//
+// Short-circuits when w.IsUnsupported is already true: the rest of
+// the traversal becomes a no-op. Returns CodeNS so any caller in
+// the recursion chain (a compound parent's emit calling
+// CompileChild) sees the sentinel and propagates it without
+// emitting its own code. This is the "don't traverse children of
+// an unsupported node" optimization — once one descendant fails,
+// no further work happens in the subtree.
 func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCode {
+	if w.IsUnsupported {
+		return JitCode{Code: "", Type: CodeNS}
+	}
 	if rt == nil {
 		return JitCode{Code: "", Type: expectedCType}
 	}
@@ -262,6 +289,14 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCo
 	}
 	w.pushStack(rt)
 	jc := w.dispatch(rt, expectedCType)
+	if jc.Type == CodeNS {
+		// Latch the walker-level signal. Subsequent CompileChild
+		// calls (from parent compound emits iterating siblings)
+		// short-circuit at the top of this function.
+		w.IsUnsupported = true
+		w.popStack(jc)
+		return jc
+	}
 	if jc.Code != "" {
 		jc.Code = w.handleCodeInterpolation(rt, jc, expectedCType)
 	}

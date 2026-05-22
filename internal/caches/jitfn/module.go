@@ -86,15 +86,14 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		if runType == nil || !emitter.Supports(runType) {
 			continue
 		}
-		// Composite kinds (Array today; Union / Tuple / Class when they
-		// land) reach unsupported subtrees through CompileChild. The
-		// Supports() check is a per-node gate — it doesn't know what's
-		// downstream. Walk the subtree against the ref table once
-		// before compile so an array whose element is e.g. a union can
-		// be skipped cleanly instead of panicking inside Emit.
-		if !subtreeFullySupported(runType, refTable, emitter, map[string]bool{}) {
-			continue
-		}
+		// Composite kinds (Array, Object, Union, Tuple, …) may
+		// reach unsupported child kinds through CompileChild. Rather
+		// than walking each subtree twice (once to verify, once to
+		// compile), the compile pass itself returns CodeNS from any
+		// leaf with no emit; compound parents propagate that sentinel
+		// upward and the walker's IsUnsupported flag signals to skip
+		// the factory entirely. See codetype.go's CodeNS comment for
+		// the full contract.
 		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable)
 		if line == "" {
 			continue
@@ -106,11 +105,34 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		order = append(order, runType.ID)
 	}
 
+	// Dangling-dep cascade: an entry whose body holds a
+	// `<childHash>.fn(...)` reference but whose <childHash> never
+	// made it into `entries` (the child compile returned
+	// isUnsupported, OR the child's own dep cascaded out) would
+	// throw at validator-call time on `undefined.fn`. Iteratively
+	// drop entries with missing deps until the set is closed.
+	// Runs to fixpoint — removing entry X can make Y (which
+	// depended on X) unrenderable too. O(M·D·R) worst case
+	// (M entries, D deps each, R rounds bounded by dep-chain
+	// depth); typical schemas converge in 1-2 rounds.
+	for {
+		removed := 0
+		for id, entry := range entries {
+			for _, dep := range entry.deps {
+				if _, ok := entries[dep]; !ok {
+					delete(entries, id)
+					removed++
+					break
+				}
+			}
+		}
+		if removed == 0 {
+			break
+		}
+	}
+
 	// DFS post-order from each input entry to produce a stable topo
-	// sort: children land before parents. Deps pointing to entries
-	// outside the rendered set (e.g. unsupported kinds) are skipped —
-	// the runtime cache miss surfaces at validator-call time, which
-	// is the right place for that failure mode to land.
+	// sort: children land before parents.
 	visited := make(map[string]bool, len(entries))
 	var topo []string
 	var visit func(id string)
@@ -160,7 +182,13 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	innerName := innerPrefix + runType.ID
 	walker := NewWalker(runType, innerName, emitter)
 	walker.RefTable = refTable
-	innerFn, isNoop := walker.Compile()
+	innerFn, isNoop, isUnsupported := walker.Compile()
+	if isUnsupported {
+		// The compile reached a kind with no emit; skip emitting any
+		// factory at all. Runtime cache miss is handled by the
+		// createIsType-side hasRunType-but-no-jit fallback.
+		return "", nil
+	}
 	if isNoop {
 		return "", nil
 	}
@@ -262,180 +290,6 @@ func jitTypeName(runType *protocol.RunType) string {
 		return "promise"
 	}
 	return ""
-}
-
-// subtreeFullySupported recursively checks whether every node the
-// walker would descend into when emitting rt is supported by emitter.
-// Used as a renderer-level gate so composite kinds (Array etc.)
-// referencing an unsupported child kind (e.g. Union before that
-// emitter lands) are silently skipped instead of panicking when the
-// dispatch reaches the child's Emit arm.
-//
-// **Per-kind recursion mirrors what IsTypeEmitter.Emit actually
-// descends into** — not what the RunType *carries*. Date is a
-// KindClass that carries every prototype-method as a Child, but the
-// emit is `v instanceof Date && !isNaN(v.getTime())` and never
-// recurses; checking those methods here would (incorrectly) reject
-// Date as unsupported. Each kind's branch enumerates only the slots
-// the emit visits.
-//
-// `seen` carries the ids walked so far so cyclic graphs (e.g.
-// `type CA = CA[]`) terminate. A cyclic edge back to an already-
-// seen id is treated as supported — the cycle is closed by the
-// dependency-call layer at runtime, not by recursing further here.
-func subtreeFullySupported(rt *protocol.RunType, refTable map[string]*protocol.RunType, emitter Emitter, seen map[string]bool) bool {
-	if rt == nil {
-		return true
-	}
-	if rt.Kind == protocol.KindRef {
-		// Always recurse to the resolved node — let it own the `seen`
-		// marking. The earlier shape that marked `seen[ref.ID]` here
-		// before recursing was buggy: ref.ID equals the target's ID,
-		// so the resolved-node arm's `if seen[rt.ID] { return true }`
-		// would fire on first visit and skip the actual content check.
-		if rt.ID == "" {
-			return false
-		}
-		return subtreeFullySupported(refTable[rt.ID], refTable, emitter, seen)
-	}
-	if !emitter.Supports(rt) {
-		return false
-	}
-	if rt.ID != "" {
-		if seen[rt.ID] {
-			return true
-		}
-		seen[rt.ID] = true
-	}
-	switch rt.Kind {
-	case protocol.KindArray:
-		// Mirrors istype.go KindArray Emit — descends only into Child.
-		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
-	case protocol.KindPromise:
-		// Promise emit is a thenable check; the wrapped T isn't
-		// validated synchronously (mion semantics). No descent.
-		return true
-	case protocol.KindClass:
-		// Map / Set reach through their KindParameter wrappers in
-		// Arguments to validate key / value / item types. Walk those
-		// wrapped children for supportability so an unrenderable
-		// element type rejects the whole Map / Set silently.
-		if rt.SubKind == protocol.SubKindMap || rt.SubKind == protocol.SubKindSet {
-			for _, arg := range rt.Arguments {
-				wrapper := resolveRefForSupport(arg, refTable)
-				if wrapper == nil || wrapper.Child == nil {
-					continue
-				}
-				if !subtreeFullySupported(wrapper.Child, refTable, emitter, seen) {
-					return false
-				}
-			}
-			return true
-		}
-		// Other class subkinds (Date is atomic; SubKindNone uses the
-		// shared object emit) fall through to the ObjectLiteral arm
-		// below.
-		fallthrough
-	case protocol.KindObjectLiteral:
-		// Mirrors emitObjectIsType — walks Children, but with the same
-		// skip rules the emit applies: static members and direct
-		// method-shaped children never participate in the AND chain
-		// and so don't block supportability. PropertySignature with a
-		// function-typed inner is checked deeper in this recursion
-		// (the Property arm below handles its own skip).
-		for _, child := range rt.Children {
-			resolved := resolveRefForSupport(child, refTable)
-			if resolved == nil {
-				continue
-			}
-			if resolved.IsStatic {
-				continue
-			}
-			if isFunctionLikeKind(resolved.Kind) {
-				continue
-			}
-			if !subtreeFullySupported(child, refTable, emitter, seen) {
-				return false
-			}
-		}
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		// Mirrors emitPropertyIsType — function-typed inner is skipped
-		// (returns empty code), so supportability of a function inner
-		// doesn't block the parent object.
-		if rt.Child == nil {
-			return true
-		}
-		resolved := resolveRefForSupport(rt.Child, refTable)
-		if resolved != nil && isFunctionLikeKind(resolved.Kind) {
-			return true
-		}
-		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
-	case protocol.KindIndexSignature:
-		if rt.Child == nil {
-			return true
-		}
-		resolved := resolveRefForSupport(rt.Child, refTable)
-		if resolved != nil && isFunctionLikeKind(resolved.Kind) {
-			return true
-		}
-		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
-	case protocol.KindTuple:
-		// Mirrors emitTupleIsType — walks every Children entry. A
-		// tuple member with an unsupported child can't be validated,
-		// so the whole tuple is skipped.
-		for _, child := range rt.Children {
-			if !subtreeFullySupported(child, refTable, emitter, seen) {
-				return false
-			}
-		}
-		return true
-	case protocol.KindTupleMember:
-		if rt.Child == nil {
-			return true
-		}
-		resolved := resolveRefForSupport(rt.Child, refTable)
-		if resolved != nil && isFunctionLikeKind(resolved.Kind) {
-			// Function-typed tuple element — emit handles via
-			// `=== undefined` (no descent needed).
-			return true
-		}
-		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
-	case protocol.KindUnion:
-		// Every union member must be supported — there's no graceful
-		// "skip unsupported member" path here without changing union
-		// semantics.
-		children := rt.SafeUnionChildren
-		if len(children) == 0 {
-			children = rt.Children
-		}
-		for _, child := range children {
-			if !subtreeFullySupported(child, refTable, emitter, seen) {
-				return false
-			}
-		}
-		return true
-	}
-	// Atomic kinds (and KindClass+SubKindDate, KindFunction etc treated
-	// as atomic by the emit) have no descent — supported as-is.
-	return true
-}
-
-// resolveRefForSupport is the supportability-walker's lightweight ref
-// dereference. Symmetric with walker.resolveRef but lives here as a
-// free function so the renderer doesn't need to instantiate a Walker
-// just to traverse the supportability gate.
-func resolveRefForSupport(rt *protocol.RunType, refTable map[string]*protocol.RunType) *protocol.RunType {
-	if rt == nil {
-		return nil
-	}
-	if rt.Kind != protocol.KindRef {
-		return rt
-	}
-	if rt.ID == "" {
-		return nil
-	}
-	return refTable[rt.ID]
 }
 
 // boolJS emits the JS literal for b.
