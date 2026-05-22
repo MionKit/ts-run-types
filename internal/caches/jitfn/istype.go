@@ -175,6 +175,19 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		if rt.SubKind == protocol.SubKindDate {
 			// mion:nodes/atomic/date.ts:13. Rejects Invalid Date
 			// (`new Date('xx')` whose getTime() is NaN).
+			//
+			// Date is encoded as `KindClass + SubKindDate` (no
+			// dedicated KindDate enum value). The cache entry carries
+			// every Date prototype method as a Child because the
+			// underlying TS shape is a class; this isType emit
+			// IGNORES those children and produces a single
+			// instanceof+validity check. Future jit fns (typeErrors,
+			// prepareForJson, mock) take the same shape — a
+			// SubKindDate branch inside their KindClass arm — and
+			// the renderer-level supportability check
+			// (subtreeFullySupported in module.go) does NOT walk
+			// Date's children. Class-encoding, atomic semantics; the
+			// per-fn arms are the seam.
 			return JitCode{
 				Code: "(" + v + " instanceof Date && !isNaN(" + v + ".getTime()))",
 				Type: CodeE,
