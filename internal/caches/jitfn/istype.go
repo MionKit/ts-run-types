@@ -397,14 +397,17 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 //	if (!Array.isArray(v)) return false;
 //	if (v.length > N) return false;   // only when no rest
 //	const r0 = <member0Check>; if (!(r0)) return false;
-//	const r1 = <member1Check>; if (!(r1)) return false;
+//	for (let iK = K; iK < v.length; iK++) {  // rest member, if any
+//	  const rK = <childCheck>; if (!(rK)) return false;
+//	}
 //	return true;
 //
-// Each TupleMember's emit returns the element check as an expression
-// (CodeE) in the simple case, or the for-loop body when it's a rest
-// element. Mion's emit inlines members with `&&`; we use sequential
-// statements so a rest's for-loop composes cleanly with the rest of
-// the chain.
+// Non-rest members emit as expressions (CodeE) and get wrapped in
+// a result-var + bail-if-false pair. Rest members emit as
+// statement blocks (CodeRB) that are embedded directly. Mirrors
+// mion's TupleMember.emitIsType `if (this.isRest()) return childJit`
+// branch + RestParamsRunType's ArrayRunType-shaped for-loop, without
+// the mion quirk of mixing expression chains with statements.
 func emitTupleIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	if len(rt.Children) == 0 {
 		// Empty tuple: `Array.isArray(v) && v.length === 0`. Mion
@@ -427,8 +430,24 @@ func emitTupleIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 		body.WriteString(") return false;\n")
 	}
 	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeE)
+		resolved := ctx.ResolveRef(child)
+		// Rest members emit a CodeRB for-loop; request RB so the
+		// walker doesn't IIFE-wrap it (which would discard the
+		// inner `return false`).
+		expectedType := CodeE
+		if isRestTupleMember(resolved) {
+			expectedType = CodeRB
+		}
+		childJit := ctx.CompileChild(child, expectedType)
 		if childJit.Code == "" {
+			continue
+		}
+		if childJit.Type == CodeRB {
+			// Rest member's for-loop. The trailing `return true` is
+			// stripped so the block flows into the outer return rather
+			// than short-circuiting the rest of the parent's checks.
+			body.WriteString(stripTrailingReturnTrue(childJit.Code))
+			body.WriteByte('\n')
 			continue
 		}
 		resVar := ctx.NextLocalVar("r")
@@ -444,6 +463,20 @@ func emitTupleIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	return JitCode{Code: body.String(), Type: CodeRB}
 }
 
+// stripTrailingReturnTrue removes the closing `return true` line a
+// CodeRB child emits when it stands alone (Array, IndexSignature,
+// rest TupleMember). Embedded inside a parent block the inner
+// `return true` would short-circuit the rest of the parent's
+// checks — strip it so control falls through.
+func stripTrailingReturnTrue(code string) string {
+	const suffix = "return true"
+	trimmed := strings.TrimRight(code, " \n\t;")
+	if strings.HasSuffix(trimmed, suffix) {
+		return trimmed[:len(trimmed)-len(suffix)]
+	}
+	return code
+}
+
 // tupleHasRest reports whether any tuple child is a rest element. Used
 // to skip the upper-length-bound check (rest elements absorb extras).
 func tupleHasRest(rt *protocol.RunType, ctx *EmitContext) bool {
@@ -452,24 +485,32 @@ func tupleHasRest(rt *protocol.RunType, ctx *EmitContext) bool {
 		if resolved == nil {
 			continue
 		}
-		if resolved.Kind == protocol.KindRest {
+		if isRestTupleMember(resolved) {
 			return true
-		}
-		// A TupleMember whose Child is KindRest also counts.
-		if resolved.Kind == protocol.KindTupleMember && resolved.Child != nil {
-			innerResolved := ctx.ResolveRef(resolved.Child)
-			if innerResolved != nil && innerResolved.Kind == protocol.KindRest {
-				return true
-			}
 		}
 	}
 	return false
+}
+
+// isRestTupleMember reports whether a resolved tuple-member RunType
+// carries the "rest" flag mion's projection sets on rest elements
+// (`[A, ...B[]]`). Mirrors mion's TupleMember.isRest() on the wire.
+func isRestTupleMember(rt *protocol.RunType) bool {
+	if rt == nil || rt.Kind != protocol.KindTupleMember {
+		return false
+	}
+	return hasFlag(rt.Flags, "rest")
 }
 
 // emitTupleMemberIsType handles KindTupleMember. Sets the element
 // accessor `v[<Position>]` on the current frame so the wrapped child
 // emit sees that as its Vλl, then applies the optional guard if the
 // member is optional.
+//
+// Rest members (Flags contains "rest") emit a for-loop iterating
+// from the member's position to v.length, validating each element
+// against the wrapped type. Returns CodeRB; the parent tuple emit
+// embeds the block directly.
 func emitTupleMemberIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeE}
@@ -484,6 +525,41 @@ func emitTupleMemberIsType(rt *protocol.RunType, ctx *EmitContext, v string) Jit
 		// serializable and emits `=== undefined`. Mirror the runtime
 		// behavior.
 		return JitCode{Code: v + "[" + positionStr(rt) + "] === undefined", Type: CodeE}
+	}
+	if isRestTupleMember(rt) {
+		// Rest member — emit for-loop from this position to v.length.
+		// Mirrors mion's RestParamsRunType (extends ArrayRunType with
+		// startIndex(comp) override pointing at the parent tuple's
+		// position).
+		iVar := ctx.NextLocalVar("i")
+		resVar := ctx.NextLocalVar("r")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		childJit := ctx.CompileChild(rt.Child, CodeE)
+		ctx.SetChildAccessor("")
+		if childJit.Code == "" {
+			// Non-validatable element type — accept any length without
+			// per-element checks (mirrors mion's empty-emit behavior).
+			return JitCode{Code: "", Type: CodeE}
+		}
+		var body strings.Builder
+		body.WriteString("for (let ")
+		body.WriteString(iVar)
+		body.WriteString(" = ")
+		body.WriteString(positionStr(rt))
+		body.WriteString("; ")
+		body.WriteString(iVar)
+		body.WriteString(" < ")
+		body.WriteString(v)
+		body.WriteString(".length; ")
+		body.WriteString(iVar)
+		body.WriteString("++) {\nconst ")
+		body.WriteString(resVar)
+		body.WriteString(" = ")
+		body.WriteString(childJit.Code)
+		body.WriteString(";\nif (!(")
+		body.WriteString(resVar)
+		body.WriteString(")) return false;\n}\nreturn true")
+		return JitCode{Code: body.String(), Type: CodeRB}
 	}
 	accessor := v + "[" + positionStr(rt) + "]"
 	ctx.SetChildAccessor(accessor)

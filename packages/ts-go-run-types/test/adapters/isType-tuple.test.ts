@@ -32,9 +32,7 @@ describe('isType / TUPLE', () => {
 
   it('TupleCircular = [..., TupleCircular?]', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_circular));
   it('[number, () => any] — function slot must be undefined', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
-
-  // Deferred — features that need follow-up port work.
-  it.todo('[number, ...string[]] — needs Rest emit');
+  it('[number, ...string[]] — Rest tuple member', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_rest));
 
   it('all tuple isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.TUPLE).filter((c) => c.isType).length;
