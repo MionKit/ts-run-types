@@ -128,8 +128,14 @@ export const VALIDATION_SUITE = {
       title: 'enum (mixed values)',
       description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
       isType: () => createIsType<Color>(),
+      // ENUM ANNOTATION TRAP: `const v: Color = Color.Red` narrows v to
+      // the literal member type `Color.Red`, not the parent enum —
+      // counterintuitive but documented in docs/atomic-types.md "Enum —
+      // Reflect form — annotation is a TRAP" and pinned in Go by
+      // TestAtomic_EnumNumeric_Reflect. Reflect form for enums MUST omit
+      // the annotation so TS widens to the parent enum type.
       isTypeReflect: () => {
-        const v: Color = Color.Red;
+        const v = Color.Red;
         return createIsType(v);
       },
       getSamples: () => ({
