@@ -440,21 +440,143 @@ func TestIsTypeModule_FunctionTopLevelEmitBody(t *testing.T) {
 	}
 }
 
+// TestIsTypeModule_TupleEmitBody covers KindTuple. Body shape (CodeRB)
+// is: Array.isArray guard → length-bound guard (when no rest) → per-
+// member check sequence → return true.
+func TestIsTypeModule_TupleEmitBody(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	pos0 := 0
+	pos1 := 1
+	member0 := &protocol.RunType{
+		ID:       "m0",
+		Kind:     protocol.KindTupleMember,
+		Position: &pos0,
+		Child:    &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	member1 := &protocol.RunType{
+		ID:       "m1",
+		Kind:     protocol.KindTupleMember,
+		Position: &pos1,
+		Child:    &protocol.RunType{ID: "num", Kind: protocol.KindRef},
+	}
+	tup := &protocol.RunType{
+		ID:   "tp1",
+		Kind: protocol.KindTuple,
+		Children: []*protocol.RunType{
+			{ID: "m0", Kind: protocol.KindRef},
+			{ID: "m1", Kind: protocol.KindRef},
+		},
+	}
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{tup, member0, member1, stringRT, numberRT}}
+	out := renderToString(t, dump)
+	for _, fragment := range []string{
+		"if (!Array.isArray(v)) return false;",
+		"if (v.length > 2) return false;",
+		"(typeof v[0] === 'string')",
+		"(Number.isFinite(v[1]))",
+		"return true",
+	} {
+		if !strings.Contains(out, fragment) {
+			t.Errorf("expected tuple fragment %q in:\n%s", fragment, out)
+		}
+	}
+}
+
+// TestIsTypeModule_TupleOptionalMember — optional tuple element wraps
+// with `(v[i] === undefined || (childCheck))`.
+func TestIsTypeModule_TupleOptionalMember(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	pos0 := 0
+	member0 := &protocol.RunType{
+		ID:       "m0",
+		Kind:     protocol.KindTupleMember,
+		Position: &pos0,
+		Optional: true,
+		Child:    &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	tup := &protocol.RunType{
+		ID:       "tp2",
+		Kind:     protocol.KindTuple,
+		Children: []*protocol.RunType{{ID: "m0", Kind: protocol.KindRef}},
+	}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{tup, member0, stringRT}})
+	want := "(v[0] === undefined || (typeof v[0] === 'string'))"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected optional tuple member %q in:\n%s", want, out)
+	}
+}
+
+// TestIsTypeModule_UnionAtomicEmitBody — union of atomic types
+// produces an OR-chain.
+func TestIsTypeModule_UnionAtomicEmitBody(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	un := &protocol.RunType{
+		ID:   "un1",
+		Kind: protocol.KindUnion,
+		Children: []*protocol.RunType{
+			{ID: "str", Kind: protocol.KindRef},
+			{ID: "num", Kind: protocol.KindRef},
+		},
+	}
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{un, stringRT, numberRT}}
+	out := renderToString(t, dump)
+	want := "(typeof v === 'string' || Number.isFinite(v))"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected atomic union body %q in:\n%s", want, out)
+	}
+}
+
+// TestIsTypeModule_UnionObjectsShareNullGuard — when union members
+// include object-like kinds, the emit lifts the
+// `typeof === 'object' && !== null` guard outside their OR-chain so a
+// null input short-circuits before any property access.
+func TestIsTypeModule_UnionObjectsShareNullGuard(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	propA := &protocol.RunType{
+		ID:         "pA",
+		Kind:       protocol.KindPropertySignature,
+		Name:       "a",
+		IsSafeName: true,
+		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	obj1 := &protocol.RunType{
+		ID:       "ob1",
+		Kind:     protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{{ID: "pA", Kind: protocol.KindRef}},
+	}
+	un := &protocol.RunType{
+		ID:   "un2",
+		Kind: protocol.KindUnion,
+		Children: []*protocol.RunType{
+			{ID: "str", Kind: protocol.KindRef},
+			{ID: "ob1", Kind: protocol.KindRef},
+		},
+	}
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{un, obj1, propA, stringRT}}
+	out := renderToString(t, dump)
+	if !strings.Contains(out, "typeof v === 'object' && v !== null") {
+		t.Errorf("expected shared object-null guard in union body, got:\n%s", out)
+	}
+}
+
 func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
-	// KindUnion + KindIntersection remain unsupported until the union
-	// emit lands. The renderer must skip them silently rather than
-	// panic so kind-by-kind rollout stays possible. KindFunction is
-	// now supported (emits `typeof v === 'function'`).
+	// KindIntersection stays unsupported — mion resolves intersections
+	// at compile time into ObjectLiteral / Never, so the emitter never
+	// renders an Intersection factory. KindUnion with no children also
+	// degenerates to unsupported. The renderer must skip both
+	// silently rather than panic so kind-by-kind rollout is possible.
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
-			{ID: "u1", Kind: protocol.KindUnion},
+			{ID: "u1", Kind: protocol.KindUnion}, // no children → unsupported
 			{ID: "x1", Kind: protocol.KindIntersection},
 			{ID: "s1", Kind: protocol.KindString},
 		},
 	}
 	out := renderToString(t, dump)
 	if strings.Contains(out, "'u1'") {
-		t.Error("KindUnion should be skipped (unsupported), but u1 was rendered")
+		t.Error("empty KindUnion should be skipped (unsupported), but u1 was rendered")
 	}
 	if strings.Contains(out, "'x1'") {
 		t.Error("KindIntersection should be skipped (unsupported), but x1 was rendered")

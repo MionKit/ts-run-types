@@ -779,8 +779,197 @@ export const VALIDATION_SUITE = {
       }),
     },
   },
+  // TUPLE — ports `isType` test coverage from mion's
+  // packages/run-types/src/nodes/collection/tuple.spec.ts and
+  // serialization-suite.ts TUPLES section.
+  //
+  // Adapters out of scope here (mock / typeErrors / prepareForJson)
+  // get their own adapter file; this block carries the
+  // isType-relevant assertions and the sample shapes those future
+  // adapters will reuse.
+  TUPLE: {
+    string_number_pair: {
+      title: '[string, number]',
+      isType: () => createIsType<[string, number]>(),
+      getSamples: () => ({
+        valid: [['hello', 1], ['', 0]],
+        invalid: [[], ['hello'], ['hello', 1, 'extra'], [1, 'hello'], 'not array', null],
+      }),
+    },
+
+    full_mion_tuple: {
+      title: '[Date, number, string, null, string[], bigint]',
+      description: 'mion tuple.spec.ts "validate tuple"',
+      isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
+      getSamples: () => ({
+        valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
+        invalid: [
+          [new Date(), 123, 'hello', null, ['a', 'b', 'c']], // missing 6th elem
+          [new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123), 34], // extra
+          [new Date(), 123, 'hello', null, ['a', 'b', 'c'], 'not bigint'],
+        ],
+      }),
+    },
+
+    tuple_with_optional: {
+      title: '[number, bigint?, boolean?, number?]',
+      description: 'mion tuple.spec.ts "validate tuple with optional parameters"',
+      isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      getSamples: () => ({
+        valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
+        invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array'],
+      }),
+    },
+
+    nested_tuple_in_array: {
+      title: '[string, number][]',
+      description: 'array of tuples — exercises tuple inside array dependency call',
+      isType: () => createIsType<[string, number][]>(),
+      getSamples: () => ({
+        valid: [[], [['a', 1]], [['a', 1], ['b', 2]]],
+        invalid: [[['a', 'b']], [['a']], ['not tuple']],
+      }),
+    },
+
+    // ---- DEFERRED — features that aren't yet ported ----
+
+    tuple_rest: {
+      title: '[number, ...string[]]',
+      description: 'mion tuple.spec.ts rest parameter — needs Rest emit (the for-loop start-index handling)',
+      // No isType thunk — Rest member isn't yet emitted.
+      getSamples: () => ({
+        valid: [[3], [3, 'a'], [3, 'a', 'b']],
+        invalid: [[3, 'a', 4], ['not number'], []],
+      }),
+    },
+
+    tuple_circular: {
+      title: '[Date, number, string, null, string[], bigint, TupleCircular?]',
+      description: 'mion tuple.spec.ts circular tuple — needs circular-type detection to set IsCircular',
+      getSamples: () => ({
+        valid: [],
+        invalid: [],
+      }),
+    },
+
+    tuple_with_non_serializable: {
+      title: '[number, () => any]',
+      description: 'mion: non-serializable tuple member emits `=== undefined` — needs the per-member non-serializable guard for function values to land correctly',
+      getSamples: () => ({
+        valid: [[3, undefined]],
+        invalid: [[3, () => null]],
+      }),
+    },
+  },
+
+  // UNION — ports `isType` test coverage from
+  // packages/run-types/src/nodes/collection/union.spec.ts and
+  // serialization-suite.ts UNIONS section.
+  //
+  // Intersection has its own (deferred) entry — mion resolves
+  // intersections to ObjectLiteral at compile time, so the isType
+  // emit only needs to know about ObjectLiteral.
+  UNION: {
+    atomic_union: {
+      title: 'Date | number | string | null | bigint',
+      description: 'mion union.spec.ts "validate union" — Atomic Union suite',
+      isType: () => createIsType<Date | number | string | null | bigint>(),
+      getSamples: () => ({
+        valid: [new Date(), 123, 'hello', null, 1n],
+        invalid: [{}, [], true, undefined],
+      }),
+    },
+
+    string_literal_union: {
+      title: "'UNO' | 'DOS' | 'TRES'",
+      description: 'mion union.spec.ts "validate union discriminator string"',
+      isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
+      getSamples: () => ({
+        valid: ['UNO', 'DOS', 'TRES'],
+        invalid: ['INVALID', 'uno', '', 42, null],
+      }),
+    },
+
+    string_or_number: {
+      title: 'string | number',
+      isType: () => createIsType<string | number>(),
+      getSamples: () => ({
+        valid: ['hello', 42, 0, ''],
+        invalid: [null, undefined, true, [], {}],
+      }),
+    },
+
+    union_of_array_types: {
+      title: 'string[] | number[] | boolean[]',
+      description: 'mion union.spec.ts "Union Arr"',
+      isType: () => createIsType<string[] | number[] | boolean[]>(),
+      getSamples: () => ({
+        valid: [['a'], [1], [true, false], [], ['a', 'b']],
+        invalid: [['a', 1], [1, 'a'], 'not array', null],
+      }),
+    },
+
+    array_of_union: {
+      title: '(string | bigint | boolean | Date)[]',
+      description: 'mion union.spec.ts "Arr with union of types"',
+      isType: () => createIsType<(string | bigint | boolean | Date)[]>(),
+      getSamples: () => ({
+        valid: [[1n, 'b', new Date(), true]],
+        invalid: [['a', false, 2]], // 2 is a number, not bigint
+      }),
+    },
+
+    // ---- DEFERRED ----
+
+    union_of_object_shapes: {
+      title: '{a: string; aa: boolean} | {b: number} | {c: bigint}',
+      description: "mion union.spec.ts 'Union Obj'. Active emit shape works in principle, but ObjectLiteral as a union member needs the per-member typeof+null guard. Carried until the union-object shape is verified end-to-end through the dependency-call layer.",
+      getSamples: () => ({
+        valid: [{a: 'x', aa: true}, {b: 1}, {c: 1n}],
+        invalid: [{a: 'x'}, {}, 'not object', null],
+      }),
+    },
+
+    discriminated_union: {
+      title: '{kind: "a"; n: number} | {kind: "b"; s: string}',
+      description: 'mion union.spec.ts "Union with discriminator property" — needs union-discriminator-aware emit for early termination. Functionally checkable via OR-chain but the optimization (and the path-aware error reporting) lands later.',
+      getSamples: () => ({
+        valid: [{kind: 'a', n: 1}, {kind: 'b', s: 'hello'}],
+        invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}],
+      }),
+    },
+
+    circular_union: {
+      title: 'UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[]',
+      description: 'mion union.spec.ts "Union circular" — needs circular-type detection.',
+      getSamples: () => ({
+        valid: [],
+        invalid: [],
+      }),
+    },
+
+    union_with_methods: {
+      title: '{name: string; getName(): string} | {age: number; getAge(): number}',
+      description: 'mion union.spec.ts "Union with objects containing methods" — methods skipped from validation. Functionally works once union+object emit are activated together; left deferred until end-to-end verified.',
+      getSamples: () => ({
+        valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}],
+        invalid: [{}, null],
+      }),
+    },
+
+    intersection_to_object: {
+      title: '{a: string} & {b: number}',
+      description: "mion intersection.spec.ts — Deepkit resolves intersections to ObjectLiteral at compile time, so this isn't a KindIntersection at our cache level (it's already a flattened object). Carried as documentation; runtime behavior is identical to {a: string; b: number}.",
+      getSamples: () => ({
+        valid: [{a: 'x', b: 1}],
+        invalid: [{a: 'x'}, {b: 1}, null],
+      }),
+    },
+  },
 } as const satisfies {
   ATOMIC: Record<string, ValidationCase>;
   ARRAY: Record<string, ValidationCase>;
   OBJECT: Record<string, ValidationCase>;
+  TUPLE: Record<string, ValidationCase>;
+  UNION: Record<string, ValidationCase>;
 };
