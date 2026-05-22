@@ -35,9 +35,7 @@ describe('isType / UNION', () => {
   it('{name; getName()} | {age; getAge()} — methods skipped', () => assertIsType(VALIDATION_SUITE.UNION.union_with_methods));
 
   it('UnionC = Date|number|string|{a?:UnionC;b?:string}|UnionC[]', () => assertIsType(VALIDATION_SUITE.UNION.circular_union));
-
-  // Deferred — documentation-only or feature-gated.
-  it.todo('{a: string} & {b: number} — intersection resolved at compile time (document only)');
+  it('{a: string} & {b: number} — resolved to ObjectLiteral', () => assertIsType(VALIDATION_SUITE.UNION.intersection_to_object));
 
   it('all union isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.isType).length;

@@ -591,7 +591,34 @@ func isObjectLikeKind(kind protocol.ReflectionKind) bool {
 // wrapped child is function-flavoured returns empty from its own
 // emit and is filtered out here too.
 func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	parts := []string{"typeof " + v + " === 'object' && " + v + " !== null"}
+	// First-pass: detect a CallSignature child. Mion's
+	// InterfaceRunType.emitIsType branches on `this.isCallable()` and
+	// emits `(callSigCheck && propsCheck)` — a callable interface
+	// requires the value to be a function (typeof === 'function')
+	// with optional extra properties on top. Plain object check is
+	// suppressed in that case (a function is typeof === 'function',
+	// not 'object').
+	var callSigChild *protocol.RunType
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.Kind == protocol.KindCallSignature {
+			callSigChild = child
+			break
+		}
+	}
+	var parts []string
+	if callSigChild != nil {
+		// Callable shape — use the call-sig's emit as the guard.
+		// `typeof v === 'function'` plus property checks on the
+		// function-as-object's extra props (functions can carry
+		// properties in JS).
+		parts = append(parts, "typeof "+v+" === 'function'")
+	} else {
+		parts = append(parts, "typeof "+v+" === 'object' && "+v+" !== null")
+	}
 	allOptional := true
 	hasContributingChild := false
 	for _, child := range rt.Children {
@@ -607,7 +634,9 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 		if isFunctionLikeKind(resolved.Kind) {
 			// Method / MethodSignature / CallSignature directly on the
 			// shape (not wrapped in a PropertySignature) — mion's
-			// getJitChildren skips them; we match.
+			// getJitChildren skips them; we match. For the callable
+			// case the CallSignature is already represented by the
+			// `typeof === 'function'` guard above.
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeE)
@@ -631,7 +660,12 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 	// purpose — `{[k: string]: T}` validates every own key, so arrays
 	// would still fail the value check. Empty objects + all-optional
 	// shapes need the explicit guard.
-	if !hasContributingChild || allOptional {
+	//
+	// Suppressed for callable shapes (callSigChild != nil) — the
+	// value is a Function, not an Object, and the
+	// `Object.prototype.toString.call(v)` check returns
+	// '[object Function]' rather than '[object Object]' in that case.
+	if callSigChild == nil && (!hasContributingChild || allOptional) {
 		guard := "(!Array.isArray(" + v + ") && Object.prototype.toString.call(" + v + ") === '[object Object]')"
 		// Insert AFTER the typeof guard so null/non-objects still
 		// short-circuit first.
