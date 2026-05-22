@@ -55,9 +55,7 @@ describe('isType / OBJECT', () => {
 
   it('class MySerializableClass with two atomic props', () => assertIsType(VALIDATION_SUITE.OBJECT.class_simple));
   it('RpcError<"test-error"> shape (local equivalent)', () => assertIsType(VALIDATION_SUITE.OBJECT.rpc_error_class));
-
-  // Deferred — features that haven't landed yet.
-  it.todo('CallSignature params — needs explicit param-tuple validator');
+  it('CallSignature params via Parameters<F>', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params));
 
   // Coverage guard. Mirrors isType.test.ts. it.todo does NOT invoke
   // afterEach, so the counter naturally measures only active cases.
