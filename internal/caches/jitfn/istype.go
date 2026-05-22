@@ -94,6 +94,12 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 		// Children must be non-empty for a meaningful union check —
 		// an empty union resolves to `never` in mion's semantics.
 		return len(rt.Children) > 0
+	case protocol.KindTemplateLiteral:
+		// Gate on a populated Literal payload — the serializer fills
+		// it with the texts + placeholder spans; without it we'd
+		// generate `new RegExp('^$')` which only matches the empty
+		// string.
+		return rt.Literal != nil
 	}
 	return false
 }
@@ -401,6 +407,15 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// `typeof === 'object' && !== null` guard so a null input
 		// doesn't crash inside a property access.
 		return emitUnionIsType(rt, ctx, v)
+
+	case protocol.KindTemplateLiteral:
+		// mion:nodes/collection/templateLiteral.ts:emitIsType.
+		// Compiles the template literal type to an anchored regex at
+		// JIT-build time, then runs `typeof v === 'string' &&
+		// regex.test(v)` at validator-call time. The regex is hoisted
+		// into the closure prologue as a context-item const so it's
+		// built once per factory rather than per call.
+		return emitTemplateLiteralIsType(rt, ctx, v)
 	}
 	panic(fmt.Sprintf("jitfn: isType emitter not implemented for kind %d (TODO)", rt.Kind))
 }
@@ -670,6 +685,172 @@ func isObjectLikeKind(kind protocol.ReflectionKind) bool {
 	return false
 }
 
+// emitTemplateLiteralIsType handles KindTemplateLiteral. Mirrors
+// mion's nodes/collection/templateLiteral.ts:emitIsType:
+//
+//	const reTL0 = new RegExp("^...$")  // context item, hoisted
+//	return (typeof v === 'string' && reTL0.test(v))
+//
+// The regex source is built once at JIT-build time from the template
+// literal's text segments + placeholder kinds; spanToRegex mirrors
+// mion's pattern table verbatim (number → `-?(?:\d+\.?\d*|\.\d+)`,
+// string/any/infer → `[\s\S]*`, literal → escaped verbatim).
+func emitTemplateLiteralIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	regex, ok := buildTemplateLiteralRegex(rt)
+	if !ok {
+		// Malformed literal payload — fall back to a typeof-string
+		// check so the validator is still useful (returns true for
+		// any string). Better than panicking inside the renderer.
+		return JitCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
+	}
+	reVar := ctx.NextLocalVar("reTL")
+	if !ctx.HasContextItem(reVar) {
+		ctx.SetContextItem(reVar, "const "+reVar+" = new RegExp("+quoteJSDouble(regex)+")")
+	}
+	return JitCode{
+		Code: "(typeof " + v + " === 'string' && " + reVar + ".test(" + v + "))",
+		Type: CodeE,
+	}
+}
+
+// buildTemplateLiteralRegex reconstructs the anchored regex source
+// from the serializer's wire shape (rt.Literal carries
+// `{templateLiteral: {texts: […], placeholders: [{kind, literal?}]}}`).
+// Returns false when the payload is missing or malformed — the caller
+// degrades gracefully to a plain typeof-string check.
+func buildTemplateLiteralRegex(rt *protocol.RunType) (string, bool) {
+	if rt.Literal == nil {
+		return "", false
+	}
+	envelope, ok := rt.Literal.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	inner, ok := envelope["templateLiteral"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	textsAny, _ := inner["texts"].([]any)
+	placeholdersAny, _ := inner["placeholders"].([]any)
+	if len(textsAny) == 0 {
+		return "", false
+	}
+	var body strings.Builder
+	body.WriteByte('^')
+	for i, textAny := range textsAny {
+		text, _ := textAny.(string)
+		body.WriteString(escapeRegex(text))
+		if i < len(placeholdersAny) {
+			placeholder, _ := placeholdersAny[i].(map[string]any)
+			body.WriteString(spanRegexPattern(placeholder))
+		}
+	}
+	body.WriteByte('$')
+	return body.String(), true
+}
+
+// spanRegexPattern returns the regex source for one template-literal
+// placeholder span. Mirrors mion's spanToRegex (templateLiteral.ts):
+//
+//	literal  → escaped literal value verbatim
+//	number   → -?(?:\d+\.?\d*|\.\d+)
+//	bigint   → -?\d+
+//	string / any / unknown / (default) → [\s\S]*
+func spanRegexPattern(span map[string]any) string {
+	if span == nil {
+		return `[\s\S]*`
+	}
+	var kind int
+	switch v := span["kind"].(type) {
+	case int:
+		kind = v
+	case float64:
+		kind = int(v)
+	case int64:
+		kind = int(v)
+	}
+	switch protocol.ReflectionKind(kind) {
+	case protocol.KindLiteral:
+		if lit, ok := span["literal"]; ok {
+			return escapeRegex(stringifyLiteral(lit))
+		}
+		return `[\s\S]*`
+	case protocol.KindNumber:
+		return `-?(?:\d+\.?\d*|\.\d+)`
+	case protocol.KindBigInt:
+		return `-?\d+`
+	case protocol.KindString, protocol.KindAny, protocol.KindUnknown:
+		return `[\s\S]*`
+	}
+	return `[\s\S]*`
+}
+
+// stringifyLiteral converts a literal span value to its JS
+// `String(v)` form for the regex literal embed. Numbers and booleans
+// go through fmt; strings pass through verbatim.
+func stringifyLiteral(value any) string {
+	switch lit := value.(type) {
+	case string:
+		return lit
+	case bool:
+		if lit {
+			return "true"
+		}
+		return "false"
+	case int:
+		return strconv.Itoa(lit)
+	case int64:
+		return strconv.FormatInt(lit, 10)
+	case float64:
+		return strconv.FormatFloat(lit, 'g', -1, 64)
+	}
+	return ""
+}
+
+// escapeRegex escapes regex metacharacters in a literal substring.
+// Mirrors mion's escapeForRegex (templateLiteral.ts).
+func escapeRegex(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case '.', '*', '+', '?', '^', '$', '{', '}', '(', ')', '|',
+			'[', ']', '\\', '/':
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// quoteJSDouble produces a double-quoted JS string literal. Used for
+// the regex-source string we pass to `new RegExp(...)` — double
+// quotes avoid the escaping noise that single-quoting regex sources
+// produces (regexes are dense with backslashes already).
+func quoteJSDouble(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
 // emitObjectIsType emits the canonical object-shape AND-chain for
 // KindObjectLiteral / KindClass. Mirrors mion's
 // nodes/collection/interface.ts:emitIsType (without strictTypes /
@@ -820,11 +1001,19 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 }
 
 // emitIndexSignatureIsType handles KindIndexSignature. Mirrors mion's
-// IndexSignatureRunType.emitIsType (indexProperty.ts) without the
-// regex key check (template literal index keys land with the template-
-// literal kind port) and without the skip-named-props code (that
-// kicks in when an interface mixes named props + an index signature,
-// also pending follow-up).
+// IndexSignatureRunType.emitIsType (indexProperty.ts). When the key
+// type is a template literal (`{[key: `api/${string}`]: T}`), the
+// emit also runs a per-key regex.test to enforce the key pattern,
+// mirroring mion's `getKeyPatternVar` + the early-return key check
+// inside the for-in body.
+//
+// The skip-named-props code (mion's `getSkipCode`) — which kicks in
+// when an interface mixes named props + an index signature so the
+// named props aren't double-checked by the index loop — is pending a
+// follow-up; today the named-prop check + the index-key check run
+// against the same key, which is correct for value-typed keys (the
+// value check passes if the named prop's value matches the index's
+// value type) but unnecessary work.
 func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeE}
@@ -836,11 +1025,24 @@ func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) 
 	if isFunctionLikeKind(resolved.Kind) {
 		return JitCode{Code: "", Type: CodeE}
 	}
+	// Optional key-pattern regex from a template-literal index key.
+	keyRegexVar := ""
+	if rt.Index != nil {
+		indexResolved := ctx.ResolveRef(rt.Index)
+		if indexResolved != nil && indexResolved.Kind == protocol.KindTemplateLiteral {
+			if regex, ok := buildTemplateLiteralRegex(indexResolved); ok {
+				keyRegexVar = ctx.NextLocalVar("reIdx")
+				if !ctx.HasContextItem(keyRegexVar) {
+					ctx.SetContextItem(keyRegexVar, "const "+keyRegexVar+" = new RegExp("+quoteJSDouble(regex)+")")
+				}
+			}
+		}
+	}
 	keyVar := ctx.NextLocalVar("k")
 	ctx.SetChildAccessor(v + "[" + keyVar + "]")
 	childJit := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
-	if childJit.Code == "" {
+	if childJit.Code == "" && keyRegexVar == "" {
 		return JitCode{Code: "", Type: CodeE}
 	}
 	var body strings.Builder
@@ -848,9 +1050,20 @@ func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) 
 	body.WriteString(keyVar)
 	body.WriteString(" in ")
 	body.WriteString(v)
-	body.WriteString(") { if (!(")
-	body.WriteString(childJit.Code)
-	body.WriteString(")) return false; } return true")
+	body.WriteString(") { ")
+	if keyRegexVar != "" {
+		body.WriteString("if (!")
+		body.WriteString(keyRegexVar)
+		body.WriteString(".test(")
+		body.WriteString(keyVar)
+		body.WriteString(")) return false; ")
+	}
+	if childJit.Code != "" {
+		body.WriteString("if (!(")
+		body.WriteString(childJit.Code)
+		body.WriteString(")) return false; ")
+	}
+	body.WriteString("} return true")
 	return JitCode{Code: body.String(), Type: CodeRB}
 }
 

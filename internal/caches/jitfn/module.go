@@ -249,6 +249,8 @@ func jitTypeName(runType *protocol.RunType) string {
 		return "tupleMember"
 	case protocol.KindUnion:
 		return "union"
+	case protocol.KindTemplateLiteral:
+		return "templateLiteral"
 	}
 	return ""
 }

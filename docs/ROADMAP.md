@@ -56,20 +56,20 @@ These are real reflection features we intend to ship; each has a concrete approa
 | `originTypes: { typeName, typeArguments }[]` | Tracks each layer of type-alias unwrapping.                        | Walk the alias chain in tsgo (each alias has a target). Add when needed — not blocking for the runtypes JIT.                                                |
 | `indexAccessOrigin`                          | Provenance for `T["key"]` resolved types.                          | tsgo's `IndexedAccessType` has the container + index types. Emit when we hit `TypeFlagsIndexedAccess`.                                                      |
 
-### `isType` emit — remaining gaps after the v1 port
+### `isType` emit — port complete
 
-The atomic / array / object / tuple / union isType emitters are ported (105+ active validation cases across `packages/ts-go-run-types/test/adapters/`). Six gaps remain; each has a documented `it.todo` slot in the corresponding adapter file and a deferred entry in `test/suites/validation-suite.ts` carrying the sample payloads from mion verbatim.
+Every mion `isType` node category is ported with end-to-end test coverage: **117 active validation cases / 0 deferred** across 10 adapter files under `packages/ts-go-run-types/test/adapters/`.
 
-| Gap | Adapter file | Why deferred |
+| Category | Active | Notes |
 | --- | --- | --- |
-| **TemplateLiteral** (`` `api/user/${number}` ``) | `isType-templateLiteral.test.ts` (6 cases) | Serializer projects template literal types as `KindUnknown` today — needs `TypeFlagsTemplateLiteral` detection, pattern part / placeholder extraction, and an emit that compiles to a JS `RegExp` and calls `.test(v)`. Mion source: `nodes/collection/templateLiteral.ts`. |
-| **Rest tuple member** (`[number, ...string[]]`) | `isType-tuple.test.ts` | Needs the start-index for-loop port from mion's `RestParamsRunType` (inherits `ArrayRunType` with `startIndex(comp)` override). |
-| **Plain user class** (`class Foo { x: string }`) | `isType-object.test.ts` | Class projection includes a synthetic `prototype` Property + lib.d.ts global leaks (e.g. `VarDate_typekey` self-recursion). Needs a serializer filter pass to drop these synthetic Children before the object-emit AND chain runs. |
-| **RpcError class flavor** | `isType-object.test.ts` | Needs RpcError-specific subkind + brand handling that mion's `nodes/collection/classRpcError.spec.ts` exercises. |
-| **CallSignature parameter validator** | `isType-object.test.ts` | A separate validator type (mion `createJitParamsFunction`) that validates a function's arguments as a tuple. Out of scope for the main `isType` adapter — lands with the per-fn validator family (typeErrors, mock, …). |
-| **`symbol[]` non-serializable** | `isType-array.test.ts` | Mion throws "Arrays can not have non serializable types" at JIT-compile time. Needs an emit-error mechanism (today we'd compile a validator that always accepts symbols). |
+| Atomic (any/unknown/never/void/null/undefined/string/number/boolean/bigint/symbol/object/regexp/literal/enum/Date) | 28 | Includes `noLiterals` option variants. |
+| Array | 17 | Includes circular self-reference, 2D / 3D, `noIsArrayCheck`, array-of-objects, array-of-unions, array-of-tuples, `symbol[]` non-serializable. |
+| Object (interface / class / property / method / index signature / call signature / function) | 22 | Includes plain user class with `prototype`-filter, RpcError-shape, all-optional w/ `allOptionalCode` guard, callable interface (`isCallable()` branch), `Parameters<F>` for CallSignature param validation. |
+| Tuple | 8 | Includes optional members, rest (`[A, ...B[]]`), circular self-reference, non-serializable function slot. |
+| Union | 11 | Includes union-of-objects, discriminated unions, union with methods, circular unions, intersection (resolved to ObjectLiteral by tsgo). |
+| TemplateLiteral | 7 | Includes regex-escape edge cases, multi-segment URLs, nested-in-object, index-signature key pattern. |
 
-Activating each follow-up is a one-line edit in the adapter (flip `it.todo` to `it()` and add the `isType: () => createIsType<T>()` thunk in the suite); the test samples are already in place. The validation suite's `as const satisfies` type guard catches drift between the suite + adapter file pairs.
+The validation suite's `as const satisfies` type guard catches drift between the suite + adapter file pairs. Each adapter file's "all cases ran" counter test catches forgotten `it()` registrations.
 
 ### Reflection Type variants not yet projected
 
