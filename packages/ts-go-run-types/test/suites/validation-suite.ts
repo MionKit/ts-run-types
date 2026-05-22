@@ -855,11 +855,11 @@ export const VALIDATION_SUITE = {
 
     tuple_rest: {
       title: '[number, ...string[]]',
-      description: 'mion tuple.spec.ts rest parameter — needs Rest emit (the for-loop start-index handling)',
-      // No isType thunk — Rest member isn't yet emitted.
+      description: "mion tuple.spec.ts 'validate tuple with rest parameter'. Rest TupleMembers (Flags=['rest']) emit a for-loop starting at the member's Position and iterating to v.length, validating every element against the wrapped type. The tuple's length-bound check is skipped (rest absorbs extras).",
+      isType: () => createIsType<[number, ...string[]]>(),
       getSamples: () => ({
-        valid: [[3], [3, 'a'], [3, 'a', 'b']],
-        invalid: [[3, 'a', 4], ['not number'], []],
+        valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
+        invalid: [[3, 'a', 4], ['not number'], [], 'not array', [3, 1]],
       }),
     },
 
