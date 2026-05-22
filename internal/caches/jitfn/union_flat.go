@@ -106,6 +106,11 @@ type propCandidate struct {
 	// childRef is the property's declared child type — what the
 	// member's property emit would compile against.
 	childRef *protocol.RunType
+	// optional is set when the property's PropertySignature carries the
+	// `?:` optional marker on this member. Used by the `required` flag
+	// on mergedProp to decide whether the merged emit can drop its
+	// `=== undefined` guard.
+	optional bool
 }
 
 // mergedProp groups every object member's property by name. candidates
@@ -117,16 +122,30 @@ type mergedProp struct {
 	name       string
 	isSafeName bool
 	candidates []propCandidate
+	// required is true when EVERY union member declares the property
+	// AND no declaration is `?:` optional. Lets the emit skip the
+	// per-property `=== undefined` guard for these slots — for
+	// discriminated unions with mostly-shared shapes, every prop is
+	// required and the merged emit collapses to flat string concat
+	// matching the non-flat per-member factory.
+	required bool
 }
 
 // buildMergedProps walks every object member, groups its non-static,
 // non-function-like Properties / PropertySignatures by name, and
 // returns the ordered merged list. Order follows the first appearance
 // of each property name across the iteration order of SafeUnionChildren.
+//
+// `required` is set when EVERY member declares the property non-optionally;
+// the emit uses this to drop the per-property `=== undefined` guard.
 func buildMergedProps(objectMembers []memberRef, ctx *EmitContext) []mergedProp {
 	indexByName := make(map[string]int)
+	// presentInMember[propName][memberIdx] tracks "this property was
+	// found on this member" — used to compute the `required` flag below.
+	presentInMember := make(map[string][]bool)
+	hasOptionalDecl := make(map[string]bool)
 	var merged []mergedProp
-	for _, m := range objectMembers {
+	for memberIdx, m := range objectMembers {
 		for _, propRef := range m.resolved.Children {
 			prop := ctx.ResolveRef(propRef)
 			if prop == nil || prop.IsStatic {
@@ -142,7 +161,10 @@ func buildMergedProps(objectMembers []memberRef, ctx *EmitContext) []mergedProp 
 			if childResolved == nil || isFunctionLikeKind(childResolved.Kind) {
 				continue
 			}
-			candidate := propCandidate{childRef: prop.Child}
+			candidate := propCandidate{childRef: prop.Child, optional: prop.Optional}
+			if prop.Optional {
+				hasOptionalDecl[prop.Name] = true
+			}
 			idx, exists := indexByName[prop.Name]
 			if !exists {
 				indexByName[prop.Name] = len(merged)
@@ -151,8 +173,11 @@ func buildMergedProps(objectMembers []memberRef, ctx *EmitContext) []mergedProp 
 					isSafeName: prop.IsSafeName,
 					candidates: []propCandidate{candidate},
 				})
+				presentInMember[prop.Name] = make([]bool, len(objectMembers))
+				presentInMember[prop.Name][memberIdx] = true
 				continue
 			}
+			presentInMember[prop.Name][memberIdx] = true
 			// Dedupe candidates by child ref ID — two members carrying the
 			// same canonical type collapse to a single candidate.
 			candidates := merged[idx].candidates
@@ -167,6 +192,22 @@ func buildMergedProps(objectMembers []memberRef, ctx *EmitContext) []mergedProp 
 				merged[idx].candidates = append(candidates, candidate)
 			}
 		}
+	}
+	// Mark required: every member must have declared the prop AND no
+	// declaration is optional. For discriminated unions this is the
+	// common case for every shared property.
+	for i := range merged {
+		presence := presentInMember[merged[i].name]
+		allPresent := len(presence) == len(objectMembers)
+		if allPresent {
+			for _, ok := range presence {
+				if !ok {
+					allPresent = false
+					break
+				}
+			}
+		}
+		merged[i].required = allPresent && !hasOptionalDecl[merged[i].name]
 	}
 	return merged
 }
@@ -254,7 +295,14 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 			if propCode == "" {
 				continue
 			}
-			propParts = append(propParts, "if ("+accessor+" !== undefined) {"+propCode+"}")
+			// Required props (every member declares them non-optionally)
+			// skip the `=== undefined` guard since the value is known to
+			// be present once the outer object-type gate passes.
+			if mp.required {
+				propParts = append(propParts, propCode)
+			} else {
+				propParts = append(propParts, "if ("+accessor+" !== undefined) {"+propCode+"}")
+			}
 		}
 		body := strings.Join(propParts, ";")
 		if body != "" {
@@ -275,9 +323,14 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 
 // emitMergedPropPrepare returns the inline JS body that transforms a
 // single merged property's value. Single-candidate props delegate to
-// the candidate's prepareForJson; multi-candidate props emit an inline
-// `[subIdx, value]` dispatch keyed on each candidate's isType. Returns
-// ("", true) when the prop is a noop on every candidate.
+// the candidate's prepareForJson; multi-candidate that are all
+// noop-on-both-halves (e.g. literal `'a' | 'b' | 'c'` discriminators
+// where both prepare and restore are identity) collapse to no transform
+// — the `[subIdx, value]` envelope adds no information the decoder
+// needs since the value round-trips identity-style. Multi-candidate
+// with genuine transforms (e.g. `bigint | Date` where prepare emits
+// different code per candidate) keeps the dispatch + envelope.
+// Returns ("", true) when the prop is a noop on every candidate.
 func emitMergedPropPrepare(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -287,6 +340,14 @@ func emitMergedPropPrepare(mp mergedProp, accessor string, ctx *EmitContext) (st
 			return "", false
 		}
 		return strings.TrimSpace(jc.Code), true
+	}
+	// Collapse multi-candidate when every candidate is a noop on both
+	// prepare AND restore. The literal discriminator case (`'a' | 'b' | 'c'`)
+	// is the headline shape this catches: all three literals are
+	// prepare-noop AND restore-noop, so the dispatch + `[subIdx, value]`
+	// wrap is pure overhead. JSON's natural typing recovers the value.
+	if mp.allCandidatesNoop(ctx) {
+		return "", true
 	}
 	// Multi-candidate — inline union dispatch over the accessor.
 	var arms []string
@@ -323,6 +384,30 @@ func emitMergedPropPrepare(mp mergedProp, accessor string, ctx *EmitContext) (st
 	return strings.Join(arms, ""), true
 }
 
+// allCandidatesNoop reports whether every candidate ref points at a
+// type that is noop on BOTH the flat-prepare and flat-restore halves.
+// When true, the per-property dispatch + `[subIdx, value]` wrap is pure
+// overhead — JSON's natural typing recovers the value on the decode
+// side without needing the subIdx.
+func (mp mergedProp) allCandidatesNoop(ctx *EmitContext) bool {
+	if len(mp.candidates) == 0 {
+		return true
+	}
+	for _, cand := range mp.candidates {
+		resolved := ctx.ResolveRef(cand.childRef)
+		if resolved == nil {
+			return false
+		}
+		if !peekMemberIsNoop(resolved, PrepareForJsonFlatEmitter{}, ctx) {
+			return false
+		}
+		if !peekMemberIsNoop(resolved, RestoreFromJsonFlatEmitter{}, ctx) {
+			return false
+		}
+	}
+	return true
+}
+
 // --- restoreFromJson decode --------------------------------------------------
 
 // emitUnionRestoreFromJsonFlat — the decode-side of the flat-union wire
@@ -357,7 +442,9 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 	var arms []string
 
 	// Object branch (idx === -1) — walk merged props, restore each
-	// defined key.
+	// defined key. Required props (every member declares them
+	// non-optionally) skip the `=== undefined` guard, matching the
+	// encoder's symmetric optimisation in emitUnionPrepareForJsonFlat.
 	if hasObjectBranch {
 		merged := buildMergedProps(split.object, ctx)
 		var propParts []string
@@ -370,7 +457,11 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 			if propCode == "" {
 				continue
 			}
-			propParts = append(propParts, "if ("+accessor+" !== undefined) {"+propCode+"}")
+			if mp.required {
+				propParts = append(propParts, propCode)
+			} else {
+				propParts = append(propParts, "if ("+accessor+" !== undefined) {"+propCode+"}")
+			}
 		}
 		body := strings.Join(propParts, ";")
 		arm := "if (" + decVar + " === -1) {" + body + "}"
@@ -412,8 +503,10 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 
 // emitMergedPropRestore — decode-side mirror of emitMergedPropPrepare.
 // Single-candidate props delegate to the candidate's restoreFromJson;
-// multi-candidate props detect the per-property `[subIdx, value]`
-// envelope and dispatch.
+// multi-candidate that are all noop-on-both-halves collapse to no
+// transform (the encoder skipped the wrap so there's nothing to undo).
+// Multi-candidate with genuine transforms decodes the per-prop
+// `[subIdx, value]` envelope.
 func emitMergedPropRestore(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -423,6 +516,12 @@ func emitMergedPropRestore(mp mergedProp, accessor string, ctx *EmitContext) (st
 			return "", false
 		}
 		return strings.TrimSpace(jc.Code), true
+	}
+	// Collapse multi-candidate when every candidate is a noop on both
+	// halves. Symmetric with emitMergedPropPrepare — the encoder didn't
+	// emit a wrap, so the decoder has nothing to unwrap.
+	if mp.allCandidatesNoop(ctx) {
+		return "", true
 	}
 	// Multi-candidate — decode the per-prop `[subIdx, value]` envelope.
 	subDecVar := ctx.NextLocalVar("sub")
@@ -497,10 +596,46 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 
 	if len(split.object) > 0 {
 		merged := buildMergedProps(split.object, ctx)
-		// Build the merged-object stringify: `'{' + filterEmpty(parts).join(',') + '}'`
-		// Each part either expands to `'"name":' + <propJson>` when defined
-		// or to `''` when undefined.
-		var partExprs []string
+		// Build the merged-object stringify with direct string concat
+		// instead of `[parts].filter(Boolean).join(',')` — the filter
+		// approach allocates two arrays + a string per call. With Fix 3
+		// (required vs optional split) the common discriminated-union
+		// case where every member shares the same property set collapses
+		// to flat concat, matching the shape the non-flat per-member
+		// factory produces.
+		//
+		// Strategy:
+		//   - Required props (every member has them, none declared
+		//     optional) emit `,"name":<propJson>` unconditionally. The
+		//     first required prop becomes the comma anchor; subsequent
+		//     required props always lead with `,`.
+		//   - Optional props (any member missing the prop, or any
+		//     declaration is `?:`) emit
+		//     `(accessor === undefined ? '' : ',"name":<propJson>')` —
+		//     always with a leading comma in the populated branch.
+		//   - When there is at least one required prop, the leading `,`
+		//     from the FIRST emitted fragment is harmless: the first
+		//     fragment was emitted without a leading comma so the
+		//     concat is `'{' + '"r1":...' + ',"r2":...' + ...`.
+		//   - When there are NO required props (all optional), fall
+		//     back to a slice(1) trick — prepend `,` unconditionally
+		//     in every conditional branch and strip the leading comma
+		//     from the resulting string. Still avoids the filter+join
+		//     allocations.
+		hasRequired := false
+		for _, mp := range merged {
+			if mp.required {
+				hasRequired = true
+				break
+			}
+		}
+		// Collect propJson per merged prop. Skipping empty noop props.
+		type compiledProp struct {
+			mp       mergedProp
+			accessor string
+			propJson string
+		}
+		var compiledProps []compiledProp
 		for _, mp := range merged {
 			accessor := propertyAccessor(v, mp.name, mp.isSafeName)
 			propJson, ok := emitMergedPropStringify(mp, accessor, ctx)
@@ -510,17 +645,55 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			if propJson == "" {
 				continue
 			}
-			prefix := "'" + jsonPropPrefix(mp.name, mp.isSafeName) + "'"
-			// Strip the JSON `:` from jsonPropPrefix since we're rebuilding —
-			// actually jsonPropPrefix already appends `:`, so reuse as-is.
-			expr := "(" + accessor + " === undefined ? '' : " + prefix + " + " + propJson + ")"
-			partExprs = append(partExprs, expr)
+			compiledProps = append(compiledProps, compiledProp{mp: mp, accessor: accessor, propJson: propJson})
 		}
 		var objExpr string
-		if len(partExprs) == 0 {
+		if len(compiledProps) == 0 {
 			objExpr = "'{}'"
+		} else if hasRequired {
+			// At least one required → flat concat anchored by the first
+			// required prop's unconditional emit.
+			var parts []string
+			firstRequiredSeen := false
+			for _, cp := range compiledProps {
+				prefix := "'" + jsonPropPrefix(cp.mp.name, cp.mp.isSafeName) + "'"
+				if cp.mp.required {
+					if !firstRequiredSeen {
+						parts = append(parts, prefix+"+"+cp.propJson)
+						firstRequiredSeen = true
+					} else {
+						parts = append(parts, "','+"+prefix+"+"+cp.propJson)
+					}
+				} else {
+					// Optional prop — conditional with leading comma.
+					if !firstRequiredSeen {
+						// Optional appears before any required prop has anchored
+						// the concat — needs the slice(1) trick locally. This is
+						// uncommon (would require a required prop to appear later
+						// in iteration order); fall back to conditional-with-
+						// leading-comma which works because the FIRST emitted
+						// required prop later will not lead with `,`. But to
+						// keep the JS valid we need to emit unconditional `,`
+						// here. Use a wrapper that adds the comma only when the
+						// accessor is defined.
+						parts = append(parts, "("+cp.accessor+" === undefined ? '' : ','+"+prefix+"+"+cp.propJson+")")
+					} else {
+						parts = append(parts, "("+cp.accessor+" === undefined ? '' : ','+"+prefix+"+"+cp.propJson+")")
+					}
+				}
+			}
+			objExpr = "'{'+" + strings.Join(parts, "+") + "+'}'"
 		} else {
-			objExpr = "'{'+[" + strings.Join(partExprs, ",") + "].filter(Boolean).join(',')+'}'"
+			// All optional — use the slice trick. Each part either emits
+			// `,"name":<propJson>` or `''`. Final concat strips the
+			// leading comma via slice(1). Allocates one string for the
+			// concat + one for slice(1) (V8 cons-string). No arrays.
+			var parts []string
+			for _, cp := range compiledProps {
+				prefix := "'" + jsonPropPrefix(cp.mp.name, cp.mp.isSafeName) + "'"
+				parts = append(parts, "("+cp.accessor+" === undefined ? '' : ','+"+prefix+"+"+cp.propJson+")")
+			}
+			objExpr = "'{'+(" + strings.Join(parts, "+") + ").slice(1)+'}'"
 		}
 		envelope := "'[-1,' + " + objExpr + " + ']'"
 		clause := "if (typeof " + v + " === 'object' && " + v + " !== null) { return " + envelope + ";}"
@@ -537,9 +710,13 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 
 // emitMergedPropStringify returns a JS expression that evaluates to the
 // JSON fragment for the merged prop's value. Single-candidate uses the
-// candidate's stringifyJson directly; multi-candidate emits an IIFE
-// that dispatches on each candidate's isType and wraps with the
-// `[subIdx, value]` envelope.
+// candidate's stringifyJson directly; multi-candidate that all produce
+// IDENTICAL child code (e.g. `'a' | 'b' | 'c'` literal discriminators,
+// where every candidate emits `JSON.stringify(accessor)`) collapses to
+// the shared code — the `[subIdx, value]` envelope adds no information
+// the decoder needs since JSON.parse recovers the value via its
+// natural typing. Truly divergent candidates fall back to the IIFE
+// dispatch + `[subIdx, value]` envelope.
 func emitMergedPropStringify(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -553,10 +730,14 @@ func emitMergedPropStringify(mp mergedProp, accessor string, ctx *EmitContext) (
 		}
 		return jc.Code, true
 	}
-	// Multi-candidate — IIFE with per-candidate dispatch.
-	errVar := flatUnionEncodeErrorVar(ctx)
-	var arms []string
-	for i, cand := range mp.candidates {
+	// Compile every candidate up front so the collapse-on-identical check
+	// can inspect the resulting code strings.
+	type compiled struct {
+		code     string
+		resolved *protocol.RunType
+	}
+	candidates := make([]compiled, 0, len(mp.candidates))
+	for _, cand := range mp.candidates {
 		ctx.SetChildAccessor(accessor)
 		jc := ctx.CompileChild(cand.childRef, CodeE)
 		ctx.SetChildAccessor("")
@@ -571,18 +752,35 @@ func emitMergedPropStringify(mp mergedProp, accessor string, ctx *EmitContext) (
 		if childCode == "" {
 			childCode = "JSON.stringify(" + accessor + ")"
 		}
-		isTypeExpr := unionMemberIsTypeCheck(resolved, ctx, accessor)
+		candidates = append(candidates, compiled{code: childCode, resolved: resolved})
+	}
+	if len(candidates) == 0 {
+		return "", true
+	}
+	// Collapse: if every candidate produces the same code, the dispatch
+	// is pure overhead — emit the shared code directly.
+	allSame := true
+	for i := 1; i < len(candidates); i++ {
+		if candidates[i].code != candidates[0].code {
+			allSame = false
+			break
+		}
+	}
+	if allSame {
+		return candidates[0].code, true
+	}
+	// Multi-candidate — IIFE with per-candidate dispatch.
+	errVar := flatUnionEncodeErrorVar(ctx)
+	arms := make([]string, 0, len(candidates))
+	for i, cand := range candidates {
+		isTypeExpr := unionMemberIsTypeCheck(cand.resolved, ctx, accessor)
 		guard := isTypeExpr
-		if isObjectLikeKind(resolved.Kind) {
+		if isObjectLikeKind(cand.resolved.Kind) {
 			guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
 		}
-		arm := "if (" + guard + ") return '[" + strconv.Itoa(i) + ",' + " + childCode + " + ']';"
+		arm := "if (" + guard + ") return '[" + strconv.Itoa(i) + ",' + " + cand.code + " + ']';"
 		arms = append(arms, arm)
-	}
-	if len(arms) == 0 {
-		return "", true
 	}
 	iife := "(function(){" + strings.Join(arms, " ") + " throw new Error(" + errVar + ");})()"
 	return iife, true
 }
-
