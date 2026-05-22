@@ -851,6 +851,28 @@ export const VALIDATION_SUITE = {
       }),
     },
 
+    record_union_keys: {
+      title: 'Record<"a" | "b", number>',
+      description: "`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.",
+      isType: () => createIsType<Record<'a' | 'b', number>>(),
+      getSamples: () => ({
+        valid: [
+          {a: 1, b: 2},
+          {a: 0, b: 0},
+          // Extra props pass — Record<UnionKey, V> doesn't imply strict.
+          {a: 1, b: 2, c: 3},
+        ],
+        invalid: [
+          {a: 1},                  // missing 'b'
+          {b: 1},                  // missing 'a'
+          {},                      // empty
+          {a: 'x', b: 1},          // wrong type
+          null,
+          'not object',
+        ],
+      }),
+    },
+
     union_value_index: {
       title: '{[key: string]: string | number}',
       description: 'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
@@ -950,6 +972,39 @@ export const VALIDATION_SUITE = {
           invalid: [[], [new Date(), 1, 'a', null, [], 'not bigint'], 'not array'],
         };
       },
+    },
+
+    tuple_multiple_trailing_optionals: {
+      title: '[number, bigint?, boolean?, number?]',
+      description: "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
+      isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      getSamples: () => ({
+        valid: [
+          [3],
+          [3, 1n],
+          [3, 1n, true],
+          [3, 1n, true, 4],
+          [3, undefined, true, 4], // explicit undefined in the middle
+          [3, 1n, undefined, 4],
+          [3, undefined, undefined, 4],
+        ],
+        invalid: [
+          [],                            // missing required first
+          [3, 'not bigint'],             // wrong type at optional slot
+          [3, 1n, true, 4, 'extra'],     // excess args
+          'not array',
+        ],
+      }),
+    },
+
+    tuple_named_labels: {
+      title: '[name: string, age: number]',
+      description: "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
+      isType: () => createIsType<[name: string, age: number]>(),
+      getSamples: () => ({
+        valid: [['Alice', 30], ['', 0]],
+        invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array'],
+      }),
     },
 
     tuple_with_non_serializable: {
