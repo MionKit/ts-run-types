@@ -298,25 +298,166 @@ func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 	}
 }
 
+// TestIsTypeModule_InterfaceEmitBody covers KindObjectLiteral —
+// the canonical interface check (`typeof v === 'object' && v !== null`)
+// AND-chained with each PropertySignature child's check. Atomic
+// children inline directly; the resolver normally hands child slots
+// as KindRef sentinels which the walker derefs via the RefTable.
+func TestIsTypeModule_InterfaceEmitBody(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	propA := &protocol.RunType{
+		ID:         "pA",
+		Kind:       protocol.KindPropertySignature,
+		Name:       "a",
+		IsSafeName: true,
+		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	propB := &protocol.RunType{
+		ID:         "pB",
+		Kind:       protocol.KindPropertySignature,
+		Name:       "b",
+		IsSafeName: true,
+		Child:      &protocol.RunType{ID: "num", Kind: protocol.KindRef},
+	}
+	iface := &protocol.RunType{
+		ID:   "if1",
+		Kind: protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{
+			{ID: "pA", Kind: protocol.KindRef},
+			{ID: "pB", Kind: protocol.KindRef},
+		},
+	}
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propA, propB, stringRT, numberRT}}
+	out := renderToString(t, dump)
+	if !strings.Contains(out, "factory('if1',") {
+		t.Fatalf("interface factory missing in:\n%s", out)
+	}
+	want := "(typeof v === 'object' && v !== null && typeof v.a === 'string' && Number.isFinite(v.b))"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected interface body %q in:\n%s", want, out)
+	}
+}
+
+// TestIsTypeModule_OptionalPropertyEmitBody checks the optional guard
+// wrap — `(v.<name> === undefined || <childCheck>)`. Mirrors mion's
+// PropertyRunType.emitIsType when src.optional is set.
+func TestIsTypeModule_OptionalPropertyEmitBody(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	propA := &protocol.RunType{
+		ID:         "pA",
+		Kind:       protocol.KindPropertySignature,
+		Name:       "a",
+		IsSafeName: true,
+		Optional:   true,
+		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	iface := &protocol.RunType{
+		ID:       "if2",
+		Kind:     protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{{ID: "pA", Kind: protocol.KindRef}},
+	}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{iface, propA, stringRT}})
+	want := "(v.a === undefined || typeof v.a === 'string')"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected optional-property body %q in:\n%s", want, out)
+	}
+}
+
+// TestIsTypeModule_FunctionPropertyDropped — properties whose wrapped
+// value is function-flavoured are dropped from the parent's AND
+// chain. Mirrors mion's `getJitChild → undefined` short-circuit for
+// methods. The interface body therefore reduces to the basic
+// typeof-object guard + the non-function siblings.
+func TestIsTypeModule_FunctionPropertyDropped(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	fnRT := &protocol.RunType{ID: "fn", Kind: protocol.KindFunction}
+	propName := &protocol.RunType{
+		ID:         "pN",
+		Kind:       protocol.KindPropertySignature,
+		Name:       "name",
+		IsSafeName: true,
+		Child:      &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	propMethod := &protocol.RunType{
+		ID:         "pM",
+		Kind:       protocol.KindPropertySignature,
+		Name:       "method",
+		IsSafeName: true,
+		Child:      &protocol.RunType{ID: "fn", Kind: protocol.KindRef},
+	}
+	iface := &protocol.RunType{
+		ID:   "if3",
+		Kind: protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{
+			{ID: "pN", Kind: protocol.KindRef},
+			{ID: "pM", Kind: protocol.KindRef},
+		},
+	}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{iface, propName, propMethod, stringRT, fnRT}})
+	if strings.Contains(out, "v.method") {
+		t.Errorf("function-typed property should be dropped from AND chain, but v.method appears:\n%s", out)
+	}
+	if !strings.Contains(out, "typeof v.name === 'string'") {
+		t.Errorf("non-function sibling should still be checked, got:\n%s", out)
+	}
+}
+
+// TestIsTypeModule_IndexSignatureEmitBody covers KindIndexSignature —
+// the for-in iteration over the object's own keys with a value-type
+// check. Mirrors mion's IndexSignatureRunType.emitIsType.
+func TestIsTypeModule_IndexSignatureEmitBody(t *testing.T) {
+	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	idx := &protocol.RunType{
+		ID:    "ix",
+		Kind:  protocol.KindIndexSignature,
+		Child: &protocol.RunType{ID: "str", Kind: protocol.KindRef},
+	}
+	iface := &protocol.RunType{
+		ID:       "if4",
+		Kind:     protocol.KindObjectLiteral,
+		Children: []*protocol.RunType{{ID: "ix", Kind: protocol.KindRef}},
+	}
+	out := renderToString(t, protocol.Dump{RunTypes: []*protocol.RunType{iface, idx, stringRT}})
+	for _, fragment := range []string{
+		"for (const k0 in v)",
+		"typeof v[k0] === 'string'",
+		"return true",
+	} {
+		if !strings.Contains(out, fragment) {
+			t.Errorf("expected index-signature fragment %q in:\n%s", fragment, out)
+		}
+	}
+}
+
+// TestIsTypeModule_FunctionTopLevelEmitBody — a free-standing function
+// runtype emits the bare `typeof === 'function'` check.
+func TestIsTypeModule_FunctionTopLevelEmitBody(t *testing.T) {
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "fn1", Kind: protocol.KindFunction}}}
+	out := renderToString(t, dump)
+	if !strings.Contains(out, "return typeof v === 'function'") {
+		t.Errorf("expected function body in:\n%s", out)
+	}
+}
+
 func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
-	// KindFunction and KindUnion remain unsupported after the atomic
-	// emitIsType port — they belong to mion's function/collection
-	// families, not the atomic family this emitter implements. The
-	// renderer must skip them silently rather than panic, so kind-by-kind
-	// rollout of follow-up families (collection, function) stays possible.
+	// KindUnion + KindIntersection remain unsupported until the union
+	// emit lands. The renderer must skip them silently rather than
+	// panic so kind-by-kind rollout stays possible. KindFunction is
+	// now supported (emits `typeof v === 'function'`).
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
-			{ID: "f1", Kind: protocol.KindFunction},
 			{ID: "u1", Kind: protocol.KindUnion},
+			{ID: "x1", Kind: protocol.KindIntersection},
 			{ID: "s1", Kind: protocol.KindString},
 		},
 	}
 	out := renderToString(t, dump)
-	if strings.Contains(out, "'f1'") {
-		t.Error("KindFunction should be skipped (unsupported), but f1 was rendered")
-	}
 	if strings.Contains(out, "'u1'") {
 		t.Error("KindUnion should be skipped (unsupported), but u1 was rendered")
+	}
+	if strings.Contains(out, "'x1'") {
+		t.Error("KindIntersection should be skipped (unsupported), but x1 was rendered")
 	}
 	if !strings.Contains(out, "factory('s1',") {
 		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)

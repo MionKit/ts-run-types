@@ -72,9 +72,20 @@ func (ctx *InlineContext) CurrentVλl() string {
 //  3. KindArray → false (mion comment: "all array are self invoked
 //     for isType and are usually repeated type like string[] or
 //     number[] so worth deduplicating").
-//  4. Named Collection → false (mion comment: "collection with name
+//  4. KindObjectLiteral / KindClass → false. mion only deopts named
+//     collections (typeName + family C); our serializer doesn't yet
+//     populate TypeName on `interface Foo {}` declarations, so a
+//     circular interface inlined recursively at depth>1 would loop
+//     forever. Treating every Object/Class as non-inlined matches
+//     KindArray's stance and is correct (slightly less optimal —
+//     anonymous objects get their own factory) pending the structural
+//     circular-detection pass tracked in docs/ROADMAP.md.
+//     The atomic-Date arm (KindClass+SubKindDate) is handled inside
+//     istype.go and never reaches here as a child to inline (it emits
+//     a single instanceof expression).
+//  5. Named Collection → false (mion comment: "collection with name
 //     might be used in different places so worth deduplicating").
-//  5. Otherwise → true.
+//  6. Otherwise → true.
 func DefaultIsJitInlined(ctx *InlineContext) bool {
 	if ctx == nil || ctx.RT == nil {
 		return true
@@ -86,6 +97,12 @@ func DefaultIsJitInlined(ctx *InlineContext) bool {
 		return true
 	}
 	if ctx.RT.Kind == protocol.KindArray {
+		return false
+	}
+	if ctx.RT.Kind == protocol.KindObjectLiteral {
+		return false
+	}
+	if ctx.RT.Kind == protocol.KindClass && ctx.RT.SubKind != protocol.SubKindDate {
 		return false
 	}
 	if ctx.RT.TypeName != "" && protocol.FamilyOf(ctx.RT.Kind) == protocol.FamilyCollection {
