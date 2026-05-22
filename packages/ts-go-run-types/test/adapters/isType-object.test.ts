@@ -49,9 +49,10 @@ describe('isType / OBJECT', () => {
   it('{[key: string]: string | number}', () => assertIsType(VALIDATION_SUITE.OBJECT.union_value_index));
   it('{kind: "a" | "b"; n: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.object_with_union_prop));
 
+  it('{a?: string; b?: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_all_optional));
+
   // Deferred — features that haven't landed yet.
   it.todo('CallableInterface — needs `isCallable()` branch in interface emit');
-  it.todo('{a?: string; b?: number} — needs allOptionalCode (reject arrays/native objects)');
   it.todo('class MySerializableClass — needs class projection');
   it.todo('RpcError<"test-error"> — needs RpcError class flavor');
   it.todo('CallSignature params — needs explicit param-tuple validator');

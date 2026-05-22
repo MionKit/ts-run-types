@@ -30,9 +30,10 @@ describe('isType / TUPLE', () => {
   it('[number, bigint?, boolean?, number?]', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_with_optional));
   it('[string, number][]', () => assertIsType(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
 
+  it('TupleCircular = [..., TupleCircular?]', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_circular));
+
   // Deferred — features that need follow-up port work.
   it.todo('[number, ...string[]] — needs Rest emit');
-  it.todo('TupleCircular — needs circular-type detection');
   it.todo('[number, () => any] — needs non-serializable tuple member guard');
 
   it('all tuple isType tests ran', () => {
