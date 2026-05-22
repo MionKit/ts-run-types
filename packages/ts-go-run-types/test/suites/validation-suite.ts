@@ -825,11 +825,29 @@ export const VALIDATION_SUITE = {
     },
 
     call_signature_params: {
-      title: 'CallSignature params (tuple)',
-      description: "mion callSignature.spec.ts — needs tuple/parameter-tuple emit for the [a, b] params shape.",
+      title: 'CallSignature params via Parameters<F> (tuple)',
+      description: "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createJitParamsFunction(JitFunctions.isType)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
+      isType: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        return createIsType<Parameters<CallSig>>();
+      },
       getSamples: () => ({
-        valid: [],
-        invalid: [],
+        valid: [
+          [1, true],
+          [0, false],
+          // mion: missing trailing args treated as undefined; if the
+          // param type is `boolean` (not `boolean | undefined`) then
+          // `[1]` fails because v[1] === undefined doesn't satisfy
+          // typeof === 'boolean'. Same shape here.
+        ],
+        invalid: [
+          [1, 'not boolean'],
+          [1],                   // missing required boolean
+          [1, true, 'extra'],    // excess args
+          ['not number', true],
+          'not array',
+          null,
+        ],
       }),
     },
 
