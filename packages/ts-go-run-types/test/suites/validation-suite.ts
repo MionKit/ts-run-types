@@ -511,10 +511,11 @@ export const VALIDATION_SUITE = {
     symbol_array: {
       title: 'symbol[]',
       description:
-        "mion ARRAYS.non_serializable_in_array — emits a compile-time error in mion ('Arrays can not have non serializable types'). Not testable via runtime samples; the Go-side guard lives in serialize/emit",
+        "mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time; we mirror the runtime-observable effect by emitting an always-false validator so any input is rejected.",
+      isType: () => createIsType<symbol[]>(),
       getSamples: () => ({
         valid: [],
-        invalid: [[Symbol('a')]],
+        invalid: [[Symbol('a')], [], 'not array', null, [42]],
       }),
     },
   },
@@ -776,12 +777,51 @@ export const VALIDATION_SUITE = {
     },
 
     rpc_error_class: {
-      title: 'RpcError<"test-error">',
-      description: "mion classRpcError.spec.ts — needs the RpcError-flavored class projection (literal-string generic + brand). Deferred until class support generally lands.",
-      getSamples: () => ({
-        valid: [],
-        invalid: [],
-      }),
+      title: 'RpcError<"test-error"> — local equivalent shape',
+      description: "mion classRpcError.spec.ts — verifies the standard class projection handles RpcError-shaped classes (the actual @mionjs/core RpcError isn't a built-in node kind; it's a regular class with a literal-true brand + generic type discriminator). We define a local equivalent here to exercise the same shape end-to-end without pulling in the @mionjs/core dependency for a single test.",
+      isType: () => {
+        // Mirrors @mionjs/core's RpcError public shape:
+        //   - `mion@isΣrrθr: true` brand (literal true)
+        //   - `type: ErrType` generic discriminator
+        //   - `publicMessage: string`
+        //   - `id?: string`
+        // `message` / `name` / `stack` are intentionally NOT declared
+        // as TS properties (they exist at runtime via Error) so isType
+        // doesn't validate them.
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        return createIsType<RpcError<'test-error'>>();
+      },
+      getSamples: () => {
+        const validInstance = {
+          'mion@isΣrrθr': true,
+          type: 'test-error',
+          publicMessage: 'error',
+        };
+        const validWithId = {...validInstance, id: 'error-123'};
+        return {
+          valid: [validInstance, validWithId],
+          invalid: [
+            // brand wrong
+            {'mion@isΣrrθr': false, type: 'test-error', publicMessage: 'x'},
+            // type discriminator wrong
+            {'mion@isΣrrθr': true, type: 'other-error', publicMessage: 'x'},
+            // missing publicMessage
+            {'mion@isΣrrθr': true, type: 'test-error'},
+            null,
+            'not object',
+          ],
+        };
+      },
     },
 
     call_signature_params: {

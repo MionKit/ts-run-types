@@ -54,9 +54,9 @@ describe('isType / OBJECT', () => {
   it('CallableInterface = {(...): ret; extra: string}', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_callable));
 
   it('class MySerializableClass with two atomic props', () => assertIsType(VALIDATION_SUITE.OBJECT.class_simple));
+  it('RpcError<"test-error"> shape (local equivalent)', () => assertIsType(VALIDATION_SUITE.OBJECT.rpc_error_class));
 
   // Deferred — features that haven't landed yet.
-  it.todo('RpcError<"test-error"> — needs RpcError class flavor');
   it.todo('CallSignature params — needs explicit param-tuple validator');
 
   // Coverage guard. Mirrors isType.test.ts. it.todo does NOT invoke
