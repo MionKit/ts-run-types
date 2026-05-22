@@ -53,8 +53,9 @@ describe('isType / OBJECT', () => {
 
   it('CallableInterface = {(...): ret; extra: string}', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_callable));
 
+  it('class MySerializableClass with two atomic props', () => assertIsType(VALIDATION_SUITE.OBJECT.class_simple));
+
   // Deferred — features that haven't landed yet.
-  it.todo('class MySerializableClass — needs prototype/global-leak filter in class projection');
   it.todo('RpcError<"test-error"> — needs RpcError class flavor');
   it.todo('CallSignature params — needs explicit param-tuple validator');
 
