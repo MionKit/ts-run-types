@@ -148,7 +148,7 @@ export const VALIDATION_SUITE = {
       title: 'literal 2',
       isType: () => createIsType<2>(),
       isTypeReflect: () => {
-        const v: 2 = 2;
+        const v = 2 as const;
         return createIsType(v);
       },
       getSamples: () => ({valid: [2], invalid: [4]}),
@@ -158,7 +158,7 @@ export const VALIDATION_SUITE = {
       title: 'literal "a"',
       isType: () => createIsType<'a'>(),
       isTypeReflect: () => {
-        const v: 'a' = 'a';
+        const v = 'a' as const;
         return createIsType(v);
       },
       getSamples: () => ({valid: ['a'], invalid: ['b']}),
@@ -189,7 +189,7 @@ export const VALIDATION_SUITE = {
       title: 'literal true',
       isType: () => createIsType<true>(),
       isTypeReflect: () => {
-        const v: true = true;
+        const v = true as const;
         return createIsType(v);
       },
       getSamples: () => ({valid: [true], invalid: [false]}),
@@ -199,7 +199,7 @@ export const VALIDATION_SUITE = {
       title: 'literal 1n',
       isType: () => createIsType<1n>(),
       isTypeReflect: () => {
-        const v: 1n = 1n;
+        const v = 1n as const;
         return createIsType(v);
       },
       getSamples: () => ({valid: [1n], invalid: [2n]}),
@@ -351,7 +351,7 @@ export const VALIDATION_SUITE = {
       description: 'degrades to number — Number.isFinite check',
       isType: () => createIsType<2>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
-        const v: 2 = 2;
+        const v = 2 as const;
         return createIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [4], invalid: ['4']}),
@@ -362,7 +362,7 @@ export const VALIDATION_SUITE = {
       description: 'degrades to string — typeof check',
       isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
-        const v: 'a' = 'a';
+        const v = 'a' as const;
         return createIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: ['c'], invalid: [1]}),
@@ -384,7 +384,7 @@ export const VALIDATION_SUITE = {
       description: 'degrades to boolean — typeof check',
       isType: () => createIsType<true>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
-        const v: true = true;
+        const v = true as const;
         return createIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [false], invalid: [1]}),
@@ -395,7 +395,7 @@ export const VALIDATION_SUITE = {
       description: 'degrades to bigint — typeof check',
       isType: () => createIsType<1n>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
-        const v: 1n = 1n;
+        const v = 1n as const;
         return createIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [3n], invalid: [3]}),
@@ -754,6 +754,28 @@ export const VALIDATION_SUITE = {
       getSamples: () => ({
         valid: [{a: 'hello', b: 1}, {a: '', b: 0}, {a: 'x', b: 42, extra: true}],
         invalid: ['hello', null, undefined, {a: 'x'}, {a: 1, b: 1}, {a: 'x', b: 'not number'}],
+      }),
+    },
+
+    object_as_const_literals: {
+      title: '{readonly name: "john"; readonly age: 30}',
+      description: 'Object literal pinned with `as const` — every property becomes a readonly literal type. Verifies that the type-id resolution and validator emit handle the readonly-literal-props shape end-to-end and that the static / reflect forms agree.',
+      isType: () => createIsType<{readonly name: 'john'; readonly age: 30}>(),
+      isTypeReflect: () => {
+        const Usr = {name: 'john', age: 30} as const;
+        return createIsType(Usr);
+      },
+      getSamples: () => ({
+        valid: [{name: 'john', age: 30}],
+        invalid: [
+          {name: 'jane', age: 30},       // name not the literal 'john'
+          {name: 'john', age: 31},       // age not the literal 30
+          {name: 'john'},                // missing age
+          {age: 30},                     // missing name
+          {},
+          null,
+          'not object',
+        ],
       }),
     },
 
