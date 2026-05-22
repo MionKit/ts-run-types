@@ -131,6 +131,7 @@ describe('isType / OBJECT', () => {
   it('{a: string; b: number; [str|num]} index w/ union value', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_named_props));
   it('{[key: string]: {[key: string]: number}}', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_nested));
   it('{[key: string]: {[key: string]: Date}}', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_date_value));
+  it('Obj2 { b; c: Obj1 } — index signature on nested object', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_non_root));
   it('() => void', () => assertIsType(VALIDATION_SUITE.OBJECT.function_top_level));
 
   it('Record<"a" | "b", number>', () => assertIsType(VALIDATION_SUITE.OBJECT.record_union_keys));
@@ -144,6 +145,8 @@ describe('isType / OBJECT', () => {
   it('class MySerializableClass with two atomic props', () => assertIsType(VALIDATION_SUITE.OBJECT.class_simple));
   it('RpcError<"test-error"> shape (local equivalent)', () => assertIsType(VALIDATION_SUITE.OBJECT.rpc_error_class));
   it('CallSignature params via Parameters<F>', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params));
+  it('Parameters<(a, b, c?) => Date> — trailing optional', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params_with_optional));
+  it('Parameters<(a, b, ...c: Date[]) => Date> — rest', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
 
   it('all object isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.OBJECT).filter((c) => c.isType).length;
@@ -192,6 +195,18 @@ describe('isType / UNION', () => {
 
   it('UnionC = Date|number|string|{a?:UnionC;b?:string}|UnionC[]', () => assertIsType(VALIDATION_SUITE.UNION.circular_union));
   it('{a: string} & {b: number} — resolved to ObjectLiteral', () => assertIsType(VALIDATION_SUITE.UNION.intersection_to_object));
+
+  // mion union.spec.ts ports — additional arms / shapes
+  it('{a;aa} | {b} | {c; [k]: bigint} — union with index arm', () => assertIsType(VALIDATION_SUITE.UNION.union_with_index_arm));
+  it("{type:'a';prop:bool} | {type:'b';prop:num} | {type:'c';prop:str}", () => assertIsType(VALIDATION_SUITE.UNION.union_same_prop_different_types));
+  it('string[] | number[] | boolean[] | {a;aa} | {b} | {c;aa:"string"}', () => assertIsType(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
+  it('{a: boolean} | {a: number} — merged property', () => assertIsType(VALIDATION_SUITE.UNION.union_merged_property));
+  it('string[] | {a;aa} | {b} | {a;[k]:str} | {[k]:bigint;b}', () => assertIsType(VALIDATION_SUITE.UNION.union_mixed_with_index));
+  it('string | any — any fallback collapses union to any', () => assertIsType(VALIDATION_SUITE.UNION.union_with_any_fallback));
+  it('string | unknown — unknown fallback collapses union to unknown', () => assertIsType(VALIDATION_SUITE.UNION.union_with_unknown_fallback));
+  it('SmallObj | LargeObj — subset relationship', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_small_first));
+  it('Tiny | Medium | Large — multi-level subset', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_nested_levels));
+  it('Base | Extended | Unrelated — mixed subset/disjoint', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_mixed_related_unrelated));
 
   it('all union isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.isType).length;
@@ -242,6 +257,29 @@ describe('isType / NATIVE', () => {
 
   it('all native isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.NATIVE).filter((c) => c.isType).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+// CIRCULAR — self-referential and mutually-recursive type shapes ported
+// from mion's nodes/collection/circularRefs.spec.ts. Other sections
+// already carry the simpler circular cases; this block holds the
+// variants where the cycle closes through a tuple-typed property, an
+// index signature, or a deeply nested anonymous-object chain.
+describe('isType / CIRCULAR', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Circular { n; s; c?: Circular; d?: Date }', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_full_mion_shape));
+  it('CuArray = (CuArray | Date | number | string)[]', () => assertIsType(VALIDATION_SUITE.CIRCULAR.array_of_union_with_self_ref));
+  it('CircularTuple { tuple: [bigint, CircularTuple?] }', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_with_tuple_prop));
+  it('CircularIndex { index: { [k]: CircularIndex } }', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_with_index_prop));
+  it('CircularDeep { deep1: { deep2: { deep3: { deep4?: CircularDeep } } } }', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_deeply_nested));
+
+  it('all circular isType tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.CIRCULAR).filter((c) => c.isType).length;
     expect(ranTests).toBe(activeCount);
   });
 });
