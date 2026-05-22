@@ -128,6 +128,20 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if id == "" {
 		id = resolver.cache.AssignID(typeArgument)
 	}
+	// noIsArrayCheck (mion's RunTypeOptions.noIsArrayCheck) lives on
+	// the array node's emit, not on the type itself, so the resolver
+	// forks a synthetic array RunType that carries the option as a
+	// Flag and points at the same element child. Distinct id → distinct
+	// JIT cache entry → distinct compiled validator with the
+	// `Array.isArray` guard stripped (per istype.go's KindArray arm).
+	// `string[]` and `string[] + {noIsArrayCheck: true}` therefore
+	// hash to two different ids and compile to two different bodies,
+	// matching mion's options-aware hash at baseRunTypes.ts:82-86.
+	if options.NoIsArrayCheck {
+		if wrapped, ok := resolver.cache.SerializeArrayWithFlags(id, []string{"noIsArrayCheck"}); ok {
+			id = wrapped
+		}
+	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -187,7 +201,8 @@ func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, 
 // representation is a Go struct so the rest of the pipeline can read
 // fields without re-walking the AST.
 type runTypeOptions struct {
-	NoLiterals bool
+	NoLiterals     bool
+	NoIsArrayCheck bool
 }
 
 // extractRunTypeOptions reads literal options from the first argument
@@ -245,6 +260,10 @@ func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOpti
 		case "noLiterals":
 			if initializer.Kind == ast.KindTrueKeyword {
 				opts.NoLiterals = true
+			}
+		case "noIsArrayCheck":
+			if initializer.Kind == ast.KindTrueKeyword {
+				opts.NoIsArrayCheck = true
 			}
 		}
 	}

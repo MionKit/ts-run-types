@@ -3,6 +3,7 @@ package jitfn
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -17,9 +18,18 @@ var debugInlineEnv = os.Getenv("DEBUG_JIT") == "INLINED"
 // StackItem mirrors mion's StackItem (jitFnCompiler.ts:33). One frame
 // per RunType the walker is currently inside. Vλl is snapshotted on
 // push so popStack can restore the parent's accessor.
+//
+// ChildAccessor is the JS expression the NEXT pushStack should adopt
+// as the child's Vλl. Collection emitters (Array, Object, Tuple, …)
+// set it before each CompileChild call so the child frame inherits
+// the correct subscript / property expression. Mirrors mion's
+// `getChildVλl()` (jitFnCompiler.ts:734) which queries the parent's
+// `useArrayAccessor()` + `getChildLiteral()` to assemble the
+// expression — our Go port hands the assembled expression directly.
 type StackItem struct {
-	Vλl string
-	RT  *protocol.RunType
+	Vλl           string
+	RT            *protocol.RunType
+	ChildAccessor string
 }
 
 // orderedItems maintains insertion order for context items so the
@@ -71,6 +81,21 @@ type Walker struct {
 	// FnName is the inner function name (e.g. "isType_<hash>") that
 	// lands in the emitted `function <FnName>(<args>){…}`.
 	FnName string
+	// JitFnHash is the bare hash (no prefix) the renderer uses as
+	// the cache key. Required by EmitDependencyCall to detect
+	// self-recursive calls (childID == JitFnHash → emit `<hash>(args)`
+	// without the `.fn` indirection, mirroring mion's `isSelf` branch).
+	JitFnHash string
+	// RefTable resolves KindRef sentinels to their real RunType.
+	// Per `internal/protocol/protocol.go`, all Child / Children /
+	// Parameters slots in the JSON wire form carry refs
+	// (`{kind: -1, id: "<hash>"}`); the consumer side re-knots by
+	// indexing into the cache. The walker uses this map at descent
+	// time so the per-kind switch always sees the resolved kind.
+	// May be nil when the input graph is fully knotted (e.g. unit
+	// tests that hand-construct RunType structs with child Kinds
+	// already inlined).
+	RefTable map[string]*protocol.RunType
 	// Emitter supplies the per-fn args, dispatch, and finalize logic.
 	Emitter Emitter
 	// Vλl is the current value-accessor expression. Recomputed on
@@ -82,6 +107,13 @@ type Walker struct {
 	// on Compile entry; emitters indirectly push more frames by
 	// calling EmitContext.CompileChild.
 	Stack []StackItem
+	// localVarCounters assigns unique names to each emitter-local
+	// variable allocated via EmitContext.NextLocalVar, partitioned
+	// by prefix. Mirrors mion's getLocalVarName (jitFnCompiler.ts:236)
+	// which keys the counter on (prefix × RT identity) — our flat
+	// per-prefix counter is equivalent for the access pattern where
+	// each Emit allocates a fixed number of names once.
+	localVarCounters map[string]int
 	// Code is the assembled function body. The Walker stores the
 	// most recent root-level emitted code here; Finalize normalises
 	// it on exit.
@@ -91,8 +123,6 @@ type Walker struct {
 	ContextItems *orderedItems
 	// JitDependencies / PureFnDependencies track which other jit and
 	// pure functions this function reaches via dependency calls.
-	// v1 doesn't populate either — they're here so the scaffolding
-	// matches mion's `updateDependencies` contract (jitFnCompiler.ts:222).
 	// PureFnDependencies carries the full (namespace, fnName, filePath)
 	// triple for the Go-side integrity check; at emission time the
 	// emitter projects each entry to "<namespace>::<fnName>" so the
@@ -109,15 +139,43 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	if len(args) == 0 {
 		panic("jitfn: emitter returned empty Args()")
 	}
+	jitFnHash := ""
+	if rt != nil {
+		jitFnHash = rt.ID
+	}
 	return &Walker{
 		RootType:           rt,
 		FnName:             fnName,
+		JitFnHash:          jitFnHash,
 		Emitter:            emitter,
 		Vλl:                args[0].Name,
 		ContextItems:       newOrderedItems(),
 		JitDependencies:    []string{},
 		PureFnDependencies: []protocol.PureFnDep{},
+		localVarCounters:   map[string]int{},
 	}
+}
+
+// nextLocalVar hands out a fresh local-variable name (e.g. "i0",
+// "res0", "i1", "res1"). Mirrors mion's getLocalVarName (per-prefix
+// counter) — each prefix has its own numbering so a single Emit can
+// allocate `i0` + `res0` without the second name colliding with the
+// first.
+func (w *Walker) nextLocalVar(prefix string) string {
+	count := w.localVarCounters[prefix]
+	w.localVarCounters[prefix] = count + 1
+	return prefix + strconv.Itoa(count)
+}
+
+// setChildAccessor records the accessor for the next pushStack. The
+// caller is the current top-of-stack emit; the value persists on
+// that frame until the next setChildAccessor call (so a parent can
+// iterate children, setting the accessor before each CompileChild).
+func (w *Walker) setChildAccessor(accessor string) {
+	if len(w.Stack) == 0 {
+		return
+	}
+	w.Stack[len(w.Stack)-1].ChildAccessor = accessor
 }
 
 // AddPureFnDependency records a (namespace, fnName, filePath) triple
@@ -190,7 +248,15 @@ func (w *Walker) ContextLines() string {
 // frame, dispatches through the Emitter (or panics if the kind isn't
 // inline-supported — see inlining.go for the predicate), reconciles
 // the result against the parent's expected code type, then pops.
+//
+// KindRef sentinels are transparently resolved against w.RefTable
+// before pushStack — the per-kind switch always sees the real
+// RunType, never the ref placeholder.
 func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCode {
+	if rt == nil {
+		return JitCode{Code: "", Type: expectedCType}
+	}
+	rt = w.resolveRef(rt)
 	if rt == nil {
 		return JitCode{Code: "", Type: expectedCType}
 	}
@@ -203,15 +269,39 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCo
 	return jc
 }
 
+// resolveRef dereferences KindRef sentinels via the walker's RefTable.
+// Non-ref inputs pass through unchanged. A ref with no matching entry
+// in the table returns nil so the caller can short-circuit; this
+// scenario indicates a dangling cache reference and is treated as a
+// noop here (the caller is responsible for surfacing that as an error
+// at a higher level if needed).
+func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
+	if rt == nil || rt.Kind != protocol.KindRef {
+		return rt
+	}
+	if w.RefTable == nil {
+		return nil
+	}
+	return w.RefTable[rt.ID]
+}
+
 // dispatch decides between inline emission and a dependency call.
 // Mirrors mion's BaseFnCompiler.shouldCallDependency
 // (jitFnCompiler.ts:218–221): a dependency call happens only when
 // BOTH (a) the predicate says the node is NOT inline-cheap AND
 // (b) the walker is past depth 1 — the root always inlines so the
-// top-level factory has a body. v1's atomic-only scope hits the
-// inline branch every time; the dependency branch panics with a
-// TODO so the first non-atomic kind forces the conversation about
-// how to wire `Emitter.EmitDependencyCall` into the interface.
+// top-level factory has a body. The dependency branch invokes the
+// emitter's EmitDependencyCall, registers the child hash on the
+// walker's jitDependencies, and returns the call expression.
+//
+// `childIsNoop` is approximated via the emitter's Supports gate:
+// kinds the emitter doesn't support emit no factory at all, so the
+// runtime cache miss is expected — we still record the dep so a
+// future support add lands the child without re-rendering parents.
+// Mion's updateDependencies has the actual compiled noop bit; for
+// our v1 the renderer's noop signal isn't available at dispatch
+// time, so we conservatively record every dep (mion does the same
+// for any non-noop child).
 func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) JitCode {
 	inlineCtx := &InlineContext{
 		RT:          rt,
@@ -220,9 +310,17 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) JitCode 
 	}
 	shouldDepend := !w.Emitter.IsJitInlined(inlineCtx) && len(w.Stack) > 1
 	if shouldDepend {
-		// Future: w.Emitter.EmitDependencyCall(rt, childHash, ctx).
-		// See refactor plan "Inline-vs-dependent: two pieces, two homes".
-		panic(fmt.Sprintf("jitfn: dependency calls not yet implemented (kind=%d)", rt.Kind))
+		childID := rt.ID
+		emitCtx := &EmitContext{Vλl: w.Vλl, walker: w}
+		callCode := w.Emitter.EmitDependencyCall(rt, childID, emitCtx)
+		// Mirror mion's updateDependencies (jitFnCompiler.ts:222):
+		// record the child hash on the walker (dedup is internal).
+		// Noop-skip is handled inside UpdateDependencies; without
+		// the compiled noop bit at dispatch time we pass false so
+		// the dep IS recorded — mion's own behaviour for any
+		// non-noop child.
+		w.UpdateDependencies(childID, false)
+		return JitCode{Code: callCode, Type: CodeE}
 	}
 	emitCtx := &EmitContext{Vλl: w.Vλl, walker: w}
 	return w.Emitter.Emit(rt, emitCtx, expectedCType)
@@ -265,14 +363,23 @@ func (w *Walker) peekStack() *StackItem {
 	return &w.Stack[len(w.Stack)-1]
 }
 
-// getStackVλl walks the live stack and concatenates each frame's
-// child accessor onto the function's base value parameter. Mirrors
-// jitFnCompiler.ts:738. v1's atomic-only scope never descends into
-// member kinds, so this returns the base parameter name unchanged.
-// Member kinds (property, tuple, array, …) will extend this when
-// they land.
+// getStackVλl computes the child accessor for the next pushStack.
+// Reads the parent frame's ChildAccessor when set (member kinds —
+// array, object, tuple — register it before calling CompileChild),
+// otherwise falls back to the parent's own Vλl. With an empty stack
+// the function's first arg name is the base accessor. Mirrors mion's
+// jitFnCompiler.ts:734 — the parent's `useArrayAccessor()` /
+// `getChildVarName()` are folded into the precomputed accessor
+// string the parent emit pushes.
 func (w *Walker) getStackVλl() string {
-	return w.Emitter.Args()[0].Name
+	if len(w.Stack) == 0 {
+		return w.Emitter.Args()[0].Name
+	}
+	parent := &w.Stack[len(w.Stack)-1]
+	if parent.ChildAccessor != "" {
+		return parent.ChildAccessor
+	}
+	return parent.Vλl
 }
 
 // argsList renders the function's parameter list. With

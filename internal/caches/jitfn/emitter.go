@@ -61,6 +61,20 @@ type Emitter interface {
 	// emitters can ignore it; reconciliation happens in the Walker.
 	Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) JitCode
 
+	// EmitDependencyCall returns the JS expression that invokes a
+	// pre-rendered child JIT entry. Used by the Walker when the
+	// dispatch site decides a child is non-inline-cheap and the
+	// stack is past depth 1 (mirrors mion's
+	// BaseFnCompiler.callDependency at jitFnCompiler.ts:326). The
+	// emitter also registers a context-item declaration of the form
+	// `const <hash> = utl.getJIT('<hash>')` so the inner factory's
+	// closure resolves the child via the jitUtils singleton.
+	//
+	// Self-recursive calls (childID == own hash) emit `<hash>(args)`;
+	// cross-function calls emit `<hash>.fn(args)` — same split as
+	// mion's `isSelf` branch.
+	EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string
+
 	// Finalize normalises the raw concatenated body produced by the
 	// walk, detects noop bodies (empty / tautology / "just return
 	// vλl"), and returns the final body string + an isNoop flag the
@@ -93,6 +107,28 @@ type EmitContext struct {
 // collection emitter that lands can call into it without restructuring.
 func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeType) JitCode {
 	return ctx.walker.compileNode(rt, expectedCType)
+}
+
+// NextLocalVar allocates and returns a fresh local variable name
+// scoped to the current emitter instance. Mirrors mion's
+// JitFnCompiler.getLocalVarName (jitFnCompiler.ts:236) — each call
+// hands out a unique name so child accessors and result locals
+// never collide across nested frames. Prefix convention: "i" for
+// loop counters, "res" for child-result locals.
+func (ctx *EmitContext) NextLocalVar(prefix string) string {
+	return ctx.walker.nextLocalVar(prefix)
+}
+
+// SetChildAccessor records the value-accessor expression that the
+// next pushStack will use as the child's Vλl. Used by collection
+// emitters (Array, Object, Tuple, …) that need to point a child
+// frame at a specific subscript or property expression instead of
+// the parent's own Vλl. The accessor stays attached to the current
+// (parent) frame so getStackVλl reads it at the next pushStack and
+// then the parent emit can move on to its next child by calling
+// SetChildAccessor again.
+func (ctx *EmitContext) SetChildAccessor(accessor string) {
+	ctx.walker.setChildAccessor(accessor)
 }
 
 // SetContextItem registers a closure-prologue `const xyz = …;`
