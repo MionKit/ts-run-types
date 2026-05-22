@@ -213,11 +213,12 @@ func (w *Walker) AddPureFnDependency(namespace, fnName, filePath string) {
 }
 
 // UpdateDependencies records childHash as a jit dependency unless it's
-// a noop or already tracked. v1 atomic emitters never call this; future
-// composite-kind emitters invoke it at child-emit points so the parent's
-// `jitDependencies` slot on the rendered JitCompiledFn entry reflects
-// every nested validator the body reaches via `utl.getJIT(<hash>)(…)`.
-// Mirrors mion's BaseFnCompiler.updateDependencies (jitFnCompiler.ts:222).
+// a noop or already tracked. Called from the walker's dispatch site
+// whenever a composite emit fires a dependency-call into a non-inlined
+// child; the parent's `jitDependencies` slot on the rendered
+// JitCompiledFn entry then reflects every nested validator the body
+// reaches via `utl.getJIT(<hash>)(…)`. Mirrors mion's
+// BaseFnCompiler.updateDependencies (jitFnCompiler.ts:222).
 func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
 	if childIsNoop {
 		return
@@ -326,17 +327,17 @@ func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
 // BOTH (a) the predicate says the node is NOT inline-cheap AND
 // (b) the walker is past depth 1 — the root always inlines so the
 // top-level factory has a body. The dependency branch invokes the
-// emitter's EmitDependencyCall, registers the child hash on the
-// walker's jitDependencies, and returns the call expression.
+// emitter's EmitDependencyCall, records the child hash on the
+// walker's jitDependencies, and returns the call expression. The
+// child's compile is deferred until that child gets its own
+// top-level render pass.
 //
-// `childIsNoop` is approximated via the emitter's Supports gate:
-// kinds the emitter doesn't support emit no factory at all, so the
-// runtime cache miss is expected — we still record the dep so a
-// future support add lands the child without re-rendering parents.
-// Mion's updateDependencies has the actual compiled noop bit; for
-// our v1 the renderer's noop signal isn't available at dispatch
-// time, so we conservatively record every dep (mion does the same
-// for any non-noop child).
+// `childIsNoop` is passed as false at the dispatch site — the
+// child's noop status isn't known here (the child hasn't been
+// compiled yet on this code path). The renderer's later
+// dangling-dep cascade in module.go drops any parent whose
+// recorded deps don't have a matching emitted factory, so this
+// over-recording can't cause runtime breakage.
 func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) JitCode {
 	inlineCtx := &InlineContext{
 		RT:          rt,
@@ -437,11 +438,10 @@ func (w *Walker) argsList(includeDefaults bool) string {
 // handleCodeInterpolation reconciles a child emitter's CodeType with
 // the expected parent CodeType. Mirrors jitFnCompiler.ts:452. For an
 // atomic root with a JS expression the wrapping logic produces
-// `return <expression>` — that's the case v1 exercises.
-//
-// Non-root branches are kept verbatim from mion so the first member /
-// collection emitter to land has the full reconciliation table
-// available without restructuring.
+// `return <expression>`; statement/return-block roots get the
+// matching wrap. Non-root branches handle the cross-product of
+// parent and child code types so composite emits can compose
+// CodeE / CodeS / CodeRB children without surprises.
 func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child JitCode, parentCT CodeType) string {
 	code := child.Code
 	childCT := child.Type

@@ -12,12 +12,16 @@ Living document. Captures **what's implemented**, **what's deliberately out of s
 | Reflection-shape projection       | ✅                | `*checker.Type` → `protocol.Type` discriminated union, dedup by structural id  |
 | Wire formats                      | ✅                | JSON dump + self-wired TS module (`--out-json` / `--out-ts`)                   |
 | Vite plugin                       | ✅                | byte-offset rewriter, `virtual:runtypes-cache` module                          |
-| Go fixture tests                  | ✅                | F1–F17 + atomic kinds                                                          |
-| Vite plugin tests                 | ✅                | rewrite, atomic, wrapping suites                                               |
+| Go fixture tests                  | ✅                | F1–F30 + atomic / object / circular kinds                                      |
+| Vite plugin tests                 | ✅                | rewrite, atomic, wrapping suites — 201/201                                     |
+| `isType` JIT emit                 | ✅                | every mion node category ported; 139 active validation cases, see below        |
+| `templateLiteral` projection+emit | ✅                | regex-compile at JIT-build time; also wired into index-signature key patterns  |
+| Native containers (Map/Set/Promise) | ✅              | `instanceof` + iteration over `.entries()` / `.values()`; thenable check       |
 | Docs                              | ✅                | ARCHITECTURE.md "Reflection shape" section                                     |
 | Decorators / `TypeNumberBrand`    | ❌ pending        | needs an AST-level scanner — see below                                         |
-| `templateLiteral` / `infer` kinds | ❌ pending        | reserved in the enum, not yet projected                                        |
+| `infer` kind                      | ❌ pending        | reserved in the enum, only meaningful inside unresolved conditional types     |
 | Pre-process build mode            | ❌ pending        | bundler-agnostic CLI that writes the cache without Vite                        |
+| Serializer circular-detection     | ❌ pending        | jitfn currently treats every compound as non-inlined as a safer default        |
 
 ---
 
@@ -58,22 +62,29 @@ These are real reflection features we intend to ship; each has a concrete approa
 
 ### `isType` emit — port complete
 
-Every mion `isType` node category is ported with end-to-end test coverage: **117 active validation cases / 0 deferred** across 10 adapter files under `packages/ts-go-run-types/test/adapters/`.
+Every mion `isType` node category is ported with end-to-end test coverage: **all active validation cases passing, 0 deferred** across 12 adapter files under `packages/ts-go-run-types/test/adapters/`.
 
-| Category | Active | Notes |
+| Category | Adapter file | Highlights |
 | --- | --- | --- |
-| Atomic (any/unknown/never/void/null/undefined/string/number/boolean/bigint/symbol/object/regexp/literal/enum/Date) | 28 | Includes `noLiterals` option variants. |
-| Array | 17 | Includes circular self-reference, 2D / 3D, `noIsArrayCheck`, array-of-objects, array-of-unions, array-of-tuples, `symbol[]` non-serializable. |
-| Object (interface / class / property / method / index signature / call signature / function) | 22 | Includes plain user class with `prototype`-filter, RpcError-shape, all-optional w/ `allOptionalCode` guard, callable interface (`isCallable()` branch), `Parameters<F>` for CallSignature param validation. |
-| Tuple | 8 | Includes optional members, rest (`[A, ...B[]]`), circular self-reference, non-serializable function slot. |
-| Union | 11 | Includes union-of-objects, discriminated unions, union with methods, circular unions, intersection (resolved to ObjectLiteral by tsgo). |
-| TemplateLiteral | 7 | Includes regex-escape edge cases, multi-segment URLs, nested-in-object, index-signature key pattern. |
+| Atomic (any/unknown/never/void/null/undefined/string/number/boolean/bigint/symbol/object/regexp/literal/enum/Date) | `isType.test.ts` | Includes `noLiterals` option variants. |
+| Array | `isType-array.test.ts` | Circular self-reference, 2D / 3D, `noIsArrayCheck`, array-of-objects, array-of-unions, array-of-tuples, `symbol[]` non-serializable. |
+| Object (interface / class / property / method / index signature / call signature / function) | `isType-object.test.ts` | Plain user class with `prototype`-filter, RpcError-shape, all-optional w/ `allOptionalCode` guard, callable interface (`isCallable()` branch), `Parameters<F>` for CallSignature param validation, `Record<UnionKey, V>`. |
+| Tuple | `isType-tuple.test.ts` | Optional members, rest (`[A, ...B[]]`), circular self-reference, non-serializable function slot, trailing-optionals chain, named tuple labels. |
+| Union | `isType-union.test.ts` | Union-of-objects, discriminated unions, union with methods, circular unions, intersection (resolved to ObjectLiteral by tsgo). |
+| TemplateLiteral | `isType-templateLiteral.test.ts` | Regex-escape edge cases, multi-segment URLs, nested-in-object, index-signature key pattern, union-placeholder. |
+| Native | `isType-native.test.ts` | `Map<K, V>` (`instanceof` + `.entries()`), `Set<T>` (`.values()`), `Promise<T>` (thenable), `Awaited<P>`. |
+| Utility | `isType-utility.test.ts` | `Partial` / `Required` / `Pick` / `Omit` / `Exclude` (atomic + object-union) / `Extract` / `NonNullable` / `ReturnType` / `Readonly` + intersection-with-required-override + Omit-keeping-optional. tsgo resolves utilities eagerly so no new emit needed — pure regression coverage. |
 
 The validation suite's `as const satisfies` type guard catches drift between the suite + adapter file pairs. Each adapter file's "all cases ran" counter test catches forgotten `it()` registrations.
 
+**Renderer-side architecture**: composite emits propagate a `CodeNS` sentinel from any unsupported leaf upward through the existing compile pass; the renderer's dangling-dep cascade then drops any entry whose recorded deps weren't emitted. Replaces an earlier O(M·S) `subtreeFullySupported` pre-walk; runtime behavior is unchanged (unsupported types silently absent, createIsType-side noop fallback `() => true` handles the cache miss). See `internal/caches/jitfn/codetype.go` → `CodeNS` for the full contract.
+
+**Out of scope for `isType`** (and tracked separately, will live in the validation-constraints library):
+- Number brand types (`int` / `uint8` / `Range<a, b>` / …)
+- String-mapping constraint forms (`Uppercase<string>` as a generic constraint; the literal-collapsed forms work today via the standard literal-equality check)
+
 ### Reflection Type variants not yet projected
 
-- `templateLiteral` (kind 14) — `` `prefix-${string}` `` template literal types. tsgo exposes via `TypeFlagsTemplateLiteral`; parsing the placeholder substructure into a `(TypeString | TypeAny | TypeNumber | TypeLiteral | TypeInfer)[]` shape is the work.
 - `infer` (kind 34) — `infer T` placeholder. Only meaningful inside unresolved conditional types, which tsgo eagerly resolves; would only appear if we add an op that returns the unresolved form.
 - `rest` (kind 29) outside tuples — function rest parameters. Currently marked with a `flags` entry; the dedicated `rest` Type variant comes later.
 - `enumMember` (kind 28) standalone — we emit `enum.values` but not per-member `TypeEnumMember` nodes. Add when needed.

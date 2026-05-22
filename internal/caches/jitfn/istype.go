@@ -216,11 +216,16 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		return JitCode{Code: "(" + v + " instanceof RegExp)", Type: CodeE}
 
 	case protocol.KindClass:
-		// KindClass branches on SubKind — Date is the special atomic
-		// path; SubKindNone (a plain user class) falls through to the
-		// object-emit arm below (ClassRunType inherits InterfaceRunType
-		// in mion). Map / Set / NonSerializable subkinds are not yet
-		// supported and panic so the bug surfaces at compile time.
+		// KindClass branches on SubKind:
+		//   - SubKindDate → atomic instanceof+validity check
+		//   - SubKindMap  → emitMapIsType (instanceof + .entries())
+		//   - SubKindSet  → emitSetIsType (instanceof + .values())
+		//   - SubKindNone → plain user class; falls through to the
+		//     shared object emit (ClassRunType inherits
+		//     InterfaceRunType in mion).
+		//   - anything else (NonSerializable, future subkinds) →
+		//     CodeNS sentinel so the renderer skips this entry's
+		//     factory without panicking.
 		if rt.SubKind == protocol.SubKindDate {
 			// mion:nodes/atomic/date.ts:13. Rejects Invalid Date
 			// (`new Date('xx')` whose getTime() is NaN).
@@ -230,12 +235,12 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 			// every Date prototype method as a Child because the
 			// underlying TS shape is a class; this isType emit
 			// IGNORES those children and produces a single
-			// instanceof+validity check. Future jit fns (typeErrors,
-			// prepareForJson, mock) take the same shape — a
-			// SubKindDate branch inside their KindClass arm — and
-			// the renderer-level supportability check
-			// (subtreeFullySupported in module.go) does NOT walk
-			// Date's children. Class-encoding, atomic semantics; the
+			// instanceof+validity check. Other jit fns
+			// (typeErrors / prepareForJson / mock) follow the same
+			// pattern — a SubKindDate branch inside their KindClass
+			// arm — and the renderer's CodeNS-bubble-up never reaches
+			// Date's prototype children (Date's emit is a leaf, no
+			// CompileChild). Class-encoding, atomic semantics; the
 			// per-fn arms are the seam.
 			return JitCode{
 				Code: "(" + v + " instanceof Date && !isNaN(" + v + ".getTime()))",
@@ -311,24 +316,16 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		//   - child empty + noIsArrayCheck → `""` (the whole check
 		//     evaporates — mion `{code: undefined}`).
 		//   - child empty + no noIsArrayCheck → bare `Array.isArray(v)`.
-		// The non-serializable child guard (Symbol, Function) lives at
-		// resolve time: such arrays never reach Emit because the kind
-		// gate strips their child before serialization. If we ever do
-		// see one here, the existing inner-kind dispatch panics — which
-		// matches mion's runtime "Arrays can not have non serializable
-		// types" error surface.
+		// A third path handles non-serializable element types
+		// (Symbol, Function) — mion throws at JIT-compile time with
+		// "Arrays can not have non serializable types"
+		// (nodes/member/array.ts:148). We mirror the runtime-observable
+		// effect with an always-false `return false` validator; any
+		// caller invoking it gets a hard rejection, same as mion's
+		// throw at the next layer up.
 		if rt.Child == nil {
 			return JitCode{Code: "", Type: CodeE}
 		}
-		// Non-serializable element type — mion throws at JIT-compile
-		// time with "Arrays can not have non serializable types, ie:
-		// Symbol[], Function[], etc." (nodes/member/array.ts:148).
-		// We mirror the runtime-observable effect by emitting a
-		// `return false` validator (always-invalid) — mion's throw
-		// happens at createJitFunction time, but the net effect for
-		// any caller is "this type cannot be validated"; emitting
-		// always-false captures that without bringing a compile-time
-		// throw path into the resolver.
 		resolvedChild := ctx.ResolveRef(rt.Child)
 		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
 			return JitCode{Code: "return false", Type: CodeRB}
@@ -409,11 +406,11 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// mion:nodes/function/function.ts:emitIsType. Method /
 		// MethodSignature / CallSignature all inherit FunctionRunType,
-		// so they share the same emit. v1 ignores the param-count
-		// arity guard (mion: `v.length >= minLength`) — almost no
-		// real-world isType check relies on it, and our parameter
-		// counting needs rest-handling that lands with the function-
-		// signature port. Re-add when it surfaces in a test.
+		// so they share the same emit. Param-count arity guard
+		// (mion: `v.length >= minLength`) is intentionally omitted —
+		// callers wanting per-arg validation use `Parameters<F>`
+		// which routes through the tuple emit (see the
+		// `call_signature_params` case in the OBJECT suite).
 		return JitCode{Code: "typeof " + v + " === 'function'", Type: CodeE}
 
 	case protocol.KindTuple:
@@ -1066,13 +1063,23 @@ func quoteJSDouble(s string) string {
 
 // emitObjectIsType emits the canonical object-shape AND-chain for
 // KindObjectLiteral / KindClass. Mirrors mion's
-// nodes/collection/interface.ts:emitIsType (without strictTypes /
-// callable / allOptional special cases — those land with follow-up
-// option plumbing and tests). Children are filtered the same way
-// mion's getJitChildren filters: method-shaped kinds and static
-// members are dropped, and a Property / PropertySignature whose
-// wrapped child is function-flavoured returns empty from its own
-// emit and is filtered out here too.
+// nodes/collection/interface.ts:emitIsType including the
+// `isCallable()` branch (CallSignature child swaps the typeof
+// guard from 'object' to 'function') and `allOptionalCode` (empty
+// or all-optional objects get an explicit Array.isArray + native-
+// object rejection so `{}` doesn't accept arrays / Date / Map /
+// Set). The `strictTypes` option — which would surface
+// unknown-property rejection — is the one remaining mion knob not
+// yet wired here; lands when a caller needs it.
+//
+// Children are filtered the same way mion's getJitChildren filters:
+// method-shaped kinds and static members are dropped, and a
+// Property / PropertySignature whose wrapped child is function-
+// flavoured returns empty from its own emit and is filtered out
+// here too. A Property / PropertySignature returning CodeNS (its
+// own non-function-typed wrapped child can't be validated)
+// propagates CodeNS upward and the whole object factory is
+// silently skipped.
 func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	// First-pass: detect a CallSignature child. Mion's
 	// InterfaceRunType.emitIsType branches on `this.isCallable()` and
@@ -1351,9 +1358,11 @@ func propertyAccessor(parent, name string, safe bool) string {
 	return parent + "[" + quoteJS(name) + "]"
 }
 
-// hasFlag is a small membership helper for RunType.Flags. Inlined
-// here rather than promoted to a shared util because it's the only
-// caller today; promote when a second caller lands.
+// hasFlag is a small membership helper for RunType.Flags. Used by
+// the noIsArrayCheck branch in the KindArray arm and by
+// isRestTupleMember; kept in this file because every caller lives
+// here. Promote to a shared util if a caller outside jitfn ever
+// needs it.
 func hasFlag(flags []string, target string) bool {
 	for _, flag := range flags {
 		if flag == target {
