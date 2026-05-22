@@ -1488,15 +1488,16 @@ export const VALIDATION_SUITE = {
       }),
     },
 
-    uppercase: {
-      title: "Uppercase<'foo'>",
-      description: "TS's built-in Uppercase<S> maps the literal — resolves to the literal type 'FOO'. mion's utility/string.spec.ts is `.skip()`'d so this is bonus coverage on top of mion.",
-      isType: () => createIsType<Uppercase<'foo'>>(),
-      getSamples: () => ({
-        valid: ['FOO'],
-        invalid: ['foo', 'Foo', 'FOOBAR', 42, null],
-      }),
-    },
+    // String-mapping utilities (Uppercase / Lowercase / Capitalize /
+    // Uncapitalize) are intentionally not covered here. They work as
+    // pure type-system literal mappings (`Uppercase<'foo'>` resolves
+    // to `'FOO'` and validates via the existing literal-equality
+    // check) but the CONSTRAINT form — "is this any uppercase
+    // string" — is a value-shape predicate, not a type check, and
+    // lives in the future validation-constraints library alongside
+    // the number brand types (int / uint8 / Range<a, b> / etc.).
+    // Mion's own utility/string.spec.ts is `.skip()`'d for the
+    // same reason.
 
     intersection_with_required_override: {
       title: "Partial<Person> & Required<Pick<Person, 'name'>>",
