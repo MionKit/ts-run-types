@@ -379,7 +379,14 @@ type Response struct {
 	// so downstream tooling (LSP servers, ESLint reporters, problem
 	// matchers) can ingest with minimal glue.
 	PureFnsDiagnostics []PureFnDiagnostic `json:"pureFnsDiagnostics,omitempty"`
-	Error              string             `json:"error,omitempty"`
+	// MarkerDiagnostics carries non-fatal resolver warnings about
+	// marker call-site usage — currently only the "function-call
+	// argument in reflect form" anti-pattern (e.g. `createIsType(getX())`
+	// invokes getX() at runtime purely for type inference). Emitted
+	// from scanCall; surfaced through the same `this.warn` channel as
+	// pure-fn diagnostics.
+	MarkerDiagnostics []MarkerDiagnostic `json:"markerDiagnostics,omitempty"`
+	Error             string             `json:"error,omitempty"`
 }
 
 // PureFnDiagnostic is the wire shape of purefn.Diagnostic. The Vite
@@ -404,6 +411,18 @@ type PureFnDiagSite struct {
 type PureFnRelated struct {
 	PureFnDiagSite
 	Message string `json:"message"`
+}
+
+// MarkerDiagnostic is a non-fatal warning from the marker scanner about
+// a marker call-site that compiles correctly but uses an anti-pattern.
+// Today the only emitted code is "marker/function-call-arg" — passing a
+// function-call expression as the reflect-form value argument. The Vite
+// plugin re-emits each one as a build warning via `this.warn`.
+type MarkerDiagnostic struct {
+	Code     string         `json:"code"`
+	Category string         `json:"category"` // "warning"
+	Message  string         `json:"message"`
+	Site     PureFnDiagSite `json:"site"`
 }
 
 // Site records one transformer-injection point. Pos is the byte offset of
@@ -481,6 +500,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.PureFnsDiagnostics) > 0 {
 		out["pureFnsDiagnostics"] = response.PureFnsDiagnostics
+	}
+	if len(response.MarkerDiagnostics) > 0 {
+		out["markerDiagnostics"] = response.MarkerDiagnostics
 	}
 	if response.Error != "" {
 		out["error"] = response.Error

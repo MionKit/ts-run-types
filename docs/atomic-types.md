@@ -186,7 +186,7 @@ enum Color { Red = 0, Green = 1, Blue = 2 }
 getRuntypeId<Color>();                         // KindEnum{Color}
 ```
 
-### Reflect form — annotation is a TRAP
+### Reflect form — all three shapes work
 
 ```ts
 enum Color { Red = 0, Green = 1 }
@@ -194,10 +194,10 @@ enum Color { Red = 0, Green = 1 }
 const v = Color.Red;                           // → KindEnum{Color}   ✓
 reflectRuntypeId(v);
 
-const v: Color = Color.Red;                    // → KindLiteral{Color.Red}  ✗ COUNTERINTUITIVE
+const v: Color = Color.Red;                    // → KindEnum{Color}   ✓
 reflectRuntypeId(v);
 
-declare const v: Color;                        // → KindEnum{Color}   ✓ fallback
+declare const v: Color;                        // → KindEnum{Color}   ✓
 reflectRuntypeId(v);
 ```
 
@@ -215,8 +215,8 @@ Cache entry shape:
 
 ### Quirks
 
-- **The `: Color` annotation makes things narrower, not wider.** TypeScript narrows a `const` binding initialised from a literal enum member back to the member's literal type when the annotation is present. The unannotated form `const v = Color.Red` is what you want — declared-type widening lifts the literal member up to the parent enum.
-- **This matches `deepkit/type` behaviour.** Deepkit reflects whatever the TS checker resolves, with no widen-back heuristic. Their workaround is the same: drop the annotation or use `declare const`.
+- **Annotation honoring.** TypeScript's control-flow analysis narrows a `const v: Color = Color.Red` binding's apparent type to the literal member `Color.Red` — which would otherwise produce a literal-only validator. The resolver reads the written annotation directly via `getTypeFromTypeNode` in the reflect form, so all three shapes above resolve to the same `KindEnum{Color}` hash. Without this, the trio would diverge: only `const v = Color.Red` (where enum-member widening kicks in) and `declare const v: Color` would produce the parent-enum hash.
+- **This is a divergence from `deepkit/type`.** Deepkit reflects whatever the TS checker resolves, with no annotation-walk. Their workaround is to drop the annotation or use `declare const`. We honor the annotation at the resolver level, so the natural `const v: T = literal` idiom works in every paired test.
 
 ---
 

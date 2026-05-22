@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
-import type {CacheKind, PureFnDiagnostic} from './protocol.ts';
+import type {CacheKind, MarkerDiagnostic, PureFnDiagnostic} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -151,6 +151,11 @@ export default function runtypes(options: PluginOptions) {
       for (const diag of result.pureFnsDiagnostics ?? []) {
         this.warn?.(formatTscDiagnostic(diag));
       }
+      // Marker-scanner diagnostics (e.g. function-call-argument
+      // anti-pattern). Same surface as pureFns above.
+      for (const diag of result.markerDiagnostics ?? []) {
+        this.warn?.(formatTscDiagnostic(diag));
+      }
 
       const invalidated: any[] = [];
       const moduleGraph = ctx.server?.moduleGraph;
@@ -186,16 +191,17 @@ function pickCacheSource(
   return undefined;
 }
 
-// formatTscDiagnostic renders a pure-fn diagnostic in the canonical
-// `tsc --pretty=false` line format so VS Code's $tsc problem matcher
-// recognises it:
+// formatTscDiagnostic renders a diagnostic (pure-fn or marker) in the
+// canonical `tsc --pretty=false` line format so VS Code's $tsc problem
+// matcher recognises it:
 //   /abs/path(line,col): error PFE9001: message
 //     Related: /abs/path(line,col): related message
-export function formatTscDiagnostic(diag: PureFnDiagnostic): string {
+export function formatTscDiagnostic(diag: PureFnDiagnostic | MarkerDiagnostic): string {
   let line = `${diag.site.filePath}(${diag.site.startLine},${diag.site.startCol}): ${diag.category} ${diag.code}: ${diag.message}`;
-  if (diag.related && diag.related.length > 0) {
-    for (const related of diag.related) {
-      line += `\n  Related: ${related.filePath}(${related.startLine},${related.startCol}): ${related.message}`;
+  const related = 'related' in diag ? diag.related : undefined;
+  if (related && related.length > 0) {
+    for (const r of related) {
+      line += `\n  Related: ${r.filePath}(${r.startLine},${r.startCol}): ${r.message}`;
     }
   }
   return line;

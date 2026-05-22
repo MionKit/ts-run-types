@@ -30,16 +30,20 @@ func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 // and notes the reached wire ids against that file in the cache's per-file
 // scope map. The map drives the per-request projection that
 // scopedDump uses for IncludeRunTypes / IncludeCacheSources.
-func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, error) {
+func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []protocol.MarkerDiagnostic, error) {
 	var sites []protocol.Site
+	var diagnostics []protocol.MarkerDiagnostic
 	for _, file := range files {
 		sourceFile, err := resolver.sourceFile(file)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		fileStart := len(sites)
 		walker.ForEachCallExpression(sourceFile, func(call *ast.Node) bool {
-			site, ok := resolver.scanCall(file, call)
+			site, diags, ok := resolver.scanCall(file, call)
+			if len(diags) > 0 {
+				diagnostics = append(diagnostics, diags...)
+			}
 			if ok {
 				sites = append(sites, site)
 				resolver.sites = append(resolver.sites, site)
@@ -48,36 +52,40 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, er
 		})
 		resolver.recordFileIDs(file, sites[fileStart:])
 	}
-	return sites, nil
+	return sites, diagnostics, nil
 }
 
 // scanCall inspects one call expression and returns a Site when its
 // resolved signature opts into transformer injection via a trailing
-// `RuntypeId<T>` parameter with a concretely-bound T.
-func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, bool) {
+// `RuntypeId<T>` parameter with a concretely-bound T. Also returns any
+// non-fatal MarkerDiagnostics emitted for the call (e.g. the
+// function-call-argument anti-pattern warning) — diagnostics are
+// independent of site emission and may be returned with or without
+// a site.
+func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, []protocol.MarkerDiagnostic, bool) {
 	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
 	if signature == nil {
-		return protocol.Site{}, false
+		return protocol.Site{}, nil, false
 	}
 	parameters := checker.Signature_parameters(signature)
 	if len(parameters) == 0 {
-		return protocol.Site{}, false
+		return protocol.Site{}, nil, false
 	}
 	lastIndex := len(parameters) - 1
 	lastParam := parameters[lastIndex]
 	if lastParam == nil {
-		return protocol.Site{}, false
+		return protocol.Site{}, nil, false
 	}
 	paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
 	typeArgument, matched := marker.Detect(paramType, resolver.marker)
 	if !matched {
-		return protocol.Site{}, false
+		return protocol.Site{}, nil, false
 	}
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
 		// free type parameter. Skip: no id to inject until the wrapper
 		// is itself instantiated at its own call sites.
-		return protocol.Site{}, false
+		return protocol.Site{}, nil, false
 	}
 	argsCount := 0
 	if callExpression := call.AsCallExpression(); callExpression != nil && callExpression.Arguments != nil {
@@ -86,7 +94,50 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// Caller has already placed an argument at (or past) the id slot.
 	// Never override an explicit pass-through — leave the call untouched.
 	if argsCount > lastIndex {
-		return protocol.Site{}, false
+		return protocol.Site{}, nil, false
+	}
+	// Diagnostics accumulated for this call. Emission is independent of
+	// site emission — every diagnostic flows back regardless of whether
+	// the call produces a Site at the end.
+	var diagnostics []protocol.MarkerDiagnostic
+	// REFLECT-FORM CHECKS: only fire when T was inferred from a value
+	// argument (no explicit type-argument list) AND at least one value
+	// arg is present.
+	callExpression := call.AsCallExpression()
+	inReflectForm := callExpression != nil &&
+		(callExpression.TypeArguments == nil || len(callExpression.TypeArguments.Nodes) == 0) &&
+		argsCount > 0 && callExpression.Arguments != nil &&
+		len(callExpression.Arguments.Nodes) > 0
+	if inReflectForm {
+		argZero := callExpression.Arguments.Nodes[0]
+		// FUNCTION-CALL-ARGUMENT ANTI-PATTERN: passing a call expression
+		// as the reflect-form value (`createIsType(getX())`) invokes the
+		// function at runtime purely for type inference — side effects,
+		// exceptions, async work, all fire for nothing. The validator
+		// still works (T comes from the inferred return type), but the
+		// recommended replacement is the static form using `ReturnType<
+		// typeof fn>`. Emit a build warning to nudge the user toward it.
+		if argZero != nil && argZero.Kind == ast.KindCallExpression {
+			if diag, ok := resolver.markerDiagFunctionCallArg(file, argZero); ok {
+				diagnostics = append(diagnostics, diag)
+			}
+		}
+		// REFLECT-FORM ANNOTATION HONORING: when the argument is a
+		// const-bound identifier with a written type annotation, prefer
+		// the annotation's type over the binding's CFA-narrowed apparent
+		// type. Fixes the enum-annotation / union-narrowing reflect-form
+		// traps — TypeScript's control-flow analysis tracks `const v: T
+		// = literal` bindings by their initializer's narrowest type, so
+		// the apparent type at the call site is `typeof literal`, not the
+		// declared union/enum. Reading the annotation directly makes the
+		// reflect-form hash equal to the static-form hash for the natural
+		// `const v: T = literal; createIsType(v);` idiom. Non-identifier
+		// reflect-form args (property access, function calls, element
+		// access) don't go through const-binding CFA and don't exhibit
+		// the trap, so they fall through to the apparent-type path.
+		if annotated, ok := resolver.declaredTypeFromIdentifier(argZero); ok {
+			typeArgument = annotated
+		}
 	}
 	// Extract any literal RunTypeOptions object passed at a slot before
 	// the id slot. Today only `noLiterals: true` is honored; other
@@ -151,7 +202,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		ID:         id,
 		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
-	}, true
+	}, diagnostics, true
 }
 
 // resolveRegexLiteralSource attempts to harvest a regex-literal source from
@@ -367,4 +418,121 @@ func splitRegexLiteralText(text string) (source, flags string) {
 		return body, ""
 	}
 	return body[:lastSlash], body[lastSlash+1:]
+}
+
+// markerDiagFunctionCallArg builds a MarkerDiagnostic flagging a reflect-form
+// marker call that received a function-call argument (`createIsType(getX())`).
+// The function gets invoked at runtime purely so TypeScript can infer T from
+// its return type, which can produce side effects, exceptions, or async work
+// for no reason. The recommended replacement is the static form using
+// `ReturnType<typeof fn>`. Returns (_, false) when the call's source file
+// can't be located (defensive — shouldn't happen during scanFiles).
+func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.Node) (protocol.MarkerDiagnostic, bool) {
+	sourceFile := ast.GetSourceFileOfNode(callArg)
+	if sourceFile == nil {
+		return protocol.MarkerDiagnostic{}, false
+	}
+	startLine, startCol := scanLineCol(sourceFile, callArg.Pos())
+	endLine, endCol := scanLineCol(sourceFile, callArg.End())
+	fnName := callExpressionName(callArg)
+	message := fmt.Sprintf(
+		"Reflect-form marker call received a function-call result. The function `%s` is invoked at runtime purely to satisfy type inference, which can cause side effects, exceptions, or async work for no reason. Use the static form with `ReturnType<typeof fn>` instead — e.g. `createIsType<ReturnType<typeof %s>>()` — or pass a real value of the desired type.",
+		fnName, fnName,
+	)
+	return protocol.MarkerDiagnostic{
+		Code:     "marker/function-call-arg",
+		Category: "warning",
+		Message:  message,
+		Site: protocol.PureFnDiagSite{
+			FilePath:  file,
+			StartLine: startLine,
+			StartCol:  startCol,
+			EndLine:   endLine,
+			EndCol:    endCol,
+		},
+	}, true
+}
+
+// callExpressionName returns a short label for a CallExpression's callee —
+// used in diagnostic messages. Handles Identifier callees (`fn()`), property
+// accesses (`obj.fn()`), and falls back to `<anonymous>` for IIFEs and other
+// expression-callee shapes.
+func callExpressionName(callNode *ast.Node) string {
+	if callNode == nil {
+		return "<anonymous>"
+	}
+	callExpression := callNode.AsCallExpression()
+	if callExpression == nil || callExpression.Expression == nil {
+		return "<anonymous>"
+	}
+	callee := callExpression.Expression
+	switch callee.Kind {
+	case ast.KindIdentifier:
+		return callee.Text()
+	case ast.KindPropertyAccessExpression:
+		propertyAccess := callee.AsPropertyAccessExpression()
+		if propertyAccess == nil || propertyAccess.Name() == nil {
+			return "<anonymous>"
+		}
+		return propertyAccess.Name().Text()
+	}
+	return "<anonymous>"
+}
+
+// scanLineCol returns (1-based line, 1-based column) for byte offset pos
+// inside sourceFile. Mirrors purefn.lineCol — duplicated here to avoid a
+// resolver→purefn import dependency for one helper.
+func scanLineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
+	src := sourceFile.Text()
+	if pos > len(src) {
+		pos = len(src)
+	}
+	line, col := 1, 1
+	for i := 0; i < pos; i++ {
+		if src[i] == '\n' {
+			line++
+			col = 1
+		} else {
+			col++
+		}
+	}
+	return line, col
+}
+
+// declaredTypeFromIdentifier returns the resolved type of the type annotation
+// written on the identifier's const variable declaration. Used by scanCall in
+// the reflect form to honor the user's written T over CFA's narrowed apparent
+// type. Returns (nil, false) when:
+//   - the node is not an Identifier (e.g. PropertyAccess, CallExpression),
+//   - the binding's symbol has no const VariableDeclaration with an
+//     annotation,
+//   - the binding is `let`/`var` (re-assignable; matches the same const-only
+//     policy as traceRegexLiteral).
+//
+// Annotation ≥ apparent type by construction: TS enforces initializer
+// assignability against the annotation, so honoring the annotation never
+// produces a narrower validator than the apparent-type path.
+func (resolver *Resolver) declaredTypeFromIdentifier(node *ast.Node) (*checker.Type, bool) {
+	if node == nil || node.Kind != ast.KindIdentifier {
+		return nil, false
+	}
+	symbol := resolver.checker.GetSymbolAtLocation(node)
+	if symbol == nil {
+		return nil, false
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
+			continue
+		}
+		parent := declaration.Parent
+		if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
+			continue
+		}
+		variableDecl := declaration.AsVariableDeclaration()
+		if variableDecl == nil || variableDecl.Type == nil {
+			continue
+		}
+		return checker.Checker_getTypeFromTypeNode(resolver.checker, variableDecl.Type), true
+	}
+	return nil, false
 }
