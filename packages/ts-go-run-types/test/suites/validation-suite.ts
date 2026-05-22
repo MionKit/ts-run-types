@@ -1298,6 +1298,244 @@ export const VALIDATION_SUITE = {
       }),
     },
   },
+
+  // UTILITY — TypeScript's built-in utility types (Partial, Required,
+  // Pick, Omit, Exclude, Extract, NonNullable, ReturnType, Readonly,
+  // Uppercase / Lowercase / Capitalize / Uncapitalize, and combined
+  // intersection-with-modifier forms). Mirrors mion's
+  // packages/run-types/src/nodes/utility/*.spec.ts.
+  //
+  // **None of these need new emit code.** tsgo eagerly resolves each
+  // utility at the type-checker layer to its concrete shape (Partial
+  // becomes an object literal with all-optional props, Pick becomes
+  // an object literal with a subset, etc.), so our existing object /
+  // union / tuple / string emits handle the resolved forms. These
+  // tests are regression coverage that the utilities thread through
+  // the cache + emit pipeline without surprises.
+  UTILITY: {
+    partial: {
+      title: 'Partial<Person>',
+      description: 'mion utility/partial.spec.ts — all properties become optional. Resolves to {name?: string; age?: number; createdAt?: Date}; reuses the object emit with allOptionalCode array-rejection guard.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createIsType<Partial<Person>>();
+      },
+      getSamples: () => ({
+        valid: [
+          {},
+          {name: 'John'},
+          {createdAt: new Date()},
+          {name: 'John', age: 30, createdAt: new Date()},
+        ],
+        invalid: [
+          [],                              // allOptionalCode rejects arrays
+          new Date(),                      // allOptionalCode rejects native objects
+          {name: 42},                      // wrong type when prop is present
+          {createdAt: 'not date'},
+          null,
+        ],
+      }),
+    },
+
+    required: {
+      title: 'Required<MaybePerson>',
+      description: 'mion utility/required.spec.ts — all properties become required. Resolves to a plain object literal; reuses the object emit.',
+      isType: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        return createIsType<Required<MaybePerson>>();
+      },
+      getSamples: () => ({
+        valid: [{name: 'John', age: 30, createdAt: new Date()}],
+        invalid: [
+          {},
+          {name: 'John'},                                 // missing age + createdAt
+          {name: 'John', age: 30},                        // missing createdAt
+          {name: 'John', age: 30, createdAt: 'not date'}, // wrong type
+          null,
+        ],
+      }),
+    },
+
+    pick: {
+      title: "Pick<Person, 'name' | 'createdAt'>",
+      description: 'mion utility/pick.spec.ts — selects a subset of properties. Resolves to {name: string; createdAt: Date}.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createIsType<Pick<Person, 'name' | 'createdAt'>>();
+      },
+      getSamples: () => ({
+        valid: [
+          {name: 'John', createdAt: new Date()},
+          // Extra props pass (Pick doesn't imply strict)
+          {name: 'John', age: 30, createdAt: new Date()},
+        ],
+        invalid: [
+          {name: 'John'},          // missing createdAt
+          {createdAt: new Date()}, // missing name
+          {name: 42, createdAt: new Date()},
+          null,
+        ],
+      }),
+    },
+
+    omit: {
+      title: "Omit<Person, 'age'>",
+      description: 'mion utility/omit.spec.ts — removes selected properties. Resolves to {name: string; createdAt: Date}.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createIsType<Omit<Person, 'age'>>();
+      },
+      getSamples: () => ({
+        valid: [
+          {name: 'John', createdAt: new Date()},
+          {name: 'John', age: 30, createdAt: new Date()}, // extra prop still passes
+        ],
+        invalid: [{name: 'John'}, {createdAt: new Date()}, null],
+      }),
+    },
+
+    exclude_atomic: {
+      title: "Exclude<'name' | 'age' | 'createdAt', 'age'>",
+      description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
+      isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      getSamples: () => ({
+        valid: ['name', 'createdAt'],
+        invalid: ['age', 'other', 42, null],
+      }),
+    },
+
+    extract_atomic: {
+      title: "Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>",
+      description: 'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
+      isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      getSamples: () => ({
+        valid: ['name', 'createdAt'],
+        invalid: ['age', 'other', null],
+      }),
+    },
+
+    exclude_from_object_union: {
+      title: "Exclude<Shape, {kind: 'circle'}>",
+      description: 'mion utility/exclude.spec.ts (object union) — excludes object members from a discriminated union.',
+      isType: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        return createIsType<Exclude<Shape, {kind: 'circle'}>>();
+      },
+      getSamples: () => ({
+        valid: [
+          {kind: 'square', x: 5},
+          {kind: 'triangle', base: 4, height: 3},
+        ],
+        invalid: [{kind: 'circle', radius: 3}, {}, null],
+      }),
+    },
+
+    non_nullable: {
+      title: 'NonNullable<string | number | null | undefined>',
+      description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
+      isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
+      getSamples: () => ({
+        valid: ['hello', 42, 0],
+        invalid: [null, undefined, true, {}, []],
+      }),
+    },
+
+    return_type: {
+      title: 'ReturnType<(...) => Date>',
+      description: 'mion utility/params-return.spec.ts — extracts a function\'s return type. Resolves to Date.',
+      isType: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        return createIsType<ReturnType<Fn>>();
+      },
+      getSamples: () => ({
+        valid: [new Date()],
+        invalid: ['not date', 42, null, undefined],
+      }),
+    },
+
+    readonly: {
+      title: 'Readonly<Person>',
+      description: 'Readonly<T> marks properties readonly at the TS layer; the readonly bit is erased at runtime so the validator behaves identically to the source object. Regression check.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return createIsType<Readonly<Person>>();
+      },
+      getSamples: () => ({
+        valid: [{name: 'John', age: 30}, {name: '', age: 0}],
+        invalid: [{name: 'John'}, {age: 30}, null],
+      }),
+    },
+
+    uppercase: {
+      title: "Uppercase<'foo'>",
+      description: "TS's built-in Uppercase<S> maps the literal — resolves to the literal type 'FOO'. mion's utility/string.spec.ts is `.skip()`'d so this is bonus coverage on top of mion.",
+      isType: () => createIsType<Uppercase<'foo'>>(),
+      getSamples: () => ({
+        valid: ['FOO'],
+        invalid: ['foo', 'Foo', 'FOOBAR', 42, null],
+      }),
+    },
+
+    intersection_with_required_override: {
+      title: "Partial<Person> & Required<Pick<Person, 'name'>>",
+      description: 'Intersection that flips a property\'s optionality — `Partial<Person>` makes all props optional, then `& Required<Pick<Person, "name">>` re-requires only `name`. tsgo resolves the intersection to {name: string; age?: number; createdAt?: Date}; reuses the object emit.',
+      isType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      },
+      getSamples: () => ({
+        valid: [
+          {name: 'John'},
+          {name: 'John', age: 30},
+          {name: 'John', createdAt: new Date()},
+          {name: 'John', age: 30, createdAt: new Date()},
+        ],
+        invalid: [
+          {},                      // name is required
+          {age: 30},               // name still required
+          {name: 42},              // wrong type
+          {name: 'John', age: '30'}, // wrong type at optional slot
+          null,
+        ],
+      }),
+    },
+
+    omit_keeping_optional: {
+      title: "Omit<{a: string; b?: number; c: boolean}, 'a'>",
+      description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
+      isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      getSamples: () => ({
+        valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
+        invalid: [{}, {b: 1}, {c: 'not boolean'}, null],
+      }),
+    },
+  },
 } as const satisfies {
   ATOMIC: Record<string, ValidationCase>;
   ARRAY: Record<string, ValidationCase>;
@@ -1306,4 +1544,5 @@ export const VALIDATION_SUITE = {
   UNION: Record<string, ValidationCase>;
   TEMPLATE_LITERAL: Record<string, ValidationCase>;
   NATIVE: Record<string, ValidationCase>;
+  UTILITY: Record<string, ValidationCase>;
 };
