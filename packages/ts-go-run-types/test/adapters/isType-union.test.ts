@@ -30,11 +30,12 @@ describe('isType / UNION', () => {
   it('string[] | number[] | boolean[]', () => assertIsType(VALIDATION_SUITE.UNION.union_of_array_types));
   it('(string | bigint | boolean | Date)[]', () => assertIsType(VALIDATION_SUITE.UNION.array_of_union));
 
+  it('{a: string; aa: boolean} | {b: number} | {c: bigint}', () => assertIsType(VALIDATION_SUITE.UNION.union_of_object_shapes));
+  it('{kind: "a"; n: number} | {kind: "b"; s: string}', () => assertIsType(VALIDATION_SUITE.UNION.discriminated_union));
+  it('{name; getName()} | {age; getAge()} — methods skipped', () => assertIsType(VALIDATION_SUITE.UNION.union_with_methods));
+
   // Deferred — features that need follow-up port work.
-  it.todo('{a: string; aa: boolean} | {b: number} | {c: bigint} — verify object-union end-to-end');
-  it.todo('{kind: "a"; n: number} | {kind: "b"; s: string} — needs discriminator-aware emit');
   it.todo('UnionC circular — needs circular-type detection');
-  it.todo('{name; getName()} | {age; getAge()} — verify methods skipped under union');
   it.todo('{a: string} & {b: number} — intersection resolved at compile time (document only)');
 
   it('all union isType tests ran', () => {

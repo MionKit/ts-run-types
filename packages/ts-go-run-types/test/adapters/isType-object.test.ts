@@ -41,21 +41,20 @@ describe('isType / OBJECT', () => {
   it('ICircularArray via array', () => assertIsType(VALIDATION_SUITE.OBJECT.circular_interface_on_array));
   it('ICircularDeep nested', () => assertIsType(VALIDATION_SUITE.OBJECT.circular_interface_on_nested_object));
   it('{[key: string]: string}', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_string));
-  // index_signature_named_props is deferred — its value type is a union
-  // (string | number) which needs the union emit.
-  it.todo('{a: string; b: number; [str|num]} — needs union value type');
+  it('{a: string; b: number; [str|num]} index w/ union value', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_named_props));
   it('{[key: string]: {[key: string]: number}}', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_nested));
   it('{[key: string]: {[key: string]: Date}}', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_date_value));
   it('() => void', () => assertIsType(VALIDATION_SUITE.OBJECT.function_top_level));
 
-  // Deferred — kinds not yet implemented or features not yet ported.
+  it('{[key: string]: string | number}', () => assertIsType(VALIDATION_SUITE.OBJECT.union_value_index));
+  it('{kind: "a" | "b"; n: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.object_with_union_prop));
+
+  // Deferred — features that haven't landed yet.
   it.todo('CallableInterface — needs `isCallable()` branch in interface emit');
   it.todo('{a?: string; b?: number} — needs allOptionalCode (reject arrays/native objects)');
   it.todo('class MySerializableClass — needs class projection');
   it.todo('RpcError<"test-error"> — needs RpcError class flavor');
-  it.todo('CallSignature params — needs tuple emit');
-  it.todo('{[key: string]: string | number} — needs union value type');
-  it.todo('{kind: "a" | "b"; n: number} — needs union prop emit');
+  it.todo('CallSignature params — needs explicit param-tuple validator');
 
   // Coverage guard. Mirrors isType.test.ts. it.todo does NOT invoke
   // afterEach, so the counter naturally measures only active cases.

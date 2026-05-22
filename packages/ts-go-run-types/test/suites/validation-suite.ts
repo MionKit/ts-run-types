@@ -438,37 +438,35 @@ export const VALIDATION_SUITE = {
 
     object_array: {
       title: '{a: string}[]',
-      description: "mion array.spec.ts 'test array strict modes' — needs interface/object literal support before isType activates",
-      // No isType thunk → rendered as `it.todo` in the adapter.
+      description: "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
+      isType: () => createIsType<{a: string}[]>(),
       getSamples: () => ({
         valid: [
           [],
           [{a: 'hello'}, {a: 'world'}],
-          // mion Block 7: arrWithExtraDeep — array of objects with
-          // extra keys still PASSES isType in mion (unknown keys are
-          // a separate concern). Captured here so the future object
-          // adapter's expectations are correct.
           [{a: 'hello', extraA: 'extraA'}, {a: 'world'}],
         ],
-        invalid: ['not-an-array', [{a: 42}]],
+        invalid: ['not-an-array', [{a: 42}], [{}], [null]],
       }),
     },
 
     union_array: {
       title: '(string | number)[]',
-      description: 'needs union support',
+      description: 'array of union — each element validates against the union OR-chain.',
+      isType: () => createIsType<(string | number)[]>(),
       getSamples: () => ({
-        valid: [[], ['a', 1, 'b', 2]],
-        invalid: [[true], 'a'],
+        valid: [[], ['a', 1, 'b', 2], [1], ['a']],
+        invalid: [[true], 'a', [null], ['a', true]],
       }),
     },
 
     tuple_array: {
       title: '[string, number][]',
-      description: 'needs tuple support',
+      description: 'array of tuples — exercises tuple under array dependency call.',
+      isType: () => createIsType<[string, number][]>(),
       getSamples: () => ({
         valid: [[], [['a', 1], ['b', 2]]],
-        invalid: [[['a']], [['a', 'b']]],
+        invalid: [[['a']], [['a', 'b']], 'not-array', [[1, 'a']]],
       }),
     },
 
@@ -669,12 +667,11 @@ export const VALIDATION_SUITE = {
 
     index_signature_named_props: {
       title: '{a: string; b: number; [key: string]: string | number}',
-      description: "mion indexProperty.spec.ts 'validate index run type + extra properties' — defer the full mix (union value type isn't ported yet). Active form keeps just the named props sub-check until union lands.",
-      // Defer the union form until KindUnion lands — the index sig's
-      // value type is `string | number` which our emit doesn't handle.
+      description: "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
+      isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
       getSamples: () => ({
-        valid: [{a: 'x', b: 1}, {a: 'x', b: 1, extra: 'y'}],
-        invalid: [{a: 1, b: 1}, {a: 'x'}, null],
+        valid: [{a: 'x', b: 1}, {a: 'x', b: 1, extra: 'y'}, {a: 'x', b: 1, extra: 7}],
+        invalid: [{a: 1, b: 1}, {a: 'x'}, null, {a: 'x', b: 1, extra: true}],
       }),
     },
 
@@ -763,19 +760,21 @@ export const VALIDATION_SUITE = {
 
     union_value_index: {
       title: '{[key: string]: string | number}',
-      description: 'index signature with union value type — needs union emit.',
+      description: 'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
+      isType: () => createIsType<{[key: string]: string | number}>(),
       getSamples: () => ({
-        valid: [{a: 'x', b: 1}],
-        invalid: [{a: true}],
+        valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: 1, b: 'x'}],
+        invalid: [{a: true}, {a: 'x', b: null}, 'not object', null],
       }),
     },
 
     object_with_union_prop: {
       title: '{kind: "a" | "b"; n: number}',
-      description: 'discriminated union as property — needs union emit.',
+      description: 'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
+      isType: () => createIsType<{kind: 'a' | 'b'; n: number}>(),
       getSamples: () => ({
         valid: [{kind: 'a', n: 1}, {kind: 'b', n: 0}],
-        invalid: [{kind: 'c', n: 1}, {n: 1}],
+        invalid: [{kind: 'c', n: 1}, {n: 1}, {kind: 'a', n: 'not number'}, null],
       }),
     },
   },
@@ -923,19 +922,24 @@ export const VALIDATION_SUITE = {
 
     union_of_object_shapes: {
       title: '{a: string; aa: boolean} | {b: number} | {c: bigint}',
-      description: "mion union.spec.ts 'Union Obj'. Active emit shape works in principle, but ObjectLiteral as a union member needs the per-member typeof+null guard. Carried until the union-object shape is verified end-to-end through the dependency-call layer.",
+      description: "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
+      isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
       getSamples: () => ({
-        valid: [{a: 'x', aa: true}, {b: 1}, {c: 1n}],
-        invalid: [{a: 'x'}, {}, 'not object', null],
+        // mion union.spec.ts uses loose matching — `{a, b, c}` passes
+        // because `{b: number}` is satisfied. Our emit accepts any
+        // object that satisfies AT LEAST one member's required props.
+        valid: [{a: 'x', aa: true}, {b: 1}, {c: 1n}, {a: 'x', aa: true, b: 1}],
+        invalid: [{a: 'x'}, {}, 'not object', null, [], 42],
       }),
     },
 
     discriminated_union: {
       title: '{kind: "a"; n: number} | {kind: "b"; s: string}',
-      description: 'mion union.spec.ts "Union with discriminator property" — needs union-discriminator-aware emit for early termination. Functionally checkable via OR-chain but the optimization (and the path-aware error reporting) lands later.',
+      description: 'mion union.spec.ts "Union with discriminator property" — the OR-chain is semantically correct; the discriminator-aware optimization (early-return on the discriminator literal) is a separate emit-shape concern handled later.',
+      isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
       getSamples: () => ({
         valid: [{kind: 'a', n: 1}, {kind: 'b', s: 'hello'}],
-        invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}],
+        invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}, null, 'not object'],
       }),
     },
 
@@ -950,10 +954,11 @@ export const VALIDATION_SUITE = {
 
     union_with_methods: {
       title: '{name: string; getName(): string} | {age: number; getAge(): number}',
-      description: 'mion union.spec.ts "Union with objects containing methods" — methods skipped from validation. Functionally works once union+object emit are activated together; left deferred until end-to-end verified.',
+      description: 'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
+      isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
       getSamples: () => ({
-        valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}],
-        invalid: [{}, null],
+        valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
+        invalid: [{}, null, 'not object', []],
       }),
     },
 
