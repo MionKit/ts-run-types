@@ -105,6 +105,12 @@ func DefaultIsJitInlined(ctx *InlineContext) bool {
 	if ctx.RT.Kind == protocol.KindClass && ctx.RT.SubKind != protocol.SubKindDate {
 		return false
 	}
+	if ctx.RT.Kind == protocol.KindTuple {
+		return false
+	}
+	if ctx.RT.Kind == protocol.KindUnion {
+		return false
+	}
 	if ctx.RT.TypeName != "" && protocol.FamilyOf(ctx.RT.Kind) == protocol.FamilyCollection {
 		return false
 	}

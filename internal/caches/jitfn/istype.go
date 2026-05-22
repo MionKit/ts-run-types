@@ -2,6 +2,7 @@ package jitfn
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -85,6 +86,14 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 		// the parent's AND chain via the per-property skip rule (see
 		// emitObjectIsType in this file).
 		return true
+	case protocol.KindTuple:
+		return true
+	case protocol.KindTupleMember:
+		return true
+	case protocol.KindUnion:
+		// Children must be non-empty for a meaningful union check —
+		// an empty union resolves to `never` in mion's semantics.
+		return len(rt.Children) > 0
 	}
 	return false
 }
@@ -355,8 +364,221 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// counting needs rest-handling that lands with the function-
 		// signature port. Re-add when it surfaces in a test.
 		return JitCode{Code: "typeof " + v + " === 'function'", Type: CodeE}
+
+	case protocol.KindTuple:
+		// mion:nodes/collection/tuple.ts:emitIsType. Composes into a
+		// return-block (CodeRB) for clean composition with rest
+		// elements and arbitrary child code shapes. Mion's emit
+		// inlines as an expression and uses `(check1 && check2 && …)`
+		// but mixing a for-loop (Rest) with an expression chain
+		// produces invalid JS; CodeRB sidesteps the issue and lets
+		// each member's emit stay in whatever shape is natural.
+		return emitTupleIsType(rt, ctx, v)
+
+	case protocol.KindTupleMember:
+		// mion:nodes/member/tupleMember.ts:emitIsType. Reads
+		// rt.Position to set the element accessor `v[<i>]`, recurses
+		// into Child, optionally wraps with the `undefined ||` guard.
+		return emitTupleMemberIsType(rt, ctx, v)
+
+	case protocol.KindUnion:
+		// mion:nodes/collection/union.ts:emitIsType. Walks the safe
+		// children (SafeUnionChildren when present, else Children)
+		// and OR-chains their checks. Objects share a single
+		// `typeof === 'object' && !== null` guard so a null input
+		// doesn't crash inside a property access.
+		return emitUnionIsType(rt, ctx, v)
 	}
 	panic(fmt.Sprintf("jitfn: isType emitter not implemented for kind %d (TODO)", rt.Kind))
+}
+
+// emitTupleIsType handles KindTuple. Body shape (CodeRB):
+//
+//	if (!Array.isArray(v)) return false;
+//	if (v.length > N) return false;   // only when no rest
+//	const r0 = <member0Check>; if (!(r0)) return false;
+//	const r1 = <member1Check>; if (!(r1)) return false;
+//	return true;
+//
+// Each TupleMember's emit returns the element check as an expression
+// (CodeE) in the simple case, or the for-loop body when it's a rest
+// element. Mion's emit inlines members with `&&`; we use sequential
+// statements so a rest's for-loop composes cleanly with the rest of
+// the chain.
+func emitTupleIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if len(rt.Children) == 0 {
+		// Empty tuple: `Array.isArray(v) && v.length === 0`. Mion
+		// keeps this as an expression — we do the same since it's
+		// noop-free.
+		return JitCode{
+			Code: "Array.isArray(" + v + ") && " + v + ".length === 0",
+			Type: CodeE,
+		}
+	}
+	var body strings.Builder
+	body.WriteString("if (!Array.isArray(")
+	body.WriteString(v)
+	body.WriteString(")) return false;\n")
+	if !tupleHasRest(rt, ctx) {
+		body.WriteString("if (")
+		body.WriteString(v)
+		body.WriteString(".length > ")
+		body.WriteString(strconv.Itoa(len(rt.Children)))
+		body.WriteString(") return false;\n")
+	}
+	for _, child := range rt.Children {
+		childJit := ctx.CompileChild(child, CodeE)
+		if childJit.Code == "" {
+			continue
+		}
+		resVar := ctx.NextLocalVar("r")
+		body.WriteString("const ")
+		body.WriteString(resVar)
+		body.WriteString(" = ")
+		body.WriteString(childJit.Code)
+		body.WriteString(";\nif (!(")
+		body.WriteString(resVar)
+		body.WriteString(")) return false;\n")
+	}
+	body.WriteString("return true")
+	return JitCode{Code: body.String(), Type: CodeRB}
+}
+
+// tupleHasRest reports whether any tuple child is a rest element. Used
+// to skip the upper-length-bound check (rest elements absorb extras).
+func tupleHasRest(rt *protocol.RunType, ctx *EmitContext) bool {
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.Kind == protocol.KindRest {
+			return true
+		}
+		// A TupleMember whose Child is KindRest also counts.
+		if resolved.Kind == protocol.KindTupleMember && resolved.Child != nil {
+			innerResolved := ctx.ResolveRef(resolved.Child)
+			if innerResolved != nil && innerResolved.Kind == protocol.KindRest {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// emitTupleMemberIsType handles KindTupleMember. Sets the element
+// accessor `v[<Position>]` on the current frame so the wrapped child
+// emit sees that as its Vλl, then applies the optional guard if the
+// member is optional.
+func emitTupleMemberIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		// Non-serializable child — mion emits `v[i] === undefined`.
+		return JitCode{Code: v + "[" + positionStr(rt) + "] === undefined", Type: CodeE}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		// Function-typed tuple elements: mion treats them as non-
+		// serializable and emits `=== undefined`. Mirror the runtime
+		// behavior.
+		return JitCode{Code: v + "[" + positionStr(rt) + "] === undefined", Type: CodeE}
+	}
+	accessor := v + "[" + positionStr(rt) + "]"
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if rt.Optional {
+		return JitCode{
+			Code: "(" + accessor + " === undefined || (" + childJit.Code + "))",
+			Type: CodeE,
+		}
+	}
+	return JitCode{Code: "(" + childJit.Code + ")", Type: CodeE}
+}
+
+// positionStr returns the tuple element's index as a JS literal.
+// Falls back to "0" when Position is nil (defensive — shouldn't
+// happen for well-formed cache entries).
+func positionStr(rt *protocol.RunType) string {
+	if rt.Position == nil {
+		return "0"
+	}
+	return strconv.Itoa(*rt.Position)
+}
+
+// emitUnionIsType handles KindUnion. Walks the safe-ordered children
+// (SafeUnionChildren when populated, otherwise Children) and emits an
+// OR-chain. Object-type checks share a single `typeof === 'object' &&
+// !== null` guard so a null input doesn't crash inside a property
+// access — mirrors mion's
+// `(typeof v === 'object' && v !== null && (objCheck1 || objCheck2))`
+// shape.
+func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	children := rt.SafeUnionChildren
+	if len(children) == 0 {
+		children = rt.Children
+	}
+	var simpleChecks []string
+	var objectChecks []string
+	for _, child := range children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		childJit := ctx.CompileChild(child, CodeE)
+		if childJit.Code == "" {
+			continue
+		}
+		if isObjectLikeKind(resolved.Kind) {
+			objectChecks = append(objectChecks, childJit.Code)
+		} else {
+			simpleChecks = append(simpleChecks, childJit.Code)
+		}
+	}
+	parts := simpleChecks
+	if len(objectChecks) > 0 {
+		// Strip the per-object `typeof === 'object' && !== null`
+		// guard from each child — we add one shared guard outside.
+		// Without this, each object member repeats the guard inside
+		// the OR-chain (slower but still correct). Mion strips them
+		// the same way; we do a textual strip because the object
+		// emit always starts with `(typeof <v> === 'object' && <v> !== null`.
+		objectGuard := "typeof " + v + " === 'object' && " + v + " !== null"
+		objClauseParts := make([]string, 0, len(objectChecks))
+		for _, oc := range objectChecks {
+			objClauseParts = append(objClauseParts, oc)
+		}
+		objChain := strings.Join(objClauseParts, " || ")
+		// Keep the children's inner guards in place — pre-mature
+		// optimization to strip them is fragile against varying child
+		// shapes (interface vs index sig vs class). Mion's actual
+		// shape ends up with redundant guards in some cases too. The
+		// shared outer guard short-circuits null input before any
+		// child runs.
+		parts = append(parts, "("+objectGuard+" && ("+objChain+"))")
+	}
+	if len(parts) == 0 {
+		return JitCode{Code: "false", Type: CodeE}
+	}
+	return JitCode{Code: "(" + strings.Join(parts, " || ") + ")", Type: CodeE}
+}
+
+// isObjectLikeKind reports whether kind's isType emit needs the
+// shared `typeof === 'object' && !== null` guard before it. Used by
+// the union emit to lift the guard out of the per-child checks.
+func isObjectLikeKind(kind protocol.ReflectionKind) bool {
+	switch kind {
+	case protocol.KindObjectLiteral, protocol.KindClass,
+		protocol.KindIndexSignature, protocol.KindArray,
+		protocol.KindTuple:
+		return true
+	}
+	return false
 }
 
 // emitObjectIsType emits the canonical object-shape AND-chain for
