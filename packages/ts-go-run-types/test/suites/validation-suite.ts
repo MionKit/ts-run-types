@@ -1161,6 +1161,87 @@ export const VALIDATION_SUITE = {
         invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null],
       }),
     },
+
+    template_literal_union_placeholder: {
+      title: "`${'a' | 'b'}-${number}`",
+      description: 'Template literal with a union placeholder. tsgo distributes the union internally, so the type-checker hands the projector either a union span or a pre-distributed set of template literals; either way the compiled regex must constrain the placeholder to {a, b} — anything outside the union must be rejected.',
+      isType: () => createIsType<`${'a' | 'b'}-${number}`>(),
+      getSamples: () => ({
+        valid: ['a-42', 'b-0', 'a--3.14'],
+        invalid: ['c-1', 'a-', '-1', 'a-foo', 'ab-1'],
+      }),
+    },
+  },
+
+  // NATIVE — native JS / runtime container types that need bespoke
+  // `instanceof` + element-iteration emits:
+  //   - `Map<K, V>` → `instanceof Map` + iterate `.entries()`
+  //   - `Set<T>`   → `instanceof Set` + iterate `.values()`
+  //   - `Promise<T>` → thenable check (the wrapped T isn't validated
+  //     synchronously; callers use `Awaited<P>` for the resolved value)
+  // Mirrors mion's nodes/native/* runtype implementations. Date and
+  // RegExp are also "native" but project as atomic kinds and live in
+  // the ATOMIC block above.
+  NATIVE: {
+    map_string_number: {
+      title: 'Map<string, number>',
+      description: 'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
+      isType: () => createIsType<Map<string, number>>(),
+      getSamples: () => {
+        const empty = new Map();
+        const one = new Map([['a', 1]]);
+        const many = new Map([
+          ['a', 1],
+          ['b', 2],
+        ]);
+        const wrongKey = new Map<any, number>([[1, 1]]);
+        const wrongValue = new Map<string, any>([['a', 'not number']]);
+        return {
+          valid: [empty, one, many],
+          invalid: [{}, [], null, 'not map', wrongKey, wrongValue],
+        };
+      },
+    },
+
+    set_string: {
+      title: 'Set<string>',
+      description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
+      isType: () => createIsType<Set<string>>(),
+      getSamples: () => {
+        const empty = new Set<string>();
+        const one = new Set(['a']);
+        const many = new Set(['a', 'b', 'c']);
+        const wrongType = new Set<any>([1]);
+        return {
+          valid: [empty, one, many],
+          invalid: [{}, [], null, 'not set', wrongType],
+        };
+      },
+    },
+
+    promise_string: {
+      title: 'Promise<string>',
+      description: 'Promise validation is a thenable check — `typeof v === \'object\' && v !== null && typeof v.then === \'function\'`. The wrapped T cannot be validated synchronously (the promise hasn\'t resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below).',
+      isType: () => createIsType<Promise<string>>(),
+      getSamples: () => {
+        const realPromise = Promise.resolve('x');
+        const thenable = {then: () => null};
+        return {
+          valid: [realPromise, thenable],
+          invalid: [null, 'string', 42, {}, []],
+        };
+      },
+    },
+
+    awaited_promise: {
+      title: 'Awaited<Promise<string>>',
+      description: "TypeScript's built-in `Awaited<P>` utility unwraps the promise to its resolved type; tsgo resolves it at compile time, so this case lands as plain `string` in our cache and reuses the atomic string emit. The test verifies the utility threads through correctly.",
+      isType: () => createIsType<Awaited<Promise<string>>>(),
+      getSamples: () => ({
+        valid: ['hello', ''],
+        invalid: [42, null, undefined, Promise.resolve('x')],
+      }),
+    },
   },
 } as const satisfies {
   ATOMIC: Record<string, ValidationCase>;
@@ -1169,4 +1250,5 @@ export const VALIDATION_SUITE = {
   TUPLE: Record<string, ValidationCase>;
   UNION: Record<string, ValidationCase>;
   TEMPLATE_LITERAL: Record<string, ValidationCase>;
+  NATIVE: Record<string, ValidationCase>;
 };

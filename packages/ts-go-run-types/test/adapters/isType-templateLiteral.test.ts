@@ -34,6 +34,7 @@ describe('isType / TEMPLATE_LITERAL', () => {
   it('`(${number})`', () => assertIsType(VALIDATION_SUITE.TEMPLATE_LITERAL.regex_special_chars));
   it('{url: `api/user/${number}`; method: string}', () => assertIsType(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_nested_in_object));
   it('{[key: `api/${string}`]: number}', () => assertIsType(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_index_key));
+  it("`${'a' | 'b'}-${number}` (union placeholder)", () => assertIsType(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
 
   it('all template-literal isType tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.TEMPLATE_LITERAL).filter((c) => c.isType).length;
