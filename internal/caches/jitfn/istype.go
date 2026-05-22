@@ -592,6 +592,8 @@ func isObjectLikeKind(kind protocol.ReflectionKind) bool {
 // emit and is filtered out here too.
 func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	parts := []string{"typeof " + v + " === 'object' && " + v + " !== null"}
+	allOptional := true
+	hasContributingChild := false
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -612,9 +614,50 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 		if childJit.Code == "" {
 			continue
 		}
+		hasContributingChild = true
+		if !memberIsOptional(resolved) {
+			allOptional = false
+		}
 		parts = append(parts, childJit.Code)
 	}
+	// All-optional / no-required-property objects pass the basic
+	// `typeof === 'object' && !== null` for arrays too (arrays *are*
+	// objects in JS), so we add mion's `allOptionalCode` guard to
+	// explicitly reject arrays and other native objects (Date, Map,
+	// Set, …). Mirrors interface.ts:allOptionalCode at
+	// run-types/src/nodes/collection/interface.ts.
+	//
+	// IndexSignature children count as "non-optional" for this
+	// purpose — `{[k: string]: T}` validates every own key, so arrays
+	// would still fail the value check. Empty objects + all-optional
+	// shapes need the explicit guard.
+	if !hasContributingChild || allOptional {
+		guard := "(!Array.isArray(" + v + ") && Object.prototype.toString.call(" + v + ") === '[object Object]')"
+		// Insert AFTER the typeof guard so null/non-objects still
+		// short-circuit first.
+		parts = append(parts[:1], append([]string{guard}, parts[1:]...)...)
+	}
 	return JitCode{Code: "(" + joinAnd(parts) + ")", Type: CodeE}
+}
+
+// memberIsOptional reports whether a child of an object literal /
+// class is "optional" for the purposes of mion's
+// `areAllChildrenOptional` check. PropertySignature / Property
+// honor their Optional flag; IndexSignature counts as non-optional
+// because an index sig validates value types on every own key (so
+// an array-input would fail the per-key check anyway when the value
+// type isn't satisfied).
+func memberIsOptional(rt *protocol.RunType) bool {
+	if rt == nil {
+		return false
+	}
+	switch rt.Kind {
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return rt.Optional
+	case protocol.KindIndexSignature:
+		return false
+	}
+	return rt.Optional
 }
 
 // emitPropertyIsType handles KindProperty / KindPropertySignature.
