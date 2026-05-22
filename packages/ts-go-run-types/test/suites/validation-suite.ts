@@ -739,13 +739,20 @@ export const VALIDATION_SUITE = {
 
     class_simple: {
       title: 'class MySerializableClass with two atomic props',
-      description: "mion class.spec.ts 'validate class' — needs ClassRunType supported in Supports/emit and the serializer must project class-instance properties. ClassRunType inherits InterfaceRunType.emitIsType so the existing object-emit path handles it; activation depends on the serializer surfacing the right Children shape for plain user classes.",
-      getSamples: () => ({
-        // Sample shapes mion uses (paraphrased — the actual class
-        // construction lives in mion's test setup).
-        valid: [{date: new Date(), name: 'x'}],
-        invalid: [{date: 'not date', name: 'x'}, {date: new Date()}, null],
-      }),
+      description: "mion class.spec.ts 'validate class'. ClassRunType inherits InterfaceRunType.emitIsType in mion, so the KindClass+SubKindNone arm in istype.go falls through to emitObjectIsType. The serializer still has two known artifacts that block activation: (a) class.prototype is projected as a Property (mion strips it via getJitChildren); (b) classes leak references to lib.d.ts globals (e.g. VarDate) on their prototype chain, which our cache projects and the renderer renders. Both surface as extra Children in the AND chain that don't match the expected class instance. Activation will land alongside a serializer pass that filters these synthetic Children.",
+      getSamples: () => {
+        class Match {
+          date = new Date();
+          name = 'x';
+          someMethod() {
+            return 'unused';
+          }
+        }
+        return {
+          valid: [new Match(), {date: new Date(), name: 'x'}],
+          invalid: [{date: 'not date', name: 'x'}, null, 'not object'],
+        };
+      },
     },
 
     rpc_error_class: {
@@ -869,10 +876,13 @@ export const VALIDATION_SUITE = {
 
     tuple_with_non_serializable: {
       title: '[number, () => any]',
-      description: 'mion: non-serializable tuple member emits `=== undefined` — needs the per-member non-serializable guard for function values to land correctly',
+      description: 'mion serialization-suite TUPLES.tuple_with_non_serializable. Function-typed tuple members emit `v[i] === undefined` per mion\'s non-serializable handling. The function slot must be absent or explicitly undefined; any other value (a real function, a string, …) fails.',
+      isType: () => createIsType<[number, () => any]>(),
       getSamples: () => ({
-        valid: [[3, undefined]],
-        invalid: [[3, () => null]],
+        // `[3]` is valid — v[1] is undefined which satisfies the
+        // `v[1] === undefined` check the function slot emits.
+        valid: [[3, undefined], [3]],
+        invalid: [[3, () => null], [3, 42], ['not number'], 'not array'],
       }),
     },
   },

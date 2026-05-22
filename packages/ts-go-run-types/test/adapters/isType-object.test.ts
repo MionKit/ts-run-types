@@ -52,8 +52,8 @@ describe('isType / OBJECT', () => {
   it('{a?: string; b?: number}', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_all_optional));
 
   // Deferred — features that haven't landed yet.
+  it.todo('class MySerializableClass — needs prototype/global-leak filter in class projection');
   it.todo('CallableInterface — needs `isCallable()` branch in interface emit');
-  it.todo('class MySerializableClass — needs class projection');
   it.todo('RpcError<"test-error"> — needs RpcError class flavor');
   it.todo('CallSignature params — needs explicit param-tuple validator');
 
