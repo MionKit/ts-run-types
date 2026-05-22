@@ -109,6 +109,16 @@ func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeTyp
 	return ctx.walker.compileNode(rt, expectedCType)
 }
 
+// ResolveRef dereferences a KindRef sentinel via the walker's ref
+// table. Returns the input unchanged when it isn't a ref; nil when
+// the ref points at a missing entry. Useful for emit decisions that
+// need to peek at the resolved kind (e.g. PropertySignature checking
+// whether its wrapped child is a function — which would skip the
+// property from the parent's AND chain).
+func (ctx *EmitContext) ResolveRef(rt *protocol.RunType) *protocol.RunType {
+	return ctx.walker.resolveRef(rt)
+}
+
 // NextLocalVar allocates and returns a fresh local variable name
 // scoped to the current emitter instance. Mirrors mion's
 // JitFnCompiler.getLocalVarName (jitFnCompiler.ts:236) — each call

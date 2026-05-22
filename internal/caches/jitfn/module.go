@@ -225,6 +225,24 @@ func jitTypeName(runType *protocol.RunType) string {
 		return "enum"
 	case protocol.KindArray:
 		return "array"
+	case protocol.KindObjectLiteral:
+		return "objectLiteral"
+	case protocol.KindClass:
+		return "class"
+	case protocol.KindProperty:
+		return "property"
+	case protocol.KindPropertySignature:
+		return "propertySignature"
+	case protocol.KindIndexSignature:
+		return "indexSignature"
+	case protocol.KindFunction:
+		return "function"
+	case protocol.KindMethod:
+		return "method"
+	case protocol.KindMethodSignature:
+		return "methodSignature"
+	case protocol.KindCallSignature:
+		return "callSignature"
 	}
 	return ""
 }
@@ -253,13 +271,14 @@ func subtreeFullySupported(rt *protocol.RunType, refTable map[string]*protocol.R
 		return true
 	}
 	if rt.Kind == protocol.KindRef {
+		// Always recurse to the resolved node — let it own the `seen`
+		// marking. The earlier shape that marked `seen[ref.ID]` here
+		// before recursing was buggy: ref.ID equals the target's ID,
+		// so the resolved-node arm's `if seen[rt.ID] { return true }`
+		// would fire on first visit and skip the actual content check.
 		if rt.ID == "" {
 			return false
 		}
-		if seen[rt.ID] {
-			return true
-		}
-		seen[rt.ID] = true
 		return subtreeFullySupported(refTable[rt.ID], refTable, emitter, seen)
 	}
 	if !emitter.Supports(rt) {
@@ -275,10 +294,71 @@ func subtreeFullySupported(rt *protocol.RunType, refTable map[string]*protocol.R
 	case protocol.KindArray:
 		// Mirrors istype.go KindArray Emit — descends only into Child.
 		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
+	case protocol.KindObjectLiteral, protocol.KindClass:
+		// Mirrors emitObjectIsType — walks Children, but with the same
+		// skip rules the emit applies: static members and direct
+		// method-shaped children never participate in the AND chain
+		// and so don't block supportability. PropertySignature with a
+		// function-typed inner is checked deeper in this recursion
+		// (the Property arm below handles its own skip).
+		for _, child := range rt.Children {
+			resolved := resolveRefForSupport(child, refTable)
+			if resolved == nil {
+				continue
+			}
+			if resolved.IsStatic {
+				continue
+			}
+			if isFunctionLikeKind(resolved.Kind) {
+				continue
+			}
+			if !subtreeFullySupported(child, refTable, emitter, seen) {
+				return false
+			}
+		}
+		return true
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		// Mirrors emitPropertyIsType — function-typed inner is skipped
+		// (returns empty code), so supportability of a function inner
+		// doesn't block the parent object.
+		if rt.Child == nil {
+			return true
+		}
+		resolved := resolveRefForSupport(rt.Child, refTable)
+		if resolved != nil && isFunctionLikeKind(resolved.Kind) {
+			return true
+		}
+		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
+	case protocol.KindIndexSignature:
+		if rt.Child == nil {
+			return true
+		}
+		resolved := resolveRefForSupport(rt.Child, refTable)
+		if resolved != nil && isFunctionLikeKind(resolved.Kind) {
+			return true
+		}
+		return subtreeFullySupported(rt.Child, refTable, emitter, seen)
 	}
-	// Atomic kinds (and KindClass+SubKindDate, treated as atomic by the
-	// emit) have no descent — supported as-is.
+	// Atomic kinds (and KindClass+SubKindDate, KindFunction etc treated
+	// as atomic by the emit) have no descent — supported as-is.
 	return true
+}
+
+// resolveRefForSupport is the supportability-walker's lightweight ref
+// dereference. Symmetric with walker.resolveRef but lives here as a
+// free function so the renderer doesn't need to instantiate a Walker
+// just to traverse the supportability gate.
+func resolveRefForSupport(rt *protocol.RunType, refTable map[string]*protocol.RunType) *protocol.RunType {
+	if rt == nil {
+		return nil
+	}
+	if rt.Kind != protocol.KindRef {
+		return rt
+	}
+	if rt.ID == "" {
+		return nil
+	}
+	return refTable[rt.ID]
 }
 
 // boolJS emits the JS literal for b.

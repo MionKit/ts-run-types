@@ -59,8 +59,32 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 		// Gate on a non-nil child — a malformed RunType with Kind=KindArray
 		// and Child=nil would otherwise reach Emit and panic.
 		return rt.Child != nil
+	case protocol.KindObjectLiteral:
+		return true
 	case protocol.KindClass:
-		return rt.SubKind == protocol.SubKindDate
+		// Date is treated as atomic (see KindClass arm in Emit); other
+		// classes go through the same emit path as interfaces (Children
+		// AND-chain) since ClassRunType extends InterfaceRunType in mion.
+		// Non-serializable / Map / Set subkinds remain unsupported until
+		// their own emit lands.
+		if rt.SubKind == protocol.SubKindDate {
+			return true
+		}
+		if rt.SubKind == protocol.SubKindNone {
+			return true
+		}
+		return false
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return true
+	case protocol.KindIndexSignature:
+		return true
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// Function-flavoured kinds emit `typeof v === 'function'` at
+		// top level. As children of an object, they're skipped from
+		// the parent's AND chain via the per-property skip rule (see
+		// emitObjectIsType in this file).
+		return true
 	}
 	return false
 }
@@ -172,6 +196,11 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		return JitCode{Code: "(" + v + " instanceof RegExp)", Type: CodeE}
 
 	case protocol.KindClass:
+		// KindClass branches on SubKind — Date is the special atomic
+		// path; SubKindNone (a plain user class) falls through to the
+		// object-emit arm below (ClassRunType inherits InterfaceRunType
+		// in mion). Map / Set / NonSerializable subkinds are not yet
+		// supported and panic so the bug surfaces at compile time.
 		if rt.SubKind == protocol.SubKindDate {
 			// mion:nodes/atomic/date.ts:13. Rejects Invalid Date
 			// (`new Date('xx')` whose getTime() is NaN).
@@ -193,7 +222,11 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 				Type: CodeE,
 			}
 		}
-		panic(fmt.Sprintf("jitfn: isType emitter not implemented for KindClass subKind %d", rt.SubKind))
+		if rt.SubKind != protocol.SubKindNone {
+			panic(fmt.Sprintf("jitfn: isType emitter not implemented for KindClass subKind %d", rt.SubKind))
+		}
+		// Plain user class — fall through to the shared object emit.
+		return emitObjectIsType(rt, ctx, v)
 
 	case protocol.KindEnum:
 		// mion:nodes/atomic/enum.ts:14. Chain of `=== <value>` over
@@ -282,8 +315,194 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		body.WriteString(resVar)
 		body.WriteString(")) return false;\n}\nreturn true")
 		return JitCode{Code: body.String(), Type: CodeRB}
+
+	case protocol.KindObjectLiteral:
+		// mion:nodes/collection/interface.ts:emitIsType. (KindClass
+		// non-Date falls into the same function via the KindClass
+		// arm above.)
+		//
+		// Shape:
+		//   (typeof v === 'object' && v !== null
+		//      && <child1Code> && <child2Code> && …)
+		//
+		// Children whose kind is method-shaped (MethodSignature /
+		// Method / CallSignature) or whose IsStatic is true are
+		// skipped — mion's getJitChildren() filters the same way.
+		// Property / PropertySignature children whose wrapped value is
+		// function-flavoured ALSO collapse to empty code inside their
+		// own emit and are filtered from the AND chain here.
+		return emitObjectIsType(rt, ctx, v)
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		// mion:nodes/member/property.ts:emitIsType (PropertySignature
+		// shares the same shape via PropertyRunType). Skips entirely
+		// when the wrapped child is function-flavoured (mion's
+		// `getJitChild` returns undefined when member.skipJit() is
+		// true; function kinds skipJit).
+		return emitPropertyIsType(rt, ctx, v)
+
+	case protocol.KindIndexSignature:
+		// mion:nodes/member/indexProperty.ts:emitIsType.
+		return emitIndexSignatureIsType(rt, ctx, v)
+
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// mion:nodes/function/function.ts:emitIsType. Method /
+		// MethodSignature / CallSignature all inherit FunctionRunType,
+		// so they share the same emit. v1 ignores the param-count
+		// arity guard (mion: `v.length >= minLength`) — almost no
+		// real-world isType check relies on it, and our parameter
+		// counting needs rest-handling that lands with the function-
+		// signature port. Re-add when it surfaces in a test.
+		return JitCode{Code: "typeof " + v + " === 'function'", Type: CodeE}
 	}
 	panic(fmt.Sprintf("jitfn: isType emitter not implemented for kind %d (TODO)", rt.Kind))
+}
+
+// emitObjectIsType emits the canonical object-shape AND-chain for
+// KindObjectLiteral / KindClass. Mirrors mion's
+// nodes/collection/interface.ts:emitIsType (without strictTypes /
+// callable / allOptional special cases — those land with follow-up
+// option plumbing and tests). Children are filtered the same way
+// mion's getJitChildren filters: method-shaped kinds and static
+// members are dropped, and a Property / PropertySignature whose
+// wrapped child is function-flavoured returns empty from its own
+// emit and is filtered out here too.
+func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	parts := []string{"typeof " + v + " === 'object' && " + v + " !== null"}
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			// Static members don't appear on instances — never
+			// participate in isType validation.
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			// Method / MethodSignature / CallSignature directly on the
+			// shape (not wrapped in a PropertySignature) — mion's
+			// getJitChildren skips them; we match.
+			continue
+		}
+		childJit := ctx.CompileChild(child, CodeE)
+		if childJit.Code == "" {
+			continue
+		}
+		parts = append(parts, childJit.Code)
+	}
+	return JitCode{Code: "(" + joinAnd(parts) + ")", Type: CodeE}
+}
+
+// emitPropertyIsType handles KindProperty / KindPropertySignature.
+// Sets the child accessor on the current frame so the wrapped type's
+// pushStack adopts `v.<name>` (or `v["name"]` for unsafe names) as
+// its Vλl, then composes the optional guard if the property is
+// optional. Returns empty code when the wrapped child is function-
+// flavoured so the parent's AND chain drops the slot.
+func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		// mion: PropertySignature.getJitChild returns undefined when
+		// member.skipJit() is true (function kinds skipJit). Empty code
+		// is the parent's signal to drop this slot from the AND chain.
+		return JitCode{Code: "", Type: CodeE}
+	}
+	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if rt.Optional {
+		return JitCode{
+			Code: "(" + accessor + " === undefined || " + childJit.Code + ")",
+			Type: CodeE,
+		}
+	}
+	return childJit
+}
+
+// emitIndexSignatureIsType handles KindIndexSignature. Mirrors mion's
+// IndexSignatureRunType.emitIsType (indexProperty.ts) without the
+// regex key check (template literal index keys land with the template-
+// literal kind port) and without the skip-named-props code (that
+// kicks in when an interface mixes named props + an index signature,
+// also pending follow-up).
+func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	keyVar := ctx.NextLocalVar("k")
+	ctx.SetChildAccessor(v + "[" + keyVar + "]")
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	var body strings.Builder
+	body.WriteString("for (const ")
+	body.WriteString(keyVar)
+	body.WriteString(" in ")
+	body.WriteString(v)
+	body.WriteString(") { if (!(")
+	body.WriteString(childJit.Code)
+	body.WriteString(")) return false; } return true")
+	return JitCode{Code: body.String(), Type: CodeRB}
+}
+
+// joinAnd composes parts into a JS `a && b && c` chain, filtering
+// empty entries the same way mion's `.filter(Boolean).join(' && ')`
+// pattern does.
+func joinAnd(parts []string) string {
+	out := parts[:0]
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return strings.Join(out, " && ")
+}
+
+// isFunctionLikeKind reports whether kind would emit a function-shape
+// check (or be skipped entirely as a property's wrapped child). Used
+// in two places: object-emit to drop method-shaped Children directly,
+// and property-emit to skip when the wrapped value is function-typed.
+func isFunctionLikeKind(kind protocol.ReflectionKind) bool {
+	switch kind {
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		return true
+	}
+	return false
+}
+
+// propertyAccessor builds the JS subscript expression for `parent.name`
+// (safe identifier names) or `parent["name"]` (anything else). Mirrors
+// mion's RunType `useArrayAccessor` / `getChildVarName` split applied
+// to property names — protocol.IsSafeName captures the safe-name bit
+// at resolver time so the emit doesn't repeat the regex.
+func propertyAccessor(parent, name string, safe bool) string {
+	if safe && name != "" {
+		return parent + "." + name
+	}
+	return parent + "[" + quoteJS(name) + "]"
 }
 
 // hasFlag is a small membership helper for RunType.Flags. Inlined
@@ -304,19 +523,25 @@ func hasFlag(flags []string, target string) bool {
 // the jitUtils singleton. Mirrors mion's BaseFnCompiler.callDependency
 // (jitFnCompiler.ts:326): cross-function calls go through
 // `<hash>.fn(args)`, self-recursive calls drop the `.fn` indirection
-// and emit `<hash>(args)` directly (mion's `isSelf` branch).
+// and call the inner function declaration directly (mion's `isSelf`
+// branch — the inner function name IS the call target since the body
+// is the enclosing closure).
 //
 // The context-item line is the canonical mion shape:
 //
 //	const <hash> = utl.getJIT('<hash>')
 //
 // — registered once per hash thanks to the ordered-items set; sibling
-// arrays in the same parent body see the same `const` declaration.
+// children in the same parent body see the same `const` declaration.
 func (IsTypeEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	args := ctx.Vλl
 	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
 	if isSelf {
-		return childID + "(" + args + ")"
+		// Self-recursion bottoms out by calling the inner function
+		// declaration directly (its name is in scope inside its own
+		// body). mion uses the full `isType_<hash>` identifier in its
+		// callDependency; ours matches via walker.FnName.
+		return ctx.walker.FnName + "(" + args + ")"
 	}
 	if !ctx.HasContextItem(childID) {
 		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
