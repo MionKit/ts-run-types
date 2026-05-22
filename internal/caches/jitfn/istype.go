@@ -249,7 +249,12 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 			return emitSetIsType(rt, ctx, v)
 		}
 		if rt.SubKind != protocol.SubKindNone {
-			panic(fmt.Sprintf("jitfn: isType emitter not implemented for KindClass subKind %d", rt.SubKind))
+			// Unsupported subkind (NonSerializable, etc.). Return the
+			// CodeNS sentinel so the walker latches IsUnsupported and
+			// the renderer skips this entry's factory. Mirrors mion's
+			// "no validator available" via a silent skip instead of a
+			// hard panic at render time.
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		// Plain user class — fall through to the shared object emit.
 		return emitObjectIsType(rt, ctx, v)
@@ -337,6 +342,11 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// (none today, but cheap to keep correct) start from the
 		// parent's Vλl rather than the now-stale subscript.
 		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			// Element type can't be validated → array can't be
+			// validated → propagate upward.
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if childJit.Code == "" {
 			if noIsArrayCheck {
 				return JitCode{Code: "", Type: CodeE}
@@ -439,7 +449,13 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// built once per factory rather than per call.
 		return emitTemplateLiteralIsType(rt, ctx, v)
 	}
-	panic(fmt.Sprintf("jitfn: isType emitter not implemented for kind %d (TODO)", rt.Kind))
+	// Unsupported kind. Return the CodeNS sentinel — the walker
+	// latches IsUnsupported and the renderer skips this entry's
+	// factory. Replaces the old hard panic: composite parents that
+	// descend into this kind (Array.Child, Object.Children, etc.)
+	// see CodeNS and propagate it up, so the whole top-level entry
+	// gets silently skipped instead of crashing the renderer.
+	return JitCode{Code: "", Type: CodeNS}
 }
 
 // emitTupleIsType handles KindTuple. Body shape (CodeRB):
@@ -489,6 +505,12 @@ func emitTupleIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 			expectedType = CodeRB
 		}
 		childJit := ctx.CompileChild(child, expectedType)
+		if childJit.Type == CodeNS {
+			// Unsupported member — the whole tuple is unvalidatable.
+			// Walker has already latched IsUnsupported via compileNode;
+			// propagating here keeps the parent's chain consistent.
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if childJit.Code == "" {
 			continue
 		}
@@ -586,6 +608,9 @@ func emitTupleMemberIsType(rt *protocol.RunType, ctx *EmitContext, v string) Jit
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
 		childJit := ctx.CompileChild(rt.Child, CodeE)
 		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if childJit.Code == "" {
 			// Non-validatable element type — accept any length without
 			// per-element checks (mirrors mion's empty-emit behavior).
@@ -615,6 +640,9 @@ func emitTupleMemberIsType(rt *protocol.RunType, ctx *EmitContext, v string) Jit
 	ctx.SetChildAccessor(accessor)
 	childJit := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeE}
 	}
@@ -657,6 +685,13 @@ func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeE)
+		if childJit.Type == CodeNS {
+			// Any unvalidatable union member fails the whole union —
+			// there's no "drop union member" path that preserves the
+			// union's exhaustiveness contract. Mion's stance is the
+			// same.
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if childJit.Code == "" {
 			continue
 		}
@@ -735,6 +770,9 @@ func emitMapIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 		ctx.SetChildAccessor(keyVar)
 		keyJit := ctx.CompileChild(keyType, CodeE)
 		ctx.SetChildAccessor("")
+		if keyJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if keyJit.Code != "" {
 			resVar := ctx.NextLocalVar("rk")
 			body.WriteString("const ")
@@ -756,6 +794,9 @@ func emitMapIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 		ctx.SetChildAccessor(valVar)
 		valJit := ctx.CompileChild(valueType, CodeE)
 		ctx.SetChildAccessor("")
+		if valJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if valJit.Code != "" {
 			resVar := ctx.NextLocalVar("rv")
 			body.WriteString("const ")
@@ -790,6 +831,9 @@ func emitSetIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 		ctx.SetChildAccessor(itemVar)
 		itemJit := ctx.CompileChild(itemType, CodeE)
 		ctx.SetChildAccessor("")
+		if itemJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if itemJit.Code != "" {
 			resVar := ctx.NextLocalVar("ri")
 			body.WriteString("const ")
@@ -1079,6 +1123,15 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeE)
+		if childJit.Type == CodeNS {
+			// A required (non-skippable) child can't be validated.
+			// The whole object is unvalidatable — return CodeNS and
+			// let the renderer skip this factory. Walker has already
+			// latched IsUnsupported, so the remaining CompileChild
+			// calls would short-circuit anyway; we exit early to skip
+			// the unused work of iterating siblings.
+			return JitCode{Code: "", Type: CodeNS}
+		}
 		if childJit.Code == "" {
 			continue
 		}
@@ -1157,6 +1210,11 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 	ctx.SetChildAccessor(accessor)
 	childJit := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		// Wrapped value type can't be validated → property can't be
+		// validated → propagate upward.
+		return JitCode{Code: "", Type: CodeNS}
+	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeE}
 	}
@@ -1211,6 +1269,11 @@ func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) 
 	ctx.SetChildAccessor(v + "[" + keyVar + "]")
 	childJit := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		// Value type can't be validated → index sig can't be
+		// validated → propagate upward.
+		return JitCode{Code: "", Type: CodeNS}
+	}
 	if childJit.Code == "" && keyRegexVar == "" {
 		return JitCode{Code: "", Type: CodeE}
 	}

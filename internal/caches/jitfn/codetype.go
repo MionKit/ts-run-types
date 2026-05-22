@@ -33,6 +33,23 @@ const (
 	// `return …;`. Must be wrapped in a self-invoking function before it
 	// can be embedded inside an expression.
 	CodeRB CodeType = "RB"
+	// CodeNS — sentinel: NOT actual JS code. Means "the kind reached
+	// here has no emit implementation; the walker / parent emits must
+	// propagate this upward so the renderer skips the factory entirely."
+	//
+	// Distinct from `Code == ""` carrying CodeE / CodeS / CodeRB, which
+	// means "skip this slot in the parent" (e.g. a function-typed
+	// property dropped from an object's AND chain — the parent's
+	// validator is still emittable, this single child just contributes
+	// nothing). CodeNS escalates: the parent IS unvalidatable too,
+	// and so on up to the root.
+	//
+	// The renderer's contract: when a top-level Walker.Compile()
+	// returns isUnsupported=true, no factory is emitted for that
+	// RunType — the runtime cache miss is caught by createIsType's
+	// hasRunType-but-no-jit fallback and degrades to `() => true`,
+	// which mirrors mion's "no validator available" stance.
+	CodeNS CodeType = "NS"
 )
 
 // JitCode is one emitter's output. `Code == ""` means "no code emitted"
