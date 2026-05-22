@@ -21,14 +21,29 @@ import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.
 
 async function assertIsType(c: ValidationCase): Promise<void> {
   if (!c.isType) throw new Error(`case ${c.title}: missing isType thunk`);
-  const isType = await c.isType();
   const {valid, invalid} = c.getSamples();
+
+  // Static form: createIsType<T>().
+  const isTypeStatic = await c.isType();
   valid.forEach((v, i) => {
-    expect(isType(v), `${c.title}: valid[${i}] should pass`).toBe(true);
+    expect(isTypeStatic(v), `${c.title} [static]: valid[${i}] should pass`).toBe(true);
   });
   invalid.forEach((v, i) => {
-    expect(isType(v), `${c.title}: invalid[${i}] should fail`).toBe(false);
+    expect(isTypeStatic(v), `${c.title} [static]: invalid[${i}] should fail`).toBe(false);
   });
+
+  // Reflect form: createIsType(value). Optional — cases that omit
+  // `isTypeReflect` (typically because of a documented divergence with
+  // the static form) skip the second pass.
+  if (c.isTypeReflect) {
+    const isTypeReflect = await c.isTypeReflect();
+    valid.forEach((v, i) => {
+      expect(isTypeReflect(v), `${c.title} [reflect]: valid[${i}] should pass`).toBe(true);
+    });
+    invalid.forEach((v, i) => {
+      expect(isTypeReflect(v), `${c.title} [reflect]: invalid[${i}] should fail`).toBe(false);
+    });
+  }
 }
 
 describe('isType / ATOMIC', () => {
