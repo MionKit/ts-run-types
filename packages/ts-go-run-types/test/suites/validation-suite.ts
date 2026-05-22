@@ -1017,10 +1017,78 @@ export const VALIDATION_SUITE = {
       }),
     },
   },
+  // TEMPLATE_LITERAL — ports `isType` test coverage from
+  // packages/run-types/src/nodes/collection/templateLiteral.spec.ts.
+  //
+  // Mion's emit compiles the template-literal type into a JS RegExp at
+  // build time and calls `regex.test(v)`. Our port needs both
+  // serializer-side projection (TypeFlagsTemplateLiteral; extract
+  // literal text segments + placeholder kinds) and emit-side regex
+  // composition. Today the serializer projects template literal types
+  // as `KindUnknown` with the literal text in `typeName`, so neither
+  // half exists yet — every case is `it.todo`. Sample payloads carry
+  // over verbatim from mion so activation lands without per-case
+  // research.
+  TEMPLATE_LITERAL: {
+    url_with_number_id: {
+      title: '`api/user/${number}`',
+      description: "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'",
+      getSamples: () => ({
+        valid: ['api/user/42', 'api/user/0'],
+        invalid: ['api/user/abc', '/api/user/42', 'api/user/', 42, null],
+      }),
+    },
+
+    multi_segment_url: {
+      title: '`/api/v${number}/user/${string}/posts/${number}`',
+      description: "mion templateLiteral.spec.ts 'multi-segment URL'",
+      getSamples: () => ({
+        valid: ['/api/v1/user/jane/posts/7'],
+        invalid: ['api/v1/user/jane/posts/7', '/api/v1/user/jane/posts/abc'],
+      }),
+    },
+
+    leading_string_placeholder: {
+      title: '`${string}/${number}`',
+      description: "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted.",
+      getSamples: () => ({
+        valid: ['/42', 'users/42'],
+        invalid: ['users', '/abc'],
+      }),
+    },
+
+    regex_special_chars: {
+      title: '`(${number})`',
+      description: "mion templateLiteral.spec.ts 'regex special chars in literal' — parens must be escaped in the compiled regex.",
+      getSamples: () => ({
+        valid: ['(42)'],
+        invalid: ['42', '(abc)'],
+      }),
+    },
+
+    template_literal_index_key: {
+      title: '{[key: `api/${string}`]: number}',
+      description: "mion templateLiteral.spec.ts 'as index signature key' — index signature whose key type is a template literal pattern. Needs template-literal projection + the index-emit regex-key check (mion's getKeyPatternVar / getSkipCode).",
+      getSamples: () => ({
+        valid: [{'api/users': 1}, {}],
+        invalid: [{foo: 1}, {'api/users': 'not number'}],
+      }),
+    },
+
+    template_literal_nested_in_object: {
+      title: '{url: `api/user/${number}`; method: string}',
+      description: "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value.",
+      getSamples: () => ({
+        valid: [{url: 'api/user/42', method: 'GET'}],
+        invalid: [{url: 'api/admin/42', method: 'GET'}, {url: 'api/user/42'}],
+      }),
+    },
+  },
 } as const satisfies {
   ATOMIC: Record<string, ValidationCase>;
   ARRAY: Record<string, ValidationCase>;
   OBJECT: Record<string, ValidationCase>;
   TUPLE: Record<string, ValidationCase>;
   UNION: Record<string, ValidationCase>;
+  TEMPLATE_LITERAL: Record<string, ValidationCase>;
 };
