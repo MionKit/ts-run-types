@@ -153,6 +153,10 @@ Dispatches two operations:
 
 `Pos` is the byte offset of the closing `)` of the call — the TS-side patcher inserts at that offset. `ParamIndex` is the 0-based slot the injected id goes into; `ArgsCount` is the number of arguments the user already wrote (so the patcher knows whether to pad with `undefined`).
 
+**Reflect-form annotation honoring.** When the value argument is a const-bound identifier with a written type annotation (`const v: T = literal; createIsType(v);`), the resolver reads the annotation directly via `Checker_getTypeFromTypeNode` instead of trusting TypeScript's control-flow-analysis apparent type for `v`. Without this, CFA narrows the binding to its initializer's narrowest type (e.g. `Color.Red` for an enum or `'hello'` for a union), and the reflect-form hash would diverge from the static `createIsType<T>()` form. The walk only fires in the reflect form (no explicit type arguments) and only for `Identifier` arguments — property accesses, function calls, and element accesses don't go through const-binding CFA and don't exhibit the trap.
+
+**Function-call argument warning.** The resolver flags `createIsType(getX())` (and any other reflect-form marker call with a `CallExpression` argument) as an anti-pattern: the function is invoked at runtime purely so the type checker can infer `T` from its return type, even though the value is discarded. The validator still works, but the recommended replacement is the static form using `ReturnType<typeof fn>`. The warning surfaces on the response's `markerDiagnostics` channel and the Vite plugin re-emits it through `this.warn` in canonical `tsc --pretty=false` format so VS Code's `$tsc` problem matcher picks it up.
+
 ### internal/protocol
 
 Pure struct definitions shared between the Go resolver and the TS plugin. Stdio protocol is newline-delimited JSON; one `Request` in, one `Response` out, EOF terminates. The daemon mode wraps a Unix-socket accept loop around the same handler, one client at a time.

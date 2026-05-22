@@ -22,7 +22,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if len(request.Files) == 0 {
 			return protocol.Response{Error: "scanFiles: files is required and must be non-empty"}
 		}
-		sites, err := resolver.dispatchScanFiles(request.Files)
+		sites, markerDiags, err := resolver.dispatchScanFiles(request.Files)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
@@ -46,6 +46,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			AddedIsType:        addedIsType,
 			AddedPureFns:       addedPureFns,
 			PureFnsDiagnostics: pureFnDiags,
+			MarkerDiagnostics:  markerDiags,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)

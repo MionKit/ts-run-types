@@ -283,6 +283,10 @@ export interface Response {
   // so VS Code's $tsc problem matcher picks them up; the build never
   // fails on these.
   pureFnsDiagnostics?: PureFnDiagnostic[];
+  // Marker-scanner warnings about anti-pattern call shapes (currently
+  // only "marker/function-call-arg"). Same surface as
+  // `pureFnsDiagnostics` — the plugin re-emits each via `this.warn`.
+  markerDiagnostics?: MarkerDiagnostic[];
   error?: string;
 }
 
@@ -303,6 +307,16 @@ export interface PureFnDiagSite {
   startCol: number;
   endLine: number;
   endCol: number;
+}
+
+// MarkerDiagnostic mirrors the Go-side protocol.MarkerDiagnostic shape.
+// Issued by the marker scanner for anti-pattern call shapes — currently
+// only the function-call-argument-in-reflect-form warning.
+export interface MarkerDiagnostic {
+  code: string;
+  category: 'warning' | string;
+  message: string;
+  site: PureFnDiagSite;
 }
 
 export interface PureFnRelated extends PureFnDiagSite {
