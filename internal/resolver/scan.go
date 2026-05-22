@@ -159,19 +159,24 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 // when a regex literal is reachable; (_, _, false) otherwise — in which case
 // the caller falls through to standard type-based resolution.
 //
-// Dispatch rule (now signature-shape-agnostic, since marker functions
-// can have user-options slots between the value/type and the id):
+// Dispatch rule (signature-shape-agnostic — marker functions can have
+// user-options slots between the value and the id):
 //   - If TypeArguments has nodes → static form. Harvest from the first
 //     type argument. Works for any signature whose user supplied <T>
 //     explicitly, regardless of how many value args came before the id.
-//   - Else if a reflect-form pattern applies (the value at the slot the
-//     id occupies came from the user, paramIndex==argsCount-1 layout
-//     for `reflectRuntypeId(value)`) → harvest from Arguments[paramIndex].
+//   - Else if at least one user arg was supplied → reflect form. The
+//     value for T lives at slot 0 by convention (the leading positional
+//     parameter — `_value` for `reflectRuntypeId`, `val` for
+//     `createIsType`). Harvest from Arguments[0]. If slot 0 is
+//     `undefined` (the static-with-options shorthand
+//     `createIsType<T>(undefined, {opts})`), the trace fails harmlessly
+//     and we fall through to type-based resolution.
 //
 // The trace itself: unwrap `as` / parenthesised expressions, then either
 // harvest a RegularExpressionLiteral directly, recurse through a TypeQuery,
 // or resolve an Identifier to its const variable declaration's initializer.
 func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCount int) (string, string, bool) {
+	_ = paramIndex // retained for symmetry with extractRunTypeOptions
 	callExpression := call.AsCallExpression()
 	if callExpression == nil {
 		return "", "", false
@@ -179,15 +184,12 @@ func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, 
 	var node *ast.Node
 	switch {
 	case callExpression.TypeArguments != nil && len(callExpression.TypeArguments.Nodes) > 0:
-		// Static form: user supplied <T> explicitly. Use that node
-		// regardless of how many value args were passed (those are
-		// user options, not T).
+		// Static form: user supplied <T> explicitly.
 		node = callExpression.TypeArguments.Nodes[0]
-	case argsCount > 0 && argsCount == paramIndex:
-		// Reflect form: T inferred from the value at slot
-		// (paramIndex-1) — the last user value before the id slot.
-		if callExpression.Arguments != nil && len(callExpression.Arguments.Nodes) >= argsCount {
-			node = callExpression.Arguments.Nodes[argsCount-1]
+	case argsCount > 0:
+		// Reflect form: T inferred from the value at slot 0.
+		if callExpression.Arguments != nil && len(callExpression.Arguments.Nodes) > 0 {
+			node = callExpression.Arguments.Nodes[0]
 		}
 	}
 	if node == nil {
@@ -205,38 +207,48 @@ type runTypeOptions struct {
 	NoIsArrayCheck bool
 }
 
-// extractRunTypeOptions reads literal options from the first argument
-// of a marker call when the signature has a `RunTypeOptions` slot
-// before the id slot. The argument must be an object literal — variable
-// references / spreads / function calls are ignored (return zero
-// options) because the resolver runs at build time and can't evaluate
-// arbitrary expressions. This matches mion's compile-time-baked
-// options model (baseRunTypes.ts:82-86 hashes options into the JIT
-// cache key).
+// extractRunTypeOptions reads literal options from the argument slot
+// immediately before the id slot, when the signature has a
+// `RunTypeOptions` parameter there. The argument must be an object
+// literal — variable references / spreads / function calls are ignored
+// (return zero options) because the resolver runs at build time and
+// can't evaluate arbitrary expressions. This matches mion's
+// compile-time-baked options model (baseRunTypes.ts:82-86 hashes
+// options into the JIT cache key).
 //
-// Layout convention: when the trailing param is `id?: RuntypeId<T>` at
-// `lastIndex`, slot 0 is reserved for options. We harvest from
-// args[0] specifically. Functions whose options live elsewhere would
-// need a different harvest rule — none exist today.
+// Layout convention: options always lives at slot (lastIndex - 1) — the
+// slot immediately before id. For `createIsType<T>(val?, options?, id?)`
+// that's slot 1; for any future function with `(options?, id?)` it
+// would be slot 0. Marker functions without an options param
+// (`getRuntypeId<T>(id?)`, `reflectRuntypeId(_value, id?)`) are
+// inherently safe — `reflectRuntypeId`'s slot 0 holds a value, which
+// is allowed to be an object literal but won't contain known option
+// keys, so the lookup returns zero opts.
 func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOptions {
 	var opts runTypeOptions
-	// Options live before the id slot. If lastIndex==0 the function
-	// has no options param at all (e.g. getRuntypeId<T>(id?)).
-	if lastIndex == 0 || argsCount == 0 {
+	// Options live at the slot immediately before the id slot. If
+	// lastIndex==0 the function has no slots before id at all
+	// (e.g. getRuntypeId<T>(id?)).
+	if lastIndex == 0 {
+		return opts
+	}
+	optionsIndex := lastIndex - 1
+	// User has to fill the options slot for us to harvest anything.
+	if argsCount <= optionsIndex {
 		return opts
 	}
 	callExpression := call.AsCallExpression()
 	if callExpression == nil || callExpression.Arguments == nil {
 		return opts
 	}
-	if len(callExpression.Arguments.Nodes) == 0 {
+	if len(callExpression.Arguments.Nodes) <= optionsIndex {
 		return opts
 	}
-	first := callExpression.Arguments.Nodes[0]
-	if first == nil || first.Kind != ast.KindObjectLiteralExpression {
+	candidate := callExpression.Arguments.Nodes[optionsIndex]
+	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
 		return opts
 	}
-	objectLiteral := first.AsObjectLiteralExpression()
+	objectLiteral := candidate.AsObjectLiteralExpression()
 	if objectLiteral == nil || objectLiteral.Properties == nil {
 		return opts
 	}
