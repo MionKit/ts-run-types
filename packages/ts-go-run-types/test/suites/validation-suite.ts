@@ -711,6 +711,34 @@ export const VALIDATION_SUITE = {
       }),
     },
 
+    index_signature_non_root: {
+      title: 'Obj2 { b: string; c: Obj1 } where Obj1 has [key: string]: string',
+      description: "mion indexProperty.spec.ts 'IndexType non root' — index signature attached to a nested (non-root) object property.",
+      isType: () => {
+        interface Obj1 {
+          a: string;
+          [key: string]: string;
+        }
+        interface Obj2 {
+          b: string;
+          c: Obj1;
+        }
+        return createIsType<Obj2>();
+      },
+      getSamples: () => ({
+        valid: [
+          {b: 'hello', c: {a: 'world', c: 'world'}},
+          {b: 'x', c: {a: 'y'}},
+        ],
+        invalid: [
+          {b: 'hello', c: {a: 'world', c: 123}},
+          {b: 'hello'},
+          {b: 'hello', c: 'not object'},
+          null,
+        ],
+      }),
+    },
+
     function_top_level: {
       title: '() => void',
       description: 'mion FunctionRunType.emitIsType — `typeof v === \'function\'`. Param-arity check is deferred (mion-level).',
@@ -857,6 +885,54 @@ export const VALIDATION_SUITE = {
           null,
         ],
       }),
+    },
+
+    call_signature_params_with_optional: {
+      title: 'Parameters<(a: number, b: boolean, c?: string) => Date>',
+      description: "mion function.spec.ts 'validate function parameters' — params tuple with a trailing optional. `Parameters<F>` resolves to `[number, boolean, string?]`; the optional slot accepts undefined OR a string.",
+      isType: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        return createIsType<Parameters<CallSig>>();
+      },
+      getSamples: () => ({
+        valid: [
+          [3, true, 'hello'],
+          [3, false],
+        ],
+        invalid: [
+          [3, 3, 3],                 // wrong type for b and c
+          [3, true, 'hello', 7],     // excess args
+          [3],                       // missing required boolean
+          'not array',
+          null,
+        ],
+      }),
+    },
+
+    call_signature_params_with_rest: {
+      title: 'Parameters<(a: number, b: boolean, ...c: Date[]) => Date>',
+      description: "mion function.spec.ts 'validate function with rest parameters' — params tuple ending in a rest segment. `Parameters<F>` resolves to `[number, boolean, ...Date[]]`; all trailing slots must satisfy Date.",
+      isType: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        return createIsType<Parameters<CallSig>>();
+      },
+      getSamples: () => {
+        const date1 = new Date();
+        const date2 = new Date();
+        return {
+          valid: [
+            [3, true, date1, date2],
+            [3, false],
+            [3, true],
+          ],
+          invalid: [
+            [3, 3, 3],                          // wrong type for b
+            [3, true, new Date(), 7],           // 7 is not a Date in rest slot
+            [3, true, new Date(), 7, true],     // multiple wrong rest entries
+            'not array',
+          ],
+        };
+      },
     },
 
     record_union_keys: {
@@ -1151,6 +1227,183 @@ export const VALIDATION_SUITE = {
         invalid: [{a: 'x'}, {b: 1}, null, {a: 1, b: 1}, {a: 'x', b: 'not number'}],
       }),
     },
+
+    // ---- additions migrated 1:1 from mion union.spec.ts ----
+
+    union_with_index_arm: {
+      title: '{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}',
+      description: "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
+      isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      getSamples: () => ({
+        valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
+        invalid: [
+          {a: 'hello'},                  // missing aa, no b, no c
+          {b: 'hello'},                  // wrong type for b
+          {a: 'hello', d: 'extra'},      // doesn't match any arm
+          {c: 1n, d: 'hello'},           // index value wrong type
+        ],
+      }),
+    },
+
+    union_same_prop_different_types: {
+      title: "{type:'a'; prop: boolean} | {type:'b'; prop: number} | {type:'c'; prop: string}",
+      description: "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
+      isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      getSamples: () => ({
+        valid: [{type: 'a', prop: true}, {type: 'b', prop: 123}, {type: 'c', prop: 'hello'}],
+        invalid: [{type: 'a', prop: 123}, {type: 'b', prop: 'hello'}, {type: 'c', prop: true}],
+      }),
+    },
+
+    union_mixed_arrays_and_objects: {
+      title: "string[] | number[] | boolean[] | {a; aa} | {b} | {c; aa:'string'}",
+      description: "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
+      isType: () =>
+        createIsType<
+          | string[]
+          | number[]
+          | boolean[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {c: bigint; aa: 'string'}
+        >(),
+      getSamples: () => ({
+        valid: [
+          ['a', 'b', 'c'],
+          [1, 2, 3],
+          [true, false],
+          {a: 'hello', aa: true},
+          {b: 123, c: 123n},  // matches {b: number}, extra c allowed
+        ],
+        invalid: [
+          [1, 'b'],                    // mixed-type array — no array arm matches
+          {},                          // empty object
+          {a: 'hello', d: 'world'},    // missing aa, no other match
+        ],
+      }),
+    },
+
+    union_merged_property: {
+      title: '{a: boolean} | {a: number}',
+      description: "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
+      isType: () => createIsType<{a: boolean} | {a: number}>(),
+      getSamples: () => ({
+        valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
+        invalid: [{a: 'hello'}, {}, null],
+      }),
+    },
+
+    union_mixed_with_index: {
+      title: "string[] | {a; aa} | {b} | {a; [k]: string} | {[k]: bigint; b}",
+      description: "mion union.spec.ts 'Union mixed with index property' — arrays + objects (some with index signatures) in the same union.",
+      isType: () =>
+        createIsType<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      getSamples: () => ({
+        valid: [
+          ['a', 'b', 'c'],
+          {a: 'hello', aa: true},
+          {b: 123, a: 'world'},         // matches {b: number}
+          {b: 1n, c: 2n},                // matches {[k]: bigint; b: bigint}
+          {a: 'hello', aa: true, j: 'extra'},
+        ],
+        invalid: [
+          [1, 'b'],
+          {},
+          {a: 'hello', b: 123n},
+        ],
+      }),
+    },
+
+    union_with_any_fallback: {
+      title: 'string | any',
+      description: "mion union.spec.ts 'support union with any type' — tsgo collapses `T | any` to `any`, so any value passes (the validator is effectively a no-op true).",
+      isType: () => createIsType<string | any>(),
+      getSamples: () => ({
+        valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
+        invalid: [],
+      }),
+    },
+
+    union_with_unknown_fallback: {
+      title: 'string | unknown',
+      description: "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
+      isType: () => createIsType<string | unknown>(),
+      getSamples: () => ({
+        valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
+        invalid: [],
+      }),
+    },
+
+    union_subset_small_first: {
+      title: 'SmallObj | LargeObj (subset relationship)',
+      description: "mion union.spec.ts 'sortUnreachableTypes' — `{a}` defined before `{a; b}`. Both arms must be reachable: matching SmallObj must not swallow LargeObj-shaped inputs (semantically the same since either arm matching returns true, but pins the regression).",
+      isType: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return createIsType<SmallObj | LargeObj>();
+      },
+      getSamples: () => ({
+        valid: [{a: 'hello'}, {a: 'hello', b: 123}],
+        invalid: [{b: 123}, {a: 123}, {}],
+      }),
+    },
+
+    union_subset_nested_levels: {
+      title: 'Tiny | Medium | Large (multi-level subset)',
+      description: "mion union.spec.ts 'multiple levels of subset relationships' — three arms, each a strict superset of the previous.",
+      isType: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return createIsType<Tiny | Medium | Large>();
+      },
+      getSamples: () => ({
+        valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
+        invalid: [{}, {y: 123}, {z: true}, {x: 1}],
+      }),
+    },
+
+    union_subset_mixed_related_unrelated: {
+      title: 'Base | Extended | Unrelated',
+      description: "mion union.spec.ts 'mixed related and unrelated types' — Base and Extended are subset-related, Unrelated is disjoint.",
+      isType: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return createIsType<Base | Extended | Unrelated>();
+      },
+      getSamples: () => ({
+        valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
+        invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}],
+      }),
+    },
   },
   // TEMPLATE_LITERAL — ports `isType` test coverage from
   // packages/run-types/src/nodes/collection/templateLiteral.spec.ts.
@@ -1303,6 +1556,143 @@ export const VALIDATION_SUITE = {
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [42, null, undefined, Promise.resolve('x')],
+      }),
+    },
+  },
+
+  // CIRCULAR — Self-referential and mutually-recursive type shapes
+  // ported 1:1 from mion's
+  // packages/run-types/src/nodes/collection/circularRefs.spec.ts.
+  //
+  // Other sections already carry circular cases that live naturally
+  // there:
+  //   - ARRAY.circular_array, ARRAY.circular_object_with_array
+  //   - OBJECT.circular_interface, OBJECT.circular_interface_on_array,
+  //     OBJECT.circular_interface_on_nested_object
+  //   - TUPLE.tuple_circular
+  //   - UNION.circular_union
+  // This section carries the additional circular variants that
+  // exercise the dependency-call layer through tuple-typed properties,
+  // index signatures, and deeply nested object paths.
+  CIRCULAR: {
+    object_full_mion_shape: {
+      title: 'Circular { n: number; s: string; c?: Circular; d?: Date }',
+      description: "mion circularRefs.spec.ts 'Circular object' — full mion fixture (number + string + self-ref + Date). Exercises the same self-recursive dependency call as OBJECT.circular_interface but pins the exact mion shape.",
+      isType: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        return createIsType<Circular>();
+      },
+      getSamples: () => ({
+        valid: [
+          {n: 1, s: 'hello', c: {n: 2, s: 'world'}},
+          {n: 2, s: 'world'},
+          {n: 3, s: 'foo', c: {n: 3, s: 'foo'}},
+        ],
+        invalid: [
+          {n: 1, s: 'hello', c: {n: 2, s: 123}},   // c.s wrong type
+          {n: 1, s: 'hello', c: {n: 2}},           // c.s missing
+          null,
+        ],
+      }),
+    },
+
+    array_of_union_with_self_ref: {
+      title: 'CuArray = (CuArray | Date | number | string)[]',
+      description: "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
+      isType: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createIsType<CuArray>();
+      },
+      getSamples: () => {
+        const date = new Date();
+        const cu1: any = [date, 123, 'hello', ['a', 'b', 'c']];
+        const cu2: any = [date, 123, 'hello', ['a', 2, 'c'], cu1];
+        const cu3: any = [];
+        return {
+          valid: [cu1, cu2, cu3],
+          invalid: [
+            [date, 123, 'hello', ['a', 2, 'c'], {a: 1, b: 2}], // {} not in union
+            ['hello', 123, [{a: 1, b: 2}]],
+            {},
+            null,
+          ],
+        };
+      },
+    },
+
+    object_with_tuple_prop: {
+      title: 'CircularTuple { tuple: [bigint, CircularTuple?] }',
+      description: "mion circularRefs.spec.ts 'Circular object with tuple' — cycle closed via a tuple-typed property. Same mechanism as TUPLE.tuple_circular but the recursion goes through an object → tuple boundary.",
+      isType: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        return createIsType<CircularTuple>();
+      },
+      getSamples: () => ({
+        valid: [
+          {tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]},
+          {tuple: [1n, {tuple: [2n]}]},
+          {tuple: [1n]},
+        ],
+        invalid: [
+          {tuple: [1n, {tuple: 'hello'}]},   // inner `tuple` not an array
+          {tuple: [1n, {tuple: []}]},         // empty inner tuple — missing required bigint
+          [],
+          null,
+        ],
+      }),
+    },
+
+    object_with_index_prop: {
+      title: 'CircularIndex { index: { [key: string]: CircularIndex } }',
+      description: "mion circularRefs.spec.ts 'Circular Object with index property' — cycle closed via an index-signature value type. Exercises the index-signature for-in loop calling back into the same validator.",
+      isType: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createIsType<CircularIndex>();
+      },
+      getSamples: () => ({
+        valid: [
+          {index: {a: {index: {b: {index: {}}}}}},
+          {index: {a: {index: {}}}},
+          {index: {}},
+        ],
+        invalid: [
+          {index: {a: 1234}},                  // value not an object
+          {index: {a: {index: 'hello'}}},      // nested `index` wrong type
+          new Date(),                           // missing `index` property
+        ],
+      }),
+    },
+
+    object_deeply_nested: {
+      title: 'CircularDeep { deep1: { deep2: { deep3: { deep4?: CircularDeep } } } }',
+      description: "mion circularRefs.spec.ts 'Circular Object with deep nested properties' — cycle closed via four levels of nested object properties. Stresses the dependency-call layer when the self-ref is buried deep in an anonymous-shape chain.",
+      isType: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createIsType<CircularDeep>();
+      },
+      getSamples: () => ({
+        valid: [
+          {deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}},
+          {deep1: {deep2: {deep3: {}}}},
+        ],
+        invalid: [
+          {deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: 1234}}}}}}},
+          {deep1: {}},
+          {deep1: {deep2: {deep3: 12435}}},
+          {deep1: {deep2: {deep3: {deep4: 'hello'}}}},
+          'hello',
+        ],
       }),
     },
   },
@@ -1553,5 +1943,6 @@ export const VALIDATION_SUITE = {
   UNION: Record<string, ValidationCase>;
   TEMPLATE_LITERAL: Record<string, ValidationCase>;
   NATIVE: Record<string, ValidationCase>;
+  CIRCULAR: Record<string, ValidationCase>;
   UTILITY: Record<string, ValidationCase>;
 };
