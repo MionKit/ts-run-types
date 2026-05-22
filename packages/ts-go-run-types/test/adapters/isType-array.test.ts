@@ -46,12 +46,11 @@ describe('isType / ARRAY', () => {
   it('string[][][]', () => assertIsType(VALIDATION_SUITE.ARRAY.string_array_3d));
   it('string[] (noIsArrayCheck)', () => assertIsType(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
 
-  // Deferred cases — element kind not yet implemented. Sample
-  // payloads live in validation-suite.ts so the future adapter
-  // (or activation here) gets them for free.
-  it.todo('{a: string}[] — needs interface support');
-  it.todo('(string | number)[] — needs union support');
-  it.todo('[string, number][] — needs tuple support');
+  it('{a: string}[]', () => assertIsType(VALIDATION_SUITE.ARRAY.object_array));
+  it('(string | number)[]', () => assertIsType(VALIDATION_SUITE.ARRAY.union_array));
+  it('[string, number][]', () => assertIsType(VALIDATION_SUITE.ARRAY.tuple_array));
+
+  // Deferred — features that haven't landed yet.
   it.todo('CircularArray — needs circular-type detection');
   it.todo('ObjectType (Block 13) — needs object + recursive-type support');
   it.todo('symbol[] — non-serializable, build-time error');
