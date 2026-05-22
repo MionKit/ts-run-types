@@ -23,7 +23,13 @@ export interface RunTypeOptions {
    *  check — `literal 'a'` accepts any string, `literal 2` accepts any
    *  finite number, etc. Mirrors mion's literal.ts:56-59 behavior. **/
   noLiterals?: boolean;
-  /** Reserved — see mion's RunTypeOptions. Not yet plumbed. **/
+  /** When true and the type is an array, the compiled validator skips
+   *  the leading `Array.isArray(v)` guard and iterates `v` directly —
+   *  trades safety for speed when the caller has already verified the
+   *  input is array-like. Mirrors mion's array.ts:emitIsType behavior
+   *  under `comp.opts.noIsArrayCheck`. Folded into the validator's hash
+   *  at build time so `string[]` and `string[] + {noIsArrayCheck:true}`
+   *  resolve to distinct validators. **/
   noIsArrayCheck?: boolean;
   /** Reserved — see mion's RunTypeOptions. Not yet plumbed. **/
   strictTypes?: boolean;

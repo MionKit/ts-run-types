@@ -24,13 +24,7 @@ type InlineContext struct {
 	// Resolved once at Walker construction; threaded through here so
 	// the predicate doesn't hit os.Getenv on every dispatch.
 	DebugInline bool
-	// TODO: IsCircular bool — when the first collection kind lands
-	// and serializer surfaces self-reference detection on RunType,
-	// thread it here so the predicate can short-circuit to a
-	// dependency call (matches mion's `this.isCircular` branch in
-	// baseRunTypes.ts:54). Stay out of scope until the serializer
-	// actually exposes the flag.
-	walker *Walker
+	walker      *Walker
 }
 
 // StackDepth reports how deep the walker currently is in the
@@ -70,20 +64,23 @@ func (ctx *InlineContext) CurrentVλl() string {
 // Mion went all-shared and that's worked. Per-fn variation is a
 // capability we want to RESERVE, not exercise speculatively.
 //
-// Decision matrix (in order):
-//  1. DebugInline → true (env override, mion's getENV branch).
-//  2. KindArray → false (mion comment: "all array are self invoked
+// Decision matrix (in order) — matches mion's BaseRunType.isJitInlined
+// (baseRunTypes.ts:52-61) byte-for-byte:
+//  1. IsCircular → false. Circular types must self-invoke, so the
+//     parent always issues a dependency call instead of inlining.
+//  2. DebugInline → true (env override, mion's getENV branch).
+//  3. KindArray → false (mion comment: "all array are self invoked
 //     for isType and are usually repeated type like string[] or
 //     number[] so worth deduplicating").
-//  3. Named Collection → false (mion comment: "collection with name
+//  4. Named Collection → false (mion comment: "collection with name
 //     might be used in different places so worth deduplicating").
-//  4. Otherwise → true.
-//
-// TODO: when InlineContext exposes IsCircular, prepend a
-// `if ctx.IsCircular { return false }` branch above the env check.
+//  5. Otherwise → true.
 func DefaultIsJitInlined(ctx *InlineContext) bool {
 	if ctx == nil || ctx.RT == nil {
 		return true
+	}
+	if ctx.RT.IsCircular {
+		return false
 	}
 	if ctx.DebugInline {
 		return true

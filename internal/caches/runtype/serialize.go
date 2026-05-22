@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -205,6 +206,45 @@ func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 	cache.nodes[id] = &protocol.RunType{ID: id, Kind: kind}
 	cache.insertOrder = append(cache.insertOrder, id)
 	return id
+}
+
+// SerializeArrayWithFlags registers a synthetic array RunType that
+// wraps an existing array's element child with one or more option
+// flags (e.g. "noIsArrayCheck"). Returns the new id and true when the
+// underlying id resolved to a KindArray entry; (_, false) when the
+// id is missing or points at a non-array node (callers fall back to
+// the original id).
+//
+// Used by the resolver's noIsArrayCheck path so an options-bearing
+// `string[] + {noIsArrayCheck: true}` hashes to a distinct id from
+// plain `string[]` even though the underlying TypeScript type is
+// identical. Mirrors mion's options-aware JIT hash at
+// baseRunTypes.ts:82-86 (`createUniqueHash(typeId + options)`),
+// but expressed at the resolver level so the rest of the pipeline
+// treats the wrapped runtype as a normal cache entry.
+func (cache *Cache) SerializeArrayWithFlags(baseID string, flags []string) (string, bool) {
+	base := cache.nodes[baseID]
+	if base == nil || base.Kind != protocol.KindArray {
+		return "", false
+	}
+	structural := strconv.Itoa(int(protocol.KindArray)) + ":opts:" + strings.Join(flags, ",") + ":" + baseID
+	if id, ok := cache.byStructural[structural]; ok {
+		return id, true
+	}
+	id, err := cache.dict.Unique(structural, cache.opts.hashLength())
+	if err != nil {
+		id = "x_ar_" + hashid.QuickHash(structural, cache.opts.hashLength(), "")
+	}
+	cache.byStructural[structural] = id
+	copyFlags := append([]string(nil), flags...)
+	cache.nodes[id] = &protocol.RunType{
+		ID:    id,
+		Kind:  protocol.KindArray,
+		Child: base.Child,
+		Flags: copyFlags,
+	}
+	cache.insertOrder = append(cache.insertOrder, id)
+	return id, true
 }
 
 // SerializeRegexLiteral registers a synthetic regex-literal RunType entry and
