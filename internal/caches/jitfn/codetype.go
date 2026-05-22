@@ -3,10 +3,14 @@
 // time and shipped as static JS source instead of being assembled at
 // runtime via `new Function`.
 //
-// v1 implements only `isType` for `KindString`. The Compiler scaffolding
-// (stack tracking, vλl accessor mutation, context items, dependency
-// hooks) mirrors mion's BaseFnCompiler 1:1 so adding the remaining kinds
-// is a matter of filling in the dispatch switch in dispatch_istype.go.
+// Currently implements `isType` for every mion node category (atomic,
+// array, tuple, union, intersection-collapsed, object literal, class,
+// property, method, index signature, call signature, function, template
+// literal, Map/Set/Promise/Awaited). The walker + dispatcher in
+// walker.go and the per-fn switch in istype.go are the two seams; the
+// switch dispatches one kind at a time, falling through to a
+// `CodeNS` sentinel for any kind without an arm so the renderer can
+// silently skip that entry's factory (see CodeNS below).
 //
 // Mirrors:
 //   - mion/packages/run-types/src/lib/jitFnCompiler.ts (BaseFnCompiler)
@@ -18,9 +22,11 @@ package jitfn
 
 // CodeType matches mion's CodeTypes enum
 // (run-types/src/constants.functions.ts:11). A JitCode snippet must
-// declare which of the three shapes its source text takes so the parent
-// frame knows whether it can be interpolated as-is, wrapped in a
-// self-invoking function, or terminated with a fullstop.
+// declare which of the four shapes its source text takes so the
+// parent frame knows whether it can be interpolated as-is, wrapped
+// in a self-invoking function, terminated with a fullstop, or
+// (for CodeNS) treated as a signal that the whole top-level entry
+// should be skipped.
 type CodeType string
 
 const (

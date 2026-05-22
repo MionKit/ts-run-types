@@ -104,10 +104,14 @@ type RunType struct {
 	// (e.g. `type CA = CA[]`). Mirrors mion's `isCircular` flag on
 	// BaseRunType (run-types/src/lib/baseRunTypes.ts) — the JIT compiler
 	// uses it to force a self-recursive dependency call instead of
-	// inlining the body. Today the serializer never sets it (circular
-	// type detection lands with the first composite kind that needs it);
-	// the field exists so the dependency-call layer can honor mion's
-	// `isJitInlined` ordered checks faithfully.
+	// inlining the body. The serializer does NOT yet auto-set this
+	// field; circular types still work end-to-end because every
+	// composite kind (Array / Object / Class / Tuple / Union) is
+	// non-inlined by default in jitfn/inlining.go — see the docs
+	// there for the tradeoff (slightly less optimal: anonymous
+	// non-circular composites get their own factory too). When a
+	// proper circular-detection pass lands the inlining predicate
+	// can flip those compounds back to "inline unless circular".
 	IsCircular bool `json:"isCircular,omitempty"`
 
 	// TypeLiteral

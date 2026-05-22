@@ -72,17 +72,21 @@ func (ctx *InlineContext) CurrentVλl() string {
 //  3. KindArray → false (mion comment: "all array are self invoked
 //     for isType and are usually repeated type like string[] or
 //     number[] so worth deduplicating").
-//  4. KindObjectLiteral / KindClass → false. mion only deopts named
-//     collections (typeName + family C); our serializer doesn't yet
-//     populate TypeName on `interface Foo {}` declarations, so a
-//     circular interface inlined recursively at depth>1 would loop
-//     forever. Treating every Object/Class as non-inlined matches
-//     KindArray's stance and is correct (slightly less optimal —
-//     anonymous objects get their own factory) pending the structural
-//     circular-detection pass tracked in docs/ROADMAP.md.
+//  4. KindObjectLiteral / KindClass / KindTuple / KindUnion → false.
+//     mion only deopts named collections (typeName + family C); we
+//     can't rely on that alone because (a) our serializer doesn't
+//     populate TypeName on `interface Foo {}` declarations and
+//     (b) the IsCircular flag on protocol.RunType isn't auto-set
+//     yet. Treating every compound as non-inlined matches KindArray's
+//     stance and is correct for every case in the validation suite
+//     (anonymous non-circular composites get their own factory — a
+//     small constant-factor cost, no correctness impact). When a
+//     proper circular-detection pass in the serializer lands and
+//     sets IsCircular, these arms can flip back to "inline unless
+//     circular or named" without code-shape changes.
 //     The atomic-Date arm (KindClass+SubKindDate) is handled inside
-//     istype.go and never reaches here as a child to inline (it emits
-//     a single instanceof expression).
+//     istype.go and never reaches here as a child to inline (it
+//     emits a single instanceof expression).
 //  5. Named Collection → false (mion comment: "collection with name
 //     might be used in different places so worth deduplicating").
 //  6. Otherwise → true.
