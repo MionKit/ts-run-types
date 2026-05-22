@@ -40,8 +40,16 @@ import {createIsType, type IsTypeFn} from '@mionjs/ts-go-run-types';
 export interface ValidationCase {
   title: string;
   description?: string;
-  /** Plugin-rewritten thunk returning the isType validator. */
+  /** Plugin-rewritten thunk returning the isType validator — STATIC
+   *  form. Caller supplies `T` explicitly via the type argument. */
   isType?: () => Promise<IsTypeFn>;
+  /** Plugin-rewritten thunk returning the isType validator — REFLECT
+   *  form. Calls `createIsType(value)` with a runtime value annotated
+   *  to type T; the type checker infers T from the annotation, the
+   *  value itself is discarded at runtime. Paired with `isType` per
+   *  the CLAUDE.md "Marker test coverage rule" to verify both call
+   *  shapes produce the same validator end-to-end. **/
+  isTypeReflect?: () => Promise<IsTypeFn>;
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
@@ -66,6 +74,10 @@ export const VALIDATION_SUITE = {
     any: {
       title: 'any',
       isType: () => createIsType<any>(),
+      isTypeReflect: () => {
+        const v: any = null;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello'],
         invalid: [],
@@ -76,6 +88,10 @@ export const VALIDATION_SUITE = {
       title: 'bigint',
       description: 'Infinity and -Infinity rejected (typeof gate)',
       isType: () => createIsType<bigint>(),
+      isTypeReflect: () => {
+        const v: bigint = 1n;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [1n, BigInt(42)],
         invalid: [42, Infinity, -Infinity, 'hello'],
@@ -85,6 +101,10 @@ export const VALIDATION_SUITE = {
     boolean: {
       title: 'boolean',
       isType: () => createIsType<boolean>(),
+      isTypeReflect: () => {
+        const v: boolean = true;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [true, false],
         invalid: [42, 'hello'],
@@ -94,6 +114,10 @@ export const VALIDATION_SUITE = {
     date: {
       title: 'Date',
       isType: () => createIsType<Date>(),
+      isTypeReflect: () => {
+        const v: Date = new Date();
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [new Date()],
         invalid: ['hello'],
@@ -104,6 +128,10 @@ export const VALIDATION_SUITE = {
       title: 'enum (mixed values)',
       description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
       isType: () => createIsType<Color>(),
+      isTypeReflect: () => {
+        const v: Color = Color.Red;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [Color.Red, Color.Green, Color.Blue, 0, 'green', 2],
         invalid: ['Red', 'Green', 'Blue'],
@@ -113,18 +141,30 @@ export const VALIDATION_SUITE = {
     literal_2: {
       title: 'literal 2',
       isType: () => createIsType<2>(),
+      isTypeReflect: () => {
+        const v: 2 = 2;
+        return createIsType(v);
+      },
       getSamples: () => ({valid: [2], invalid: [4]}),
     },
 
     literal_a: {
       title: 'literal "a"',
       isType: () => createIsType<'a'>(),
+      isTypeReflect: () => {
+        const v: 'a' = 'a';
+        return createIsType(v);
+      },
       getSamples: () => ({valid: ['a'], invalid: ['b']}),
     },
 
     literal_regexp_simple: {
       title: 'literal /abc/i',
       isType: () => createIsType<typeof reg>(),
+      isTypeReflect: () => {
+        const v: typeof reg = reg;
+        return createIsType(v);
+      },
       getSamples: () => ({valid: [/abc/i], invalid: [/asdf/i]}),
     },
 
@@ -132,18 +172,30 @@ export const VALIDATION_SUITE = {
       title: 'literal /[\'"]\\/ \\\\ \\//',
       description: 'regexp with characters that can be problematic in jit code if not correctly scaped',
       isType: () => createIsType<typeof reg2>(),
+      isTypeReflect: () => {
+        const v: typeof reg2 = reg2;
+        return createIsType(v);
+      },
       getSamples: () => ({valid: [/['"]\/ \\ \//], invalid: [true]}),
     },
 
     literal_true: {
       title: 'literal true',
       isType: () => createIsType<true>(),
+      isTypeReflect: () => {
+        const v: true = true;
+        return createIsType(v);
+      },
       getSamples: () => ({valid: [true], invalid: [false]}),
     },
 
     literal_1n: {
       title: 'literal 1n',
       isType: () => createIsType<1n>(),
+      isTypeReflect: () => {
+        const v: 1n = 1n;
+        return createIsType(v);
+      },
       getSamples: () => ({valid: [1n], invalid: [2n]}),
     },
 
@@ -151,12 +203,20 @@ export const VALIDATION_SUITE = {
       title: 'literal Symbol("hello")',
       description: 'symbol identity via description match (mion semantics)',
       isType: () => createIsType<typeof sym>(),
+      isTypeReflect: () => {
+        const v: typeof sym = sym;
+        return createIsType(v);
+      },
       getSamples: () => ({valid: [sym], invalid: [Symbol('nice')]}),
     },
 
     never: {
       title: 'never',
       isType: () => createIsType<never>(),
+      isTypeReflect: () => {
+        const v: never = null as never;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [],
         invalid: [true, false, 1, '3', {}, 'hello'],
@@ -167,6 +227,10 @@ export const VALIDATION_SUITE = {
       title: 'null',
       description: 'null and undefined are distinct',
       isType: () => createIsType<null>(),
+      isTypeReflect: () => {
+        const v: null = null;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [null],
         invalid: [undefined, 42, 'hello'],
@@ -177,6 +241,10 @@ export const VALIDATION_SUITE = {
       title: 'number',
       description: 'Infinity and -Infinity rejected (Number.isFinite)',
       isType: () => createIsType<number>(),
+      isTypeReflect: () => {
+        const v: number = 42;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [42],
         invalid: [Infinity, -Infinity, 'hello'],
@@ -187,6 +255,10 @@ export const VALIDATION_SUITE = {
       title: 'object',
       description: 'null rejected despite JS typeof null === "object"',
       isType: () => createIsType<object>(),
+      isTypeReflect: () => {
+        const v: object = {};
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 42, b: 'hello'}],
         invalid: [null, undefined, 42, 'hello'],
@@ -196,6 +268,10 @@ export const VALIDATION_SUITE = {
     regexp: {
       title: 'RegExp',
       isType: () => createIsType<RegExp>(),
+      isTypeReflect: () => {
+        const v: RegExp = /abc/;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [/abc/, new RegExp('abc')],
         invalid: [undefined, 42, 'hello'],
@@ -205,6 +281,10 @@ export const VALIDATION_SUITE = {
     string: {
       title: 'string',
       isType: () => createIsType<string>(),
+      isTypeReflect: () => {
+        const v: string = 'hello';
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: ['hello'],
         invalid: [2],
@@ -214,6 +294,10 @@ export const VALIDATION_SUITE = {
     symbol: {
       title: 'symbol',
       isType: () => createIsType<symbol>(),
+      isTypeReflect: () => {
+        const v: symbol = Symbol();
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [Symbol(), Symbol('foo')],
         invalid: [undefined, 42, 'hello'],
@@ -224,6 +308,10 @@ export const VALIDATION_SUITE = {
       title: 'undefined',
       description: 'undefined and null are distinct',
       isType: () => createIsType<undefined>(),
+      isTypeReflect: () => {
+        const v: undefined = undefined;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [undefined],
         invalid: [null, 42, 'hello'],
@@ -234,6 +322,10 @@ export const VALIDATION_SUITE = {
       title: 'void',
       description: 'void accepts undefined (and bare function return); rejects null',
       isType: () => createIsType<void>(),
+      isTypeReflect: () => {
+        const v: void = undefined;
+        return createIsType(v);
+      },
       getSamples: () => ({
         valid: [undefined, vd()],
         invalid: [null, 42, 'hello'],
@@ -251,42 +343,66 @@ export const VALIDATION_SUITE = {
     literal_2_noLiterals: {
       title: 'literal 2 (noLiterals)',
       description: 'degrades to number — Number.isFinite check',
-      isType: () => createIsType<2>({noLiterals: true}),
+      isType: () => createIsType<2>(undefined, {noLiterals: true}),
+      isTypeReflect: () => {
+        const v: 2 = 2;
+        return createIsType(v, {noLiterals: true});
+      },
       getSamples: () => ({valid: [4], invalid: ['4']}),
     },
 
     literal_a_noLiterals: {
       title: 'literal "a" (noLiterals)',
       description: 'degrades to string — typeof check',
-      isType: () => createIsType<'a'>({noLiterals: true}),
+      isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
+      isTypeReflect: () => {
+        const v: 'a' = 'a';
+        return createIsType(v, {noLiterals: true});
+      },
       getSamples: () => ({valid: ['c'], invalid: [1]}),
     },
 
     literal_regexp_noLiterals: {
       title: 'literal /abc/i (noLiterals)',
       description: 'degrades to RegExp — instanceof check',
-      isType: () => createIsType<typeof reg>({noLiterals: true}),
+      isType: () => createIsType<typeof reg>(undefined, {noLiterals: true}),
+      isTypeReflect: () => {
+        const v: typeof reg = reg;
+        return createIsType(v, {noLiterals: true});
+      },
       getSamples: () => ({valid: [/otherReg/], invalid: ['otherReg']}),
     },
 
     literal_true_noLiterals: {
       title: 'literal true (noLiterals)',
       description: 'degrades to boolean — typeof check',
-      isType: () => createIsType<true>({noLiterals: true}),
+      isType: () => createIsType<true>(undefined, {noLiterals: true}),
+      isTypeReflect: () => {
+        const v: true = true;
+        return createIsType(v, {noLiterals: true});
+      },
       getSamples: () => ({valid: [false], invalid: [1]}),
     },
 
     literal_1n_noLiterals: {
       title: 'literal 1n (noLiterals)',
       description: 'degrades to bigint — typeof check',
-      isType: () => createIsType<1n>({noLiterals: true}),
+      isType: () => createIsType<1n>(undefined, {noLiterals: true}),
+      isTypeReflect: () => {
+        const v: 1n = 1n;
+        return createIsType(v, {noLiterals: true});
+      },
       getSamples: () => ({valid: [3n], invalid: [3]}),
     },
 
     literal_symbol_noLiterals: {
       title: 'literal Symbol("hello") (noLiterals)',
       description: 'degrades to symbol — typeof check',
-      isType: () => createIsType<typeof sym>({noLiterals: true}),
+      isType: () => createIsType<typeof sym>(undefined, {noLiterals: true}),
+      isTypeReflect: () => {
+        const v: typeof sym = sym;
+        return createIsType(v, {noLiterals: true});
+      },
       getSamples: () => ({valid: [Symbol('world')], invalid: ['world']}),
     },
 
@@ -431,7 +547,7 @@ export const VALIDATION_SUITE = {
     string_array_noIsArrayCheck: {
       title: 'string[] (noIsArrayCheck)',
       description: 'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
-      isType: () => createIsType<string[]>({noIsArrayCheck: true}),
+      isType: () => createIsType<string[]>(undefined, {noIsArrayCheck: true}),
       getSamples: () => ({
         valid: [[], ['hello']],
         // Without the guard, non-array inputs may not be rejected by
