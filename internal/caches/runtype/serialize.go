@@ -525,6 +525,16 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 			node.Flags = append(node.Flags, "enumMember:"+symbol.Name)
 		}
 
+	case flags&checker.TypeFlagsTemplateLiteral != 0:
+		// Template literal type (`` `api/user/${number}` ``). Project
+		// the literal text segments + placeholder kinds onto Literal
+		// so the emit can compile to an anchored regex at JIT-build
+		// time. Mion stores the spans inline on the type — tsgo
+		// splits them into `texts` (one more than types) + `types`
+		// arrays; we serialize the same separation onto the wire.
+		node.Kind = protocol.KindTemplateLiteral
+		cache.projectTemplateLiteral(tsType, node)
+
 	case flags&checker.TypeFlagsUnion != 0:
 		node.Kind = protocol.KindUnion
 		for _, member := range tsType.Distributed() {
@@ -552,6 +562,103 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 	}
 
 	return node
+}
+
+// projectTemplateLiteral serializes a TS template literal type
+// (`` `prefix-${number}` ``) onto the Literal field. Mirrors mion's
+// approach: store the literal text segments + placeholder spans so
+// the JIT emit can build an anchored regex.
+//
+// Wire shape:
+//
+//	{
+//	  templateLiteral: {
+//	    texts: ["api/user/", ""],
+//	    placeholders: [{kind: 6}, ...]  // simplified TypeSpan
+//	  }
+//	}
+//
+// `texts` is always one element longer than `placeholders` per
+// tsgo's TemplateLiteralType definition. Each placeholder is a
+// minimal object — kind only for atomic spans, kind+literal for
+// literal-typed spans (the latter would be a `'a' | 'b'` union as a
+// span). v1 supports atomic placeholders (number / string / any /
+// infer / literal); other shapes panic so we hear about them.
+func (cache *Cache) projectTemplateLiteral(tsType *checker.Type, node *protocol.RunType) {
+	tplType := tsType.AsTemplateLiteralType()
+	if tplType == nil {
+		return
+	}
+	texts := tplType.Texts()
+	types := tplType.Types()
+	// Build as []any (not []map[string]any) so the type assertion
+	// on the read side — `inner["placeholders"].([]any)` — succeeds.
+	// Go's interface-slice assertion checks the slice's concrete
+	// type, not its element type, so the more specific
+	// `[]map[string]any` would silently fail to match `[]any`.
+	placeholders := make([]any, 0, len(types))
+	for _, spanType := range types {
+		placeholders = append(placeholders, templateSpanWireShape(cache, spanType))
+	}
+	node.Literal = map[string]any{
+		"templateLiteral": map[string]any{
+			"texts":        toAnySlice(texts),
+			"placeholders": placeholders,
+		},
+	}
+}
+
+// templateSpanWireShape converts a placeholder type to its wire
+// representation for the templateLiteral.placeholders array.
+// Supported spans match mion's spanToRegex: literal, number, string,
+// any, infer. Other kinds get a flag marker so the emit's default
+// pattern (`[\s\S]*`) still produces a working regex while the
+// missing-arm shows up clearly in the wire data.
+func templateSpanWireShape(cache *Cache, spanType *checker.Type) map[string]any {
+	if spanType == nil {
+		return map[string]any{"kind": int(protocol.KindAny)}
+	}
+	spanFlags := spanType.Flags()
+	switch {
+	case spanFlags&checker.TypeFlagsStringLiteral != 0:
+		return map[string]any{
+			"kind":    int(protocol.KindLiteral),
+			"literal": spanType.AsLiteralType().Value(),
+		}
+	case spanFlags&checker.TypeFlagsNumberLiteral != 0:
+		return map[string]any{
+			"kind":    int(protocol.KindLiteral),
+			"literal": parseNumberLiteral(cache.typeChecker.TypeToString(spanType)),
+		}
+	case spanFlags&checker.TypeFlagsBooleanLiteral != 0:
+		return map[string]any{
+			"kind":    int(protocol.KindLiteral),
+			"literal": cache.typeChecker.TypeToString(spanType) == "true",
+		}
+	case spanFlags&checker.TypeFlagsString != 0:
+		return map[string]any{"kind": int(protocol.KindString)}
+	case spanFlags&checker.TypeFlagsNumber != 0:
+		return map[string]any{"kind": int(protocol.KindNumber)}
+	case spanFlags&checker.TypeFlagsBigInt != 0:
+		return map[string]any{"kind": int(protocol.KindBigInt)}
+	case spanFlags&checker.TypeFlagsAny != 0:
+		return map[string]any{"kind": int(protocol.KindAny)}
+	case spanFlags&checker.TypeFlagsUnknown != 0:
+		return map[string]any{"kind": int(protocol.KindUnknown)}
+	}
+	// Fallback — treat as `string`-shaped span so the regex is still
+	// permissive. Unknown spans are rare (Infer outside conditional
+	// contexts, etc.) and this keeps the validator open-ended rather
+	// than rejecting all inputs.
+	return map[string]any{"kind": int(protocol.KindString)}
+}
+
+func toAnySlice(strs []string) []any {
+	out := make([]any, len(strs))
+	for i, s := range strs {
+		out[i] = s
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
