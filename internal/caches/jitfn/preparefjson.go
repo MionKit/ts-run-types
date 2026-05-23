@@ -1,6 +1,8 @@
 package jitfn
 
 import (
+	"strings"
+
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -48,11 +50,26 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		// Gate on a non-nil child — a malformed RunType with KindArray
 		// and Child=nil would reach Emit and panic.
 		return rt.Child != nil
+	case protocol.KindObjectLiteral:
+		return true
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return true
+	case protocol.KindIndexSignature:
+		return true
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// Functions are non-serializable. Top-level support emits a
+		// noop body (return v unchanged) — JSON.stringify already
+		// drops function values. Object-property children of these
+		// kinds are filtered out by the object emit.
+		return true
 	case protocol.KindClass:
 		// Date is atomic in mion — its prepareForJson is a noop (Date
-		// has its own toJSON()). Other class subkinds land in future
-		// phases (object/Map/Set/etc).
-		if rt.SubKind == protocol.SubKindDate {
+		// has its own toJSON()). User classes (SubKindNone) use the
+		// object emit. Other subkinds (Map/Set/etc) land in later
+		// phases.
+		switch rt.SubKind {
+		case protocol.SubKindDate, protocol.SubKindNone:
 			return true
 		}
 		return false
@@ -141,12 +158,32 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 
 	case protocol.KindClass:
 		// Date prepareForJson is a noop (Date has its own toJSON()).
-		// Other class subkinds (Map/Set/user classes) are in future
-		// phases.
+		// User classes (SubKindNone) flow through the object emit —
+		// mion's class.ts extends InterfaceRunType, same emit body.
+		// Other subkinds (Map/Set/etc) land in later phases.
 		if rt.SubKind == protocol.SubKindDate {
 			return JitCode{Code: "", Type: CodeS}
 		}
+		if rt.SubKind == protocol.SubKindNone {
+			return emitObjectPrepareForJson(rt, ctx, v)
+		}
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindObjectLiteral:
+		return emitObjectPrepareForJson(rt, ctx, v)
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return emitPropertyPrepareForJson(rt, ctx, v)
+
+	case protocol.KindIndexSignature:
+		return emitIndexSignaturePrepareForJson(rt, ctx, v)
+
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// mion:nodes/function/function.ts — functions are non-serializable;
+		// JSON.stringify drops function values. Top-level emit is a noop
+		// (caller's responsibility to know functions don't round-trip).
+		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
 		// mion:nodes/atomic/literal.ts:77 — defers to the underlying
@@ -212,6 +249,121 @@ func emitLiteralPrepareForJson(rt *protocol.RunType, v string) JitCode {
 	}
 	// Primitive literal (number / string / boolean / null) — noop.
 	return JitCode{Code: "", Type: CodeS}
+}
+
+// emitObjectPrepareForJson mirrors mion's
+// nodes/collection/interface.ts:emitPrepareForJson — iterate non-skip
+// children, collect each child's emit, join with `;`. Children that
+// are method-shaped or static are dropped (mion's getJitChildren).
+// A child returning CodeNS propagates upward (unsupported descendant
+// short-circuits the whole entry).
+func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	var parts []string
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		childJit := ctx.CompileChild(child, CodeS)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			continue
+		}
+		parts = append(parts, childJit.Code)
+	}
+	if len(parts) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+}
+
+// emitPropertyPrepareForJson mirrors mion's
+// nodes/member/property.ts:emitPrepareForJson. Sets the child
+// accessor (`v.<name>` / `v["name"]`), recurses, optionally wraps
+// with the undefined-guard for optional properties.
+func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		// mion: PropertySignature wrapping a function — skipped from
+		// the parent's children chain.
+		return JitCode{Code: "", Type: CodeS}
+	}
+	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if rt.Optional {
+		return JitCode{
+			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+			Type: CodeS,
+		}
+	}
+	return childJit
+}
+
+// emitIndexSignaturePrepareForJson mirrors mion's
+// nodes/member/indexProperty.ts:emitPrepareForJson — for-in over keys
+// invoking the child's emit on each. Template-literal key constraints
+// add a per-key regex.test skip; without one, every key is processed.
+func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	keyRegexVar := ""
+	if rt.Index != nil {
+		indexResolved := ctx.ResolveRef(rt.Index)
+		if indexResolved != nil && indexResolved.Kind == protocol.KindTemplateLiteral {
+			if regex, ok := buildTemplateLiteralRegex(indexResolved); ok {
+				keyRegexVar = ctx.NextLocalVar("reIdx")
+				if !ctx.HasContextItem(keyRegexVar) {
+					ctx.SetContextItem(keyRegexVar, "const "+keyRegexVar+" = new RegExp("+quoteJSDouble(regex)+")")
+				}
+			}
+		}
+	}
+	keyVar := ctx.NextLocalVar("k")
+	ctx.SetChildAccessor(v + "[" + keyVar + "]")
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	body := "for (const " + keyVar + " in " + v + ") {"
+	if keyRegexVar != "" {
+		body += "if (!" + keyRegexVar + ".test(" + keyVar + ")) continue;"
+	}
+	body += childJit.Code + "}"
+	return JitCode{Code: body, Type: CodeS}
 }
 
 // EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a
