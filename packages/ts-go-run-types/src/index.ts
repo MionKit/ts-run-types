@@ -24,6 +24,19 @@ if (_hot) {
 // helpers (e.g. typeErrors needs `mion::newRunTypeErr`).
 export {registerPureFnFactory} from './runtypes/pureFn.ts';
 
+// Type-format base machinery — the per-format types and runtype classes
+// live in `@mionjs/ts-go-type-formats`, but the brand alias and the
+// runtime registry sit here so format packages can import them without
+// pulling in the whole ts-go-type-formats public surface.
+export {type TypeFormat, type TypeFormatBase, type TypeFormatParams} from './runtypes/typeFormat.ts';
+export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
+export {
+  BaseRunTypeFormat,
+  registerFormatter,
+  getFormatterFromCache,
+  getRunTypeFormat,
+} from './runtypes/formatRegistry.ts';
+
 // JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
 // level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
 export {

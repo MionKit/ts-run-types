@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -162,7 +163,28 @@ func (IsTypeEmitter) ReturnName() string {
 // final panic surfaces that as a compile-time-loud failure (per the
 // "child kinds the dispatch doesn't handle should panic loudly"
 // contract in emitter.go).
-func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
+func (e IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
+	base := e.emitKindDefault(rt, ctx, expectedCType)
+	// Format annotations attach a format-specific predicate on top of
+	// the kind-default validator. We only splice when (a) the host kind
+	// produced a plain expression (CodeE) — splicing into a CodeRB
+	// statement body would require a second pass; (b) a format emitter
+	// is actually registered (Phase-0 graceful no-op); (c) the
+	// emitter's check is non-empty. The format predicate AND-chains
+	// after the base check so `typeof v === 'string'` runs before the
+	// format-specific regex / call.
+	if base.Type == CodeE && base.Code != "" && rt != nil && rt.FormatAnnotation != nil {
+		if emitter, ok := formats.LookupForRunType(rt); ok {
+			check := emitter.EmitIsTypeCheck(rt.FormatAnnotation, ctx.Vλl)
+			if check != "" {
+				base.Code = "(" + base.Code + " && (" + check + "))"
+			}
+		}
+	}
+	return base
+}
+
+func (IsTypeEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeE}
 	}

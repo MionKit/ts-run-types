@@ -212,6 +212,19 @@ type RunType struct {
 	// of the object-literal members in the original intersection.
 	Decorators []*RunType `json:"decorators,omitempty"`
 
+	// FormatAnnotation — populated when a primitive is branded with a
+	// TypeFormat<Base, Name, Params, ...> marker from
+	// `@mionjs/ts-go-type-formats`. Mirrors mion's FormatAnnotation
+	// (packages/run-types/src/lib/formats.ts) — the name + params pair
+	// that drives format-aware emit for isType / typeErrors. The
+	// structural id folds Name + canonicalised Params into the hash so
+	// two distinct param sets produce two distinct cache entries;
+	// equivalent param sets (regardless of key order) collapse to one.
+	// Lifted into a dedicated field rather than living in Decorators
+	// so the emit hook is a single pointer check, not a per-emit
+	// decorator-array scan.
+	FormatAnnotation *FormatAnnotation `json:"formatAnnotation,omitempty"`
+
 	// TypeEnum. `EnumVal` uses the `Val` suffix so the JS mirror lands as
 	// `enumVal`, sidestepping the `enum` reserved word.
 	EnumVal map[string]any `json:"enumVal,omitempty"`
@@ -257,6 +270,19 @@ type ClassRef struct {
 	Builtin string `json:"builtin,omitempty"` // "Date" | "Map" | "Set" | "RegExp"
 	Name    string `json:"name,omitempty"`    // user-class export name
 	Module  string `json:"module,omitempty"`  // originating module path
+}
+
+// FormatAnnotation carries the (name, params) pair extracted from a
+// TypeFormat<Base, Name, Params, ...> brand. Name identifies the
+// format family ("uuid", "email", "stringFormat", …) — both the
+// JS-side format registry and the Go-side format-emitter registry
+// key on this. Params is the JSON-serialisable literal payload (e.g.
+// `{"version": "4"}` for FormatUUIDv4, `{"maxLength": 10}` for a
+// FormatString). The map is canonicalised (sorted keys, recursed
+// into nested objects) before participating in the structural id.
+type FormatAnnotation struct {
+	Name   string         `json:"name"`
+	Params map[string]any `json:"params,omitempty"`
 }
 
 // NewRef returns a sentinel RunType pointing at id. The TS artifact emitter

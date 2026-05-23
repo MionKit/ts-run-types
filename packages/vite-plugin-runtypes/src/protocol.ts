@@ -152,6 +152,16 @@ export interface RunType {
   // TypeAnnotations.decorators.
   decorators?: RunType[];
 
+  // populated when a primitive is branded with a TypeFormat<Base, Name,
+  // Params, ...> marker from `@mionjs/ts-go-type-formats`. Sibling of
+  // mion's FormatAnnotation (packages/run-types/src/lib/formats.ts) —
+  // the name + params pair that drives format-aware emit. The
+  // structural id folds name + canonicalised params in, so two
+  // distinct param sets produce two distinct cache entries while
+  // equivalent param sets (regardless of object-literal key order)
+  // collapse to one.
+  formatAnnotation?: FormatAnnotation;
+
   // enum
   enumVal?: Record<string, unknown>;
   values?: unknown[];
@@ -202,6 +212,16 @@ export interface Replacement {
   start: number;
   end: number;
   text: string;
+}
+
+// FormatAnnotation carries the (name, params) pair extracted from a
+// TypeFormat<Base, Name, Params, ...> brand. Wire-mirror of the Go-side
+// protocol.FormatAnnotation. Params is the JSON-serialisable literal
+// payload — sorted/canonicalised before participating in the cache
+// key so two ordering variants of the same params object share one ID.
+export interface FormatAnnotation {
+  name: string;
+  params?: Record<string, unknown>;
 }
 
 // CacheKind enumerates the rendered cache-module bodies callers can opt
