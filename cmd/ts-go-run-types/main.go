@@ -48,6 +48,14 @@ Options:
     --inline-server     persistent inline-sources server: start with no
                         Program, accept setSources / resetCache / scanFiles /
                         dump ops; used by long-lived test daemons
+    --cache-dir PATH    base directory for the on-disk JIT artifact cache
+                        (typically node_modules/.cache/ts-go-run-types).
+                        Per-(typeID, fnTag) files under
+                        <cache-dir>/<optsFingerprint>/<typeID>/<fnTag>.json
+                        let subsequent builds skip the walker for unchanged
+                        types. Binary version is folded into every typeID
+                        hash so cross-version files never collide.
+                        Empty disables caching.
     -h, --help          show help
 `
 
@@ -69,6 +77,7 @@ func main() {
 		singleThreaded     bool
 		inlineSourcesStdin bool
 		inlineServer       bool
+		cacheDir           string
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -87,6 +96,8 @@ func main() {
 		"read {\"sources\":{relpath:content}} from stdin before the request stream")
 	flag.BoolVar(&inlineServer, "inline-server", false,
 		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
+	flag.StringVar(&cacheDir, "cache-dir", "",
+		"base directory for the on-disk JIT artifact cache (empty disables)")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
 	flag.Parse()
@@ -125,6 +136,7 @@ func main() {
 		},
 		Cwd:            absCwd,
 		SingleThreaded: singleThreaded,
+		CacheDir:       cacheDir,
 	}
 
 	var r *resolver.Resolver

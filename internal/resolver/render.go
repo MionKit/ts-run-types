@@ -12,6 +12,21 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
+// jitRenderOpts builds the RenderOpts the jitfn module renderers expect
+// from the resolver's session state. Callers that need a one-off render
+// (the dispatch path, render.go wrappers) feed this into every jitfn
+// module call so the disk cache and runtype lookup follow the resolver
+// across requests.
+func (resolver *Resolver) jitRenderOpts() jitfn.RenderOpts {
+	if resolver == nil {
+		return jitfn.RenderOpts{}
+	}
+	return jitfn.RenderOpts{
+		Store:  resolver.jitStore,
+		Lookup: resolver.cache,
+	}
+}
+
 // renderToString invokes a cache-module writer against a buffer and
 // returns the rendered source. `label` shows up in the wrapped error so
 // the per-cache call site is still identifiable.
@@ -36,9 +51,9 @@ func renderRunTypesModule(dump protocol.Dump) (string, error) {
 // one `export function get_isType_<hash>(utl){…}` factory per cached
 // RunType the precompiler knows how to handle. v1 only emits factories
 // for KindString; other kinds are silently skipped (see jitfn.IsTypeModule).
-func renderIsTypeModule(dump protocol.Dump) (string, error) {
+func renderIsTypeModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderIsTypeModule", func(w io.Writer) error {
-		return jitfn.IsTypeModule(w, dump)
+		return jitfn.IsTypeModule(w, dump, opts)
 	})
 }
 
@@ -46,53 +61,53 @@ func renderIsTypeModule(dump protocol.Dump) (string, error) {
 // sibling of renderIsTypeModule, same factory shape with three-arg
 // validators (value, path, errors) that accumulate RunTypeError
 // entries instead of returning a boolean. Backed by jitfn.TypeErrorsEmitter.
-func renderTypeErrorsModule(dump protocol.Dump) (string, error) {
+func renderTypeErrorsModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderTypeErrorsModule", func(w io.Writer) error {
-		return jitfn.TypeErrorsModule(w, dump)
+		return jitfn.TypeErrorsModule(w, dump, opts)
 	})
 }
 
 // renderPrepareForJsonModule emits the prepareForJson cache module —
 // the JSON serializer half of the round-trip pair. Backed by
 // jitfn.PrepareForJsonEmitter.
-func renderPrepareForJsonModule(dump protocol.Dump) (string, error) {
+func renderPrepareForJsonModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderPrepareForJsonModule", func(w io.Writer) error {
-		return jitfn.PrepareForJsonModule(w, dump)
+		return jitfn.PrepareForJsonModule(w, dump, opts)
 	})
 }
 
 // renderRestoreFromJsonModule emits the restoreFromJson cache module —
 // the JSON deserializer half of the round-trip pair. Backed by
 // jitfn.RestoreFromJsonEmitter.
-func renderRestoreFromJsonModule(dump protocol.Dump) (string, error) {
+func renderRestoreFromJsonModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderRestoreFromJsonModule", func(w io.Writer) error {
-		return jitfn.RestoreFromJsonModule(w, dump)
+		return jitfn.RestoreFromJsonModule(w, dump, opts)
 	})
 }
 
 // renderStringifyJsonModule emits the stringifyJson cache module —
 // mion's single-pass JSON serialiser that walks the type and emits
 // the JSON string directly. Backed by jitfn.StringifyJsonEmitter.
-func renderStringifyJsonModule(dump protocol.Dump) (string, error) {
+func renderStringifyJsonModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderStringifyJsonModule", func(w io.Writer) error {
-		return jitfn.StringifyJsonModule(w, dump)
+		return jitfn.StringifyJsonModule(w, dump, opts)
 	})
 }
 
 // renderPrepareForJsonSafeModule emits the prepareForJsonSafe cache
 // module — non-mutating sibling of renderPrepareForJsonModule.
-func renderPrepareForJsonSafeModule(dump protocol.Dump) (string, error) {
+func renderPrepareForJsonSafeModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderPrepareForJsonSafeModule", func(w io.Writer) error {
-		return jitfn.PrepareForJsonSafeModule(w, dump)
+		return jitfn.PrepareForJsonSafeModule(w, dump, opts)
 	})
 }
 
 // renderPrepareForJsonSafePreserveModule emits the clone+preserve
 // variant — same shape as renderPrepareForJsonSafeModule but every
 // cloned object literal spreads `...v` so extras survive.
-func renderPrepareForJsonSafePreserveModule(dump protocol.Dump) (string, error) {
+func renderPrepareForJsonSafePreserveModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderPrepareForJsonSafePreserveModule", func(w io.Writer) error {
-		return jitfn.PrepareForJsonSafePreserveModule(w, dump)
+		return jitfn.PrepareForJsonSafePreserveModule(w, dump, opts)
 	})
 }
 
@@ -100,44 +115,44 @@ func renderPrepareForJsonSafePreserveModule(dump protocol.Dump) (string, error) 
 // boolean predicate per mion's emitHasUnknownKeys (returns true when
 // the value has properties outside the schema). Backed by
 // jitfn.HasUnknownKeysEmitter.
-func renderHasUnknownKeysModule(dump protocol.Dump) (string, error) {
+func renderHasUnknownKeysModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderHasUnknownKeysModule", func(w io.Writer) error {
-		return jitfn.HasUnknownKeysModule(w, dump)
+		return jitfn.HasUnknownKeysModule(w, dump, opts)
 	})
 }
 
 // renderStripUnknownKeysModule emits the stripUnknownKeys cache
 // module — mutator that deletes unknown keys from the value.
-func renderStripUnknownKeysModule(dump protocol.Dump) (string, error) {
+func renderStripUnknownKeysModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderStripUnknownKeysModule", func(w io.Writer) error {
-		return jitfn.StripUnknownKeysModule(w, dump)
+		return jitfn.StripUnknownKeysModule(w, dump, opts)
 	})
 }
 
 // renderUnknownKeyErrorsModule emits the unknownKeyErrors cache
 // module — error accumulator that records one 'never' RunTypeError per
 // unknown key (same arg shape as typeErrors).
-func renderUnknownKeyErrorsModule(dump protocol.Dump) (string, error) {
+func renderUnknownKeyErrorsModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderUnknownKeyErrorsModule", func(w io.Writer) error {
-		return jitfn.UnknownKeyErrorsModule(w, dump)
+		return jitfn.UnknownKeyErrorsModule(w, dump, opts)
 	})
 }
 
 // renderUnknownKeysToUndefinedModule emits the
 // unknownKeysToUndefined cache module — mutator that sets unknown
 // keys to undefined (instead of deleting them).
-func renderUnknownKeysToUndefinedModule(dump protocol.Dump) (string, error) {
+func renderUnknownKeysToUndefinedModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderUnknownKeysToUndefinedModule", func(w io.Writer) error {
-		return jitfn.UnknownKeysToUndefinedModule(w, dump)
+		return jitfn.UnknownKeysToUndefinedModule(w, dump, opts)
 	})
 }
 
 // renderUnknownKeysToUndefinedWireModule emits the decoder-internal
 // ukuWire cache module — sibling of uku that emits the wire-format
 // reach-into-v[1] strip at union nodes.
-func renderUnknownKeysToUndefinedWireModule(dump protocol.Dump) (string, error) {
+func renderUnknownKeysToUndefinedWireModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
 	return renderToString("renderUnknownKeysToUndefinedWireModule", func(w io.Writer) error {
-		return jitfn.UnknownKeysToUndefinedWireModule(w, dump)
+		return jitfn.UnknownKeysToUndefinedWireModule(w, dump, opts)
 	})
 }
 
