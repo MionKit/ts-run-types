@@ -22,7 +22,7 @@
 
 import {afterEach, describe, expect, it} from 'vitest';
 import {JIT_SUITE, type JitCase} from '../suites/jit-suite.ts';
-import {normalizeForComparison} from '../util/equalsHelpers.ts';
+import {deepCloneForRoundTrip, normalizeForComparison} from '../util/equalsHelpers.ts';
 
 // Identity fallback for cases whose restoreFromJson thunk is omitted —
 // happens when a prepareForJson noop pairs with a restoreFromJson noop
@@ -35,16 +35,19 @@ function assertRoundTrip(
   restore: (v: unknown) => unknown,
   getValid: () => unknown[]
 ) {
-  // Fetch the samples twice so we have a separate reference copy for
-  // comparison. The serializer mutates the input in place (mion's
-  // contract — see emit code in nodes/atomic/bigInt.ts: `v.toString()`,
-  // emit code in nodes/member/array.ts wraps with the for loop that
-  // overwrites `v[i0]`). If we passed the same object to both sides,
-  // the comparison would see the post-mutation value.
-  const inputs = getValid();
-  const references = getValid();
-  inputs.forEach((v, i) => {
-    const prepared = prepare(v);
+  // Clone each sample before prepare. The serializer mutates the
+  // input in place (see emit code in nodes/atomic/bigInt.ts:
+  // `v.toString()`, the array's for-loop body that overwrites
+  // `v[i0]`, the union's `v = [index, v]` wrap). A single getValid()
+  // call is the source of truth — calling it twice for inputs vs
+  // references would produce DIFFERENT Date/Map/Set instances (e.g.
+  // samples that use `new Date()` inside the closure), and the
+  // comparison would fail on Date `.getTime()` mismatches even
+  // though the round-trip was correct.
+  const samples = getValid();
+  samples.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    const prepared = prepare(input);
     const serialized = JSON.stringify(prepared);
     // Top-level undefined cannot be JSON-encoded — JSON.stringify
     // returns the JS value `undefined`. Skip these samples; the
@@ -54,7 +57,7 @@ function assertRoundTrip(
     if (serialized === undefined) return;
     const parsed = JSON.parse(serialized);
     const restored = restore(parsed);
-    const {actual, expected} = normalizeForComparison(restored, references[i]);
+    const {actual, expected} = normalizeForComparison(restored, reference);
     expect(actual, `${label}: valid[${i}] round-trip should deep-equal original`).toEqual(expected);
   });
 }

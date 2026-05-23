@@ -1,8 +1,10 @@
 package jitfn
 
 import (
+	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -61,16 +63,12 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	case protocol.KindTupleMember:
 		return true
 	case protocol.KindUnion:
-		// Phase 7: unions ship as noop (identity factory). The full
-		// mion-style emit encodes as `[memberIndex, transformedValue]`
-		// using the union's isType discriminator — that requires
-		// cross-fn cache lookups (the union's prepareForJson calls
-		// into each member's isType) and lands when a transforming
-		// union member (e.g. `string | Date`) needs the round-trip
-		// to actually convert. Today most union samples round-trip
-		// cleanly via identity; transforming-member cases mark
-		// `getRoundTripValid: () => []` to skip the assertion.
-		return true
+		// Unions encode as `[memberIndex, transformedValue]` per mion's
+		// nodes/collection/union.ts — see emitUnionPrepareForJson below
+		// for the full implementation. The wrapping is per-member: a
+		// noop-on-both-sides member doesn't tuple-encode (the decode's
+		// shape check distinguishes encoded vs raw values).
+		return len(rt.Children) > 0
 	case protocol.KindIntersection:
 		// Intersection types are resolved by tsgo at the type-checker
 		// layer (`A & B` → merged object literal, `string & number` →
@@ -237,13 +235,11 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindUnion:
-		// Phase 7 — noop. The full union emit encodes as
-		// `[memberIndex, transformedValue]` using a per-member isType
-		// discriminator; until that lands, identity is the best we
-		// can do and round-trip tests for transforming-member unions
-		// (e.g. `string | Date`) must mark `getRoundTripValid: () =>
-		// []` to opt out.
-		return JitCode{Code: "", Type: CodeS}
+		// mion:nodes/collection/union.ts:emitPrepareForJson — type-check
+		// each member in safe-union order, transform via the member's
+		// own prepareForJson, then wrap as `[memberIndex, value]` if
+		// either half of the round-trip needs it.
+		return emitUnionPrepareForJson(rt, ctx, v)
 
 	case protocol.KindIntersection:
 		// Defensive noop — intersections should be pre-resolved by the
@@ -515,6 +511,156 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	return childJit
 }
 
+// peekMemberIsNoop compiles `member` against `emitter` on a throwaway
+// walker and returns whether the result is a noop (or fully unsupported,
+// which is also "no transformation"). Used by the union emit to decide
+// per-member tuple-encoding: a member that's noop on BOTH halves
+// (prepareForJson and restoreFromJson) doesn't need the `[index, value]`
+// wrap — the decode's tuple-shape check distinguishes encoded from raw
+// values, so noop members pass through identically.
+//
+// We inspect the raw body BEFORE Finalize runs — Finalize for the
+// serializer pair rewrites `""` to `"return v"` and emits a real
+// identity factory (so cross-fn dep calls don't reference missing
+// factories), which would make the post-Finalize isNoop flag less
+// useful here. The walker's pre-Finalize `Code` field is the source
+// of truth for "did the dispatch produce any transformation?"
+//
+// The throwaway walker keeps any side effects (context items, dep
+// records) local — the caller's walker state is untouched.
+func peekMemberIsNoop(member *protocol.RunType, emitter Emitter, refTable map[string]*protocol.RunType) bool {
+	walker := NewWalker(member, "_peek_"+member.ID, emitter)
+	walker.RefTable = refTable
+	walker.InnerPrefix = ""
+	walker.compileNode(walker.RootType, CodeE)
+	if walker.IsUnsupported {
+		return true
+	}
+	code := strings.TrimSpace(walker.Code)
+	// handleCodeInterpolation wraps the root CodeE/CodeS into the
+	// final body shape — for atomic noop emits the wrap is empty (no
+	// code was generated) and Code stays "". For non-noop emits the
+	// wrap leaves an actual transformation in Code.
+	return code == "" || code == "return v"
+}
+
+// unionMemberIsTypeCheck returns a JS expression that checks whether
+// the current value (`v`) satisfies `member`'s type. Mirrors mion's
+// `getChildIsTypeWithLooseCheck` (union.ts:56) — the union's dispatch
+// runs each member's isType in declaration order (or safe order),
+// taking the first match.
+//
+// Uses a cross-fn lookup into the isType cache via context-item
+// declaration. The `?.fn(v) ?? true` fallback handles noop kinds
+// (any / unknown) whose isType factories don't exist — their runtime
+// semantic is "always passes".
+func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
+	isTypeHash := constants.CacheModules["isType"].Tag + "_" + member.ID
+	if !ctx.HasContextItem(isTypeHash) {
+		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getJIT("+quoteJS(isTypeHash)+")")
+	}
+	return "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
+}
+
+// emitUnionPrepareForJson mirrors mion's
+// nodes/collection/union.ts:emitPrepareForJson. For each member (in
+// safe-union order when available, otherwise declaration order):
+//
+//   - Get the isType check expression — object-like kinds get an extra
+//     `typeof v === 'object' && v !== null &&` null guard
+//   - Compile the member's prepareForJson code via the walker (inline
+//     or dep-call, depending on inlining)
+//   - Wrap the result with `v = [memberIndex, v]` IFF either half of
+//     the round-trip is non-noop. Members that are noop on both
+//     halves pass through unwrapped; the decode's tuple-shape check
+//     distinguishes them
+//
+// Final clause throws on unmatched value — same as mion. Returns empty
+// CodeS when every member is noop on both halves (the whole union is
+// identity).
+func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	children := rt.SafeUnionChildren
+	if len(children) == 0 {
+		children = rt.Children
+	}
+	if len(children) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+
+	refTable := ctx.walker.RefTable
+
+	// First pass: compute per-member needsTupleEncoding by peeking at
+	// both halves. We do this BEFORE generating any code so the
+	// decode side can match the encoding shape (same peek-based
+	// decision in emitUnionRestoreFromJson keeps them in sync).
+	needsTuple := make([]bool, len(children))
+	anyNeedsTuple := false
+	for i, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, refTable)
+		rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, refTable)
+		nt := !pjNoop || !rjNoop
+		needsTuple[i] = nt
+		if nt {
+			anyNeedsTuple = true
+		}
+	}
+	if !anyNeedsTuple {
+		// Every member is noop on both halves — union is noop.
+		return JitCode{Code: "", Type: CodeS}
+	}
+
+	// Second pass: build the if/else chain.
+	var clauses []string
+	for i, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		// Compile the member's prepare code (inline or dep-call).
+		prepareJit := ctx.CompileChild(childRef, CodeS)
+		// The isType discriminator.
+		isTypeExpr := unionMemberIsTypeCheck(member, ctx, v)
+		guard := isTypeExpr
+		if isObjectLikeKind(member.Kind) {
+			// Object-shape members need a null guard before the deeper
+			// isType walk so a `null` input doesn't crash on property
+			// access (mirrors mion's split between simpleItems and
+			// objectTypes in getUnionChildren).
+			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
+		}
+
+		body := prepareJit.Code
+		if body != "" {
+			body = strings.TrimSpace(body)
+			if !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
+				body += ";"
+			}
+		}
+		if needsTuple[i] {
+			body += v + " = [" + strconv.Itoa(i) + ", " + v + "]"
+		}
+
+		clause := "if (" + guard + ") {" + body + "}"
+		if len(clauses) > 0 {
+			clause = " else " + clause
+		}
+		clauses = append(clauses, clause)
+	}
+
+	// Trailing throw for an unmatched input — every union sample MUST
+	// satisfy at least one member, otherwise it's a contract violation.
+	errVar := ctx.NextLocalVar("uErr")
+	if !ctx.HasContextItem(errVar) {
+		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not json encode union: item does not belong to the union'")
+	}
+	clauses = append(clauses, " else { throw new Error("+errVar+") }")
+	return JitCode{Code: strings.Join(clauses, ""), Type: CodeS}
+}
+
 // emitNativeIterablePrepareForJson handles Map / Set — both flatten
 // to an Array via `Array.from(v)` so JSON.stringify produces a
 // serializable form (`[[k1,v1], [k2,v2], …]` for Map, `[item1, item2,
@@ -558,20 +704,18 @@ func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 	return ctx.Vλl + " = " + call
 }
 
-// Finalize normalises the body. Unlike isType / typeErrors — where
-// noop entries are dropped (the JS-side createIsType falls back to
-// `() => true` automatically) — the serializer pair MUST emit an
-// identity factory for every supported runtype, including noop ones.
-// Reason: a non-inlined parent that reaches a noop child via
-// EmitDependencyCall emits `v[i] = childHash.fn(v[i])`. If the noop
-// child has no factory in the cache, that call throws at runtime.
-// Always emitting `function pj_<hash>(v){ return v }` for noop entries
-// keeps the dep chain intact at minimal payload cost (~30 bytes per
-// noop factory). isNoop is always false; the renderer treats every
-// supported entry as a live factory.
+// Finalize matches mion's handleFunctionReturn for the
+// prepareForJson / restoreFromJson family (jitFnCompiler.ts:435):
+// empty / identity bodies are rewritten to `return v` and the
+// isNoop flag is set, but the factory is STILL emitted (mion's
+// createJitFunction wraps the body unconditionally). The renderer
+// keeps every supported entry as a live factory so dep-call chains
+// from parents resolve cleanly — a parent's
+// `<childHash>.fn(v[i])` must hit a real fn, even when that fn is
+// the identity. Payload cost is ~30 bytes per noop factory.
 func (PrepareForJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
-	if code == "" {
+	if code == "" || code == "return v" {
 		return "return v", false
 	}
 	return code, false

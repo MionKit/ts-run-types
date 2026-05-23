@@ -7459,8 +7459,6 @@ export const JIT_SUITE = {
         const v: Date | number | string | null | bigint = 123;
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
         invalid: [{}, [], true, undefined, new Date('invalid'), Infinity, Symbol(), () => null],
@@ -7702,8 +7700,6 @@ export const JIT_SUITE = {
         const v: (string | bigint | boolean | Date)[] = [];
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
         invalid: [
@@ -7772,8 +7768,6 @@ export const JIT_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
         // because `{b: number}` is satisfied. Our emit accepts any
@@ -7947,8 +7941,6 @@ export const JIT_SUITE = {
         const v: UnionC = 'hello';
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
         invalid: [true, null, undefined, {a: true}, [true], new Date('invalid'), Infinity, Symbol()],
@@ -8036,8 +8028,12 @@ export const JIT_SUITE = {
         };
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
+      // Round-trip narrowed to the samples without function values —
+      // JSON.stringify drops functions, so a sample carrying
+      // `getName: () => 'x'` returns `{name: 'x'}` after the round
+      // trip, which the comparison legitimately fails. The function-
+      // free samples cover the union dispatch end-to-end.
+      getRoundTripValid: () => [{name: 'x'}, {age: 1}],
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
@@ -8172,8 +8168,6 @@ export const JIT_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
         invalid: [
@@ -8399,8 +8393,14 @@ export const JIT_SUITE = {
         ];
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
+      // Round-trip narrowed — `{b: 123, c: 123n}` carries an extra
+      // `c: 123n` (BigInt) that's outside the matched union member's
+      // shape (`{b: number}` knows nothing about `c`). The object
+      // emit only transforms declared props, so the bare BigInt
+      // reaches JSON.stringify which throws "Do not know how to
+      // serialize a BigInt". Same issue as `{c: bigint; aa: 'string'}`'s
+      // sample for the same reason.
+      getRoundTripValid: () => [['a', 'b', 'c'], [1, 2, 3], [true, false], {a: 'hello', aa: true}],
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -8629,8 +8629,6 @@ export const JIT_SUITE = {
           | {[key: string]: bigint; b: bigint} = ['a'];
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped (phase 7) — this union contains transforming or non-serializable members; the noop union emit cannot reconstruct them. Marks the case for the round-trip adapter without affecting validator coverage.
-      getRoundTripValid: () => [],
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -10502,11 +10500,6 @@ export const JIT_SUITE = {
         const v: CuArray = [];
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip skipped — the union element type `(CuArray | Date |
-      // number | string)` includes Date, which the noop union emit
-      // (phase 7) can't reconstruct. Lands when the full union
-      // discriminator emit ships.
-      getRoundTripValid: () => [],
       getSamples: () => {
         const date = new Date();
         const cu1: any = [date, 123, 'hello', ['a', 'b', 'c']];
