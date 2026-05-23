@@ -17,7 +17,7 @@
 
 import {afterEach, describe, expect, it} from 'vitest';
 import {JIT_SUITE, type JitCase} from '../suites/jit-suite.ts';
-import {normalizeForComparison} from '../util/equalsHelpers.ts';
+import {deepCloneForRoundTrip, normalizeForComparison} from '../util/equalsHelpers.ts';
 
 const identityFn = (v: unknown) => v;
 
@@ -27,19 +27,18 @@ function assertRoundTrip(
   restore: (v: unknown) => unknown,
   getValid: () => unknown[]
 ) {
-  // See prepareForJson.test.ts for the why-two-fetches rationale —
-  // both serializers mutate input arrays / objects in place.
-  const inputs = getValid();
-  const references = getValid();
-  inputs.forEach((v, i) => {
-    const prepared = prepare(v);
+  // See prepareForJson.test.ts for the deep-clone rationale.
+  const samples = getValid();
+  samples.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    const prepared = prepare(input);
     const serialized = JSON.stringify(prepared);
     // Top-level undefined cannot be JSON-encoded — JSON.stringify
     // returns `undefined`. Skip these samples.
     if (serialized === undefined) return;
     const parsed = JSON.parse(serialized);
     const restored = restore(parsed);
-    const {actual, expected} = normalizeForComparison(restored, references[i]);
+    const {actual, expected} = normalizeForComparison(restored, reference);
     expect(actual, `${label}: valid[${i}] round-trip should deep-equal original`).toEqual(expected);
   });
 }

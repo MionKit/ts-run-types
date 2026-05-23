@@ -76,3 +76,35 @@ function normalizeArrayForComparison(arr: any[], targetLength: number): any[] {
   if (arr.length >= targetLength) return arr;
   return [...arr, ...Array(targetLength - arr.length).fill(undefined)];
 }
+
+/** Deep clone for round-trip test inputs. The serializer mutates `v`
+ *  in place; without a fresh copy the comparison-side reference would
+ *  see the post-mutation shape, masking real correctness issues.
+ *
+ *  Handles Date, RegExp, Map, Set, primitives, and arrays/objects
+ *  recursively. Symbols pass through (immutable, no risk of
+ *  cross-mutation). Functions and Promises pass through unchanged —
+ *  those aren't meaningfully cloneable and round-trip tests for them
+ *  are gated by `getRoundTripValid` overrides anyway. **/
+export function deepCloneForRoundTrip(value: any): any {
+  if (value === null || value === undefined) return value;
+  const t = typeof value;
+  if (t === 'symbol' || t === 'function') return value;
+  if (t !== 'object') return value;
+  if (value instanceof Date) return new Date(value.getTime());
+  if (value instanceof RegExp) return new RegExp(value.source, value.flags);
+  if (value instanceof Map) {
+    const out = new Map();
+    for (const [k, v] of value.entries()) out.set(deepCloneForRoundTrip(k), deepCloneForRoundTrip(v));
+    return out;
+  }
+  if (value instanceof Set) {
+    const out = new Set();
+    for (const v of value.values()) out.add(deepCloneForRoundTrip(v));
+    return out;
+  }
+  if (Array.isArray(value)) return value.map(deepCloneForRoundTrip);
+  const out: any = {};
+  for (const key of Object.keys(value)) out[key] = deepCloneForRoundTrip(value[key]);
+  return out;
+}
