@@ -5169,6 +5169,16 @@ export const VALIDATION_SUITE = {
         const v: `api/user/${number}` = 'api/user/42';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<`api/user/${number}`>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<`api/user/${number}`>(),
+      getTypeErrorsReflect: () => {
+        const v: `api/user/${number}` = 'api/user/42';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: `api/user/${number}` = 'api/user/42';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
         invalid: [
@@ -5184,6 +5194,18 @@ export const VALIDATION_SUITE = {
           'api/user/Infinity', // same
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+      ],
     },
 
     multi_segment_url: {
@@ -5199,6 +5221,16 @@ export const VALIDATION_SUITE = {
         const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<`/api/v${number}/user/${string}/posts/${number}`>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<`/api/v${number}/user/${string}/posts/${number}`>(),
+      getTypeErrorsReflect: () => {
+        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
         invalid: [
@@ -5211,6 +5243,15 @@ export const VALIDATION_SUITE = {
           '',
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+      ],
     },
 
     leading_string_placeholder: {
@@ -5228,10 +5269,29 @@ export const VALIDATION_SUITE = {
         const v: `${string}/${number}` = '/42';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<`${string}/${number}`>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<`${string}/${number}`>(),
+      getTypeErrorsReflect: () => {
+        const v: `${string}/${number}` = '/42';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: `${string}/${number}` = '/42';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['/42', 'users/42'],
         invalid: ['users', '/abc', null, undefined, '', 42, 'abc/abc'],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+      ],
     },
 
     regex_special_chars: {
@@ -5248,10 +5308,31 @@ export const VALIDATION_SUITE = {
         const v: `(${number})` = '(42)';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<`(${number})`>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<`(${number})`>(),
+      getTypeErrorsReflect: () => {
+        const v: `(${number})` = '(42)';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: `(${number})` = '(42)';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['(42)', '(0)', '(-3.14)'],
         invalid: ['42', '(abc)', '()', '(42', null, undefined, '', '42)', '(NaN)'],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+        [{path: [], expected: 'templateLiteral'}],
+      ],
     },
 
     template_literal_nested_in_object: {
@@ -5268,6 +5349,16 @@ export const VALIDATION_SUITE = {
         const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{url: `api/user/${number}`; method: string}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{url: `api/user/${number}`; method: string}>(),
+      getTypeErrorsReflect: () => {
+        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{url: 'api/user/42', method: 'GET'}],
         invalid: [
@@ -5280,6 +5371,15 @@ export const VALIDATION_SUITE = {
           {url: 'api/user/42', method: 42},
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: ['url'], expected: 'templateLiteral'}],
+        [{path: ['method'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['url'], expected: 'templateLiteral'}],
+        [{path: ['url'], expected: 'templateLiteral'}],
+        [{path: ['method'], expected: 'string'}],
+      ],
     },
 
     template_literal_index_key: {
@@ -5298,10 +5398,31 @@ export const VALIDATION_SUITE = {
         const v: {[key: `api/${string}`]: number} = {};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{[key: `api/${string}`]: number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: `api/${string}`]: number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {[key: `api/${string}`]: number} = {};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {[key: `api/${string}`]: number} = {};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
         invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null, undefined, {'api/users': NaN}],
       }),
+      getExpectedErrors: () => [
+        // {foo: 1} — key 'foo' fails the template-literal pattern.
+        [{path: ['foo'], expected: 'never'}],
+        // {'api/users': 'not number'} — key passes, value fails number.
+        [{path: ['api/users'], expected: 'number'}],
+        // {'api/users': 1, foo: 2} — 'foo' fails key pattern; 'api/users' OK.
+        [{path: ['foo'], expected: 'never'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['api/users'], expected: 'number'}],
+      ],
     },
 
     template_literal_union_placeholder: {
@@ -5320,10 +5441,36 @@ export const VALIDATION_SUITE = {
         const v: `${'a' | 'b'}-${number}` = 'a-42';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<`${'a' | 'b'}-${number}`>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<`${'a' | 'b'}-${number}`>(),
+      getTypeErrorsReflect: () => {
+        const v: `${'a' | 'b'}-${number}` = 'a-42';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: `${'a' | 'b'}-${number}` = 'a-42';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['a-42', 'b-0', 'a--3.14'],
         invalid: ['c-1', 'a-', '-1', 'a-foo', 'ab-1', null, undefined, '', 'A-1', 42],
       }),
+      // The resolver distributes ${'a'|'b'} into a union of two template
+      // literals (`'a-${number}'` | `'b-${number}'`), so the top-level
+      // kind is KindUnion not KindTemplateLiteral. Expected kindname is
+      // 'union'.
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
   },
 
@@ -5593,6 +5740,44 @@ export const VALIDATION_SUITE = {
         const v: Circular = {n: 1, s: 'hello'};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        return createGetTypeErrors<Circular>();
+      },
+      deserializeGetTypeErrors: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        return deserializeGetTypeErrors<Circular>();
+      },
+      getTypeErrorsReflect: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        const v: Circular = {n: 1, s: 'hello'};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        const v: Circular = {n: 1, s: 'hello'};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {n: 1, s: 'hello', c: {n: 2, s: 'world'}},
@@ -5610,6 +5795,19 @@ export const VALIDATION_SUITE = {
           {}, // missing required n and s
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: ['c', 's'], expected: 'string'}],
+        [{path: ['c', 's'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['n'], expected: 'number'}],
+        [{path: ['d'], expected: 'date'}],
+        [{path: ['d'], expected: 'date'}],
+        [
+          {path: ['n'], expected: 'number'},
+          {path: ['s'], expected: 'string'},
+        ],
+      ],
     },
 
     array_of_union_with_self_ref: {
@@ -6301,10 +6499,30 @@ export const VALIDATION_SUITE = {
         const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      getTypeErrorsReflect: () => {
+        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
         invalid: ['age', 'other', 42, null, undefined, true, '', 'Name'],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     extract_atomic: {
@@ -6321,10 +6539,30 @@ export const VALIDATION_SUITE = {
         const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      getTypeErrorsReflect: () => {
+        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
         invalid: ['age', 'other', null, undefined, true, 42, '', 'Name'],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     exclude_from_object_union: {
@@ -6390,10 +6628,29 @@ export const VALIDATION_SUITE = {
         const v: NonNullable<string | number | null | undefined> = 'hello';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<NonNullable<string | number | null | undefined>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<NonNullable<string | number | null | undefined>>(),
+      getTypeErrorsReflect: () => {
+        const v: NonNullable<string | number | null | undefined> = 'hello';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: NonNullable<string | number | null | undefined> = 'hello';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['hello', 42, 0],
         invalid: [null, undefined, true, {}, [], NaN, Infinity],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     return_type: {
@@ -6417,10 +6674,38 @@ export const VALIDATION_SUITE = {
         const v: ReturnType<Fn> = new Date();
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        return createGetTypeErrors<ReturnType<Fn>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        return deserializeGetTypeErrors<ReturnType<Fn>>();
+      },
+      getTypeErrorsReflect: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        const v: ReturnType<Fn> = new Date();
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        const v: ReturnType<Fn> = new Date();
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [new Date()],
         invalid: ['not date', 42, null, undefined, new Date('invalid'), new Date(NaN), {}, []],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+        [{path: [], expected: 'date'}],
+      ],
     },
 
     readonly: {
