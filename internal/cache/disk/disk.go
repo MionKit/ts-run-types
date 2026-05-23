@@ -22,7 +22,7 @@ type HashLookup interface {
 	HashForStructural(structural string) string
 }
 
-// Store reads/writes per-(typeID, fnTag) JIT cache files under a single
+// Store reads/writes per-(typeID, fnTag) RT cache files under a single
 // build-options-fingerprinted directory. Construct one per resolver
 // session; nil-safe — methods on a nil receiver no-op (so the renderer
 // can treat "no cache wired" and "cache miss" with the same code path).
@@ -54,12 +54,12 @@ func (s *Store) Root() string {
 	return s.root
 }
 
-// ReadJIT loads the cached entry for (typeID, fnTag). Returns (nil,
+// ReadRT loads the cached entry for (typeID, fnTag). Returns (nil,
 // false, nil) for a miss (file absent, malformed, wrong format, or
 // stale header). Real I/O errors other than ENOENT are surfaced so a
 // broken cache directory fails loudly rather than silently disabling
 // itself.
-func (s *Store) ReadJIT(typeID, fnTag string) (*JITEntry, bool, error) {
+func (s *Store) ReadRT(typeID, fnTag string) (*RTEntry, bool, error) {
 	if s == nil || typeID == "" || fnTag == "" {
 		return nil, false, nil
 	}
@@ -71,7 +71,7 @@ func (s *Store) ReadJIT(typeID, fnTag string) (*JITEntry, bool, error) {
 		}
 		return nil, false, err
 	}
-	var entry JITEntry
+	var entry RTEntry
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		// Malformed file → treat as miss. The writer's temp-and-rename
 		// makes a partial file unlikely, but any leftover from a crashed
@@ -84,11 +84,11 @@ func (s *Store) ReadJIT(typeID, fnTag string) (*JITEntry, bool, error) {
 	return &entry, true, nil
 }
 
-// WriteJIT serialises entry to <root>/<typeID>/<fnTag>.json atomically:
+// WriteRT serialises entry to <root>/<typeID>/<fnTag>.json atomically:
 // write to a sibling tempfile, fsync, rename into place. The rename
 // is atomic on POSIX so a concurrent reader either sees the previous
 // file or the new one, never a torn write.
-func (s *Store) WriteJIT(typeID, fnTag string, entry JITEntry) error {
+func (s *Store) WriteRT(typeID, fnTag string, entry RTEntry) error {
 	if s == nil || typeID == "" || fnTag == "" {
 		return nil
 	}
@@ -126,8 +126,8 @@ func (s *Store) WriteJIT(typeID, fnTag string, entry JITEntry) error {
 }
 
 // entryPath builds the on-disk path for a given (typeID, fnTag) pair.
-// Kept private — every cross-package caller goes through ReadJIT /
-// WriteJIT so the layout stays a disk-package internal detail.
+// Kept private — every cross-package caller goes through ReadRT /
+// WriteRT so the layout stays a disk-package internal detail.
 func (s *Store) entryPath(typeID, fnTag string) string {
 	return filepath.Join(s.root, typeID, fnTag+".json")
 }

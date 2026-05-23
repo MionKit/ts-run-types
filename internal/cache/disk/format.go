@@ -1,4 +1,4 @@
-// Package disk persists per-(typeID, fnTag) JIT artifacts under
+// Package disk persists per-(typeID, fnTag) RT artifacts under
 // node_modules/.cache/ts-go-run-types/<optsFingerprint>/<typeID>/<fnTag>.json
 // so subsequent builds can skip the walker for unchanged types.
 //
@@ -23,7 +23,7 @@
 package disk
 
 // FormatVersion identifies the on-disk JSON layout. Bump whenever the
-// JITEntry shape changes incompatibly so stale files written by an older
+// RTEntry shape changes incompatibly so stale files written by an older
 // binary aren't misread.
 const FormatVersion = 1
 
@@ -37,8 +37,8 @@ type ChildRef struct {
 	Hash         string `json:"hash"`
 }
 
-// JITEntry is the on-disk shape persisted per (typeID, fnTag).
-type JITEntry struct {
+// RTEntry is the on-disk shape persisted per (typeID, fnTag).
+type RTEntry struct {
 	// Format is the layout version (FormatVersion). Files whose Format
 	// disagrees with the current FormatVersion are treated as misses.
 	Format int `json:"version"`
@@ -51,8 +51,8 @@ type JITEntry struct {
 	// rendered. No placeholders: hashes are baked in. Reusing the line
 	// directly requires every ChildRef to still resolve.
 	Line string `json:"line"`
-	// ChildRefs is one entry per JIT-dependency hash baked into Line
-	// (the `it_<childHash>` namespaced ids in walker.JitDependencies).
-	// Empty for leaf entries with no child JIT calls.
+	// ChildRefs is one entry per RT-dependency hash baked into Line
+	// (the `it_<childHash>` namespaced ids in walker.RTDependencies).
+	// Empty for leaf entries with no child RT calls.
 	ChildRefs []ChildRef `json:"childRefs"`
 }

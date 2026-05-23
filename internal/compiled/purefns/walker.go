@@ -141,7 +141,7 @@ func ExtractFromProgram(typeChecker *checker.Checker, markerOpts marker.Options,
 // returns its pure-fn entries + extractor-side diagnostics (PFE9005 +
 // purity violations + dep diagnostics). Called both by
 // ExtractFromProgram in the main pass and by index lazy-expansion when
-// a recorded jit dep points at an unscanned file.
+// a recorded rt dep points at an unscanned file.
 //
 // Does NOT perform cross-file collision detection (PFE9004) — the
 // caller folds entries into a shared map and surfaces collisions there.

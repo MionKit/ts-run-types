@@ -9,41 +9,41 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').PrepareForJsonSafePreserveJitFn} PrepareForJsonSafePreserveJitFn */
+/** @typedef {import('../rt/types.ts').PrepareForJsonSafePreserveRTFn} PrepareForJsonSafePreserveRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopPrepareForJsonSafePreserve : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {PrepareForJsonSafePreserveJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {PrepareForJsonSafePreserveRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'pjsp',
       typeName,
       args: {vλl: 'v'},
       defaultParamValues: {vλl: undefined},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   function noopPrepareForJsonSafePreserve(v) {

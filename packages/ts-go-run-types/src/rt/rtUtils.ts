@@ -24,39 +24,39 @@ import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.
 import type {CompTimeArgs} from '../markers.ts';
 
 /**
- * Shape of jitUtils. Must be defined as a type — `typeof jitUtils` breaks
+ * Shape of rtUtils. Must be defined as a type — `typeof rtUtils` breaks
  * reflection.
  */
-export type JITUtils = typeof jitUtils;
+export type RTUtils = typeof rtUtils;
 
-const jitFnsCache: TypesFunctionsCache = {};
+const rtFnsCache: TypesFunctionsCache = {};
 const pureFnsCache: PureFunctionsCache = {};
 const runTypesCache: RunTypesCache = {};
 const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
 const serializableClassRegistry = new Map<string, SerializableClass>();
 
-const jitUtils = {
-  addToJitCache(comp: CompiledTypeFn) {
-    jitFnsCache[comp.jitFnHash] = comp;
+const rtUtils = {
+  addToRTCache(comp: CompiledTypeFn) {
+    rtFnsCache[comp.rtFnHash] = comp;
   },
-  removeFromJitCache(comp: CompiledTypeFn) {
-    if (!jitFnsCache[comp.jitFnHash]) return;
-    (jitFnsCache[comp.jitFnHash] as any) = undefined;
+  removeFromRTCache(comp: CompiledTypeFn) {
+    if (!rtFnsCache[comp.rtFnHash]) return;
+    (rtFnsCache[comp.rtFnHash] as any) = undefined;
   },
-  getJIT(jitFnHash: string): InitializedTypeFn | undefined {
-    const entry = jitFnsCache[jitFnHash];
+  getRT(rtFnHash: string): InitializedTypeFn | undefined {
+    const entry = rtFnsCache[rtFnHash];
     if (!entry) return undefined;
-    materializeJitFn(entry);
+    materializeRTFn(entry);
     return entry;
   },
-  getJitFn(jitFnHash: string): (...args: any[]) => any {
-    const entry = jitFnsCache[jitFnHash];
-    if (!entry) throw new Error(`Jit function not found for jitFnHash ${jitFnHash}`);
-    materializeJitFn(entry);
+  getRTFn(rtFnHash: string): (...args: any[]) => any {
+    const entry = rtFnsCache[rtFnHash];
+    if (!entry) throw new Error(`RT function not found for rtFnHash ${rtFnHash}`);
+    materializeRTFn(entry);
     return entry.fn;
   },
-  hasJitFn(jitFnHash: string) {
-    return !!jitFnsCache[jitFnHash];
+  hasRTFn(rtFnHash: string) {
+    return !!rtFnsCache[rtFnHash];
   },
   addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction {
     if (!key) throw new Error('Pure function key must be a non-empty "namespace::fnName" string');
@@ -161,15 +161,15 @@ const jitUtils = {
   },
 };
 
-export function getJitUtils(): JITUtils {
-  return jitUtils;
+export function getRTUtils(): RTUtils {
+  return rtUtils;
 }
 
-/** Returns the JIT and pure-function caches. DO NOT MODIFY — the returned
- *  objects are the originals used by JIT functions. */
-export function getJitFnCaches() {
+/** Returns the RT and pure-function caches. DO NOT MODIFY — the returned
+ *  objects are the originals used by RT functions. */
+export function getRTFnCaches() {
   return {
-    jitFnsCache: jitFnsCache as Readonly<TypesFunctionsCache>,
+    rtFnsCache: rtFnsCache as Readonly<TypesFunctionsCache>,
     pureFnsCache: pureFnsCache as Readonly<PureFunctionsCache>,
   };
 }
@@ -177,19 +177,19 @@ export function getJitFnCaches() {
 /** Lazily materialize a pure function's `.fn` via its `createPureFn` closure. */
 function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
   if (compiled.fn) return;
-  compiled.fn = compiled.createPureFn(jitUtils);
+  compiled.fn = compiled.createPureFn(rtUtils);
 }
 
-/** Look up the JIT entry at `<prefix>_<id>`. Returns the entry's `fn`,
+/** Look up the RT entry at `<prefix>_<id>`. Returns the entry's `fn`,
  *  the identity fallback when the runtype is registered but its factory
  *  collapsed to a noop, or throws. **/
-export function lookupJitFn<F extends AnyFn>(callerName: string, prefix: string, id: string, identityFn: F): F {
-  const utils = getJitUtils();
-  const entry = utils.getJIT(prefix + '_' + id) as CompiledTypeFn | undefined;
+export function lookupRTFn<F extends AnyFn>(callerName: string, prefix: string, id: string, identityFn: F): F {
+  const utils = getRTUtils();
+  const entry = utils.getRT(prefix + '_' + id) as CompiledTypeFn | undefined;
   if (entry) return entry.fn as F;
   if (utils.hasRunType(id)) return identityFn;
   throw new Error(
-    `${callerName}(): no JitCompiledFn entry for "${prefix}_${id}" in jitUtils. The build pipeline didn't emit a factory for that runtype.`
+    `${callerName}(): no RTCompiledFn entry for "${prefix}_${id}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
   );
 }
 
@@ -200,42 +200,42 @@ export function pureFnKey(namespace: string, fnName: string): string {
 
 /** Builds a fresh factory closure from a serialized code body via
  *  `new Function('utl', code)`. Forces strict mode. **/
-export function buildFactoryFromCode(code: string): (utl: JITUtils) => (...args: any[]) => any {
-  return new Function('utl', `'use strict'; ${code}`) as (utl: JITUtils) => (...args: any[]) => any;
+export function buildFactoryFromCode(code: string): (utl: RTUtils) => (...args: any[]) => any {
+  return new Function('utl', `'use strict'; ${code}`) as (utl: RTUtils) => (...args: any[]) => any;
 }
 
-/** Cycle guard. When entry A's createJitFn invokes `getJIT('B')` and B's
- *  createJitFn invokes `getJIT('A')`, the second call would re-enter
- *  materializeJitFn for A while A is still materializing. The marker
- *  short-circuits that re-entry — getJIT still returns A's entry (with
+/** Cycle guard. When entry A's createRTFn invokes `getRT('B')` and B's
+ *  createRTFn invokes `getRT('A')`, the second call would re-enter
+ *  materializeRTFn for A while A is still materializing. The marker
+ *  short-circuits that re-entry — getRT still returns A's entry (with
  *  `fn` undefined for now); the inner closure captures the entry reference
  *  and reads `A.fn` later at call time, by which point it's set. **/
 const materializing = new Set<string>();
 
-/** Lazily populate an entry's `createJitFn` + `fn`. Cache modules register
- *  entries without eager materialization so cross-cache `getJIT()` lookups
+/** Lazily populate an entry's `createRTFn` + `fn`. Cache modules register
+ *  entries without eager materialization so cross-cache `getRT()` lookups
  *  inside a closure resolve to entries that already exist.
  *
  *  Emit modes:
- *  - Inline-factory mode (`--emit-create-jit-fn`): `entry.createJitFn` is
+ *  - Inline-factory mode (`--emit-create-rt-fn`): `entry.createRTFn` is
  *    the embedded `function(utl){…}` closure — invoke it.
- *  - Default: `entry.createJitFn` is undefined; rebuild from `entry.code`
+ *  - Default: `entry.createRTFn` is undefined; rebuild from `entry.code`
  *    via `new Function('utl', code)`, cache on the entry.
  *
  *  Noop entries skip via the `entry.fn` guard (cache modules pre-populate
  *  `fn` with the family-specific identity at register time).
  *
- *  alwaysThrow entries: `entry.createJitFn` is the throwing closure from
+ *  alwaysThrow entries: `entry.createRTFn` is the throwing closure from
  *  `alwaysThrowFactory(code, site)`; it ignores `utl` and throws. **/
-function materializeJitFn(entry: CompiledTypeFn): asserts entry is InitializedTypeFn {
+function materializeRTFn(entry: CompiledTypeFn): asserts entry is InitializedTypeFn {
   if (entry.fn) return;
-  if (materializing.has(entry.jitFnHash)) return;
-  if (!entry.createJitFn && !entry.code) return;
-  materializing.add(entry.jitFnHash);
+  if (materializing.has(entry.rtFnHash)) return;
+  if (!entry.createRTFn && !entry.code) return;
+  materializing.add(entry.rtFnHash);
   try {
-    if (!entry.createJitFn) (entry as Mutable<CompiledTypeFn>).createJitFn = buildFactoryFromCode(entry.code);
-    (entry as Mutable<CompiledTypeFn>).fn = (entry as InitializedTypeFn).createJitFn(jitUtils);
+    if (!entry.createRTFn) (entry as Mutable<CompiledTypeFn>).createRTFn = buildFactoryFromCode(entry.code);
+    (entry as Mutable<CompiledTypeFn>).fn = (entry as InitializedTypeFn).createRTFn(rtUtils);
   } finally {
-    materializing.delete(entry.jitFnHash);
+    materializing.delete(entry.rtFnHash);
   }
 }

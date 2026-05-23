@@ -37,8 +37,8 @@ func AnyPrepareForJsonSafePreserveSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-func (PrepareForJsonSafePreserveEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return PrepareForJsonSafeEmitter{}.IsJitInlined(ctx)
+func (PrepareForJsonSafePreserveEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return PrepareForJsonSafeEmitter{}.IsRTInlined(ctx)
 }
 
 func (PrepareForJsonSafePreserveEmitter) ReturnName() string {
@@ -56,6 +56,6 @@ func (PrepareForJsonSafePreserveEmitter) Finalize(raw string) (string, bool) {
 // Emit delegates entirely to the strip variant's per-kind dispatch —
 // the preserve semantic is read out of Walker.PreserveExtras inside
 // buildSafeObjectLiteral, so no per-kind branching is needed here.
-func (PrepareForJsonSafePreserveEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ct CodeType) JitCode {
+func (PrepareForJsonSafePreserveEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ct CodeType) RTCode {
 	return PrepareForJsonSafeEmitter{}.Emit(rt, ctx, ct)
 }

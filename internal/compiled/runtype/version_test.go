@@ -10,7 +10,7 @@ import (
 // TestVersionEmbedded_HashesDifferAcrossVersions — the same structural
 // type, hashed by two Caches built under different constants.Version
 // values, must produce different short hashes. This is the contract
-// that lets the on-disk JIT cache key by typeID without an extra
+// that lets the on-disk RT cache key by typeID without an extra
 // per-version path component.
 func TestVersionEmbedded_HashesDifferAcrossVersions(t *testing.T) {
 	originalVersion := constants.Version

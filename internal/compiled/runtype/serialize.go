@@ -66,7 +66,7 @@ type Cache struct {
 	byStructural map[string]string
 
 	// Reverse of byStructural: wire id → structural id. Exposed via
-	// StructuralForHash so the on-disk JIT cache can verify a cached
+	// StructuralForHash so the on-disk RT cache can verify a cached
 	// entry's child refs across builds — given a hash baked into a
 	// cached factory body, the disk layer recovers the structural id
 	// and re-resolves it against the current dict to detect drift.
@@ -209,7 +209,7 @@ func (cache *Cache) AssignID(tsType *checker.Type) string {
 // Two calls with the same kind deduplicate via the structural map.
 // Today only `KindSymbol` is needed; if other atomic kinds ever
 // require the same escape hatch, the switch grows in lockstep with
-// the JIT emit switch in internal/compiled/typefns/istype.go.
+// the RT emit switch in internal/compiled/typefns/istype.go.
 func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 	structural := strconv.Itoa(int(kind)) + ":atomic"
 	if id, ok := cache.byStructural[structural]; ok {
@@ -235,7 +235,7 @@ func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 // Used by the resolver's noIsArrayCheck path so an options-bearing
 // `string[] + {noIsArrayCheck: true}` hashes to a distinct id from
 // plain `string[]` even though the underlying TypeScript type is
-// identical. Mirrors mion's options-aware JIT hash at
+// identical. Mirrors mion's options-aware RT hash at
 // baseRunTypes.ts:82-86 (`createUniqueHash(typeId + options)`),
 // but expressed at the resolver level so the rest of the pipeline
 // treats the wrapped runtype as a normal cache entry.
@@ -362,7 +362,7 @@ func (cache *Cache) IDsForUnion(files []string) []string {
 }
 
 // StructuralForHash returns the structural id for an interned wire id, or
-// "" when absent. The disk-side JIT cache uses this at write time to
+// "" when absent. The disk-side RT cache uses this at write time to
 // record (structural id, hash) pairs for every child reference baked
 // into a cached factory body — at read time it re-resolves each
 // structural id against the current dict and treats any drift (id
@@ -586,7 +586,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 	case flags&checker.TypeFlagsTemplateLiteral != 0:
 		// Template literal type (`` `api/user/${number}` ``). Project
 		// the literal text segments + placeholder kinds onto Literal
-		// so the emit can compile to an anchored regex at JIT-build
+		// so the emit can compile to an anchored regex at RT-build
 		// time. Mion stores the spans inline on the type — tsgo
 		// splits them into `texts` (one more than types) + `types`
 		// arrays; we serialize the same separation onto the wire.
@@ -625,7 +625,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 // projectTemplateLiteral serializes a TS template literal type
 // (`` `prefix-${number}` ``) onto the Literal field. Mirrors mion's
 // approach: store the literal text segments + placeholder spans so
-// the JIT emit can build an anchored regex.
+// the RT emit can build an anchored regex.
 //
 // Wire shape:
 //
@@ -1027,7 +1027,7 @@ func (cache *Cache) projectMembersInto(
 		//   - `prototype`: the class constructor's prototype
 		//     reference. Shows up on class types via the constructor
 		//     symbol and produces self-recursive child entries.
-		//     Mion's `getJitChildren` filters it the same way.
+		//     Mion's `getRTChildren` filters it the same way.
 		// Apply only on class projections — interfaces / object
 		// literals can legally have a property literally named
 		// "prototype" (rare but possible).
@@ -1242,7 +1242,7 @@ func enumMembers(tsType *checker.Type) []enumMember {
 	// enum semantics — the previous serializer left these as nil because
 	// "tsgo's evaluator would handle it" wasn't wired in. Doing it here
 	// keeps the enum.spec.ts case `enum Color {Red, Green='green', Blue=2}`
-	// resolving Red=0 (instead of null) so the JIT isType chain
+	// resolving Red=0 (instead of null) so the RT isType chain
 	// `v === 0 || v === 'green' || v === 2` matches Color.Red at runtime.
 	var nextAuto int64
 	for i := range out {
@@ -1273,7 +1273,7 @@ func declarationPos(symbol *ast.Symbol) int {
 // for declarations we can't statically resolve.
 //
 // Mion validates symbol literals via runtime `.description` matching
-// (literal.ts:103), so the JIT emit needs the same string the
+// (literal.ts:103), so the RT emit needs the same string the
 // constructor was called with, not the binding identifier.
 func uniqueSymbolDescription(tsType *checker.Type) string {
 	symbol := tsType.Symbol()
@@ -1299,7 +1299,7 @@ func uniqueSymbolDescription(tsType *checker.Type) string {
 	if callExpression == nil || callExpression.Arguments == nil {
 		// `Symbol()` with no description — empty description matches
 		// `Symbol().description === undefined`. Returning "" here makes
-		// the JIT compare `v.description === ''`, which is wrong for the
+		// the RT compare `v.description === ''`, which is wrong for the
 		// no-description case but mion has the same gap, so we leave it
 		// until a spec case forces the issue.
 		return ""

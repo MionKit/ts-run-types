@@ -71,26 +71,26 @@ func flatUnionDecodeErrorVar(ctx *EmitContext) string {
 // Wrap is all-or-nothing across atomic members AND mandatory when an
 // object branch exists (the [-1, …] envelope coexists with the atomic
 // envelope, so the decoder must unconditionally unwrap).
-func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	var clauses []string
 
 	// Atomic clauses — same shape as the non-flat union encode.
 	for _, m := range layout.AtomicMembers {
-		prepareJit := ctx.CompileChild(m.Ref, CodeS)
-		if prepareJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		prepareRT := ctx.CompileChild(m.Ref, CodeS)
+		if prepareRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
 			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
 		}
-		body := strings.TrimSpace(prepareJit.Code)
+		body := strings.TrimSpace(prepareRT.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
 			body += ";"
 		}
@@ -111,7 +111,7 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 			propCode, ok := emitMergedPropPrepare(mp, accessor, ctx)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			if propCode == "" {
 				continue
@@ -139,7 +139,7 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 
 	errVar := flatUnionEncodeErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return JitCode{Code: strings.Join(clauses, ""), Type: CodeS}
+	return RTCode{Code: strings.Join(clauses, ""), Type: CodeS}
 }
 
 // emitMergedPropPrepare returns the inline JS body that transforms a
@@ -209,17 +209,17 @@ func emitMergedPropPrepare(mp FlatMergedProp, accessor string, ctx *EmitContext)
 // union round-trips raw and the decoder is identity. No shape gate —
 // the compile-time decision tells the decoder exactly which shape to
 // expect.
-func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	hasObjectBranch := len(layout.ObjectMembers) > 0
 	if !layout.AtomicNeedsTuple {
 		// Whole union round-trips raw — every atomic member is noop on
 		// both halves AND there's no object branch.
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	decVar := ctx.NextLocalVar("dec")
@@ -235,7 +235,7 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 			propCode, ok := emitMergedPropRestore(mp, accessor, ctx)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			if propCode == "" {
 				continue
@@ -254,11 +254,11 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 	// Atomic arms — every atomic member gets a decode clause because
 	// every encoded value is wrapped under the all-or-nothing rule.
 	for _, m := range layout.AtomicMembers {
-		restoreJit := ctx.CompileChild(m.Ref, CodeS)
-		if restoreJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		restoreRT := ctx.CompileChild(m.Ref, CodeS)
+		if restoreRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		body := strings.TrimSpace(restoreJit.Code)
+		body := strings.TrimSpace(restoreRT.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
 			body += ";"
 		}
@@ -270,7 +270,7 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 	}
 
 	if len(arms) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	errVar := flatUnionDecodeErrorVar(ctx)
@@ -279,7 +279,7 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 	// Unconditional unwrap — every encoded value is a [idx, value]
 	// envelope under the all-or-nothing wrap rule.
 	body := "const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" + inner
-	return JitCode{Code: body, Type: CodeS}
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // emitMergedPropRestore — decode-side mirror of emitMergedPropPrepare.
@@ -341,20 +341,20 @@ func emitMergedPropRestore(mp FlatMergedProp, accessor string, ctx *EmitContext)
 // mutating `v`. The wrap-or-not decision is all-or-nothing across the
 // atomic branch (see FlatLayout.AtomicNeedsTuple) so the decoder always
 // knows whether to unwrap.
-func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	var clauses []string
 
 	for _, m := range layout.AtomicMembers {
-		childJit := ctx.CompileChild(m.Ref, CodeE)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(m.Ref, CodeE)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
+		if childRT.Code == "" {
 			continue
 		}
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
@@ -364,9 +364,9 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 		}
 		var emitted string
 		if layout.AtomicNeedsTuple {
-			emitted = "'[" + strconv.Itoa(m.OriginalIndex) + ",' + " + childJit.Code + " + ']'"
+			emitted = "'[" + strconv.Itoa(m.OriginalIndex) + ",' + " + childRT.Code + " + ']'"
 		} else {
-			emitted = childJit.Code
+			emitted = childRT.Code
 		}
 		clause := "if (" + guard + ") { return " + emitted + ";}"
 		if len(clauses) > 0 {
@@ -420,7 +420,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 			propJson, ok := emitMergedPropStringify(mp, accessor, ctx)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			if propJson == "" {
 				continue
@@ -485,7 +485,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 
 	errVar := flatUnionEncodeErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return JitCode{Code: strings.Join(clauses, ""), Type: CodeRB}
+	return RTCode{Code: strings.Join(clauses, ""), Type: CodeRB}
 }
 
 // emitMergedPropStringify returns a JS expression that evaluates to the

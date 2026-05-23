@@ -9,25 +9,25 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// renderToString defaults to EmitCreateJitFn=true so body-shape
+// renderToString defaults to EmitCreateRTFn=true so body-shape
 // assertions can substring-match against the un-escaped validator body
 // embedded in the `function g_<id>(utl){return function <id>(v){
 // <body>}}` closure. Under the production default (no inline factory)
 // the same body lives only inside the JSON-quoted `code` arg-3 string,
 // making raw-body assertions unreadable. Tests that care about the
-// wire encoding (createJitFn arg-7 token, alwaysThrow, noop shape)
+// wire encoding (createRTFn arg-7 token, alwaysThrow, noop shape)
 // explicitly call renderToStringDefault.
 func renderToString(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := IsTypeModule(&buf, dump, RenderOpts{EmitCreateJitFn: true}); err != nil {
+	if err := IsTypeModule(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
 		t.Fatalf("IsTypeModule: %v", err)
 	}
 	return buf.String()
 }
 
 // renderToStringDefault renders with the production-default
-// (EmitCreateJitFn=false) — arg-7 becomes the `u` alias, the body
+// (EmitCreateRTFn=false) — arg-7 becomes the `u` alias, the body
 // lives only in the quoted `code` string. Used by the few tests that
 // assert the wire-shape transition between the two emit modes.
 func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
@@ -45,10 +45,10 @@ func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	for _, fragment := range []string{
 		"'use strict';",
-		"export function initCache(jitUtils)",
+		"export function initCache(rtUtils)",
 		"function init(",
-		"jitFnHash,",
-		"jitUtils.addToJitCache(entry)",
+		"rtFnHash,",
+		"rtUtils.addToRTCache(entry)",
 	} {
 		if !strings.Contains(out, fragment) {
 			t.Errorf("expected fragment %q in:\n%s", fragment, out)
@@ -64,8 +64,8 @@ func TestIsTypeModule_NoSideEffectImport(t *testing.T) {
 	if strings.Contains(out, "import ") {
 		t.Errorf("rendered module must not import anything at top-level (pure module), got:\n%s", out)
 	}
-	if strings.Contains(out, "getJitUtils()") {
-		t.Errorf("rendered module must not invoke getJitUtils() — utl is supplied via initCache(jitUtils), got:\n%s", out)
+	if strings.Contains(out, "getRTUtils()") {
+		t.Errorf("rendered module must not invoke getRTUtils() — utl is supplied via initCache(rtUtils), got:\n%s", out)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
-	// Opt-in (EmitCreateJitFn=true): arg-7 carries the full
+	// Opt-in (EmitCreateRTFn=true): arg-7 carries the full
 	// `function g_<hash>(utl){…}` declaration. Used by runtimes
 	// without `new Function` and by every body-shape test below.
 	out := renderToString(t, dump)
@@ -105,7 +105,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 // production-default shape: arg-7 is the `u = undefined` alias and
 // no `function g_<hash>(utl){…}` closure leaks into the module. The
 // body lives only in the quoted `code` arg-3 string; the JS-side
-// materializeJitFn rebuilds the factory via `new Function('utl',
+// materializeRTFn rebuilds the factory via `new Function('utl',
 // code)` on first lookup.
 func TestIsTypeModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	dump := protocol.Dump{
@@ -125,7 +125,7 @@ func TestIsTypeModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
 	}
 	if strings.Contains(out, "function g_it_abc123") {
-		t.Errorf("default emit must NOT inline the createJitFn closure, but found g_it_abc123 in:\n%s", out)
+		t.Errorf("default emit must NOT inline the createRTFn closure, but found g_it_abc123 in:\n%s", out)
 	}
 }
 
@@ -166,18 +166,18 @@ func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
 			dump := protocol.Dump{RunTypes: []*protocol.RunType{row.rt}}
 			out := renderToString(t, dump)
 			if row.noop {
-				// Noop factories use the short-form init: only jitFnHash,
+				// Noop factories use the short-form init: only rtFnHash,
 				// typeName, code=undefined, isNoop=true — no full body or
-				// createJitFn closure. The cache module's init() sees
+				// createRTFn closure. The cache module's init() sees
 				// isNoop and pre-sets `fn` to the family identity. Assert
 				// both: the short-form `init('<id>',...,undefined,true);`
-				// is present, AND no full createJitFn closure leaks in.
+				// is present, AND no full createRTFn closure leaks in.
 				marker := "init('it_" + row.rt.ID + "',"
 				if !strings.Contains(out, marker) {
 					t.Errorf("noop kind %s expected short-form init line %q in:\n%s", row.name, marker, out)
 				}
 				if strings.Contains(out, "function g_it_"+row.rt.ID) {
-					t.Errorf("noop kind %s should NOT emit a createJitFn closure, but found g_it_%s in:\n%s", row.name, row.rt.ID, out)
+					t.Errorf("noop kind %s should NOT emit a createRTFn closure, but found g_it_%s in:\n%s", row.name, row.rt.ID, out)
 				}
 				return
 			}
@@ -289,10 +289,10 @@ func TestIsTypeModule_ArrayEmitBody(t *testing.T) {
 // invoke the inner array's pre-compiled validator via the dependency-
 // call layer:
 //
-//   - The outer module's `jitDependencies` arg carries the inner
+//   - The outer module's `rtDependencies` arg carries the inner
 //     hash (non-empty `[…]`).
-//   - The outer createJitFn closure has a `const <innerHash> =
-//     utl.getJIT('<innerHash>')` context-item line.
+//   - The outer createRTFn closure has a `const <innerHash> =
+//     utl.getRT('<innerHash>')` context-item line.
 //   - The outer body contains `<innerHash>.fn(v[i0])` at the element
 //     check position.
 //   - Both modules render (inner first, outer second — topo sort).
@@ -309,7 +309,7 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 	}
 	// Cache insertion order is parent-first (outer, inner). Renderer
 	// must reorder to inner-before-outer so the outer's closure can
-	// resolve `utl.getJIT('inn')` against an already-registered entry.
+	// resolve `utl.getRT('inn')` against an already-registered entry.
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}}
 	out := renderToString(t, dump)
 
@@ -327,9 +327,9 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 		t.Errorf("inner factory must render before outer (topo sort); got innerIdx=%d outerIdx=%d in:\n%s", innerIdx, outerIdx, out)
 	}
 	if !strings.Contains(out, "['it_inn']") {
-		t.Errorf("outer factory's jitDependencies arg must contain ['it_inn'], got:\n%s", out)
+		t.Errorf("outer factory's rtDependencies arg must contain ['it_inn'], got:\n%s", out)
 	}
-	if !strings.Contains(out, "const it_inn = utl.getJIT('it_inn')") {
+	if !strings.Contains(out, "const it_inn = utl.getRT('it_inn')") {
 		t.Errorf("outer factory must register context item resolving the inner hash, got:\n%s", out)
 	}
 	if !strings.Contains(out, "it_inn.fn(v[i0])") {
@@ -429,7 +429,7 @@ func TestIsTypeModule_OptionalPropertyEmitBody(t *testing.T) {
 
 // TestIsTypeModule_FunctionPropertyDropped — properties whose wrapped
 // value is function-flavoured are dropped from the parent's AND
-// chain. Mirrors mion's `getJitChild → undefined` short-circuit for
+// chain. Mirrors mion's `getRTChild → undefined` short-circuit for
 // methods. The interface body therefore reduces to the basic
 // typeof-object guard + the non-function siblings.
 func TestIsTypeModule_FunctionPropertyDropped(t *testing.T) {

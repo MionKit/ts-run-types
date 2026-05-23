@@ -8,7 +8,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// PrepareForJsonEmitter implements the `prepareForJson` jit function —
+// PrepareForJsonEmitter implements the `prepareForJson` rt function —
 // transforms a runtime value into a JSON-serializable form (BigInts
 // become decimal strings, Symbols become "Symbol:<desc>" strings, RegExps
 // become their toString() form, etc.). The downstream JSON.stringify
@@ -22,7 +22,7 @@ import (
 // mion/packages/run-types/src/nodes/**.
 type PrepareForJsonEmitter struct{}
 
-// Args mirrors mion's `jitArgs.vλl = 'v'` + empty default in
+// Args mirrors mion's `rtArgs.vλl = 'v'` + empty default in
 // run-types/src/constants.functions.ts:45. Same single-arg shape as
 // isType — prepareForJson mutates v in place and returns it.
 func (PrepareForJsonEmitter) Args() []ArgSpec {
@@ -33,7 +33,7 @@ func (PrepareForJsonEmitter) Args() []ArgSpec {
 // atomic kind whose mion node ships an emitPrepareForJson. Subsequent
 // phases extend the set kind by kind.
 //
-// Kinds that throw at JIT-compile time in mion (never, enumMember) are
+// Kinds that throw at RT-compile time in mion (never, enumMember) are
 // excluded — Supports false means no factory is emitted.
 func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {
@@ -53,7 +53,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		// "Never type cannot be encoded to JSON.". We surface that
 		// via a throw-factory; Supports() returns true so the
 		// renderer compiles the entry (and the compile produces the
-		// throw via JitThrow in Emit).
+		// throw via RTThrow in Emit).
 		return true
 	case protocol.KindArray:
 		// Gate on a non-nil child — a malformed RunType with KindArray
@@ -112,7 +112,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return false
 	case protocol.KindPromise:
 		// mion:nodes/native/promise.ts:23 — emitPrepareForJson throws
-		// "Jit compilation disabled for Non Serializable types.".
+		// "RT compilation disabled for Non Serializable types.".
 		// Supports() returns true so the renderer compiles and surfaces
 		// the throw via a runtime-throwing factory.
 		return true
@@ -133,11 +133,11 @@ func AnyPrepareForJsonSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-// IsJitInlined delegates to DefaultIsJitInlined — same heuristics as
-// isType / typeErrors. Mion shares the predicate across all jit fns
-// via BaseRunType.isJitInlined.
-func (PrepareForJsonEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return DefaultIsJitInlined(ctx)
+// IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
+// isType / typeErrors. Mion shares the predicate across all rt fns
+// via BaseRunType.isRTInlined.
+func (PrepareForJsonEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return DefaultIsRTInlined(ctx)
 }
 
 // ReturnName is `v` — prepareForJson mutates the input value (or
@@ -167,9 +167,9 @@ func (PrepareForJsonEmitter) ReturnName() string {
 //
 // Unsupported kinds emit CodeNS — the walker latches IsUnsupported
 // and the renderer skips this entry's factory.
-func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	switch rt.Kind {
@@ -180,32 +180,32 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		protocol.KindObject, protocol.KindEnum:
 		// mion: AtomicRunType default `{code: undefined, type: 'S'}`.
 		// Finalize collapses empty bodies to `return v` + noop flag.
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
 		// Unsupported leaf — walker latches, renderer emits alwaysThrow
 		// factory keyed by PJ001 (see docs/UNSUPPORTED-KINDS.md).
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindBigInt:
 		// mion:nodes/atomic/bigInt.ts:20 — `v.toString()`.
 		// Reassign so the mutated value is what gets returned.
-		return JitCode{Code: v + " = " + v + ".toString()", Type: CodeE}
+		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 
 	case protocol.KindSymbol:
 		// Unsupported — symbol identity does not survive a JSON
 		// round-trip (Symbol("x") !== Symbol("x")), so the previous
 		// "Symbol:" + description encoding was lossy by construction.
 		// See docs/UNSUPPORTED-KINDS.md FAQ for the rationale.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
 		// mion:nodes/atomic/regexp.ts:20 — `v.toString()` (e.g. "/abc/i").
-		return JitCode{Code: v + " = " + v + ".toString()", Type: CodeE}
+		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 
 	case protocol.KindVoid:
 		// mion:nodes/atomic/void.ts:20 — `v = undefined`.
-		return JitCode{Code: v + " = undefined", Type: CodeE}
+		return RTCode{Code: v + " = undefined", Type: CodeE}
 
 	case protocol.KindClass:
 		// Date prepareForJson is a noop (Date has its own toJSON()).
@@ -218,19 +218,19 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// nodes/native/nonSerializable.ts:24 raises the same message.
 		switch rt.SubKind {
 		case protocol.SubKindDate:
-			return JitCode{Code: "", Type: CodeS}
+			return RTCode{Code: "", Type: CodeS}
 		case protocol.SubKindNone:
 			return emitObjectPrepareForJson(rt, ctx, v)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
 		// Unsupported — async value, can't be sampled synchronously.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJson(rt, ctx, v)
@@ -250,7 +250,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// mion:nodes/function/function.ts:83-85 —
-		// `emitPrepareForJson(): JitCode { throw new Error('Compile
+		// `emitPrepareForJson(): RTCode { throw new Error('Compile
 		// function PrepareForJson not supported, call compileParams
 		// or compileReturn instead.'); }`. Functions as ROOT or as a
 		// union member surface this throw; object/property children
@@ -258,7 +258,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// emitObjectPrepareForJson / emitPropertyPrepareForJson) and
 		// never reach this arm. Tuple-member also filters via
 		// isFunctionLikeKind.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUnion:
 		// Unions encode via the flat-union wire shape (see union_flat.go) —
@@ -273,11 +273,11 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 	case protocol.KindIntersection:
 		// Defensive noop — intersections should be pre-resolved by the
 		// type checker. See Supports's comment for details.
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindTemplateLiteral:
 		// String-flavoured at runtime — noop.
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
 		// mion:nodes/atomic/literal.ts:77 — defers to the underlying
@@ -301,55 +301,55 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// latches the child as UnsupportedLeaf, so the renderer emits
 		// alwaysThrow keyed off the child's kind.
 		if rt.Child == nil {
-			return JitCode{Code: "", Type: CodeS}
+			return RTCode{Code: "", Type: CodeS}
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childJit := ctx.CompileChild(rt.Child, CodeS)
+		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
-			return JitCode{Code: "", Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: "", Type: CodeS}
 		}
-		body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
-		return JitCode{Code: body, Type: CodeS}
+		body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+		return RTCode{Code: body, Type: CodeS}
 	}
-	return JitCode{Code: "", Type: CodeNS}
+	return RTCode{Code: "", Type: CodeNS}
 }
 
 // emitLiteralPrepareForJson mirrors mion's literal.ts:77 — defers to
 // the base kind. The Go side knows the literal's primitive flavour via
 // Flags ("bigint", "symbol") and Literal shape (regexp envelope vs
 // primitive).
-func emitLiteralPrepareForJson(rt *protocol.RunType, v string) JitCode {
+func emitLiteralPrepareForJson(rt *protocol.RunType, v string) RTCode {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
 		flagSet[flag] = true
 	}
 	if flagSet["bigint"] {
-		return JitCode{Code: v + " = " + v + ".toString()", Type: CodeE}
+		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 	}
 	if flagSet["symbol"] {
-		return JitCode{Code: v + " = 'Symbol:' + (" + v + ".description || '')", Type: CodeE}
+		return RTCode{Code: v + " = 'Symbol:' + (" + v + ".description || '')", Type: CodeE}
 	}
 	if entry, isMap := rt.Literal.(map[string]any); isMap {
 		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return JitCode{Code: v + " = " + v + ".toString()", Type: CodeE}
+			return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 		}
 	}
 	// Primitive literal (number / string / boolean / null) — noop.
-	return JitCode{Code: "", Type: CodeS}
+	return RTCode{Code: "", Type: CodeS}
 }
 
 // emitObjectPrepareForJson mirrors mion's
 // nodes/collection/interface.ts:emitPrepareForJson — iterate non-skip
 // children, collect each child's emit, join with `;`. Children that
-// are method-shaped or static are dropped (mion's getJitChildren).
+// are method-shaped or static are dropped (mion's getRTChildren).
 // A child returning CodeNS propagates upward (unsupported descendant
 // short-circuits the whole entry).
-func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	var parts []string
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
@@ -364,44 +364,44 @@ func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
 		}
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
+		if childRT.Code == "" {
 			continue
 		}
-		parts = append(parts, childJit.Code)
+		parts = append(parts, childRT.Code)
 	}
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
 // emitPropertyPrepareForJson mirrors mion's
 // nodes/member/property.ts:emitPrepareForJson. Sets the child
 // accessor (`v.<name>` / `v["name"]`), recurses, optionally wraps
 // with the undefined-guard for optional properties.
-func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
 		// Fast-path: pre-descent skip for known function-shaped children.
 		// Avoids the wasted walker descent + AbsorbUnsupported round-trip.
 		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
+	if childRT.Type == CodeNS {
 		// Property absorbs any unsupported child — drops the slot from
 		// the parent's chain, emits a per-family diagnostic naming the
 		// excluded property + leaf kind, and clears the walker latch
@@ -413,44 +413,44 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
-		return JitCode{
-			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+		return RTCode{
+			Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}",
 			Type: CodeS,
 		}
 	}
-	return childJit
+	return childRT
 }
 
 // emitIndexSignaturePrepareForJson mirrors mion's
 // nodes/member/indexProperty.ts:emitPrepareForJson — for-in over keys
 // invoking the child's emit on each. Template-literal key constraints
 // add a per-key regex.test skip; without one, every key is processed.
-func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	// Mion's IndexSignatureRunType.skipJit (indexProperty.ts:30-36)
-	// drops symbol-keyed sigs from every JIT fn except toJSCode.
+	// Mion's IndexSignatureRunType.skipRT (indexProperty.ts:30-36)
+	// drops symbol-keyed sigs from every RT fn except toJSCode.
 	// for-in doesn't enumerate symbol keys anyway, so the loop body
 	// would be dead, but matching mion's emit shape avoids
 	// corrupting unrelated string/number keys when the symbol-keyed
 	// value type is non-noop (e.g. `[k: symbol]: Date` running
 	// `new Date(v[k])` over every enumerable key).
 	if isSymbolKeyedIndexSig(rt, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	keyRegexVar := ""
 	if rt.Index != nil {
@@ -466,43 +466,43 @@ func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 	}
 	keyVar := ctx.NextLocalVar("k")
 	ctx.SetChildAccessor(v + "[" + keyVar + "]")
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	body := "for (const " + keyVar + " in " + v + ") {"
 	if keyRegexVar != "" {
 		body += "if (!" + keyRegexVar + ".test(" + keyVar + ")) continue;"
 	}
-	body += childJit.Code + "}"
-	return JitCode{Code: body, Type: CodeS}
+	body += childRT.Code + "}"
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // emitTuplePrepareForJson mirrors mion's
 // nodes/collection/tuple.ts:emitPrepareForJson — iterate tuple members,
 // emit each one's code, join with `;`. Empty tuple → noop.
-func emitTuplePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitTuplePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	var parts []string
 	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
 		}
 	}
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
 // emitTupleMemberPrepareForJson mirrors mion's
@@ -517,12 +517,12 @@ func emitTuplePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 //     null, 1] in some engines and the inverse round-trip diverges)
 //   - rest: for-loop iterating from position to v.length, applying
 //     child emit on each element
-func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	// Function-typed tuple slots fall through to CompileChild — the
 	// function arm returns CodeNS, the walker latches the leaf, and the
@@ -532,36 +532,36 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childJit := ctx.CompileChild(rt.Child, CodeS)
+		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
-			return JitCode{Code: "", Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: "", Type: CodeS}
 		}
-		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
-		return JitCode{Code: body, Type: CodeS}
+		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+		return RTCode{Code: body, Type: CodeS}
 	}
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
 	if rt.Optional {
 		optionalCode := "if (" + accessor + " === undefined) {if (" + v + ".length > " + idxLit + ") " + accessor + " = null}"
-		if childJit.Code == "" {
-			return JitCode{Code: optionalCode, Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: optionalCode, Type: CodeS}
 		}
-		return JitCode{Code: optionalCode + " else {" + childJit.Code + "}", Type: CodeS}
+		return RTCode{Code: optionalCode + " else {" + childRT.Code + "}", Type: CodeS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return childJit
+	return childRT
 }
 
 // unionMemberIsTypeCheck returns a JS expression that checks whether
@@ -586,7 +586,7 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
 	isTypeHash := constants.CacheModules["isType"].Tag + "_" + member.ID
 	if !ctx.HasContextItem(isTypeHash) {
-		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getJIT("+quoteJS(isTypeHash)+")")
+		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getRT("+quoteJS(isTypeHash)+")")
 	}
 	base := "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
 	gate := looseCheckGate(member, ctx, v)
@@ -673,7 +673,7 @@ func looseCheckGate(member *protocol.RunType, ctx *EmitContext, v string) string
 // like Set<string> / Map<string, number>), fall back to the original
 // shape `v = Array.from(v)` so the no-loop fast path is preserved
 // for already-passing tests.
-func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
 	var innerTypes []*protocol.RunType
 	if isMap {
@@ -694,25 +694,25 @@ func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
 		}
 		ctx.SetChildAccessor(accessor)
-		childJit := ctx.CompileChild(innerType, CodeS)
+		childRT := ctx.CompileChild(innerType, CodeS)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			childCodes = append(childCodes, childJit.Code)
+		if childRT.Code != "" {
+			childCodes = append(childCodes, childRT.Code)
 		}
 	}
 
 	if len(childCodes) == 0 {
-		return JitCode{Code: v + " = Array.from(" + v + ")", Type: CodeS}
+		return RTCode{Code: v + " = Array.from(" + v + ")", Type: CodeS}
 	}
 
 	resVar := ctx.NextLocalVar("ml")
 	body := "const " + resVar + " = []; for (let " + entryVar + " of " + v + ") {" +
 		strings.Join(childCodes, ";") + ";" + resVar + ".push(" + entryVar + ")} " +
 		v + " = " + resVar
-	return JitCode{Code: body, Type: CodeS}
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a
@@ -733,13 +733,13 @@ func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 // atomic children. Self-recursive calls drop the `.fn` indirection.
 func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	var call string
 	if isSelf {
 		call = ctx.walker.FnName + "(" + args + ")"
 	} else {
 		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 		}
 		call = childID + ".fn(" + args + ")"
 	}
@@ -747,10 +747,10 @@ func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 }
 
 // Finalize matches mion's handleFunctionReturn for the
-// prepareForJson / restoreFromJson family (jitFnCompiler.ts:435):
+// prepareForJson / restoreFromJson family (rtFnCompiler.ts:435):
 // empty / identity bodies are rewritten to `return v` and the
 // isNoop flag is set to true, but the factory is STILL emitted
-// (mion's createJitFunction wraps the body unconditionally). The
+// (mion's createRTFunction wraps the body unconditionally). The
 // renderer keeps every supported entry as a live factory so
 // dep-call chains from parents resolve cleanly — a parent's
 // `<childHash>.fn(v[i])` must hit a real fn, even when that fn is
@@ -759,7 +759,7 @@ func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 // Mion's `00JsonOnly.spec.ts` asserts `isNoop === true` for shapes
 // where no JSON transformation is required (interfaces of primitive
 // strings/numbers, tuples of the same, etc.). The flag is exposed
-// to consumers on the JitCompiledFn entry so they can short-circuit
+// to consumers on the RTCompiledFn entry so they can short-circuit
 // dispatch when round-tripping a noop value.
 func (PrepareForJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)

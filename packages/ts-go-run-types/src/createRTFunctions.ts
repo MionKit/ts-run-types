@@ -1,7 +1,7 @@
-// Home for every JIT-backed factory exported by this package. Each
-// `createXxx<T>()` is a thin wrapper over the private `createJitFunction`
+// Home for every RT-backed factory exported by this package. Each
+// `createXxx<T>()` is a thin wrapper over the private `createRTFunction`
 // generic; only the cache-key prefix, identity fallback, and return type
-// vary per family. The jitUtils singleton is the only cache.
+// vary per family. The rtUtils singleton is the only cache.
 
 import {initCache as initIsTypeCache} from './caches/isTypeCache.ts';
 import {initCache as initGetTypeErrorsCache} from './caches/getTypeErrorsCache.ts';
@@ -15,9 +15,9 @@ import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCac
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
-import {getJitUtils} from './jit/jitUtils.ts';
-import {lookupJitFn} from './jit/jitUtils.ts';
-import type {AnyFn} from './jit/types.ts';
+import {getRTUtils} from './rt/rtUtils.ts';
+import {lookupRTFn} from './rt/rtUtils.ts';
+import type {AnyFn} from './rt/types.ts';
 import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
 
 // =============================================================================
@@ -54,10 +54,10 @@ export interface RunTypeError {
  *  and `errors` slots so the validator can be chained or pre-seeded. **/
 export type GetTypeErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
 
-/** Options bag for HasUnknownKeysFn. When `checkNonJitProps` is true the
- *  known-keys list expands to include children the JIT skipped. **/
+/** Options bag for HasUnknownKeysFn. When `checkNonRTProps` is true the
+ *  known-keys list expands to include children the RT skipped. **/
 export interface HasUnknownKeysOptions {
-  checkNonJitProps?: boolean;
+  checkNonRTProps?: boolean;
 }
 
 /** Predicate returned by `createHasUnknownKeys<T>()`. **/
@@ -75,7 +75,7 @@ export type UnknownKeyErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment
  *  unknown property to `undefined` instead of removing it. **/
 export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
 
-// Internal JIT-primitive signatures consumed by the JSON encoder/decoder.
+// Internal RT-primitive signatures consumed by the JSON encoder/decoder.
 export type PrepareForJsonFn = (value: unknown) => unknown;
 export type RestoreFromJsonFn = (value: unknown) => unknown;
 export type StringifyJsonFn = (value: unknown) => string | undefined;
@@ -94,7 +94,7 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *      `JSON.stringify`. Non-mutating, allocates per nested object literal.
  *    - `'mutate'`: walk `v`, transform leaves in place, hand to native
  *      `JSON.stringify`. Mutates the input, no clone allocation.
- *    - `'direct'`: single-pass `stringifyJson` JIT. Never mutates, no clone
+ *    - `'direct'`: single-pass `stringifyJson` RT. Never mutates, no clone
  *      allocation, slower on non-trivial shapes. Always strips extras.
  *
  *  - `stripExtras` (default `true`): whether undeclared keys are removed.
@@ -113,11 +113,11 @@ export interface JsonDecoderOptions {
 // =============================================================================
 // Cache bootstrap
 // =============================================================================
-// initCache is idempotent (addToJitCache overwrites by jitFnHash), so HMR can
+// initCache is idempotent (addToRTCache overwrites by rtFnHash), so HMR can
 // safely re-run any of these. Each call only registers entries; fn closures
-// are built lazily by materializeJitFn on first getJIT() lookup.
+// are built lazily by materializeRTFn on first getRT() lookup.
 
-const _utils = getJitUtils();
+const _utils = getRTUtils();
 initIsTypeCache(_utils);
 initGetTypeErrorsCache(_utils);
 initHasUnknownKeysCache(_utils);
@@ -139,7 +139,7 @@ initPrepareForJsonSafePreserveCache(_utils);
 
 /** Returns the per-id closure for a family. Falls back to `identityFn` when
  *  the runtype is registered but its Go-side factory collapsed to a noop. **/
-function createJitFunction<F extends AnyFn>(
+function createRTFunction<F extends AnyFn>(
   fnName: string,
   prefix: string,
   identityFn: F
@@ -152,12 +152,12 @@ function createJitFunction<F extends AnyFn>(
         `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
       );
     }
-    const utils = getJitUtils();
-    const entry = utils.getJIT(prefix + '_' + id);
+    const utils = getRTUtils();
+    const entry = utils.getRT(prefix + '_' + id);
     if (entry) return entry.fn as F;
     if (utils.hasRunType(id)) return identityFn;
     throw new Error(
-      `${fnName}(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a factory for that runtype.`
+      `${fnName}(): no RTCompiledFn entry for "${id}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
     );
   };
 }
@@ -174,37 +174,39 @@ const identityValueFn = (v: unknown) => v;
 const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
 const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 
-export const createIsType = createJitFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
+export const createIsType = createRTFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
   val?: T,
   options?: CompTimeArgs<RunTypeOptions>,
   id?: InjectRuntypeId<T>
 ) => IsTypeFn;
 
-export const createGetTypeErrors = createJitFunction<GetTypeErrorsFn>(
+export const createGetTypeErrors = createRTFunction<GetTypeErrorsFn>(
   'createGetTypeErrors',
   'te',
   getTypeErrorsIdentity
 ) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => GetTypeErrorsFn;
 
-export const createHasUnknownKeys = createJitFunction<HasUnknownKeysFn>(
-  'createHasUnknownKeys',
-  'huk',
-  () => false
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => HasUnknownKeysFn;
+export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <
+  T,
+>(
+  val?: T,
+  options?: CompTimeArgs<RunTypeOptions>,
+  id?: InjectRuntypeId<T>
+) => HasUnknownKeysFn;
 
-export const createStripUnknownKeys = createJitFunction<StripUnknownKeysFn>(
+export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
   'suk',
   identityValueFn
 ) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => StripUnknownKeysFn;
 
-export const createUnknownKeyErrors = createJitFunction<UnknownKeyErrorsFn>(
+export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
 ) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => UnknownKeyErrorsFn;
 
-export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndefinedFn>(
+export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
   'uku',
   identityValueFn
@@ -213,7 +215,7 @@ export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndef
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
 //
-// Each composes one or two underlying JIT primitives based on runtime options.
+// Each composes one or two underlying RT primitives based on runtime options.
 // Option fields (strategy / stripExtras) are NOT folded into the typeid, so
 // every encoder shape against the same `T` shares one type id; the runtime
 // picks the right family (`sj` / `pj` / `pjs` / `pjsp` + optional `uku`
@@ -236,33 +238,33 @@ export function createJsonEncoder<T>(
     );
   }
   const strategy = options?.strategy ?? 'clone';
-  // `direct` is type-pinned to stripExtras: true (the JIT walks the type and
+  // `direct` is type-pinned to stripExtras: true (the RT walks the type and
   // can't see undeclared keys).
   const stripExtras = strategy === 'direct' ? true : ((options as {stripExtras?: boolean})?.stripExtras ?? true);
 
   if (strategy === 'direct') {
-    return lookupJitFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
+    return lookupRTFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
   }
 
   if (strategy === 'clone') {
     if (stripExtras) {
-      const prepareSafeFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
+      const prepareSafeFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
       return (value) => JSON.stringify(prepareSafeFn(value));
     }
     // pjsp = same clone codegen as pjs but with `...v` spread so undeclared
     // keys survive.
-    const prepareSafePreserveFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', id, identityValueFn);
+    const prepareSafePreserveFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', id, identityValueFn);
     return (value) => JSON.stringify(prepareSafePreserveFn(value));
   }
 
   // strategy === 'mutate'
-  const prepareFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
+  const prepareFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
   if (!stripExtras) {
     return (value) => JSON.stringify(prepareFn(value));
   }
   // mutate + strip: uku sets undeclared keys to undefined, pj transforms
   // declared leaves, then JSON.stringify skips undefined-valued keys naturally.
-  const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', id, identityValueFn);
+  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', id, identityValueFn);
   return (value) => {
     ukuFn(value);
     return JSON.stringify(prepareFn(value));
@@ -283,34 +285,34 @@ export function createJsonDecoder<T>(
     );
   }
   const stripExtras = options?.stripExtras ?? true;
-  const restoreFn = lookupJitFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', id, identityValueFn);
+  const restoreFn = lookupRTFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', id, identityValueFn);
   if (!stripExtras) {
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
   // ukuWire (not public uku): union-arm emit reaches into the flat-union wire
   // wrapper `[-1, mergedObject]` instead of corrupting its `0`/`1` indices.
-  const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
+  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
   return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }
 
 // =============================================================================
-// HMR — refresh the JIT registry whenever any cache module re-evaluates.
+// HMR — refresh the RT registry whenever any cache module re-evaluates.
 // Tree-shaken at bundle time. Binary HMR lives in `./createBinary.ts`.
 // =============================================================================
 
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const hot = (import.meta as unknown as {hot?: HMR}).hot;
 if (hot) {
-  hot.accept('./caches/isTypeCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/getTypeErrorsCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/hasUnknownKeysCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/stripUnknownKeysCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/unknownKeysToUndefinedCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/unknownKeysToUndefinedWireCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/prepareForJsonSafePreserveCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/isTypeCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/getTypeErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/hasUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/stripUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/unknownKeysToUndefinedCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/unknownKeysToUndefinedWireCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/prepareForJsonSafePreserveCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }

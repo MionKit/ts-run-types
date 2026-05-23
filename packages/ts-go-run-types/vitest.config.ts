@@ -38,15 +38,15 @@ export default defineConfig({
       tsconfig: 'tsconfig.test.json',
       // Force the inline-factory emit on for the test run so suites cover
       // BOTH materialisation paths on every case:
-      //   - createIsType<T>() / createXxx<T>() → reads entry.createJitFn
+      //   - createIsType<T>() / createXxx<T>() → reads entry.createRTFn
       //     (the inline closure baked in by the Go renderer)
       //   - deserializeIsType<T>() / deserializeXxx<T>() → ignores the
       //     inline closure and rebuilds the factory from entry.code via
       //     `new Function('utl', code)`.
       // The production default leaves this off so emitted modules are
       // smaller and runtimes without `new Function` opt back in by
-      // setting `emitCreateJitFn: true` on the plugin themselves.
-      emitCreateJitFn: true,
+      // setting `emitCreateRTFn: true` on the plugin themselves.
+      emitCreateRTFn: true,
     }),
   ],
   test: {

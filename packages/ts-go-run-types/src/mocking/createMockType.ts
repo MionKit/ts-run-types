@@ -1,9 +1,9 @@
 // Public surface for the mock-value generator — separated from
-// `createJitFunctions.ts` so bundlers can drop the whole mock subtree from
-// bundles that don't reference `createMockType`. Mock has no per-type JIT
+// `createRTFunctions.ts` so bundlers can drop the whole mock subtree from
+// bundles that don't reference `createMockType`. Mock has no per-type RT
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
-import {getJitUtils} from '../jit/jitUtils.ts';
+import {getRTUtils} from '../rt/rtUtils.ts';
 import type {InjectRuntypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {defaultMockOptions} from './constants.mock.ts';
@@ -19,11 +19,11 @@ export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: In
       'createMockType(): no id injected. vite-plugin-runtypes must be active for createMockType to resolve the runtype graph.'
     );
   }
-  const utils = getJitUtils();
+  const utils = getRTUtils();
   const runType = utils.getRunType(id);
   if (!runType) {
     throw new Error(
-      `createMockType(): no RunType entry for "${id}" in jitUtils. The build pipeline didn't emit a cache entry for that runtype.`
+      `createMockType(): no RunType entry for "${id}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
     );
   }
   const factoryOpts = mergeMockOptions(undefined, options);

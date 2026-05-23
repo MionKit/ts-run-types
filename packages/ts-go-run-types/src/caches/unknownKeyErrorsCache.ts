@@ -8,10 +8,10 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').UnknownKeyErrorsJitFn} UnknownKeyErrorsJitFn */
+/** @typedef {import('../rt/types.ts').UnknownKeyErrorsRTFn} UnknownKeyErrorsRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   // Pure-fn key consts referenced by emitted factory bodies.
   const k_nRT = 'mion::newRunTypeErr';
   const k_gUKFA = 'mion::getUnknownKeysFromArray';
@@ -19,36 +19,36 @@ export function initCache(jitUtils) {
   const k_sIK = 'mion::safeIterableKey';
 
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopUnknownKeyErrors : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {UnknownKeyErrorsJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {UnknownKeyErrorsRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'uke',
       typeName,
       args: {vλl: 'v', pλth: 'pth', εrr: 'er'},
       defaultParamValues: {vλl: undefined, pλth: [], εrr: []},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   void k_nRT;

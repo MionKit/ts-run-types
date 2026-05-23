@@ -73,7 +73,7 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 	idx.scanned[filePath] = true
 }
 
-// ValidatePureFnDependencies cross-checks every dep recorded by JIT
+// ValidatePureFnDependencies cross-checks every dep recorded by RT
 // walkers against idx. For deps whose registration is already in the
 // index the check is an O(1) map lookup. For deps whose filePath was
 // NOT part of the original program-wide scan, the file is parsed once
@@ -82,7 +82,7 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 //
 // Returns one PFE9012 diagnostic per unique missing key. Repeated
 // references to the same missing key collapse to a single diagnostic
-// — the JIT compiler may register the same dep from multiple emitters
+// — the RT compiler may register the same dep from multiple emitters
 // and we don't want N copies of the same complaint in the editor's
 // Problems panel.
 //
@@ -116,10 +116,10 @@ func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.
 		// Args: [key, expectedNamespace, expectedFunctionName, expectedFilePath].
 		// The catalog template renders all four into the headline/detail.
 		// File path may be empty when the dep was collected purely from a
-		// JIT walk with no source-level provenance.
+		// RT walk with no source-level provenance.
 		args := []string{key, dep.Namespace, dep.FunctionName, dep.FilePath}
-		// No Site — the dep was collected from a JIT walk, not a TS
-		// source position. Future enhancement: have the jit walker
+		// No Site — the dep was collected from a RT walk, not a TS
+		// source position. Future enhancement: have the rt walker
 		// thread the source position of the utl.getPureFn(...) call
 		// through to here.
 		diagnostics = append(diagnostics, diag.New(

@@ -16,16 +16,16 @@ const unknownKeysPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-f
 
 // objectKeysContext captures the data needed to emit the
 // callCheckUnknownProperties call for an object/interface — the
-// known-key arrays (JIT children and ALL children) and the variable
+// known-key arrays (RT children and ALL children) and the variable
 // names used to refer to them in the closure prologue.
 //
 // Mirrors mion's addObjectPropsToContext output (interface.ts:232-269).
 type objectKeysContext struct {
-	keysName          string   // variable name in closure scope for the JIT-children key array
+	keysName          string   // variable name in closure scope for the RT-children key array
 	allKeysName       string   // variable name in closure scope for the ALL-children key array
-	jitChildrenNames  []string // sorted unique JIT-children property names
+	rtChildrenNames  []string // sorted unique RT-children property names
 	allChildrenNames  []string // sorted unique ALL-children property names
-	hasNonJitChildren bool     // true when JIT children is a strict subset of ALL children
+	hasNonRTChildren bool     // true when RT children is a strict subset of ALL children
 }
 
 // addObjectPropsToContext computes (and registers in the closure
@@ -35,12 +35,12 @@ type objectKeysContext struct {
 //
 // Mirrors mion's addObjectPropsToContext (interface.ts:243-269).
 func addObjectPropsToContext(rt *protocol.RunType, ctx *EmitContext) objectKeysContext {
-	jitNames, allNames := collectObjectChildNames(rt, ctx)
+	rtNames, allNames := collectObjectChildNames(rt, ctx)
 
-	jitChildrenNames := dedupSortStrings(jitNames)
+	rtChildrenNames := dedupSortStrings(rtNames)
 	allChildrenNames := dedupSortStrings(allNames)
 
-	hasNonJitChildren := !sameStringSet(jitChildrenNames, allChildrenNames)
+	hasNonRTChildren := !sameStringSet(rtChildrenNames, allChildrenNames)
 
 	// Variable names mirror mion's `k_<hash>` / `kA_<hash>` scheme. We
 	// use the RunType ID as the hash so the same canonical object
@@ -49,30 +49,30 @@ func addObjectPropsToContext(rt *protocol.RunType, ctx *EmitContext) objectKeysC
 	allKeysName := "kA_" + rt.ID
 
 	if !ctx.HasContextItem(keysName) {
-		ctx.SetContextItem(keysName, "const "+keysName+" = "+arrayToJSLiteral(jitChildrenNames))
+		ctx.SetContextItem(keysName, "const "+keysName+" = "+arrayToJSLiteral(rtChildrenNames))
 	}
-	if hasNonJitChildren && !ctx.HasContextItem(allKeysName) {
+	if hasNonRTChildren && !ctx.HasContextItem(allKeysName) {
 		ctx.SetContextItem(allKeysName, "const "+allKeysName+" = "+arrayToJSLiteral(allChildrenNames))
 	}
 
 	return objectKeysContext{
 		keysName:          keysName,
 		allKeysName:       allKeysName,
-		jitChildrenNames:  jitChildrenNames,
+		rtChildrenNames:  rtChildrenNames,
 		allChildrenNames:  allChildrenNames,
-		hasNonJitChildren: hasNonJitChildren,
+		hasNonRTChildren: hasNonRTChildren,
 	}
 }
 
 // collectObjectChildNames returns two slices of named property names —
-// the JIT-included subset, and the FULL set (including children dropped
-// by JIT for being function-typed, static, or otherwise not part of the
+// the RT-included subset, and the FULL set (including children dropped
+// by RT for being function-typed, static, or otherwise not part of the
 // serialised shape). Both lists exclude index-signature children (those
 // don't have property names) AND children with empty names.
 //
-// Mirrors mion's getJitChildren + getChildRunTypes filter+name pluck
+// Mirrors mion's getRTChildren + getChildRunTypes filter+name pluck
 // in addObjectPropsToContext.
-func collectObjectChildNames(rt *protocol.RunType, ctx *EmitContext) (jitNames []string, allNames []string) {
+func collectObjectChildNames(rt *protocol.RunType, ctx *EmitContext) (rtNames []string, allNames []string) {
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -85,9 +85,9 @@ func collectObjectChildNames(rt *protocol.RunType, ctx *EmitContext) (jitNames [
 			continue
 		}
 		allNames = append(allNames, resolved.Name)
-		// JIT child filter: drop static + function-like (PropertySignature
+		// RT child filter: drop static + function-like (PropertySignature
 		// wrapping a function, KindMethod, KindMethodSignature) entries
-		// the JIT skips. Match emitObjectPrepareForJson's filter.
+		// the RT skips. Match emitObjectPrepareForJson's filter.
 		if resolved.IsStatic {
 			continue
 		}
@@ -95,16 +95,16 @@ func collectObjectChildNames(rt *protocol.RunType, ctx *EmitContext) (jitNames [
 			continue
 		}
 		// PropertySignature / Property wrapping a function-typed child:
-		// the parent's JIT chain drops them too.
+		// the parent's RT chain drops them too.
 		if (resolved.Kind == protocol.KindProperty || resolved.Kind == protocol.KindPropertySignature) && resolved.Child != nil {
 			grandchild := ctx.ResolveRef(resolved.Child)
 			if grandchild != nil && isFunctionLikeKind(grandchild.Kind) {
 				continue
 			}
 		}
-		jitNames = append(jitNames, resolved.Name)
+		rtNames = append(rtNames, resolved.Name)
 	}
-	return jitNames, allNames
+	return rtNames, allNames
 }
 
 // dedupSortStrings deduplicates + sorts a string slice. Sorting keeps
@@ -158,7 +158,7 @@ func arrayToJSLiteral(items []string) string {
 }
 
 // objectHasIndexSignatureChild reports whether the object has an
-// index-signature child that the JIT didn't filter out. Index sigs
+// index-signature child that the RT didn't filter out. Index sigs
 // flip the "any unknown key is unknown" semantic: when present, every
 // key matching the index pattern is considered "known".
 func objectHasIndexSignatureChild(rt *protocol.RunType, ctx *EmitContext) bool {
@@ -189,17 +189,17 @@ func objectHasIndexSignatureChild(rt *protocol.RunType, ctx *EmitContext) bool {
 // condition. The `keepObjectCheck` parameter exposes this lever.
 func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, returnKeys bool) string {
 	keysCtx := addObjectPropsToContext(rt, ctx)
-	if len(keysCtx.jitChildrenNames) == 0 && len(keysCtx.allChildrenNames) == 0 {
+	if len(keysCtx.rtChildrenNames) == 0 && len(keysCtx.allChildrenNames) == 0 {
 		return ""
 	}
 	v := ctx.Vλl
 	conditional := keysCtx.keysName
-	if keysCtx.hasNonJitChildren {
-		// Honor the `checkNonJitProps` runtime option — when truthy, fold
-		// every declared key (including non-JIT) into "known" set.
+	if keysCtx.hasNonRTChildren {
+		// Honor the `checkNonRTProps` runtime option — when truthy, fold
+		// every declared key (including non-RT) into "known" set.
 		optsArg := ctx.ArgName("θpts")
 		if optsArg != "" {
-			conditional = optsArg + ".checkNonJitProps ? " + keysCtx.allKeysName + " : " + keysCtx.keysName
+			conditional = optsArg + ".checkNonRTProps ? " + keysCtx.allKeysName + " : " + keysCtx.keysName
 		}
 	}
 	if returnKeys {
@@ -244,17 +244,17 @@ func collectObjectHasUnknownKeysChildren(rt *protocol.RunType, ctx *EmitContext)
 		if isFunctionLikeKind(resolved.Kind) {
 			continue
 		}
-		childJit := ctx.CompileChild(child, CodeE)
-		if childJit.Type == CodeNS {
+		childRT := ctx.CompileChild(child, CodeE)
+		if childRT.Type == CodeNS {
 			// Children with NS propagate upward — but for unknown-keys
 			// emit we tolerate them as "no contribution" (the parent
 			// renderer drops the factory if needed). Skip the child.
 			continue
 		}
-		if childJit.Code == "" {
+		if childRT.Code == "" {
 			continue
 		}
-		parts = append(parts, childJit.Code)
+		parts = append(parts, childRT.Code)
 	}
 	return parts, hasIndex
 }

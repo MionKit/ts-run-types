@@ -1,4 +1,4 @@
-// End-to-end acceptance test for the runtype JIT-compiler diagnostics
+// End-to-end acceptance test for the runtype RT-compiler diagnostics
 // added in Phase 2 / Phase 3 of the centralised diag catalog. Drives the
 // Go binary over inline sources and verifies:
 //
@@ -235,16 +235,16 @@ export const _ = getRuntypeId<[number, symbol]>();
     });
   });
 
-  // The default emit mode (no inline createJitFn) keeps the cache
+  // The default emit mode (no inline createRTFn) keeps the cache
   // module compact by leaving the validator body in arg-3 only and
   // shipping the `u` (= undefined) alias as arg-7. The JS-side
-  // materializeJitFn rebuilds the factory via `new Function('utl',
+  // materializeRTFn rebuilds the factory via `new Function('utl',
   // code)` on first lookup. Test runs themselves opt INTO the
   // inline-factory shape via vitest config (so suites cover both
   // materialisation paths) — this regression spins up a one-shot
   // ResolverClient with the production default and pins the smaller
   // emit shape.
-  register('default emit (no inline createJitFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
+  register('default emit (no inline createRTFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
     const sources = {
       'mini.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 interface User { name: string; age: number; tags: string[]; }
@@ -256,13 +256,13 @@ export const _ = getRuntypeId<User>();
         includeCacheSources: ['isType'],
       });
       const inlineOnBody = inlineOn.isTypeCacheSource ?? '';
-      // The default shared client runs with emitCreateJitFn=true so
+      // The default shared client runs with emitCreateRTFn=true so
       // we get the inline factory here as a baseline.
       expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(/function g_it_[A-Za-z0-9]+\(utl\)/);
     });
 
     // Spin up a one-shot client with the production default
-    // (emitCreateJitFn omitted → false) and assert the smaller shape.
+    // (emitCreateRTFn omitted → false) and assert the smaller shape.
     const {ResolverClient} = await import('../src/resolver-client.ts');
     const path = await import('node:path');
     const ROOT = path.resolve(__dirname, '../../..');

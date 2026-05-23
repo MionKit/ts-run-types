@@ -12,12 +12,12 @@ import (
 // methods must short-circuit without touching the filesystem.
 func TestStore_NilSafe(t *testing.T) {
 	var s *Store
-	entry, ok, err := s.ReadJIT("abc123", "it")
+	entry, ok, err := s.ReadRT("abc123", "it")
 	if entry != nil || ok || err != nil {
-		t.Fatalf("nil ReadJIT: want (nil,false,nil), got (%v,%v,%v)", entry, ok, err)
+		t.Fatalf("nil ReadRT: want (nil,false,nil), got (%v,%v,%v)", entry, ok, err)
 	}
-	if err := s.WriteJIT("abc123", "it", JITEntry{}); err != nil {
-		t.Fatalf("nil WriteJIT: want nil, got %v", err)
+	if err := s.WriteRT("abc123", "it", RTEntry{}); err != nil {
+		t.Fatalf("nil WriteRT: want nil, got %v", err)
 	}
 }
 
@@ -41,7 +41,7 @@ func TestStore_RoundTrip(t *testing.T) {
 		t.Fatal("New: got nil")
 	}
 
-	in := JITEntry{
+	in := RTEntry{
 		Format:       FormatVersion,
 		StructuralID: "5{6,7}",
 		Line:         "init('it_abc123', 'User', '…', false, [], [], function(utl){…});",
@@ -50,16 +50,16 @@ func TestStore_RoundTrip(t *testing.T) {
 			{StructuralID: "2:atomic", Hash: "qrs"},
 		},
 	}
-	if err := s.WriteJIT("abc123", "it", in); err != nil {
-		t.Fatalf("WriteJIT: %v", err)
+	if err := s.WriteRT("abc123", "it", in); err != nil {
+		t.Fatalf("WriteRT: %v", err)
 	}
 
-	out, ok, err := s.ReadJIT("abc123", "it")
+	out, ok, err := s.ReadRT("abc123", "it")
 	if err != nil {
-		t.Fatalf("ReadJIT err: %v", err)
+		t.Fatalf("ReadRT err: %v", err)
 	}
 	if !ok || out == nil {
-		t.Fatalf("ReadJIT miss after write")
+		t.Fatalf("ReadRT miss after write")
 	}
 	if out.StructuralID != in.StructuralID {
 		t.Errorf("StructuralID: got %q want %q", out.StructuralID, in.StructuralID)
@@ -84,7 +84,7 @@ func TestStore_ReadMiss(t *testing.T) {
 	s := New(root, "fp1")
 
 	t.Run("ENOENT", func(t *testing.T) {
-		entry, ok, err := s.ReadJIT("nope", "it")
+		entry, ok, err := s.ReadRT("nope", "it")
 		if entry != nil || ok || err != nil {
 			t.Fatalf("want (nil,false,nil), got (%v,%v,%v)", entry, ok, err)
 		}
@@ -98,7 +98,7 @@ func TestStore_ReadMiss(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "it.json"), []byte("{not json"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		entry, ok, err := s.ReadJIT("bad", "it")
+		entry, ok, err := s.ReadRT("bad", "it")
 		if entry != nil || ok {
 			t.Fatalf("malformed: want (nil,false,_), got (%v,%v)", entry, ok)
 		}
@@ -114,11 +114,11 @@ func TestStore_ReadMiss(t *testing.T) {
 		}
 		// Format=99 simulates a future incompatible layout; current
 		// binary must refuse to read it.
-		body, _ := json.Marshal(JITEntry{Format: 99, StructuralID: "x", Line: "y"})
+		body, _ := json.Marshal(RTEntry{Format: 99, StructuralID: "x", Line: "y"})
 		if err := os.WriteFile(filepath.Join(dir, "it.json"), body, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		entry, ok, _ := s.ReadJIT("old", "it")
+		entry, ok, _ := s.ReadRT("old", "it")
 		if entry != nil || ok {
 			t.Fatalf("stale: want (nil,false), got (%v,%v)", entry, ok)
 		}
@@ -126,8 +126,8 @@ func TestStore_ReadMiss(t *testing.T) {
 }
 
 // TestStore_WriteAtomic — concurrent writers must not produce a torn file;
-// any successful ReadJIT must see a complete, parseable entry. The
-// temp+rename in WriteJIT is the guarantee being verified.
+// any successful ReadRT must see a complete, parseable entry. The
+// temp+rename in WriteRT is the guarantee being verified.
 func TestStore_WriteAtomic(t *testing.T) {
 	root := t.TempDir()
 	s := New(root, "fp1")
@@ -137,20 +137,20 @@ func TestStore_WriteAtomic(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			entry := JITEntry{Format: FormatVersion, StructuralID: "s", Line: "line"}
-			if err := s.WriteJIT("typeID", "it", entry); err != nil {
-				t.Errorf("WriteJIT[%d]: %v", i, err)
+			entry := RTEntry{Format: FormatVersion, StructuralID: "s", Line: "line"}
+			if err := s.WriteRT("typeID", "it", entry); err != nil {
+				t.Errorf("WriteRT[%d]: %v", i, err)
 			}
 		}(i)
 	}
 	wg.Wait()
 
-	out, ok, err := s.ReadJIT("typeID", "it")
+	out, ok, err := s.ReadRT("typeID", "it")
 	if err != nil {
-		t.Fatalf("ReadJIT: %v", err)
+		t.Fatalf("ReadRT: %v", err)
 	}
 	if !ok {
-		t.Fatal("ReadJIT miss after concurrent writes")
+		t.Fatal("ReadRT miss after concurrent writes")
 	}
 	if out.StructuralID != "s" || out.Line != "line" {
 		t.Errorf("torn read: %+v", out)

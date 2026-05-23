@@ -1,5 +1,5 @@
 // Ports the three ad-hoc noop-marker tests from
-// `mion/packages/run-types/src/jitCompilers/json/jsonSpec/00JsonOnly.spec.ts`.
+// `mion/packages/run-types/src/rtCompilers/json/jsonSpec/00JsonOnly.spec.ts`.
 //
 // Verifies that the renderer marks trivially JSON-safe shapes as
 // `isNoop: true` on the cache entry — empty interfaces with only
@@ -16,8 +16,8 @@
 // chains intact we always emit an identity factory.
 //
 // Consequence for these tests:
-//   - mion's `createJitCompiledFunction(...).isNoop === true`
-//     becomes our `jitFnsCache['pj_<id>'].isNoop === false`.
+//   - mion's `createRTCompiledFunction(...).isNoop === true`
+//     becomes our `rtFnsCache['pj_<id>'].isNoop === false`.
 //   - For atomic kinds where no factory is emitted (string, number,
 //     bigint, etc. — Finalize returns "" and the renderer skips the
 //     init line), the cache entry simply doesn't exist; mion's
@@ -27,7 +27,7 @@
 // failure surfaces the divergence visibly per the testing rules.
 
 import {describe, expect, it} from 'vitest';
-import {getJitFnCaches, getRuntypeId} from '@mionjs/ts-go-run-types';
+import {getRTFnCaches, getRuntypeId} from '@mionjs/ts-go-run-types';
 
 interface NoJsonENCDECRequired {
   a: number;
@@ -45,12 +45,12 @@ type AtomicNoEncRequired = number | string;
 type AtomicEncRequired = bigint | Date;
 
 function pjEntry(id: string) {
-  const {jitFnsCache} = getJitFnCaches();
-  return jitFnsCache['pj_' + id];
+  const {rtFnsCache} = getRTFnCaches();
+  return rtFnsCache['pj_' + id];
 }
 function rjEntry(id: string) {
-  const {jitFnsCache} = getJitFnCaches();
-  return jitFnsCache['rj_' + id];
+  const {rtFnsCache} = getRTFnCaches();
+  return rtFnsCache['rj_' + id];
 }
 
 describe('json noop markers (00JsonOnly.spec.ts port)', () => {
@@ -76,7 +76,7 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
 
   it('atomic union — pj keeps the dispatch, rj collapses when no member needs the wrap', () => {
     // Per mion's per-member `skipEncode + needsTupleEncoding` optimisation
-    // (jitCompilers/json/stringifyJson.ts:295-306), a union member skips
+    // (rtCompilers/json/stringifyJson.ts:295-306), a union member skips
     // the `[memberIndex, value]` envelope when BOTH its prepareForJson
     // and restoreFromJson would compile to noop. For `number | string`,
     // every member is noop on both halves, so:

@@ -16,7 +16,7 @@
   │  Vite   │ ◀─────────────────────┘                               │ module
   │  plugin │ ────────────────────────────────────────────────────▶ │ import
   └─────────┘                                                       ▼
-                                                             runtime / JIT
+                                                             runtime / RT
 ```
 
 ### Three lifecycles
@@ -204,7 +204,7 @@ The protocol's `RunType` is the canonical mion runtypes reflection-shape discrim
 - **Numeric `ReflectionKind`** is declared in a stable order (never=0, any=1, …, callSignature=35) so the integer values are wire-safe across releases. Sentinel `-1` is reserved for ref slots.
 - **Container shape**: `KindObjectLiteral.children` is an array of `KindPropertySignature`/`KindMethodSignature`/`KindIndexSignature`/`KindCallSignature` nodes; `KindFunction.parameters` is an array of `KindParameter` nodes; tuple elements are wrapped as `KindTupleMember`.
 - **Annotations carried**: `id`, `typeName`, `typeArguments`, `optional`, `readonly`, `abstract`, `static`, `inlined`, `flags`, `description`, `default` (literal-only), `classRef` (provenance for v0.3 lazy-import).
-- **Knotted output**: the runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `cache[RUNTYPES_VAR_PREFIX + id]` is a drop-in source of `RunType` objects for the user's runtypes JIT — no adapter layer needed.
+- **Knotted output**: the runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `cache[RUNTYPES_VAR_PREFIX + id]` is a drop-in source of `RunType` objects for the user's runtypes RT — no adapter layer needed.
 
 Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 

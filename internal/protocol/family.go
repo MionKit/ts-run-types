@@ -6,8 +6,8 @@ package protocol
 // `getFamily()` overrides in BaseRunType / AtomicRunType /
 // CollectionRunType / MemberRunType / FunctionRunType.
 //
-// Used by the JIT compiler's inline-vs-dependent predicate
-// (BaseRunType.isJitInlined treats named Collections as dependencies
+// Used by the RT compiler's inline-vs-dependent predicate
+// (BaseRunType.isRTInlined treats named Collections as dependencies
 // so their factories can be reused across reference sites — see
 // run-types/src/lib/baseRunTypes.ts:52).
 //
@@ -38,7 +38,7 @@ const (
 )
 
 // FamilyOf returns the Family classification for a ReflectionKind.
-// Single source of truth for the Kind→Family mapping; both the JIT
+// Single source of truth for the Kind→Family mapping; both the RT
 // compiler's inlining predicate and the wire-field populator route
 // through here.
 //

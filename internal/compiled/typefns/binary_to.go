@@ -7,7 +7,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// ToBinaryEmitter implements the `toBinary` jit function — serializes a
+// ToBinaryEmitter implements the `toBinary` rt function — serializes a
 // runtime value into a binary byte stream, mutating a DataViewSerializer
 // instance passed via the second arg (`sεr`, conventionally `Ser`).
 //
@@ -17,7 +17,7 @@ import (
 // be verified independently.
 //
 // Mirrors mion's mega-switch at
-// mion/packages/run-types/src/jitCompilers/binary/toBinary.ts (no
+// mion/packages/run-types/src/rtCompilers/binary/toBinary.ts (no
 // per-kind files — single 437-line switch).
 //
 // Wire encoding (per mion's binarySPEC.md):
@@ -42,7 +42,7 @@ import (
 // entries. Subsequent phases enable kinds one bucket at a time.
 type ToBinaryEmitter struct{}
 
-// Args mirrors mion's `jitBinarySerializerArgs = {vλl: 'v', sεr: 'Ser'}`
+// Args mirrors mion's `rtBinarySerializerArgs = {vλl: 'v', sεr: 'Ser'}`
 // (mion-run-types:constants.functions.ts:51). Returns the serializer
 // (`Ser`) so callers can chain `.getBuffer()`.
 func (ToBinaryEmitter) Args() []ArgSpec {
@@ -117,14 +117,14 @@ func AnyToBinarySupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-// IsJitInlined delegates to DefaultIsJitInlined — same heuristics as
-// every other JIT family.
-func (ToBinaryEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return DefaultIsJitInlined(ctx)
+// IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
+// every other RT family.
+func (ToBinaryEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return DefaultIsRTInlined(ctx)
 }
 
 // ReturnName is the serializer arg (`Ser`). Mion's
-// `JitFunctions.toBinary.returnName = jitBinarySerializerArgs.sεr`
+// `RTFunctions.toBinary.returnName = rtBinarySerializerArgs.sεr`
 // (constants.functions.ts:111) — the inner fn returns the serializer
 // instance so callers can chain `.getBuffer()`.
 func (ToBinaryEmitter) ReturnName() string {
@@ -138,9 +138,9 @@ func (ToBinaryEmitter) ReturnName() string {
 // renderer skips every supported kind silently — `Supports` was set
 // to widen during early development; the actual emit lights up
 // kind-by-kind in subsequent phases.
-func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	ser := ctx.ArgName("sεr")
@@ -150,57 +150,57 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject:
 		// mion:binary/toBinary.ts:47-49,73-75 —
 		// `serString(JSON.stringify(v))`. Serialized as JSON string.
-		return JitCode{Code: ser + ".serString(JSON.stringify(" + v + "))", Type: CodeS}
+		return RTCode{Code: ser + ".serString(JSON.stringify(" + v + "))", Type: CodeS}
 
 	case protocol.KindNull:
 		// mion:binary/toBinary.ts:52 — `view.setUint8(index++, 0)`.
-		return JitCode{Code: ser + ".view.setUint8(" + ser + ".index++, 0)", Type: CodeS}
+		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, 0)", Type: CodeS}
 
 	case protocol.KindBoolean:
 		// mion:binary/toBinary.ts:54 — `view.setUint8(index++, !!v)`.
-		return JitCode{Code: ser + ".view.setUint8(" + ser + ".index++, !!" + v + ")", Type: CodeS}
+		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, !!" + v + ")", Type: CodeS}
 
 	case protocol.KindNumber:
 		// mion:binary/toBinary.ts:56 —
 		// `view.setFloat64(index, v, 1, (index += 8))`.
-		return JitCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ", 1, (" + ser + ".index += 8))", Type: CodeS}
+		return RTCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ", 1, (" + ser + ".index += 8))", Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
 		// mion:binary/toBinary.ts:59,85 — `serString(v)`.
-		return JitCode{Code: ser + ".serString(" + v + ")", Type: CodeS}
+		return RTCode{Code: ser + ".serString(" + v + ")", Type: CodeS}
 
 	case protocol.KindBigInt:
 		// mion:binary/toBinary.ts:62 — `serString(v.toString(), true)`.
 		// `true` flag bypasses the string cache (bigints rarely repeat).
-		return JitCode{Code: ser + ".serString(" + v + ".toString(), true)", Type: CodeS}
+		return RTCode{Code: ser + ".serString(" + v + ".toString(), true)", Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
 		// mion:binary/toBinary.ts:66 — `view.setUint8(index++, 1)`.
-		return JitCode{Code: ser + ".view.setUint8(" + ser + ".index++, 1)", Type: CodeS}
+		return RTCode{Code: ser + ".view.setUint8(" + ser + ".index++, 1)", Type: CodeS}
 
 	case protocol.KindSymbol:
 		// Unsupported — symbol identity does not round-trip through
 		// serialisation. See docs/UNSUPPORTED-KINDS.md FAQ.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
 		// mion:binary/toBinary.ts:71 —
 		// `serString(v.source); serString(v.flags)`.
-		return JitCode{Code: ser + ".serString(" + v + ".source);" + ser + ".serString(" + v + ".flags)", Type: CodeS}
+		return RTCode{Code: ser + ".serString(" + v + ".source);" + ser + ".serString(" + v + ".flags)", Type: CodeS}
 
 	case protocol.KindEnum:
 		// mion:binary/toBinary.ts:77 — `serEnum(v)`.
-		return JitCode{Code: ser + ".serEnum(" + v + ")", Type: CodeS}
+		return RTCode{Code: ser + ".serEnum(" + v + ")", Type: CodeS}
 
 	case protocol.KindNever:
 		// mion:binary/toBinary.ts:82 — throws "Never type cannot be
 		// serialized to Binary".
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
 		// mion:binary/toBinary.ts:218 — throws
-		// "Jit compilation disabled for Non Serializable types.".
-		return JitCode{Code: "", Type: CodeNS}
+		// "RT compilation disabled for Non Serializable types.".
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindLiteral:
 		// mion:binary/toBinary.ts:86-106 — when opts.noLiterals, dispatch
@@ -223,7 +223,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		// compileReturn for that. The Go side has no params subkind
 		// (see protocol/subkind.go) so we always throw at top-level
 		// function types.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyToBinary(rt, ctx, v, ser)
@@ -240,15 +240,15 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		case protocol.SubKindDate:
 			// mion:binary/toBinary.ts:265 —
 			// `view.setFloat64(index, v.getTime(), 1, (index += 8))`.
-			return JitCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ".getTime(), 1, (" + ser + ".index += 8))", Type: CodeS}
+			return RTCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ".getTime(), 1, (" + ser + ".index += 8))", Type: CodeS}
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableToBinary(rt, ctx, v, ser)
 		case protocol.SubKindNonSerializable:
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		case protocol.SubKindNone:
 			return emitObjectToBinary(rt, ctx, v, ser)
 		}
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindTuple:
 		return emitTupleToBinary(rt, ctx, v, ser)
@@ -256,7 +256,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 	case protocol.KindUnion:
 		return emitUnionToBinaryFlat(rt, ctx, v, ser)
 	}
-	return JitCode{Code: "", Type: CodeNS}
+	return RTCode{Code: "", Type: CodeNS}
 }
 
 // EmitDependencyCall mirrors PrepareForJsonEmitter's pattern — pass the
@@ -269,12 +269,12 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 func (ToBinaryEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	ser := ctx.ArgName("sεr")
 	args := ctx.Vλl + ", " + ser
-	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	if isSelf {
 		return ctx.walker.FnName + "(" + args + ")"
 	}
 	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 	}
 	return childID + ".fn(" + args + ")"
 }
@@ -297,60 +297,60 @@ func (ToBinaryEmitter) Finalize(raw string) (string, bool) {
 // v1: we don't carry noLiterals on the protocol RunType yet, so always
 // fall through to the "skip" branch. Future: surface the option via
 // RunType.Flags.
-func emitLiteralToBinary(rt *protocol.RunType, v string, ser string) JitCode {
+func emitLiteralToBinary(rt *protocol.RunType, v string, ser string) RTCode {
 	_ = rt
 	_ = v
 	_ = ser
-	return JitCode{Code: "", Type: CodeS}
+	return RTCode{Code: "", Type: CodeS}
 }
 
 // emitArrayToBinary mirrors mion's binary/toBinary.ts:110-126.
 //
 // Wire shape: `[uint32 length, items...]`. The length prefix is written
 // before the loop body so the decoder can preallocate.
-func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
+	if childRT.Code == "" {
 		// All-noop child — still need to emit the length so the decoder
 		// knows the array's size.
 		body := ser + ".view.setUint32(" + ser + ".index, " + v + ".length, 1);" + ser + ".index += 4"
-		return JitCode{Code: body, Type: CodeS}
+		return RTCode{Code: body, Type: CodeS}
 	}
 	body := ser + ".view.setUint32(" + ser + ".index, " + v + ".length, 1);" + ser + ".index += 4;" +
-		"for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
-	return JitCode{Code: body, Type: CodeS}
+		"for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // emitIndexSignatureToBinary mirrors mion's binary/toBinary.ts:127-154.
 //
 // Wire shape: `[uint32 count, (keyOrUint32, value)*]`. Count is
 // back-patched after the loop so dynamic keysets are supported.
-func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isSymbolKeyedIndexSig(rt, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	keyVar := ctx.NextLocalVar("k")
 	ctx.SetChildAccessor(v + "[" + keyVar + "]")
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
 
 	lenVar := ctx.NextLocalVar("cnt")
@@ -371,9 +371,9 @@ func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 		keyCode = ser + ".serString(" + keyVar + ")"
 	}
 	body := "let " + lenVar + " = 0; const " + idxVar + " = " + ser + ".index; " + ser + ".index += 4;" +
-		"for (const " + keyVar + " in " + v + ") {" + keyCode + ";" + childJit.Code + ";" + lenVar + "++;}" +
+		"for (const " + keyVar + " in " + v + ") {" + keyCode + ";" + childRT.Code + ";" + lenVar + "++;}" +
 		ser + ".view.setUint32(" + idxVar + ", " + lenVar + ", 1)"
-	return JitCode{Code: body, Type: CodeS}
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // emitPropertyToBinary mirrors mion's binary/toBinary.ts:181-195.
@@ -383,43 +383,43 @@ func emitIndexSignatureToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 // inside an `if (accessor !== undefined)` guard PLUS set the optional
 // bitmap bit. The bitmap variable is set by the parent's
 // emitObjectToBinary via context items.
-func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
 		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
+	if childRT.Type == CodeNS {
 		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
 		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
 			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
 		// The parent (emitObjectToBinary) wraps optional props with their
 		// own bitmap handling — at the property level we just emit the
 		// guarded code; the bitmap-set is appended by the parent.
-		if childJit.Code == "" {
-			return JitCode{Code: "if (" + accessor + " !== undefined) {}", Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: "if (" + accessor + " !== undefined) {}", Type: CodeS}
 		}
-		return JitCode{Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}", Type: CodeS}
+		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return childJit
+	return childRT
 }
 
 // emitObjectToBinary mirrors mion's binary/toBinary.ts:222-261.
@@ -431,7 +431,7 @@ func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser 
 //
 // Skips static / function-typed children. When the object carries an
 // index signature, the index signature's emit handles the whole loop.
-func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	// If the object has an index signature, defer to its emit (which
 	// covers every enumerable key).
 	for _, child := range rt.Children {
@@ -480,14 +480,14 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 	var parts []string
 	// Required props — straight concat in declared order.
 	for _, child := range required {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
+		if childRT.Code == "" {
 			continue
 		}
-		parts = append(parts, childJit.Code)
+		parts = append(parts, childRT.Code)
 	}
 
 	if len(optional) > 0 {
@@ -503,16 +503,16 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 			}
 			accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
 			ctx.SetChildAccessor(accessor)
-			innerJit := ctx.CompileChild(resolved.Child, CodeS)
+			innerRT := ctx.CompileChild(resolved.Child, CodeS)
 			ctx.SetChildAccessor("")
-			if innerJit.Type == CodeNS {
-				return JitCode{Code: "", Type: CodeNS}
+			if innerRT.Type == CodeNS {
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			bitIdx := strconv.Itoa(i & 7)
 			setMask := ser + ".setBitMask(" + bitmapVar + ", " + bitIdx + ")"
 			body := setMask
-			if innerJit.Code != "" {
-				body = innerJit.Code + ";" + setMask
+			if innerRT.Code != "" {
+				body = innerRT.Code + ";" + setMask
 			}
 			guarded := "if (" + accessor + " !== undefined) {" + body + "}"
 			// Every 8 optional props we bump the bitmap byte index so
@@ -528,9 +528,9 @@ func emitObjectToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser st
 	}
 
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
 // emitOptionalBitmapInit allocates a bitmap byte sequence at the
@@ -566,16 +566,16 @@ func emitOptionalBitmapInit(ctx *EmitContext, ser string, optionalLength int, is
 // Wire shape: required, optional bitmap + values, rest. Function-param
 // subkind: every non-rest param is treated as optional (binary protocol
 // allows trailing params to be elided).
-func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	// isFnParams stays false: ts-go-run-types intentionally does NOT
-	// surface mion's SubKindParams on the protocol. Every other JIT
+	// surface mion's SubKindParams on the protocol. Every other RT
 	// generator (isType / getTypeErrors / prepareForJson / restoreFromJson
 	// / stringifyJson / …) treats `Parameters<typeof fn>` as a plain
 	// tuple; adding the subkind for binary alone would create asymmetric
-	// dispatch across the JIT family. See `docs/ROADMAP.md` →
+	// dispatch across the RT family. See `docs/ROADMAP.md` →
 	// "Binary serialization — function-params router conveniences" for
 	// the full rationale and the migration path (caller-driven option
 	// rather than protocol-level subkind) if we ever surface mion's
@@ -599,12 +599,12 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 
 	var parts []string
 	for _, child := range required {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
 		}
 	}
 
@@ -620,19 +620,19 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 			accessor := v + "[" + pos + "]"
 			ctx.SetChildAccessor(accessor)
 			childGrand := resolved.Child
-			innerJit := JitCode{Code: "", Type: CodeS}
+			innerRT := RTCode{Code: "", Type: CodeS}
 			if childGrand != nil {
-				innerJit = ctx.CompileChild(childGrand, CodeS)
+				innerRT = ctx.CompileChild(childGrand, CodeS)
 			}
 			ctx.SetChildAccessor("")
-			if innerJit.Type == CodeNS {
-				return JitCode{Code: "", Type: CodeNS}
+			if innerRT.Type == CodeNS {
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			bitIdx := strconv.Itoa(i & 7)
 			setMask := ser + ".setBitMask(" + bitmapVar + ", " + bitIdx + ")"
 			body := setMask
-			if innerJit.Code != "" {
-				body = innerJit.Code + ";" + setMask
+			if innerRT.Code != "" {
+				body = innerRT.Code + ";" + setMask
 			}
 			guarded := "if (" + accessor + " !== undefined) {" + body + "}"
 			modIndex := i + 1
@@ -644,19 +644,19 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	}
 
 	for _, child := range rest {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
 		}
 	}
 
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
 // emitTupleMemberToBinary handles a single tuple element. Required
@@ -664,13 +664,13 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 // emitting child code. Optional handling lives at the tuple level (the
 // bitmap is per-tuple, not per-member), so optional tupleMember just
 // emits the value code without the guard — the parent wraps it.
-func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	_ = ser
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	// Function-typed tuple slots fall through to CompileChild — the
 	// function arm returns CodeNS, the walker latches the leaf, and the
@@ -678,13 +678,13 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childJit := ctx.CompileChild(rt.Child, CodeS)
+		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
-			return JitCode{Code: "", Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: "", Type: CodeS}
 		}
 		// Write the rest count (= v.length - position) as a uint32
 		// before the items. Decoder reads this and loops
@@ -693,18 +693,18 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 		pos := positionStr(rt)
 		restCount := v + ".length - " + pos
 		body := ser + ".view.setUint32(" + ser + ".index, " + restCount + ", 1); " + ser + ".index += 4;" +
-			"for (let " + iVar + " = " + pos + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
-		return JitCode{Code: body, Type: CodeS}
+			"for (let " + iVar + " = " + pos + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+		return RTCode{Code: body, Type: CodeS}
 	}
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	return childJit
+	return childRT
 }
 
 // emitNativeIterableToBinary handles Map / Set — mirrors mion's
@@ -712,7 +712,7 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 //
 // Wire shape: `[uint32 size, entries...]`. Each entry is the wrapped
 // child types' bytes (Map: key + value; Set: item).
-func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) JitCode {
+func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
 	var innerTypes []*protocol.RunType
 	if isMap {
@@ -733,13 +733,13 @@ func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
 		}
 		ctx.SetChildAccessor(accessor)
-		childJit := ctx.CompileChild(innerType, CodeS)
+		childRT := ctx.CompileChild(innerType, CodeS)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			childCodes = append(childCodes, childJit.Code)
+		if childRT.Code != "" {
+			childCodes = append(childCodes, childRT.Code)
 		}
 	}
 
@@ -747,8 +747,8 @@ func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string
 	if len(childCodes) == 0 {
 		// No transforms — write just the size; decoder reconstructs
 		// empty.
-		return JitCode{Code: setLen, Type: CodeS}
+		return RTCode{Code: setLen, Type: CodeS}
 	}
 	body := setLen + ";for (const " + entryVar + " of " + v + ") {" + strings.Join(childCodes, ";") + "}"
-	return JitCode{Code: body, Type: CodeS}
+	return RTCode{Code: body, Type: CodeS}
 }

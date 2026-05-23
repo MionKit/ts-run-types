@@ -315,7 +315,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// the array node's emit, not on the type itself, so the resolver
 	// forks a synthetic array RunType that carries the option as a
 	// Flag and points at the same element child. Distinct id → distinct
-	// JIT cache entry → distinct compiled validator with the
+	// RT cache entry → distinct compiled validator with the
 	// `Array.isArray` guard stripped (per istype.go's KindArray arm).
 	// `string[]` and `string[] + {noIsArrayCheck: true}` therefore
 	// hash to two different ids and compile to two different bodies,
@@ -330,14 +330,14 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// `getRuntypeId<T>()` and `createJsonEncoder<T>({strategy:
 	// 'mutate'})` resolve to DIFFERENT ids for the same `T` — breaking
 	// the invariant that one type has one canonical typeid. Instead,
-	// the runtime dispatches options via the JIT-family PREFIX:
+	// the runtime dispatches options via the RT-family PREFIX:
 	//   - clone+strip    → lookup `pjs_<id>`  (prepareForJsonSafe)
 	//   - clone+preserve → lookup `pjsp_<id>` (prepareForJsonSafePreserve)
 	//   - mutate+strip   → compose `uku_<id>` + `pj_<id>`
 	//   - mutate+preserve→ lookup `pj_<id>`   (prepareForJson)
 	//   - direct         → lookup `sj_<id>`   (stringifyJson)
 	// Each prefix gives the call site a distinct function id while
-	// keeping the type's id canonical. See createJitFunctions.ts's
+	// keeping the type's id canonical. See createRTFunctions.ts's
 	// createJsonEncoder dispatch.
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
@@ -411,7 +411,7 @@ type runTypeOptions struct {
 // (return zero options) because the resolver runs at build time and
 // can't evaluate arbitrary expressions. This matches mion's
 // compile-time-baked options model (baseRunTypes.ts:82-86 hashes
-// options into the JIT cache key).
+// options into the RT cache key).
 //
 // Layout convention: options always lives at slot (lastIndex - 1) — the
 // slot immediately before id. For `createIsType<T>(val?, options?, id?)`

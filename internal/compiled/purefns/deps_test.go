@@ -67,7 +67,7 @@ export const _ = registerPureFnFactory('mion', 'findCaller', function (utl) {
 }
 
 func TestDeps_RenamedUtlParam(t *testing.T) {
-	// User picks their own name for the jitUtils param — extractor reads
+	// User picks their own name for the rtUtils param — extractor reads
 	// it off Parameters[0] rather than hardcoding `utl`.
 	deps, _ := depsOfFirst(t, `
 import {registerPureFnFactory} from '@mionjs/ts-go-run-types';

@@ -7,41 +7,41 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').ToBinaryJitFn} ToBinaryJitFn */
+/** @typedef {import('../rt/types.ts').ToBinaryRTFn} ToBinaryRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopToBinary : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {ToBinaryJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {ToBinaryRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'tb',
       typeName,
       args: {vλl: 'v', sεr: 'Ser'},
       defaultParamValues: {vλl: undefined, sεr: undefined},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   // Noop fallback for collapsed entries (e.g. `any` / `unknown`). Returns

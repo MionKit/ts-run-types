@@ -19,13 +19,13 @@ import (
 type FingerprintInputs struct {
 	HashLength        int
 	LiteralHashLength int
-	// EmitCreateJitFn mirrors typefns.RenderOpts.EmitCreateJitFn —
+	// EmitCreateRTFn mirrors typefns.RenderOpts.EmitCreateRTFn —
 	// modules emitted with the inline factory have a different `Line`
 	// payload (arg-7 carries the full closure) than the default
 	// (arg-7 = `u`). Folding it into the fingerprint keeps the two
 	// modes in distinct cache subdirs so flipping the flag never
 	// reads a stale entry from the other mode.
-	EmitCreateJitFn bool
+	EmitCreateRTFn bool
 }
 
 // Fingerprint hashes inputs into a stable 12-hex-char prefix used as the
@@ -44,7 +44,7 @@ func Fingerprint(inputs FingerprintInputs) string {
 	sb.WriteByte('\n')
 	sb.WriteString(strconv.Itoa(inputs.LiteralHashLength))
 	sb.WriteByte('\n')
-	sb.WriteString(strconv.FormatBool(inputs.EmitCreateJitFn))
+	sb.WriteString(strconv.FormatBool(inputs.EmitCreateRTFn))
 	sb.WriteByte('\n')
 	sum := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(sum[:])[:12]

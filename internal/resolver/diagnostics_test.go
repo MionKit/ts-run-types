@@ -15,13 +15,13 @@ func runtypeDiagsOf(diagnostics []diag.Diagnostic) []diag.Diagnostic {
 	return filterDiagsByFamily(diagnostics, diag.FamilyRunType)
 }
 
-// TestDiag_RuntypeJitThrow_NeverAtRoot pins the end-to-end runtype
+// TestDiag_RuntypeRTThrow_NeverAtRoot pins the end-to-end runtype
 // diagnostic flow. A `getRuntypeId<never>()` call site reaches the
-// prepareForJson emitter's JitThrow site for KindNever, which records
+// prepareForJson emitter's RTThrow site for KindNever, which records
 // a PJ001 diagnostic against the marker call site. The diagnostic
 // fans out one entry per call site (per user direction: dedup is
 // one-per-call-site, not one-per-type-id).
-func TestDiag_RuntypeJitThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
+func TestDiag_RuntypeRTThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRuntypeId<never>();
 `
@@ -62,10 +62,10 @@ export const _ = getRuntypeId<never>();
 	}
 }
 
-// TestDiag_RuntypeJitThrow_FunctionAtRoot exercises the function-root
+// TestDiag_RuntypeRTThrow_FunctionAtRoot exercises the function-root
 // throw across the JSON families. `getRuntypeId<() => void>()` reaches
-// the function-root JitThrow in each family.
-func TestDiag_RuntypeJitThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
+// the function-root RTThrow in each family.
+func TestDiag_RuntypeRTThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRuntypeId<() => void>();
 `
@@ -95,7 +95,7 @@ export const _ = getRuntypeId<() => void>();
 // scheme. The same logical throw (Never at root) under different
 // emitters surfaces as distinct codes — SJ001 for stringifyJson,
 // TB001 for toBinary, etc. — so users reading their build log can
-// see which JIT family produced the diagnostic without parsing
+// see which RT family produced the diagnostic without parsing
 // message text.
 func TestDiag_PerFamilyPrefix_NeverAtRoot_DistinctCodes(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
@@ -189,7 +189,7 @@ export const _ = getRuntypeId<User>();
 
 // TestDiag_SymbolUnsupported_PerFamily pins v2's reclassification of
 // KindSymbol — `getRuntypeId<symbol>()` produces an alwaysThrow factory
-// (or its per-family equivalent code) across every JIT family.
+// (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
 	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRuntypeId<symbol>();
@@ -245,7 +245,7 @@ export const _ = getRuntypeId<never>();
 }
 
 // TestDiag_SilentSkip_FunctionMember pins the Phase 3 silent-skip
-// visibility: when an interface has a function-typed member, the JIT
+// visibility: when an interface has a function-typed member, the RT
 // silently drops it from the validator/serializer. The new diagnostic
 // surfaces that drop at build time so the user knows e.g. `onClick`
 // is not validated. The exact code (IT010 vs IT011) depends on whether

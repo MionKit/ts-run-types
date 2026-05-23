@@ -7,7 +7,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// UnknownKeyErrorsEmitter implements the `unknownKeyErrors` jit
+// UnknownKeyErrorsEmitter implements the `unknownKeyErrors` rt
 // function — accumulator that records one RunTypeError of expected
 // `'never'` per unknown key. Ported from mion's emitUnknownKeyErrors.
 //
@@ -79,17 +79,17 @@ func AnyUnknownKeyErrorsSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-func (UnknownKeyErrorsEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return DefaultIsJitInlined(ctx)
+func (UnknownKeyErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return DefaultIsRTInlined(ctx)
 }
 
 func (UnknownKeyErrorsEmitter) ReturnName() string {
 	return "er"
 }
 
-func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	switch rt.Kind {
 	case protocol.KindObjectLiteral:
@@ -103,7 +103,7 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 		case protocol.SubKindSet:
 			return emitSetUnknownKeyErrors(rt, ctx, ctx.Vλl)
 		}
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyUnknownKeyErrors(rt, ctx)
 	case protocol.KindArray:
@@ -117,7 +117,7 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 	case protocol.KindUnion:
 		return emitUnionUnknownKeyErrors(rt, ctx)
 	}
-	return JitCode{Code: "", Type: CodeS}
+	return RTCode{Code: "", Type: CodeS}
 }
 
 func (UnknownKeyErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
@@ -125,12 +125,12 @@ func (UnknownKeyErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID 
 	errArg := ctx.ArgName("εrr")
 	args := ctx.Vλl + "," + pthArg + "," + errArg
 	var callCode string
-	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	if isSelf {
 		callCode = ctx.walker.FnName + "(" + args + ")"
 	} else {
 		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 		}
 		callCode = childID + ".fn(" + args + ")"
 	}
@@ -172,7 +172,7 @@ func callUnknownKeyErr(ctx *EmitContext, extra string) string {
 
 // emitObjectUnknownKeyErrors ports mion's
 // InterfaceRunType.emitUnknownKeyErrors (interface.ts:157-172).
-func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	hasIndex := objectHasIndexSignatureChild(rt, ctx)
 	var parentCode string
 	if !hasIndex {
@@ -187,9 +187,9 @@ func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode 
 	childrenCode := unknownKeyErrorsChildrenCode(rt, ctx)
 	combined := joinSemicolons(parentCode, childrenCode)
 	if combined == "" {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: combined, Type: CodeS}
+	return RTCode{Code: combined, Type: CodeS}
 }
 
 func unknownKeyErrorsChildrenCode(rt *protocol.RunType, ctx *EmitContext) string {
@@ -205,160 +205,160 @@ func unknownKeyErrorsChildrenCode(rt *protocol.RunType, ctx *EmitContext) string
 		if isFunctionLikeKind(resolved.Kind) {
 			continue
 		}
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
 			continue
 		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
 		}
 	}
 	return strings.Join(parts, ";")
 }
 
-func emitPropertyUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitPropertyUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if resolved.IsStatic {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
 	ctx.SetChildAccessor(accessor)
 	ctx.SetChildPathLiteral(quoteJS(rt.Name))
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
-		return JitCode{Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}", Type: CodeS}
+		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
 	}
-	return childJit
+	return childRT
 }
 
-func emitArrayUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitArrayUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
 	ctx.SetChildPathLiteral(iVar)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
-	body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
-	return JitCode{Code: body, Type: CodeS}
+	body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+	return RTCode{Code: body, Type: CodeS}
 }
 
-func emitTupleUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitTupleUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	var parts []string
 	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
 			continue
 		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
 		}
 	}
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
 }
 
-func emitTupleMemberUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitTupleMemberUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
 		ctx.SetChildPathLiteral(iVar)
-		childJit := ctx.CompileChild(rt.Child, CodeS)
+		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
-			return JitCode{Code: "", Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: "", Type: CodeS}
 		}
-		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
-		return JitCode{Code: body, Type: CodeS}
+		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
+		return RTCode{Code: body, Type: CodeS}
 	}
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
 	ctx.SetChildPathLiteral(idxLit)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
-		return JitCode{Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}", Type: CodeS}
+		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
 	}
-	return childJit
+	return childRT
 }
 
 // emitIndexSignatureUnknownKeyErrors ports mion's
 // IndexSignatureRunType.emitUnknownKeyErrors (indexProperty.ts:122-132).
-func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isSymbolKeyedIndexSig(rt, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	keyRegexVar := ""
 	if rt.Index != nil {
@@ -373,27 +373,27 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 		}
 	}
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic && keyRegexVar == "" {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	prop := ctx.NextLocalVar("k")
 	ctx.SetChildAccessor(v + "[" + prop + "]")
 	ctx.SetChildPathLiteral(prop)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
 	patternErr := ""
 	if keyRegexVar != "" {
 		patternErr = "if (!" + keyRegexVar + ".test(" + prop + ")) {" + callUnknownKeyErr(ctx, prop) + "; continue;}"
 	}
-	if patternErr == "" && childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if patternErr == "" && childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
-	body := "for (const " + prop + " in " + v + ") {" + patternErr + childJit.Code + "}"
-	return JitCode{Code: body, Type: CodeS}
+	body := "for (const " + prop + " in " + v + ") {" + patternErr + childRT.Code + "}"
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // emitMapUnknownKeyErrors mirrors mion's
@@ -407,7 +407,7 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 //
 // When every wrapped child compiles to a noop (atomic Map<string,
 // number>), the loop body is empty so we elide the iteration entirely.
-func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	keyType, valueType := mapKeyValueTypes(rt, ctx)
 	entryVar := ctx.NextLocalVar("entry")
 	idxVar := ctx.NextLocalVar("i")
@@ -424,15 +424,15 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) J
 	if keyType != nil {
 		ctx.SetChildAccessor(entryVar + "[0]")
 		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapKey'}")
-		keyJit := ctx.CompileChild(keyType, CodeS)
+		keyRT := ctx.CompileChild(keyType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if keyJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if keyRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if keyJit.Code != "" {
-			inner.WriteString(keyJit.Code)
-			if last := keyJit.Code[len(keyJit.Code)-1]; last != ';' && last != '}' {
+		if keyRT.Code != "" {
+			inner.WriteString(keyRT.Code)
+			if last := keyRT.Code[len(keyRT.Code)-1]; last != ';' && last != '}' {
 				inner.WriteString(";")
 			}
 			bodyHasContent = true
@@ -441,27 +441,27 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) J
 	if valueType != nil {
 		ctx.SetChildAccessor(entryVar + "[1]")
 		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapValue'}")
-		valJit := ctx.CompileChild(valueType, CodeS)
+		valRT := ctx.CompileChild(valueType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if valJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if valRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if valJit.Code != "" {
-			inner.WriteString(valJit.Code)
-			if last := valJit.Code[len(valJit.Code)-1]; last != ';' && last != '}' {
+		if valRT.Code != "" {
+			inner.WriteString(valRT.Code)
+			if last := valRT.Code[len(valRT.Code)-1]; last != ';' && last != '}' {
 				inner.WriteString(";")
 			}
 			bodyHasContent = true
 		}
 	}
 	if !bodyHasContent {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	inner.WriteString(idxVar)
 	inner.WriteString("++;}")
 	body := "if (!(" + v + " instanceof Map)) return;" + inner.String()
-	return JitCode{Code: body, Type: CodeS}
+	return RTCode{Code: body, Type: CodeS}
 }
 
 // emitSetUnknownKeyErrors mirrors the same Iterable.ts emit on the Set
@@ -469,35 +469,35 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) J
 // index for now (mion's set.ts doesn't override getStaticPathLiteral
 // like Map does, so the path falls back to the bare index from the
 // loop counter).
-func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	if itemType == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	itemVar := ctx.NextLocalVar("item")
 	idxVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(itemVar)
 	ctx.SetChildPathLiteral(idxVar)
-	itemJit := ctx.CompileChild(itemType, CodeS)
+	itemRT := ctx.CompileChild(itemType, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if itemJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if itemRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if itemJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if itemRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	sep := ""
-	if last := itemJit.Code[len(itemJit.Code)-1]; last != ';' && last != '}' {
+	if last := itemRT.Code[len(itemRT.Code)-1]; last != ';' && last != '}' {
 		sep = ";"
 	}
 	body := "if (!(" + v + " instanceof Set)) return;" +
 		"let " + idxVar + " = 0; for (const " + itemVar + " of " + v + ") {" +
-		itemJit.Code + sep + idxVar + "++;}"
-	return JitCode{Code: body, Type: CodeS}
+		itemRT.Code + sep + idxVar + "++;}"
+	return RTCode{Code: body, Type: CodeS}
 }
 
-func emitUnionUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitUnionUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
 		Snippet: func(emitCtx *EmitContext, _ string, keyVar string) string {
 			return callUnknownKeyErr(emitCtx, keyVar)

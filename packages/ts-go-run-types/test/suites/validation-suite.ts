@@ -6,7 +6,7 @@
 // **Scope: isType + getTypeErrors only.** JSON serializer cases
 // (prepareForJson / restoreFromJson) live in the dedicated
 // `serialization-suite.ts` ported from mion's
-// `packages/run-types/src/jitCompilers/serialization-suite.ts`.
+// `packages/run-types/src/rtCompilers/serialization-suite.ts`.
 // Mixing validation and serializer samples here produced
 // sample-design mismatches: a structural extra prop is valid input
 // for isType (TS structural typing) but trips JSON.stringify after
@@ -54,7 +54,7 @@ import {
   type RunTypeError,
   type MockTypeFn,
 } from '@mionjs/ts-go-run-types';
-import {deserializeIsType, deserializeGetTypeErrors} from '../util/deserializeJitFunctions.ts';
+import {deserializeIsType, deserializeGetTypeErrors} from '../util/deserializeRTFunctions.ts';
 
 /** One atomic-type case in the shared suite. */
 export interface ValidationCase {
@@ -81,8 +81,8 @@ export interface ValidationCase {
    *  shapes produce the same validator end-to-end. **/
   isTypeReflect?: () => IsTypeFn;
   /** Plugin-rewritten thunk returning the validator rebuilt from the
-   *  serialized `JitCompiledFnData.code` body via
-   *  `new Function('utl', code)(jitUtils)` — exercises the
+   *  serialized `RTCompiledFnData.code` body via
+   *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `isType` (static form). **/
   deserializeIsType?: () => IsTypeFn;
@@ -91,14 +91,14 @@ export interface ValidationCase {
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `isType` but the validator returns `RunTypeError[]`
-   *  instead of a boolean (matches mion's `JitFunctions.typeErrors`). */
+   *  instead of a boolean (matches mion's `RTFunctions.typeErrors`). */
   getTypeErrors?: () => GetTypeErrorsFn;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  REFLECT form. `T` inferred from a runtime value's declared type. */
   getTypeErrorsReflect?: () => GetTypeErrorsFn;
   /** Plugin-rewritten thunk returning the getTypeErrors validator
-   *  rebuilt from the serialized `JitCompiledFnData.code` body via
-   *  `new Function('utl', code)(jitUtils)` — exercises the
+   *  rebuilt from the serialized `RTCompiledFnData.code` body via
+   *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `getTypeErrors` (static form). */
   deserializeGetTypeErrors?: () => GetTypeErrorsFn;
@@ -553,7 +553,7 @@ export const VALIDATION_SUITE = {
 
     literal_regexp_escaped: {
       title: 'RegExp literal with regex-metacharacters in the source',
-      description: 'regexp with characters that can be problematic in jit code if not correctly scaped',
+      description: 'regexp with characters that can be problematic in rt code if not correctly scaped',
       isType: () => {
         const reg2 = /['"]\/ \\ \//;
         return createIsType<typeof reg2>();
@@ -1467,7 +1467,7 @@ export const VALIDATION_SUITE = {
   // (every `it()` block's `validate(…)` assertion is migrated, including
   // those embedded in non-isType blocks such as `hasUnknownKeys`, `mock`,
   // and `stripUnknownKeys`), plus every `ARRAYS.*` entry in
-  // packages/run-types/src/jitCompilers/serialization-suite.ts that affects
+  // packages/run-types/src/rtCompilers/serialization-suite.ts that affects
   // isType behavior.
   //
   // Cases whose element kind isn't yet implemented in the Go port
@@ -1872,7 +1872,7 @@ export const VALIDATION_SUITE = {
     string_array_2d: {
       title: 'Two-dimensional string array (multi-level dependency call)',
       description:
-        'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getJIT(...).fn(v[i0]))',
+        'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getRT(...).fn(v[i0]))',
       isType: () => createIsType<string[][]>(),
       deserializeIsType: () => deserializeIsType<string[][]>(),
       isTypeReflect: () => {
@@ -1919,7 +1919,7 @@ export const VALIDATION_SUITE = {
         // `['hello', 'world']` — both elements fail the inner array
         // check; the loop walks every element and accumulates one error
         // per failure (mirror of mion's emitTypeErrors emitting per-
-        // element callJitErr without early-exit).
+        // element callRTErr without early-exit).
         [
           {path: [0], expected: 'array'},
           {path: [1], expected: 'array'},
@@ -2334,7 +2334,7 @@ export const VALIDATION_SUITE = {
     symbol_array: {
       title: 'Array of symbols (non-serializable — always rejected)',
       description:
-        'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time for prepareForJson/restoreFromJson; isType emits an always-false validator (we mirror the same).',
+        'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at RT compile time for prepareForJson/restoreFromJson; isType emits an always-false validator (we mirror the same).',
       isTypeNotes:
         'TS DIVERGENCE: Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, etc.) ALWAYS fail. The validator emits `return false`. Use a different shape if you need to carry symbol-like data.',
       isType: () => createIsType<symbol[]>(),
@@ -2435,7 +2435,7 @@ export const VALIDATION_SUITE = {
   //   - packages/run-types/src/nodes/member/indexProperty.spec.ts
   //   - packages/run-types/src/nodes/member/callSignature.spec.ts
   //   - packages/run-types/src/nodes/collection/circularRefs.spec.ts
-  //   - packages/run-types/src/jitCompilers/serialization-suite.ts
+  //   - packages/run-types/src/rtCompilers/serialization-suite.ts
   //     (OBJECTS / RECORDS / FUNCTIONS sections — entries that touch
   //     interface, class, index signature, method, or call signature)
   // and the validate(...) sanity-check assertions embedded in the
@@ -2814,7 +2814,7 @@ export const VALIDATION_SUITE = {
     interface_with_method: {
       title: 'Interface with a method (function prop skipped from check)',
       description:
-        "mion: objectSkipProps — function-typed properties are skipped from isType (mion's `getJitChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
+        "mion: objectSkipProps — function-typed properties are skipped from isType (mion's `getRTChild → undefined` for function children). validate({name:'x'}) PASSES even without `cb`.",
       isTypeNotes: [
         'TS DIVERGENCE: Function-typed properties are completely IGNORED by isType.',
         'The property may be absent, `undefined`, `null`, a number, a string — anything passes. Even a fresh function is fine.',
@@ -4107,7 +4107,7 @@ export const VALIDATION_SUITE = {
     call_signature_params: {
       title: 'Function parameters extracted via Parameters<F>',
       description:
-        "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createJitParamsFunction(JitFunctions.isType)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
+        "mion callSignature.spec.ts 'should validate correct parameters' — mion exposes this via `rt.getCallSignature().createRTParamsFunction(RTFunctions.isType)`; our pipeline uses TypeScript's built-in `Parameters<F>` to extract the param tuple as a first-class type and reuses the standard tuple emit. Same observable behavior: the validator accepts `[number, boolean]`, rejects wrong-type args, accepts missing trailing args (treats them as undefined per mion's `v.length <= N` policy), rejects excess args.",
       isType: () => {
         type CallSig = (a: number, b: boolean) => string;
         return createIsType<Parameters<CallSig>>();
@@ -6960,7 +6960,7 @@ export const VALIDATION_SUITE = {
     url_with_number_id: {
       title: 'Template literal URL with a number placeholder',
       description:
-        "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'. Compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at JIT-build time; isType emits `typeof v === 'string' && regex.test(v)`.",
+        "mion templateLiteral.spec.ts 'URL pattern api/user/${number}'. Compiled to `^api\\/user\\/-?(?:\\d+\\.?\\d*|\\.\\d+)$` at RT-build time; isType emits `typeof v === 'string' && regex.test(v)`.",
       isTypeNotes: [
         'Template literal types are compiled to a JS RegExp at build time and matched at runtime with `regex.test(v)`.',
         'The `${number}` placeholder expects digit-strings (`42`, `-7`, `3.14`) — NOT the words "NaN" or "Infinity" even though those are typeof "number" at the JS level.',
@@ -7445,7 +7445,7 @@ export const VALIDATION_SUITE = {
     promise_string: {
       title: 'Promise — thenable check, wrapped type not validated',
       description:
-        "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at JIT compile (mion's nodes/native/promise.ts).",
+        "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at RT compile (mion's nodes/native/promise.ts).",
       isTypeNotes: [
         'TS DIVERGENCE: Promise validation is a "thenable" check — any object with a `then: function` PASSES, even if it is not an actual `Promise` instance.',
         'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',

@@ -72,7 +72,7 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected cache file at %s, got %v", cachePath, err)
 	}
-	var entry disk.JITEntry
+	var entry disk.RTEntry
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		t.Fatalf("cache file is not valid JSON: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	stale := disk.JITEntry{
+	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "1:atomic",
 		Line:         "init('it_abc123','STALE_MARKER',undefined,true);",
@@ -162,7 +162,7 @@ func TestRenderFnModule_DiskCache_ChildHashDriftMiss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fresh disk.JITEntry
+	var fresh disk.RTEntry
 	if err := json.Unmarshal(rewritten, &fresh); err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestRenderFnModule_DiskCache_HeaderStructuralMismatch(t *testing.T) {
 
 	cachePath := filepath.Join(root, "fp1", "abc123", "it.json")
 	_ = os.MkdirAll(filepath.Dir(cachePath), 0o755)
-	stale := disk.JITEntry{
+	stale := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: "9:something-else",
 		Line:         "init('it_abc123','STALE_MARKER',undefined,true);",

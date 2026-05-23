@@ -40,7 +40,7 @@ function assertMockType(c: ValidationCase): void {
 
   // factoryThrows — the isType / getTypeErrors factories are
   // alwaysThrow for this kind (root-unsupported), but the mock walker
-  // doesn't go through the JIT cache. It still produces a value (a
+  // doesn't go through the RT cache. It still produces a value (a
   // mocked symbol, function, etc.); we just can't isType-check it
   // since the paired validator throws on construction. Run the mock
   // fn so we still verify no error escapes the generator, then bail.

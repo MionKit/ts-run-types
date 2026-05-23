@@ -11,7 +11,7 @@ cd "$ROOT_DIR"
 
 BIN="bin/ts-go-run-types"
 PKG="./cmd/ts-go-run-types"
-# Embed the workspace version into the binary so the on-disk JIT cache
+# Embed the workspace version into the binary so the on-disk RT cache
 # is automatically isolated across releases — see
 # internal/constants/version.go. Falls back to "dev" when node isn't
 # available (CI bootstrap scenarios) so the build still completes.
