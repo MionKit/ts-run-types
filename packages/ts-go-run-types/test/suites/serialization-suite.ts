@@ -216,6 +216,19 @@ export interface SerializationCase {
    *  primitives, Promise top-level). Tests verify a throw at thunk
    *  invocation time rather than a successful round-trip. **/
   throwsAtCompile?: boolean;
+
+  /** When the factory builds successfully but `JSON.stringify(prepared)`
+   *  is expected to throw at runtime. Documents mion's "extras pass
+   *  through" semantic: prepareForJson does NOT strip structural extras
+   *  (see comment in mion's `jsonSpec/03JsonObjects.spec.ts` strip
+   *  extra params test — "native JSON.stringify do not strip extra
+   *  params"). When an input carries an extra prop holding a
+   *  non-serializable value (bigint, symbol, circular ref), prepareForJson
+   *  preserves it and JSON.stringify throws. The contract: shape inputs
+   *  to match the declared type, or apply a future `stripUnknownProps`
+   *  pass before serialize. Tests assert the throw at JSON.stringify
+   *  time instead of attempting a round-trip. **/
+  jsonStringifyThrows?: boolean;
 }
 
 export const SERIALIZATION_SPEC = {
@@ -1305,6 +1318,47 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => createRestoreFromJson<Date | number | string | (() => any)>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
+    },
+
+    // ──────────────────────────────────────────────────────────────
+    // Documented throw cases: mion's prepareForJson does NOT strip
+    // extras (`03JsonObjects.spec.ts` strip extra params:
+    //   `// expect(deserializedValues[i]).toEqual(deserialized);`
+    //   `// native JSON.stringify do not strip extra params`).
+    // When a union member matches an input that carries an extra
+    // prop holding a non-serializable value (bigint, symbol), the
+    // matched member's emit transforms only its declared props; the
+    // extra survives into JSON.stringify, which throws. These cases
+    // pin that contract — callers must shape their data to the
+    // declared type, or apply a future stripUnknownProps pass before
+    // serialize. The flag `jsonStringifyThrows` opts the case into
+    // the throw-asserting adapter path.
+
+    union_extra_bigint_prop_throws: {
+      title: 'union member with extra bigint prop throws at JSON.stringify',
+      description:
+        'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
+      prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
+      restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
+      jsonStringifyThrows: true,
+      getTestData: () => ({values: [{b: 123, c: 123n}]}),
+    },
+
+    union_extra_symbol_prop_throws: {
+      title: 'union member with extra symbol prop throws at JSON.stringify',
+      description:
+        'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify drops symbols (returns `{"b":123}` — no throw) so this case actually round-trips, with the extra silently lost.',
+      prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
+      restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
+      // Symbol-valued props are silently dropped by JSON.stringify
+      // (per ECMAScript spec) — no throw, no round-trip mismatch
+      // because the symbol was never reachable post-stringify
+      // anyway. Documenting via `deserializedValues` instead of the
+      // throw flag — the symbol prop vanishes, the rest survives.
+      getTestData: () => ({
+        values: [{b: 123, sym: Symbol('extra')}],
+        deserializedValues: [{b: 123}],
+      }),
     },
   },
 
