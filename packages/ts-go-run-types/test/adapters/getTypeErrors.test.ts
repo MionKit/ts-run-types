@@ -167,6 +167,12 @@ describe('getTypeErrors / OBJECT', () => {
   it('Index signature on a nested (non-root) object property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_non_root));
   it('Function type at top level (any function passes)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.function_top_level));
   it('Class with two atomic props (instance or plain match)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.class_simple));
+  it('Function parameters extracted via Parameters<F>', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params));
+  it('Parameters<F> tuple with a trailing optional argument', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params_with_optional));
+  it('Parameters<F> tuple with a trailing rest segment', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
+  it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.record_union_keys));
+  it('Index signature with a union value type', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.union_value_index));
+  it('Object with a discriminated-union string property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_with_union_prop));
 
   it('all object getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.OBJECT).filter((c) => c.getTypeErrors).length;
@@ -182,14 +188,56 @@ describe('getTypeErrors / TUPLE', () => {
 
   it('Two-element tuple (string plus number)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.string_number_pair));
   it('Six-element heterogeneous tuple (mion fixture)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.full_mion_tuple));
+  it('Tuple with trailing optional elements', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_with_optional));
   it('Tuple as array element (tuple inside array dependency call)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
   it('Self-referential tuple via trailing optional self-ref', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_circular));
   it('Tuple with a function slot (must be undefined)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
   it('Tuple with a trailing rest segment', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_rest));
+  it('Tuple with multiple trailing optional slots', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
   it('Tuple with named element labels (labels erased at runtime)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_named_labels));
 
   it('all tuple getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.TUPLE).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+describe('getTypeErrors / NATIVE', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Map with string keys and number values', () => assertGetTypeErrors(VALIDATION_SUITE.NATIVE.map_string_number));
+  it('Set of strings', () => assertGetTypeErrors(VALIDATION_SUITE.NATIVE.set_string));
+  it('Promise — thenable check, wrapped type not validated', () => assertGetTypeErrors(VALIDATION_SUITE.NATIVE.promise_string));
+  it('Awaited<Promise<T>> — resolves to the wrapped type', () => assertGetTypeErrors(VALIDATION_SUITE.NATIVE.awaited_promise));
+
+  it('all native getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.NATIVE).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+describe('getTypeErrors / UNION', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Union of common atomic types (with Date and bigint)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.atomic_union));
+  it('Union of string literals (case-sensitive)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.string_literal_union));
+  it('Two-arm union of string and number', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.string_or_number));
+  it('Union of array types (whole-array dispatch)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_of_array_types));
+  it('Array whose element type is a union', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.array_of_union));
+  it('Union of disjoint object shapes', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_of_object_shapes));
+  it('Discriminated union (shared kind literal, different payloads)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.discriminated_union));
+  it('Union of object arms each carrying a method', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_with_methods));
+  it('Self-referential union via object and array arms', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.circular_union));
+  it('Intersection of object shapes (resolved to one merged shape)', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.intersection_to_object));
+
+  it('all union getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.getTypeErrors).length;
     expect(ranTests).toBe(activeCount);
   });
 });
