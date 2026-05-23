@@ -32,6 +32,7 @@ import {initCache as initUnknownKeysToUndefinedCache} from './caches/unknownKeys
 import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache.ts';
 import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
+import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
 import type {AnyFn, JitCompiledFn} from './jit/types.ts';
 import type {RuntypeId} from './index.ts';
@@ -133,13 +134,20 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  *  object and folds it into the injected runtype id, so two calls with
  *  different modes resolve to distinct JIT cache entries. **/
 export interface JsonEncoderOptions {
-  /** `'safe'` (default) routes through the single-pass `stringifyJson`
-   *  JIT: walks the type, not the value — never mutates `v` and strips
-   *  every undeclared property at emit time. `'unsafe'` composes
-   *  `prepareForJson + JSON.stringify`: mutates `v` in place, preserves
-   *  undeclared properties (and may throw on bigint extras at
-   *  `JSON.stringify`). **/
-  mode?: 'safe' | 'unsafe';
+  /** `'safe'` (default) composes `prepareForJsonSafe + JSON.stringify`:
+   *  clones declared keys + transforms leaves into a NEW object then
+   *  hands the result to native `JSON.stringify`. Non-mutating, strips
+   *  undeclared properties, fast (native stringify path).
+   *
+   *  `'safeDirect'` routes through the single-pass `stringifyJson` JIT:
+   *  walks the type, not the value — never mutates `v` and strips every
+   *  undeclared property at emit time. No intermediate object allocation
+   *  but slower than the native stringify path on non-trivial shapes.
+   *
+   *  `'unsafe'` composes `prepareForJson + JSON.stringify`: mutates `v`
+   *  in place, preserves undeclared properties (and may throw on bigint
+   *  extras at `JSON.stringify`). **/
+  mode?: 'safe' | 'safeDirect' | 'unsafe';
 }
 
 /** Caller-controlled options for `createJsonDecoder<T>()`. **/
@@ -170,6 +178,7 @@ initUnknownKeysToUndefinedCache(_utils);
 initPrepareForJsonCache(_utils);
 initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
+initPrepareForJsonSafeCache(_utils);
 
 // =============================================================================
 // Private generic factories
@@ -281,11 +290,11 @@ export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndef
 
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
-/** Returns a JSON encoder for `T`. Default mode is `'safe'` (single-pass
- *  stringifyJson, no mutation, undeclared keys stripped at emit). The
- *  `'unsafe'` mode composes `prepareForJson + JSON.stringify` — faster
- *  but mutates `v` and lets undeclared keys leak through (may throw on
- *  bigint extras). **/
+/** Returns a JSON encoder for `T`. Default mode is `'safe'`
+ *  (`prepareForJsonSafe + JSON.stringify` — clones, strips extras, fast
+ *  native stringify). `'safeDirect'` uses the single-pass `stringifyJson`
+ *  JIT (no allocation, slower). `'unsafe'` mutates `v` (preserves extras,
+ *  fast). **/
 export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): JsonEncoderFn {
   void val;
   if (id === undefined) {
@@ -298,10 +307,16 @@ export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?:
     const prepareFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
     return (value) => JSON.stringify(prepareFn(value));
   }
-  // 'safe' default — single-pass stringifyJson. Returns `string |
-  // undefined`; callers handle the undefined for top-level-undefined
-  // inputs the same way they would for `JSON.stringify`.
-  return lookupJitFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
+  if (mode === 'safeDirect') {
+    // Single-pass stringifyJson — returns `string | undefined`; callers
+    // handle the undefined for top-level-undefined inputs the same way
+    // they would for `JSON.stringify`.
+    return lookupJitFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
+  }
+  // 'safe' default — prepareForJsonSafe + JSON.stringify. Non-mutating
+  // clone path, strips undeclared properties, native stringify perf.
+  const prepareSafeFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
+  return (value) => JSON.stringify(prepareSafeFn(value));
 }
 
 /** Returns a JSON decoder for `T`. Default mode is `'safe'` (composes
@@ -344,4 +359,5 @@ if (hot) {
   hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getJitUtils()));
 }

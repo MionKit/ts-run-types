@@ -351,21 +351,19 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 }
 
 func emitUnionUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	var parts []string
-	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			continue
-		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
-		}
-	}
-	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	// uku at a union node is structurally a no-op under the flat-union
+	// wire format: by the time the decoder's safe pipeline reaches uku,
+	// the parsed value is `[-1, mergedObject]` (object branch) or
+	// `[memberIndex, value]` (atomic branch with tuple wrap) — NOT a
+	// raw object whose keys could be classified as declared/undeclared.
+	// Walking the union's children and concatenating each member's uku
+	// statements would (1) corrupt declared keys when applied across
+	// non-matching members and (2) clear the wire-format wrapper's
+	// `0`/`1` indices, breaking restoreFromJson. Extras inside the
+	// merged object branch are stripped by the safe encoder
+	// (prepareForJsonSafe + JSON.stringify) before they ever reach the
+	// decoder; this is the contract documented on JsonEncoderOptions.
+	_ = rt
+	_ = ctx
+	return JitCode{Code: "", Type: CodeS}
 }

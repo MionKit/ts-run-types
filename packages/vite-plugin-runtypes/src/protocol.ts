@@ -215,6 +215,7 @@ export type CacheKind =
   | 'prepareForJson'
   | 'restoreFromJson'
   | 'stringifyJson'
+  | 'prepareForJsonSafe'
   | 'hasUnknownKeys'
   | 'stripUnknownKeys'
   | 'unknownKeyErrors'
@@ -267,6 +268,7 @@ export interface Response {
   addedPrepareForJson?: boolean;
   addedRestoreFromJson?: boolean;
   addedStringifyJson?: boolean;
+  addedPrepareForJsonSafe?: boolean;
   // Siblings of addedIsType for the unknown-keys family ported from
   // mion's emitHasUnknownKeys et al. Set when at least one newly-interned
   // RunType has a supported emit arm in the matching emitter.
@@ -313,6 +315,7 @@ export interface Response {
   prepareForJsonCacheSource?: string;
   restoreFromJsonCacheSource?: string;
   stringifyJsonCacheSource?: string;
+  prepareForJsonSafeCacheSource?: string;
   // Siblings of `isTypeCacheSource` for the unknown-keys family —
   // bodies of the four cache modules emitted by the matching emitters.
   // Same factory shape, same consumer pattern — populated by `dump` and
