@@ -77,34 +77,29 @@ const jitUtils = {
     pureFnsCache[key] = compiledFn;
     return compiledFn;
   },
-  // The `CompTimeArgs<string>` brand on the next five lookup methods is
-  // load-bearing. The Go-side pure-fn dep extractor
-  // (internal/compiled/purefns/deps.go) walks every `registerPureFnFactory`
-  // body and, for each `<utl>.<method>(<literalKey>)` call where `<method>`
-  // is branded `CompTimeArgs<string>`, records `<literalKey>` as a static
-  // dependency on the enclosing pure-fn's entry. The brand both (a)
-  // declares the literal-only precondition in the type signature and (b)
-  // tells the Go scanner which methods participate in dep extraction
-  // without a hard-coded method-name allowlist. Dropping the brand
-  // silently disables dep extraction and leaves `pureFnDependencies` empty.
+  // CompTimeArgs ensures dependencies are tracked inside pure functions
   usePureFn(key: CompTimeArgs<string>): PureFunction {
     const compiled = pureFnsCache[key];
     if (!compiled) throw new Error(`Pure function not found for key "${key}"`);
     initPureFunction(compiled);
     return compiled.fn;
   },
+  // CompTimeArgs ensures dependencies are tracked inside pure functions
   getPureFn(key: CompTimeArgs<string>): PureFunction | undefined {
     const compiled = pureFnsCache[key];
     if (!compiled) return;
     initPureFunction(compiled);
     return compiled.fn;
   },
+  // CompTimeArgs ensures dependencies are tracked inside pure functions
   getCompiledPureFn(key: CompTimeArgs<string>): CompiledPureFunction | undefined {
     return pureFnsCache[key];
   },
+  // CompTimeArgs ensures dependencies are tracked inside pure functions
   hasPureFn(key: CompTimeArgs<string>): boolean {
     return !!pureFnsCache[key];
   },
+  // CompTimeArgs ensures dependencies are tracked inside pure functions
   findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined {
     const suffix = '::' + fnName;
     for (const key of Object.keys(pureFnsCache)) {
