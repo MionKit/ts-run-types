@@ -222,6 +222,8 @@ export type CacheKind =
   | 'unknownKeyErrors'
   | 'unknownKeysToUndefined'
   | 'unknownKeysToUndefinedWire'
+  | 'toBinary'
+  | 'fromBinary'
   | 'pureFns'
   | 'all';
 
@@ -280,6 +282,11 @@ export interface Response {
   addedUnknownKeyErrors?: boolean;
   addedUnknownKeysToUndefined?: boolean;
   addedUnknownKeysToUndefinedWire?: boolean;
+  // Siblings of addedIsType for the binary serializer pair. Set when at
+  // least one newly-interned RunType has a supported emit arm in the
+  // matching emitter.
+  addedToBinary?: boolean;
+  addedFromBinary?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
   // Replacements is the byte-range rewrite list the Vite plugin
@@ -331,6 +338,11 @@ export interface Response {
   unknownKeyErrorsCacheSource?: string;
   unknownKeysToUndefinedCacheSource?: string;
   unknownKeysToUndefinedWireCacheSource?: string;
+  // Siblings of isTypeCacheSource for the binary serializer pair —
+  // bodies of the toBinary / fromBinary cache modules. Same factory
+  // shape, same consumer pattern.
+  toBinaryCacheSource?: string;
+  fromBinaryCacheSource?: string;
   // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
   // <factory>)` call. Body is a sequence of `factory(key, bodyHash,

@@ -92,6 +92,16 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_ukuw_",
 		Tag:       "ukuw",
 	},
+	"toBinary": {
+		Name:      "toBinaryModule",
+		VarPrefix: "g_tb_",
+		Tag:       "tb",
+	},
+	"fromBinary": {
+		Name:      "fromBinaryModule",
+		VarPrefix: "g_fb_",
+		Tag:       "fb",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",

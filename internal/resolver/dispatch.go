@@ -45,6 +45,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		addedUnknownKeyErrors := addedRunTypes && jitfn.AnyUnknownKeyErrorsSupported(added)
 		addedUnknownKeysToUndefined := addedRunTypes && jitfn.AnyUnknownKeysToUndefinedSupported(added)
 		addedUnknownKeysToUndefinedWire := addedRunTypes && jitfn.AnyUnknownKeysToUndefinedWireSupported(added)
+		addedToBinary := addedRunTypes && jitfn.AnyToBinarySupported(added)
+		addedFromBinary := addedRunTypes && jitfn.AnyFromBinarySupported(added)
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
@@ -69,6 +71,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			AddedUnknownKeyErrors:       addedUnknownKeyErrors,
 			AddedUnknownKeysToUndefined:     addedUnknownKeysToUndefined,
 			AddedUnknownKeysToUndefinedWire: addedUnknownKeysToUndefinedWire,
+			AddedToBinary:               addedToBinary,
+			AddedFromBinary:             addedFromBinary,
 			AddedPureFns:                addedPureFns,
 			PureFnsDiagnostics:          pureFnDiags,
 			MarkerDiagnostics:           markerDiags,
@@ -86,11 +90,14 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantUnknownKeyErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
 		wantUnknownKeysToUndefined := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
 		wantUnknownKeysToUndefinedWire := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
+		wantToBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindToBinary)
+		wantFromBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson ||
 			wantStringifyJson || wantPrepareForJsonSafe || wantPrepareForJsonSafePreserve ||
 			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors ||
-			wantUnknownKeysToUndefined || wantUnknownKeysToUndefinedWire || wantPureFns
+			wantUnknownKeysToUndefined || wantUnknownKeysToUndefinedWire ||
+			wantToBinary || wantFromBinary || wantPureFns
 		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
@@ -187,6 +194,20 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				}
 				response.UnknownKeysToUndefinedWireCacheSource = ukuwRendered
 			}
+			if wantToBinary {
+				rendered, err := renderToBinaryModule(scoped, resolver.jitRenderOpts())
+				if err != nil {
+					return protocol.Response{Error: err.Error()}
+				}
+				response.ToBinaryCacheSource = rendered
+			}
+			if wantFromBinary {
+				rendered, err := renderFromBinaryModule(scoped, resolver.jitRenderOpts())
+				if err != nil {
+					return protocol.Response{Error: err.Error()}
+				}
+				response.FromBinaryCacheSource = rendered
+			}
 			if wantPureFns {
 				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.Program, pureFnEntries, true)
 				if pureFnsErr != nil {
@@ -237,6 +258,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantUnknownKeyErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
 		wantUnknownKeysToUndefined := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
 		wantUnknownKeysToUndefinedWire := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
+		wantToBinary := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindToBinary)
+		wantFromBinary := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
 		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		if wantRunType {
 			rendered, renderErr := renderRunTypesModule(fullDump)
@@ -328,6 +351,20 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: ukuwErr.Error()}
 			}
 			response.UnknownKeysToUndefinedWireCacheSource = ukuwRendered
+		}
+		if wantToBinary {
+			rendered, err := renderToBinaryModule(fullDump, resolver.jitRenderOpts())
+			if err != nil {
+				return protocol.Response{Error: err.Error()}
+			}
+			response.ToBinaryCacheSource = rendered
+		}
+		if wantFromBinary {
+			rendered, err := renderFromBinaryModule(fullDump, resolver.jitRenderOpts())
+			if err != nil {
+				return protocol.Response{Error: err.Error()}
+			}
+			response.FromBinaryCacheSource = rendered
 		}
 		if wantPureFns {
 			pureFnsRendered, pureFnsDiags, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)
