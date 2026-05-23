@@ -111,14 +111,6 @@ export {
   type RunTypeErrorPathSegment,
 } from './createGetTypeErrors.ts';
 
-export {
-  createPrepareForJson,
-  deserializePrepareForJson,
-  type PrepareForJsonFn,
-} from './createPrepareForJson.ts';
+export {createPrepareForJson, deserializePrepareForJson, type PrepareForJsonFn} from './createPrepareForJson.ts';
 
-export {
-  createRestoreFromJson,
-  deserializeRestoreFromJson,
-  type RestoreFromJsonFn,
-} from './createRestoreFromJson.ts';
+export {createRestoreFromJson, deserializeRestoreFromJson, type RestoreFromJsonFn} from './createRestoreFromJson.ts';

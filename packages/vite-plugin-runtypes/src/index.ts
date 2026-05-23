@@ -26,7 +26,8 @@ const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 // resolve the package's `exports` map at startup. Anchored on the
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
-const CACHE_FILE_RE = /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+const CACHE_FILE_RE =
+  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',

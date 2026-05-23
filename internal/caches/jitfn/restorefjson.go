@@ -57,6 +57,12 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		// Phase 7 — noop. See preparefjson.go union case for the
 		// rationale.
 		return true
+	case protocol.KindIntersection:
+		// Defensive noop — see preparefjson.go intersection case.
+		return true
+	case protocol.KindTemplateLiteral:
+		// String-flavoured at runtime — noop.
+		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Top-level function types: noop body (caller's responsibility).
@@ -191,6 +197,12 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 
 	case protocol.KindUnion:
 		// Phase 7 — noop. See preparefjson.go union case.
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindIntersection:
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindTemplateLiteral:
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
