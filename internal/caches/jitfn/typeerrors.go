@@ -499,6 +499,15 @@ func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
 // (matching emitObjectIsType in istype.go): static + method-shaped
 // kinds dropped; PropertySignature wrapping a function-typed value
 // also dropped via its own empty emit.
+//
+// When every contributing child is optional (or there are no
+// contributing children), the object guard is augmented with mion's
+// `allOptionalCode` clause — `(!Array.isArray(v) &&
+// Object.prototype.toString.call(v) === '[object Object]')` — so
+// arrays / Date / Map / Set are explicitly rejected at the top level
+// rather than slipping through the bare `typeof === 'object'` check.
+// Mirrors interface.ts:allOptionalCode. Suppressed for callable
+// shapes (the value is a Function, not an Object).
 func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	// Detect a CallSignature child for the callable-interface case.
 	var callSigChild *protocol.RunType
@@ -514,8 +523,11 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 	}
 
 	// Compile per-child error-accumulation code, filtering the same
-	// way emitObjectIsType does.
+	// way emitObjectIsType does, AND track whether all contributing
+	// children are optional so we can add the allOptionalCode guard.
 	var childrenParts []string
+	allOptional := true
+	hasContributingChild := false
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil {
@@ -537,6 +549,10 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 		if childJit.Code == "" {
 			continue
 		}
+		hasContributingChild = true
+		if !memberIsOptional(resolved) {
+			allOptional = false
+		}
 		childrenParts = append(childrenParts, childJit.Code)
 	}
 	childrenCode := strings.Join(childrenParts, ";")
@@ -546,6 +562,12 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 		objectCheck = "typeof " + v + " === 'function'"
 	} else {
 		objectCheck = "typeof " + v + " === 'object' && " + v + " !== null"
+	}
+	// allOptionalCode guard — same shape as emitObjectIsType. Without
+	// it, `{}` validators would accept `[]`, `new Date()`, `new Map()`,
+	// etc. since those all pass `typeof === 'object' && !== null`.
+	if callSigChild == nil && (!hasContributingChild || allOptional) {
+		objectCheck = objectCheck + " && !Array.isArray(" + v + ") && Object.prototype.toString.call(" + v + ") === '[object Object]'"
 	}
 
 	expected := "objectLiteral"
