@@ -1823,6 +1823,16 @@ export const VALIDATION_SUITE = {
         const v: [string, number][] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
+      getTypeErrorsReflect: () => {
+        const v: [string, number][] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [string, number][] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           [],
@@ -1833,6 +1843,22 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [[['a']], [['a', 'b']], 'not-array', [[1, 'a']], null, undefined, [['a', 1, 'extra']]],
       }),
+      getExpectedErrors: () => [
+        // [['a']] — outer at 0 is tuple ['a']. Slot 0 'a' OK; slot 1 undefined fails number → [0, 1].
+        [{path: [0, 1], expected: 'number'}],
+        // [['a', 'b']] — slot 1 'b' not number → [0, 1].
+        [{path: [0, 1], expected: 'number'}],
+        [{path: [], expected: 'array'}],
+        // [[1, 'a']] — slot 0 1 not string, slot 1 'a' not number.
+        [
+          {path: [0, 0], expected: 'string'},
+          {path: [0, 1], expected: 'number'},
+        ],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        // [['a', 1, 'extra']] — length 3 > 2 → outer tuple check fails for element 0 → [0].
+        [{path: [0], expected: 'tuple'}],
+      ],
     },
 
     circular_array: {
@@ -3552,6 +3578,16 @@ export const VALIDATION_SUITE = {
         const v: [string, number] = ['hello', 1];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[string, number]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number]>(),
+      getTypeErrorsReflect: () => {
+        const v: [string, number] = ['hello', 1];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [string, number] = ['hello', 1];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           ['hello', 1],
@@ -3570,6 +3606,29 @@ export const VALIDATION_SUITE = {
           ['hello', null],
         ],
       }),
+      getExpectedErrors: () => [
+        // [] — falls into else (length 0 ≤ 2); both slots are
+        // undefined → both fail their atomic checks.
+        [
+          {path: [0], expected: 'string'},
+          {path: [1], expected: 'number'},
+        ],
+        // ['hello'] — slot 0 OK; slot 1 undefined → number check fails.
+        [{path: [1], expected: 'number'}],
+        // ['hello', 1, 'extra'] — length > 2 fails outer tuple check.
+        [{path: [], expected: 'tuple'}],
+        // [1, 'hello'] — both slots wrong type.
+        [
+          {path: [0], expected: 'string'},
+          {path: [1], expected: 'number'},
+        ],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [1], expected: 'number'}],
+        [{path: [0], expected: 'string'}],
+        [{path: [1], expected: 'number'}],
+      ],
     },
 
     full_mion_tuple: {
@@ -3585,6 +3644,16 @@ export const VALIDATION_SUITE = {
         const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
+      getTypeErrorsReflect: () => {
+        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
         invalid: [
@@ -3598,6 +3667,16 @@ export const VALIDATION_SUITE = {
           [new Date(), 123, 'hello', undefined, ['a'], 1n], // undefined ≠ null literal
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [5], expected: 'bigint'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [5], expected: 'bigint'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'date'}],
+        [{path: [1], expected: 'number'}],
+        [{path: [3], expected: 'null'}],
+      ],
     },
 
     tuple_with_optional: {
@@ -3615,6 +3694,11 @@ export const VALIDATION_SUITE = {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeIsType(v);
       },
+      // getTypeErrors thunks omitted — the optional `boolean?` slot
+      // makes the resolver expand to `Union(undefined | true | false)`,
+      // and KindUnion isn't supported in typeErrors yet (phase 7). The
+      // whole tuple validator becomes CodeNS and falls back to the
+      // always-pass stub. Activates when union support lands.
       getSamples: () => ({
         valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
         invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array', null, undefined, [NaN], ['not number']],
@@ -3634,6 +3718,16 @@ export const VALIDATION_SUITE = {
         const v: [string, number][] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
+      getTypeErrorsReflect: () => {
+        const v: [string, number][] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [string, number][] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           [],
@@ -3645,6 +3739,20 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [[['a', 'b']], [['a']], ['not tuple'], null, undefined, [['a', NaN]], [[null, 1]]],
       }),
+      getExpectedErrors: () => [
+        // [['a', 'b']] — outer array, inner [a, b]: slot 1 'b' not number.
+        [{path: [0, 1], expected: 'number'}],
+        // [['a']] — outer array, inner ['a']: slot 0 OK, slot 1 undefined fails number.
+        [{path: [0, 1], expected: 'number'}],
+        // ['not tuple'] — element 0 'not tuple' fails tuple check.
+        [{path: [0], expected: 'tuple'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        // [['a', NaN]] — slot 1 NaN fails number.
+        [{path: [0, 1], expected: 'number'}],
+        // [[null, 1]] — slot 0 null fails string.
+        [{path: [0, 0], expected: 'string'}],
+      ],
     },
 
     // ---- DEFERRED — features that aren't yet ported ----
@@ -3665,10 +3773,37 @@ export const VALIDATION_SUITE = {
         const v: [number, ...string[]] = [3];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[number, ...string[]]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, ...string[]]>(),
+      getTypeErrorsReflect: () => {
+        const v: [number, ...string[]] = [3];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [number, ...string[]] = [3];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
         invalid: [[3, 'a', 4], ['not number'], [], 'not array', [3, 1], null, undefined, [NaN, 'a'], [3, null]],
       }),
+      getExpectedErrors: () => [
+        // [3, 'a', 4] — slot 0 OK; rest at iVar=1 'a' OK; iVar=2 4 fails string.
+        [{path: [2], expected: 'string'}],
+        // ['not number'] — slot 0 'not number' fails; rest iterates 0 times.
+        [{path: [0], expected: 'number'}],
+        // [] — slot 0 missing → number check fails on undefined.
+        [{path: [0], expected: 'number'}],
+        [{path: [], expected: 'tuple'}],
+        // [3, 1] — slot 0 OK; rest iVar=1 1 fails string.
+        [{path: [1], expected: 'string'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        // [NaN, 'a'] — slot 0 NaN fails; rest at 1 'a' OK.
+        [{path: [0], expected: 'number'}],
+        // [3, null] — slot 0 OK; rest iVar=1 null fails string.
+        [{path: [1], expected: 'string'}],
+      ],
     },
 
     tuple_circular: {
@@ -3693,6 +3828,24 @@ export const VALIDATION_SUITE = {
         const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createGetTypeErrors<TupleCircular>();
+      },
+      deserializeGetTypeErrors: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return deserializeGetTypeErrors<TupleCircular>();
+      },
+      getTypeErrorsReflect: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const tc: any = [new Date(), 1, 'a', null, [], 1n];
         const tcRec: any = [new Date(), 1, 'a', null, [], 1n, [new Date(), 1, 'a', null, [], 1n]];
@@ -3709,6 +3862,23 @@ export const VALIDATION_SUITE = {
           ],
         };
       },
+      getExpectedErrors: () => [
+        // [] — every required slot fails atomic check (slot 6 is optional, skipped).
+        [
+          {path: [0], expected: 'date'},
+          {path: [1], expected: 'number'},
+          {path: [2], expected: 'string'},
+          {path: [3], expected: 'null'},
+          {path: [4], expected: 'array'},
+          {path: [5], expected: 'bigint'},
+        ],
+        [{path: [5], expected: 'bigint'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'date'}],
+        [{path: [1], expected: 'number'}],
+      ],
     },
 
     tuple_multiple_trailing_optionals: {
@@ -3725,6 +3895,9 @@ export const VALIDATION_SUITE = {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeIsType(v);
       },
+      // getTypeErrors thunks omitted — same reason as tuple_with_optional:
+      // the optional `boolean?` slot expands to a Union which isn't
+      // supported by typeErrors until phase 7.
       getSamples: () => ({
         valid: [
           [3],
@@ -3762,6 +3935,16 @@ export const VALIDATION_SUITE = {
         const v: [name: string, age: number] = ['Alice', 30];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[name: string, age: number]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[name: string, age: number]>(),
+      getTypeErrorsReflect: () => {
+        const v: [name: string, age: number] = ['Alice', 30];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [name: string, age: number] = ['Alice', 30];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           ['Alice', 30],
@@ -3769,6 +3952,23 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array', undefined, ['Alice', NaN], [null, 30]],
       }),
+      getExpectedErrors: () => [
+        [
+          {path: [0], expected: 'string'},
+          {path: [1], expected: 'number'},
+        ],
+        [{path: [1], expected: 'number'}],
+        [{path: [1], expected: 'number'}],
+        [
+          {path: [0], expected: 'string'},
+          {path: [1], expected: 'number'},
+        ],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [1], expected: 'number'}],
+        [{path: [0], expected: 'string'}],
+      ],
     },
 
     tuple_with_non_serializable: {
@@ -3789,6 +3989,16 @@ export const VALIDATION_SUITE = {
         const v: [number, () => any] = [3, () => null];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<[number, () => any]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, () => any]>(),
+      getTypeErrorsReflect: () => {
+        const v: [number, () => any] = [3, () => null];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [number, () => any] = [3, () => null];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         // `[3]` is valid — v[1] is undefined which satisfies the
         // `v[1] === undefined` check the function slot emits.
@@ -3804,6 +4014,16 @@ export const VALIDATION_SUITE = {
           [NaN, undefined],
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [1], expected: 'undefined'}],
+        [{path: [1], expected: 'undefined'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [1], expected: 'undefined'}],
+        [{path: [0], expected: 'number'}],
+      ],
     },
   },
 
