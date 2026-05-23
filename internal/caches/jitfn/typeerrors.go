@@ -840,6 +840,16 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 		}
 		if keyJit.Code != "" {
 			inner.WriteString(keyJit.Code)
+			// Dep-call envelope keys end with `(pth.push(...), <call>,
+			// pth.splice(-1))` — a parenthesised comma expression with
+			// no trailing semicolon. Without an explicit separator, the
+			// next `const val0 = ...` lexes as `(expr)const` which is
+			// a JS syntax error. Append `;` defensively for any non-
+			// terminator-ending key code; identical to mion's
+			// "emit each child on its own statement" convention.
+			if last := keyJit.Code[len(keyJit.Code)-1]; last != ';' && last != '}' {
+				inner.WriteString(";")
+			}
 		}
 	}
 	if valueType != nil {
@@ -859,6 +869,12 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 		}
 		if valJit.Code != "" {
 			inner.WriteString(valJit.Code)
+			// Same statement-separator concern as the key half: keep a
+			// trailing `;` between a `(...)` comma-expression and the
+			// loop's `i0++`.
+			if last := valJit.Code[len(valJit.Code)-1]; last != ';' && last != '}' {
+				inner.WriteString(";")
+			}
 		}
 	}
 	inner.WriteString(idxVar)
@@ -937,6 +953,13 @@ func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 		}
 		if itemJit.Code != "" {
 			inner.WriteString(itemJit.Code)
+			// Same statement-separator concern as the Map emitter: a
+			// dep-call envelope `(pth.push(...), <call>, pth.splice(-1))`
+			// has no trailing `;`, so the following `i0++` would lex as
+			// `(expr)i0++` — a JS syntax error. Defensive semicolon.
+			if last := itemJit.Code[len(itemJit.Code)-1]; last != ';' && last != '}' {
+				inner.WriteString(";")
+			}
 		}
 	}
 	inner.WriteString(idxVar)

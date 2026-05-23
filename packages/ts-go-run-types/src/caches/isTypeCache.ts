@@ -13,20 +13,17 @@
 'use strict';
 
 export function initCache(jitUtils) {
-  // Two-phase registration so cyclic dependency graphs (X depends
-  // on Y, Y depends on X) resolve correctly:
-  //   Phase 1 — each `init(...)` call registers a stub entry on
-  //     the JIT cache with `fn: undefined`. The entry is the canonical
-  //     object identity for that hash.
-  //   Phase 2 — after every init line has run, we walk the pending
-  //     list and invoke each entry's `createJitFn(jitUtils)` to
-  //     materialise `entry.fn`. Any `const X = utl.getJIT('X')`
-  //     captured at init time points at the SAME entry, so its
-  //     `.fn` is now populated by the time the outer validator
-  //     actually runs.
-  const pending = [];
+  // Register every entry on the shared jitUtils cache with `fn:
+  // undefined`. The fn closure is materialized lazily on first
+  // `jitUtils.getJIT(hash)` / `getJitFn(hash)` call — this delays
+  // `createJitFn(jitUtils)` until ALL cache modules across every JIT
+  // family (isType / typeErrors / prepareForJson / restoreFromJson +
+  // pureFns) have registered their entries. Without the delay, an
+  // entry materialised here could call `utl.getJIT('rj_X')` for a
+  // restoreFromJson dependency that hasn't been registered yet,
+  // capturing `undefined` instead of the canonical entry reference.
   function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
-    const entry = {
+    jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'it',
       typeName,
@@ -38,16 +35,9 @@ export function initCache(jitUtils) {
       pureFnDependencies,
       createJitFn,
       fn: undefined,
-    };
-    jitUtils.addToJitCache(entry);
-    pending.push(entry);
+    });
   }
   void init;
 
   // #### REPLACE HERE ####
-
-  for (let i = 0; i < pending.length; i++) {
-    const entry = pending[i];
-    entry.fn = entry.createJitFn(jitUtils);
-  }
 }

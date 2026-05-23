@@ -82,6 +82,35 @@ export interface JITUtils {
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined;
 }
 
+/** Cycle guard for lazy fn materialization. When entry A's createJitFn
+ *  closure invokes `utl.getJIT('B')`, that call materializes B; B's
+ *  createJitFn may invoke `utl.getJIT('A')`, which would re-enter
+ *  materializeJitFn for A while A's createJitFn is still running. The
+ *  marker short-circuits that re-entry: getJIT still returns A's entry
+ *  (with `fn` undefined for now), but the inner closure B is building
+ *  only captures the entry REFERENCE — A.fn is read later, at
+ *  validator-call time, by which point Phase 2's outer call has
+ *  finished and A.fn is set. **/
+const materializing = new Set<string>();
+
+/** Lazily invoke an entry's `createJitFn(jitUtils)` to populate
+ *  `entry.fn`. Cache modules now register entries without eager
+ *  materialization — the actual fn closure is built on first
+ *  `getJIT(hash)` call. This keeps materialization ordered AFTER every
+ *  cache module's `initCache()` has populated its entries, so any
+ *  cross-cache `utl.getJIT('other_fn_hash')` lookup inside a closure
+ *  resolves to an entry that already exists. **/
+function materializeJitFn(entry: JitCompiledFn): void {
+  if (entry.fn || !entry.createJitFn) return;
+  if (materializing.has(entry.jitFnHash)) return;
+  materializing.add(entry.jitFnHash);
+  try {
+    entry.fn = entry.createJitFn(jitUtils);
+  } finally {
+    materializing.delete(entry.jitFnHash);
+  }
+}
+
 const jitUtils: JITUtils = {
   addToJitCache(comp: JitCompiledFn) {
     jitFnsCache[comp.jitFnHash] = comp;
@@ -91,15 +120,19 @@ const jitUtils: JITUtils = {
     (jitFnsCache[comp.jitFnHash] as any) = undefined;
   },
   getJIT(jitFnHash: string): JitCompiledFn | undefined {
-    return jitFnsCache[jitFnHash];
+    const entry = jitFnsCache[jitFnHash];
+    if (!entry) return undefined;
+    materializeJitFn(entry);
+    return entry;
   },
   getJitFn(jitFnHash: string): (...args: any[]) => any {
-    const comp = jitFnsCache[jitFnHash];
-    if (!comp) throw new Error(`Jit function not found for jitFnHash ${jitFnHash}`);
-    return comp.fn;
+    const entry = jitFnsCache[jitFnHash];
+    if (!entry) throw new Error(`Jit function not found for jitFnHash ${jitFnHash}`);
+    materializeJitFn(entry);
+    return entry.fn;
   },
   hasJitFn(jitFnHash: string) {
-    return !!jitFnsCache[jitFnHash]?.fn;
+    return !!jitFnsCache[jitFnHash];
   },
 
   addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction {
