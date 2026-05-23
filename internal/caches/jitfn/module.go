@@ -226,15 +226,24 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		// createIsType-side hasRunType-but-no-jit fallback.
 		return "", nil
 	}
-	// Noop factories are STILL emitted — the wrapped identity body
-	// (`return true` for isType, `return v` for the JSON pair, etc.) is
-	// trivial in size but:
-	//   1. lets dep-call chains keep resolving — a parent's
-	//      `<childHash>.fn(v[i])` hits a real fn even when that fn
-	//      is the identity, no JS-side fallback branch required.
-	//   2. exposes the `isNoop: true` flag on the cache entry so
-	//      consumers can short-circuit dispatch on noop shapes (mion's
-	//      `00JsonOnly.spec.ts` asserts this contract for the JSON pair).
+	// Noop factories emit a SHORT-FORM init line: only the cache key,
+	// typeName, and isNoop=true are passed. The JS-side init() builds
+	// the entry with a family-specific identity `fn` (`() => true` for
+	// isType, `(v, pth, er) => er` for typeErrors, `(v) => v` for
+	// prepareForJson / restoreFromJson) and leaves `code`,
+	// `jitDependencies`, `pureFnDependencies`, and `createJitFn` as
+	// undefined. Same dep-call wiring works — a parent referencing the
+	// noop entry's `<hash>.fn(v)` still hits a real function — without
+	// the per-entry payload bloat of an inlined `return v` body.
+	if isNoop {
+		args := []string{
+			quoteJS(innerName),
+			quoteJS(jitTypeName(runType)),
+			"undefined", // code
+			"true",      // isNoop
+		}
+		return "init(" + joinArgs(args) + ");", nil
+	}
 	createJitFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	// The 3rd arg (`code`) carries the factory BODY — the contents
 	// between the `function(utl){ … }` braces — so a consumer holding

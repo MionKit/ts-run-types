@@ -26,7 +26,7 @@ func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 		"'use strict';",
 		"export function initCache(jitUtils)",
 		"function init(jitFnHash,",
-		"jitUtils.addToJitCache(entry);",
+		"jitUtils.addToJitCache({",
 	} {
 		if !strings.Contains(out, fragment) {
 			t.Errorf("expected fragment %q in:\n%s", fragment, out)
@@ -110,11 +110,18 @@ func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
 			dump := protocol.Dump{RunTypes: []*protocol.RunType{row.rt}}
 			out := renderToString(t, dump)
 			if row.noop {
-				// Noop factories are skipped entirely — no `init('<id>',` line
-				// should appear in the rendered module.
+				// Noop factories use the short-form init: only jitFnHash,
+				// typeName, code=undefined, isNoop=true — no full body or
+				// createJitFn closure. The cache module's init() sees
+				// isNoop and pre-sets `fn` to the family identity. Assert
+				// both: the short-form `init('<id>',...,undefined,true);`
+				// is present, AND no full createJitFn closure leaks in.
 				marker := "init('it_" + row.rt.ID + "',"
-				if strings.Contains(out, marker) {
-					t.Errorf("noop kind %s should be skipped, but found %q in:\n%s", row.name, marker, out)
+				if !strings.Contains(out, marker) {
+					t.Errorf("noop kind %s expected short-form init line %q in:\n%s", row.name, marker, out)
+				}
+				if strings.Contains(out, "function g_it_"+row.rt.ID) {
+					t.Errorf("noop kind %s should NOT emit a createJitFn closure, but found g_it_%s in:\n%s", row.name, row.rt.ID, out)
 				}
 				return
 			}
