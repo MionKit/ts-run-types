@@ -1127,13 +1127,15 @@ reflectRuntypeId(user);
 	}
 }
 
-// TestResolver_ModeInTypeID pins the marker scanner's behavior of
-// folding the `mode` option into the JIT cache id. Two calls against
-// the same T but different `mode` literals must resolve to distinct
-// runtype ids — otherwise the JIT cache would collapse their entries
-// and the per-mode dispatch in createJsonEncoder would land on the
-// wrong factory.
-func TestResolver_ModeInTypeID(t *testing.T) {
+// TestResolver_ModeOptionsShareTypeID pins the design contract: the
+// `mode` option on JSON encoder / decoder calls is NOT folded into
+// the runtype id. All three modes against the same `T` must resolve
+// to the SAME id — different modes share one canonical typeid, the
+// runtime dispatches modes via the JIT-family prefix (`pj_` /
+// `pjs_` / `sj_`). Folding mode into the id would break the
+// invariant that `getRuntypeId<T>()` and `createJsonEncoder<T>({mode:
+// 'unsafe'})` return the same id for the same `T`.
+func TestResolver_ModeOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
   export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
@@ -1160,8 +1162,8 @@ createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
 		}
 		ids[site.ID]++
 	}
-	if len(ids) != 3 {
-		t.Fatalf("expected 3 distinct ids (one per mode), got %d (%+v)", len(ids), ids)
+	if len(ids) != 1 {
+		t.Fatalf("expected 1 shared id across the three modes, got %d distinct ids (%+v)", len(ids), ids)
 	}
 }
 
