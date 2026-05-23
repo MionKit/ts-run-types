@@ -208,7 +208,18 @@ export interface Replacement {
 // into on a scanFiles request via Request.includeCacheSources. Mirrors
 // the Go-side protocol.CacheKind. `'all'` is a forward-compatible
 // shortcut: when present every other kind is treated as requested.
-export type CacheKind = 'runType' | 'isType' | 'typeErrors' | 'prepareForJson' | 'restoreFromJson' | 'pureFns' | 'all';
+export type CacheKind =
+  | 'runType'
+  | 'isType'
+  | 'typeErrors'
+  | 'prepareForJson'
+  | 'restoreFromJson'
+  | 'hasUnknownKeys'
+  | 'stripUnknownKeys'
+  | 'unknownKeyErrors'
+  | 'unknownKeysToUndefined'
+  | 'pureFns'
+  | 'all';
 
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
@@ -254,6 +265,13 @@ export interface Response {
   // independently based on its own flag.
   addedPrepareForJson?: boolean;
   addedRestoreFromJson?: boolean;
+  // Siblings of addedIsType for the unknown-keys family ported from
+  // mion's emitHasUnknownKeys et al. Set when at least one newly-interned
+  // RunType has a supported emit arm in the matching emitter.
+  addedHasUnknownKeys?: boolean;
+  addedStripUnknownKeys?: boolean;
+  addedUnknownKeyErrors?: boolean;
+  addedUnknownKeysToUndefined?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
   // Replacements is the byte-range rewrite list the Vite plugin
@@ -292,6 +310,15 @@ export interface Response {
   // (or `'all'`).
   prepareForJsonCacheSource?: string;
   restoreFromJsonCacheSource?: string;
+  // Siblings of `isTypeCacheSource` for the unknown-keys family —
+  // bodies of the four cache modules emitted by the matching emitters.
+  // Same factory shape, same consumer pattern — populated by `dump` and
+  // on `scanFiles` when the caller opts into the matching cache kind
+  // (or `'all'`).
+  hasUnknownKeysCacheSource?: string;
+  stripUnknownKeysCacheSource?: string;
+  unknownKeyErrorsCacheSource?: string;
+  unknownKeysToUndefinedCacheSource?: string;
   // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
   // <factory>)` call. Body is a sequence of `factory(key, bodyHash,

@@ -70,6 +70,42 @@ func renderRestoreFromJsonModule(dump protocol.Dump) (string, error) {
 	})
 }
 
+// renderHasUnknownKeysModule emits the hasUnknownKeys cache module —
+// boolean predicate per mion's emitHasUnknownKeys (returns true when
+// the value has properties outside the schema). Backed by
+// jitfn.HasUnknownKeysEmitter.
+func renderHasUnknownKeysModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderHasUnknownKeysModule", func(w io.Writer) error {
+		return jitfn.HasUnknownKeysModule(w, dump)
+	})
+}
+
+// renderStripUnknownKeysModule emits the stripUnknownKeys cache
+// module — mutator that deletes unknown keys from the value.
+func renderStripUnknownKeysModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderStripUnknownKeysModule", func(w io.Writer) error {
+		return jitfn.StripUnknownKeysModule(w, dump)
+	})
+}
+
+// renderUnknownKeyErrorsModule emits the unknownKeyErrors cache
+// module — error accumulator that records one 'never' RunTypeError per
+// unknown key (same arg shape as typeErrors).
+func renderUnknownKeyErrorsModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderUnknownKeyErrorsModule", func(w io.Writer) error {
+		return jitfn.UnknownKeyErrorsModule(w, dump)
+	})
+}
+
+// renderUnknownKeysToUndefinedModule emits the
+// unknownKeysToUndefined cache module — mutator that sets unknown
+// keys to undefined (instead of deleting them).
+func renderUnknownKeysToUndefinedModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderUnknownKeysToUndefinedModule", func(w io.Writer) error {
+		return jitfn.UnknownKeysToUndefinedModule(w, dump)
+	})
+}
+
 // renderPureFnsModule renders the pureFns cache-module body for the
 // program. When `entries` is non-nil it's used directly (the
 // OpScanFiles caller already ran extractPureFnsForScan and passes its

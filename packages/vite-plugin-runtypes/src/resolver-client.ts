@@ -103,6 +103,10 @@ export interface ScanFilesResult {
   typeErrorsCacheSource?: string;
   prepareForJsonCacheSource?: string;
   restoreFromJsonCacheSource?: string;
+  hasUnknownKeysCacheSource?: string;
+  stripUnknownKeysCacheSource?: string;
+  unknownKeyErrorsCacheSource?: string;
+  unknownKeysToUndefinedCacheSource?: string;
   pureFnsCacheSource?: string;
   pureFnsDiagnostics?: import('./protocol.ts').PureFnDiagnostic[];
   markerDiagnostics?: import('./protocol.ts').MarkerDiagnostic[];
@@ -112,6 +116,10 @@ export interface ScanFilesResult {
   addedTypeErrors?: boolean;
   addedPrepareForJson?: boolean;
   addedRestoreFromJson?: boolean;
+  addedHasUnknownKeys?: boolean;
+  addedStripUnknownKeys?: boolean;
+  addedUnknownKeyErrors?: boolean;
+  addedUnknownKeysToUndefined?: boolean;
   addedPureFns?: boolean;
 }
 
@@ -158,6 +166,10 @@ abstract class ResolverClientBase implements ResolverConnection {
       typeErrorsCacheSource: resp.typeErrorsCacheSource,
       prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
       restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
+      hasUnknownKeysCacheSource: resp.hasUnknownKeysCacheSource,
+      stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
+      unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,
+      unknownKeysToUndefinedCacheSource: resp.unknownKeysToUndefinedCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
       pureFnsDiagnostics: resp.pureFnsDiagnostics,
       markerDiagnostics: resp.markerDiagnostics,
@@ -166,6 +178,10 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedTypeErrors: resp.addedTypeErrors,
       addedPrepareForJson: resp.addedPrepareForJson,
       addedRestoreFromJson: resp.addedRestoreFromJson,
+      addedHasUnknownKeys: resp.addedHasUnknownKeys,
+      addedStripUnknownKeys: resp.addedStripUnknownKeys,
+      addedUnknownKeyErrors: resp.addedUnknownKeyErrors,
+      addedUnknownKeysToUndefined: resp.addedUnknownKeysToUndefined,
       addedPureFns: resp.addedPureFns,
     };
   }

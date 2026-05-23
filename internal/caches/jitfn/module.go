@@ -57,6 +57,37 @@ func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, RestoreFromJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJson)
 }
 
+// HasUnknownKeysModule writes the runtime artifact for the
+// hasUnknownKeys cache module — boolean predicate per mion's
+// emitHasUnknownKeys.
+func HasUnknownKeysModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["hasUnknownKeys"]
+	return RenderFnModule(writer, dump, settings, HasUnknownKeysEmitter{}, innerPrefix(settings), cachetpl.SkeletonHasUnknownKeys)
+}
+
+// StripUnknownKeysModule writes the runtime artifact for the
+// stripUnknownKeys cache module — mutator that deletes unknown keys.
+func StripUnknownKeysModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["stripUnknownKeys"]
+	return RenderFnModule(writer, dump, settings, StripUnknownKeysEmitter{}, innerPrefix(settings), cachetpl.SkeletonStripUnknownKeys)
+}
+
+// UnknownKeyErrorsModule writes the runtime artifact for the
+// unknownKeyErrors cache module — error accumulator (same arg shape as
+// typeErrors) that records one 'never' error per unknown key.
+func UnknownKeyErrorsModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["unknownKeyErrors"]
+	return RenderFnModule(writer, dump, settings, UnknownKeyErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeyErrors)
+}
+
+// UnknownKeysToUndefinedModule writes the runtime artifact for the
+// unknownKeysToUndefined cache module — mutator that sets unknown keys
+// to undefined (instead of deleting them).
+func UnknownKeysToUndefinedModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["unknownKeysToUndefined"]
+	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefined)
+}
+
 // RenderFnModule is the fn-agnostic module renderer. Emits one
 // `init('hash', …);` line per supported RunType then splices the
 // result into the named skeleton. The skeleton's `init` closes over

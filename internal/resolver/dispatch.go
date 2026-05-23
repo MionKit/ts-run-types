@@ -34,6 +34,10 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		addedTypeErrors := addedRunTypes && jitfn.AnyTypeErrorsSupported(added)
 		addedPrepareForJson := addedRunTypes && jitfn.AnyPrepareForJsonSupported(added)
 		addedRestoreFromJson := addedRunTypes && jitfn.AnyRestoreFromJsonSupported(added)
+		addedHasUnknownKeys := addedRunTypes && jitfn.AnyHasUnknownKeysSupported(added)
+		addedStripUnknownKeys := addedRunTypes && jitfn.AnyStripUnknownKeysSupported(added)
+		addedUnknownKeyErrors := addedRunTypes && jitfn.AnyUnknownKeyErrorsSupported(added)
+		addedUnknownKeysToUndefined := addedRunTypes && jitfn.AnyUnknownKeysToUndefinedSupported(added)
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
@@ -42,25 +46,34 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// unconditionally so editor surfaces update as the user types.
 		pureFnEntries, pureFnDiags, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
 		response := protocol.Response{
-			Sites:                sites,
-			Replacements:         pureFnReplacements,
-			Added:                added,
-			AddedRunTypes:        addedRunTypes,
-			AddedIsType:          addedIsType,
-			AddedTypeErrors:      addedTypeErrors,
-			AddedPrepareForJson:  addedPrepareForJson,
-			AddedRestoreFromJson: addedRestoreFromJson,
-			AddedPureFns:         addedPureFns,
-			PureFnsDiagnostics:   pureFnDiags,
-			MarkerDiagnostics:    markerDiags,
+			Sites:                       sites,
+			Replacements:                pureFnReplacements,
+			Added:                       added,
+			AddedRunTypes:               addedRunTypes,
+			AddedIsType:                 addedIsType,
+			AddedTypeErrors:             addedTypeErrors,
+			AddedPrepareForJson:         addedPrepareForJson,
+			AddedRestoreFromJson:        addedRestoreFromJson,
+			AddedHasUnknownKeys:         addedHasUnknownKeys,
+			AddedStripUnknownKeys:       addedStripUnknownKeys,
+			AddedUnknownKeyErrors:       addedUnknownKeyErrors,
+			AddedUnknownKeysToUndefined: addedUnknownKeysToUndefined,
+			AddedPureFns:                addedPureFns,
+			PureFnsDiagnostics:          pureFnDiags,
+			MarkerDiagnostics:           markerDiags,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
 		wantTypeErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
 		wantPrepareForJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
 		wantRestoreFromJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
+		wantHasUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
+		wantStripUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
+		wantUnknownKeyErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
+		wantUnknownKeysToUndefined := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson || wantPureFns
+		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson ||
+			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors || wantUnknownKeysToUndefined || wantPureFns
 		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
@@ -100,6 +113,34 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: restoreErr.Error()}
 				}
 				response.RestoreFromJsonCacheSource = restoreRendered
+			}
+			if wantHasUnknownKeys {
+				hukRendered, hukErr := renderHasUnknownKeysModule(scoped)
+				if hukErr != nil {
+					return protocol.Response{Error: hukErr.Error()}
+				}
+				response.HasUnknownKeysCacheSource = hukRendered
+			}
+			if wantStripUnknownKeys {
+				sukRendered, sukErr := renderStripUnknownKeysModule(scoped)
+				if sukErr != nil {
+					return protocol.Response{Error: sukErr.Error()}
+				}
+				response.StripUnknownKeysCacheSource = sukRendered
+			}
+			if wantUnknownKeyErrors {
+				ukeRendered, ukeErr := renderUnknownKeyErrorsModule(scoped)
+				if ukeErr != nil {
+					return protocol.Response{Error: ukeErr.Error()}
+				}
+				response.UnknownKeyErrorsCacheSource = ukeRendered
+			}
+			if wantUnknownKeysToUndefined {
+				ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(scoped)
+				if ukuErr != nil {
+					return protocol.Response{Error: ukuErr.Error()}
+				}
+				response.UnknownKeysToUndefinedCacheSource = ukuRendered
 			}
 			if wantPureFns {
 				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.Program, pureFnEntries, true)
@@ -143,6 +184,10 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantTypeErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
 		wantPrepareForJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
 		wantRestoreFromJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
+		wantHasUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
+		wantStripUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
+		wantUnknownKeyErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
+		wantUnknownKeysToUndefined := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
 		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		if wantRunType {
 			rendered, renderErr := renderRunTypesModule(fullDump)
@@ -178,6 +223,34 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: restoreErr.Error()}
 			}
 			response.RestoreFromJsonCacheSource = restoreRendered
+		}
+		if wantHasUnknownKeys {
+			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump)
+			if hukErr != nil {
+				return protocol.Response{Error: hukErr.Error()}
+			}
+			response.HasUnknownKeysCacheSource = hukRendered
+		}
+		if wantStripUnknownKeys {
+			sukRendered, sukErr := renderStripUnknownKeysModule(fullDump)
+			if sukErr != nil {
+				return protocol.Response{Error: sukErr.Error()}
+			}
+			response.StripUnknownKeysCacheSource = sukRendered
+		}
+		if wantUnknownKeyErrors {
+			ukeRendered, ukeErr := renderUnknownKeyErrorsModule(fullDump)
+			if ukeErr != nil {
+				return protocol.Response{Error: ukeErr.Error()}
+			}
+			response.UnknownKeyErrorsCacheSource = ukeRendered
+		}
+		if wantUnknownKeysToUndefined {
+			ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(fullDump)
+			if ukuErr != nil {
+				return protocol.Response{Error: ukuErr.Error()}
+			}
+			response.UnknownKeysToUndefinedCacheSource = ukuRendered
 		}
 		if wantPureFns {
 			pureFnsRendered, pureFnsDiags, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)

@@ -300,13 +300,17 @@ const (
 type CacheKind string
 
 const (
-	CacheKindRunType         CacheKind = "runType"
-	CacheKindIsType          CacheKind = "isType"
-	CacheKindTypeErrors      CacheKind = "typeErrors"
-	CacheKindPrepareForJson  CacheKind = "prepareForJson"
-	CacheKindRestoreFromJson CacheKind = "restoreFromJson"
-	CacheKindPureFns         CacheKind = "pureFns"
-	CacheKindAll             CacheKind = "all"
+	CacheKindRunType                CacheKind = "runType"
+	CacheKindIsType                 CacheKind = "isType"
+	CacheKindTypeErrors             CacheKind = "typeErrors"
+	CacheKindPrepareForJson         CacheKind = "prepareForJson"
+	CacheKindRestoreFromJson        CacheKind = "restoreFromJson"
+	CacheKindHasUnknownKeys         CacheKind = "hasUnknownKeys"
+	CacheKindStripUnknownKeys       CacheKind = "stripUnknownKeys"
+	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
+	CacheKindUnknownKeysToUndefined CacheKind = "unknownKeysToUndefined"
+	CacheKindPureFns                CacheKind = "pureFns"
+	CacheKindAll                    CacheKind = "all"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -359,6 +363,17 @@ type Response struct {
 	// RunType has a supported emit arm in the corresponding emitter.
 	AddedPrepareForJson  bool `json:"addedPrepareForJson,omitempty"`
 	AddedRestoreFromJson bool `json:"addedRestoreFromJson,omitempty"`
+	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
+	// / AddedUnknownKeysToUndefined mirror AddedIsType for the
+	// unknown-keys family ported from mion's
+	// emitHasUnknownKeys / emitStripUnknownKeys / emitUnknownKeyErrors /
+	// emitUnknownKeysToUndefined methods on InterfaceRunType. Set per
+	// emitter so the Vite plugin invalidates each cache module
+	// independently on user-file changes.
+	AddedHasUnknownKeys         bool `json:"addedHasUnknownKeys,omitempty"`
+	AddedStripUnknownKeys       bool `json:"addedStripUnknownKeys,omitempty"`
+	AddedUnknownKeyErrors       bool `json:"addedUnknownKeyErrors,omitempty"`
+	AddedUnknownKeysToUndefined bool `json:"addedUnknownKeysToUndefined,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -386,6 +401,15 @@ type Response struct {
 	// factory shape and projection semantics as IsTypeCacheSource.
 	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
 	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
+	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
+	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
+	// are the rendered bodies of the unknown-keys family — the four
+	// JIT functions ported from mion's emitHasUnknownKeys et al. Same
+	// factory shape and projection semantics as IsTypeCacheSource.
+	HasUnknownKeysCacheSource         string `json:"hasUnknownKeysCacheSource,omitempty"`
+	StripUnknownKeysCacheSource       string `json:"stripUnknownKeysCacheSource,omitempty"`
+	UnknownKeyErrorsCacheSource       string `json:"unknownKeyErrorsCacheSource,omitempty"`
+	UnknownKeysToUndefinedCacheSource string `json:"unknownKeysToUndefinedCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -511,6 +535,18 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedRestoreFromJson {
 		out["addedRestoreFromJson"] = true
 	}
+	if response.AddedHasUnknownKeys {
+		out["addedHasUnknownKeys"] = true
+	}
+	if response.AddedStripUnknownKeys {
+		out["addedStripUnknownKeys"] = true
+	}
+	if response.AddedUnknownKeyErrors {
+		out["addedUnknownKeyErrors"] = true
+	}
+	if response.AddedUnknownKeysToUndefined {
+		out["addedUnknownKeysToUndefined"] = true
+	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
 	}
@@ -537,6 +573,18 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.RestoreFromJsonCacheSource != "" {
 		out["restoreFromJsonCacheSource"] = response.RestoreFromJsonCacheSource
+	}
+	if response.HasUnknownKeysCacheSource != "" {
+		out["hasUnknownKeysCacheSource"] = response.HasUnknownKeysCacheSource
+	}
+	if response.StripUnknownKeysCacheSource != "" {
+		out["stripUnknownKeysCacheSource"] = response.StripUnknownKeysCacheSource
+	}
+	if response.UnknownKeyErrorsCacheSource != "" {
+		out["unknownKeyErrorsCacheSource"] = response.UnknownKeyErrorsCacheSource
+	}
+	if response.UnknownKeysToUndefinedCacheSource != "" {
+		out["unknownKeysToUndefinedCacheSource"] = response.UnknownKeysToUndefinedCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource

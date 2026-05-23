@@ -114,3 +114,20 @@ export {
 export {createPrepareForJson, deserializePrepareForJson, type PrepareForJsonFn} from './createPrepareForJson.ts';
 
 export {createRestoreFromJson, deserializeRestoreFromJson, type RestoreFromJsonFn} from './createRestoreFromJson.ts';
+
+export {
+  createHasUnknownKeys,
+  deserializeHasUnknownKeys,
+  type HasUnknownKeysFn,
+  type HasUnknownKeysOptions,
+} from './createHasUnknownKeys.ts';
+
+export {createStripUnknownKeys, deserializeStripUnknownKeys, type StripUnknownKeysFn} from './createStripUnknownKeys.ts';
+
+export {createUnknownKeyErrors, deserializeUnknownKeyErrors, type UnknownKeyErrorsFn} from './createUnknownKeyErrors.ts';
+
+export {
+  createUnknownKeysToUndefined,
+  deserializeUnknownKeysToUndefined,
+  type UnknownKeysToUndefinedFn,
+} from './createUnknownKeysToUndefined.ts';
