@@ -9,21 +9,27 @@ import type {
   JitCompiledFn,
   JitFunctionsCache,
   PureFunctionsCache,
-  PersistedPureFunctionsCache,
-  PureFnsDataCache,
   DeserializeClassFn,
   AnyClass,
   SerializableClass,
-  PersistedJitFunctionsCache,
-  FnsDataCache,
   CompiledPureFunction,
   PureFunction,
   RunType,
   RunTypesCache,
+  AnyFn,
 } from './types.ts';
-import {buildFactoryFromCode, restoreCompiledJitFns} from './restoreJitFns.ts';
 import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
 import type {CompTimeArgs} from '../markers.ts';
+
+/** Builds a fresh factory closure from a serialized `JitCompiledFnData.code`
+ *  body via `new Function('utl', code)`. `code` is expected to be the
+ *  factory body — the contents between `function(utl){ … }` braces — as
+ *  emitted by the Go-side WrapClosure. Strict mode is forced via a leading
+ *  `'use strict';` directive. Caller is responsible for invoking the
+ *  returned closure with jitUtils to obtain the live validator. **/
+export function buildFactoryFromCode(code: string): (utl: JITUtils) => (...args: any[]) => any {
+  return new Function('utl', `'use strict'; ${code}`) as (utl: JITUtils) => (...args: any[]) => any;
+}
 
 // Minimal ambient — `console` is universally available at runtime (node + browser)
 // but the package's tsconfig sets `types: []` so the global isn't otherwise visible.
@@ -92,71 +98,6 @@ export interface JITUtils {
    * message catalog lives in one place. See docs/UNSUPPORTED-KINDS.md.
    */
   alwaysThrowFactory(code: string, siteHint?: string): () => never;
-}
-
-/** Cycle guard for lazy fn materialization. When entry A's createJitFn
- *  closure invokes `utl.getJIT('B')`, that call materializes B; B's
- *  createJitFn may invoke `utl.getJIT('A')`, which would re-enter
- *  materializeJitFn for A while A's createJitFn is still running. The
- *  marker short-circuits that re-entry: getJIT still returns A's entry
- *  (with `fn` undefined for now), but the inner closure B is building
- *  only captures the entry REFERENCE — A.fn is read later, at
- *  validator-call time, by which point Phase 2's outer call has
- *  finished and A.fn is set. **/
-const materializing = new Set<string>();
-
-/** Lazily populate an entry's `createJitFn` + `fn`. Cache modules
- *  register entries without eager materialization — the actual fn
- *  closure is built on first `getJIT(hash)` call. This keeps
- *  materialization ordered AFTER every cache module's `initCache()`
- *  has populated its entries, so any cross-cache `utl.getJIT('other_
- *  fn_hash')` lookup inside a closure resolves to an entry that
- *  already exists.
- *
- *  Two emit modes feed into this fn:
- *
- *  - Inline-factory mode (Go-side `--emit-create-jit-fn`):
- *    `entry.createJitFn` is the live `function g_<hash>(utl){…}`
- *    closure embedded in the cache module. We just invoke it.
- *
- *  - Default (no inline factory): the cache module wrote
- *    `entry.createJitFn = undefined` to save bytes. We rebuild the
- *    factory from `entry.code` via `new Function('utl', code)` and
- *    cache the result on `entry.createJitFn` so a second
- *    materialization (which only happens after a manual cache wipe)
- *    doesn't pay the `new Function` cost twice.
- *
- *  Noop entries land here too — they're short-circuited by the
- *  `entry.fn` guard at the top because cache modules pre-populate
- *  `entry.fn` with the family-specific identity (e.g. `() => true`
- *  for isType) at register time.
- *
- *  alwaysThrow entries: the cache module sets `entry.createJitFn` to
- *  the throwing closure built by `jitUtils.alwaysThrowFactory(code,
- *  site)`. That closure ignores its `utl` arg and throws — the
- *  exception propagates up through `getJIT()` to the user's
- *  `createXxx<T>()` call site. **/
-function materializeJitFn(entry: JitCompiledFn): void {
-  if (entry.fn) return;
-  if (materializing.has(entry.jitFnHash)) return;
-  // No createJitFn AND no code → nothing to materialize. (Noop entries
-  // hit the `entry.fn` short-circuit above; this branch only catches
-  // genuinely-empty entries from a broken renderer.)
-  if (!entry.createJitFn && !entry.code) return;
-  materializing.add(entry.jitFnHash);
-  try {
-    if (!entry.createJitFn) {
-      // Default emit mode — rebuild the factory from the body string.
-      // Cache the rebuilt factory on the entry so subsequent calls
-      // skip the new-Function cost.
-      (entry as {createJitFn: JitCompiledFn['createJitFn']}).createJitFn = buildFactoryFromCode(
-        entry.code
-      ) as JitCompiledFn['createJitFn'];
-    }
-    entry.fn = entry.createJitFn(jitUtils);
-  } finally {
-    materializing.delete(entry.jitFnHash);
-  }
 }
 
 const jitUtils: JITUtils = {
@@ -293,58 +234,6 @@ export function getJitUtils(): JITUtils {
 }
 
 /**
- * Adds new AOT JIT and pure functions into the respective caches.
- * This function is intended to be used to restore JitFunctions there were serialized to src code (AOT caches)
- */
-export function addAOTCaches(aotFnsCache: PersistedJitFunctionsCache, aotPureCache: PersistedPureFunctionsCache) {
-  restoreCaches(aotFnsCache, aotPureCache);
-}
-
-/**
- * Adds new JIT and pure functions into the respective caches.
- * This function is intended to restore JitFunctions that were serialized and deserialized over the network
- */
-export function addSerializedJitCaches(jitDataFnsCache: FnsDataCache, pureFnsDataCache: PureFnsDataCache) {
-  restoreCaches(jitDataFnsCache, pureFnsDataCache);
-}
-
-function restoreCaches(
-  fnsCache: PersistedJitFunctionsCache | FnsDataCache,
-  pureCache: PersistedPureFunctionsCache | PureFnsDataCache
-) {
-  // First load the caches so all entries are available in the global cache
-  // This is needed because createJitFn uses jitUtils.getJIT() to resolve dependencies
-  for (const key in fnsCache) {
-    if (!(key in jitFnsCache)) {
-      // it will be transformed into JitCompiledFn by restoreCompiledJitFns()
-      // Cloning to avoid mutating the original
-      jitFnsCache[key] = {...fnsCache[key]} as JitCompiledFn;
-    }
-  }
-  // Load pure functions with hash validation. Flat map — one composite
-  // key per entry.
-  for (const key in pureCache) {
-    const existing = pureFnsCache[key];
-    const incoming = pureCache[key];
-    if (existing) {
-      if (existing.bodyHash && incoming.bodyHash && existing.bodyHash !== incoming.bodyHash) {
-        console.warn(
-          `Pure function ${key} cache eviction: ` +
-            `bodyHash mismatch (cached: ${existing.bodyHash}, server: ${incoming.bodyHash})`
-        );
-        pureFnsCache[key] = {...incoming} as CompiledPureFunction;
-      }
-    } else {
-      pureFnsCache[key] = {...incoming} as CompiledPureFunction;
-    }
-  }
-  // Then restore/initialize the functions (invoke createJitFn to set the fn property)
-  // Must restore on the global caches so that when createJitFn calls utl.getJIT() or utl.getPureFn()
-  // it gets the restored functions with fn property set
-  restoreCompiledJitFns(jitFnsCache, pureFnsCache, getJitUtils());
-}
-
-/**
  * Returns the jit and pure functions caches.
  * DO NOT MODIFY THE RETURNED OBJECTS AS THEY ARE THE ORIGINAL ONES USED BY THE JIT FUNCTIONS
  */
@@ -359,4 +248,82 @@ export function getJitFnCaches() {
 function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
   if (compiled.fn) return;
   compiled.fn = compiled.createPureFn(jitUtils);
+} /** Look up the JIT-compiled entry registered at `<prefix>_<id>` on the
+ *  jitUtils singleton. Returns the entry's `fn` when present, the
+ *  caller-supplied identity fallback when the runtype is registered
+ *  but its factory collapsed to a noop, and throws otherwise. **/
+
+export function lookupJitFn<F extends AnyFn>(callerName: string, prefix: string, id: string, identityFn: F): F {
+  const utils = getJitUtils();
+  const entry = utils.getJIT(prefix + '_' + id) as JitCompiledFn | undefined;
+  if (entry) return entry.fn as F;
+  if (utils.hasRunType(id)) return identityFn;
+  throw new Error(
+    `${callerName}(): no JitCompiledFn entry for "${prefix}_${id}" in jitUtils. The build pipeline didn't emit a factory for that runtype.`
+  );
+}
+
+/** Cycle guard for lazy fn materialization. When entry A's createJitFn
+ *  closure invokes `utl.getJIT('B')`, that call materializes B; B's
+ *  createJitFn may invoke `utl.getJIT('A')`, which would re-enter
+ *  materializeJitFn for A while A's createJitFn is still running. The
+ *  marker short-circuits that re-entry: getJIT still returns A's entry
+ *  (with `fn` undefined for now), but the inner closure B is building
+ *  only captures the entry REFERENCE — A.fn is read later, at
+ *  validator-call time, by which point Phase 2's outer call has
+ *  finished and A.fn is set. **/
+const materializing = new Set<string>();
+
+/** Lazily populate an entry's `createJitFn` + `fn`. Cache modules
+ *  register entries without eager materialization — the actual fn
+ *  closure is built on first `getJIT(hash)` call. This keeps
+ *  materialization ordered AFTER every cache module's `initCache()`
+ *  has populated its entries, so any cross-cache `utl.getJIT('other_
+ *  fn_hash')` lookup inside a closure resolves to an entry that
+ *  already exists.
+ *
+ *  Two emit modes feed into this fn:
+ *
+ *  - Inline-factory mode (Go-side `--emit-create-jit-fn`):
+ *    `entry.createJitFn` is the live `function g_<hash>(utl){…}`
+ *    closure embedded in the cache module. We just invoke it.
+ *
+ *  - Default (no inline factory): the cache module wrote
+ *    `entry.createJitFn = undefined` to save bytes. We rebuild the
+ *    factory from `entry.code` via `new Function('utl', code)` and
+ *    cache the result on `entry.createJitFn` so a second
+ *    materialization (which only happens after a manual cache wipe)
+ *    doesn't pay the `new Function` cost twice.
+ *
+ *  Noop entries land here too — they're short-circuited by the
+ *  `entry.fn` guard at the top because cache modules pre-populate
+ *  `entry.fn` with the family-specific identity (e.g. `() => true`
+ *  for isType) at register time.
+ *
+ *  alwaysThrow entries: the cache module sets `entry.createJitFn` to
+ *  the throwing closure built by `jitUtils.alwaysThrowFactory(code,
+ *  site)`. That closure ignores its `utl` arg and throws — the
+ *  exception propagates up through `getJIT()` to the user's
+ *  `createXxx<T>()` call site. **/
+function materializeJitFn(entry: JitCompiledFn): void {
+  if (entry.fn) return;
+  if (materializing.has(entry.jitFnHash)) return;
+  // No createJitFn AND no code → nothing to materialize. (Noop entries
+  // hit the `entry.fn` short-circuit above; this branch only catches
+  // genuinely-empty entries from a broken renderer.)
+  if (!entry.createJitFn && !entry.code) return;
+  materializing.add(entry.jitFnHash);
+  try {
+    if (!entry.createJitFn) {
+      // Default emit mode — rebuild the factory from the body string.
+      // Cache the rebuilt factory on the entry so subsequent calls
+      // skip the new-Function cost.
+      (entry as {createJitFn: JitCompiledFn['createJitFn']}).createJitFn = buildFactoryFromCode(
+        entry.code
+      ) as JitCompiledFn['createJitFn'];
+    }
+    entry.fn = entry.createJitFn(jitUtils);
+  } finally {
+    materializing.delete(entry.jitFnHash);
+  }
 }

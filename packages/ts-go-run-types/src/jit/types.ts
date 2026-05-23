@@ -7,7 +7,7 @@
 
 // Type surface copied from mion (`@mionjs/core`) so jitUtils can live in this
 // package without pulling the full `@mionjs/core` dependency tree. Only the
-// symbols `jitUtils.ts` + `restoreJitFns.ts` actually reach are kept here.
+// symbols `jitUtils.ts` actually reaches are kept here.
 // Sources (when cross-referencing changes):
 //   - mion/packages/core/src/types/general.types.ts
 //   - mion/packages/core/src/types/pureFunctions.types.ts
@@ -55,10 +55,6 @@ export interface PureFunctionData {
 export interface CompiledPureFunction extends PureFunctionData {
   createPureFn: PureFunctionFactory;
   fn?: PureFunction;
-}
-
-export interface PersistedPureFunction extends CompiledPureFunction {
-  fn: undefined;
 }
 
 // ########################################### Run types ##############################################
@@ -181,14 +177,6 @@ export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnDa
   readonly fn: Fn;
 }
 
-/** Jit Functions serialized to src code file, it contains the create jit function
- * but not the actual fn as this one can not be serialized to code.
- */
-export interface PersistedJitFn extends Omit<JitCompiledFn, 'fn'> {
-  /** The Jit Generated function once the compilation is finished */
-  readonly fn: undefined;
-}
-
 // ############################# JIT CACHES ###################################
 
 // Per-family JitCompiledFn aliases — one per cache module under
@@ -232,18 +220,6 @@ export type JitFunctionsCache = Record<string, JitCompiledFn>;
 /** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */
 export type PureFunctionsCache = Record<string, CompiledPureFunction>;
 
-// jit and pure functions persisted to src code, contains createJitFn but not fn
-// this allow usage in environments that can not use eval or new Function()
-export type PersistedJitFunctionsCache = Record<string, PersistedJitFn>;
-/** Flat cache for persisted pure functions, keyed by "<namespace>::<fnName>". */
-export type PersistedPureFunctionsCache = Record<string, PersistedPureFunction>;
-
-// jit and pure functions data, does not contain createJitFn or fn
-// this is used to serialize over the network, but requires using new Function() to restore functionality
-export type FnsDataCache = Record<string, JitCompiledFnData>;
-/** Flat cache for pure function data, keyed by "<namespace>::<fnName>". */
-export type PureFnsDataCache = Record<string, PureFunctionData>;
-
 // ########################################### Classes / helpers #########################################
 
 export interface AnyClass<T = any> {
@@ -253,10 +229,6 @@ export interface AnyClass<T = any> {
 export interface SerializableClass<T = any> {
   new (): T;
 }
-
-export type Mutable<T> = {
-  -readonly [P in keyof T]: T[P];
-};
 
 // Web/DOM globals referenced by the `Native` union below — declared as
 // opaque interfaces so this file stays compilable under the package's

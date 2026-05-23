@@ -50,11 +50,11 @@ func stringSliceJS(xs []string) string {
 	return "[" + strings.Join(parts, ",") + "]"
 }
 
-// pureFnDepsJS projects PureFnDep triples down to the wire shape mion's
-// restoreJitFns consumes — a flat array of "<namespace>::<fnName>"
-// strings. FilePath is intentionally NOT emitted: it's a Go-only
-// safety check used at walk time to assert the referenced pure-fn
-// exists in source, not part of the runtime contract.
+// pureFnDepsJS projects PureFnDep triples down to the wire shape the JS
+// runtime consumes — a flat array of "<namespace>::<fnName>" strings.
+// FilePath is intentionally NOT emitted: it's a Go-only safety check
+// used at walk time to assert the referenced pure-fn exists in source,
+// not part of the runtime contract.
 //
 // For pure-fns with a registered alias (see purefn_aliases.go), each
 // entry is emitted as a bare identifier reference to the matching
