@@ -132,9 +132,43 @@ describe('getTypeErrors / ARRAY', () => {
   it('Array with noIsArrayCheck (Array.isArray guard stripped)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
   it('Self-referential array (CircularArray = CircularArray[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_array));
   it('Array of symbols (non-serializable — always rejected)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.symbol_array));
+  it('Array of object literals', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.object_array));
+  it('Recursive object whose cycle closes via an array property', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_object_with_array));
 
   it('all array getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.ARRAY).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+describe('getTypeErrors / OBJECT', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Simple interface with string and number props', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.simple_interface));
+  it('Object pinned with `as const` (readonly literal props)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_as_const_literals));
+  it('Object inferred via ReturnType<typeof factory>', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_via_return_type_utility));
+  it('Object inferred via property access on a parent shape', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_via_property_access));
+  it('Object inferred via array element access', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_via_array_access));
+  it('Interface with one optional property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_with_optional));
+  it('Interface with a Date property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_with_date));
+  it('Interface with a method (function prop skipped from check)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_with_method));
+  it('Interface with a nested object property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.nested_object));
+  it('Interface with a string-array property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_string_array_prop));
+  it('Self-referential interface (linked-list shape)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.circular_interface));
+  it('Self-referential interface via an array-of-self property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.circular_interface_on_array));
+  it('Self-referential interface buried in a nested object', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.circular_interface_on_nested_object));
+  it('Index signature with string values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_string));
+  it('Nested index signatures (number leaf values)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_nested));
+  it('Nested index signatures with Date leaf values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_date_value));
+  it('Index signature on a nested (non-root) object property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_non_root));
+  it('Function type at top level (any function passes)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.function_top_level));
+  it('Class with two atomic props (instance or plain match)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.class_simple));
+
+  it('all object getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.OBJECT).filter((c) => c.getTypeErrors).length;
     expect(ranTests).toBe(activeCount);
   });
 });
