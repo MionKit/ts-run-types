@@ -89,6 +89,22 @@ function runCase(c: SerializationCase): void {
     return;
   }
 
+  // jsonStringifyThrows cases: the factory builds successfully and
+  // prepareForJson runs, but JSON.stringify on the prepared output
+  // throws — typically because the input carries a non-serializable
+  // structural extra (bigint, circular ref) that mion's serializer
+  // doesn't strip. Documents the "extras pass through" contract.
+  if (c.jsonStringifyThrows) {
+    const prepare = c.prepareForJson();
+    const {values} = c.getTestData();
+    values.forEach((reference, i) => {
+      const input = deepCloneForRoundTrip(reference);
+      const prepared = prepare(input);
+      expect(() => JSON.stringify(prepared), `${c.title}: JSON.stringify(prepareForJson(values[${i}])) must throw`).toThrow();
+    });
+    return;
+  }
+
   const bestEffort = c.roundTripBestEffort ?? false;
   const getTestData = c.getTestData;
 
@@ -308,6 +324,10 @@ describe('serialization / UNIONS', () => {
   it('union with methods — methods should be excluded', () => runCase(SERIALIZATION_SPEC.UNIONS.union_with_methods));
   it('union with any — checked last as fallback', () => runCase(SERIALIZATION_SPEC.UNIONS.union_with_any));
   it('union with non-serializable type throws', () => runCase(SERIALIZATION_SPEC.UNIONS.union_with_non_serializable));
+  it('union member with extra bigint prop → JSON.stringify throws', () =>
+    runCase(SERIALIZATION_SPEC.UNIONS.union_extra_bigint_prop_throws));
+  it('union member with extra symbol prop → JSON.stringify drops it', () =>
+    runCase(SERIALIZATION_SPEC.UNIONS.union_extra_symbol_prop_throws));
 
   it('all UNIONS serialization tests ran', () => {
     expect(ranTests).toBe(Object.keys(SERIALIZATION_SPEC.UNIONS).length);

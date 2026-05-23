@@ -1,8 +1,19 @@
-// Shared validation suite — single source of truth for every
+// Shared **validation** suite — single source of truth for every
 // behavioral assertion ported from mion's
 // packages/run-types/src/nodes/**/*.spec.ts (atomic, collection,
-// member, utility, native) plus the entries in
-// packages/run-types/src/jitCompilers/serialization-suite.ts.
+// member, utility, native).
+//
+// **Scope: isType + getTypeErrors only.** JSON serializer cases
+// (prepareForJson / restoreFromJson) live in the dedicated
+// `serialization-suite.ts` ported from mion's
+// `packages/run-types/src/jitCompilers/serialization-suite.ts`.
+// Mixing validation and serializer samples here produced
+// sample-design mismatches: a structural extra prop is valid input
+// for isType (TS structural typing) but trips JSON.stringify after
+// the serializer's strip pass if the extra carries a
+// non-serializable value (bigint, symbol, function, …). The
+// serializer suite carries explicit `deserializedValues` to capture
+// post-strip expected output; validation samples don't need that.
 //
 // Shape per case:
 //   - `title`         human label used in test reports
@@ -11,11 +22,10 @@
 //                     vite-plugin-runtypes plugin rewrites this call
 //                     site at build time, injecting the runtype hash.
 //                     Omit a thunk to opt a case out of the isType
-//                     adapter (per-API thunks for getTypeErrors,
-//                     prepareForJson, mock, … land alongside their
-//                     own adapter files when those emits are ported).
+//                     adapter.
+//   - `getTypeErrors?` analogous thunk wrapping `createGetTypeErrors<T>()`.
 //   - `getSamples`    pure data: valid + invalid arrays. Same samples
-//                     drive every adapter — and a future docs renderer
+//                     drive both adapters — and a future docs renderer
 //                     can consume them without spinning up a validator.
 //
 // Cases are organized by category at the top level:
@@ -23,8 +33,9 @@
 //   NATIVE (Map / Set / Promise / Awaited) / UTILITY (Partial /
 //   Required / Pick / Omit / Exclude / Extract / …).
 // Each category has its own `describe(...)` block in the merged
-// adapter file test/adapters/isType.test.ts that registers `it()`
-// per active case + `it.todo()` per deferred case, with a per-block
+// adapter files (test/adapters/isType.test.ts and
+// test/adapters/getTypeErrors.test.ts) that registers `it()` per
+// active case + `it.todo()` per deferred case, with a per-block
 // counter-guard test that catches drift between this file and the
 // adapter.
 //
@@ -39,15 +50,9 @@ import {
   deserializeIsType,
   createGetTypeErrors,
   deserializeGetTypeErrors,
-  createPrepareForJson,
-  deserializePrepareForJson,
-  createRestoreFromJson,
-  deserializeRestoreFromJson,
   type IsTypeFn,
   type GetTypeErrorsFn,
   type RunTypeError,
-  type PrepareForJsonFn,
-  type RestoreFromJsonFn,
 } from '@mionjs/ts-go-run-types';
 
 /** One atomic-type case in the shared suite. */
@@ -105,62 +110,6 @@ export interface JitCase {
    *  Omit on cases that don't declare `getTypeErrors`. */
   getExpectedErrors?: () => RunTypeError[][];
 
-  // ── JSON serializer / deserializer pair ────────────────────────
-  // prepareForJson + restoreFromJson are paired: success is round-trip
-  // equality, `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
-  // deep-equals v for every valid sample. No expected-output thunk.
-
-  /** Plugin-rewritten thunk returning the prepareForJson transformer —
-   *  STATIC form. Caller supplies `T` explicitly via the type argument. */
-  prepareForJson?: () => PrepareForJsonFn;
-  /** Plugin-rewritten thunk returning the prepareForJson transformer —
-   *  REFLECT form. T inferred from a runtime value's declared type. */
-  prepareForJsonReflect?: () => PrepareForJsonFn;
-  /** Plugin-rewritten thunk returning the prepareForJson transformer
-   *  rebuilt from the serialized `JitCompiledFnData.code` body via
-   *  `new Function('utl', code)(jitUtils)` — exercises the
-   *  serialize → deserialize round-trip the over-the-wire cache uses. */
-  deserializePrepareForJson?: () => PrepareForJsonFn;
-  /** Reflect-form companion to `deserializePrepareForJson`. */
-  deserializePrepareForJsonReflect?: () => PrepareForJsonFn;
-  /** Plugin-rewritten thunk returning the restoreFromJson transformer —
-   *  STATIC form. */
-  restoreFromJson?: () => RestoreFromJsonFn;
-  /** Plugin-rewritten thunk returning the restoreFromJson transformer —
-   *  REFLECT form. */
-  restoreFromJsonReflect?: () => RestoreFromJsonFn;
-  /** Plugin-rewritten thunk returning the restoreFromJson transformer
-   *  rebuilt from the serialized body. */
-  deserializeRestoreFromJson?: () => RestoreFromJsonFn;
-  /** Reflect-form companion to `deserializeRestoreFromJson`. */
-  deserializeRestoreFromJsonReflect?: () => RestoreFromJsonFn;
-  /** Marks types whose JSON family (prepareForJson + restoreFromJson)
-   *  throws at JIT-compile time per mion. Covers `never`,
-   *  `Promise<T>`, function-typed root, `symbol[]` / function[],
-   *  `Int8Array` et al, and any composite whose subtree reaches one
-   *  of those leaves. When set, the prepareForJson / restoreFromJson
-   *  adapters assert the THUNK itself throws (mirroring mion's
-   *  `expect(() => rt.createJitFunction(...)).toThrow()` contract)
-   *  instead of attempting a round-trip. isType / typeErrors families
-   *  are unaffected — for KindNever / KindPromise / KindFunction
-   *  those have legitimate validator emits (return false, thenable
-   *  check, typeof === 'function'); only `Int8Array` etc would
-   *  trigger throws there too, and jit-suite carries no such case. **/
-  jsonFamilyThrowsAtCompile?: boolean;
-
-  /** Marks types whose serializer contract is "best effort via JSON" —
-   *  `any`, `unknown`, `object`. For these the prepareForJson +
-   *  restoreFromJson are both identity, so the runtime experience is
-   *  literally `JSON.parse(JSON.stringify(v))` with no transformation.
-   *  Lossy for class instances (Date → ISO string, RegExp → `{}`),
-   *  but consistent — the contract is "whatever JSON can encode
-   *  survives, whatever it can't is silently lost". The adapter
-   *  weakens the round-trip assertion accordingly: succeed when
-   *  `JSON.stringify(prepared)` is a non-undefined string (i.e. the
-   *  value is JSON-supported), without requiring deep-equal back to
-   *  the original. **/
-  roundTripBestEffort?: boolean;
-
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
@@ -170,7 +119,6 @@ export const JIT_SUITE = {
     any: {
       title: 'Any type — every value passes',
       isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
-      roundTripBestEffort: true,
       isType: () => createIsType<any>(),
       deserializeIsType: () => deserializeIsType<any>(),
       isTypeReflect: () => {
@@ -190,26 +138,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: any = null;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<any>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<any>(),
-      prepareForJsonReflect: () => {
-        const v: any = null;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: any = null;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<any>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<any>(),
-      restoreFromJsonReflect: () => {
-        const v: any = null;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: any = null;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello'],
@@ -240,26 +168,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: bigint = 1n;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<bigint>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<bigint>(),
-      prepareForJsonReflect: () => {
-        const v: bigint = 1n;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: bigint = 1n;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<bigint>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<bigint>(),
-      restoreFromJsonReflect: () => {
-        const v: bigint = 1n;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: bigint = 1n;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [1n, BigInt(42)],
@@ -299,26 +207,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: boolean = true;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<boolean>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<boolean>(),
-      prepareForJsonReflect: () => {
-        const v: boolean = true;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: boolean = true;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<boolean>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<boolean>(),
-      restoreFromJsonReflect: () => {
-        const v: boolean = true;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: boolean = true;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [true, false],
@@ -360,26 +248,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Date = new Date();
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<Date>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Date>(),
-      prepareForJsonReflect: () => {
-        const v: Date = new Date();
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Date = new Date();
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Date>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date>(),
-      restoreFromJsonReflect: () => {
-        const v: Date = new Date();
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Date = new Date();
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -463,74 +331,6 @@ export const JIT_SUITE = {
         const v: Color = Color.Red;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        return createPrepareForJson<Color>();
-      },
-      deserializePrepareForJson: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        return deserializePrepareForJson<Color>();
-      },
-      prepareForJsonReflect: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        const v: Color = Color.Red;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        const v: Color = Color.Red;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        return createRestoreFromJson<Color>();
-      },
-      deserializeRestoreFromJson: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        return deserializeRestoreFromJson<Color>();
-      },
-      restoreFromJsonReflect: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        const v: Color = Color.Red;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        enum Color {
-          Red,
-          Green = 'green',
-          Blue = 2,
-        }
-        const v: Color = Color.Red;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         enum Color {
           Red,
@@ -578,26 +378,6 @@ export const JIT_SUITE = {
         const v = 2 as const;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<2>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<2>(),
-      prepareForJsonReflect: () => {
-        const v = 2 as const;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = 2 as const;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<2>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<2>(),
-      restoreFromJsonReflect: () => {
-        const v = 2 as const;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = 2 as const;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({valid: [2], invalid: [4, '2', null, undefined]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'literal'}],
@@ -629,26 +409,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 'a' as const;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<'a'>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<'a'>(),
-      prepareForJsonReflect: () => {
-        const v = 'a' as const;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = 'a' as const;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<'a'>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<'a'>(),
-      restoreFromJsonReflect: () => {
-        const v = 'a' as const;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = 'a' as const;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({valid: ['a'], invalid: ['b', 'A', '', null, undefined]}),
       getExpectedErrors: () => [
@@ -700,42 +460,6 @@ export const JIT_SUITE = {
         const v: typeof reg = reg;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        const reg = /abc/i;
-        return createPrepareForJson<typeof reg>();
-      },
-      deserializePrepareForJson: () => {
-        const reg = /abc/i;
-        return deserializePrepareForJson<typeof reg>();
-      },
-      prepareForJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        const reg = /abc/i;
-        return createRestoreFromJson<typeof reg>();
-      },
-      deserializeRestoreFromJson: () => {
-        const reg = /abc/i;
-        return deserializeRestoreFromJson<typeof reg>();
-      },
-      restoreFromJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({valid: [/abc/i], invalid: [/asdf/i, /abc/, /abc/g, 'abc']}),
       getExpectedErrors: () => [
         [{path: [], expected: 'literal'}],
@@ -784,42 +508,6 @@ export const JIT_SUITE = {
         const v: typeof reg2 = reg2;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        const reg2 = /['"]\/ \\ \//;
-        return createPrepareForJson<typeof reg2>();
-      },
-      deserializePrepareForJson: () => {
-        const reg2 = /['"]\/ \\ \//;
-        return deserializePrepareForJson<typeof reg2>();
-      },
-      prepareForJsonReflect: () => {
-        const reg2 = /['"]\/ \\ \//;
-        const v: typeof reg2 = reg2;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const reg2 = /['"]\/ \\ \//;
-        const v: typeof reg2 = reg2;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        const reg2 = /['"]\/ \\ \//;
-        return createRestoreFromJson<typeof reg2>();
-      },
-      deserializeRestoreFromJson: () => {
-        const reg2 = /['"]\/ \\ \//;
-        return deserializeRestoreFromJson<typeof reg2>();
-      },
-      restoreFromJsonReflect: () => {
-        const reg2 = /['"]\/ \\ \//;
-        const v: typeof reg2 = reg2;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const reg2 = /['"]\/ \\ \//;
-        const v: typeof reg2 = reg2;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const reg2 = /['"]\/ \\ \//;
         return {
@@ -859,26 +547,6 @@ export const JIT_SUITE = {
         const v = true as const;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<true>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<true>(),
-      prepareForJsonReflect: () => {
-        const v = true as const;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = true as const;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<true>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<true>(),
-      restoreFromJsonReflect: () => {
-        const v = true as const;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = true as const;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({valid: [true], invalid: [false, 1, 'true', null]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'literal'}],
@@ -910,26 +578,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 1n as const;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<1n>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<1n>(),
-      prepareForJsonReflect: () => {
-        const v = 1n as const;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = 1n as const;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<1n>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<1n>(),
-      restoreFromJsonReflect: () => {
-        const v = 1n as const;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = 1n as const;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({valid: [1n], invalid: [2n, 1, '1n', 0n, null]}),
       getExpectedErrors: () => [
@@ -982,42 +630,6 @@ export const JIT_SUITE = {
         const v: typeof sym = sym;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        const sym = Symbol('hello');
-        return createPrepareForJson<typeof sym>();
-      },
-      deserializePrepareForJson: () => {
-        const sym = Symbol('hello');
-        return deserializePrepareForJson<typeof sym>();
-      },
-      prepareForJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        const sym = Symbol('hello');
-        return createRestoreFromJson<typeof sym>();
-      },
-      deserializeRestoreFromJson: () => {
-        const sym = Symbol('hello');
-        return deserializeRestoreFromJson<typeof sym>();
-      },
-      restoreFromJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const sym = Symbol('hello');
         return {
@@ -1038,7 +650,6 @@ export const JIT_SUITE = {
     never: {
       title: 'Never — no value passes',
       isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
-      jsonFamilyThrowsAtCompile: true,
       isType: () => createIsType<never>(),
       deserializeIsType: () => deserializeIsType<never>(),
       isTypeReflect: () => {
@@ -1058,26 +669,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: never = null as never;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<never>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<never>(),
-      prepareForJsonReflect: () => {
-        const v: never = null as never;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: never = null as never;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<never>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<never>(),
-      restoreFromJsonReflect: () => {
-        const v: never = null as never;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: never = null as never;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [],
@@ -1121,26 +712,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: null = null;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<null>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<null>(),
-      prepareForJsonReflect: () => {
-        const v: null = null;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: null = null;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<null>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<null>(),
-      restoreFromJsonReflect: () => {
-        const v: null = null;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: null = null;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [null],
@@ -1186,26 +757,6 @@ export const JIT_SUITE = {
         const v: number = 42;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<number>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<number>(),
-      prepareForJsonReflect: () => {
-        const v: number = 42;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: number = 42;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<number>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<number>(),
-      restoreFromJsonReflect: () => {
-        const v: number = 42;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: number = 42;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [42],
         invalid: [Infinity, -Infinity, NaN, 'hello', null, undefined],
@@ -1223,7 +774,6 @@ export const JIT_SUITE = {
     object: {
       title: 'Object type — any non-null non-primitive value',
       description: 'null rejected despite JS typeof null === "object"',
-      roundTripBestEffort: true,
       isTypeNotes: [
         'Emit is `typeof v === "object" && v !== null` — strict TS semantics (any non-primitive non-null value).',
         'Arrays, Date instances, RegExp, Map, Set, and class instances all PASS — they are TS-`object` per the spec.',
@@ -1249,26 +799,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: object = {};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<object>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<object>(),
-      prepareForJsonReflect: () => {
-        const v: object = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: object = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<object>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<object>(),
-      restoreFromJsonReflect: () => {
-        const v: object = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: object = {};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 42, b: 'hello'}, [], new Date(), /abc/],
@@ -1306,13 +836,9 @@ export const JIT_SUITE = {
       // so isType tests pass; typeErrors reports the kindname directly
       // and the divergence surfaces. Cases that DON'T narrow (Date,
       // symbol(...)) keep their reflect form.
-      prepareForJson: () => createPrepareForJson<RegExp>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<RegExp>(),
       // Reflect thunks omitted for the same narrowing reason as getTypeErrors
       // above — `const v: RegExp = /abc/` narrows to the literal-regex type
       // and would dispatch to the regexp-literal arm instead.
-      restoreFromJson: () => createRestoreFromJson<RegExp>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<RegExp>(),
       getSamples: () => ({
         valid: [/abc/, new RegExp('abc')],
         invalid: [undefined, 42, 'hello', null, '/abc/', {}],
@@ -1350,26 +876,6 @@ export const JIT_SUITE = {
         const v: string = 'hello';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<string>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string>(),
-      prepareForJsonReflect: () => {
-        const v: string = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string>(),
-      restoreFromJsonReflect: () => {
-        const v: string = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string = 'hello';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [2, null, undefined, true],
@@ -1405,26 +911,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: symbol = Symbol();
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<symbol>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<symbol>(),
-      prepareForJsonReflect: () => {
-        const v: symbol = Symbol();
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: symbol = Symbol();
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<symbol>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<symbol>(),
-      restoreFromJsonReflect: () => {
-        const v: symbol = Symbol();
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: symbol = Symbol();
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [Symbol(), Symbol('foo')],
@@ -1465,26 +951,6 @@ export const JIT_SUITE = {
         const v: undefined = undefined;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<undefined>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<undefined>(),
-      prepareForJsonReflect: () => {
-        const v: undefined = undefined;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: undefined = undefined;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<undefined>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<undefined>(),
-      restoreFromJsonReflect: () => {
-        const v: undefined = undefined;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: undefined = undefined;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [undefined],
         invalid: [null, 42, 'hello', 0, '', false, {}, []],
@@ -1523,26 +989,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: void = undefined;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<void>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<void>(),
-      prepareForJsonReflect: () => {
-        const v: void = undefined;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: void = undefined;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<void>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<void>(),
-      restoreFromJsonReflect: () => {
-        const v: void = undefined;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: void = undefined;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => {
         function vd(): void {}
@@ -1587,26 +1033,6 @@ export const JIT_SUITE = {
         const v = 2 as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
       },
-      prepareForJson: () => createPrepareForJson<2>(undefined, {noLiterals: true}),
-      deserializePrepareForJson: () => deserializePrepareForJson<2>(undefined, {noLiterals: true}),
-      prepareForJsonReflect: () => {
-        const v = 2 as const;
-        return createPrepareForJson(v, {noLiterals: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = 2 as const;
-        return deserializePrepareForJson(v, {noLiterals: true});
-      },
-      restoreFromJson: () => createRestoreFromJson<2>(undefined, {noLiterals: true}),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<2>(undefined, {noLiterals: true}),
-      restoreFromJsonReflect: () => {
-        const v = 2 as const;
-        return createRestoreFromJson(v, {noLiterals: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = 2 as const;
-        return deserializeRestoreFromJson(v, {noLiterals: true});
-      },
       getSamples: () => ({valid: [4, 0, -1], invalid: ['4', Infinity, NaN, null]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'number'}],
@@ -1640,26 +1066,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 'a' as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
-      },
-      prepareForJson: () => createPrepareForJson<'a'>(undefined, {noLiterals: true}),
-      deserializePrepareForJson: () => deserializePrepareForJson<'a'>(undefined, {noLiterals: true}),
-      prepareForJsonReflect: () => {
-        const v = 'a' as const;
-        return createPrepareForJson(v, {noLiterals: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = 'a' as const;
-        return deserializePrepareForJson(v, {noLiterals: true});
-      },
-      restoreFromJson: () => createRestoreFromJson<'a'>(undefined, {noLiterals: true}),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<'a'>(undefined, {noLiterals: true}),
-      restoreFromJsonReflect: () => {
-        const v = 'a' as const;
-        return createRestoreFromJson(v, {noLiterals: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = 'a' as const;
-        return deserializeRestoreFromJson(v, {noLiterals: true});
       },
       getSamples: () => ({valid: ['c', ''], invalid: [1, null, undefined, true]}),
       getExpectedErrors: () => [
@@ -1711,42 +1117,6 @@ export const JIT_SUITE = {
         const v: typeof reg = reg;
         return deserializeGetTypeErrors(v, {noLiterals: true});
       },
-      prepareForJson: () => {
-        const reg = /abc/i;
-        return createPrepareForJson<typeof reg>(undefined, {noLiterals: true});
-      },
-      deserializePrepareForJson: () => {
-        const reg = /abc/i;
-        return deserializePrepareForJson<typeof reg>(undefined, {noLiterals: true});
-      },
-      prepareForJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return createPrepareForJson(v, {noLiterals: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return deserializePrepareForJson(v, {noLiterals: true});
-      },
-      restoreFromJson: () => {
-        const reg = /abc/i;
-        return createRestoreFromJson<typeof reg>(undefined, {noLiterals: true});
-      },
-      deserializeRestoreFromJson: () => {
-        const reg = /abc/i;
-        return deserializeRestoreFromJson<typeof reg>(undefined, {noLiterals: true});
-      },
-      restoreFromJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return createRestoreFromJson(v, {noLiterals: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const reg = /abc/i;
-        const v: typeof reg = reg;
-        return deserializeRestoreFromJson(v, {noLiterals: true});
-      },
       getSamples: () => ({valid: [/otherReg/, new RegExp('foo')], invalid: ['otherReg', null, undefined, {}]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'regexp'}],
@@ -1780,26 +1150,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = true as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
-      },
-      prepareForJson: () => createPrepareForJson<true>(undefined, {noLiterals: true}),
-      deserializePrepareForJson: () => deserializePrepareForJson<true>(undefined, {noLiterals: true}),
-      prepareForJsonReflect: () => {
-        const v = true as const;
-        return createPrepareForJson(v, {noLiterals: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = true as const;
-        return deserializePrepareForJson(v, {noLiterals: true});
-      },
-      restoreFromJson: () => createRestoreFromJson<true>(undefined, {noLiterals: true}),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<true>(undefined, {noLiterals: true}),
-      restoreFromJsonReflect: () => {
-        const v = true as const;
-        return createRestoreFromJson(v, {noLiterals: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = true as const;
-        return deserializeRestoreFromJson(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [false, true], invalid: [1, 0, 'true', null, undefined]}),
       getExpectedErrors: () => [
@@ -1835,26 +1185,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 1n as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
-      },
-      prepareForJson: () => createPrepareForJson<1n>(undefined, {noLiterals: true}),
-      deserializePrepareForJson: () => deserializePrepareForJson<1n>(undefined, {noLiterals: true}),
-      prepareForJsonReflect: () => {
-        const v = 1n as const;
-        return createPrepareForJson(v, {noLiterals: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v = 1n as const;
-        return deserializePrepareForJson(v, {noLiterals: true});
-      },
-      restoreFromJson: () => createRestoreFromJson<1n>(undefined, {noLiterals: true}),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<1n>(undefined, {noLiterals: true}),
-      restoreFromJsonReflect: () => {
-        const v = 1n as const;
-        return createRestoreFromJson(v, {noLiterals: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v = 1n as const;
-        return deserializeRestoreFromJson(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [3n, 0n, 1n], invalid: [3, null, undefined, 1, '1n']}),
       getExpectedErrors: () => [
@@ -1907,42 +1237,6 @@ export const JIT_SUITE = {
         const v: typeof sym = sym;
         return deserializeGetTypeErrors(v, {noLiterals: true});
       },
-      prepareForJson: () => {
-        const sym = Symbol('hello');
-        return createPrepareForJson<typeof sym>(undefined, {noLiterals: true});
-      },
-      deserializePrepareForJson: () => {
-        const sym = Symbol('hello');
-        return deserializePrepareForJson<typeof sym>(undefined, {noLiterals: true});
-      },
-      prepareForJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return createPrepareForJson(v, {noLiterals: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return deserializePrepareForJson(v, {noLiterals: true});
-      },
-      restoreFromJson: () => {
-        const sym = Symbol('hello');
-        return createRestoreFromJson<typeof sym>(undefined, {noLiterals: true});
-      },
-      deserializeRestoreFromJson: () => {
-        const sym = Symbol('hello');
-        return deserializeRestoreFromJson<typeof sym>(undefined, {noLiterals: true});
-      },
-      restoreFromJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return createRestoreFromJson(v, {noLiterals: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const sym = Symbol('hello');
-        const v: typeof sym = sym;
-        return deserializeRestoreFromJson(v, {noLiterals: true});
-      },
       getSamples: () => ({
         valid: [Symbol('world'), Symbol(), Symbol.iterator],
         invalid: ['world', null, undefined, 'symbol'],
@@ -1962,7 +1256,6 @@ export const JIT_SUITE = {
     // can't silently change the always-pass semantics.
     unknown: {
       title: 'Unknown type — every value passes',
-      roundTripBestEffort: true,
       isTypeNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
       isType: () => createIsType<unknown>(),
       deserializeIsType: () => deserializeIsType<unknown>(),
@@ -1984,26 +1277,6 @@ export const JIT_SUITE = {
         const v: unknown = null;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<unknown>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<unknown>(),
-      prepareForJsonReflect: () => {
-        const v: unknown = null;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: unknown = null;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<unknown>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<unknown>(),
-      restoreFromJsonReflect: () => {
-        const v: unknown = null;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: unknown = null;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello', true, {}, [], Symbol(), () => null, new Date()],
         invalid: [],
@@ -2024,14 +1297,11 @@ export const JIT_SUITE = {
   // the `isType` thunk; the adapter renders them as `it.todo` so the
   // sample payloads survive intact for activation when each kind lands.
   //
-  // Adapters out of scope for this PR (each has its own future test file
-  // re-importing this suite):
+  // Adapters out of scope for this suite (each has its own test file):
   //   - mock          → mion array.spec.ts "mock" / "mock CircularArray"
-  //   - typeErrors    → mion array.spec.ts "+ errors" variants
   //   - hasUnknownKeys / strip / undefined / visitUnknownKeyErrors
   //                   → mion array.spec.ts "test array strict modes"
-  //   - prepareForJson / restoreFromJson / JSON round-trip
-  //                   → mion jitCompilers/json/jsonSpec/02JsonArrays.spec.ts
+  // prepareForJson / restoreFromJson cases live in serialization-suite.ts.
   ARRAY: {
     string_array: {
       title: 'Array of strings',
@@ -2058,26 +1328,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<string[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[]>(),
-      prepareForJsonReflect: () => {
-        const v: string[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(),
-      restoreFromJsonReflect: () => {
-        const v: string[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], ['hello', 'world']],
@@ -2121,26 +1371,6 @@ export const JIT_SUITE = {
         const v: number[] = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<number[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<number[]>(),
-      prepareForJsonReflect: () => {
-        const v: number[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: number[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<number[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<number[]>(),
-      restoreFromJsonReflect: () => {
-        const v: number[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: number[] = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], [1, 2, 3], [42]],
         invalid: [[1, '2'], 'not-array', [Infinity], [-Infinity], [NaN], null, undefined, [null], [BigInt(1)]],
@@ -2180,26 +1410,6 @@ export const JIT_SUITE = {
         const v: boolean[] = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<boolean[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<boolean[]>(),
-      prepareForJsonReflect: () => {
-        const v: boolean[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: boolean[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<boolean[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<boolean[]>(),
-      restoreFromJsonReflect: () => {
-        const v: boolean[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: boolean[] = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], [true, false]],
         invalid: [[true, 42], 'nope', null, undefined, [0], [1], [null]],
@@ -2236,26 +1446,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: bigint[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<bigint[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<bigint[]>(),
-      prepareForJsonReflect: () => {
-        const v: bigint[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: bigint[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<bigint[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<bigint[]>(),
-      restoreFromJsonReflect: () => {
-        const v: bigint[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: bigint[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [1n, 2n]],
@@ -2295,26 +1485,6 @@ export const JIT_SUITE = {
         const v: Date[] = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<Date[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Date[]>(),
-      prepareForJsonReflect: () => {
-        const v: Date[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Date[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Date[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date[]>(),
-      restoreFromJsonReflect: () => {
-        const v: Date[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Date[] = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
         invalid: [['2024'], [42], [new Date('invalid')], null, undefined],
@@ -2349,26 +1519,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: RegExp[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<RegExp[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<RegExp[]>(),
-      prepareForJsonReflect: () => {
-        const v: RegExp[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: RegExp[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<RegExp[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<RegExp[]>(),
-      restoreFromJsonReflect: () => {
-        const v: RegExp[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: RegExp[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [/abc/, new RegExp('abc')]],
@@ -2408,26 +1558,6 @@ export const JIT_SUITE = {
         const v: undefined[] = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<undefined[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<undefined[]>(),
-      prepareForJsonReflect: () => {
-        const v: undefined[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: undefined[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<undefined[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<undefined[]>(),
-      restoreFromJsonReflect: () => {
-        const v: undefined[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: undefined[] = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], [undefined, undefined]],
         invalid: [[null], [42], null, undefined, [0], [''], [false]],
@@ -2465,26 +1595,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: null[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<null[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<null[]>(),
-      prepareForJsonReflect: () => {
-        const v: null[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: null[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<null[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<null[]>(),
-      restoreFromJsonReflect: () => {
-        const v: null[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: null[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [null]],
@@ -2524,26 +1634,6 @@ export const JIT_SUITE = {
         const v: Array<string> = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<Array<string>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Array<string>>(),
-      prepareForJsonReflect: () => {
-        const v: Array<string> = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Array<string> = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Array<string>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Array<string>>(),
-      restoreFromJsonReflect: () => {
-        const v: Array<string> = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Array<string> = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], ['hello']],
         invalid: ['hello', [42], null, undefined],
@@ -2579,26 +1669,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string[][] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<string[][]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[][]>(),
-      prepareForJsonReflect: () => {
-        const v: string[][] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string[][] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string[][]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][]>(),
-      restoreFromJsonReflect: () => {
-        const v: string[][] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string[][] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -2657,26 +1727,6 @@ export const JIT_SUITE = {
         const v: string[][][] = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<string[][][]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[][][]>(),
-      prepareForJsonReflect: () => {
-        const v: string[][][] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string[][][] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string[][][]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][][]>(),
-      restoreFromJsonReflect: () => {
-        const v: string[][][] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string[][][] = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
         invalid: [[[['a', 2]]], [['a']], ['a'], null, undefined, [[[null]]], [[[42]]]],
@@ -2723,26 +1773,6 @@ export const JIT_SUITE = {
         const v: string[] = [];
         return deserializeGetTypeErrors(v, {noIsArrayCheck: true});
       },
-      prepareForJson: () => createPrepareForJson<string[]>(undefined, {noIsArrayCheck: true}),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[]>(undefined, {noIsArrayCheck: true}),
-      prepareForJsonReflect: () => {
-        const v: string[] = [];
-        return createPrepareForJson(v, {noIsArrayCheck: true});
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string[] = [];
-        return deserializePrepareForJson(v, {noIsArrayCheck: true});
-      },
-      restoreFromJson: () => createRestoreFromJson<string[]>(undefined, {noIsArrayCheck: true}),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(undefined, {noIsArrayCheck: true}),
-      restoreFromJsonReflect: () => {
-        const v: string[] = [];
-        return createRestoreFromJson(v, {noIsArrayCheck: true});
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string[] = [];
-        return deserializeRestoreFromJson(v, {noIsArrayCheck: true});
-      },
       getSamples: () => ({
         valid: [[], ['hello']],
         // Without the guard, non-array inputs may not be rejected by
@@ -2779,26 +1809,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string}[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string}[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string}[]>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string}[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string}[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string}[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string}[]>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string}[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string}[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [{a: 'hello'}, {a: 'world'}], [{a: 'hello', extraA: 'extraA'}, {a: 'world'}]],
@@ -2838,26 +1848,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: (string | number)[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<(string | number)[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<(string | number)[]>(),
-      prepareForJsonReflect: () => {
-        const v: (string | number)[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: (string | number)[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<(string | number)[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<(string | number)[]>(),
-      restoreFromJsonReflect: () => {
-        const v: (string | number)[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: (string | number)[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], ['a', 1, 'b', 2], [1], ['a']],
@@ -2904,26 +1894,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number][] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<[string, number][]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[string, number][]>(),
-      prepareForJsonReflect: () => {
-        const v: [string, number][] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [string, number][] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[string, number][]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[string, number][]>(),
-      restoreFromJsonReflect: () => {
-        const v: [string, number][] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [string, number][] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -2995,42 +1965,6 @@ export const JIT_SUITE = {
         const v: CircularArray = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type CircularArray = CircularArray[];
-        return createPrepareForJson<CircularArray>();
-      },
-      deserializePrepareForJson: () => {
-        type CircularArray = CircularArray[];
-        return deserializePrepareForJson<CircularArray>();
-      },
-      prepareForJsonReflect: () => {
-        type CircularArray = CircularArray[];
-        const v: CircularArray = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type CircularArray = CircularArray[];
-        const v: CircularArray = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type CircularArray = CircularArray[];
-        return createRestoreFromJson<CircularArray>();
-      },
-      deserializeRestoreFromJson: () => {
-        type CircularArray = CircularArray[];
-        return deserializeRestoreFromJson<CircularArray>();
-      },
-      restoreFromJsonReflect: () => {
-        type CircularArray = CircularArray[];
-        const v: CircularArray = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type CircularArray = CircularArray[];
-        const v: CircularArray = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
         const arrA: any = [];
@@ -3096,42 +2030,6 @@ export const JIT_SUITE = {
         const v: ObjectType = {a: 'hello'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        return createPrepareForJson<ObjectType>();
-      },
-      deserializePrepareForJson: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        return deserializePrepareForJson<ObjectType>();
-      },
-      prepareForJsonReflect: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        const v: ObjectType = {a: 'hello'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        const v: ObjectType = {a: 'hello'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        return createRestoreFromJson<ObjectType>();
-      },
-      deserializeRestoreFromJson: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        return deserializeRestoreFromJson<ObjectType>();
-      },
-      restoreFromJsonReflect: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        const v: ObjectType = {a: 'hello'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-        const v: ObjectType = {a: 'hello'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {a: 'hello'},
@@ -3168,7 +2066,6 @@ export const JIT_SUITE = {
         'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time for prepareForJson/restoreFromJson; isType emits an always-false validator (we mirror the same).',
       isTypeNotes:
         'TS DIVERGENCE: Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, etc.) ALWAYS fail. The validator emits `return false`. Use a different shape if you need to carry symbol-like data.',
-      jsonFamilyThrowsAtCompile: true,
       isType: () => createIsType<symbol[]>(),
       deserializeIsType: () => deserializeIsType<symbol[]>(),
       isTypeReflect: () => {
@@ -3188,26 +2085,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: symbol[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<symbol[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<symbol[]>(),
-      prepareForJsonReflect: () => {
-        const v: symbol[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: symbol[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<symbol[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<symbol[]>(),
-      restoreFromJsonReflect: () => {
-        const v: symbol[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: symbol[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [],
@@ -3251,26 +2128,6 @@ export const JIT_SUITE = {
         const v: ReadonlyArray<string> = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<ReadonlyArray<string>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<ReadonlyArray<string>>(),
-      prepareForJsonReflect: () => {
-        const v: ReadonlyArray<string> = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: ReadonlyArray<string> = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<ReadonlyArray<string>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<ReadonlyArray<string>>(),
-      restoreFromJsonReflect: () => {
-        const v: ReadonlyArray<string> = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: ReadonlyArray<string> = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[], ['hello'], ['a', 'b', 'c']],
         invalid: ['not array', null, undefined, [42], [null]],
@@ -3299,10 +2156,10 @@ export const JIT_SUITE = {
   // and the validate(...) sanity-check assertions embedded in the
   // adjacent `mock` / `hasUnknownKeys` / `stripUnknownKeys` blocks.
   //
-  // Tests for non-isType adapters (mock, typeErrors, hasUnknownKeys,
-  // prepareForJson, …) land in their own future adapter files; this
-  // block carries ONLY the isType-relevant assertions but preserves
-  // the sample shapes so a future adapter can re-import them.
+  // Tests for non-validation adapters (mock, hasUnknownKeys, …) land
+  // in their own future adapter files; this block carries ONLY the
+  // validation-family assertions (isType + getTypeErrors). The JSON
+  // serializer adapter consumes serialization-suite.ts instead.
   OBJECT: {
     simple_interface: {
       title: 'Simple interface with string and number props',
@@ -3331,26 +2188,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; b: number} = {a: 'hello', b: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string; b: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string; b: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string; b: number} = {a: 'hello', b: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string; b: number} = {a: 'hello', b: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string; b: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string; b: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string; b: number} = {a: 'hello', b: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string; b: number} = {a: 'hello', b: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -3411,26 +2248,6 @@ export const JIT_SUITE = {
         const Usr = {name: 'john', age: 30} as const;
         return deserializeGetTypeErrors(Usr);
       },
-      prepareForJson: () => createPrepareForJson<{readonly name: 'john'; readonly age: 30}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{readonly name: 'john'; readonly age: 30}>(),
-      prepareForJsonReflect: () => {
-        const Usr = {name: 'john', age: 30} as const;
-        return createPrepareForJson(Usr);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const Usr = {name: 'john', age: 30} as const;
-        return deserializePrepareForJson(Usr);
-      },
-      restoreFromJson: () => createRestoreFromJson<{readonly name: 'john'; readonly age: 30}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{readonly name: 'john'; readonly age: 30}>(),
-      restoreFromJsonReflect: () => {
-        const Usr = {name: 'john', age: 30} as const;
-        return createRestoreFromJson(Usr);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const Usr = {name: 'john', age: 30} as const;
-        return deserializeRestoreFromJson(Usr);
-      },
       getSamples: () => ({
         valid: [{name: 'john', age: 30}],
         invalid: [
@@ -3490,30 +2307,6 @@ export const JIT_SUITE = {
         }
         return deserializeGetTypeErrors<ReturnType<typeof makeUser>>();
       },
-      prepareForJson: () => {
-        function makeUser(): {id: number; name: string} {
-          return {id: 1, name: 'john'};
-        }
-        return createPrepareForJson<ReturnType<typeof makeUser>>();
-      },
-      deserializePrepareForJson: () => {
-        function makeUser(): {id: number; name: string} {
-          return {id: 1, name: 'john'};
-        }
-        return deserializePrepareForJson<ReturnType<typeof makeUser>>();
-      },
-      restoreFromJson: () => {
-        function makeUser(): {id: number; name: string} {
-          return {id: 1, name: 'john'};
-        }
-        return createRestoreFromJson<ReturnType<typeof makeUser>>();
-      },
-      deserializeRestoreFromJson: () => {
-        function makeUser(): {id: number; name: string} {
-          return {id: 1, name: 'john'};
-        }
-        return deserializeRestoreFromJson<ReturnType<typeof makeUser>>();
-      },
       getSamples: () => ({
         valid: [
           {id: 1, name: 'john'},
@@ -3555,26 +2348,6 @@ export const JIT_SUITE = {
         const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
         return deserializeGetTypeErrors(outer.user);
       },
-      prepareForJson: () => createPrepareForJson<{id: number; name: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{id: number; name: string}>(),
-      prepareForJsonReflect: () => {
-        const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-        return createPrepareForJson(outer.user);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-        return deserializePrepareForJson(outer.user);
-      },
-      restoreFromJson: () => createRestoreFromJson<{id: number; name: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{id: number; name: string}>(),
-      restoreFromJsonReflect: () => {
-        const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-        return createRestoreFromJson(outer.user);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
-        return deserializeRestoreFromJson(outer.user);
-      },
       getSamples: () => ({
         valid: [
           {id: 1, name: 'john'},
@@ -3612,26 +2385,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
         return deserializeGetTypeErrors(items[0]);
-      },
-      prepareForJson: () => createPrepareForJson<{id: number; name: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{id: number; name: string}>(),
-      prepareForJsonReflect: () => {
-        const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-        return createPrepareForJson(items[0]);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-        return deserializePrepareForJson(items[0]);
-      },
-      restoreFromJson: () => createRestoreFromJson<{id: number; name: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{id: number; name: string}>(),
-      restoreFromJsonReflect: () => {
-        const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-        return createRestoreFromJson(items[0]);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
-        return deserializeRestoreFromJson(items[0]);
       },
       getSamples: () => ({
         valid: [
@@ -3671,26 +2424,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; b?: number} = {a: 'x'};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string; b?: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string; b?: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string; b?: number} = {a: 'x'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string; b?: number} = {a: 'x'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string; b?: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string; b?: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string; b?: number} = {a: 'x'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string; b?: number} = {a: 'x'};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: 'x'}, {a: 'x', b: 0}, {a: 'x', b: undefined}],
@@ -3733,26 +2466,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{date: Date; name: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{date: Date; name: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{date: Date; name: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{date: Date; name: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{date: new Date(), name: 'x'}],
@@ -3807,26 +2520,6 @@ export const JIT_SUITE = {
         const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{name: string; cb: () => any}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{name: string; cb: () => any}>(),
-      prepareForJsonReflect: () => {
-        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{name: string; cb: () => any}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{name: string; cb: () => any}>(),
-      restoreFromJsonReflect: () => {
-        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {name: 'x'},
@@ -3868,26 +2561,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string; deep: {b: string; c: number}}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string; deep: {b: string; c: number}}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string; deep: {b: string; c: number}}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string; deep: {b: string; c: number}}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: 'x', deep: {b: 'y', c: 1}}],
@@ -3936,26 +2609,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {tags: string[]} = {tags: []};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{tags: string[]}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{tags: string[]}>(),
-      prepareForJsonReflect: () => {
-        const v: {tags: string[]} = {tags: []};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {tags: string[]} = {tags: []};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{tags: string[]}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{tags: string[]}>(),
-      restoreFromJsonReflect: () => {
-        const v: {tags: string[]} = {tags: []};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {tags: string[]} = {tags: []};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{tags: []}, {tags: ['a', 'b']}],
@@ -4014,42 +2667,6 @@ export const JIT_SUITE = {
         type ICircular = {name: string; child?: ICircular};
         const v: ICircular = {name: 'root'};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        type ICircular = {name: string; child?: ICircular};
-        return createPrepareForJson<ICircular>();
-      },
-      deserializePrepareForJson: () => {
-        type ICircular = {name: string; child?: ICircular};
-        return deserializePrepareForJson<ICircular>();
-      },
-      prepareForJsonReflect: () => {
-        type ICircular = {name: string; child?: ICircular};
-        const v: ICircular = {name: 'root'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type ICircular = {name: string; child?: ICircular};
-        const v: ICircular = {name: 'root'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type ICircular = {name: string; child?: ICircular};
-        return createRestoreFromJson<ICircular>();
-      },
-      deserializeRestoreFromJson: () => {
-        type ICircular = {name: string; child?: ICircular};
-        return deserializeRestoreFromJson<ICircular>();
-      },
-      restoreFromJsonReflect: () => {
-        type ICircular = {name: string; child?: ICircular};
-        const v: ICircular = {name: 'root'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type ICircular = {name: string; child?: ICircular};
-        const v: ICircular = {name: 'root'};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{name: 'root'}, {name: 'root', child: {name: 'a'}}, {name: 'root', child: {name: 'a', child: {name: 'b'}}}],
@@ -4114,42 +2731,6 @@ export const JIT_SUITE = {
         const v: ICircularArray = {name: 'r'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        return createPrepareForJson<ICircularArray>();
-      },
-      deserializePrepareForJson: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        return deserializePrepareForJson<ICircularArray>();
-      },
-      prepareForJsonReflect: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        const v: ICircularArray = {name: 'r'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        const v: ICircularArray = {name: 'r'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        return createRestoreFromJson<ICircularArray>();
-      },
-      deserializeRestoreFromJson: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        return deserializeRestoreFromJson<ICircularArray>();
-      },
-      restoreFromJsonReflect: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        const v: ICircularArray = {name: 'r'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type ICircularArray = {name: string; children?: ICircularArray[]};
-        const v: ICircularArray = {name: 'r'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {name: 'r'},
@@ -4205,42 +2786,6 @@ export const JIT_SUITE = {
         const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        return createPrepareForJson<ICircularDeep>();
-      },
-      deserializePrepareForJson: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        return deserializePrepareForJson<ICircularDeep>();
-      },
-      prepareForJsonReflect: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        return createRestoreFromJson<ICircularDeep>();
-      },
-      deserializeRestoreFromJson: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        return deserializeRestoreFromJson<ICircularDeep>();
-      },
-      restoreFromJsonReflect: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {name: 'r', embedded: {hello: 'h'}},
@@ -4283,26 +2828,6 @@ export const JIT_SUITE = {
         const v: {[key: string]: string} = {};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{[key: string]: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{[key: string]: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {[key: string]: string} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {[key: string]: string} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{[key: string]: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {[key: string]: string} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {[key: string]: string} = {};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
         invalid: [{a: 1}, {a: 'x', b: 2}, null, 'not object', undefined, {a: null}, {a: undefined}],
@@ -4341,26 +2866,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string; b: number; [key: string]: string | number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string; b: number; [key: string]: string | number}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string; b: number; [key: string]: string | number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string; b: number; [key: string]: string | number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -4412,26 +2917,6 @@ export const JIT_SUITE = {
         const v: {[key: string]: {[key: string]: number}} = {};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: number}}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{[key: string]: {[key: string]: number}}>(),
-      prepareForJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: number}} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: number}} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: number}}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{[key: string]: {[key: string]: number}}>(),
-      restoreFromJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: number}} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: number}} = {};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{}, {a: {x: 1, y: 2}}, {a: {}, b: {n: 0}}],
         invalid: [{a: 1}, {a: {x: 'not number'}}, null, undefined, {a: {x: NaN}}, {a: {x: null}}],
@@ -4468,26 +2953,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {[key: string]: {[key: string]: Date}} = {};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: Date}}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{[key: string]: {[key: string]: Date}}>(),
-      prepareForJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: Date}} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: Date}} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: Date}}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{[key: string]: {[key: string]: Date}}>(),
-      restoreFromJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: Date}} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {[key: string]: {[key: string]: Date}} = {};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{}, {a: {x: new Date()}}],
@@ -4598,98 +3063,6 @@ export const JIT_SUITE = {
         const v: Obj2 = {b: 'hello', c: {a: 'world'}};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        return createPrepareForJson<Obj2>();
-      },
-      deserializePrepareForJson: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        return deserializePrepareForJson<Obj2>();
-      },
-      prepareForJsonReflect: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        return createRestoreFromJson<Obj2>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        return deserializeRestoreFromJson<Obj2>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Obj1 {
-          a: string;
-          [key: string]: string;
-        }
-        interface Obj2 {
-          b: string;
-          c: Obj1;
-        }
-        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {b: 'hello', c: {a: 'world', c: 'world'}},
@@ -4709,7 +3082,6 @@ export const JIT_SUITE = {
 
     function_top_level: {
       title: 'Function type at top level (any function passes)',
-      jsonFamilyThrowsAtCompile: true,
       description: "mion FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred (mion-level).",
       isTypeNotes: [
         'TS DIVERGENCE: ANY function passes, regardless of signature — arrow functions, async functions, class declarations (typeof === "function") all satisfy `() => void`.',
@@ -4734,26 +3106,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: () => void = () => {};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<() => void>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<() => void>(),
-      prepareForJsonReflect: () => {
-        const v: () => void = () => {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: () => void = () => {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<() => void>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<() => void>(),
-      restoreFromJsonReflect: () => {
-        const v: () => void = () => {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: () => void = () => {};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [() => {}, function () {}, async () => {}, class {}],
@@ -4818,46 +3170,6 @@ export const JIT_SUITE = {
         );
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{(a: number, b: boolean): string; extra: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{(a: number, b: boolean): string; extra: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
-          function (_a: number, _b: boolean) {
-            return 'x';
-          },
-          {extra: 'x'}
-        );
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
-          function (_a: number, _b: boolean) {
-            return 'x';
-          },
-          {extra: 'x'}
-        );
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{(a: number, b: boolean): string; extra: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{(a: number, b: boolean): string; extra: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
-          function (_a: number, _b: boolean) {
-            return 'x';
-          },
-          {extra: 'x'}
-        );
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
-          function (_a: number, _b: boolean) {
-            return 'x';
-          },
-          {extra: 'x'}
-        );
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           Object.assign(
@@ -4918,26 +3230,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a?: string; b?: number} = {};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a?: string; b?: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a?: string; b?: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {a?: string; b?: number} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a?: string; b?: number} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a?: string; b?: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a?: string; b?: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a?: string; b?: number} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a?: string; b?: number} = {};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
@@ -5083,122 +3375,6 @@ export const JIT_SUITE = {
         }
         const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        return createPrepareForJson<MySerializableClass>();
-      },
-      deserializePrepareForJson: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        return deserializePrepareForJson<MySerializableClass>();
-      },
-      prepareForJsonReflect: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        return createRestoreFromJson<MySerializableClass>();
-      },
-      deserializeRestoreFromJson: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        return deserializeRestoreFromJson<MySerializableClass>();
-      },
-      restoreFromJsonReflect: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        class MySerializableClass {
-          date: Date;
-          name: string;
-          constructor(date: Date, name: string) {
-            this.date = date;
-            this.name = name;
-          }
-          someMethod() {
-            return 'unused';
-          }
-        }
-        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => {
         class Match {
@@ -5374,122 +3550,6 @@ export const JIT_SUITE = {
         const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        return createPrepareForJson<RpcError<'test-error'>>();
-      },
-      deserializePrepareForJson: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        return deserializePrepareForJson<RpcError<'test-error'>>();
-      },
-      prepareForJsonReflect: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        return createRestoreFromJson<RpcError<'test-error'>>();
-      },
-      deserializeRestoreFromJson: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        return deserializeRestoreFromJson<RpcError<'test-error'>>();
-      },
-      restoreFromJsonReflect: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        class RpcError<ErrType extends string> {
-          public readonly 'mion@isΣrrθr': true = true;
-          public readonly type: ErrType;
-          public readonly publicMessage: string;
-          public readonly id?: string;
-          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
-            this.type = args.type;
-            this.publicMessage = args.publicMessage;
-            this.id = args.id;
-          }
-        }
-        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const validInstance = {
           'mion@isΣrrθr': true,
@@ -5582,42 +3642,6 @@ export const JIT_SUITE = {
         const v: Parameters<CallSig> = [1, true];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        return createPrepareForJson<Parameters<CallSig>>();
-      },
-      deserializePrepareForJson: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        return deserializePrepareForJson<Parameters<CallSig>>();
-      },
-      prepareForJsonReflect: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        const v: Parameters<CallSig> = [1, true];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        const v: Parameters<CallSig> = [1, true];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        return createRestoreFromJson<Parameters<CallSig>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        return deserializeRestoreFromJson<Parameters<CallSig>>();
-      },
-      restoreFromJsonReflect: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        const v: Parameters<CallSig> = [1, true];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type CallSig = (a: number, b: boolean) => string;
-        const v: Parameters<CallSig> = [1, true];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           [1, true],
@@ -5695,42 +3719,6 @@ export const JIT_SUITE = {
         const v: Parameters<CallSig> = [3, true, 'hello'];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        return createPrepareForJson<Parameters<CallSig>>();
-      },
-      deserializePrepareForJson: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        return deserializePrepareForJson<Parameters<CallSig>>();
-      },
-      prepareForJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        const v: Parameters<CallSig> = [3, true, 'hello'];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        const v: Parameters<CallSig> = [3, true, 'hello'];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        return createRestoreFromJson<Parameters<CallSig>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        return deserializeRestoreFromJson<Parameters<CallSig>>();
-      },
-      restoreFromJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        const v: Parameters<CallSig> = [3, true, 'hello'];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, c?: string) => Date;
-        const v: Parameters<CallSig> = [3, true, 'hello'];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           [3, true, 'hello'],
@@ -5801,42 +3789,6 @@ export const JIT_SUITE = {
         const v: Parameters<CallSig> = [3, true];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        return createPrepareForJson<Parameters<CallSig>>();
-      },
-      deserializePrepareForJson: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        return deserializePrepareForJson<Parameters<CallSig>>();
-      },
-      prepareForJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        const v: Parameters<CallSig> = [3, true];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        const v: Parameters<CallSig> = [3, true];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        return createRestoreFromJson<Parameters<CallSig>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        return deserializeRestoreFromJson<Parameters<CallSig>>();
-      },
-      restoreFromJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        const v: Parameters<CallSig> = [3, true];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
-        const v: Parameters<CallSig> = [3, true];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const date1 = new Date();
         const date2 = new Date();
@@ -5902,26 +3854,6 @@ export const JIT_SUITE = {
         const v: Record<'a' | 'b', number> = {a: 1, b: 2};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<Record<'a' | 'b', number>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Record<'a' | 'b', number>>(),
-      prepareForJsonReflect: () => {
-        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Record<'a' | 'b', number>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Record<'a' | 'b', number>>(),
-      restoreFromJsonReflect: () => {
-        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {a: 1, b: 2},
@@ -5981,26 +3913,6 @@ export const JIT_SUITE = {
         const v: {[key: string]: string | number} = {};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{[key: string]: string | number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{[key: string]: string | number}>(),
-      prepareForJsonReflect: () => {
-        const v: {[key: string]: string | number} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {[key: string]: string | number} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: string | number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{[key: string]: string | number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {[key: string]: string | number} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {[key: string]: string | number} = {};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: 1, b: 'x'}],
         invalid: [{a: true}, {a: 'x', b: null}, 'not object', null, undefined, {a: BigInt(1)}, {a: NaN}],
@@ -6039,26 +3951,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{kind: 'a' | 'b'; n: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{kind: 'a' | 'b'; n: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{kind: 'a' | 'b'; n: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{kind: 'a' | 'b'; n: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -6159,82 +4051,6 @@ export const JIT_SUITE = {
         }
         const v: Child = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        return createPrepareForJson<Child>();
-      },
-      deserializePrepareForJson: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        return deserializePrepareForJson<Child>();
-      },
-      prepareForJsonReflect: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        const v: Child = {a: 'x', b: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        const v: Child = {a: 'x', b: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        return createRestoreFromJson<Child>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        return deserializeRestoreFromJson<Child>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        const v: Child = {a: 'x', b: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Base {
-          a: string;
-        }
-        interface Child extends Base {
-          b: number;
-        }
-        const v: Child = {a: 'x', b: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -6338,82 +4154,6 @@ export const JIT_SUITE = {
         const v: Sub = new Sub();
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        return createPrepareForJson<Sub>();
-      },
-      deserializePrepareForJson: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        return deserializePrepareForJson<Sub>();
-      },
-      prepareForJsonReflect: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        const v: Sub = new Sub();
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        const v: Sub = new Sub();
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        return createRestoreFromJson<Sub>();
-      },
-      deserializeRestoreFromJson: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        return deserializeRestoreFromJson<Sub>();
-      },
-      restoreFromJsonReflect: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        const v: Sub = new Sub();
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        class Base {
-          a: string = '';
-        }
-        class Sub extends Base {
-          b: number = 0;
-        }
-        const v: Sub = new Sub();
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {a: 'x', b: 1},
@@ -6462,26 +4202,6 @@ export const JIT_SUITE = {
         const v: {[k: number]: string} = {};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{[k: number]: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{[k: number]: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {[k: number]: string} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {[k: number]: string} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{[k: number]: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{[k: number]: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {[k: number]: string} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {[k: number]: string} = {};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{}, {0: 'x'}, {1: 'x', 2: 'y'}],
         invalid: [{0: 1}, null, 'not object', undefined, {0: null}],
@@ -6495,14 +4215,9 @@ export const JIT_SUITE = {
       ],
     },
   },
-  // TUPLE — ports `isType` test coverage from mion's
-  // packages/run-types/src/nodes/collection/tuple.spec.ts and
-  // serialization-suite.ts TUPLES section.
-  //
-  // Adapters out of scope here (mock / typeErrors / prepareForJson)
-  // get their own adapter file; this block carries the
-  // isType-relevant assertions and the sample shapes those future
-  // adapters will reuse.
+  // TUPLE — ports validation-family test coverage from mion's
+  // packages/run-types/src/nodes/collection/tuple.spec.ts.
+  // JSON serializer tuples live in serialization-suite.ts (TUPLES).
   TUPLE: {
     string_number_pair: {
       title: 'Two-element tuple (string plus number)',
@@ -6529,26 +4244,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number] = ['hello', 1];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<[string, number]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[string, number]>(),
-      prepareForJsonReflect: () => {
-        const v: [string, number] = ['hello', 1];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [string, number] = ['hello', 1];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[string, number]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[string, number]>(),
-      restoreFromJsonReflect: () => {
-        const v: [string, number] = ['hello', 1];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [string, number] = ['hello', 1];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -6616,26 +4311,6 @@ export const JIT_SUITE = {
         const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<[Date, number, string, null, string[], bigint]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[Date, number, string, null, string[], bigint]>(),
-      prepareForJsonReflect: () => {
-        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[Date, number, string, null, string[], bigint]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[Date, number, string, null, string[], bigint]>(),
-      restoreFromJsonReflect: () => {
-        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
         invalid: [
@@ -6686,26 +4361,6 @@ export const JIT_SUITE = {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<[number, bigint?, boolean?, number?]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[number, bigint?, boolean?, number?]>(),
-      prepareForJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[number, bigint?, boolean?, number?]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[number, bigint?, boolean?, number?]>(),
-      restoreFromJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
         invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array', null, undefined, [NaN], ['not number']],
@@ -6747,26 +4402,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number][] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<[string, number][]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[string, number][]>(),
-      prepareForJsonReflect: () => {
-        const v: [string, number][] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [string, number][] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[string, number][]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[string, number][]>(),
-      restoreFromJsonReflect: () => {
-        const v: [string, number][] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [string, number][] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -6822,26 +4457,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [number, ...string[]] = [3];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<[number, ...string[]]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[number, ...string[]]>(),
-      prepareForJsonReflect: () => {
-        const v: [number, ...string[]] = [3];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [number, ...string[]] = [3];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[number, ...string[]]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[number, ...string[]]>(),
-      restoreFromJsonReflect: () => {
-        const v: [number, ...string[]] = [3];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [number, ...string[]] = [3];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
@@ -6906,42 +4521,6 @@ export const JIT_SUITE = {
         const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return createPrepareForJson<TupleCircular>();
-      },
-      deserializePrepareForJson: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return deserializePrepareForJson<TupleCircular>();
-      },
-      prepareForJsonReflect: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return createRestoreFromJson<TupleCircular>();
-      },
-      deserializeRestoreFromJson: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return deserializeRestoreFromJson<TupleCircular>();
-      },
-      restoreFromJsonReflect: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const tc: any = [new Date(), 1, 'a', null, [], 1n];
         const tcRec: any = [new Date(), 1, 'a', null, [], 1n, [new Date(), 1, 'a', null, [], 1n]];
@@ -7000,26 +4579,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<[number, bigint?, boolean?, number?]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[number, bigint?, boolean?, number?]>(),
-      prepareForJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[number, bigint?, boolean?, number?]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[number, bigint?, boolean?, number?]>(),
-      restoreFromJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [number, bigint?, boolean?, number?] = [3];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -7082,26 +4641,6 @@ export const JIT_SUITE = {
         const v: [name: string, age: number] = ['Alice', 30];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<[name: string, age: number]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[name: string, age: number]>(),
-      prepareForJsonReflect: () => {
-        const v: [name: string, age: number] = ['Alice', 30];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [name: string, age: number] = ['Alice', 30];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[name: string, age: number]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[name: string, age: number]>(),
-      restoreFromJsonReflect: () => {
-        const v: [name: string, age: number] = ['Alice', 30];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [name: string, age: number] = ['Alice', 30];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           ['Alice', 30],
@@ -7156,26 +4695,6 @@ export const JIT_SUITE = {
         const v: [number, () => any] = [3, () => null];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<[number, () => any]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[number, () => any]>(),
-      prepareForJsonReflect: () => {
-        const v: [number, () => any] = [3, () => null];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [number, () => any] = [3, () => null];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[number, () => any]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[number, () => any]>(),
-      restoreFromJsonReflect: () => {
-        const v: [number, () => any] = [3, () => null];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [number, () => any] = [3, () => null];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         // `[3]` is valid — v[1] is undefined which satisfies the
         // `v[1] === undefined` check the function slot emits.
@@ -7227,26 +4746,6 @@ export const JIT_SUITE = {
         const v: [] = [];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[]>(),
-      prepareForJsonReflect: () => {
-        const v: [] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[]>(),
-      restoreFromJsonReflect: () => {
-        const v: [] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [] = [];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [[]],
         invalid: [['extra'], [1], null, undefined, {}, 'not array', [null]],
@@ -7285,26 +4784,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string] = ['x'];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<[string]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<[string]>(),
-      prepareForJsonReflect: () => {
-        const v: [string] = ['x'];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: [string] = ['x'];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<[string]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[string]>(),
-      restoreFromJsonReflect: () => {
-        const v: [string] = ['x'];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: [string] = ['x'];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [['hello'], ['']],
@@ -7347,26 +4826,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: readonly [string, number] = ['x', 1];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<readonly [string, number]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<readonly [string, number]>(),
-      prepareForJsonReflect: () => {
-        const v: readonly [string, number] = ['x', 1];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: readonly [string, number] = ['x', 1];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<readonly [string, number]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<readonly [string, number]>(),
-      restoreFromJsonReflect: () => {
-        const v: readonly [string, number] = ['x', 1];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: readonly [string, number] = ['x', 1];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -7428,26 +4887,6 @@ export const JIT_SUITE = {
         const v: Date | number | string | null | bigint = 123;
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<Date | number | string | null | bigint>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Date | number | string | null | bigint>(),
-      prepareForJsonReflect: () => {
-        const v: Date | number | string | null | bigint = 123;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Date | number | string | null | bigint = 123;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Date | number | string | null | bigint>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date | number | string | null | bigint>(),
-      restoreFromJsonReflect: () => {
-        const v: Date | number | string | null | bigint = 123;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Date | number | string | null | bigint = 123;
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
         invalid: [{}, [], true, undefined, new Date('invalid'), Infinity, Symbol(), () => null],
@@ -7488,26 +4927,6 @@ export const JIT_SUITE = {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<'UNO' | 'DOS' | 'TRES'>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<'UNO' | 'DOS' | 'TRES'>(),
-      prepareForJsonReflect: () => {
-        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<'UNO' | 'DOS' | 'TRES'>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<'UNO' | 'DOS' | 'TRES'>(),
-      restoreFromJsonReflect: () => {
-        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['UNO', 'DOS', 'TRES'],
         invalid: ['INVALID', 'uno', '', 42, null, undefined, true, 'Uno', {}],
@@ -7546,26 +4965,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string | number = 'hello';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<string | number>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string | number>(),
-      prepareForJsonReflect: () => {
-        const v: string | number = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string | number = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string | number>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string | number>(),
-      restoreFromJsonReflect: () => {
-        const v: string | number = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string | number = 'hello';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0, ''],
@@ -7608,26 +5007,6 @@ export const JIT_SUITE = {
         const v: string[] | number[] | boolean[] = ['a'];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<string[] | number[] | boolean[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[] | number[] | boolean[]>(),
-      prepareForJsonReflect: () => {
-        const v: string[] | number[] | boolean[] = ['a'];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string[] | number[] | boolean[] = ['a'];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string[] | number[] | boolean[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[] | number[] | boolean[]>(),
-      restoreFromJsonReflect: () => {
-        const v: string[] | number[] | boolean[] = ['a'];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string[] | number[] | boolean[] = ['a'];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [['a'], [1], [true, false], [], ['a', 'b']],
         invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [Infinity], [null], [BigInt(1)]],
@@ -7668,26 +5047,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: (string | bigint | boolean | Date)[] = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<(string | bigint | boolean | Date)[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<(string | bigint | boolean | Date)[]>(),
-      prepareForJsonReflect: () => {
-        const v: (string | bigint | boolean | Date)[] = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: (string | bigint | boolean | Date)[] = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<(string | bigint | boolean | Date)[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<(string | bigint | boolean | Date)[]>(),
-      restoreFromJsonReflect: () => {
-        const v: (string | bigint | boolean | Date)[] = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: (string | bigint | boolean | Date)[] = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
@@ -7737,26 +5096,6 @@ export const JIT_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
         // because `{b: number}` is satisfied. Our emit accepts any
@@ -7802,26 +5141,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -7894,42 +5213,6 @@ export const JIT_SUITE = {
         const v: UnionC = 'hello';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return createPrepareForJson<UnionC>();
-      },
-      deserializePrepareForJson: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return deserializePrepareForJson<UnionC>();
-      },
-      prepareForJsonReflect: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        const v: UnionC = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        const v: UnionC = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return createRestoreFromJson<UnionC>();
-      },
-      deserializeRestoreFromJson: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return deserializeRestoreFromJson<UnionC>();
-      },
-      restoreFromJsonReflect: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        const v: UnionC = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        const v: UnionC = 'hello';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
         invalid: [true, null, undefined, {a: true}, [true], new Date('invalid'), Infinity, Symbol()],
@@ -7983,40 +5266,6 @@ export const JIT_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-      deserializePrepareForJson: () =>
-        deserializePrepareForJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-      prepareForJsonReflect: () => {
-        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
-          name: 'x',
-          getName: () => 'x',
-        };
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
-          name: 'x',
-          getName: () => 'x',
-        };
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-      deserializeRestoreFromJson: () =>
-        deserializeRestoreFromJson<{name: string; getName(): string} | {age: number; getAge(): number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
-          name: 'x',
-          getName: () => 'x',
-        };
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
-          name: 'x',
-          getName: () => 'x',
-        };
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
@@ -8057,26 +5306,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string} & {b: number} = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string} & {b: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: string} & {b: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string} & {b: number} = {a: 'x', b: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string} & {b: number} = {a: 'x', b: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string} & {b: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string} & {b: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string} & {b: number} = {a: 'x', b: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string} & {b: number} = {a: 'x', b: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -8128,28 +5357,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-      deserializePrepareForJson: () =>
-        deserializePrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-      deserializeRestoreFromJson: () =>
-        deserializeRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
@@ -8214,42 +5421,6 @@ export const JIT_SUITE = {
           prop: true,
         };
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () =>
-        createPrepareForJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-      deserializePrepareForJson: () =>
-        deserializePrepareForJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
-          type: 'a',
-          prop: true,
-        };
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
-          type: 'a',
-          prop: true,
-        };
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () =>
-        createRestoreFromJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-      deserializeRestoreFromJson: () =>
-        deserializeRestoreFromJson<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
-          type: 'a',
-          prop: true,
-        };
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
-          type: 'a',
-          prop: true,
-        };
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -8328,54 +5499,6 @@ export const JIT_SUITE = {
         ];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () =>
-        createPrepareForJson<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
-      deserializePrepareForJson: () =>
-        deserializePrepareForJson<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
-      prepareForJsonReflect: () => {
-        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
-          'a',
-          'b',
-          'c',
-        ];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
-          'a',
-          'b',
-          'c',
-        ];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () =>
-        createRestoreFromJson<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
-      deserializeRestoreFromJson: () =>
-        deserializeRestoreFromJson<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
-      restoreFromJsonReflect: () => {
-        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
-          'a',
-          'b',
-          'c',
-        ];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
-          'a',
-          'b',
-          'c',
-        ];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -8428,26 +5551,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: boolean} | {a: number} = {a: true};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{a: boolean} | {a: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{a: boolean} | {a: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {a: boolean} | {a: number} = {a: true};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {a: boolean} | {a: number} = {a: true};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{a: boolean} | {a: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: boolean} | {a: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {a: boolean} | {a: number} = {a: true};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {a: boolean} | {a: number} = {a: true};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
@@ -8536,74 +5639,6 @@ export const JIT_SUITE = {
           | {[key: string]: bigint; b: bigint} = ['a'];
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () =>
-        createPrepareForJson<
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint}
-        >(),
-      deserializePrepareForJson: () =>
-        deserializePrepareForJson<
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint}
-        >(),
-      prepareForJsonReflect: () => {
-        const v:
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint} = ['a'];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v:
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint} = ['a'];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () =>
-        createRestoreFromJson<
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint}
-        >(),
-      deserializeRestoreFromJson: () =>
-        deserializeRestoreFromJson<
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint}
-        >(),
-      restoreFromJsonReflect: () => {
-        const v:
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint} = ['a'];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v:
-          | string[]
-          | {a: string; aa: boolean}
-          | {b: number}
-          | {a: string; [key: string]: string}
-          | {[key: string]: bigint; b: bigint} = ['a'];
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -8650,26 +5685,6 @@ export const JIT_SUITE = {
         const v: string | any = 'hello';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<string | any>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string | any>(),
-      prepareForJsonReflect: () => {
-        const v: string | any = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string | any = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string | any>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string | any>(),
-      restoreFromJsonReflect: () => {
-        const v: string | any = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string | any = 'hello';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
@@ -8701,26 +5716,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string | unknown = 'hello';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<string | unknown>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string | unknown>(),
-      prepareForJsonReflect: () => {
-        const v: string | unknown = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: string | unknown = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<string | unknown>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string | unknown>(),
-      restoreFromJsonReflect: () => {
-        const v: string | unknown = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: string | unknown = 'hello';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -8818,90 +5813,6 @@ export const JIT_SUITE = {
         }
         const v: SmallObj | LargeObj = {a: 'hello'};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        return createPrepareForJson<SmallObj | LargeObj>();
-      },
-      deserializePrepareForJson: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        return deserializePrepareForJson<SmallObj | LargeObj>();
-      },
-      prepareForJsonReflect: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        const v: SmallObj | LargeObj = {a: 'hello'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        const v: SmallObj | LargeObj = {a: 'hello'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        return createRestoreFromJson<SmallObj | LargeObj>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        return deserializeRestoreFromJson<SmallObj | LargeObj>();
-      },
-      restoreFromJsonReflect: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        const v: SmallObj | LargeObj = {a: 'hello'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface SmallObj {
-          a: string;
-        }
-        interface LargeObj {
-          a: string;
-          b: number;
-        }
-        const v: SmallObj | LargeObj = {a: 'hello'};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -9047,130 +5958,6 @@ export const JIT_SUITE = {
         const v: Tiny | Medium | Large = {x: 'hello'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        return createPrepareForJson<Tiny | Medium | Large>();
-      },
-      deserializePrepareForJson: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        return deserializePrepareForJson<Tiny | Medium | Large>();
-      },
-      prepareForJsonReflect: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        const v: Tiny | Medium | Large = {x: 'hello'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        const v: Tiny | Medium | Large = {x: 'hello'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        return createRestoreFromJson<Tiny | Medium | Large>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        return deserializeRestoreFromJson<Tiny | Medium | Large>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        const v: Tiny | Medium | Large = {x: 'hello'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Tiny {
-          x: string;
-        }
-        interface Medium {
-          x: string;
-          y: number;
-        }
-        interface Large {
-          x: string;
-          y: number;
-          z: boolean;
-        }
-        const v: Tiny | Medium | Large = {x: 'hello'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
         // Note: `{x: 'hello', ...}` passes the Tiny arm regardless of
@@ -9300,114 +6087,6 @@ export const JIT_SUITE = {
         const v: Base | Extended | Unrelated = {id: '123'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        return createPrepareForJson<Base | Extended | Unrelated>();
-      },
-      deserializePrepareForJson: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        return deserializePrepareForJson<Base | Extended | Unrelated>();
-      },
-      prepareForJsonReflect: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        const v: Base | Extended | Unrelated = {id: '123'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        const v: Base | Extended | Unrelated = {id: '123'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        return createRestoreFromJson<Base | Extended | Unrelated>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        return deserializeRestoreFromJson<Base | Extended | Unrelated>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        const v: Base | Extended | Unrelated = {id: '123'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Base {
-          id: string;
-        }
-        interface Extended {
-          id: string;
-          name: string;
-        }
-        interface Unrelated {
-          value: number;
-        }
-        const v: Base | Extended | Unrelated = {id: '123'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
         invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}, null, undefined, {value: NaN}],
@@ -9464,26 +6143,6 @@ export const JIT_SUITE = {
         const v: `api/user/${number}` = 'api/user/42';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<`api/user/${number}`>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<`api/user/${number}`>(),
-      prepareForJsonReflect: () => {
-        const v: `api/user/${number}` = 'api/user/42';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: `api/user/${number}` = 'api/user/42';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<`api/user/${number}`>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<`api/user/${number}`>(),
-      restoreFromJsonReflect: () => {
-        const v: `api/user/${number}` = 'api/user/42';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: `api/user/${number}` = 'api/user/42';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
         invalid: [
@@ -9536,26 +6195,6 @@ export const JIT_SUITE = {
         const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<`/api/v${number}/user/${string}/posts/${number}`>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<`/api/v${number}/user/${string}/posts/${number}`>(),
-      prepareForJsonReflect: () => {
-        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<`/api/v${number}/user/${string}/posts/${number}`>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<`/api/v${number}/user/${string}/posts/${number}`>(),
-      restoreFromJsonReflect: () => {
-        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
         invalid: [
@@ -9605,26 +6244,6 @@ export const JIT_SUITE = {
         const v: `${string}/${number}` = '/42';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<`${string}/${number}`>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<`${string}/${number}`>(),
-      prepareForJsonReflect: () => {
-        const v: `${string}/${number}` = '/42';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: `${string}/${number}` = '/42';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<`${string}/${number}`>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<`${string}/${number}`>(),
-      restoreFromJsonReflect: () => {
-        const v: `${string}/${number}` = '/42';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: `${string}/${number}` = '/42';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['/42', 'users/42'],
         invalid: ['users', '/abc', null, undefined, '', 42, 'abc/abc'],
@@ -9663,26 +6282,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: `(${number})` = '(42)';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<`(${number})`>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<`(${number})`>(),
-      prepareForJsonReflect: () => {
-        const v: `(${number})` = '(42)';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: `(${number})` = '(42)';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<`(${number})`>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<`(${number})`>(),
-      restoreFromJsonReflect: () => {
-        const v: `(${number})` = '(42)';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: `(${number})` = '(42)';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['(42)', '(0)', '(-3.14)'],
@@ -9724,26 +6323,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<{url: `api/user/${number}`; method: string}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{url: `api/user/${number}`; method: string}>(),
-      prepareForJsonReflect: () => {
-        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{url: `api/user/${number}`; method: string}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{url: `api/user/${number}`; method: string}>(),
-      restoreFromJsonReflect: () => {
-        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{url: 'api/user/42', method: 'GET'}],
@@ -9794,26 +6373,6 @@ export const JIT_SUITE = {
         const v: {[key: `api/${string}`]: number} = {};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<{[key: `api/${string}`]: number}>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<{[key: `api/${string}`]: number}>(),
-      prepareForJsonReflect: () => {
-        const v: {[key: `api/${string}`]: number} = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: {[key: `api/${string}`]: number} = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<{[key: `api/${string}`]: number}>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{[key: `api/${string}`]: number}>(),
-      restoreFromJsonReflect: () => {
-        const v: {[key: `api/${string}`]: number} = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: {[key: `api/${string}`]: number} = {};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
         invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null, undefined, {'api/users': NaN}],
@@ -9856,26 +6415,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: `${'a' | 'b'}-${number}` = 'a-42';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<`${'a' | 'b'}-${number}`>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<`${'a' | 'b'}-${number}`>(),
-      prepareForJsonReflect: () => {
-        const v: `${'a' | 'b'}-${number}` = 'a-42';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: `${'a' | 'b'}-${number}` = 'a-42';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<`${'a' | 'b'}-${number}`>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<`${'a' | 'b'}-${number}`>(),
-      restoreFromJsonReflect: () => {
-        const v: `${'a' | 'b'}-${number}` = 'a-42';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: `${'a' | 'b'}-${number}` = 'a-42';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['a-42', 'b-0', 'a--3.14'],
@@ -9934,26 +6473,6 @@ export const JIT_SUITE = {
         const v: Map<string, number> = new Map();
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<Map<string, number>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Map<string, number>>(),
-      prepareForJsonReflect: () => {
-        const v: Map<string, number> = new Map();
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Map<string, number> = new Map();
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Map<string, number>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Map<string, number>>(),
-      restoreFromJsonReflect: () => {
-        const v: Map<string, number> = new Map();
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Map<string, number> = new Map();
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const empty = new Map();
         const one = new Map([['a', 1]]);
@@ -10009,26 +6528,6 @@ export const JIT_SUITE = {
         const v: Set<string> = new Set();
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => createPrepareForJson<Set<string>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Set<string>>(),
-      prepareForJsonReflect: () => {
-        const v: Set<string> = new Set();
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Set<string> = new Set();
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Set<string>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Set<string>>(),
-      restoreFromJsonReflect: () => {
-        const v: Set<string> = new Set();
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Set<string> = new Set();
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => {
         const empty = new Set<string>();
         const one = new Set(['a']);
@@ -10060,7 +6559,6 @@ export const JIT_SUITE = {
       title: 'Promise — thenable check, wrapped type not validated',
       description:
         "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at JIT compile (mion's nodes/native/promise.ts).",
-      jsonFamilyThrowsAtCompile: true,
       isTypeNotes: [
         'TS DIVERGENCE: Promise validation is a "thenable" check — any object with a `then: function` PASSES, even if it is not an actual `Promise` instance.',
         'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',
@@ -10084,26 +6582,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Promise<string> = Promise.resolve('x');
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<Promise<string>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Promise<string>>(),
-      prepareForJsonReflect: () => {
-        const v: Promise<string> = Promise.resolve('x');
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Promise<string> = Promise.resolve('x');
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Promise<string>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Promise<string>>(),
-      restoreFromJsonReflect: () => {
-        const v: Promise<string> = Promise.resolve('x');
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Promise<string> = Promise.resolve('x');
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => {
         const realPromise = Promise.resolve('x');
@@ -10152,26 +6630,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Awaited<Promise<string>> = 'hello';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<Awaited<Promise<string>>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Awaited<Promise<string>>>(),
-      prepareForJsonReflect: () => {
-        const v: Awaited<Promise<string>> = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Awaited<Promise<string>> = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Awaited<Promise<string>>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Awaited<Promise<string>>>(),
-      restoreFromJsonReflect: () => {
-        const v: Awaited<Promise<string>> = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Awaited<Promise<string>> = 'hello';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', ''],
@@ -10286,82 +6744,6 @@ export const JIT_SUITE = {
         const v: Circular = {n: 1, s: 'hello'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        return createPrepareForJson<Circular>();
-      },
-      deserializePrepareForJson: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        return deserializePrepareForJson<Circular>();
-      },
-      prepareForJsonReflect: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        const v: Circular = {n: 1, s: 'hello'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        const v: Circular = {n: 1, s: 'hello'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        return createRestoreFromJson<Circular>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        return deserializeRestoreFromJson<Circular>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        const v: Circular = {n: 1, s: 'hello'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Circular {
-          n: number;
-          s: string;
-          c?: Circular;
-          d?: Date;
-        }
-        const v: Circular = {n: 1, s: 'hello'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {n: 1, s: 'hello', c: {n: 2, s: 'world'}},
@@ -10433,42 +6815,6 @@ export const JIT_SUITE = {
         type CuArray = (CuArray | Date | number | string)[];
         const v: CuArray = [];
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        return createPrepareForJson<CuArray>();
-      },
-      deserializePrepareForJson: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        return deserializePrepareForJson<CuArray>();
-      },
-      prepareForJsonReflect: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        const v: CuArray = [];
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        const v: CuArray = [];
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        return createRestoreFromJson<CuArray>();
-      },
-      deserializeRestoreFromJson: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        return deserializeRestoreFromJson<CuArray>();
-      },
-      restoreFromJsonReflect: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        const v: CuArray = [];
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type CuArray = (CuArray | Date | number | string)[];
-        const v: CuArray = [];
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => {
         const date = new Date();
@@ -10562,58 +6908,6 @@ export const JIT_SUITE = {
         const v: CircularTuple = {tuple: [1n]};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        return createPrepareForJson<CircularTuple>();
-      },
-      deserializePrepareForJson: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        return deserializePrepareForJson<CircularTuple>();
-      },
-      prepareForJsonReflect: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        const v: CircularTuple = {tuple: [1n]};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        const v: CircularTuple = {tuple: [1n]};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        return createRestoreFromJson<CircularTuple>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        return deserializeRestoreFromJson<CircularTuple>();
-      },
-      restoreFromJsonReflect: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        const v: CircularTuple = {tuple: [1n]};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface CircularTuple {
-          tuple: [bigint, CircularTuple?];
-        }
-        const v: CircularTuple = {tuple: [1n]};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
         invalid: [
@@ -10703,58 +6997,6 @@ export const JIT_SUITE = {
         const v: CircularIndex = {index: {}};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        return createPrepareForJson<CircularIndex>();
-      },
-      deserializePrepareForJson: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        return deserializePrepareForJson<CircularIndex>();
-      },
-      prepareForJsonReflect: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        const v: CircularIndex = {index: {}};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        const v: CircularIndex = {index: {}};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        return createRestoreFromJson<CircularIndex>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        return deserializeRestoreFromJson<CircularIndex>();
-      },
-      restoreFromJsonReflect: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        const v: CircularIndex = {index: {}};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface CircularIndex {
-          index: {[key: string]: CircularIndex};
-        }
-        const v: CircularIndex = {index: {}};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
         invalid: [
@@ -10840,58 +7082,6 @@ export const JIT_SUITE = {
         }
         const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        return createPrepareForJson<CircularDeep>();
-      },
-      deserializePrepareForJson: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        return deserializePrepareForJson<CircularDeep>();
-      },
-      prepareForJsonReflect: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        return createRestoreFromJson<CircularDeep>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        return deserializeRestoreFromJson<CircularDeep>();
-      },
-      restoreFromJsonReflect: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface CircularDeep {
-          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-        }
-        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
@@ -11044,118 +7234,6 @@ export const JIT_SUITE = {
           ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         };
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        return createPrepareForJson<RootNotCircular>();
-      },
-      deserializePrepareForJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        return deserializePrepareForJson<RootNotCircular>();
-      },
-      prepareForJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        const v: RootNotCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-        };
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        const v: RootNotCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-        };
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        return createRestoreFromJson<RootNotCircular>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        return deserializeRestoreFromJson<RootNotCircular>();
-      },
-      restoreFromJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        const v: RootNotCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-        };
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface RootNotCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-        }
-        const v: RootNotCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-        };
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -11407,194 +7485,6 @@ export const JIT_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        return createPrepareForJson<RootCircular>();
-      },
-      deserializePrepareForJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        return deserializePrepareForJson<RootCircular>();
-      },
-      prepareForJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        const v: RootCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-          ciDate: {date: new Date(), month: 1, year: 2021},
-        };
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        const v: RootCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-          ciDate: {date: new Date(), month: 1, year: 2021},
-        };
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        return createRestoreFromJson<RootCircular>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        return deserializeRestoreFromJson<RootCircular>();
-      },
-      restoreFromJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        const v: RootCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-          ciDate: {date: new Date(), month: 1, year: 2021},
-        };
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface ICircularDeep {
-          name: string;
-          big: bigint;
-          embedded: {hello: string; child?: ICircularDeep};
-        }
-        interface ICircularDate {
-          date: Date;
-          month: number;
-          year: number;
-          embedded?: ICircularDate;
-          deep?: ICircularDeep;
-        }
-        interface RootCircular {
-          isRoot: true;
-          ciChild: ICircularDeep;
-          ciRoort?: RootCircular;
-          ciDate: ICircularDate;
-        }
-        const v: RootCircular = {
-          isRoot: true,
-          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
-          ciDate: {date: new Date(), month: 1, year: 2021},
-        };
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {
@@ -11778,74 +7668,6 @@ export const JIT_SUITE = {
         const v: Partial<Person> = {};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createPrepareForJson<Partial<Person>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializePrepareForJson<Partial<Person>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createRestoreFromJson<Partial<Person>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializeRestoreFromJson<Partial<Person>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> = {};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
         invalid: [
@@ -11950,74 +7772,6 @@ export const JIT_SUITE = {
         }
         const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        return createPrepareForJson<Required<MaybePerson>>();
-      },
-      deserializePrepareForJson: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        return deserializePrepareForJson<Required<MaybePerson>>();
-      },
-      prepareForJsonReflect: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        return createRestoreFromJson<Required<MaybePerson>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        return deserializeRestoreFromJson<Required<MaybePerson>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface MaybePerson {
-          name?: string;
-          age?: number;
-          createdAt?: Date;
-        }
-        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{name: 'John', age: 30, createdAt: new Date()}],
@@ -12125,74 +7879,6 @@ export const JIT_SUITE = {
         const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createPrepareForJson<Pick<Person, 'name' | 'createdAt'>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializePrepareForJson<Pick<Person, 'name' | 'createdAt'>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createRestoreFromJson<Pick<Person, 'name' | 'createdAt'>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializeRestoreFromJson<Pick<Person, 'name' | 'createdAt'>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -12291,74 +7977,6 @@ export const JIT_SUITE = {
         const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createPrepareForJson<Omit<Person, 'age'>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializePrepareForJson<Omit<Person, 'age'>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createRestoreFromJson<Omit<Person, 'age'>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializeRestoreFromJson<Omit<Person, 'age'>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -12397,26 +8015,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-      prepareForJsonReflect: () => {
-        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
-      restoreFromJsonReflect: () => {
-        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
@@ -12457,26 +8055,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      prepareForJsonReflect: () => {
-        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      restoreFromJsonReflect: () => {
-        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
@@ -12557,66 +8135,6 @@ export const JIT_SUITE = {
         const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        return createPrepareForJson<Exclude<Shape, {kind: 'circle'}>>();
-      },
-      deserializePrepareForJson: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        return deserializePrepareForJson<Exclude<Shape, {kind: 'circle'}>>();
-      },
-      prepareForJsonReflect: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        return createRestoreFromJson<Exclude<Shape, {kind: 'circle'}>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        return deserializeRestoreFromJson<Exclude<Shape, {kind: 'circle'}>>();
-      },
-      restoreFromJsonReflect: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; base: number; height: number};
-        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {kind: 'square', x: 5},
@@ -12665,26 +8183,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: NonNullable<string | number | null | undefined> = 'hello';
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<NonNullable<string | number | null | undefined>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<NonNullable<string | number | null | undefined>>(),
-      prepareForJsonReflect: () => {
-        const v: NonNullable<string | number | null | undefined> = 'hello';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: NonNullable<string | number | null | undefined> = 'hello';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<NonNullable<string | number | null | undefined>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<NonNullable<string | number | null | undefined>>(),
-      restoreFromJsonReflect: () => {
-        const v: NonNullable<string | number | null | undefined> = 'hello';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: NonNullable<string | number | null | undefined> = 'hello';
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0],
@@ -12739,42 +8237,6 @@ export const JIT_SUITE = {
         type Fn = (a: number, b: boolean) => Date;
         const v: ReturnType<Fn> = new Date();
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        return createPrepareForJson<ReturnType<Fn>>();
-      },
-      deserializePrepareForJson: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        return deserializePrepareForJson<ReturnType<Fn>>();
-      },
-      prepareForJsonReflect: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        const v: ReturnType<Fn> = new Date();
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        const v: ReturnType<Fn> = new Date();
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        return createRestoreFromJson<ReturnType<Fn>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        return deserializeRestoreFromJson<ReturnType<Fn>>();
-      },
-      restoreFromJsonReflect: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        const v: ReturnType<Fn> = new Date();
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type Fn = (a: number, b: boolean) => Date;
-        const v: ReturnType<Fn> = new Date();
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -12855,66 +8317,6 @@ export const JIT_SUITE = {
         }
         const v: Readonly<Person> = {name: 'John', age: 30};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return createPrepareForJson<Readonly<Person>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return deserializePrepareForJson<Readonly<Person>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Readonly<Person> = {name: 'John', age: 30};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Readonly<Person> = {name: 'John', age: 30};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return createRestoreFromJson<Readonly<Person>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return deserializeRestoreFromJson<Readonly<Person>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Readonly<Person> = {name: 'John', age: 30};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Readonly<Person> = {name: 'John', age: 30};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -13018,74 +8420,6 @@ export const JIT_SUITE = {
         const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createPrepareForJson<Partial<Person> & Required<Pick<Person, 'name'>>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializePrepareForJson<Partial<Person> & Required<Pick<Person, 'name'>>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createRestoreFromJson<Partial<Person> & Required<Pick<Person, 'name'>>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializeRestoreFromJson<Partial<Person> & Required<Pick<Person, 'name'>>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {name: 'John'},
@@ -13138,26 +8472,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => createPrepareForJson<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-      prepareForJsonReflect: () => {
-        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => createRestoreFromJson<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
-      restoreFromJsonReflect: () => {
-        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
@@ -13252,74 +8566,6 @@ export const JIT_SUITE = {
         const v: keyof Person = 'name';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createPrepareForJson<keyof Person>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializePrepareForJson<keyof Person>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: keyof Person = 'name';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: keyof Person = 'name';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return createRestoreFromJson<keyof Person>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        return deserializeRestoreFromJson<keyof Person>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: keyof Person = 'name';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-          createdAt: Date;
-        }
-        const v: keyof Person = 'name';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['name', 'age', 'createdAt'],
         invalid: ['other', '', 42, null, undefined, true, 'Name'],
@@ -13372,38 +8618,6 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const config = {url: 'http://example.com', port: 8080};
         return deserializeGetTypeErrors(config);
-      },
-      prepareForJson: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return createPrepareForJson<typeof config>();
-      },
-      deserializePrepareForJson: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return deserializePrepareForJson<typeof config>();
-      },
-      prepareForJsonReflect: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return createPrepareForJson(config);
-      },
-      deserializePrepareForJsonReflect: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return deserializePrepareForJson(config);
-      },
-      restoreFromJson: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return createRestoreFromJson<typeof config>();
-      },
-      deserializeRestoreFromJson: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return deserializeRestoreFromJson<typeof config>();
-      },
-      restoreFromJsonReflect: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return createRestoreFromJson(config);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        const config = {url: 'http://example.com', port: 8080};
-        return deserializeRestoreFromJson(config);
       },
       getSamples: () => ({
         valid: [
@@ -13491,66 +8705,6 @@ export const JIT_SUITE = {
         const v: Person['name'] = 'x';
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return createPrepareForJson<Person['name']>();
-      },
-      deserializePrepareForJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return deserializePrepareForJson<Person['name']>();
-      },
-      prepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Person['name'] = 'x';
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Person['name'] = 'x';
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return createRestoreFromJson<Person['name']>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        return deserializeRestoreFromJson<Person['name']>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Person['name'] = 'x';
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Person {
-          name: string;
-          age: number;
-        }
-        const v: Person['name'] = 'x';
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [42, null, undefined, true],
@@ -13602,42 +8756,6 @@ export const JIT_SUITE = {
         type IsString<T> = T extends string ? boolean : number;
         const v: IsString<'hello'> = true;
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        return createPrepareForJson<IsString<'hello'>>();
-      },
-      deserializePrepareForJson: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        return deserializePrepareForJson<IsString<'hello'>>();
-      },
-      prepareForJsonReflect: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        const v: IsString<'hello'> = true;
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        const v: IsString<'hello'> = true;
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        return createRestoreFromJson<IsString<'hello'>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        return deserializeRestoreFromJson<IsString<'hello'>>();
-      },
-      restoreFromJsonReflect: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        const v: IsString<'hello'> = true;
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type IsString<T> = T extends string ? boolean : number;
-        const v: IsString<'hello'> = true;
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [true, false],
@@ -13724,74 +8842,6 @@ export const JIT_SUITE = {
         type Nullable<T> = {[K in keyof T]: T[K] | null};
         const v: Nullable<Source> = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        return createPrepareForJson<Nullable<Source>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        return deserializePrepareForJson<Nullable<Source>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        const v: Nullable<Source> = {a: 'x', b: 1};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        const v: Nullable<Source> = {a: 'x', b: 1};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        return createRestoreFromJson<Nullable<Source>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        return deserializeRestoreFromJson<Nullable<Source>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        const v: Nullable<Source> = {a: 'x', b: 1};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Source {
-          a: string;
-          b: number;
-        }
-        type Nullable<T> = {[K in keyof T]: T[K] | null};
-        const v: Nullable<Source> = {a: 'x', b: 1};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -13973,154 +9023,6 @@ export const JIT_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        return createPrepareForJson<UserForm>();
-      },
-      deserializePrepareForJson: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        return deserializePrepareForJson<UserForm>();
-      },
-      prepareForJsonReflect: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        const v: UserForm = {
-          name: {kind: 'text', value: 'x'},
-          age: {kind: 'number', value: 1},
-          admin: {kind: 'checkbox', value: true},
-        };
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        const v: UserForm = {
-          name: {kind: 'text', value: 'x'},
-          age: {kind: 'number', value: 1},
-          admin: {kind: 'checkbox', value: true},
-        };
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        return createRestoreFromJson<UserForm>();
-      },
-      deserializeRestoreFromJson: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        return deserializeRestoreFromJson<UserForm>();
-      },
-      restoreFromJsonReflect: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        const v: UserForm = {
-          name: {kind: 'text', value: 'x'},
-          age: {kind: 'number', value: 1},
-          admin: {kind: 'checkbox', value: true},
-        };
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type FieldFor<T> = T extends string
-          ? {kind: 'text'; value: string}
-          : T extends number
-            ? {kind: 'number'; value: number; min?: number}
-            : T extends boolean
-              ? {kind: 'checkbox'; value: boolean}
-              : never;
-        interface User {
-          name: string;
-          age: number;
-          admin: boolean;
-        }
-        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
-        const v: UserForm = {
-          name: {kind: 'text', value: 'x'},
-          age: {kind: 'number', value: 1},
-          admin: {kind: 'checkbox', value: true},
-        };
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {
@@ -14210,42 +9112,6 @@ export const JIT_SUITE = {
         const v: Wrap<string | number> = {w: 'x'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        return createPrepareForJson<Wrap<string | number>>();
-      },
-      deserializePrepareForJson: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        return deserializePrepareForJson<Wrap<string | number>>();
-      },
-      prepareForJsonReflect: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        const v: Wrap<string | number> = {w: 'x'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        const v: Wrap<string | number> = {w: 'x'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        return createRestoreFromJson<Wrap<string | number>>();
-      },
-      deserializeRestoreFromJson: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        return deserializeRestoreFromJson<Wrap<string | number>>();
-      },
-      restoreFromJsonReflect: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        const v: Wrap<string | number> = {w: 'x'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        type Wrap<T> = T extends any ? {w: T} : never;
-        const v: Wrap<string | number> = {w: 'x'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{w: 'hello'}, {w: 42}],
         invalid: [{w: true}, {w: null}, {}, null, undefined, {w: NaN}],
@@ -14333,74 +9199,6 @@ export const JIT_SUITE = {
         type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
         const v: DeepPartial<Settings> = {};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        return createPrepareForJson<DeepPartial<Settings>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        return deserializePrepareForJson<DeepPartial<Settings>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        const v: DeepPartial<Settings> = {};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        const v: DeepPartial<Settings> = {};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        return createRestoreFromJson<DeepPartial<Settings>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        return deserializeRestoreFromJson<DeepPartial<Settings>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        const v: DeepPartial<Settings> = {};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Settings {
-          display: {theme: 'light' | 'dark'; brightness: number};
-          audio: {volume: number; muted: boolean};
-        }
-        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
-        const v: DeepPartial<Settings> = {};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -14520,74 +9318,6 @@ export const JIT_SUITE = {
         const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        return createPrepareForJson<Prefixed<Source>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        return deserializePrepareForJson<Prefixed<Source>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        return createRestoreFromJson<Prefixed<Source>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        return deserializeRestoreFromJson<Prefixed<Source>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-        }
-        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
-        const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [
           {user_id: 1, user_name: 'x'},
@@ -14693,82 +9423,6 @@ export const JIT_SUITE = {
         const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
         return deserializeGetTypeErrors(v);
       },
-      prepareForJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        return createPrepareForJson<MongoForm<Source>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        return deserializePrepareForJson<MongoForm<Source>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        return createRestoreFromJson<MongoForm<Source>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        return deserializeRestoreFromJson<MongoForm<Source>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          createdAt: Date;
-        }
-        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
-        const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
-        return deserializeRestoreFromJson(v);
-      },
       getSamples: () => ({
         valid: [{_id: 1, name: 'x', createdAt: new Date()}],
         invalid: [
@@ -14872,82 +9526,6 @@ export const JIT_SUITE = {
         type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
         const v: Public<Source> = {id: 1, name: 'x'};
         return deserializeGetTypeErrors(v);
-      },
-      prepareForJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        return createPrepareForJson<Public<Source>>();
-      },
-      deserializePrepareForJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        return deserializePrepareForJson<Public<Source>>();
-      },
-      prepareForJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        const v: Public<Source> = {id: 1, name: 'x'};
-        return createPrepareForJson(v);
-      },
-      deserializePrepareForJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        const v: Public<Source> = {id: 1, name: 'x'};
-        return deserializePrepareForJson(v);
-      },
-      restoreFromJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        return createRestoreFromJson<Public<Source>>();
-      },
-      deserializeRestoreFromJson: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        return deserializeRestoreFromJson<Public<Source>>();
-      },
-      restoreFromJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        const v: Public<Source> = {id: 1, name: 'x'};
-        return createRestoreFromJson(v);
-      },
-      deserializeRestoreFromJsonReflect: () => {
-        interface Source {
-          id: number;
-          name: string;
-          secret: string;
-        }
-        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
-        const v: Public<Source> = {id: 1, name: 'x'};
-        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
