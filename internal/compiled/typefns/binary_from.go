@@ -318,7 +318,7 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 		return JitCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from fromBinary")
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(ret, rt.Name, rt.IsSafeName)
@@ -328,7 +328,7 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 	if childJit.Type == CodeNS {
 		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
 		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from fromBinary")
+			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
 		return JitCode{Code: "", Type: CodeS}
@@ -358,7 +358,7 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 			continue
 		}
 		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from fromBinary")
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
 		}
 		if resolved.Kind != protocol.KindProperty && resolved.Kind != protocol.KindPropertySignature {
@@ -372,7 +372,7 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 			continue
 		}
 		if isFunctionLikeKind(childResolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+resolved.Name+" has function-typed value and is excluded from fromBinary")
+			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, resolved.Name)
 			continue
 		}
 		if resolved.Optional {

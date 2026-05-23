@@ -10,9 +10,9 @@ const (
 
 func init() {
 	for _, definition := range []Definition{
-		{Code: CodeMarkerFunctionCallArg, Family: FamilyMarker, Severity: SeverityWarning, Title: "Reflect-form marker received function-call argument"},
-		{Code: CodeMarkerNonLiteralOptions, Family: FamilyMarker, Severity: SeverityWarning, Title: "Marker options not a literal object"},
-		{Code: CodeMarkerFreeTypeParameter, Family: FamilyMarker, Severity: SeverityError, Title: "Marker call inside generic wrapper — type argument is unresolved"},
+		{Code: CodeMarkerFunctionCallArg, Family: FamilyMarker, Severity: SeverityWarning, Title: "Marker invokes a function just to read its return type"},
+		{Code: CodeMarkerNonLiteralOptions, Family: FamilyMarker, Severity: SeverityError, Title: "Marker options must be a literal object — your options were silently dropped"},
+		{Code: CodeMarkerFreeTypeParameter, Family: FamilyMarker, Severity: SeverityError, Title: "Marker call inside a generic function — type argument is unresolved"},
 	} {
 		register(definition)
 	}

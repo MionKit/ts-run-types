@@ -381,11 +381,11 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 			continue
 		}
 		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from stringifyJson output")
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is excluded from stringifyJson output")
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
 		}
 		opt := resolved.Optional
@@ -495,7 +495,7 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 		return JitCode{Code: "", Type: CodeE}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from stringifyJson output")
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
 		return JitCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -505,7 +505,7 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 	if childJit.Type == CodeNS {
 		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
 		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from stringifyJson output")
+			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
 		return JitCode{Code: "", Type: CodeE}

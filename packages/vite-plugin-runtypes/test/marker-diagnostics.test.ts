@@ -41,8 +41,9 @@ export const _ = createIsType(makeUser());
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics[0].code).toBe('MKR001');
       expect(diagnostics[0].severity).toBe(Severity.Warning);
-      expect(diagnostics[0].message).toContain('makeUser');
-      expect(diagnostics[0].message).toContain('ReturnType');
+      // Args carry the dynamic identifier (function name); the catalog
+      // template substitutes it into the headline and detail.
+      expect(diagnostics[0].args).toEqual(['makeUser']);
       // Site still emitted — the validator works, the warning just nudges.
       expect(response.sites.length).toBe(1);
     });
@@ -59,7 +60,7 @@ export const _ = reflectRuntypeId(getValue());
       const response = await client.scanFiles(Object.keys(sources));
       const diagnostics = markerDiagsOf(response);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('getValue');
+      expect(diagnostics[0].args).toEqual(['getValue']);
     });
   });
 
@@ -77,7 +78,7 @@ export const _ = createIsType(state.makeUser());
       const diagnostics = markerDiagsOf(response);
       expect(diagnostics).toHaveLength(1);
       // The callee is a property access — diagnostic uses the leaf name.
-      expect(diagnostics[0].message).toContain('makeUser');
+      expect(diagnostics[0].args).toEqual(['makeUser']);
     });
   });
 
@@ -138,7 +139,9 @@ export function makeId<T>() {
       // build halts so the user fixes the structural issue before
       // shipping the wrapper.
       expect(diagnostics[0].severity).toBe(Severity.Error);
-      expect(diagnostics[0].message).toContain('generic function');
+      // MKR003 currently has no dynamic args — the catalog headline
+      // names the issue ("generic function ... unresolved") generically.
+      expect(diagnostics[0].args).toBeUndefined();
       // No site emitted — the marker can't be injected without a resolved T.
       // The user gets the build-time MKR003 + the runtime "no id injected"
       // throw when the wrapper is actually called.

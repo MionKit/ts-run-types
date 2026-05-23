@@ -11,8 +11,6 @@
 // any code's Family/Severity/Template at runtime.
 package diag
 
-import "fmt"
-
 // Severity classifies a Diagnostic's impact. Numeric so the wire form stays
 // compact (single digit) and the TS side maps trivially to a literal union.
 //
@@ -80,11 +78,19 @@ type Related struct {
 // (purefn extractor, marker scanner, runtype JIT compiler); the Code is
 // the stable identifier (PFE9001, MKR001, IT010, SJ001, …) and Severity
 // classifies impact.
+//
+// The user-facing message is NOT carried on the wire. Per-code message
+// templates live in the JS-side catalog (packages/ts-go-run-types/src/jit/
+// diagnosticCatalog.ts); the Go side only ships positional substitution
+// values via Args (typically 0–2 strings: a property name, a type
+// argument label, etc.). The Vite plugin resolves Code+Args → final
+// rendered message at format time. This mirrors the runtime alwaysThrow
+// pattern that already resolves error text JS-side from the diag code.
 type Diagnostic struct {
 	Code     string    `json:"code"`
 	Family   Family    `json:"family"`
 	Severity Severity  `json:"severity"`
-	Message  string    `json:"message"`
+	Args     []string  `json:"args,omitempty"`
 	Site     Site      `json:"site"`
 	Related  []Related `json:"related,omitempty"`
 }
@@ -118,7 +124,11 @@ func register(definition Definition) {
 // New builds a Diagnostic by looking up the code's Family/Severity from
 // the catalog. Panics if the code is unknown — every code MUST be
 // registered before use, so an unknown code is a programmer error.
-func New(code string, site Site, message string, related ...Related) Diagnostic {
+//
+// `args` are positional substitution values for the JS-side catalog
+// template — `{0}`, `{1}`, … in headline/detail resolve to args[0], etc.
+// Pass 0 args when the catalog entry has no placeholders.
+func New(code string, site Site, args ...string) Diagnostic {
 	definition, ok := Definitions[code]
 	if !ok {
 		panic("diag: unknown code " + code)
@@ -127,17 +137,33 @@ func New(code string, site Site, message string, related ...Related) Diagnostic 
 		Code:     code,
 		Family:   definition.Family,
 		Severity: definition.Severity,
-		Message:  message,
 		Site:     site,
+	}
+	if len(args) > 0 {
+		out.Args = args
+	}
+	return out
+}
+
+// NewWithRelated is the variant of New that attaches Related call sites.
+// Go can't combine variadic args + variadic related in one function
+// signature, so the second variadic moves to a slice parameter here.
+func NewWithRelated(code string, site Site, args []string, related ...Related) Diagnostic {
+	definition, ok := Definitions[code]
+	if !ok {
+		panic("diag: unknown code " + code)
+	}
+	out := Diagnostic{
+		Code:     code,
+		Family:   definition.Family,
+		Severity: definition.Severity,
+		Site:     site,
+	}
+	if len(args) > 0 {
+		out.Args = args
 	}
 	if len(related) > 0 {
 		out.Related = related
 	}
 	return out
-}
-
-// Newf is the printf-style variant of New. Codes whose Definition.Template
-// uses placeholders construct their message via this helper.
-func Newf(code string, site Site, format string, args ...any) Diagnostic {
-	return New(code, site, fmt.Sprintf(format, args...))
 }

@@ -115,7 +115,8 @@ func handleCall(
 		*diags = append(*diags, diag.New(
 			diag.CodePurityDepNotLiteral,
 			siteFromNode(sourceFile, arg),
-			"pure-fn dependency arg to `"+utlName+"."+method+"` must be a string literal or a local const string in the same scope",
+			utlName,
+			method,
 		))
 		return
 	}

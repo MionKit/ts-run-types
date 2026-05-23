@@ -87,10 +87,10 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []dia
 				if winner.BodyHash == entry.BodyHash {
 					continue // idempotent re-registration
 				}
-				diagnostics = append(diagnostics, diag.New(
+				diagnostics = append(diagnostics, diag.NewWithRelated(
 					diag.CodeBodyHashCollision,
 					siteFromFile(entry.sourceFile, entry.callPos),
-					"Duplicate registration of \""+entry.Key()+"\" with mismatched bodyHash",
+					[]string{entry.Key()},
 					diag.Related{
 						Site:    siteFromFile(winner.sourceFile, winner.callPos),
 						Message: "First registered here with bodyHash=" + winner.BodyHash,
@@ -205,7 +205,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 		diags = append(diags, diag.New(
 			diag.CodeNamespaceNotLiteral,
 			siteFromNode(sourceFile, args[0]),
-			"registerPureFnFactory namespace must be a string literal or a local const string in the same module ("+nsReason+")",
+			nsReason,
 		))
 	}
 
@@ -214,7 +214,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 		diags = append(diags, diag.New(
 			diag.CodeFunctionIDNotLiteral,
 			siteFromNode(sourceFile, args[1]),
-			"registerPureFnFactory functionID must be a string literal or a local const string in the same module ("+fnNameReason+")",
+			fnNameReason,
 		))
 	}
 
@@ -223,7 +223,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 		diags = append(diags, diag.New(
 			diag.CodeFactoryNotInline,
 			siteFromNode(sourceFile, args[2]),
-			"registerPureFnFactory factory must be an inline function/arrow or a local function/const-assigned function in the same module ("+factoryReason+")",
+			factoryReason,
 		))
 	}
 
@@ -247,7 +247,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 			diags = append(diags, diag.New(
 				diag.CodeDestructuredParam,
 				siteFromNode(sourceFile, paramNode),
-				"registerPureFnFactory factory at \""+namespace+"::"+functionName+"\" uses destructured parameters — only simple identifier params are allowed",
+				namespace+"::"+functionName,
 			))
 			return nil, diags
 		}

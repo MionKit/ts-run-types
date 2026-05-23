@@ -25,7 +25,8 @@ func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 	for _, fragment := range []string{
 		"'use strict';",
 		"export function initCache(jitUtils)",
-		"function init(jitFnHash,",
+		"function init(",
+		"jitFnHash,",
 		"jitUtils.addToJitCache({",
 	} {
 		if !strings.Contains(out, fragment) {

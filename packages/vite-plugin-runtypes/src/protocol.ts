@@ -406,11 +406,18 @@ export interface DiagnosticRelated extends DiagnosticSite {
 // extractor, marker scanner, runtype JIT compiler); the Code is the
 // stable identifier (PFE9001, MKR001, IT010, SJ001, …) and Severity
 // classifies impact.
+//
+// The user-facing message is NOT carried on the wire. Per-code message
+// templates live in `packages/ts-go-run-types/src/jit/diagnosticCatalog.ts`
+// (alongside the runtime alwaysThrow catalog) and resolve at format time
+// against `args` — typically 0–2 positional substitution values (a
+// property name, a kind label, etc.). The Vite plugin renders the final
+// tsc-style line by looking up Code+Args in the catalog.
 export interface Diagnostic {
   code: string;
   family: Family;
   severity: Severity;
-  message: string;
+  args?: string[];
   site: DiagnosticSite;
   related?: DiagnosticRelated[];
 }

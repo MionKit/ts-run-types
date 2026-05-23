@@ -217,7 +217,7 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// renderer then skips the factory entirely and consumers fall back
 		// to a trivial `() => true`. Functionally equivalent.
 		if ctx.IsRoot() {
-			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown, "isType on any/unknown is a noop — every value passes")
+			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown)
 		}
 		return JitCode{Code: "true", Type: CodeE}
 
@@ -1162,7 +1162,7 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 		if resolved.IsStatic {
 			// Static members don't appear on instances — never
 			// participate in isType validation.
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is not validated by isType")
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
@@ -1171,7 +1171,7 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 			// getJitChildren skips them; we match. For the callable
 			// case the CallSignature is already represented by the
 			// `typeof === 'function'` guard above.
-			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is not validated by isType")
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeE)
@@ -1254,7 +1254,7 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 	}
 	if isFunctionLikeKind(resolved.Kind) {
 		// Fast-path skip for function-shaped children.
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is not validated by isType")
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
 		return JitCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -1265,7 +1265,7 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 		// Absorb at property — drop the slot from the AND chain rather
 		// than propagating up to the root. See docs/UNSUPPORTED-KINDS.md.
 		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is not validated by isType")
+			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
 		return JitCode{Code: "", Type: CodeE}
