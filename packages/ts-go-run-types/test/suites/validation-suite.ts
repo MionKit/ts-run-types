@@ -47,13 +47,12 @@
 
 import {
   createIsType,
-  deserializeIsType,
   createGetTypeErrors,
-  deserializeGetTypeErrors,
   type IsTypeFn,
   type GetTypeErrorsFn,
   type RunTypeError,
 } from '@mionjs/ts-go-run-types';
+import {deserializeIsType, deserializeGetTypeErrors} from '../util/deserializeJitFunctions.ts';
 
 /** One atomic-type case in the shared suite. */
 export interface ValidationCase {
