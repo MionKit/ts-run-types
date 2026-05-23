@@ -296,20 +296,12 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// The child's emit is responsible for the per-element mutation
 		// (e.g. bigint child returns `v[i0] = v[i0].toString()`). Empty
 		// child code collapses the whole loop to a noop. Non-serializable
-		// element kinds (Symbol[] / Function[]) emit CodeNS so the
-		// whole factory is skipped — same stance as isType / typeErrors.
+		// element kinds (Symbol[] / Function[]) return CodeNS from
+		// their own Emit arm — that propagates up here and the walker
+		// latches the child as UnsupportedLeaf, so the renderer emits
+		// alwaysThrow keyed off the child's kind.
 		if rt.Child == nil {
 			return JitCode{Code: "", Type: CodeS}
-		}
-		resolvedChild := ctx.ResolveRef(rt.Child)
-		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-			// mion:nodes/member/array.ts:148 — `checkNonSkipTypes()`
-			// throws "Arrays can not have non serializable types,
-			// ie: Symbol[], Function[], etc." when the element's
-			// skipJit returns true (Symbol, Function). We mirror via
-			// an alwaysThrow factory keyed off the child's kind.
-			ctx.MarkUnsupportedLeaf(resolvedChild)
-			return JitCode{Code: "", Type: CodeNS}
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")

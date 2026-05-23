@@ -242,15 +242,6 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		if rt.Child == nil {
 			return JitCode{Code: "", Type: CodeS}
 		}
-		resolvedChild := ctx.ResolveRef(rt.Child)
-		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-			// Symmetric with emitPrepareForJson's array gate —
-			// mion's nodes/member/array.ts:148 throws on
-			// symbol[]/function[]. Latch the actual child kind so
-			// the renderer emits an alwaysThrow keyed off it.
-			ctx.MarkUnsupportedLeaf(resolvedChild)
-			return JitCode{Code: "", Type: CodeNS}
-		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
 		childJit := ctx.CompileChild(rt.Child, CodeS)

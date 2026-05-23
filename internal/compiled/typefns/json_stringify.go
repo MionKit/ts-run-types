@@ -325,11 +325,6 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	if rt.Child == nil {
 		return JitCode{Code: "'[]'", Type: CodeE}
 	}
-	resolvedChild := ctx.ResolveRef(rt.Child)
-	if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-		ctx.MarkUnsupportedLeaf(resolvedChild)
-		return JitCode{Code: "", Type: CodeNS}
-	}
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
 	childJit := ctx.CompileChild(rt.Child, CodeE)
