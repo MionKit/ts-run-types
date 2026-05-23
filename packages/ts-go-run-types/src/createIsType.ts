@@ -93,7 +93,12 @@ export function createIsType<T>(
   }
   const cached = validatorCache.get(id);
   if (cached) return cached;
-  const entry = getJitUtils().getJIT(id) as JitCompiledFn | undefined;
+  // Cache keys are namespaced (`isType_<id>`) so a single runtype id
+  // can co-exist with its sibling fn entries (typeErrors, prepareForJson,
+  // …) in jitUtils.jitFnsCache without collision. See the Go-side
+  // renderEntryWithDeps in internal/caches/jitfn/module.go for where
+  // the namespacing is baked into the factory registration.
+  const entry = getJitUtils().getJIT('isType_' + id) as JitCompiledFn | undefined;
   if (!entry) {
     // Two cases produce a missing isType entry:
     //   1. The id IS a registered runtype but its emitIsType body
@@ -152,7 +157,7 @@ export function deserializeIsType<T>(
   }
   const cached = deserializedValidatorCache.get(id);
   if (cached) return cached;
-  const entry = getJitUtils().getJIT(id) as JitCompiledFn | undefined;
+  const entry = getJitUtils().getJIT('isType_' + id) as JitCompiledFn | undefined;
   if (!entry) {
     // Same fallback semantics as createIsType: registered runtypes with
     // no factory (noop-collapsed body) get a trivial passthrough so the

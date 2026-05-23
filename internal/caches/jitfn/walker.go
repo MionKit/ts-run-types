@@ -26,10 +26,26 @@ var debugInlineEnv = os.Getenv("DEBUG_JIT") == "INLINED"
 // `getChildVλl()` (jitFnCompiler.ts:734) which queries the parent's
 // `useArrayAccessor()` + `getChildLiteral()` to assemble the
 // expression — our Go port hands the assembled expression directly.
+//
+// ChildPathLiteral is the same idea but for typeErrors path tracking:
+// the JS expression (string literal or variable reference) the NEXT
+// pushed frame contributes to the static access-path array used when
+// building a RunTypeError. Symmetric with ChildAccessor — set by the
+// parent emit before CompileChild, consumed at pushStack and stored
+// on the child frame as PathLiteral. Empty for kinds that don't
+// contribute to the path (atomic, tuple wrapper, …).
+//
+// PathLiteral is the snapshot of the parent's ChildPathLiteral at
+// pushStack time. AccessPathLiteral walks every stack frame and joins
+// non-empty PathLiterals into a `[seg1, seg2, …]` array literal.
+// Mirrors mion's getAccessPath (jitFnCompiler.ts:753) where each
+// frame's `getStaticPathLiteral()` or `getChildLiteral()` contributes.
 type StackItem struct {
-	Vλl           string
-	RT            *protocol.RunType
-	ChildAccessor string
+	Vλl              string
+	RT               *protocol.RunType
+	ChildAccessor    string
+	ChildPathLiteral string
+	PathLiteral      string
 }
 
 // orderedItems maintains insertion order for context items so the
@@ -81,11 +97,20 @@ type Walker struct {
 	// FnName is the inner function name (e.g. "isType_<hash>") that
 	// lands in the emitted `function <FnName>(<args>){…}`.
 	FnName string
-	// JitFnHash is the bare hash (no prefix) the renderer uses as
-	// the cache key. Required by EmitDependencyCall to detect
-	// self-recursive calls (childID == JitFnHash → emit `<hash>(args)`
-	// without the `.fn` indirection, mirroring mion's `isSelf` branch).
+	// JitFnHash is the namespaced cache key (e.g. "isType_abc123",
+	// "typeErrors_abc123") the renderer uses as the JS-side cache
+	// key. Namespaced so the same runtype ID can have a distinct
+	// entry per jit fn (isType + typeErrors + …) without colliding
+	// in the global jitFnsCache. Required by EmitDependencyCall to
+	// detect self-recursive calls (childID == JitFnHash → emit
+	// `<hash>(args)` without the `.fn` indirection, mirroring mion's
+	// `isSelf` branch).
 	JitFnHash string
+	// InnerPrefix is the namespacing prefix the current emitter uses
+	// (e.g. "isType_", "typeErrors_"). Set by the renderer after
+	// NewWalker so dispatch can compose namespaced childIDs and the
+	// renderer's dep tracking is consistent with the factory keys.
+	InnerPrefix string
 	// RefTable resolves KindRef sentinels to their real RunType.
 	// Per `internal/protocol/protocol.go`, all Child / Children /
 	// Parameters slots in the JSON wire form carry refs
@@ -149,9 +174,14 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	if len(args) == 0 {
 		panic("jitfn: emitter returned empty Args()")
 	}
+	// fnName is `<innerPrefix><rt.ID>` (e.g. "isType_abc123"); use it
+	// directly as the namespaced JitFnHash so the cache key matches
+	// the factory registration site. Renderer also sets InnerPrefix
+	// explicitly (so dispatch can build namespaced childIDs for
+	// non-root nodes too).
 	jitFnHash := ""
 	if rt != nil {
-		jitFnHash = rt.ID
+		jitFnHash = fnName
 	}
 	return &Walker{
 		RootType:           rt,
@@ -186,6 +216,35 @@ func (w *Walker) setChildAccessor(accessor string) {
 		return
 	}
 	w.Stack[len(w.Stack)-1].ChildAccessor = accessor
+}
+
+// setChildPathLiteral records the path-literal contribution for the
+// next pushStack. Symmetric with setChildAccessor — collection
+// emitters (Array, Object, Tuple, IndexSignature, …) set it before
+// each CompileChild so the child frame's PathLiteral on push reflects
+// the property name, tuple index, or loop counter the child sits at
+// relative to the parent.
+func (w *Walker) setChildPathLiteral(literal string) {
+	if len(w.Stack) == 0 {
+		return
+	}
+	w.Stack[len(w.Stack)-1].ChildPathLiteral = literal
+}
+
+// accessPath returns the non-empty PathLiteral segments from the
+// current stack in push order. Used by typeerrors emitters to build
+// the static access-path argument when calling cpf_newRunTypeErr.
+// Returns the literals as raw JS expressions (e.g. ["'name'", "i0",
+// "0"]) so callers can fold in extra trailing segments before joining.
+func (w *Walker) accessPath() []string {
+	out := make([]string, 0, len(w.Stack))
+	for i := range w.Stack {
+		lit := w.Stack[i].PathLiteral
+		if lit != "" {
+			out = append(out, lit)
+		}
+	}
+	return out
 }
 
 // AddPureFnDependency records a (namespace, fnName, filePath) triple
@@ -346,7 +405,12 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) JitCode 
 	}
 	shouldDepend := !w.Emitter.IsJitInlined(inlineCtx) && len(w.Stack) > 1
 	if shouldDepend {
-		childID := rt.ID
+		// Namespaced childID — matches the factory registration key
+		// (the parent emit looks the child up via utl.getJIT(childID)
+		// and the JS-side cache stores entries under the namespaced
+		// hash). InnerPrefix is empty for hand-constructed walkers
+		// (unit tests), in which case childID stays bare.
+		childID := w.InnerPrefix + rt.ID
 		emitCtx := &EmitContext{Vλl: w.Vλl, walker: w}
 		callCode := w.Emitter.EmitDependencyCall(rt, childID, emitCtx)
 		// Mirror mion's updateDependencies (jitFnCompiler.ts:222):
@@ -371,7 +435,11 @@ func (w *Walker) pushStack(newChild *protocol.RunType) {
 		panic("jitfn: rootType must be the first item pushed onto the stack")
 	}
 	w.Vλl = w.getStackVλl()
-	w.Stack = append(w.Stack, StackItem{Vλl: w.Vλl, RT: newChild})
+	pathLit := ""
+	if len(w.Stack) > 0 {
+		pathLit = w.Stack[len(w.Stack)-1].ChildPathLiteral
+	}
+	w.Stack = append(w.Stack, StackItem{Vλl: w.Vλl, RT: newChild, PathLiteral: pathLit})
 }
 
 // popStack mirrors jitFnCompiler.ts:161. Stores the emitted code on
@@ -479,13 +547,12 @@ func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child JitCode, pa
 }
 
 // returnName is the JS identifier to return when a statement-shaped
-// body needs an explicit `return …` appended. For every fn we ship
-// today this is the first arg's Name (vλl for isType / prepareForJson
-// / format / mock; pλth-tracked fns like typeErrors will diverge here
-// when they land and the simplest answer is to surface returnName via
-// the Emitter interface). For v1 it's `Emitter.Args()[0].Name`.
+// body needs an explicit `return …` appended. Delegates to the
+// emitter's ReturnName() so per-fn divergence stays inside the per-fn
+// file — isType / prepareForJson / format / mock return their first
+// arg (`v`), typeErrors returns its accumulator (`er`).
 func (w *Walker) returnName() string {
-	return w.Emitter.Args()[0].Name
+	return w.Emitter.ReturnName()
 }
 
 // normaliseWhitespace mirrors jitFnCompiler.ts:417 — collapse runs of

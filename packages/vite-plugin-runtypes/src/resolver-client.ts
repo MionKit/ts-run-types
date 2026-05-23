@@ -100,12 +100,14 @@ export interface ScanFilesResult {
   runTypes?: RunType[];
   runTypeCacheSource?: string;
   isTypeCacheSource?: string;
+  typeErrorsCacheSource?: string;
   pureFnsCacheSource?: string;
   pureFnsDiagnostics?: import('./protocol.ts').PureFnDiagnostic[];
   markerDiagnostics?: import('./protocol.ts').MarkerDiagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
   addedIsType?: boolean;
+  addedTypeErrors?: boolean;
   addedPureFns?: boolean;
 }
 
@@ -149,11 +151,13 @@ abstract class ResolverClientBase implements ResolverConnection {
       runTypes: resp.runTypes,
       runTypeCacheSource: resp.runTypeCacheSource,
       isTypeCacheSource: resp.isTypeCacheSource,
+      typeErrorsCacheSource: resp.typeErrorsCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
       pureFnsDiagnostics: resp.pureFnsDiagnostics,
       markerDiagnostics: resp.markerDiagnostics,
       addedRunTypes: resp.addedRunTypes,
       addedIsType: resp.addedIsType,
+      addedTypeErrors: resp.addedTypeErrors,
       addedPureFns: resp.addedPureFns,
     };
   }

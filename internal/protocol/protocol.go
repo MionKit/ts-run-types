@@ -300,10 +300,11 @@ const (
 type CacheKind string
 
 const (
-	CacheKindRunType CacheKind = "runType"
-	CacheKindIsType  CacheKind = "isType"
-	CacheKindPureFns CacheKind = "pureFns"
-	CacheKindAll     CacheKind = "all"
+	CacheKindRunType    CacheKind = "runType"
+	CacheKindIsType     CacheKind = "isType"
+	CacheKindTypeErrors CacheKind = "typeErrors"
+	CacheKindPureFns    CacheKind = "pureFns"
+	CacheKindAll        CacheKind = "all"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -345,6 +346,12 @@ type Response struct {
 	// would render at least one new entry. Set independently of
 	// AddedRunTypes so cache-by-cache invalidation stays surgical.
 	AddedIsType bool `json:"addedIsType,omitempty"`
+	// AddedTypeErrors mirrors AddedIsType but for the TypeErrors emitter —
+	// true when at least one newly-interned RunType has a supported
+	// emitTypeErrors arm. Lets the Vite plugin's handleHotUpdate
+	// invalidate the typeErrors cache module independently of the
+	// isType / runTypes modules.
+	AddedTypeErrors bool `json:"addedTypeErrors,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -361,6 +368,12 @@ type Response struct {
 	// caller opts into CacheKindIsType / CacheKindAll via
 	// IncludeCacheSources).
 	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
+	// TypeErrorsCacheSource is the rendered body of the
+	// `virtual:runtypes-typeErrors` module — one
+	// `factory(jitFnHash, typeName, code, isNoop, deps, …)` call per
+	// cached RunType the precompiler's TypeErrorsEmitter knows how to
+	// handle. Sibling of IsTypeCacheSource, same projection semantics.
+	TypeErrorsCacheSource string `json:"typeErrorsCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -477,6 +490,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedIsType {
 		out["addedIsType"] = true
 	}
+	if response.AddedTypeErrors {
+		out["addedTypeErrors"] = true
+	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
 	}
@@ -494,6 +510,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.IsTypeCacheSource != "" {
 		out["isTypeCacheSource"] = response.IsTypeCacheSource
+	}
+	if response.TypeErrorsCacheSource != "" {
+		out["typeErrorsCacheSource"] = response.TypeErrorsCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource

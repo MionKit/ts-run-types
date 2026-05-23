@@ -92,6 +92,20 @@ export {
   type FlattenedDiscriminator,
 } from './unionDiscriminator.ts';
 
+// `pureFn.ts` MUST evaluate before any module whose cache factories
+// reference pure-fn helpers (typeErrors needs `mion::newRunTypeErr`).
+// Importing it before createIsType / createGetTypeErrors ensures the
+// pure-fn registry is populated by the time their `initCache` runs the
+// `createJitFn(jitUtils)` materialisation loop. Mirrors mion's
+// constraint that pure-fns register at module load time (run-types/src/
+// run-types-pure-fns.ts), not lazily.
+export {registerPureFnFactory} from './jit/pureFn.ts';
+
 export {createIsType, deserializeIsType, type IsTypeFn, type RunTypeOptions} from './createIsType.ts';
 
-export {registerPureFnFactory} from './jit/pureFn.ts';
+export {
+  createGetTypeErrors,
+  deserializeGetTypeErrors,
+  type GetTypeErrorsFn,
+  type RunTypeError,
+} from './createGetTypeErrors.ts';
