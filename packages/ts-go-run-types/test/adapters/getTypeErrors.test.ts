@@ -132,6 +132,7 @@ describe('getTypeErrors / ARRAY', () => {
   it('Array with noIsArrayCheck (Array.isArray guard stripped)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
   it('Self-referential array (CircularArray = CircularArray[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_array));
   it('Array of symbols (non-serializable — always rejected)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.symbol_array));
+  it('Array of unions (OR-chain per element)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.union_array));
   it('Array of object literals', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.object_array));
   it('Recursive object whose cycle closes via an array property', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_object_with_array));
   it('Array of tuples', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.tuple_array));
@@ -162,6 +163,7 @@ describe('getTypeErrors / OBJECT', () => {
   it('Self-referential interface via an array-of-self property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.circular_interface_on_array));
   it('Self-referential interface buried in a nested object', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.circular_interface_on_nested_object));
   it('Index signature with string values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_string));
+  it('Index signature combined with named properties', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_named_props));
   it('Nested index signatures (number leaf values)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_nested));
   it('Nested index signatures with Date leaf values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_date_value));
   it('Index signature on a nested (non-root) object property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_non_root));
