@@ -3369,6 +3369,24 @@ export const VALIDATION_SUITE = {
         const v: Parameters<CallSig> = [1, true];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        return createGetTypeErrors<Parameters<CallSig>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        return deserializeGetTypeErrors<Parameters<CallSig>>();
+      },
+      getTypeErrorsReflect: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        const v: Parameters<CallSig> = [1, true];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        const v: Parameters<CallSig> = [1, true];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           [1, true],
@@ -3390,6 +3408,20 @@ export const VALIDATION_SUITE = {
           [],
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [1], expected: 'boolean'}],
+        [{path: [1], expected: 'boolean'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'number'}],
+        [
+          {path: [0], expected: 'number'},
+          {path: [1], expected: 'boolean'},
+        ],
+      ],
     },
 
     call_signature_params_with_optional: {
@@ -3414,6 +3446,24 @@ export const VALIDATION_SUITE = {
         const v: Parameters<CallSig> = [3, true, 'hello'];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        return createGetTypeErrors<Parameters<CallSig>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        return deserializeGetTypeErrors<Parameters<CallSig>>();
+      },
+      getTypeErrorsReflect: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        const v: Parameters<CallSig> = [3, true, 'hello'];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        const v: Parameters<CallSig> = [3, true, 'hello'];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           [3, true, 'hello'],
@@ -3429,6 +3479,19 @@ export const VALIDATION_SUITE = {
           [NaN, true], // NaN fails Number.isFinite
         ],
       }),
+      getExpectedErrors: () => [
+        // [3, 3, 3] — slot 1 (3 not boolean) AND slot 2 (3 not string, optional but defined).
+        [
+          {path: [1], expected: 'boolean'},
+          {path: [2], expected: 'string'},
+        ],
+        [{path: [], expected: 'tuple'}],
+        [{path: [1], expected: 'boolean'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'number'}],
+      ],
     },
 
     call_signature_params_with_rest: {
@@ -3453,6 +3516,24 @@ export const VALIDATION_SUITE = {
         const v: Parameters<CallSig> = [3, true];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        return createGetTypeErrors<Parameters<CallSig>>();
+      },
+      deserializeGetTypeErrors: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        return deserializeGetTypeErrors<Parameters<CallSig>>();
+      },
+      getTypeErrorsReflect: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        const v: Parameters<CallSig> = [3, true];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        const v: Parameters<CallSig> = [3, true];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const date1 = new Date();
         const date2 = new Date();
@@ -3473,6 +3554,25 @@ export const VALIDATION_SUITE = {
           ],
         };
       },
+      getExpectedErrors: () => [
+        // [3, 3, 3] — slot 1 (3 not boolean), rest from slot 2: iVar=2 3 not Date.
+        [
+          {path: [1], expected: 'boolean'},
+          {path: [2], expected: 'date'},
+        ],
+        // [3, true, new Date(), 7] — rest iVar=2 Date OK, iVar=3 7 not Date.
+        [{path: [3], expected: 'date'}],
+        // [3, true, new Date(), 7, true] — rest 2 OK, 3 fails, 4 fails.
+        [
+          {path: [3], expected: 'date'},
+          {path: [4], expected: 'date'},
+        ],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        // [3, true, new Date('invalid')] — rest iVar=2 Invalid Date.
+        [{path: [2], expected: 'date'}],
+      ],
     },
 
     record_union_keys: {
@@ -3488,6 +3588,16 @@ export const VALIDATION_SUITE = {
       deserializeIsTypeReflect: () => {
         const v: Record<'a' | 'b', number> = {a: 1, b: 2};
         return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<Record<'a' | 'b', number>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Record<'a' | 'b', number>>(),
+      getTypeErrorsReflect: () => {
+        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
+        return deserializeGetTypeErrors(v);
       },
       getSamples: () => ({
         valid: [
@@ -3508,6 +3618,20 @@ export const VALIDATION_SUITE = {
           {a: Infinity, b: 1},
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: ['b'], expected: 'number'}],
+        [{path: ['a'], expected: 'number'}],
+        [
+          {path: ['a'], expected: 'number'},
+          {path: ['b'], expected: 'number'},
+        ],
+        [{path: ['a'], expected: 'number'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['b'], expected: 'number'}],
+        [{path: ['a'], expected: 'number'}],
+      ],
     },
 
     union_value_index: {
@@ -3524,10 +3648,29 @@ export const VALIDATION_SUITE = {
         const v: {[key: string]: string | number} = {};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{[key: string]: string | number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: string]: string | number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {[key: string]: string | number} = {};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {[key: string]: string | number} = {};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: 1, b: 'x'}],
         invalid: [{a: true}, {a: 'x', b: null}, 'not object', null, undefined, {a: BigInt(1)}, {a: NaN}],
       }),
+      getExpectedErrors: () => [
+        [{path: ['a'], expected: 'union'}],
+        [{path: ['b'], expected: 'union'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['a'], expected: 'union'}],
+        [{path: ['a'], expected: 'union'}],
+      ],
     },
 
     object_with_union_prop: {
@@ -3544,6 +3687,16 @@ export const VALIDATION_SUITE = {
         const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{kind: 'a' | 'b'; n: number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a' | 'b'; n: number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {kind: 'a', n: 1},
@@ -3551,6 +3704,15 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [{kind: 'c', n: 1}, {n: 1}, {kind: 'a', n: 'not number'}, null, undefined, {kind: 'a', n: NaN}, {kind: 'a'}],
       }),
+      getExpectedErrors: () => [
+        [{path: ['kind'], expected: 'union'}],
+        [{path: ['kind'], expected: 'union'}],
+        [{path: ['n'], expected: 'number'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['n'], expected: 'number'}],
+        [{path: ['n'], expected: 'number'}],
+      ],
     },
   },
   // TUPLE — ports `isType` test coverage from mion's
@@ -3694,15 +3856,33 @@ export const VALIDATION_SUITE = {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeIsType(v);
       },
-      // getTypeErrors thunks omitted — the optional `boolean?` slot
-      // makes the resolver expand to `Union(undefined | true | false)`,
-      // and KindUnion isn't supported in typeErrors yet (phase 7). The
-      // whole tuple validator becomes CodeNS and falls back to the
-      // always-pass stub. Activates when union support lands.
+      getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+      getTypeErrorsReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
         invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array', null, undefined, [NaN], ['not number']],
       }),
+      getExpectedErrors: () => [
+        // [] — slot 0 (required number) undefined → fails.
+        [{path: [0], expected: 'number'}],
+        // [3, 'not bigint'] — slot 1 is non-undefined non-bigint.
+        [{path: [1], expected: 'bigint'}],
+        // [3, 1n, false, 4, 'extra'] — length 5 > 4.
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'number'}],
+        [{path: [0], expected: 'number'}],
+      ],
     },
 
     nested_tuple_in_array: {
@@ -3895,9 +4075,16 @@ export const VALIDATION_SUITE = {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeIsType(v);
       },
-      // getTypeErrors thunks omitted — same reason as tuple_with_optional:
-      // the optional `boolean?` slot expands to a Union which isn't
-      // supported by typeErrors until phase 7.
+      getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+      getTypeErrorsReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           [3],
@@ -3919,6 +4106,20 @@ export const VALIDATION_SUITE = {
           [3, 1n, 'not boolean'], // wrong type at second optional
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [0], expected: 'number'}],
+        [{path: [1], expected: 'bigint'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [], expected: 'tuple'}],
+        [{path: [0], expected: 'number'}],
+        // [3, 1n, 'not boolean'] — slot 2 (boolean?) is non-undefined
+        // non-boolean. The resolver expands `boolean?` to a union
+        // (undefined | true | false), so the error is reported as
+        // 'union' not 'boolean'.
+        [{path: [2], expected: 'union'}],
+      ],
     },
 
     tuple_named_labels: {
@@ -4052,10 +4253,30 @@ export const VALIDATION_SUITE = {
         const v: Date | number | string | null | bigint = 123;
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Date | number | string | null | bigint>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date | number | string | null | bigint>(),
+      getTypeErrorsReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
         invalid: [{}, [], true, undefined, new Date('invalid'), Infinity, Symbol(), () => null],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     string_literal_union: {
@@ -4072,10 +4293,31 @@ export const VALIDATION_SUITE = {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
+      getTypeErrorsReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['UNO', 'DOS', 'TRES'],
         invalid: ['INVALID', 'uno', '', 42, null, undefined, true, 'Uno', {}],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     string_or_number: {
@@ -4090,10 +4332,30 @@ export const VALIDATION_SUITE = {
         const v: string | number = 'hello';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string | number>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | number>(),
+      getTypeErrorsReflect: () => {
+        const v: string | number = 'hello';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string | number = 'hello';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['hello', 42, 0, ''],
         invalid: [null, undefined, true, [], {}, NaN, Infinity, BigInt(1)],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_of_array_types: {
@@ -4111,10 +4373,30 @@ export const VALIDATION_SUITE = {
         const v: string[] | number[] | boolean[] = ['a'];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<string[] | number[] | boolean[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[] | number[] | boolean[]>(),
+      getTypeErrorsReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [['a'], [1], [true, false], [], ['a', 'b']],
         invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [Infinity], [null], [BigInt(1)]],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     array_of_union: {
@@ -4132,6 +4414,16 @@ export const VALIDATION_SUITE = {
         const v: (string | bigint | boolean | Date)[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<(string | bigint | boolean | Date)[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | bigint | boolean | Date)[]>(),
+      getTypeErrorsReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
         invalid: [
@@ -4143,6 +4435,15 @@ export const VALIDATION_SUITE = {
           [{}],
         ],
       }),
+      getExpectedErrors: () => [
+        // Element at index 2 (the number 2) fails the union check.
+        [{path: [2], expected: 'union'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        [{path: [0], expected: 'union'}],
+        [{path: [0], expected: 'union'}],
+        [{path: [0], expected: 'union'}],
+      ],
     },
 
     // ---- DEFERRED ----
@@ -4161,6 +4462,16 @@ export const VALIDATION_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      getTypeErrorsReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
         // because `{b: number}` is satisfied. Our emit accepts any
@@ -4168,6 +4479,17 @@ export const VALIDATION_SUITE = {
         valid: [{a: 'x', aa: true}, {b: 1}, {c: 1n}, {a: 'x', aa: true, b: 1}],
         invalid: [{a: 'x'}, {}, 'not object', null, [], 42, undefined, {b: 'not number'}, {c: 1}],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     discriminated_union: {
@@ -4186,6 +4508,16 @@ export const VALIDATION_SUITE = {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      getTypeErrorsReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {kind: 'a', n: 1},
@@ -4203,6 +4535,17 @@ export const VALIDATION_SUITE = {
           {kind: 'b'}, // missing s
         ],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     circular_union: {
@@ -4228,10 +4571,38 @@ export const VALIDATION_SUITE = {
         const v: UnionC = 'hello';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createGetTypeErrors<UnionC>();
+      },
+      deserializeGetTypeErrors: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return deserializeGetTypeErrors<UnionC>();
+      },
+      getTypeErrorsReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
         invalid: [true, null, undefined, {a: true}, [true], new Date('invalid'), Infinity, Symbol()],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     union_with_methods: {
@@ -4254,10 +4625,38 @@ export const VALIDATION_SUITE = {
         };
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      deserializeGetTypeErrors: () =>
+        deserializeGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+        [{path: [], expected: 'union'}],
+      ],
     },
 
     intersection_to_object: {
@@ -4273,6 +4672,16 @@ export const VALIDATION_SUITE = {
       deserializeIsTypeReflect: () => {
         const v: {a: string} & {b: number} = {a: 'x', b: 1};
         return deserializeIsType(v);
+      },
+      getTypeErrors: () => createGetTypeErrors<{a: string} & {b: number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string} & {b: number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return deserializeGetTypeErrors(v);
       },
       getSamples: () => ({
         valid: [
@@ -4290,6 +4699,21 @@ export const VALIDATION_SUITE = {
           {},
         ],
       }),
+      // Intersection resolved to `{a: string; b: number}` — typeErrors
+      // is the merged object shape's per-property check.
+      getExpectedErrors: () => [
+        [{path: ['b'], expected: 'number'}],
+        [{path: ['a'], expected: 'string'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['a'], expected: 'string'}],
+        [{path: ['b'], expected: 'number'}],
+        [{path: [], expected: 'objectLiteral'}],
+        [{path: ['b'], expected: 'number'}],
+        [
+          {path: ['a'], expected: 'string'},
+          {path: ['b'], expected: 'number'},
+        ],
+      ],
     },
 
     // ---- additions migrated 1:1 from mion union.spec.ts ----
@@ -4927,6 +5351,16 @@ export const VALIDATION_SUITE = {
         const v: Map<string, number> = new Map();
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Map<string, number>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Map<string, number>>(),
+      getTypeErrorsReflect: () => {
+        const v: Map<string, number> = new Map();
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Map<string, number> = new Map();
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const empty = new Map();
         const one = new Map([['a', 1]]);
@@ -4942,6 +5376,21 @@ export const VALIDATION_SUITE = {
           invalid: [{}, [], null, 'not map', wrongKey, wrongValue, undefined, new Date(), nanValue, new Set()],
         };
       },
+      getExpectedErrors: () => [
+        [{path: [], expected: 'map'}],
+        [{path: [], expected: 'map'}],
+        [{path: [], expected: 'map'}],
+        [{path: [], expected: 'map'}],
+        // wrongKey: Map with key=1 (number not string). Path is the
+        // mion-style {key, index, failed} segment object identifying
+        // which side of which entry failed.
+        [{path: [{key: 1, index: 0, failed: 'mapKey'}], expected: 'string'}],
+        [{path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+        [{path: [], expected: 'map'}],
+        [{path: [], expected: 'map'}],
+        [{path: [{key: 'a', index: 0, failed: 'mapValue'}], expected: 'number'}],
+        [{path: [], expected: 'map'}],
+      ],
     },
 
     set_string: {
@@ -4957,6 +5406,16 @@ export const VALIDATION_SUITE = {
         const v: Set<string> = new Set();
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Set<string>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Set<string>>(),
+      getTypeErrorsReflect: () => {
+        const v: Set<string> = new Set();
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Set<string> = new Set();
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const empty = new Set<string>();
         const one = new Set(['a']);
@@ -4968,6 +5427,20 @@ export const VALIDATION_SUITE = {
           invalid: [{}, [], null, 'not set', wrongType, undefined, new Date(), new Map(), nullElement],
         };
       },
+      getExpectedErrors: () => [
+        [{path: [], expected: 'set'}],
+        [{path: [], expected: 'set'}],
+        [{path: [], expected: 'set'}],
+        [{path: [], expected: 'set'}],
+        // wrongType: Set with item 1 (number not string). Path is
+        // the item index 0.
+        [{path: [0], expected: 'string'}],
+        [{path: [], expected: 'set'}],
+        [{path: [], expected: 'set'}],
+        [{path: [], expected: 'set'}],
+        // nullElement: Set with item null (not string).
+        [{path: [0], expected: 'string'}],
+      ],
     },
 
     promise_string: {
@@ -4988,6 +5461,16 @@ export const VALIDATION_SUITE = {
         const v: Promise<string> = Promise.resolve('x');
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Promise<string>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Promise<string>>(),
+      getTypeErrorsReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => {
         const realPromise = Promise.resolve('x');
         const thenable = {then: () => null};
@@ -4998,6 +5481,16 @@ export const VALIDATION_SUITE = {
           invalid: [null, 'string', 42, {}, [], undefined, true, fakeThenable],
         };
       },
+      getExpectedErrors: () => [
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+        [{path: [], expected: 'promise'}],
+      ],
     },
 
     awaited_promise: {
@@ -5016,10 +5509,29 @@ export const VALIDATION_SUITE = {
         const v: Awaited<Promise<string>> = 'hello';
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<Awaited<Promise<string>>>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<Awaited<Promise<string>>>(),
+      getTypeErrorsReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [42, null, undefined, Promise.resolve('x'), true, {}, []],
       }),
+      getExpectedErrors: () => [
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+        [{path: [], expected: 'string'}],
+      ],
     },
   },
 
