@@ -115,7 +115,7 @@ function decayOptionsForNesting(
 /** Per-kind dispatch. New kinds land here, NOT in helper files — the
  *  whole switch lives in one place so reviewers can see the full
  *  surface at once (same convention as mion's `_mockType` and
- *  `internal/caches/jitfn/istype.go`). **/
+ *  `internal/compiled/typefns/istype.go`). **/
 function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): unknown {
   const mOps = options.mock as MockOptions;
   const kind = runType.kind as number;
@@ -404,7 +404,7 @@ function mockSet(runType: RunType, options: RunTypeMockOptions, stack: RunType[]
 /** Renders a template-literal runtype to a concrete string that
  *  satisfies its anchored regex. The Go protocol stores the layout
  *  inside `runType.literal.templateLiteral.{texts, placeholders}` —
- *  see `internal/caches/jitfn/istype.go:buildTemplateLiteralRegex`.
+ *  see `internal/compiled/typefns/istype.go:buildTemplateLiteralRegex`.
  *  `texts` is the list of literal chunks; `placeholders` (1 fewer
  *  entry than `texts`) is the list of placeholder spans interleaved
  *  between them. **/

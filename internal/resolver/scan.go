@@ -662,8 +662,8 @@ func callExpressionName(callNode *ast.Node) string {
 }
 
 // scanLineCol returns (1-based line, 1-based column) for byte offset pos
-// inside sourceFile. Mirrors purefn.lineCol — duplicated here to avoid a
-// resolver→purefn import dependency for one helper.
+// inside sourceFile. Mirrors purefns.lineCol — duplicated here to avoid a
+// resolver→purefns import dependency for one helper.
 func scanLineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
 	src := sourceFile.Text()
 	if pos > len(src) {

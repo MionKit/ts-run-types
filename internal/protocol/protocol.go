@@ -107,7 +107,7 @@ type RunType struct {
 	// inlining the body. The serializer does NOT yet auto-set this
 	// field; circular types still work end-to-end because every
 	// composite kind (Array / Object / Class / Tuple / Union) is
-	// non-inlined by default in jitfn/inlining.go — see the docs
+	// non-inlined by default in typefns/inlining.go — see the docs
 	// there for the tradeoff (slightly less optimal: anonymous
 	// non-circular composites get their own factory too). When a
 	// proper circular-detection pass lands the inlining predicate
@@ -501,7 +501,7 @@ type Response struct {
 	Error       string  `json:"error,omitempty"`
 }
 
-// PureFnDiagnostic is the wire shape of purefn.Diagnostic. The Vite
+// PureFnDiagnostic is the wire shape of purefns.Diagnostic. The Vite
 // plugin re-emits each one as a build warning so VS Code's $tsc problem
 // matcher surfaces it in the Problems panel.
 type PureFnDiagnostic struct {

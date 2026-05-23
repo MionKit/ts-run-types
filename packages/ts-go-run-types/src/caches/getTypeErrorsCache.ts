@@ -16,7 +16,7 @@ export function initCache(jitUtils) {
   // by short name in `pureFnDependencies` and inside each createJitFn
   // closure so the literal "mion::<fnName>" only appears once per cache
   // (here) instead of once per factory call. Names mirror the Go-side
-  // alias table at internal/caches/jitfn/purefn_aliases.go — keep both
+  // alias table at internal/compiled/typefns/purefn_aliases.go — keep both
   // sides in sync when adding a new pure-fn the typeErrors emitter
   // calls.
   const k_nRT = 'mion::newRunTypeErr';

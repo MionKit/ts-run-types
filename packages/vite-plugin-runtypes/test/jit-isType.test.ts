@@ -65,7 +65,7 @@ getRuntypeId<string>();
       // 2. Evaluate the isType module via its initCache(jitUtils) export.
       //    The stub records every `addToJitCache` call and the returned
       //    cache map is keyed by the namespaced `jitFnHash`
-      //    (`it_<id>`) — see internal/caches/jitfn/module.go which
+      //    (`it_<id>`) — see internal/compiled/typefns/module.go which
       //    namespaces the cache key per fn so isType / typeErrors /
       //    prepareForJson entries for the same runtype don't collide
       //    in the shared jitFnsCache.

@@ -79,15 +79,15 @@ Test infrastructure:
 
 | Family                     | Mion source                                                          | Go emitter                                              | JS factory                                 | Cache tag |
 |----------------------------|----------------------------------------------------------------------|---------------------------------------------------------|--------------------------------------------|-----------|
-| `isType`                   | `nodes/**/emitIsType` + `lib/jitFnCompiler.ts`                       | `internal/caches/jitfn/istype.go`                       | `createIsType` / `deserializeIsType`       | `it`      |
-| `getTypeErrors`            | `nodes/**/emitTypeErrors` + `JitErrorsFnCompiler`                    | `internal/caches/jitfn/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
-| `prepareForJson`           | `nodes/**/emitPrepareForJson`                                        | `internal/caches/jitfn/preparefjson.go`                 | `createPrepareForJson` / `deserializePrepareForJson` | `pj` |
-| `restoreFromJson`          | `nodes/**/emitRestoreFromJson`                                       | `internal/caches/jitfn/restorefjson.go`                 | `createRestoreFromJson` / `deserializeRestoreFromJson` | `rj` |
-| `stringifyJson`            | `jitCompilers/json/stringifyJson.ts` (`createStringifyCompiler`)     | `internal/caches/jitfn/stringifyjson.go`                | `createStringifyJson` / `deserializeStringifyJson` | `sj` |
-| `hasUnknownKeys`           | `nodes/**/emitHasUnknownKeys` + `callCheckUnknownProperties`         | `internal/caches/jitfn/hasunknownkeys.go`               | `createHasUnknownKeys` / `deserializeHasUnknownKeys` | `huk` |
-| `stripUnknownKeys`         | `nodes/**/emitStripUnknownKeys`                                      | `internal/caches/jitfn/stripunknownkeys.go`             | `createStripUnknownKeys` / `deserializeStripUnknownKeys` | `suk` |
-| `unknownKeyErrors`         | `nodes/**/emitUnknownKeyErrors`                                      | `internal/caches/jitfn/unknownkeyerrors.go`             | `createUnknownKeyErrors` / `deserializeUnknownKeyErrors` | `uke` |
-| `unknownKeysToUndefined`   | `nodes/**/emitUnknownKeysToUndefined`                                | `internal/caches/jitfn/unknownkeystoundefined.go`       | `createUnknownKeysToUndefined` / `deserializeUnknownKeysToUndefined` | `uku` |
+| `isType`                   | `nodes/**/emitIsType` + `lib/jitFnCompiler.ts`                       | `internal/compiled/typefns/istype.go`                       | `createIsType` / `deserializeIsType`       | `it`      |
+| `getTypeErrors`            | `nodes/**/emitTypeErrors` + `JitErrorsFnCompiler`                    | `internal/compiled/typefns/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
+| `prepareForJson`           | `nodes/**/emitPrepareForJson`                                        | `internal/compiled/typefns/preparefjson.go`                 | `createPrepareForJson` / `deserializePrepareForJson` | `pj` |
+| `restoreFromJson`          | `nodes/**/emitRestoreFromJson`                                       | `internal/compiled/typefns/restorefjson.go`                 | `createRestoreFromJson` / `deserializeRestoreFromJson` | `rj` |
+| `stringifyJson`            | `jitCompilers/json/stringifyJson.ts` (`createStringifyCompiler`)     | `internal/compiled/typefns/stringifyjson.go`                | `createStringifyJson` / `deserializeStringifyJson` | `sj` |
+| `hasUnknownKeys`           | `nodes/**/emitHasUnknownKeys` + `callCheckUnknownProperties`         | `internal/compiled/typefns/hasunknownkeys.go`               | `createHasUnknownKeys` / `deserializeHasUnknownKeys` | `huk` |
+| `stripUnknownKeys`         | `nodes/**/emitStripUnknownKeys`                                      | `internal/compiled/typefns/stripunknownkeys.go`             | `createStripUnknownKeys` / `deserializeStripUnknownKeys` | `suk` |
+| `unknownKeyErrors`         | `nodes/**/emitUnknownKeyErrors`                                      | `internal/compiled/typefns/unknownkeyerrors.go`             | `createUnknownKeyErrors` / `deserializeUnknownKeyErrors` | `uke` |
+| `unknownKeysToUndefined`   | `nodes/**/emitUnknownKeysToUndefined`                                | `internal/compiled/typefns/unknownkeystoundefined.go`       | `createUnknownKeysToUndefined` / `deserializeUnknownKeysToUndefined` | `uku` |
 
 Pure-fn helpers added to `packages/ts-go-run-types/src/run-types-pure-fns.ts`:
 
@@ -160,7 +160,7 @@ comments; this is the consolidated list.
 
 ### 1. `isNoop` factory always emitted (mion drops factory when noop)
 
-**Where**: `internal/caches/jitfn/preparefjson.go` `Finalize` (and the
+**Where**: `internal/compiled/typefns/preparefjson.go` `Finalize` (and the
 mirror in `restorefjson.go`).
 
 **Mion**: when a body collapses to `return v` with no transformation,
@@ -179,7 +179,7 @@ Documented divergence; not a bug.
 
 ### 2. Known-keys array sorted (mion preserves insertion order)
 
-**Where**: `internal/caches/jitfn/unknownkeys_shared.go`.
+**Where**: `internal/compiled/typefns/unknownkeys_shared.go`.
 
 **Mion**: builds the known-keys literal as `Array.from(new Set(...))`
 which preserves the order properties appear in the source TS type.
@@ -197,7 +197,7 @@ Documented divergence; not a bug.
 
 ### 3. `hasUnknownKeys` Finalize defaults to `false` for empty bodies
 
-**Where**: `internal/caches/jitfn/hasunknownkeys.go` `Finalize`.
+**Where**: `internal/compiled/typefns/hasunknownkeys.go` `Finalize`.
 
 **Mion**: same — atomic kinds produce `return false`.
 
@@ -210,7 +210,7 @@ four-fn family has subtle finalize behavior worth pinning.
 
 ### 4. JSON-family throw-at-JIT-compile for non-serializable kinds
 
-**Where**: `internal/caches/jitfn/preparefjson.go` Supports + Emit
+**Where**: `internal/compiled/typefns/preparefjson.go` Supports + Emit
 for `KindNever` / `KindPromise` / function-flavoured kinds /
 `SubKindNonSerializable`.
 
@@ -238,7 +238,7 @@ Documented divergence; not a bug.
 
 **Closed by**: per-member `skipEncode + needsTupleEncoding` port.
 The shared `unionMemberNeedsTuple(member, ctx)` helper in
-`internal/caches/jitfn/preparefjson.go` is now the single source of
+`internal/compiled/typefns/preparefjson.go` is now the single source of
 truth used by all three union emitters (`emitUnionPrepareForJson`,
 `emitUnionStringifyJson`, `emitUnionRestoreFromJson`). A member skips
 the `[memberIndex, value]` envelope iff BOTH its `prepareForJson`
@@ -350,7 +350,7 @@ ECMAScript spec — no throw was ever exercised).
 **Closed by**: symbol-keyed-index-sig skip in all 8 `emitIndexSignature*`
 emitters (mirrors mion's `IndexSignatureRunType.skipJit`
 `indexProperty.ts:30-36`). New shared helper `isSymbolKeyedIndexSig`
-in `internal/caches/jitfn/istype.go`; gate added to prepareForJson,
+in `internal/compiled/typefns/istype.go`; gate added to prepareForJson,
 restoreFromJson, isType, typeErrors, hasUnknownKeys, stripUnknownKeys,
 unknownKeyErrors, unknownKeysToUndefined.
 
@@ -386,7 +386,7 @@ unknownKeyErrors, unknownKeysToUndefined.
 ### Failure 3 — `UNIONS > union of object shapes`
 
 **Closed by**: union loose-check port. New `looseCheckGate` helper in
-`internal/caches/jitfn/preparefjson.go` mirrors mion's
+`internal/compiled/typefns/preparefjson.go` mirrors mion's
 `UnionRunType.getChildIsTypeWithLooseCheck` (`union.ts:56-78`) — for
 an all-optional object member (no required props, no index sig) the
 bare isType is wrapped with a property-presence gate so a value that
@@ -428,9 +428,9 @@ the correct concrete member before falling back to the weak shape.
 
 **Closed by** (with Failures 5–7): Map/Set per-entry element recursion
 in `emitNativeIterablePrepareForJson`
-(`internal/caches/jitfn/preparefjson.go`) and the new
+(`internal/compiled/typefns/preparefjson.go`) and the new
 `emitNativeIterableRestoreFromJson`
-(`internal/caches/jitfn/restorefjson.go`). Mirrors mion's
+(`internal/compiled/typefns/restorefjson.go`). Mirrors mion's
 `IterableRunType.emitPrepareForJson` / `emitRestoreFromJson`
 (`nodes/native/Iterable.ts:49-82`): for non-noop element / key /
 value types, emit `const ml0 = []; for (let e0 of v) { … push }; v = ml0`
@@ -461,7 +461,7 @@ on restore. Atomic-noop fast-path falls back to the original
   compiling `prepareForJson` for the element type (here:
   `SmallObject`, which contains a bigint field).
 - **Why we fail**:
-  `internal/caches/jitfn/preparefjson.go:691` `emitNativeIterablePrepareForJson`
+  `internal/compiled/typefns/preparefjson.go:691` `emitNativeIterablePrepareForJson`
   returns `v = Array.from(v)` — pure shape conversion, no per-
   element transform. The source comment at lines 686-690 explicitly
   notes "Element types whose own prepare/restore is non-noop will
@@ -505,7 +505,7 @@ its own transform via `e0[0]` / `e0[1]` accessors — matches the
 ### Failure 8 — `CIRCULAR_REFS > CircularTuple object with discriminator`
 
 **Closed by** (with Failure 9): structural-id cycle-ref disambiguation
-in `internal/caches/runtype/typeid/typeid.go`. The original analysis
+in `internal/compiled/runtype/typeid/typeid.go`. The original analysis
 mis-classified this as a `BUG` with unclear mechanism; the actual
 root cause was a structural-dedup collision between two
 `interface CircularTuple` declarations in different test files
@@ -636,10 +636,10 @@ Ported. See deviation #5 above for the consolidated changelog and
 implementation notes. Summary:
 
 - Shared `unionMemberNeedsTuple(member, ctx)` helper in
-  `internal/caches/jitfn/preparefjson.go` is the single source of
+  `internal/compiled/typefns/preparefjson.go` is the single source of
   truth, consumed by all three union emitters.
 - `peekMemberIsNoop` was refactored to take `*EmitContext` and
-  memoise on `Walker.peekedNoops` (`internal/caches/jitfn/walker.go`)
+  memoise on `Walker.peekedNoops` (`internal/compiled/typefns/walker.go`)
   so the three emit families share answers per-Compile-pass instead
   of re-walking each member subtree.
 - `peekMemberIsNoop` now distinguishes JitThrow-emitting members
@@ -658,7 +658,7 @@ implementation notes. Summary:
 ## Reference
 
 - Mion source tree: `/home/user/mion/packages/run-types/src/`
-- Our Go emit source tree: `/home/user/ts-run-types/internal/caches/jitfn/`
+- Our Go emit source tree: `/home/user/ts-run-types/internal/compiled/typefns/`
 - Our JS adapter source tree: `/home/user/ts-run-types/packages/ts-go-run-types/src/`
 - Test suites: `/home/user/ts-run-types/packages/ts-go-run-types/test/suites/{validation,serialization}-suite.ts`
 - Test adapters: `/home/user/ts-run-types/packages/ts-go-run-types/test/adapters/*.test.ts`

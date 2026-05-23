@@ -10,7 +10,7 @@ import (
 
 // HashLookup is the two-way mapping the disk layer needs to verify a
 // cached entry's child refs across builds. Implemented by
-// runtype.Cache; defined here so jitfn can depend on the contract
+// runtype.Cache; defined here so typefns can depend on the contract
 // without pulling in the runtype package.
 type HashLookup interface {
 	// StructuralForHash returns the structural id behind a short hash,
