@@ -50,10 +50,7 @@ initIsTypeCache(getJitUtils());
 // reference-equality lets consumers memoize on the returned function.
 const validatorCache = new Map<string, IsTypeFn>();
 
-/** Returns a validator for `T`. Mirrors mion's contract from
- *  run-types/src/createRunTypeFunctions.ts:31
- *  (`createIsTypeFn<T>(opts?): Promise<IsTypeFn>`). Async only for
- *  signature parity with mion — our AOT pipeline resolves synchronously.
+/** Returns a validator for `T`.
  *
  *  Two equivalent call shapes:
  *    - Static  : `createIsType<T>()` — caller supplies `T` explicitly.
@@ -72,14 +69,21 @@ const validatorCache = new Map<string, IsTypeFn>();
  *  distinct validators. The `options` param at runtime is therefore
  *  IGNORED — the hash already encodes the chosen behavior.
  *
+ *  Sync — the validator is materialised at cache-init time (when the
+ *  isType cache module is evaluated), so there is no async work on the
+ *  hot path. This is a divergence from mion's
+ *  `createIsTypeFn<T>(opts?): Promise<IsTypeFn>` shape, which was
+ *  async because mion may do lazy compilation; our AOT pipeline does
+ *  not need it.
+ *
  *  Throws when called without the plugin active (no `id` injected) or
  *  when jitUtils doesn't contain an entry for the expected hash —
  *  both indicate the build pipeline didn't wire correctly. **/
-export async function createIsType<T>(
+export function createIsType<T>(
   val?: T,
   options?: RunTypeOptions,
   id?: RuntypeId<T>,
-): Promise<IsTypeFn> {
+): IsTypeFn {
   void val; // runtime-ignored; only used by type-checker to infer T
   void options; // runtime-ignored; baked into id at compile time
   if (id === undefined) {
@@ -131,14 +135,14 @@ const deserializedValidatorCache = new Map<string, IsTypeFn>();
  *  thunk in every ValidationCase lets the test suite verify the
  *  serialize → deserialize round-trip produces an equivalent validator.
  *
- *  Same call shapes as `createIsType` (static + reflect). Async only
- *  for signature parity with the existing API — both flip to sync in a
- *  follow-up. **/
-export async function deserializeIsType<T>(
+ *  Same call shapes as `createIsType` (static + reflect) and the same
+ *  sync return type — `new Function(…)` is synchronous, the validator
+ *  is built and cached on first call. **/
+export function deserializeIsType<T>(
   val?: T,
   options?: RunTypeOptions,
   id?: RuntypeId<T>,
-): Promise<IsTypeFn> {
+): IsTypeFn {
   void val;
   void options;
   if (id === undefined) {

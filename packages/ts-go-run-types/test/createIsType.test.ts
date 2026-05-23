@@ -24,16 +24,16 @@ import {describe, test, expect} from 'vitest';
 import {createIsType} from '@mionjs/ts-go-run-types';
 
 describe('createIsType<T> — string', () => {
-  test('validator returns true for strings, false for non-strings', async () => {
-    const isString = await createIsType<string>();
+  test('validator returns true for strings, false for non-strings', () => {
+    const isString = createIsType<string>();
     expect(isString('abc')).toBe(true);
     expect(isString(42)).toBe(false);
     expect(isString(undefined)).toBe(false);
   });
 
-  test('repeated calls return the same cached validator instance', async () => {
-    const a = await createIsType<string>();
-    const b = await createIsType<string>();
+  test('repeated calls return the same cached validator instance', () => {
+    const a = createIsType<string>();
+    const b = createIsType<string>();
     expect(a).toBe(b);
   });
 });
