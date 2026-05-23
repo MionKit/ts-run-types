@@ -67,10 +67,13 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 		// classes go through the same emit path as interfaces (Children
 		// AND-chain) since ClassRunType extends InterfaceRunType in mion.
 		// Map / Set get their own arms that validate element types via
-		// `.entries()` / `.values()` iteration. NonSerializable remains
-		// unsupported.
+		// `.entries()` / `.values()` iteration. NonSerializable IS
+		// supported here so the renderer emits a throw-factory for it
+		// (mion's NonSerializableRunType.emitIsType throws too — same
+		// semantic via a runtime-throwing factory).
 		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone, protocol.SubKindMap, protocol.SubKindSet:
+		case protocol.SubKindDate, protocol.SubKindNone, protocol.SubKindMap, protocol.SubKindSet,
+			protocol.SubKindNonSerializable:
 			return true
 		}
 		return false
@@ -262,12 +265,19 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		if rt.SubKind == protocol.SubKindSet {
 			return emitSetIsType(rt, ctx, v)
 		}
+		if rt.SubKind == protocol.SubKindNonSerializable {
+			// mion: nodes/native/nonSerializable.ts:18-19 —
+			// `emitIsType(): JitCode { throw new Error('Jit
+			// compilation disabled for Non Serializable types.'); }`.
+			// We mirror via a throw-factory: the message lands on
+			// Walker.ThrowMessage, the module renderer emits a
+			// `createJitFn(utl){ throw new Error(<msg>) }` so the
+			// throw surfaces at createIsType()-call time (mion's
+			// createJitFunction()-call equivalent).
+			return JitThrow("Jit compilation disabled for Non Serializable types.")
+		}
 		if rt.SubKind != protocol.SubKindNone {
-			// Unsupported subkind (NonSerializable, etc.). Return the
-			// CodeNS sentinel so the walker latches IsUnsupported and
-			// the renderer skips this entry's factory. Mirrors mion's
-			// "no validator available" via a silent skip instead of a
-			// hard panic at render time.
+			// Unknown future subkind — keep the silent-skip path.
 			return JitCode{Code: "", Type: CodeNS}
 		}
 		// Plain user class — fall through to the shared object emit.

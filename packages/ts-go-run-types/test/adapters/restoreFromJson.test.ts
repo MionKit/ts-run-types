@@ -47,6 +47,15 @@ function assertRoundTrip(
 
 function assertRestoreFromJson(c: JitCase): void {
   if (!c.restoreFromJson) throw new Error(`case ${c.title}: missing restoreFromJson thunk`);
+  if (c.jsonFamilyThrowsAtCompile) {
+    // mion-parity: restoreFromJson factory throws at JIT-compile
+    // time. Mirrors the prepareForJson adapter's same gate.
+    expect(() => c.restoreFromJson!()).toThrow();
+    if (c.restoreFromJsonReflect) expect(() => c.restoreFromJsonReflect!()).toThrow();
+    if (c.deserializeRestoreFromJson) expect(() => c.deserializeRestoreFromJson!()).toThrow();
+    if (c.deserializeRestoreFromJsonReflect) expect(() => c.deserializeRestoreFromJsonReflect!()).toThrow();
+    return;
+  }
   const getValid = () => c.getSamples().valid;
   const bestEffort = c.roundTripBestEffort ?? false;
   const prepareStatic = c.prepareForJson?.() ?? identityFn;
@@ -61,13 +70,7 @@ function assertRestoreFromJson(c: JitCase): void {
   }
 
   if (c.deserializeRestoreFromJson) {
-    assertRoundTrip(
-      `${c.title} [deserialize-static]`,
-      prepareDeserStatic,
-      c.deserializeRestoreFromJson(),
-      getValid,
-      bestEffort
-    );
+    assertRoundTrip(`${c.title} [deserialize-static]`, prepareDeserStatic, c.deserializeRestoreFromJson(), getValid, bestEffort);
   }
 
   if (c.deserializeRestoreFromJsonReflect) {

@@ -134,6 +134,20 @@ export interface JitCase {
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
   /** Reflect-form companion to `deserializeRestoreFromJson`. */
   deserializeRestoreFromJsonReflect?: () => RestoreFromJsonFn;
+  /** Marks types whose JSON family (prepareForJson + restoreFromJson)
+   *  throws at JIT-compile time per mion. Covers `never`,
+   *  `Promise<T>`, function-typed root, `symbol[]` / function[],
+   *  `Int8Array` et al, and any composite whose subtree reaches one
+   *  of those leaves. When set, the prepareForJson / restoreFromJson
+   *  adapters assert the THUNK itself throws (mirroring mion's
+   *  `expect(() => rt.createJitFunction(...)).toThrow()` contract)
+   *  instead of attempting a round-trip. isType / typeErrors families
+   *  are unaffected — for KindNever / KindPromise / KindFunction
+   *  those have legitimate validator emits (return false, thenable
+   *  check, typeof === 'function'); only `Int8Array` etc would
+   *  trigger throws there too, and jit-suite carries no such case. **/
+  jsonFamilyThrowsAtCompile?: boolean;
+
   /** Marks types whose serializer contract is "best effort via JSON" —
    *  `any`, `unknown`, `object`. For these the prepareForJson +
    *  restoreFromJson are both identity, so the runtime experience is
@@ -1024,6 +1038,7 @@ export const JIT_SUITE = {
     never: {
       title: 'Never — no value passes',
       isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
+      jsonFamilyThrowsAtCompile: true,
       isType: () => createIsType<never>(),
       deserializeIsType: () => deserializeIsType<never>(),
       isTypeReflect: () => {
@@ -3150,9 +3165,10 @@ export const JIT_SUITE = {
     symbol_array: {
       title: 'Array of symbols (non-serializable — always rejected)',
       description:
-        'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time; we mirror the runtime-observable effect by emitting an always-false validator so any input is rejected.',
+        'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at JIT compile time for prepareForJson/restoreFromJson; isType emits an always-false validator (we mirror the same).',
       isTypeNotes:
         'TS DIVERGENCE: Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, etc.) ALWAYS fail. The validator emits `return false`. Use a different shape if you need to carry symbol-like data.',
+      jsonFamilyThrowsAtCompile: true,
       isType: () => createIsType<symbol[]>(),
       deserializeIsType: () => deserializeIsType<symbol[]>(),
       isTypeReflect: () => {
@@ -4693,6 +4709,7 @@ export const JIT_SUITE = {
 
     function_top_level: {
       title: 'Function type at top level (any function passes)',
+      jsonFamilyThrowsAtCompile: true,
       description: "mion FunctionRunType.emitIsType — `typeof v === 'function'`. Param-arity check is deferred (mion-level).",
       isTypeNotes: [
         'TS DIVERGENCE: ANY function passes, regardless of signature — arrow functions, async functions, class declarations (typeof === "function") all satisfy `() => void`.',
@@ -10042,7 +10059,8 @@ export const JIT_SUITE = {
     promise_string: {
       title: 'Promise — thenable check, wrapped type not validated',
       description:
-        "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below).",
+        "Promise validation is a thenable check — `typeof v === 'object' && v !== null && typeof v.then === 'function'`. The wrapped T cannot be validated synchronously (the promise hasn't resolved); callers use `Awaited<P>` for the resolved-value check (see `awaited_promise` below). prepareForJson/restoreFromJson throw at JIT compile (mion's nodes/native/promise.ts).",
+      jsonFamilyThrowsAtCompile: true,
       isTypeNotes: [
         'TS DIVERGENCE: Promise validation is a "thenable" check — any object with a `then: function` PASSES, even if it is not an actual `Promise` instance.',
         'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',

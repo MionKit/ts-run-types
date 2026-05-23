@@ -42,6 +42,11 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindObject, protocol.KindRegexp,
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
+	case protocol.KindNever:
+		// mion:nodes/atomic/never.ts:23 — emitRestoreFromJson throws
+		// "Never type cannot be decoded from JSON.". Supports returns
+		// true so the renderer surfaces the throw via factory.
+		return true
 	case protocol.KindArray:
 		return rt.Child != nil
 	case protocol.KindObjectLiteral:
@@ -71,11 +76,13 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 	case protocol.KindClass:
 		switch rt.SubKind {
 		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet:
+			protocol.SubKindMap, protocol.SubKindSet,
+			protocol.SubKindNonSerializable:
 			return true
 		}
 		return false
 	case protocol.KindPromise:
+		// Throws — same pattern as prepareForJson.
 		return true
 	}
 	return false
@@ -131,6 +138,12 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// mion: AtomicRunType default — noop.
 		return JitCode{Code: "", Type: CodeS}
 
+	case protocol.KindNever:
+		// mion:nodes/atomic/never.ts:23-24 —
+		// `emitRestoreFromJson(): JitCode { throw new Error('Never
+		// type cannot be decoded from JSON.'); }`.
+		return JitThrow("Never type cannot be decoded from JSON.")
+
 	case protocol.KindUndefined:
 		// mion:nodes/atomic/undefined.ts:20 — `undefined`.
 		// JSON has no undefined, so the parsed input might be null or
@@ -168,13 +181,19 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			return JitCode{Code: v + " = new Map(" + v + ")", Type: CodeE}
 		case protocol.SubKindSet:
 			return JitCode{Code: v + " = new Set(" + v + ")", Type: CodeE}
+		case protocol.SubKindNonSerializable:
+			// mion:nodes/native/nonSerializable.ts:27-28 —
+			// `emitRestoreFromJson(): JitCode { throw new Error('Jit
+			// compilation disabled for Non Serializable types.'); }`.
+			return JitThrow("Jit compilation disabled for Non Serializable types.")
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		// Promise — non-serializable. Noop restore (round-trip is
-		// intentionally lossy on this boundary).
-		return JitCode{Code: "", Type: CodeS}
+		// mion:nodes/native/promise.ts:26-27 — emitRestoreFromJson
+		// throws "Jit compilation disabled for Non Serializable
+		// types.". Same throw-factory pattern as the prepare side.
+		return JitThrow("Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindObjectLiteral:
 		return emitObjectRestoreFromJson(rt, ctx, v)
@@ -193,8 +212,11 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// Non-serializable — noop body.
-		return JitCode{Code: "", Type: CodeS}
+		// mion:nodes/function/function.ts:86-88 —
+		// `emitRestoreFromJson(): JitCode { throw new Error('Compile
+		// function RestoreFromJson not supported, call compileParams
+		// or compileReturn instead.'); }`.
+		return JitThrow("Compile function RestoreFromJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
 		// mion:nodes/collection/union.ts:emitRestoreFromJson — decode
@@ -222,7 +244,10 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		}
 		resolvedChild := ctx.ResolveRef(rt.Child)
 		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-			return JitCode{Code: "", Type: CodeNS}
+			// Symmetric with emitPrepareForJson's array gate —
+			// mion's nodes/member/array.ts:148 throws on
+			// symbol[]/function[].
+			return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")

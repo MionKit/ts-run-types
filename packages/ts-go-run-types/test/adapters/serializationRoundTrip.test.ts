@@ -140,8 +140,7 @@ describe('serialization / ATOMIC', () => {
   it('bigint', () => runCase(SERIALIZATION_SPEC.ATOMIC.bigint));
   it('boolean', () => runCase(SERIALIZATION_SPEC.ATOMIC.boolean));
   it('any', () => runCase(SERIALIZATION_SPEC.ATOMIC.any));
-  it('not supported in JSON stringify when any type is used', () =>
-    runCase(SERIALIZATION_SPEC.ATOMIC.not_supported_any));
+  it('not supported in JSON stringify when any type is used', () => runCase(SERIALIZATION_SPEC.ATOMIC.not_supported_any));
   it('null', () => runCase(SERIALIZATION_SPEC.ATOMIC.null));
   it('undefined', () => runCase(SERIALIZATION_SPEC.ATOMIC.undefined));
   it('date', () => runCase(SERIALIZATION_SPEC.ATOMIC.date));
@@ -188,13 +187,11 @@ describe('serialization / OBJECTS', () => {
   it('many optional properties', () => runCase(SERIALIZATION_SPEC.OBJECTS.many_optional_props));
   it('class', () => runCase(SERIALIZATION_SPEC.OBJECTS.class));
   it('extended class', () => runCase(SERIALIZATION_SPEC.OBJECTS.extended_class));
-  it('non-serializable class via deserialize function', () =>
-    runCase(SERIALIZATION_SPEC.OBJECTS.non_serializable_class));
+  it('non-serializable class via deserialize function', () => runCase(SERIALIZATION_SPEC.OBJECTS.non_serializable_class));
   it('undefined is omitted in object prop', () => runCase(SERIALIZATION_SPEC.OBJECTS.undefined_in_object));
   it('optional properties order', () => runCase(SERIALIZATION_SPEC.OBJECTS.optional_properties_order));
   it('all optional fields', () => runCase(SERIALIZATION_SPEC.OBJECTS.all_optional_fields));
-  it('strip extra params (mion semantic — extras pass through)', () =>
-    runCase(SERIALIZATION_SPEC.OBJECTS.strip_extra_params));
+  it('strip extra params (mion semantic — extras pass through)', () => runCase(SERIALIZATION_SPEC.OBJECTS.strip_extra_params));
   it('interface circular', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular));
   it('interface circular array', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_array));
   it('interface circular deep', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_deep));
@@ -215,11 +212,9 @@ describe('serialization / RECORDS', () => {
   });
 
   it('index property', () => runCase(SERIALIZATION_SPEC.RECORDS.index_property));
-  it('interface with a single property and index property', () =>
-    runCase(SERIALIZATION_SPEC.RECORDS.index_property_and_prop));
+  it('interface with a single property and index property', () => runCase(SERIALIZATION_SPEC.RECORDS.index_property_and_prop));
   it('index property with extra props and unions', () => runCase(SERIALIZATION_SPEC.RECORDS.index_property_extra));
-  it('multiple index properties (symbol keys skipped)', () =>
-    runCase(SERIALIZATION_SPEC.RECORDS.multiple_index_props));
+  it('multiple index properties (symbol keys skipped)', () => runCase(SERIALIZATION_SPEC.RECORDS.multiple_index_props));
   it('index property nested', () => runCase(SERIALIZATION_SPEC.RECORDS.index_property_nested));
   it('index property nested with Date values', () => runCase(SERIALIZATION_SPEC.RECORDS.index_property_nested_date));
   it('index property with bigint values', () => runCase(SERIALIZATION_SPEC.RECORDS.index_property_bigint));
@@ -261,8 +256,7 @@ describe('serialization / FUNCTIONS', () => {
   it('function with rest parameters', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.function_with_rest_parameters));
   it('function with Date parameters', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.function_with_date_parameters));
   it('required function return', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.required_function_return));
-  it('function with only rest parameters', () =>
-    runCase(SERIALIZATION_SPEC.FUNCTIONS.function_with_only_rest_parameters));
+  it('function with only rest parameters', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.function_with_only_rest_parameters));
   it('non serializable params', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.non_serializable_params));
   it('function returns a promise', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.function_promise_return_type));
   it('return type of a closure', () => runCase(SERIALIZATION_SPEC.FUNCTIONS.function_return_type_is_function));
@@ -385,8 +379,7 @@ describe('serialization / OTHERS', () => {
 
   it('Promise top-level throws', () => runCase(SERIALIZATION_SPEC.OTHERS.promise_jsonStringify_error));
   it('non-serializable type throws (Int8Array)', () => runCase(SERIALIZATION_SPEC.OTHERS.non_serializable));
-  it('non-serializable inside interface throws', () =>
-    runCase(SERIALIZATION_SPEC.OTHERS.non_serializable_interface));
+  it('non-serializable inside interface throws', () => runCase(SERIALIZATION_SPEC.OTHERS.non_serializable_interface));
   it('non-serializable inside array throws', () => runCase(SERIALIZATION_SPEC.OTHERS.non_serializable_array));
   it('non-serializable inside tuple throws', () => runCase(SERIALIZATION_SPEC.OTHERS.non_serializable_tuple));
 
