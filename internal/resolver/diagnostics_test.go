@@ -125,6 +125,125 @@ export const _ = getRuntypeId<never>();
 	}
 }
 
+// TestDiag_PropertyAbsorbsUnsupportedChild pins the v2 property-
+// absorption rule: when an interface has an unsupported property
+// (Never, Symbol, NonSerializable class, etc.), the property emit
+// drops it from the parent's chain rather than propagating CodeNS
+// to the root. The rest of the object's validator still works.
+// See docs/UNSUPPORTED-KINDS.md.
+func TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface User { name: string; bad: never; }
+export const _ = getRuntypeId<User>();
+`
+	r := setupInline(t, map[string]string{"u.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"u.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	// The User factory should still be rendered (not absent) — the never
+	// property is absorbed at the property level. The rendered init line
+	// for the root User type must NOT carry an alwaysThrow code (8th arg).
+	// Find the line referencing the User id (it's the objectLiteral with
+	// children) and assert no 8-arg form.
+	var rootSiteID string
+	for _, s := range resp.Sites {
+		rootSiteID = s.ID
+	}
+	if rootSiteID == "" {
+		t.Fatalf("expected at least one site for the User marker call")
+	}
+	rootInit := "init('pj_" + rootSiteID + "',"
+	if !strings.Contains(resp.PrepareForJsonCacheSource, rootInit) {
+		t.Errorf("expected PrepareForJson cache to contain User init line %q, got:\n%s", rootInit, resp.PrepareForJsonCacheSource)
+	}
+	// Locate the User init() and confirm it's not the 8-arg alwaysThrow form.
+	idx := strings.Index(resp.PrepareForJsonCacheSource, rootInit)
+	if idx >= 0 {
+		end := strings.Index(resp.PrepareForJsonCacheSource[idx:], ";")
+		userLine := resp.PrepareForJsonCacheSource[idx : idx+end]
+		if strings.Contains(userLine, "'PJ001'") {
+			t.Errorf("User factory should NOT be alwaysThrow — property absorbs the never child. Got: %s", userLine)
+		}
+	}
+	// A PJ001 diagnostic should fire for the absorbed never child.
+	runtype := runtypeDiagsOf(resp.Diagnostics)
+	var pj001 *diag.Diagnostic
+	for i := range runtype {
+		if runtype[i].Code == diag.CodePJNeverRoot {
+			pj001 = &runtype[i]
+			break
+		}
+	}
+	if pj001 == nil {
+		t.Fatalf("expected PJ001 diagnostic for the absorbed never property, got %+v", runtype)
+	}
+	if !strings.Contains(pj001.Message, "bad") {
+		t.Errorf("expected diagnostic to mention 'bad' (the absorbed property), got %q", pj001.Message)
+	}
+}
+
+// TestDiag_SymbolUnsupported_PerFamily pins v2's reclassification of
+// KindSymbol — `getRuntypeId<symbol>()` produces an alwaysThrow factory
+// (or its per-family equivalent code) across every JIT family.
+func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<symbol>();
+`
+	r := setupInline(t, map[string]string{"s.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:    protocol.OpScanFiles,
+		Files: []string{"s.ts"},
+		IncludeCacheSources: []protocol.CacheKind{
+			protocol.CacheKindIsType,
+			protocol.CacheKindPrepareForJson,
+			protocol.CacheKindStringifyJson,
+			protocol.CacheKindToBinary,
+		},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	codes := map[string]bool{}
+	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
+		codes[d.Code] = true
+	}
+	// Each family emits its own Symbol-unsupported code.
+	for _, want := range []string{diag.CodeISSymbolRoot, diag.CodePJSymbolRoot, diag.CodeSJSymbolRoot, diag.CodeTBSymbolRoot} {
+		if !codes[want] {
+			t.Errorf("expected diagnostic %s to fire for symbol at root, got %v", want, codes)
+		}
+	}
+}
+
+// TestDiag_AlwaysThrowEntry_HasCodeOnWire pins the v2 wire format —
+// when a root throws, the rendered init() carries the diag code as
+// the 8th arg, not an inline throwing factory body.
+func TestDiag_AlwaysThrowEntry_HasCodeOnWire(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<never>();
+`
+	r := setupInline(t, map[string]string{"n.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"n.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if !strings.Contains(resp.PrepareForJsonCacheSource, "'PJ001'") {
+		t.Errorf("expected rendered alwaysThrow init() to carry the 'PJ001' code as 8th arg, got:\n%s", resp.PrepareForJsonCacheSource)
+	}
+	if strings.Contains(resp.PrepareForJsonCacheSource, "throw new Error(") {
+		t.Errorf("v2 wire format should not embed inline throw bodies, got:\n%s", resp.PrepareForJsonCacheSource)
+	}
+}
+
 // TestDiag_SilentSkip_FunctionMember pins the Phase 3 silent-skip
 // visibility: when an interface has a function-typed member, the JIT
 // silently drops it from the validator/serializer. The new diagnostic

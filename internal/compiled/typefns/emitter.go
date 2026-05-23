@@ -258,12 +258,23 @@ const (
 )
 
 // DiagCodeProvider is the optional capability emitters implement when
-// they want per-family diagnostic codes attached to their throw /
+// they want per-family diagnostic codes attached to their child-position
 // silent-skip sites. Returning "" for a slot disables emission at that
-// slot. Emitters that don't implement this interface still throw at
-// runtime; the diagnostic just doesn't surface at build time.
+// slot.
 type DiagCodeProvider interface {
 	DiagCodeFor(slot DiagSlot) string
+}
+
+// LeafDiagCodeProvider is the optional capability emitters implement when
+// they want per-family diagnostic codes attached to unsupported root
+// leaves. The walker hands the leaf RunType to this method when
+// finalising an alwaysThrow factory; the emitter returns the
+// per-family code (PJ001 for Never under prepareForJson, etc.).
+// Returning "" preserves the silent-skip path (no factory emitted) —
+// used as a safety net for unknown future kinds without a registered
+// code. See docs/UNSUPPORTED-KINDS.md for the unified throw model.
+type LeafDiagCodeProvider interface {
+	DiagCodeForLeaf(leaf *protocol.RunType) string
 }
 
 // DiagCodeFor returns the per-family diag code the current emitter
@@ -271,6 +282,16 @@ type DiagCodeProvider interface {
 func (ctx *EmitContext) DiagCodeFor(slot DiagSlot) string {
 	if provider, ok := ctx.walker.Emitter.(DiagCodeProvider); ok {
 		return provider.DiagCodeFor(slot)
+	}
+	return ""
+}
+
+// DiagCodeForLeaf returns the per-family code the current emitter
+// associates with the given unsupported leaf kind, or "" when the
+// emitter doesn't register one.
+func (ctx *EmitContext) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	if provider, ok := ctx.walker.Emitter.(LeafDiagCodeProvider); ok {
+		return provider.DiagCodeForLeaf(leaf)
 	}
 	return ""
 }

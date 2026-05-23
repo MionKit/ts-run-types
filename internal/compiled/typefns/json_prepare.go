@@ -183,11 +183,9 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
-		// mion:nodes/atomic/never.ts:20-21 —
-		// `emitPrepareForJson(): JitCode { throw new Error('Never
-		// type cannot be encoded to JSON.'); }`. Surfaced as a
-		// runtime-throwing factory via JitThrow.
-		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be encoded to JSON.")
+		// Unsupported leaf — walker latches, renderer emits alwaysThrow
+		// factory keyed by PJ001 (see docs/UNSUPPORTED-KINDS.md).
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindBigInt:
 		// mion:nodes/atomic/bigInt.ts:20 — `v.toString()`.
@@ -195,8 +193,11 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return JitCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 
 	case protocol.KindSymbol:
-		// mion:nodes/atomic/symbol.ts:25 — `'Symbol:' + (v.description || '')`.
-		return JitCode{Code: v + " = 'Symbol:' + (" + v + ".description || '')", Type: CodeE}
+		// Unsupported — symbol identity does not survive a JSON
+		// round-trip (Symbol("x") !== Symbol("x")), so the previous
+		// "Symbol:" + description encoding was lossy by construction.
+		// See docs/UNSUPPORTED-KINDS.md FAQ for the rationale.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
 		// mion:nodes/atomic/regexp.ts:20 — `v.toString()` (e.g. "/abc/i").
@@ -223,15 +224,13 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		// mion:nodes/native/promise.ts:23-24 — `emitPrepareForJson():
-		// JitCode { throw new Error('Jit compilation disabled for
-		// Non Serializable types.'); }`. Same throw-factory pattern.
-		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+		// Unsupported — async value, can't be sampled synchronously.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJson(rt, ctx, v)
@@ -259,7 +258,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// emitObjectPrepareForJson / emitPropertyPrepareForJson) and
 		// never reach this arm. Tuple-member also filters via
 		// isFunctionLikeKind.
-		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUnion:
 		// Unions encode via the flat-union wire shape (see union_flat.go) —
@@ -309,7 +308,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 			// ie: Symbol[], Function[], etc." when the element's
 			// skipJit returns true (Symbol, Function). We mirror via
 			// a throw-factory.
-			return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
@@ -400,8 +399,8 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 		return JitCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		// mion: PropertySignature wrapping a function — skipped from
-		// the parent's children chain.
+		// Fast-path: pre-descent skip for known function-shaped children.
+		// Avoids the wasted walker descent + AbsorbUnsupported round-trip.
 		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from prepareForJson output")
 		return JitCode{Code: "", Type: CodeS}
 	}
@@ -410,7 +409,18 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 	childJit := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+		// Property absorbs any unsupported child — drops the slot from
+		// the parent's chain, emits a per-family diagnostic naming the
+		// excluded property + leaf kind, and clears the walker latch
+		// so sibling properties can absorb their own. The rest of the
+		// object's body still emits. See docs/UNSUPPORTED-KINDS.md
+		// "How a parent absorbs".
+		leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf)
+		if leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from prepareForJson output")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeS}
 	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeS}

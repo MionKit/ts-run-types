@@ -163,20 +163,19 @@ type Walker struct {
 	// IsUnsupported flips to true the first time compileNode sees a
 	// CodeNS sentinel anywhere in the traversal. Once set it stays
 	// true — the rest of the compile becomes a no-op (compileNode
-	// short-circuits without descending) and the renderer skips
-	// emitting a factory for this RunType. Replaces the per-entry
-	// `subtreeFullySupported` pre-walk that used to live in
-	// module.go: instead of walking each subtree TWICE (once to
-	// check, once to compile), the single compile pass detects
-	// unsupported leaves and bubbles the signal up via CodeNS.
+	// short-circuits without descending) UNLESS a parent absorbs the
+	// unsupported child via AbsorbUnsupported (property/PropertySignature
+	// emits are the only positions that absorb). The renderer reads
+	// IsUnsupported + UnsupportedLeaf at end-of-walk to decide whether
+	// to emit a regular factory or an alwaysThrow entry.
 	IsUnsupported bool
-	// ThrowMessage carries the JIT-compile-time error message when a
-	// CodeNS leaf was tagged with one (via JitThrow). Once captured,
-	// the renderer emits a throw-factory rather than silently skipping
-	// the entry — matching mion's per-runtype throws (never, Promise,
-	// NonSerializableRunType, the array.ts symbol[]/function[] check).
-	// First message wins; subsequent CodeNS leaves don't overwrite.
-	ThrowMessage string
+	// UnsupportedLeaf points at the RunType whose emit first returned
+	// CodeNS. The renderer feeds it to the active emitter's
+	// DiagCodeForLeaf to derive the per-family code that goes into the
+	// alwaysThrow init() call. First-encounter wins; AbsorbUnsupported
+	// clears this slot so a sibling property's own CodeNS can be tracked
+	// independently. See docs/UNSUPPORTED-KINDS.md.
+	UnsupportedLeaf *protocol.RunType
 
 	// DiagSink is the destination for compile-time diagnostics this
 	// walker emits via EmitDiagnostic. Nil when the caller doesn't want
@@ -207,6 +206,18 @@ func memberLabel(rt *protocol.RunType) string {
 		return "<anonymous>"
 	}
 	return rt.Name
+}
+
+// AbsorbUnsupported clears the unsupported-leaf latch so the walker
+// can continue compiling sibling entries. Used by property/
+// PropertySignature emits when they choose to drop an unsupported
+// child rather than propagate the CodeNS up. After absorption, the
+// parent returns plain empty code (CodeS or CodeE) so its own parent's
+// chain treats the slot as a no-op. See docs/UNSUPPORTED-KINDS.md
+// for the two-rule model.
+func (w *Walker) AbsorbUnsupported() {
+	w.IsUnsupported = false
+	w.UnsupportedLeaf = nil
 }
 
 // EmitDiagnostic records a compile-time diagnostic against every call
@@ -423,16 +434,13 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCo
 	w.pushStack(rt)
 	jc := w.dispatch(rt, expectedCType)
 	if jc.Type == CodeNS {
-		// First throw message wins — capture before latching so the
-		// renderer can emit a throw-factory rather than silently
-		// skipping. Plain CodeNS (no message) preserves the existing
-		// "drop the factory" behaviour for kinds without an emit.
-		if jc.ErrorMessage != "" && w.ThrowMessage == "" {
-			w.ThrowMessage = jc.ErrorMessage
+		// First unsupported leaf wins — capture the RunType so the
+		// renderer can derive a per-family diag code via the active
+		// emitter's DiagCodeForLeaf. Latch IsUnsupported so subsequent
+		// CompileChild calls short-circuit at the top of this function.
+		if w.UnsupportedLeaf == nil {
+			w.UnsupportedLeaf = rt
 		}
-		// Latch the walker-level signal. Subsequent CompileChild
-		// calls (from parent compound emits iterating siblings)
-		// short-circuit at the top of this function.
 		w.IsUnsupported = true
 		w.popStack(jc)
 		return jc

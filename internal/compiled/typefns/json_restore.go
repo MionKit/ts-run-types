@@ -142,7 +142,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// mion:nodes/atomic/never.ts:23-24 —
 		// `emitRestoreFromJson(): JitCode { throw new Error('Never
 		// type cannot be decoded from JSON.'); }`.
-		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be decoded from JSON.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUndefined:
 		// mion:nodes/atomic/undefined.ts:20 — `undefined`.
@@ -159,9 +159,9 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return JitCode{Code: v + " = BigInt(" + v + ")", Type: CodeE}
 
 	case protocol.KindSymbol:
-		// mion:nodes/atomic/symbol.ts:28 — `Symbol(v.substring(7))`.
-		// "Symbol:" is 7 chars; strip it to recover the description.
-		return JitCode{Code: v + " = Symbol(" + v + ".substring(7))", Type: CodeE}
+		// Unsupported — symmetric with prepareForJson's symbol arm.
+		// See docs/UNSUPPORTED-KINDS.md FAQ.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
 		// mion:nodes/atomic/regexp.ts:23 — IIFE that splits the
@@ -183,7 +183,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			// mion:nodes/native/nonSerializable.ts:27-28 —
 			// `emitRestoreFromJson(): JitCode { throw new Error('Jit
 			// compilation disabled for Non Serializable types.'); }`.
-			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
@@ -191,7 +191,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// mion:nodes/native/promise.ts:26-27 — emitRestoreFromJson
 		// throws "Jit compilation disabled for Non Serializable
 		// types.". Same throw-factory pattern as the prepare side.
-		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectRestoreFromJson(rt, ctx, v)
@@ -214,7 +214,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// `emitRestoreFromJson(): JitCode { throw new Error('Compile
 		// function RestoreFromJson not supported, call compileParams
 		// or compileReturn instead.'); }`.
-		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Compile function RestoreFromJson not supported, call compileParams or compileReturn instead.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUnion:
 		// Decodes the flat-union wire shape produced by
@@ -247,7 +247,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			// Symmetric with emitPrepareForJson's array gate —
 			// mion's nodes/member/array.ts:148 throws on
 			// symbol[]/function[].
-			return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
@@ -340,7 +340,12 @@ func emitPropertyRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v strin
 	childJit := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
+		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from restoreFromJson")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeS}
 	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeS}

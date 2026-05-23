@@ -22,6 +22,7 @@ import type {
   RunTypesCache,
 } from './types.ts';
 import {restoreCompiledJitFns} from './restoreJitFns.ts';
+import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticMessages.ts';
 
 // Minimal ambient — `console` is universally available at runtime (node + browser)
 // but the package's tsconfig sets `types: []` so the global isn't otherwise visible.
@@ -80,6 +81,14 @@ export interface JITUtils {
   setDeserializeFn<C extends AnyClass>(cls: C, deserializeFn: DeserializeClassFn<InstanceType<C>>): void;
   useDeserializeFn(className: string): DeserializeClassFn<any>;
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined;
+  /**
+   * Build a throwing-factory for an alwaysThrow cache entry. The Go-side
+   * compiler ships the diag code (e.g. 'PJ001') as the 8th arg of init();
+   * the cache module calls this to construct the createJitFn that throws
+   * `[code] message` on invocation. Centralised here so the message
+   * catalog lives in one place. See docs/UNSUPPORTED-KINDS.md.
+   */
+  alwaysThrowFactory(code: string): () => never;
 }
 
 /** Cycle guard for lazy fn materialization. When entry A's createJitFn
@@ -230,6 +239,9 @@ const jitUtils: JITUtils = {
   },
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined {
     return deserializeFnsRegistry.get(className);
+  },
+  alwaysThrowFactory(code: string): () => never {
+    return alwaysThrowFactoryImpl(code);
   },
 };
 
