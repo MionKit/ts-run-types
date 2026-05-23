@@ -29,9 +29,20 @@ export function initCache(jitUtils) {
   // createJitFn are all undefined. We materialise `fn` immediately as
   // the family-specific identity (`() => true` for isType), so
   // consumers can read `entry.fn` without any further dispatch.
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
+  function init(
+    jitFnHash,
+    typeName,
+    code,
+    isNoop,
+    jitDependencies,
+    pureFnDependencies,
+    createJitFn,
+    alwaysThrowCode,
+    alwaysThrowSite
+  ) {
     const fn = isNoop ? noopIsType : undefined;
-    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
+    const resolvedCreateJitFn =
+      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'it',

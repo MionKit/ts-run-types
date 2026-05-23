@@ -19,10 +19,15 @@ Rather than silently producing a half-working factory (or worse, a lossy one tha
 
 The pipeline applies exactly two rules:
 
-1. **Property / PropertySignature children that are unsupported are dropped silently from the parent's emit**, with a build-time diagnostic naming the dropped member. The rest of the object's validator / serializer continues to work.
-2. **Everywhere else** (root, array element, tuple slot, union member, function param / return, Map key / value, Set member, index signature value, intersection) **propagates upward to the root, where the factory is rendered as an `alwaysThrow` entry**. Calling `createXxx<T>()` for that T throws at the call site with a code like `[PJ001] Never type cannot be encoded to JSON.`
+1. **Property / PropertySignature children that are unsupported are dropped silently from the parent's emit**, with a build-time **Warning**-severity diagnostic naming the dropped member. The rest of the object's validator / serializer continues to work. This is **by design** — dropping a `() => void` property from an `isType` validator matches what JSON already does on the wire, so the validator's "shape" is the data-only projection of the type. See [CLAUDE.md](../CLAUDE.md) "isType contract — serializable data only" for the semantic guarantee.
+2. **Everywhere else** (root, array element, tuple slot, union member, function param / return, Map key / value, Set member, index signature value, intersection) **propagates upward to the root, where the factory is rendered as an `alwaysThrow` entry**. Calling `createXxx<T>()` for that T throws at the call site with a code like `[PJ001] Never type cannot be encoded to JSON. (at src/foo.ts:7:18)`. The runtime error includes the **first known marker call site** so the user can jump straight to the offending source even if they didn't see the build-time error.
 
 This mirrors mion's `getJitChildren` filter — the only "skip" in the upstream library is property-level absorption; everything else throws.
+
+**Severity contract**:
+
+- Property drops emit at **Warning** — surfaced via `this.warn()` in the Vite plugin's build log + IDE Problems panel. Does not halt the build.
+- Root-position / array-element / other propagating throws emit at **Error** — surfaced via `this.warn()` for visibility, AND `this.error()` once at the end of the diagnostic pass so the build **halts**. HMR is more lenient (warning only) so dev sessions survive in-progress edits.
 
 ## Why these rules
 
@@ -32,14 +37,14 @@ This mirrors mion's `getJitChildren` filter — the only "skip" in the upstream 
 
 ## The unsupported set
 
-| Kind                              | Why                                          | Code family |
-| --------------------------------- | -------------------------------------------- | ----------- |
-| `KindNever`                       | No inhabitants                               | `XX001`     |
-| `KindClass` + SubKindNonSerializable | Non-serialisable (WeakMap, Int8Array, …) | `XX002`     |
-| `KindPromise`                     | Async — can't sample synchronously           | `XX002`     |
-| `KindFunction` / `KindMethod` / `KindMethodSignature` / `KindCallSignature` | No serialisable value form | `XX003` |
-| `KindSymbol`                      | Runtime identity not round-trippable; not comparable across realms | `XX005` |
-| Future kinds without an emit      | Walker falls through                         | (unregistered → silent skip) |
+| Kind                                                                        | Why                                                                | Code family                  |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------- |
+| `KindNever`                                                                 | No inhabitants                                                     | `XX001`                      |
+| `KindClass` + SubKindNonSerializable                                        | Non-serialisable (WeakMap, Int8Array, …)                           | `XX002`                      |
+| `KindPromise`                                                               | Async — can't sample synchronously                                 | `XX002`                      |
+| `KindFunction` / `KindMethod` / `KindMethodSignature` / `KindCallSignature` | No serialisable value form                                         | `XX003`                      |
+| `KindSymbol`                                                                | Runtime identity not round-trippable; not comparable across realms | `XX005`                      |
+| Future kinds without an emit                                                | Walker falls through                                               | (unregistered → silent skip) |
 
 `XX` is the per-family prefix. Each JIT function family has its own:
 
@@ -60,22 +65,22 @@ So the same logical throw (Never at root) surfaces as `PJ001` under prepareForJs
 A factory rendered for an unsupported root looks like:
 
 ```js
-init('pj_<hash>', '<typeName>', undefined, false, undefined, undefined, undefined, 'PJ001')
+init('pj_<hash>', '<typeName>', undefined, false, undefined, undefined, undefined, 'PJ001', 'src/foo.ts:7:18');
 ```
 
-The 8th argument is `alwaysThrowCode`. The JS-side `init()` consumer constructs a throwing factory from it via `messageForCode(code)` — see `packages/ts-go-run-types/src/jit/diagnosticMessages.ts`. The error thrown at runtime is:
+The 8th argument is `alwaysThrowCode`. The 9th (optional) is `alwaysThrowSite` — a `file:line:col` string pointing at the **first known marker call site** for the type. The JS-side `init()` consumer constructs a throwing factory from both via `alwaysThrowFactory(code, siteHint)` — see `packages/ts-go-run-types/src/jit/diagnosticMessages.ts`. The error thrown at runtime is:
 
 ```
-Error: [PJ001] Never type cannot be encoded to JSON.
+Error: [PJ001] Never type cannot be encoded to JSON. (at src/foo.ts:7:18)
 ```
 
-The `[code]` prefix lets users grep by code OR by message phrase.
+The `[code]` prefix lets users grep by code OR by message phrase; the trailing `(at file:line:col)` lets the user jump straight to the offending marker call. When the renderer has no provenance for the type (orphaned cache entry — rare), the 9th arg is `undefined` and the suffix is omitted.
 
-Normal factories use the 7-arg form (`alwaysThrowCode` defaults to `undefined`); noop factories use a 4-arg form (`isNoop=true`, trailing args omitted). Three init() shapes total:
+Normal factories use the 7-arg form (`alwaysThrowCode` and `alwaysThrowSite` default to `undefined`); noop factories use a 4-arg form (`isNoop=true`, trailing args omitted). Three init() shapes total:
 
 - **Normal**: `init(hash, typeName, codeBody, false, jitDeps, pureFnDeps, createJitFn)`
 - **Noop**: `init(hash, typeName, undefined, true)` — JS side fills in an identity factory
-- **AlwaysThrow**: `init(hash, typeName, undefined, false, undefined, undefined, undefined, 'PJ001')` — JS side constructs the throwing factory from the code
+- **AlwaysThrow**: `init(hash, typeName, undefined, false, undefined, undefined, undefined, 'PJ001', 'src/foo.ts:7:18')` — JS side constructs the throwing factory from the code, optionally appending the call-site hint to the thrown error
 
 ## How an emit signals "unsupported"
 

@@ -99,17 +99,24 @@ export default function runtypes(options: PluginOptions) {
         const kind = CACHE_KIND_BY_FILE[cacheMatch[1]];
         cacheModuleIds[kind] = id;
         const dump = await resolver.dump({includeCacheSources: [kind]});
-        // PureFn diagnostics flow alongside pureFnsCacheSource only —
-        // surface them on that one transform call so each diagnostic is
-        // emitted exactly once per build pass. Filter to the PureFn
-        // family so we don't double-emit marker/runtype warnings here
-        // (those flow through the scanFiles path).
+        // Diagnostic surfacing — partitioned across two transforms so each
+        // diagnostic emits exactly once per build pass and Rollup's
+        // dedupe sees one source per finding:
+        //   - `runType` cache: every non-PureFn family (marker, isType,
+        //     typeErrors, all JSON / binary families, unknown-keys).
+        //     `runType` is the first cache touched by every project that
+        //     uses the marker, so this is the natural "first build pass"
+        //     emission point.
+        //   - `pureFns` cache: PureFn-family diagnostics only.
+        // HMR's `handleHotUpdate` re-emits via the scanFiles path so each
+        // edit refreshes the editor's Problems panel; that path uses a
+        // softer severity routing (no `ctx.error()`) so a single bad type
+        // doesn't kill the dev session.
+        if (kind === 'runType') {
+          surfaceDiagnostics(this, dump.diagnostics ?? [], (d) => d.family !== Family.PureFn, {halt: true});
+        }
         if (kind === 'pureFns') {
-          for (const d of dump.diagnostics ?? []) {
-            if (d.family === Family.PureFn) {
-              this.warn(formatTscDiagnostic(d));
-            }
-          }
+          surfaceDiagnostics(this, dump.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
         }
         const body = pickCacheSource(dump, kind);
         if (!body) return null;
@@ -174,10 +181,14 @@ export default function runtypes(options: PluginOptions) {
       // Every diagnostic flows through one wire field now; the Family
       // discriminator inside each entry tells consumers which subsystem
       // produced it. Re-emit immediately so the editor's problem panel
-      // updates as the user types.
-      for (const d of result.diagnostics ?? []) {
-        this.warn?.(formatTscDiagnostic(d));
-      }
+      // updates as the user types. `halt: false` because HMR shouldn't
+      // tear down the dev server on a single bad type — the user is
+      // mid-edit and will fix it imminently. Vite's error overlay still
+      // appears via `ctx.warn` when annotated correctly; if the type
+      // stays bad through a subsequent module evaluation, the runtime
+      // alwaysThrow factory carries source context so the call-site is
+      // recoverable from the thrown error too.
+      surfaceDiagnostics(this, result.diagnostics ?? [], () => true, {halt: false});
 
       const invalidated: any[] = [];
       const moduleGraph = ctx.server?.moduleGraph;
@@ -256,6 +267,40 @@ function pickCacheSource(
   return undefined;
 }
 
+// surfaceDiagnostics routes a diagnostic list through Rollup's plugin
+// context based on each entry's severity. The split is the rule that
+// makes the build fail (or not) on unsupported types:
+//
+//   - SeverityError diagnostics ALWAYS get `ctx.warn` so the user sees
+//     every error in the build log (not just the first one). When
+//     `halt: true` AND at least one error was collected, the function
+//     then calls `ctx.error()` ONCE with a summary so the build fails
+//     with the full error list still visible above the failure.
+//   - SeverityWarning / SeverityInfo emit as `ctx.warn` only — these
+//     are intentional behaviours the user should know about but that
+//     do not require a hard build halt.
+//
+// `halt: false` is the HMR mode: a bad type during dev shouldn't kill
+// the server; the user is mid-edit. The diagnostic still flows to the
+// editor's Problems panel via `ctx.warn`.
+function surfaceDiagnostics(
+  ctx: any,
+  diagnostics: Diagnostic[],
+  filter: (d: Diagnostic) => boolean,
+  options: {halt: boolean}
+): void {
+  let errorCount = 0;
+  for (const diagnostic of diagnostics) {
+    if (!filter(diagnostic)) continue;
+    ctx.warn?.(formatTscDiagnostic(diagnostic));
+    if (diagnostic.severity === Severity.Error) errorCount += 1;
+  }
+  if (options.halt && errorCount > 0) {
+    const noun = errorCount === 1 ? 'unsupported-type error' : 'unsupported-type errors';
+    ctx.error?.(`vite-plugin-runtypes: ${errorCount} ${noun} — build halted. See warnings above for the call sites.`);
+  }
+}
+
 // formatTscDiagnostic renders a Diagnostic in the canonical
 // `tsc --pretty=false` line format so VS Code's $tsc problem matcher
 // recognises it:
@@ -277,10 +322,14 @@ export function formatTscDiagnostic(d: Diagnostic): string {
 
 function severityLabel(s: Severity): string {
   switch (s) {
-    case Severity.Error: return 'error';
-    case Severity.Warning: return 'warning';
-    case Severity.Info: return 'info';
-    default: return 'info';
+    case Severity.Error:
+      return 'error';
+    case Severity.Warning:
+      return 'warning';
+    case Severity.Info:
+      return 'info';
+    default:
+      return 'info';
   }
 }
 

@@ -51,7 +51,8 @@ export const DIAGNOSTIC_MESSAGES: Record<string, string> = {
   TB003: 'Function types cannot be serialized to Binary.',
   TB004: 'Arrays cannot have non-serializable element types (Symbol[], Function[], ...).',
   TB005: 'Non-serializable class cannot be serialized to Binary.',
-  TB006: 'Symbol type cannot be reliably serialized — symbols carry runtime identity that does not survive a serialization round-trip.',
+  TB006:
+    'Symbol type cannot be reliably serialized — symbols carry runtime identity that does not survive a serialization round-trip.',
 
   // fromBinary (FB)
   FB001: 'Never type cannot be deserialized from Binary.',
@@ -59,7 +60,8 @@ export const DIAGNOSTIC_MESSAGES: Record<string, string> = {
   FB003: 'Function types cannot be deserialized from Binary.',
   FB004: 'Arrays cannot have non-serializable element types (Symbol[], Function[], ...).',
   FB005: 'Non-serializable class cannot be deserialized from Binary.',
-  FB006: 'Symbol type cannot be reliably deserialized — symbols carry runtime identity that does not survive a serialization round-trip.',
+  FB006:
+    'Symbol type cannot be reliably deserialized — symbols carry runtime identity that does not survive a serialization round-trip.',
 
   // isType (IT)
   IT001: 'Jit compilation disabled for Non Serializable types.',
@@ -84,10 +86,14 @@ export function messageForCode(code: string): string {
 // users see the error at the same call site they used to. Used by
 // every cache module's init() when the Go side ships an
 // alwaysThrowCode (8th arg). The thrown message has the canonical
-// `[code] message` shape so users can grep by code OR by phrase.
-// See docs/UNSUPPORTED-KINDS.md "Wire format".
-export function alwaysThrowFactory(code: string): () => never {
-  const message = `[${code}] ${messageForCode(code)}`;
+// `[code] message (at file:line:col)` shape so users can grep by code,
+// by phrase, OR jump straight to the offending source. `siteHint` is
+// optional — when the Go-side renderer has no provenance for the type
+// it ships `undefined` and the suffix is omitted. See
+// docs/UNSUPPORTED-KINDS.md "Wire format".
+export function alwaysThrowFactory(code: string, siteHint?: string): () => never {
+  const base = `[${code}] ${messageForCode(code)}`;
+  const message = siteHint ? `${base} (at ${siteHint})` : base;
   return () => {
     throw new Error(message);
   };

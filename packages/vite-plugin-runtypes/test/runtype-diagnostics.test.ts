@@ -98,9 +98,7 @@ export const _ = getRuntypeId<User>();
         includeCacheSources: ['isType'],
       });
       const diags = runtypeDiagsOf(response);
-      const dropped = diags.find(
-        (d) => (d.code === 'IT010' || d.code === 'IT011') && d.message.includes('onClick')
-      );
+      const dropped = diags.find((d) => (d.code === 'IT010' || d.code === 'IT011') && d.message.includes('onClick'));
       expect(dropped, JSON.stringify(diags, null, 2)).toBeDefined();
       expect(dropped!.severity).toBe(Severity.Warning);
     });
@@ -123,7 +121,7 @@ export const _ = getRuntypeId<never>();
     });
   });
 
-  register('emits TE020 info diagnostic for typeErrors on root any/unknown', async () => {
+  register('emits TE020 warning diagnostic for typeErrors on root any/unknown', async () => {
     const sources = {
       'any.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRuntypeId<any>();
@@ -134,13 +132,33 @@ export const _ = getRuntypeId<any>();
         includeCacheSources: ['typeErrors'],
       });
       const diags = runtypeDiagsOf(response);
-      const info = diags.find((d) => d.code === 'TE020');
-      // Note: typeErrors may or may not be supported for KindAny — when
-      // the emit is gated out by Supports() the diagnostic is not
-      // reached. The diagnostic is best-effort here.
-      if (info) {
-        expect(info.severity).toBe(Severity.Info);
+      const warning = diags.find((d) => d.code === 'TE020');
+      // TE020 surfaces as Warning (not Info): root any/unknown is an
+      // intentional escape hatch but a validator that accepts every
+      // value is still a UX surprise worth flagging visibly.
+      if (warning) {
+        expect(warning.severity).toBe(Severity.Warning);
       }
+    });
+  });
+
+  register('emits IT021 warning diagnostic for isType on root any/unknown', async () => {
+    const sources = {
+      'any-istype.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<unknown>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeCacheSources: ['isType'],
+      });
+      const diags = runtypeDiagsOf(response);
+      const warning = diags.find((d) => d.code === 'IT021');
+      // IT021 is the isType-family parallel to TE020 — root any/unknown
+      // produces a validator that returns true for every value; surface
+      // a warning so the user knows the schema is no longer enforced.
+      expect(warning).toBeDefined();
+      expect(warning!.severity).toBe(Severity.Warning);
     });
   });
 });

@@ -83,12 +83,14 @@ export interface JITUtils {
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined;
   /**
    * Build a throwing-factory for an alwaysThrow cache entry. The Go-side
-   * compiler ships the diag code (e.g. 'PJ001') as the 8th arg of init();
-   * the cache module calls this to construct the createJitFn that throws
-   * `[code] message` on invocation. Centralised here so the message
-   * catalog lives in one place. See docs/UNSUPPORTED-KINDS.md.
+   * compiler ships the diag code (e.g. 'PJ001') as the 8th arg of init()
+   * and an optional `file:line:col` provenance hint as the 9th arg; the
+   * cache module forwards both here. The factory throws
+   * `[code] message (at file:line:col)` on invocation, or
+   * `[code] message` when no provenance is known. Centralised so the
+   * message catalog lives in one place. See docs/UNSUPPORTED-KINDS.md.
    */
-  alwaysThrowFactory(code: string): () => never;
+  alwaysThrowFactory(code: string, siteHint?: string): () => never;
 }
 
 /** Cycle guard for lazy fn materialization. When entry A's createJitFn
@@ -240,8 +242,8 @@ const jitUtils: JITUtils = {
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined {
     return deserializeFnsRegistry.get(className);
   },
-  alwaysThrowFactory(code: string): () => never {
-    return alwaysThrowFactoryImpl(code);
+  alwaysThrowFactory(code: string, siteHint?: string): () => never {
+    return alwaysThrowFactoryImpl(code, siteHint);
   },
 };
 
