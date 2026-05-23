@@ -106,6 +106,14 @@ func UnknownKeysToUndefinedModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefined)
 }
 
+// UnknownKeysToUndefinedWireModule writes the runtime artifact for the
+// decoder-internal ukuWire family — sibling of uku that emits the
+// wire-format-aware merged-allowlist strip at union nodes.
+func UnknownKeysToUndefinedWireModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["unknownKeysToUndefinedWire"]
+	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedWireEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefinedWire)
+}
+
 // RenderFnModule is the fn-agnostic module renderer. Emits one
 // `init('hash', …);` line per supported RunType then splices the
 // result into the named skeleton. The skeleton's `init` closes over

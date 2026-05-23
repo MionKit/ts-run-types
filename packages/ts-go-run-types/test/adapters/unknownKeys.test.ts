@@ -187,3 +187,114 @@ describe('index-signature & function-typed property cases', () => {
     expect(has({a: 'x', extra: 1}, {checkNonJitProps: true})).toBe(true);
   });
 });
+
+// ============================================================================
+// Union types — the merged-allowlist semantic
+// ============================================================================
+//
+// For a union `{a: string} | {b: number}` the declared key set is the
+// UNION of every member's declared property names — `{a, b}`. The four
+// functions strip / report / flag anything outside that set.
+//
+// The "loose" semantic: a key declared on at least one member survives
+// even when the runtime value's shape matches a different member that
+// doesn't declare it. Matches the flat encoder's existing structural
+// identity (which collapsed member-identity at the wire).
+//
+// REGRESSION GUARD: prior to consolidating the union arm onto
+// FlatLayout, the four emitters used naïve per-member CompileChild
+// dispatch — concatenating each member's emit produced "delete keys
+// not in {a}; delete keys not in {b}", which deleted BOTH declared
+// keys. These tests pin the corrected merged-allowlist behaviour.
+
+describe('union types — strip/has/keyErrors', () => {
+  type Disjoint = {a: string} | {b: number};
+
+  it('stripUnknownKeys leaves both member-declared keys intact', () => {
+    const strip = createStripUnknownKeys<Disjoint>();
+    const v: Record<string, unknown> = {a: 'x', b: 5};
+    strip(v);
+    expect(v).toEqual({a: 'x', b: 5});
+  });
+
+  it('stripUnknownKeys deletes only the truly undeclared key', () => {
+    const strip = createStripUnknownKeys<Disjoint>();
+    const v: Record<string, unknown> = {a: 'x', b: 5, evil: 'sneaky'};
+    strip(v);
+    expect(v).toEqual({a: 'x', b: 5});
+  });
+
+  it('stripUnknownKeys handles overlapping-key unions correctly', () => {
+    type Overlap = {a: string; b: number} | {a: bigint; c: boolean};
+    const strip = createStripUnknownKeys<Overlap>();
+    const v: Record<string, unknown> = {a: 'x', b: 5, c: true, evil: 1};
+    strip(v);
+    expect(v).toEqual({a: 'x', b: 5, c: true});
+  });
+
+  it('hasUnknownKeys returns false when only union-declared keys are present', () => {
+    const has = createHasUnknownKeys<Disjoint>();
+    expect(has({a: 'x', b: 5})).toBe(false);
+  });
+
+  it('hasUnknownKeys returns true when any undeclared key is present', () => {
+    const has = createHasUnknownKeys<Disjoint>();
+    expect(has({a: 'x', evil: true})).toBe(true);
+  });
+
+  it('unknownKeyErrors reports one error per undeclared key', () => {
+    const errs = createUnknownKeyErrors<Disjoint>();
+    const out = errs({a: 'x', evil: 'e1', stranger: 'e2'});
+    expect(out).toHaveLength(2);
+    expect(out.every((e) => e.expected === 'never')).toBe(true);
+    const paths = out.map((e) => e.path?.[0]).sort();
+    expect(paths).toEqual(['evil', 'stranger']);
+  });
+
+  it('unknownKeysToUndefined is a no-op on unions (decoder uses ukuWire instead)', () => {
+    // Public uku is intentionally a no-op on union nodes — the same factory
+    // is consumed by the safe decoder pipeline where the input is wire-shape.
+    // The decoder uses ukuWire to handle the wire wrapper; the public API
+    // documents this limitation.
+    const uku = createUnknownKeysToUndefined<Disjoint>();
+    const v: Record<string, unknown> = {a: 'x', evil: 'e'};
+    uku(v);
+    expect(v).toEqual({a: 'x', evil: 'e'});
+  });
+
+  it('discriminated-union: loose semantic — non-discriminated keys survive', () => {
+    type DU = {kind: 'a'; x: string} | {kind: 'b'; y: number};
+    const strip = createStripUnknownKeys<DU>();
+    // y from member-B in a kind:'a' payload survives because y IS in the
+    // merged allowlist {kind, x, y}. Documented loose semantic.
+    const v: Record<string, unknown> = {kind: 'a', x: 'foo', y: 99};
+    strip(v);
+    expect(v).toEqual({kind: 'a', x: 'foo', y: 99});
+  });
+
+  it('discriminated-union: truly extra keys still get stripped', () => {
+    type DU = {kind: 'a'; x: string} | {kind: 'b'; y: number};
+    const strip = createStripUnknownKeys<DU>();
+    const v: Record<string, unknown> = {kind: 'a', x: 'foo', extra: 'gone'};
+    strip(v);
+    expect(v).toEqual({kind: 'a', x: 'foo'});
+  });
+
+  it('mixed-atomic union: strip is the merged-allowlist on the object branch', () => {
+    type Mixed = string | {a: number};
+    const strip = createStripUnknownKeys<Mixed>();
+    const v: Record<string, unknown> = {a: 5, evil: 'gone'};
+    strip(v);
+    expect(v).toEqual({a: 5});
+  });
+
+  it('union with index-sig member: family is a no-op (carve-out)', () => {
+    type IxUnion = {[k: string]: number} | {b: boolean};
+    const strip = createStripUnknownKeys<IxUnion>();
+    const v: Record<string, unknown> = {b: true, anything: 99};
+    strip(v);
+    // Carve-out semantic: every key is "declared" via the index pattern
+    // of the indexed member, so the merged-allowlist approach is skipped.
+    expect(v).toEqual({b: true, anything: 99});
+  });
+});

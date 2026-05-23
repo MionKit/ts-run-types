@@ -27,7 +27,7 @@ const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
 const CACHE_FILE_RE =
-  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',
@@ -41,6 +41,7 @@ const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   stripUnknownKeysCache: 'stripUnknownKeys',
   unknownKeyErrorsCache: 'unknownKeyErrors',
   unknownKeysToUndefinedCache: 'unknownKeysToUndefined',
+  unknownKeysToUndefinedWireCache: 'unknownKeysToUndefinedWire',
   pureFnsCache: 'pureFns',
 };
 
@@ -182,6 +183,7 @@ export default function runtypes(options: PluginOptions) {
         if (result.addedStripUnknownKeys) kindsToInvalidate.push('stripUnknownKeys');
         if (result.addedUnknownKeyErrors) kindsToInvalidate.push('unknownKeyErrors');
         if (result.addedUnknownKeysToUndefined) kindsToInvalidate.push('unknownKeysToUndefined');
+        if (result.addedUnknownKeysToUndefinedWire) kindsToInvalidate.push('unknownKeysToUndefinedWire');
         if (result.addedPureFns) kindsToInvalidate.push('pureFns');
         for (const kind of kindsToInvalidate) {
           const cacheId = cacheModuleIds[kind];
@@ -213,6 +215,7 @@ function pickCacheSource(
     stripUnknownKeysCacheSource?: string;
     unknownKeyErrorsCacheSource?: string;
     unknownKeysToUndefinedCacheSource?: string;
+    unknownKeysToUndefinedWireCacheSource?: string;
     pureFnsCacheSource?: string;
   },
   kind: CacheKind
@@ -228,6 +231,7 @@ function pickCacheSource(
   if (kind === 'stripUnknownKeys') return dump.stripUnknownKeysCacheSource;
   if (kind === 'unknownKeyErrors') return dump.unknownKeyErrorsCacheSource;
   if (kind === 'unknownKeysToUndefined') return dump.unknownKeysToUndefinedCacheSource;
+  if (kind === 'unknownKeysToUndefinedWire') return dump.unknownKeysToUndefinedWireCacheSource;
   if (kind === 'pureFns') return dump.pureFnsCacheSource;
   return undefined;
 }
