@@ -217,9 +217,11 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return JitThrow("Compile function RestoreFromJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
-		// mion:nodes/collection/union.ts:emitRestoreFromJson — decode
-		// the `[memberIndex, encodedValue]` envelope and dispatch.
-		return emitUnionRestoreFromJson(rt, ctx, v)
+		// Decodes the flat-union wire shape produced by
+		// emitUnionPrepareForJsonFlat / emitUnionStringifyJsonFlat (see
+		// union_flat.go). The non-flat decoder was retired with its
+		// encoder.
+		return emitUnionRestoreFromJsonFlat(rt, ctx, v)
 
 	case protocol.KindIntersection:
 		return JitCode{Code: "", Type: CodeS}
@@ -469,63 +471,6 @@ func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v st
 		return JitCode{Code: "", Type: CodeS}
 	}
 	return childJit
-}
-
-// emitUnionRestoreFromJson — decode-side of the union JSON round-trip.
-// Under the all-or-nothing wrap rule (see unionNeedsTuple in
-// preparefjson.go) the decoder knows at compile time whether the wire
-// shape is wrapped:
-//
-//   - unionNeedsTuple(children) == false → the whole union round-trips
-//     raw, decoder is identity (emit nothing).
-//   - unionNeedsTuple(children) == true → every encoded value is a
-//     `[memberIndex, value]` envelope, so the decoder unwraps
-//     unconditionally and dispatches on the index. No shape gate, no
-//     ambiguity with raw values that happen to look like tuples.
-func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	children := rt.SafeUnionChildren
-	if len(children) == 0 {
-		children = rt.Children
-	}
-	if len(children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-
-	// If no member needs the wrap, the whole union round-trips raw —
-	// the decoder is identity, no shape gate / dispatch required.
-	if !unionNeedsTuple(children, ctx) {
-		return JitCode{Code: "", Type: CodeS}
-	}
-
-	decVar := ctx.NextLocalVar("dec")
-	var clauses []string
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		restoreJit := ctx.CompileChild(childRef, CodeS)
-		body := strings.TrimSpace(restoreJit.Code)
-		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
-			body += ";"
-		}
-		clause := "if (" + decVar + " === " + strconv.Itoa(i) + ") {" + body + "}"
-		if len(clauses) > 0 {
-			clause = " else " + clause
-		}
-		clauses = append(clauses, clause)
-	}
-
-	errVar := ctx.NextLocalVar("uErr")
-	if !ctx.HasContextItem(errVar) {
-		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not json decode union: invalid union index'")
-	}
-	inner := strings.Join(clauses, "") + " else { throw new Error(" + errVar + ") }"
-
-	// Unconditional unwrap — every encoded value is a [memberIndex, value]
-	// envelope under the all-or-nothing wrap rule.
-	body := "const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" + inner
-	return JitCode{Code: body, Type: CodeS}
 }
 
 // emitNativeIterableRestoreFromJson mirrors mion's

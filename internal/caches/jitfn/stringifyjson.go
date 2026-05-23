@@ -240,7 +240,9 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return emitTupleMemberStringifyJson(rt, ctx, v)
 
 	case protocol.KindUnion:
-		return emitUnionStringifyJson(rt, ctx, v)
+		// Emits JSON for the flat-union wire shape directly (see
+		// union_flat.go).
+		return emitUnionStringifyJsonFlat(rt, ctx, v)
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
@@ -735,64 +737,6 @@ func emitTupleRestStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string
 		"const " + itemName + " = " + itemCodeStr + "; if (" + itemName + ") " + arrName + ".push(" + itemName + ");" +
 		"} if (!" + arrName + ".length) {return '';} else {return " + sep + arrName + ".join(',');}"
 	return JitCode{Code: body, Type: CodeRB}
-}
-
-// emitUnionStringifyJson — mion:stringifyJson.ts:283-322.
-// Per-member if/else chain dispatching via the shared looseCheckGate
-// helper. Each arm produces a JSON string fragment; wrap with the
-// `[memberIndex, value]` envelope when either prepare or restore is
-// non-noop (matches the on-the-wire shape produced by
-// emitUnionPrepareForJson).
-func emitUnionStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	children := rt.SafeUnionChildren
-	if len(children) == 0 {
-		children = rt.Children
-	}
-	if len(children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	errVar := ctx.NextLocalVar("uErr")
-	if !ctx.HasContextItem(errVar) {
-		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not StringifyJson union: item does not belong to the union'")
-	}
-	// All-or-nothing tuple wrap — see unionNeedsTuple's comment in
-	// preparefjson.go for the rationale. Every member's stringified
-	// form must agree with the encoder + decoder on whether the wire
-	// shape is wrapped.
-	needsTuple := unionNeedsTuple(children, ctx)
-	var clauses []string
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		childJit := ctx.CompileChild(childRef, CodeE)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
-		}
-		if childJit.Code == "" {
-			continue
-		}
-		isTypeExpr := unionMemberIsTypeCheck(member, ctx, v)
-		guard := isTypeExpr
-		if isObjectLikeKind(member.Kind) {
-			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
-		}
-		stringified := childJit.Code
-		var emitted string
-		if needsTuple {
-			emitted = "'[" + strconv.Itoa(i) + ",' + " + stringified + " + ']'"
-		} else {
-			emitted = stringified
-		}
-		clause := "if (" + guard + ") { return " + emitted + ";}"
-		if len(clauses) > 0 {
-			clause = " else " + clause
-		}
-		clauses = append(clauses, clause)
-	}
-	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return JitCode{Code: strings.Join(clauses, ""), Type: CodeRB}
 }
 
 // emitNativeIterableStringifyJson handles Map / Set —
