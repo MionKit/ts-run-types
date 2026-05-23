@@ -65,7 +65,7 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 	want := "factory(" +
 		"'abc123'," +
 		"'string'," +
-		"'return typeof v === \\'string\\''," +
+		"'return function isType_abc123(v){return typeof v === \\'string\\'}'," +
 		"false," +
 		"[]," +
 		"[]," +

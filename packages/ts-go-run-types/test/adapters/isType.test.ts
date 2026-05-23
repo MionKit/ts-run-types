@@ -47,6 +47,32 @@ async function assertIsType(c: ValidationCase): Promise<void> {
       expect(isTypeReflect(v), `${c.title} [reflect]: invalid[${i}] should fail`).toBe(false);
     });
   }
+
+  // Deserialize-static form: deserializeIsType<T>() rebuilds the
+  // validator from the serialized JitCompiledFnData.code body via
+  // `new Function('utl', code)(jitUtils)` — verifies that the
+  // over-the-wire round-trip produces an equivalent validator.
+  if (c.deserializeIsType) {
+    const deserializedStatic = await c.deserializeIsType();
+    valid.forEach((v, i) => {
+      expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] should pass`).toBe(true);
+    });
+    invalid.forEach((v, i) => {
+      expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}] should fail`).toBe(false);
+    });
+  }
+
+  // Deserialize-reflect form: same as above but T inferred from a
+  // runtime value's declared type.
+  if (c.deserializeIsTypeReflect) {
+    const deserializedReflect = await c.deserializeIsTypeReflect();
+    valid.forEach((v, i) => {
+      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] should pass`).toBe(true);
+    });
+    invalid.forEach((v, i) => {
+      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}] should fail`).toBe(false);
+    });
+  }
 }
 
 describe('isType / ATOMIC', () => {

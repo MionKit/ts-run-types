@@ -34,7 +34,7 @@
 // variants are sibling `<key>_noLiterals` entries — the
 // createIsType option threading is in place end-to-end.
 
-import {createIsType, type IsTypeFn} from '@mionjs/ts-go-run-types';
+import {createIsType, deserializeIsType, type IsTypeFn} from '@mionjs/ts-go-run-types';
 
 /** One atomic-type case in the shared suite. */
 export interface ValidationCase {
@@ -60,6 +60,14 @@ export interface ValidationCase {
    *  the CLAUDE.md "Marker test coverage rule" to verify both call
    *  shapes produce the same validator end-to-end. **/
   isTypeReflect?: () => Promise<IsTypeFn>;
+  /** Plugin-rewritten thunk returning the validator rebuilt from the
+   *  serialized `JitCompiledFnData.code` body via
+   *  `new Function('utl', code)(jitUtils)` — exercises the
+   *  serialize → deserialize round-trip the over-the-wire cache uses.
+   *  Same call shape as `isType` (static form). **/
+  deserializeIsType?: () => Promise<IsTypeFn>;
+  /** Reflect-form companion to `deserializeIsType`. **/
+  deserializeIsTypeReflect?: () => Promise<IsTypeFn>;
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
@@ -70,9 +78,14 @@ export const VALIDATION_SUITE = {
       title: 'Any type — every value passes',
       isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
       isType: () => createIsType<any>(),
+      deserializeIsType: () => deserializeIsType<any>(),
       isTypeReflect: () => {
         const v: any = null;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: any = null;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello'],
@@ -84,9 +97,14 @@ export const VALIDATION_SUITE = {
       title: 'BigInt primitive',
       description: 'Infinity and -Infinity rejected (typeof gate)',
       isType: () => createIsType<bigint>(),
+      deserializeIsType: () => deserializeIsType<bigint>(),
       isTypeReflect: () => {
         const v: bigint = 1n;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: bigint = 1n;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [1n, BigInt(42)],
@@ -99,9 +117,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
       isType: () => createIsType<boolean>(),
+      deserializeIsType: () => deserializeIsType<boolean>(),
       isTypeReflect: () => {
         const v: boolean = true;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: boolean = true;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [true, false],
@@ -117,9 +140,14 @@ export const VALIDATION_SUITE = {
         'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
       ],
       isType: () => createIsType<Date>(),
+      deserializeIsType: () => deserializeIsType<Date>(),
       isTypeReflect: () => {
         const v: Date = new Date();
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Date = new Date();
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -142,6 +170,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Color>();
       },
+      deserializeIsType: () => {
+        enum Color {
+          Red,
+          Green = 'green',
+          Blue = 2,
+        }
+        return deserializeIsType<Color>();
+      },
       isTypeReflect: () => {
         enum Color {
           Red,
@@ -150,6 +186,15 @@ export const VALIDATION_SUITE = {
         }
         const v: Color = Color.Red;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        enum Color {
+          Red,
+          Green = 'green',
+          Blue = 2,
+        }
+        const v: Color = Color.Red;
+        return deserializeIsType(v);
       },
       getSamples: () => {
         enum Color {
@@ -168,9 +213,14 @@ export const VALIDATION_SUITE = {
       title: 'Numeric literal type (strict equality)',
       isTypeNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
       isType: () => createIsType<2>(),
+      deserializeIsType: () => deserializeIsType<2>(),
       isTypeReflect: () => {
         const v = 2 as const;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v = 2 as const;
+        return deserializeIsType(v);
       },
       getSamples: () => ({valid: [2], invalid: [4, '2', null, undefined]}),
     },
@@ -179,9 +229,14 @@ export const VALIDATION_SUITE = {
       title: 'String literal type (case-sensitive)',
       isTypeNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
       isType: () => createIsType<'a'>(),
+      deserializeIsType: () => deserializeIsType<'a'>(),
       isTypeReflect: () => {
         const v = 'a' as const;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v = 'a' as const;
+        return deserializeIsType(v);
       },
       getSamples: () => ({valid: ['a'], invalid: ['b', 'A', '', null, undefined]}),
     },
@@ -194,10 +249,19 @@ export const VALIDATION_SUITE = {
         const reg = /abc/i;
         return createIsType<typeof reg>();
       },
+      deserializeIsType: () => {
+        const reg = /abc/i;
+        return deserializeIsType<typeof reg>();
+      },
       isTypeReflect: () => {
         const reg = /abc/i;
         const v: typeof reg = reg;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const reg = /abc/i;
+        const v: typeof reg = reg;
+        return deserializeIsType(v);
       },
       getSamples: () => ({valid: [/abc/i], invalid: [/asdf/i, /abc/, /abc/g, 'abc']}),
     },
@@ -209,10 +273,19 @@ export const VALIDATION_SUITE = {
         const reg2 = /['"]\/ \\ \//;
         return createIsType<typeof reg2>();
       },
+      deserializeIsType: () => {
+        const reg2 = /['"]\/ \\ \//;
+        return deserializeIsType<typeof reg2>();
+      },
       isTypeReflect: () => {
         const reg2 = /['"]\/ \\ \//;
         const v: typeof reg2 = reg2;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const reg2 = /['"]\/ \\ \//;
+        const v: typeof reg2 = reg2;
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const reg2 = /['"]\/ \\ \//;
@@ -228,9 +301,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
       isType: () => createIsType<true>(),
+      deserializeIsType: () => deserializeIsType<true>(),
       isTypeReflect: () => {
         const v = true as const;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v = true as const;
+        return deserializeIsType(v);
       },
       getSamples: () => ({valid: [true], invalid: [false, 1, 'true', null]}),
     },
@@ -239,9 +317,14 @@ export const VALIDATION_SUITE = {
       title: 'BigInt literal type (only 1n)',
       isTypeNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
       isType: () => createIsType<1n>(),
+      deserializeIsType: () => deserializeIsType<1n>(),
       isTypeReflect: () => {
         const v = 1n as const;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v = 1n as const;
+        return deserializeIsType(v);
       },
       getSamples: () => ({valid: [1n], invalid: [2n, 1, '1n', 0n, null]}),
     },
@@ -255,10 +338,19 @@ export const VALIDATION_SUITE = {
         const sym = Symbol('hello');
         return createIsType<typeof sym>();
       },
+      deserializeIsType: () => {
+        const sym = Symbol('hello');
+        return deserializeIsType<typeof sym>();
+      },
       isTypeReflect: () => {
         const sym = Symbol('hello');
         const v: typeof sym = sym;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const sym = Symbol('hello');
+        const v: typeof sym = sym;
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const sym = Symbol('hello');
@@ -275,9 +367,14 @@ export const VALIDATION_SUITE = {
       title: 'Never — no value passes',
       isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
       isType: () => createIsType<never>(),
+      deserializeIsType: () => deserializeIsType<never>(),
       isTypeReflect: () => {
         const v: never = null as never;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: never = null as never;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [],
@@ -291,9 +388,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
       isType: () => createIsType<null>(),
+      deserializeIsType: () => deserializeIsType<null>(),
       isTypeReflect: () => {
         const v: null = null;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: null = null;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [null],
@@ -309,9 +411,14 @@ export const VALIDATION_SUITE = {
         '`NaN`, `Infinity`, and `-Infinity` are rejected even though they pass `typeof === "number"`.',
       ],
       isType: () => createIsType<number>(),
+      deserializeIsType: () => deserializeIsType<number>(),
       isTypeReflect: () => {
         const v: number = 42;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: number = 42;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [42],
@@ -329,9 +436,14 @@ export const VALIDATION_SUITE = {
         '`object` here does NOT mean "plain object literal" — if you need that semantic, use a specific object shape or an index-signature type.',
       ],
       isType: () => createIsType<object>(),
+      deserializeIsType: () => deserializeIsType<object>(),
       isTypeReflect: () => {
         const v: object = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: object = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 42, b: 'hello'}, [], new Date(), /abc/],
@@ -344,9 +456,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
       isType: () => createIsType<RegExp>(),
+      deserializeIsType: () => deserializeIsType<RegExp>(),
       isTypeReflect: () => {
         const v: RegExp = /abc/;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: RegExp = /abc/;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [/abc/, new RegExp('abc')],
@@ -358,9 +475,14 @@ export const VALIDATION_SUITE = {
       title: 'String primitive',
       isTypeNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
       isType: () => createIsType<string>(),
+      deserializeIsType: () => deserializeIsType<string>(),
       isTypeReflect: () => {
         const v: string = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['hello', ''],
@@ -373,9 +495,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict typeof === "symbol". Accepts any symbol — keyed (`Symbol("foo")`), unkeyed (`Symbol()`), or well-known (`Symbol.iterator`). The literal string "symbol" is rejected.',
       isType: () => createIsType<symbol>(),
+      deserializeIsType: () => deserializeIsType<symbol>(),
       isTypeReflect: () => {
         const v: symbol = Symbol();
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: symbol = Symbol();
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [Symbol(), Symbol('foo')],
@@ -388,9 +515,14 @@ export const VALIDATION_SUITE = {
       description: 'undefined and null are distinct',
       isTypeNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
       isType: () => createIsType<undefined>(),
+      deserializeIsType: () => deserializeIsType<undefined>(),
       isTypeReflect: () => {
         const v: undefined = undefined;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: undefined = undefined;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [undefined],
@@ -402,9 +534,14 @@ export const VALIDATION_SUITE = {
       title: 'Void — accepts undefined, rejects null',
       description: 'void accepts undefined (and bare function return); rejects null',
       isType: () => createIsType<void>(),
+      deserializeIsType: () => deserializeIsType<void>(),
       isTypeReflect: () => {
         const v: void = undefined;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: void = undefined;
+        return deserializeIsType(v);
       },
       getSamples: () => {
         function vd(): void {}
@@ -429,9 +566,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
       isType: () => createIsType<2>(undefined, {noLiterals: true}),
+      deserializeIsType: () => deserializeIsType<2>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = 2 as const;
         return createIsType(v, {noLiterals: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const v = 2 as const;
+        return deserializeIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [4, 0, -1], invalid: ['4', Infinity, NaN, null]}),
     },
@@ -441,9 +583,14 @@ export const VALIDATION_SUITE = {
       description: 'degrades to string — typeof check',
       isTypeNotes: '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
       isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
+      deserializeIsType: () => deserializeIsType<'a'>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = 'a' as const;
         return createIsType(v, {noLiterals: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const v = 'a' as const;
+        return deserializeIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: ['c', ''], invalid: [1, null, undefined, true]}),
     },
@@ -457,10 +604,19 @@ export const VALIDATION_SUITE = {
         const reg = /abc/i;
         return createIsType<typeof reg>(undefined, {noLiterals: true});
       },
+      deserializeIsType: () => {
+        const reg = /abc/i;
+        return deserializeIsType<typeof reg>(undefined, {noLiterals: true});
+      },
       isTypeReflect: () => {
         const reg = /abc/i;
         const v: typeof reg = reg;
         return createIsType(v, {noLiterals: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const reg = /abc/i;
+        const v: typeof reg = reg;
+        return deserializeIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [/otherReg/, new RegExp('foo')], invalid: ['otherReg', null, undefined, {}]}),
     },
@@ -471,9 +627,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
       isType: () => createIsType<true>(undefined, {noLiterals: true}),
+      deserializeIsType: () => deserializeIsType<true>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = true as const;
         return createIsType(v, {noLiterals: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const v = true as const;
+        return deserializeIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [false, true], invalid: [1, 0, 'true', null, undefined]}),
     },
@@ -483,9 +644,14 @@ export const VALIDATION_SUITE = {
       description: 'degrades to bigint — typeof check',
       isTypeNotes: '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
       isType: () => createIsType<1n>(undefined, {noLiterals: true}),
+      deserializeIsType: () => deserializeIsType<1n>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = 1n as const;
         return createIsType(v, {noLiterals: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const v = 1n as const;
+        return deserializeIsType(v, {noLiterals: true});
       },
       getSamples: () => ({valid: [3n, 0n, 1n], invalid: [3, null, undefined, 1, '1n']}),
     },
@@ -499,10 +665,19 @@ export const VALIDATION_SUITE = {
         const sym = Symbol('hello');
         return createIsType<typeof sym>(undefined, {noLiterals: true});
       },
+      deserializeIsType: () => {
+        const sym = Symbol('hello');
+        return deserializeIsType<typeof sym>(undefined, {noLiterals: true});
+      },
       isTypeReflect: () => {
         const sym = Symbol('hello');
         const v: typeof sym = sym;
         return createIsType(v, {noLiterals: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const sym = Symbol('hello');
+        const v: typeof sym = sym;
+        return deserializeIsType(v, {noLiterals: true});
       },
       getSamples: () => ({
         valid: [Symbol('world'), Symbol(), Symbol.iterator],
@@ -542,9 +717,14 @@ export const VALIDATION_SUITE = {
         'Every element must satisfy the element type — the empty array `[]` is valid.',
       ],
       isType: () => createIsType<string[]>(),
+      deserializeIsType: () => deserializeIsType<string[]>(),
       isTypeReflect: () => {
         const v: string[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], ['hello', 'world']],
@@ -560,9 +740,14 @@ export const VALIDATION_SUITE = {
       title: 'Array of numbers (rejects Infinity / NaN per element)',
       description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
       isType: () => createIsType<number[]>(),
+      deserializeIsType: () => deserializeIsType<number[]>(),
       isTypeReflect: () => {
         const v: number[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: number[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [1, 2, 3], [42]],
@@ -573,9 +758,14 @@ export const VALIDATION_SUITE = {
     boolean_array: {
       title: 'Array of booleans',
       isType: () => createIsType<boolean[]>(),
+      deserializeIsType: () => deserializeIsType<boolean[]>(),
       isTypeReflect: () => {
         const v: boolean[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: boolean[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [true, false]],
@@ -586,9 +776,14 @@ export const VALIDATION_SUITE = {
     bigint_array: {
       title: 'Array of bigints',
       isType: () => createIsType<bigint[]>(),
+      deserializeIsType: () => deserializeIsType<bigint[]>(),
       isTypeReflect: () => {
         const v: bigint[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: bigint[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [1n, 2n]],
@@ -601,9 +796,14 @@ export const VALIDATION_SUITE = {
       description: 'from mion serialization-suite ARRAYS.array_date',
       isTypeNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
       isType: () => createIsType<Date[]>(),
+      deserializeIsType: () => deserializeIsType<Date[]>(),
       isTypeReflect: () => {
         const v: Date[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Date[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
@@ -614,9 +814,14 @@ export const VALIDATION_SUITE = {
     regexp_array: {
       title: 'Array of RegExps',
       isType: () => createIsType<RegExp[]>(),
+      deserializeIsType: () => deserializeIsType<RegExp[]>(),
       isTypeReflect: () => {
         const v: RegExp[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: RegExp[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [/abc/, new RegExp('abc')]],
@@ -629,9 +834,14 @@ export const VALIDATION_SUITE = {
       description: 'from mion serialization-suite ARRAYS.undefined_in_array',
       isTypeNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
       isType: () => createIsType<undefined[]>(),
+      deserializeIsType: () => deserializeIsType<undefined[]>(),
       isTypeReflect: () => {
         const v: undefined[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: undefined[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [undefined, undefined]],
@@ -643,9 +853,14 @@ export const VALIDATION_SUITE = {
       title: 'Array of nulls',
       isTypeNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
       isType: () => createIsType<null[]>(),
+      deserializeIsType: () => deserializeIsType<null[]>(),
       isTypeReflect: () => {
         const v: null[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: null[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [null]],
@@ -657,9 +872,14 @@ export const VALIDATION_SUITE = {
       title: 'Generic Array<T> form (same emit as T[])',
       description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
       isType: () => createIsType<Array<string>>(),
+      deserializeIsType: () => deserializeIsType<Array<string>>(),
       isTypeReflect: () => {
         const v: Array<string> = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Array<string> = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], ['hello']],
@@ -672,9 +892,14 @@ export const VALIDATION_SUITE = {
       description:
         'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getJIT(...).fn(v[i0]))',
       isType: () => createIsType<string[][]>(),
+      deserializeIsType: () => deserializeIsType<string[][]>(),
       isTypeReflect: () => {
         const v: string[][] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string[][] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -697,9 +922,14 @@ export const VALIDATION_SUITE = {
       title: 'Three-dimensional string array (depth stress)',
       description: 'depth stress for the dependency-call layer',
       isType: () => createIsType<string[][][]>(),
+      deserializeIsType: () => deserializeIsType<string[][][]>(),
       isTypeReflect: () => {
         const v: string[][][] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string[][][] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
@@ -716,9 +946,14 @@ export const VALIDATION_SUITE = {
         'Use only when the caller has already verified the value is an array; the validator trusts the shape and only walks elements.',
       ],
       isType: () => createIsType<string[]>(undefined, {noIsArrayCheck: true}),
+      deserializeIsType: () => deserializeIsType<string[]>(undefined, {noIsArrayCheck: true}),
       isTypeReflect: () => {
         const v: string[] = [];
         return createIsType(v, {noIsArrayCheck: true});
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string[] = [];
+        return deserializeIsType(v, {noIsArrayCheck: true});
       },
       getSamples: () => ({
         valid: [[], ['hello']],
@@ -737,9 +972,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
       isType: () => createIsType<{a: string}[]>(),
+      deserializeIsType: () => deserializeIsType<{a: string}[]>(),
       isTypeReflect: () => {
         const v: {a: string}[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string}[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], [{a: 'hello'}, {a: 'world'}], [{a: 'hello', extraA: 'extraA'}, {a: 'world'}]],
@@ -751,9 +991,14 @@ export const VALIDATION_SUITE = {
       title: 'Array of unions (OR-chain per element)',
       description: 'array of union — each element validates against the union OR-chain.',
       isType: () => createIsType<(string | number)[]>(),
+      deserializeIsType: () => deserializeIsType<(string | number)[]>(),
       isTypeReflect: () => {
         const v: (string | number)[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: (string | number)[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[], ['a', 1, 'b', 2], [1], ['a']],
@@ -765,9 +1010,14 @@ export const VALIDATION_SUITE = {
       title: 'Array of tuples',
       description: 'array of tuples — exercises tuple under array dependency call.',
       isType: () => createIsType<[string, number][]>(),
+      deserializeIsType: () => deserializeIsType<[string, number][]>(),
       isTypeReflect: () => {
         const v: [string, number][] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [string, number][] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -791,10 +1041,19 @@ export const VALIDATION_SUITE = {
         type CircularArray = CircularArray[];
         return createIsType<CircularArray>();
       },
+      deserializeIsType: () => {
+        type CircularArray = CircularArray[];
+        return deserializeIsType<CircularArray>();
+      },
       isTypeReflect: () => {
         type CircularArray = CircularArray[];
         const v: CircularArray = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return deserializeIsType(v);
       },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
@@ -815,10 +1074,19 @@ export const VALIDATION_SUITE = {
         type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
         return createIsType<ObjectType>();
       },
+      deserializeIsType: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return deserializeIsType<ObjectType>();
+      },
       isTypeReflect: () => {
         type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
         const v: ObjectType = {a: 'hello'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -847,9 +1115,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'TS DIVERGENCE: Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, etc.) ALWAYS fail. The validator emits `return false`. Use a different shape if you need to carry symbol-like data.',
       isType: () => createIsType<symbol[]>(),
+      deserializeIsType: () => deserializeIsType<symbol[]>(),
       isTypeReflect: () => {
         const v: symbol[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: symbol[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [],
@@ -886,9 +1159,14 @@ export const VALIDATION_SUITE = {
         'Each declared property runs the atomic check for its type (number props reject NaN / Infinity).',
       ],
       isType: () => createIsType<{a: string; b: number}>(),
+      deserializeIsType: () => deserializeIsType<{a: string; b: number}>(),
       isTypeReflect: () => {
         const v: {a: string; b: number} = {a: 'hello', b: 1};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string; b: number} = {a: 'hello', b: 1};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -918,9 +1196,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
       isType: () => createIsType<{readonly name: 'john'; readonly age: 30}>(),
+      deserializeIsType: () => deserializeIsType<{readonly name: 'john'; readonly age: 30}>(),
       isTypeReflect: () => {
         const Usr = {name: 'john', age: 30} as const;
         return createIsType(Usr);
+      },
+      deserializeIsTypeReflect: () => {
+        const Usr = {name: 'john', age: 30} as const;
+        return deserializeIsType(Usr);
       },
       getSamples: () => ({
         valid: [{name: 'john', age: 30}],
@@ -948,6 +1231,12 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<ReturnType<typeof makeUser>>();
       },
+      deserializeIsType: () => {
+        function makeUser(): {id: number; name: string} {
+          return {id: 1, name: 'john'};
+        }
+        return deserializeIsType<ReturnType<typeof makeUser>>();
+      },
       getSamples: () => ({
         valid: [
           {id: 1, name: 'john'},
@@ -963,9 +1252,14 @@ export const VALIDATION_SUITE = {
       description:
         "Reflect form with a property-access argument (`createIsType(outer.user)`). T comes from the property's declared type on the parent shape — property accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
       isType: () => createIsType<{id: number; name: string}>(),
+      deserializeIsType: () => deserializeIsType<{id: number; name: string}>(),
       isTypeReflect: () => {
         const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
         return createIsType(outer.user);
+      },
+      deserializeIsTypeReflect: () => {
+        const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
+        return deserializeIsType(outer.user);
       },
       getSamples: () => ({
         valid: [
@@ -981,9 +1275,14 @@ export const VALIDATION_SUITE = {
       description:
         "Reflect form with an array-element-access argument (`createIsType(items[0])`). T comes from the array's declared element type — indexed accesses don't go through const-binding CFA, so the natural pattern produces the same hash as the static form.",
       isType: () => createIsType<{id: number; name: string}>(),
+      deserializeIsType: () => deserializeIsType<{id: number; name: string}>(),
       isTypeReflect: () => {
         const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
         return createIsType(items[0]);
+      },
+      deserializeIsTypeReflect: () => {
+        const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
+        return deserializeIsType(items[0]);
       },
       getSamples: () => ({
         valid: [
@@ -1000,9 +1299,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Optional (`?`) properties may be missing OR explicitly `undefined`. If present, the value must satisfy the declared type — `b: NaN` still fails.',
       isType: () => createIsType<{a: string; b?: number}>(),
+      deserializeIsType: () => deserializeIsType<{a: string; b?: number}>(),
       isTypeReflect: () => {
         const v: {a: string; b?: number} = {a: 'x'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string; b?: number} = {a: 'x'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{a: 'x'}, {a: 'x', b: 0}, {a: 'x', b: undefined}],
@@ -1016,9 +1320,14 @@ export const VALIDATION_SUITE = {
         'tests that Date child validates via instanceof inside the AND chain — mion interface.spec.ts ObjectType subset',
       isTypeNotes: 'Date-typed properties run the atomic `Date` check — Invalid Date instances inside the property fail too.',
       isType: () => createIsType<{date: Date; name: string}>(),
+      deserializeIsType: () => deserializeIsType<{date: Date; name: string}>(),
       isTypeReflect: () => {
         const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{date: new Date(), name: 'x'}],
@@ -1045,9 +1354,14 @@ export const VALIDATION_SUITE = {
         'If you need to verify a function is actually callable, do it outside isType.',
       ],
       isType: () => createIsType<{name: string; cb: () => any}>(),
+      deserializeIsType: () => deserializeIsType<{name: string; cb: () => any}>(),
       isTypeReflect: () => {
         const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1066,9 +1380,14 @@ export const VALIDATION_SUITE = {
       description: 'nested object — outer + inner AND-chains; mion ObjectType "deep" subset',
       isTypeNotes: 'Nested objects are validated recursively. Atomic-level rejections (NaN, Invalid Date) bubble up from the inner shape.',
       isType: () => createIsType<{a: string; deep: {b: string; c: number}}>(),
+      deserializeIsType: () => deserializeIsType<{a: string; deep: {b: string; c: number}}>(),
       isTypeReflect: () => {
         const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{a: 'x', deep: {b: 'y', c: 1}}],
@@ -1088,9 +1407,14 @@ export const VALIDATION_SUITE = {
       title: 'Interface with a string-array property',
       description: 'an array-typed property — exercises the dependency-call layer through an object',
       isType: () => createIsType<{tags: string[]}>(),
+      deserializeIsType: () => deserializeIsType<{tags: string[]}>(),
       isTypeReflect: () => {
         const v: {tags: string[]} = {tags: []};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {tags: string[]} = {tags: []};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{tags: []}, {tags: ['a', 'b']}],
@@ -1108,10 +1432,19 @@ export const VALIDATION_SUITE = {
         type ICircular = {name: string; child?: ICircular};
         return createIsType<ICircular>();
       },
+      deserializeIsType: () => {
+        type ICircular = {name: string; child?: ICircular};
+        return deserializeIsType<ICircular>();
+      },
       isTypeReflect: () => {
         type ICircular = {name: string; child?: ICircular};
         const v: ICircular = {name: 'root'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type ICircular = {name: string; child?: ICircular};
+        const v: ICircular = {name: 'root'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{name: 'root'}, {name: 'root', child: {name: 'a'}}, {name: 'root', child: {name: 'a', child: {name: 'b'}}}],
@@ -1135,10 +1468,19 @@ export const VALIDATION_SUITE = {
         type ICircularArray = {name: string; children?: ICircularArray[]};
         return createIsType<ICircularArray>();
       },
+      deserializeIsType: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        return deserializeIsType<ICircularArray>();
+      },
       isTypeReflect: () => {
         type ICircularArray = {name: string; children?: ICircularArray[]};
         const v: ICircularArray = {name: 'r'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        const v: ICircularArray = {name: 'r'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1158,10 +1500,19 @@ export const VALIDATION_SUITE = {
         type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
         return createIsType<ICircularDeep>();
       },
+      deserializeIsType: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        return deserializeIsType<ICircularDeep>();
+      },
       isTypeReflect: () => {
         type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
         const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1181,9 +1532,14 @@ export const VALIDATION_SUITE = {
         'Every key\'s value must satisfy the value type — `{ a: 1 }` fails on `{[key: string]: string}`.',
       ],
       isType: () => createIsType<{[key: string]: string}>(),
+      deserializeIsType: () => deserializeIsType<{[key: string]: string}>(),
       isTypeReflect: () => {
         const v: {[key: string]: string} = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {[key: string]: string} = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
@@ -1196,9 +1552,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
       isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
+      deserializeIsType: () => deserializeIsType<{a: string; b: number; [key: string]: string | number}>(),
       isTypeReflect: () => {
         const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1214,9 +1575,14 @@ export const VALIDATION_SUITE = {
       title: 'Nested index signatures (number leaf values)',
       description: 'mion indexProperty.spec.ts nested rtNested — index sig pointing at another index sig.',
       isType: () => createIsType<{[key: string]: {[key: string]: number}}>(),
+      deserializeIsType: () => deserializeIsType<{[key: string]: {[key: string]: number}}>(),
       isTypeReflect: () => {
         const v: {[key: string]: {[key: string]: number}} = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {[key: string]: {[key: string]: number}} = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: {x: 1, y: 2}}, {a: {}, b: {n: 0}}],
@@ -1228,9 +1594,14 @@ export const VALIDATION_SUITE = {
       title: 'Nested index signatures with Date leaf values',
       description: 'mion indexProperty.spec.ts rtNested2 — Date as the leaf value type.',
       isType: () => createIsType<{[key: string]: {[key: string]: Date}}>(),
+      deserializeIsType: () => deserializeIsType<{[key: string]: {[key: string]: Date}}>(),
       isTypeReflect: () => {
         const v: {[key: string]: {[key: string]: Date}} = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {[key: string]: {[key: string]: Date}} = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: {x: new Date()}}],
@@ -1253,6 +1624,17 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Obj2>();
       },
+      deserializeIsType: () => {
+        interface Obj1 {
+          a: string;
+          [key: string]: string;
+        }
+        interface Obj2 {
+          b: string;
+          c: Obj1;
+        }
+        return deserializeIsType<Obj2>();
+      },
       isTypeReflect: () => {
         interface Obj1 {
           a: string;
@@ -1264,6 +1646,18 @@ export const VALIDATION_SUITE = {
         }
         const v: Obj2 = {b: 'hello', c: {a: 'world'}};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Obj1 {
+          a: string;
+          [key: string]: string;
+        }
+        interface Obj2 {
+          b: string;
+          c: Obj1;
+        }
+        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1282,9 +1676,14 @@ export const VALIDATION_SUITE = {
         'Parameter types and return type are NOT verified at runtime. If you need a specific call shape, validate at the call boundary.',
       ],
       isType: () => createIsType<() => void>(),
+      deserializeIsType: () => deserializeIsType<() => void>(),
       isTypeReflect: () => {
         const v: () => void = () => {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: () => void = () => {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [() => {}, function () {}, async () => {}, class {}],
@@ -1301,6 +1700,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
       isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
+      deserializeIsType: () => deserializeIsType<{(a: number, b: boolean): string; extra: string}>(),
       isTypeReflect: () => {
         const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
           function (_a: number, _b: boolean) {
@@ -1309,6 +1709,15 @@ export const VALIDATION_SUITE = {
           {extra: 'x'}
         );
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
+          function (_a: number, _b: boolean) {
+            return 'x';
+          },
+          {extra: 'x'}
+        );
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1340,9 +1749,14 @@ export const VALIDATION_SUITE = {
         'This is the ONLY shape kind where the validator enforces "plain object" semantics — see the bare `object` case for the contrast.',
       ],
       isType: () => createIsType<{a?: string; b?: number}>(),
+      deserializeIsType: () => deserializeIsType<{a?: string; b?: number}>(),
       isTypeReflect: () => {
         const v: {a?: string; b?: number} = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a?: string; b?: number} = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
@@ -1372,6 +1786,20 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<MySerializableClass>();
       },
+      deserializeIsType: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        return deserializeIsType<MySerializableClass>();
+      },
       isTypeReflect: () => {
         class MySerializableClass {
           date: Date;
@@ -1386,6 +1814,21 @@ export const VALIDATION_SUITE = {
         }
         const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
+        return deserializeIsType(v);
       },
       getSamples: () => {
         class Match {
@@ -1441,6 +1884,28 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<RpcError<'test-error'>>();
       },
+      deserializeIsType: () => {
+        // Mirrors @mionjs/core's RpcError public shape:
+        //   - `mion@isΣrrθr: true` brand (literal true)
+        //   - `type: ErrType` generic discriminator
+        //   - `publicMessage: string`
+        //   - `id?: string`
+        // `message` / `name` / `stack` are intentionally NOT declared
+        // as TS properties (they exist at runtime via Error) so isType
+        // doesn't validate them.
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        return deserializeIsType<RpcError<'test-error'>>();
+      },
       isTypeReflect: () => {
         class RpcError<ErrType extends string> {
           public readonly 'mion@isΣrrθr': true = true;
@@ -1455,6 +1920,21 @@ export const VALIDATION_SUITE = {
         }
         const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const validInstance = {
@@ -1492,10 +1972,19 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean) => string;
         return createIsType<Parameters<CallSig>>();
       },
+      deserializeIsType: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        return deserializeIsType<Parameters<CallSig>>();
+      },
       isTypeReflect: () => {
         type CallSig = (a: number, b: boolean) => string;
         const v: Parameters<CallSig> = [1, true];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        const v: Parameters<CallSig> = [1, true];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1528,10 +2017,19 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         return createIsType<Parameters<CallSig>>();
       },
+      deserializeIsType: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        return deserializeIsType<Parameters<CallSig>>();
+      },
       isTypeReflect: () => {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         const v: Parameters<CallSig> = [3, true, 'hello'];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        const v: Parameters<CallSig> = [3, true, 'hello'];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1558,10 +2056,19 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         return createIsType<Parameters<CallSig>>();
       },
+      deserializeIsType: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        return deserializeIsType<Parameters<CallSig>>();
+      },
       isTypeReflect: () => {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         const v: Parameters<CallSig> = [3, true];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        const v: Parameters<CallSig> = [3, true];
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const date1 = new Date();
@@ -1590,9 +2097,14 @@ export const VALIDATION_SUITE = {
       description:
         '`Record<K, V>` with a literal-union key resolves to a fixed-property object literal (`{a: V; b: V}`) at the type-checker level — tsgo distributes the union over the property names. Same emit path as a hand-written object literal; each key is a required property of type V.',
       isType: () => createIsType<Record<'a' | 'b', number>>(),
+      deserializeIsType: () => deserializeIsType<Record<'a' | 'b', number>>(),
       isTypeReflect: () => {
         const v: Record<'a' | 'b', number> = {a: 1, b: 2};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1620,9 +2132,14 @@ export const VALIDATION_SUITE = {
       description:
         'index signature with union value type — union emit landed; for-in loop applies the union check to every own key.',
       isType: () => createIsType<{[key: string]: string | number}>(),
+      deserializeIsType: () => deserializeIsType<{[key: string]: string | number}>(),
       isTypeReflect: () => {
         const v: {[key: string]: string | number} = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {[key: string]: string | number} = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: 1, b: 'x'}],
@@ -1635,9 +2152,14 @@ export const VALIDATION_SUITE = {
       description:
         'discriminated union as a property type — union emit handles the literal-string union as an OR-chain of `===` checks.',
       isType: () => createIsType<{kind: 'a' | 'b'; n: number}>(),
+      deserializeIsType: () => deserializeIsType<{kind: 'a' | 'b'; n: number}>(),
       isTypeReflect: () => {
         const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1664,9 +2186,14 @@ export const VALIDATION_SUITE = {
         'Each slot runs the atomic check for its declared type.',
       ],
       isType: () => createIsType<[string, number]>(),
+      deserializeIsType: () => deserializeIsType<[string, number]>(),
       isTypeReflect: () => {
         const v: [string, number] = ['hello', 1];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [string, number] = ['hello', 1];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1692,9 +2219,14 @@ export const VALIDATION_SUITE = {
       title: 'Six-element heterogeneous tuple (mion fixture)',
       description: 'mion tuple.spec.ts "validate tuple"',
       isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
+      deserializeIsType: () => deserializeIsType<[Date, number, string, null, string[], bigint]>(),
       isTypeReflect: () => {
         const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
@@ -1717,9 +2249,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
       isTypeReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
@@ -1731,9 +2268,14 @@ export const VALIDATION_SUITE = {
       title: 'Tuple as array element (tuple inside array dependency call)',
       description: 'array of tuples — exercises tuple inside array dependency call',
       isType: () => createIsType<[string, number][]>(),
+      deserializeIsType: () => deserializeIsType<[string, number][]>(),
       isTypeReflect: () => {
         const v: [string, number][] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [string, number][] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1757,9 +2299,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
       isType: () => createIsType<[number, ...string[]]>(),
+      deserializeIsType: () => deserializeIsType<[number, ...string[]]>(),
       isTypeReflect: () => {
         const v: [number, ...string[]] = [3];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [number, ...string[]] = [3];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
@@ -1775,10 +2322,19 @@ export const VALIDATION_SUITE = {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createIsType<TupleCircular>();
       },
+      deserializeIsType: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return deserializeIsType<TupleCircular>();
+      },
       isTypeReflect: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const tc: any = [new Date(), 1, 'a', null, [], 1n];
@@ -1803,9 +2359,14 @@ export const VALIDATION_SUITE = {
       description:
         "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
       isTypeReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1835,9 +2396,14 @@ export const VALIDATION_SUITE = {
       description:
         "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
       isType: () => createIsType<[name: string, age: number]>(),
+      deserializeIsType: () => deserializeIsType<[name: string, age: number]>(),
       isTypeReflect: () => {
         const v: [name: string, age: number] = ['Alice', 30];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [name: string, age: number] = ['Alice', 30];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1857,9 +2423,14 @@ export const VALIDATION_SUITE = {
         'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
       ],
       isType: () => createIsType<[number, () => any]>(),
+      deserializeIsType: () => deserializeIsType<[number, () => any]>(),
       isTypeReflect: () => {
         const v: [number, () => any] = [3, () => null];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: [number, () => any] = [3, () => null];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         // `[3]` is valid — v[1] is undefined which satisfies the
@@ -1895,9 +2466,14 @@ export const VALIDATION_SUITE = {
         'Each arm runs its full atomic check: numbers reject NaN / Infinity, Dates reject Invalid Date, etc.',
       ],
       isType: () => createIsType<Date | number | string | null | bigint>(),
+      deserializeIsType: () => deserializeIsType<Date | number | string | null | bigint>(),
       isTypeReflect: () => {
         const v: Date | number | string | null | bigint = 123;
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
@@ -1910,9 +2486,14 @@ export const VALIDATION_SUITE = {
       description: 'mion union.spec.ts "validate union discriminator string"',
       isTypeNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
       isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
+      deserializeIsType: () => deserializeIsType<'UNO' | 'DOS' | 'TRES'>(),
       isTypeReflect: () => {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['UNO', 'DOS', 'TRES'],
@@ -1923,9 +2504,14 @@ export const VALIDATION_SUITE = {
     string_or_number: {
       title: 'Two-arm union of string and number',
       isType: () => createIsType<string | number>(),
+      deserializeIsType: () => deserializeIsType<string | number>(),
       isTypeReflect: () => {
         const v: string | number = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string | number = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0, ''],
@@ -1939,9 +2525,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
       isType: () => createIsType<string[] | number[] | boolean[]>(),
+      deserializeIsType: () => deserializeIsType<string[] | number[] | boolean[]>(),
       isTypeReflect: () => {
         const v: string[] | number[] | boolean[] = ['a'];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [['a'], [1], [true, false], [], ['a', 'b']],
@@ -1955,9 +2546,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
       isType: () => createIsType<(string | bigint | boolean | Date)[]>(),
+      deserializeIsType: () => deserializeIsType<(string | bigint | boolean | Date)[]>(),
       isTypeReflect: () => {
         const v: (string | bigint | boolean | Date)[] = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
@@ -1979,9 +2575,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
       isTypeReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
@@ -1999,9 +2600,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
       isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      deserializeIsType: () => deserializeIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
       isTypeReflect: () => {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2031,10 +2637,19 @@ export const VALIDATION_SUITE = {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createIsType<UnionC>();
       },
+      deserializeIsType: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return deserializeIsType<UnionC>();
+      },
       isTypeReflect: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         const v: UnionC = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
@@ -2047,12 +2662,20 @@ export const VALIDATION_SUITE = {
       description:
         'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
       isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      deserializeIsType: () => deserializeIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
       isTypeReflect: () => {
         const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
           name: 'x',
           getName: () => 'x',
         };
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
@@ -2065,9 +2688,14 @@ export const VALIDATION_SUITE = {
       description:
         'mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
       isType: () => createIsType<{a: string} & {b: number}>(),
+      deserializeIsType: () => deserializeIsType<{a: string} & {b: number}>(),
       isTypeReflect: () => {
         const v: {a: string} & {b: number} = {a: 'x', b: 1};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2094,9 +2722,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
       isTypeReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
@@ -2118,12 +2751,20 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
       isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      deserializeIsType: () => deserializeIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
       isTypeReflect: () => {
         const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
           type: 'a',
           prop: true,
         };
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2150,6 +2791,8 @@ export const VALIDATION_SUITE = {
         "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
       isType: () =>
         createIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      deserializeIsType: () =>
+        deserializeIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
       isTypeReflect: () => {
         const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
           'a',
@@ -2157,6 +2800,14 @@ export const VALIDATION_SUITE = {
           'c',
         ];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2183,9 +2834,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
       isType: () => createIsType<{a: boolean} | {a: number}>(),
+      deserializeIsType: () => deserializeIsType<{a: boolean} | {a: number}>(),
       isTypeReflect: () => {
         const v: {a: boolean} | {a: number} = {a: true};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
@@ -2205,6 +2861,14 @@ export const VALIDATION_SUITE = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      deserializeIsType: () =>
+        deserializeIsType<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
       isTypeReflect: () => {
         const v:
           | string[]
@@ -2213,6 +2877,15 @@ export const VALIDATION_SUITE = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint} = ['a'];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2233,9 +2906,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
       isType: () => createIsType<string | any>(),
+      deserializeIsType: () => deserializeIsType<string | any>(),
       isTypeReflect: () => {
         const v: string | any = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string | any = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -2248,9 +2926,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
       isType: () => createIsType<string | unknown>(),
+      deserializeIsType: () => deserializeIsType<string | unknown>(),
       isTypeReflect: () => {
         const v: string | unknown = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: string | unknown = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -2274,6 +2957,16 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<SmallObj | LargeObj>();
       },
+      deserializeIsType: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return deserializeIsType<SmallObj | LargeObj>();
+      },
       isTypeReflect: () => {
         interface SmallObj {
           a: string;
@@ -2284,6 +2977,17 @@ export const VALIDATION_SUITE = {
         }
         const v: SmallObj | LargeObj = {a: 'hello'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -2313,6 +3017,21 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Tiny | Medium | Large>();
       },
+      deserializeIsType: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return deserializeIsType<Tiny | Medium | Large>();
+      },
       isTypeReflect: () => {
         interface Tiny {
           x: string;
@@ -2328,6 +3047,22 @@ export const VALIDATION_SUITE = {
         }
         const v: Tiny | Medium | Large = {x: 'hello'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
@@ -2355,6 +3090,19 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Base | Extended | Unrelated>();
       },
+      deserializeIsType: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return deserializeIsType<Base | Extended | Unrelated>();
+      },
       isTypeReflect: () => {
         interface Base {
           id: string;
@@ -2368,6 +3116,20 @@ export const VALIDATION_SUITE = {
         }
         const v: Base | Extended | Unrelated = {id: '123'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
@@ -2397,9 +3159,14 @@ export const VALIDATION_SUITE = {
         'The `${number}` placeholder expects digit-strings (`42`, `-7`, `3.14`) — NOT the words "NaN" or "Infinity" even though those are typeof "number" at the JS level.',
       ],
       isType: () => createIsType<`api/user/${number}`>(),
+      deserializeIsType: () => deserializeIsType<`api/user/${number}`>(),
       isTypeReflect: () => {
         const v: `api/user/${number}` = 'api/user/42';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: `api/user/${number}` = 'api/user/42';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
@@ -2422,9 +3189,14 @@ export const VALIDATION_SUITE = {
       title: 'Template literal URL with multiple placeholders',
       description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
       isType: () => createIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
+      deserializeIsType: () => deserializeIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
       isTypeReflect: () => {
         const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
@@ -2446,9 +3218,14 @@ export const VALIDATION_SUITE = {
         "mion templateLiteral.spec.ts 'leading ${string} placeholder' — empty-string prefix accepted (string span uses `[\\s\\S]*`, not `+`).",
       isTypeNotes: 'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
       isType: () => createIsType<`${string}/${number}`>(),
+      deserializeIsType: () => deserializeIsType<`${string}/${number}`>(),
       isTypeReflect: () => {
         const v: `${string}/${number}` = '/42';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: `${string}/${number}` = '/42';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['/42', 'users/42'],
@@ -2461,9 +3238,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
       isType: () => createIsType<`(${number})`>(),
+      deserializeIsType: () => deserializeIsType<`(${number})`>(),
       isTypeReflect: () => {
         const v: `(${number})` = '(42)';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: `(${number})` = '(42)';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['(42)', '(0)', '(-3.14)'],
@@ -2476,9 +3258,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
       isType: () => createIsType<{url: `api/user/${number}`; method: string}>(),
+      deserializeIsType: () => deserializeIsType<{url: `api/user/${number}`; method: string}>(),
       isTypeReflect: () => {
         const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{url: 'api/user/42', method: 'GET'}],
@@ -2501,9 +3288,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
       isType: () => createIsType<{[key: `api/${string}`]: number}>(),
+      deserializeIsType: () => deserializeIsType<{[key: `api/${string}`]: number}>(),
       isTypeReflect: () => {
         const v: {[key: `api/${string}`]: number} = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: {[key: `api/${string}`]: number} = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
@@ -2518,9 +3310,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
       isType: () => createIsType<`${'a' | 'b'}-${number}`>(),
+      deserializeIsType: () => deserializeIsType<`${'a' | 'b'}-${number}`>(),
       isTypeReflect: () => {
         const v: `${'a' | 'b'}-${number}` = 'a-42';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: `${'a' | 'b'}-${number}` = 'a-42';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['a-42', 'b-0', 'a--3.14'],
@@ -2544,9 +3341,14 @@ export const VALIDATION_SUITE = {
       description:
         'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
       isType: () => createIsType<Map<string, number>>(),
+      deserializeIsType: () => deserializeIsType<Map<string, number>>(),
       isTypeReflect: () => {
         const v: Map<string, number> = new Map();
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Map<string, number> = new Map();
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const empty = new Map();
@@ -2569,9 +3371,14 @@ export const VALIDATION_SUITE = {
       title: 'Set of strings',
       description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
       isType: () => createIsType<Set<string>>(),
+      deserializeIsType: () => deserializeIsType<Set<string>>(),
       isTypeReflect: () => {
         const v: Set<string> = new Set();
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Set<string> = new Set();
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const empty = new Set<string>();
@@ -2595,9 +3402,14 @@ export const VALIDATION_SUITE = {
         'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',
       ],
       isType: () => createIsType<Promise<string>>(),
+      deserializeIsType: () => deserializeIsType<Promise<string>>(),
       isTypeReflect: () => {
         const v: Promise<string> = Promise.resolve('x');
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const realPromise = Promise.resolve('x');
@@ -2618,9 +3430,14 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
       isType: () => createIsType<Awaited<Promise<string>>>(),
+      deserializeIsType: () => deserializeIsType<Awaited<Promise<string>>>(),
       isTypeReflect: () => {
         const v: Awaited<Promise<string>> = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['hello', ''],
@@ -2658,6 +3475,15 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Circular>();
       },
+      deserializeIsType: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        return deserializeIsType<Circular>();
+      },
       isTypeReflect: () => {
         interface Circular {
           n: number;
@@ -2667,6 +3493,16 @@ export const VALIDATION_SUITE = {
         }
         const v: Circular = {n: 1, s: 'hello'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        const v: Circular = {n: 1, s: 'hello'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2695,10 +3531,19 @@ export const VALIDATION_SUITE = {
         type CuArray = (CuArray | Date | number | string)[];
         return createIsType<CuArray>();
       },
+      deserializeIsType: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return deserializeIsType<CuArray>();
+      },
       isTypeReflect: () => {
         type CuArray = (CuArray | Date | number | string)[];
         const v: CuArray = [];
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        const v: CuArray = [];
+        return deserializeIsType(v);
       },
       getSamples: () => {
         const date = new Date();
@@ -2731,12 +3576,25 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularTuple>();
       },
+      deserializeIsType: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        return deserializeIsType<CircularTuple>();
+      },
       isTypeReflect: () => {
         interface CircularTuple {
           tuple: [bigint, CircularTuple?];
         }
         const v: CircularTuple = {tuple: [1n]};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        const v: CircularTuple = {tuple: [1n]};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
@@ -2763,12 +3621,25 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularIndex>();
       },
+      deserializeIsType: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return deserializeIsType<CircularIndex>();
+      },
       isTypeReflect: () => {
         interface CircularIndex {
           index: {[key: string]: CircularIndex};
         }
         const v: CircularIndex = {index: {}};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        const v: CircularIndex = {index: {}};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
@@ -2795,12 +3666,25 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularDeep>();
       },
+      deserializeIsType: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return deserializeIsType<CircularDeep>();
+      },
       isTypeReflect: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
         }
         const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
@@ -2835,6 +3719,18 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<RootNotCircular>();
       },
+      deserializeIsType: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return deserializeIsType<RootNotCircular>();
+      },
       isTypeReflect: () => {
         interface ICircularDeep {
           name: string;
@@ -2850,6 +3746,22 @@ export const VALIDATION_SUITE = {
           ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         };
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        const v: RootNotCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        };
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2911,6 +3823,27 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<RootCircular>();
       },
+      deserializeIsType: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return deserializeIsType<RootCircular>();
+      },
       isTypeReflect: () => {
         interface ICircularDeep {
           name: string;
@@ -2936,6 +3869,32 @@ export const VALIDATION_SUITE = {
           ciDate: {date: new Date(), month: 1, year: 2021},
         };
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        const v: RootCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+          ciDate: {date: new Date(), month: 1, year: 2021},
+        };
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -3036,6 +3995,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Partial<Person>>();
       },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeIsType<Partial<Person>>();
+      },
       isTypeReflect: () => {
         interface Person {
           name: string;
@@ -3044,6 +4011,15 @@ export const VALIDATION_SUITE = {
         }
         const v: Partial<Person> = {};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> = {};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
@@ -3074,6 +4050,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Required<MaybePerson>>();
       },
+      deserializeIsType: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        return deserializeIsType<Required<MaybePerson>>();
+      },
       isTypeReflect: () => {
         interface MaybePerson {
           name?: string;
@@ -3082,6 +4066,15 @@ export const VALIDATION_SUITE = {
         }
         const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{name: 'John', age: 30, createdAt: new Date()}],
@@ -3110,6 +4103,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Pick<Person, 'name' | 'createdAt'>>();
       },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeIsType<Pick<Person, 'name' | 'createdAt'>>();
+      },
       isTypeReflect: () => {
         interface Person {
           name: string;
@@ -3118,6 +4119,15 @@ export const VALIDATION_SUITE = {
         }
         const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -3148,6 +4158,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Omit<Person, 'age'>>();
       },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeIsType<Omit<Person, 'age'>>();
+      },
       isTypeReflect: () => {
         interface Person {
           name: string;
@@ -3156,6 +4174,15 @@ export const VALIDATION_SUITE = {
         }
         const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -3176,9 +4203,14 @@ export const VALIDATION_SUITE = {
       title: 'Exclude<U, X> on a string-literal union',
       description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      deserializeIsType: () => deserializeIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
       isTypeReflect: () => {
         const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
@@ -3191,9 +4223,14 @@ export const VALIDATION_SUITE = {
       description:
         'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      deserializeIsType: () => deserializeIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       isTypeReflect: () => {
         const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
@@ -3211,6 +4248,13 @@ export const VALIDATION_SUITE = {
           | {kind: 'triangle'; base: number; height: number};
         return createIsType<Exclude<Shape, {kind: 'circle'}>>();
       },
+      deserializeIsType: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        return deserializeIsType<Exclude<Shape, {kind: 'circle'}>>();
+      },
       isTypeReflect: () => {
         type Shape =
           | {kind: 'circle'; radius: number}
@@ -3218,6 +4262,14 @@ export const VALIDATION_SUITE = {
           | {kind: 'triangle'; base: number; height: number};
         const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -3240,9 +4292,14 @@ export const VALIDATION_SUITE = {
       title: 'NonNullable<T> — strips null and undefined from a union',
       description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
       isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
+      deserializeIsType: () => deserializeIsType<NonNullable<string | number | null | undefined>>(),
       isTypeReflect: () => {
         const v: NonNullable<string | number | null | undefined> = 'hello';
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: NonNullable<string | number | null | undefined> = 'hello';
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0],
@@ -3257,10 +4314,19 @@ export const VALIDATION_SUITE = {
         type Fn = (a: number, b: boolean) => Date;
         return createIsType<ReturnType<Fn>>();
       },
+      deserializeIsType: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        return deserializeIsType<ReturnType<Fn>>();
+      },
       isTypeReflect: () => {
         type Fn = (a: number, b: boolean) => Date;
         const v: ReturnType<Fn> = new Date();
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        const v: ReturnType<Fn> = new Date();
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -3279,6 +4345,13 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Readonly<Person>>();
       },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return deserializeIsType<Readonly<Person>>();
+      },
       isTypeReflect: () => {
         interface Person {
           name: string;
@@ -3286,6 +4359,14 @@ export const VALIDATION_SUITE = {
         }
         const v: Readonly<Person> = {name: 'John', age: 30};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Readonly<Person> = {name: 'John', age: 30};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -3321,6 +4402,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
       },
+      deserializeIsType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return deserializeIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      },
       isTypeReflect: () => {
         interface Person {
           name: string;
@@ -3329,6 +4418,15 @@ export const VALIDATION_SUITE = {
         }
         const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [
@@ -3354,9 +4452,14 @@ export const VALIDATION_SUITE = {
       title: 'Omit<T, K> preserves optionality of remaining props',
       description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
       isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      deserializeIsType: () => deserializeIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
       isTypeReflect: () => {
         const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
         return createIsType(v);
+      },
+      deserializeIsTypeReflect: () => {
+        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
+        return deserializeIsType(v);
       },
       getSamples: () => ({
         valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
