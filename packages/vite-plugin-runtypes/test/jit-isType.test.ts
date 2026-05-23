@@ -141,9 +141,24 @@ function evalRunTypesModule(source: string): Record<string, RunType> {
 // stub's table IS the cache.
 function evalIsTypeModule(source: string): {byHash: Record<string, JitEntry>; registered: Record<string, JitEntry>} {
   const registered: Record<string, JitEntry> = {};
+  // The cache module no longer materialises `entry.fn` eagerly — the
+  // real jitUtils does it lazily on first `getJIT(hash)` call (see
+  // packages/ts-go-run-types/src/jit/jitUtils.ts:materializeJitFn).
+  // This test stub mimics that: after each addToJitCache, invoke
+  // createJitFn(stub) so `entry.fn` is populated for the assertions
+  // below that check `fn` is a function.
   const stub = {
     addToJitCache(entry: JitEntry) {
       registered[entry.jitFnHash] = entry;
+      if (entry.createJitFn && !entry.fn) {
+        entry.fn = entry.createJitFn(stub);
+      }
+    },
+    getJIT(hash: string): JitEntry | undefined {
+      return registered[hash];
+    },
+    getPureFn(_key: string): unknown {
+      return undefined;
     },
   };
   const stripped = stripExports(source);

@@ -22,7 +22,15 @@ export function initCache(jitUtils) {
   // entry materialised here could call `utl.getJIT('rj_X')` for a
   // restoreFromJson dependency that hasn't been registered yet,
   // capturing `undefined` instead of the canonical entry reference.
+  //
+  // Noop entries use the short-form init: `init(jitFnHash, typeName,
+  // undefined, true)`. The Go renderer emits ONLY those four args for
+  // noop factories — code, jitDependencies, pureFnDependencies, and
+  // createJitFn are all undefined. We materialise `fn` immediately as
+  // the family-specific identity (`() => true` for isType), so
+  // consumers can read `entry.fn` without any further dispatch.
   function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+    const fn = isNoop ? noopIsType : undefined;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'it',
@@ -34,10 +42,14 @@ export function initCache(jitUtils) {
       jitDependencies,
       pureFnDependencies,
       createJitFn,
-      fn: undefined,
+      fn,
     });
   }
   void init;
+  function noopIsType() {
+    return true;
+  }
+  void noopIsType;
 
   // #### REPLACE HERE ####
 }
