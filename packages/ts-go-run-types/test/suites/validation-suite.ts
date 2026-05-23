@@ -2819,6 +2819,73 @@ export const VALIDATION_SUITE = {
       }),
     },
 
+    circular_child_under_literal_root: {
+      title: 'Non-circular root holding a circular child interface',
+      description:
+        "mion interface.spec.ts 'Interface with nested circular type where root is not the circular ref' — RootNotCircular is a flat shape (literal discriminator + one prop) whose ciChild property is a self-referential ICircularDeep. Pins the case where the dependency-call layer kicks in BELOW the root rather than at the root itself.",
+      isType: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createIsType<RootNotCircular>();
+      },
+      isTypeReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        const v: RootNotCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        };
+        return createIsType(v);
+      },
+      getSamples: () => ({
+        valid: [
+          {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}}},
+          {
+            isRoot: true,
+            ciChild: {
+              name: 'hello',
+              big: 1n,
+              embedded: {hello: 'world', child: {name: 'world1', big: 1n, embedded: {hello: 'world2'}}},
+            },
+          },
+        ],
+        invalid: [
+          {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 123}}}, // embedded.hello wrong type
+          {
+            isRoot: true,
+            ciChild: {
+              name: 'hello',
+              big: 1n,
+              embedded: {hello: 'world', child: {name: 'world1', big: 1n, embedded: {hello: 123}}},
+            },
+          }, // deep embedded.hello wrong type
+          {
+            isRoot: false, // not the literal true
+            ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world', child: 123}},
+          },
+          {isRoot: true, ciChild: {name: 'hello', big: 1n}}, // missing embedded
+          {isRoot: true}, // missing ciChild
+          null,
+          undefined,
+          {},
+        ],
+      }),
+    },
+
     multiple_circular_types_cross_referenced: {
       title: 'Multiple circular types cross-referenced from a non-circular root',
       description:
