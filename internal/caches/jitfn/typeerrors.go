@@ -69,11 +69,13 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindClass:
 		// Date, non-Date class instances (treated as interface),
-		// and Map / Set variants. Other classes (NonSerializable)
-		// remain unsupported.
+		// Map / Set variants — emit real validation. NonSerializable
+		// IS supported here so the renderer emits a throw-factory
+		// (mion's NonSerializableRunType.emitTypeErrors throws too).
 		switch rt.SubKind {
 		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet:
+			protocol.SubKindMap, protocol.SubKindSet,
+			protocol.SubKindNonSerializable:
 			return true
 		}
 		return false
@@ -290,7 +292,13 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		if rt.SubKind == protocol.SubKindSet {
 			return emitSetTypeErrors(rt, ctx, v)
 		}
-		// NonSerializable and any future subkinds.
+		if rt.SubKind == protocol.SubKindNonSerializable {
+			// mion: nodes/native/nonSerializable.ts:21-22 —
+			// `emitTypeErrors(): JitCode { throw new Error('Jit
+			// compilation disabled for Non Serializable types.'); }`.
+			return JitThrow("Jit compilation disabled for Non Serializable types.")
+		}
+		// Future subkinds — silent skip.
 		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:

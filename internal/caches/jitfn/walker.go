@@ -164,6 +164,13 @@ type Walker struct {
 	// check, once to compile), the single compile pass detects
 	// unsupported leaves and bubbles the signal up via CodeNS.
 	IsUnsupported bool
+	// ThrowMessage carries the JIT-compile-time error message when a
+	// CodeNS leaf was tagged with one (via JitThrow). Once captured,
+	// the renderer emits a throw-factory rather than silently skipping
+	// the entry — matching mion's per-runtype throws (never, Promise,
+	// NonSerializableRunType, the array.ts symbol[]/function[] check).
+	// First message wins; subsequent CodeNS leaves don't overwrite.
+	ThrowMessage string
 }
 
 // NewWalker primes a Walker for the given RunType + Emitter pair.
@@ -350,6 +357,13 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) JitCo
 	w.pushStack(rt)
 	jc := w.dispatch(rt, expectedCType)
 	if jc.Type == CodeNS {
+		// First throw message wins — capture before latching so the
+		// renderer can emit a throw-factory rather than silently
+		// skipping. Plain CodeNS (no message) preserves the existing
+		// "drop the factory" behaviour for kinds without an emit.
+		if jc.ErrorMessage != "" && w.ThrowMessage == "" {
+			w.ThrowMessage = jc.ErrorMessage
+		}
 		// Latch the walker-level signal. Subsequent CompileChild
 		// calls (from parent compound emits iterating siblings)
 		// short-circuit at the top of this function.

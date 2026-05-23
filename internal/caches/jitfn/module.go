@@ -221,9 +221,25 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	walker.InnerPrefix = innerPrefix
 	innerFn, isNoop, isUnsupported := walker.Compile()
 	if isUnsupported {
-		// The compile reached a kind with no emit; skip emitting any
-		// factory at all. Runtime cache miss is handled by the
-		// createIsType-side hasRunType-but-no-jit fallback.
+		// Two failure modes:
+		//
+		// 1. ThrowMessage non-empty — the compile reached a runtype
+		//    whose JSON emit throws at JIT-compile time in mion
+		//    (never, Promise, NonSerializableRunType, the symbol[]/
+		//    function[] check in array.ts). Emit a throw-factory
+		//    that raises `new Error(<msg>)` when the entry is
+		//    materialised; the throw surfaces at
+		//    createPrepareForJson()-call time, matching mion's
+		//    `expect(() => rt.createJitFunction(...)).toThrow()`
+		//    contract.
+		//
+		// 2. ThrowMessage empty — the kind has no emit at all; keep
+		//    the existing silent-skip behaviour so the runtime cache
+		//    miss is caught by the create*()-side
+		//    hasRunType-but-no-jit identity fallback.
+		if walker.ThrowMessage != "" {
+			return renderThrowEntry(runType, settings, innerPrefix, walker.ThrowMessage), nil
+		}
 		return "", nil
 	}
 	// Noop factories emit a SHORT-FORM init line: only the cache key,
@@ -266,6 +282,38 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	deps := append([]string(nil), walker.JitDependencies...)
 	return "init(" + joinArgs(args) + ");", deps
+}
+
+// renderThrowEntry emits the short-form init line for a runtype whose
+// JSON emit throws at JIT compile time (mion's per-runtype throws —
+// never, Promise, NonSerializableRunType, the array.ts symbol[]/
+// function[] check). Shape:
+//
+//	init('<innerPrefix><runtype.ID>', '<typeName>', '<throwBody>',
+//	     false, undefined, undefined, function(utl){ throw new Error(<msg>) });
+//
+// isNoop=false (the family-specific identity stub would mask the
+// throw); code carries the throw body so deserialize* — which
+// reconstructs via `new Function('utl', code)` — throws the same
+// message; createJitFn is a function that throws when invoked, which
+// happens inside materializeJitFn during the entry's first getJIT
+// lookup → throw propagates up to createPrepareForJson()-call site.
+func renderThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, message string) string {
+	_ = settings
+	innerName := innerPrefix + runType.ID
+	quoted := quoteJS(message)
+	body := "throw new Error(" + quoted + ");"
+	factory := "function(utl){" + body + "}"
+	args := []string{
+		quoteJS(innerName),
+		quoteJS(jitTypeName(runType)),
+		quoteJS(body),
+		"false",     // isNoop — false so the identity-fn stub doesn't mask the throw
+		"undefined", // jitDependencies
+		"undefined", // pureFnDependencies
+		factory,
+	}
+	return "init(" + joinArgs(args) + ");"
 }
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.

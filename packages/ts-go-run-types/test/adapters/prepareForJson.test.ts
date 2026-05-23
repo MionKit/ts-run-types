@@ -75,6 +75,18 @@ function assertRoundTrip(
 
 function assertPrepareForJson(c: JitCase): void {
   if (!c.prepareForJson) throw new Error(`case ${c.title}: missing prepareForJson thunk`);
+  if (c.jsonFamilyThrowsAtCompile) {
+    // mion-parity: the prepareForJson factory itself throws at
+    // JIT-compile time (never, Promise, function-root, symbol[],
+    // NonSerializable). Assert the throw at thunk-invocation time
+    // — same shape as mion's
+    // `expect(() => rt.createJitFunction(SERIALIZE_FN)).toThrow()`.
+    expect(() => c.prepareForJson!()).toThrow();
+    if (c.prepareForJsonReflect) expect(() => c.prepareForJsonReflect!()).toThrow();
+    if (c.deserializePrepareForJson) expect(() => c.deserializePrepareForJson!()).toThrow();
+    if (c.deserializePrepareForJsonReflect) expect(() => c.deserializePrepareForJsonReflect!()).toThrow();
+    return;
+  }
   const getValid = () => c.getSamples().valid;
   const bestEffort = c.roundTripBestEffort ?? false;
   // Paired thunks for the round-trip. When a half is undefined the
@@ -96,13 +108,7 @@ function assertPrepareForJson(c: JitCase): void {
   // Deserialize-static form — rebuilds the transformer from the
   // serialized JitCompiledFnData.code body.
   if (c.deserializePrepareForJson) {
-    assertRoundTrip(
-      `${c.title} [deserialize-static]`,
-      c.deserializePrepareForJson(),
-      restoreDeserStatic,
-      getValid,
-      bestEffort
-    );
+    assertRoundTrip(`${c.title} [deserialize-static]`, c.deserializePrepareForJson(), restoreDeserStatic, getValid, bestEffort);
   }
 
   // Deserialize-reflect form.

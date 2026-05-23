@@ -48,6 +48,13 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindObject, protocol.KindRegexp,
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
+	case protocol.KindNever:
+		// mion:nodes/atomic/never.ts:20 — emitPrepareForJson throws
+		// "Never type cannot be encoded to JSON.". We surface that
+		// via a throw-factory; Supports() returns true so the
+		// renderer compiles the entry (and the compile produces the
+		// throw via JitThrow in Emit).
+		return true
 	case protocol.KindArray:
 		// Gate on a non-nil child — a malformed RunType with KindArray
 		// and Child=nil would reach Emit and panic.
@@ -94,21 +101,20 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		// has its own toJSON()). User classes (SubKindNone) use the
 		// object emit. Map / Set get their own arms that materialise
 		// the iterable into an Array (JSON-encodable form).
+		// NonSerializable IS supported so the renderer emits a
+		// throw-factory (mion's NonSerializableRunType throws).
 		switch rt.SubKind {
 		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet:
+			protocol.SubKindMap, protocol.SubKindSet,
+			protocol.SubKindNonSerializable:
 			return true
 		}
 		return false
 	case protocol.KindPromise:
-		// Promise<T> is non-serializable — top-level emit is a noop;
-		// the consumer side handles the round-trip as identity. The
-		// jit-suite never invokes the noop fn against a real value
-		// (Promise samples are empty), so this stays a benign noop in
-		// the regular round-trip adapter. The serialization-suite's
-		// `throwsAtCompile` cases assert a throw which we DON'T emit
-		// here — addressing those without breaking jit-suite needs a
-		// per-case opt-in (next round).
+		// mion:nodes/native/promise.ts:23 — emitPrepareForJson throws
+		// "Jit compilation disabled for Non Serializable types.".
+		// Supports() returns true so the renderer compiles and surfaces
+		// the throw via a runtime-throwing factory.
 		return true
 	}
 	return false
@@ -176,6 +182,13 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// Finalize collapses empty bodies to `return v` + noop flag.
 		return JitCode{Code: "", Type: CodeS}
 
+	case protocol.KindNever:
+		// mion:nodes/atomic/never.ts:20-21 —
+		// `emitPrepareForJson(): JitCode { throw new Error('Never
+		// type cannot be encoded to JSON.'); }`. Surfaced as a
+		// runtime-throwing factory via JitThrow.
+		return JitThrow("Never type cannot be encoded to JSON.")
+
 	case protocol.KindBigInt:
 		// mion:nodes/atomic/bigInt.ts:20 — `v.toString()`.
 		// Reassign so the mutated value is what gets returned.
@@ -198,7 +211,10 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// User classes (SubKindNone) flow through the object emit —
 		// mion's class.ts extends InterfaceRunType, same emit body.
 		// Map / Set materialise their iterable contents into an Array
-		// so JSON.stringify has a serializable form.
+		// so JSON.stringify has a serializable form. NonSerializable
+		// (Int8Array, WeakMap, …) throws — mion's
+		// NonSerializableRunType.emitPrepareForJson at
+		// nodes/native/nonSerializable.ts:24 raises the same message.
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			return JitCode{Code: "", Type: CodeS}
@@ -206,15 +222,16 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 			return emitObjectPrepareForJson(rt, ctx, v)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJson(rt, ctx, v)
+		case protocol.SubKindNonSerializable:
+			return JitThrow("Jit compilation disabled for Non Serializable types.")
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		// Promise<T> is non-serializable. The downstream
-		// JSON.stringify will emit `{}` for a Promise (no enumerable
-		// own props); restoreFromJson reconstructs as the raw object
-		// — round-trip is intentionally lossy.
-		return JitCode{Code: "", Type: CodeS}
+		// mion:nodes/native/promise.ts:23-24 — `emitPrepareForJson():
+		// JitCode { throw new Error('Jit compilation disabled for
+		// Non Serializable types.'); }`. Same throw-factory pattern.
+		return JitThrow("Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJson(rt, ctx, v)
@@ -233,10 +250,16 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// mion:nodes/function/function.ts — functions are non-serializable;
-		// JSON.stringify drops function values. Top-level emit is a noop
-		// (caller's responsibility to know functions don't round-trip).
-		return JitCode{Code: "", Type: CodeS}
+		// mion:nodes/function/function.ts:83-85 —
+		// `emitPrepareForJson(): JitCode { throw new Error('Compile
+		// function PrepareForJson not supported, call compileParams
+		// or compileReturn instead.'); }`. Functions as ROOT or as a
+		// union member surface this throw; object/property children
+		// of function type are filtered out by the parent emit (see
+		// emitObjectPrepareForJson / emitPropertyPrepareForJson) and
+		// never reach this arm. Tuple-member also filters via
+		// isFunctionLikeKind.
+		return JitThrow("Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
 		// mion:nodes/collection/union.ts:emitPrepareForJson — type-check
@@ -278,7 +301,12 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		}
 		resolvedChild := ctx.ResolveRef(rt.Child)
 		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-			return JitCode{Code: "", Type: CodeNS}
+			// mion:nodes/member/array.ts:148 — `checkNonSkipTypes()`
+			// throws "Arrays can not have non serializable types,
+			// ie: Symbol[], Function[], etc." when the element's
+			// skipJit returns true (Symbol, Function). We mirror via
+			// a throw-factory.
+			return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")

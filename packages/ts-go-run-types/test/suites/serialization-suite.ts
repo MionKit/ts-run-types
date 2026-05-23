@@ -297,7 +297,8 @@ export const SERIALIZATION_SPEC = {
     },
     not_supported_any: {
       title: 'not supported in JSON stringify when any type is used',
-      description: 'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
+      description:
+        'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
       prepareForJson: () => createPrepareForJson<any>(),
       restoreFromJson: () => createRestoreFromJson<any>(),
       roundTripBestEffort: true,
@@ -577,7 +578,8 @@ export const SERIALIZATION_SPEC = {
     },
     non_serializable_class: {
       title: 'non-serializable class via deserialize function',
-      description: 'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
+      description:
+        'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
       prepareForJson: () => createPrepareForJson<NonSerializableClass>(),
       restoreFromJson: () => createRestoreFromJson<NonSerializableClass>(),
       getTestData: () => {
@@ -1061,10 +1063,8 @@ export const SERIALIZATION_SPEC = {
     },
     required_properties: {
       title: 'Required<T>',
-      prepareForJson: () =>
-        createPrepareForJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
-      restoreFromJson: () =>
-        createRestoreFromJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      prepareForJson: () => createPrepareForJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      restoreFromJson: () => createRestoreFromJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       getTestData: () => ({
         values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
       }),
@@ -1078,18 +1078,12 @@ export const SERIALIZATION_SPEC = {
     extract_objects: {
       title: 'Extract on object union',
       prepareForJson: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; x: number; y: number};
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createPrepareForJson<Extract<Shape, ToExtract>>();
       },
       restoreFromJson: () => {
-        type Shape =
-          | {kind: 'circle'; radius: number}
-          | {kind: 'square'; x: number}
-          | {kind: 'triangle'; x: number; y: number};
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createRestoreFromJson<Extract<Shape, ToExtract>>();
       },
@@ -1114,10 +1108,8 @@ export const SERIALIZATION_SPEC = {
     },
     omit_properties: {
       title: 'Omit<T, K>',
-      prepareForJson: () =>
-        createPrepareForJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
-      restoreFromJson: () =>
-        createRestoreFromJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      prepareForJson: () => createPrepareForJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      restoreFromJson: () => createRestoreFromJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     record_type: {
@@ -1268,15 +1260,11 @@ export const SERIALIZATION_SPEC = {
       title: 'union with methods — methods should be excluded',
       prepareForJson: () =>
         createPrepareForJson<
-          | {name: string; getName(): string}
-          | {age: number; getAge(): number}
-          | {active: boolean; isActive(): boolean}
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
       restoreFromJson: () =>
         createRestoreFromJson<
-          | {name: string; getName(): string}
-          | {age: number; getAge(): number}
-          | {active: boolean; isActive(): boolean}
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
       getTestData: () => {
         const objWithName = {
