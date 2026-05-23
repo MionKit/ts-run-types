@@ -3,15 +3,8 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the unknownKeyErrors cache module. Served
-// by the Go binary via the Vite plugin's `transform()` hook after
-// replacing the marker line below with generated `init(…)` calls —
-// one per cached RunType the UnknownKeyErrors emitter supports.
-//
-// Mirrors `getTypeErrorsCache.ts` exactly with the `fnID: 'uke'` tag.
-// Every JitCompiledFn entry produces a (v, pth=[], er=[]) validator
-// that appends one RunTypeError of expected='never' per unknown key.
-// See `isTypeCache.ts` for the JSDoc conventions.
+// unknownKeyErrors cache module. Each entry appends one RunTypeError
+// (`expected: 'never'`) per unknown key.
 
 'use strict';
 
@@ -19,15 +12,10 @@
 
 /** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
-  // Module-local pure-fn key consts. The Go emitter references these
-  // by short name in `pureFnDependencies` and inside each createJitFn
-  // closure so the literal "mion::<fnName>" only appears once per
-  // cache (here) instead of once per factory call.
+  // Pure-fn key consts referenced by emitted factory bodies.
   const k_nRT = 'mion::newRunTypeErr';
   const k_gUKFA = 'mion::getUnknownKeysFromArray';
-  // Used by the Map/Set emit to wrap the runtime entry key into a
-  // JSON-safe path segment (mion::safeIterableKey). Mirrors the
-  // declaration in getTypeErrorsCache.ts.
+  // Wraps the runtime entry key into a JSON-safe path segment for Map/Set emit.
   const k_sIK = 'mion::safeIterableKey';
 
   function init(

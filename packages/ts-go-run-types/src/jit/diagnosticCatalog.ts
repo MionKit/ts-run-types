@@ -1,29 +1,11 @@
-// Unified diagnostic catalog. Single source of truth for every
-// user-facing wording — both the build-time diagnostics (surfaced via
-// the Vite plugin's `this.warn`/`this.error`) AND the runtime
-// alwaysThrow factory's Error.message.
+// Unified diagnostic catalog. Single source of truth for every user-facing
+// wording — both build-time diagnostics and runtime alwaysThrow messages.
+// The Go binary ships only the Code (+ positional Args); this file resolves
+// to rendered text at format time. See docs/UNSUPPORTED-KINDS.md.
 //
-// The Go binary ships only the diagnostic Code (and optional positional
-// Args) over the wire. This file resolves Code+Args → final rendered
-// text at format time. The wire stays small; messages can be
-// arbitrarily rich (multi-line, code examples) for free. See
-// docs/UNSUPPORTED-KINDS.md "Wire format".
-//
-// Wording standard (see CLAUDE.md):
-//   1. Use the user's TypeScript vocabulary (property names, identifiers,
-//      imported helpers). No compiler-internal jargon ("JIT", "factory",
-//      "rewrite", "absorption", "leaf", "Non Serializable" — terms the
-//      user has never seen).
-//   2. State the user-visible consequence ("cannot be encoded to JSON"),
-//      not what the compiler did ("JIT compilation disabled").
-//   3. End with the fix as concrete code where possible.
-//   4. Single-line headline first, optional detail block after — the
-//      headline is what `formatTscDiagnostic` renders on the tsc problem-
-//      matcher line; detail surfaces in IDE hover / verbose log.
-//
-// Placeholders `{0}`, `{1}` in headline/detail resolve against the
-// `args` array on the Diagnostic (build-time) or the second arg to
-// `alwaysThrowFactory(code, siteHint, ...args)` (runtime).
+// Wording standard (CLAUDE.md): use TS vocabulary; state user-visible
+// consequence; end with the fix as concrete code; single-line headline first,
+// optional detail block after. `{0}`, `{1}` resolve against the `args` array.
 
 export interface DiagnosticEntry {
   /** Single-line headline. Mandatory. */
@@ -32,12 +14,8 @@ export interface DiagnosticEntry {
   readonly detail?: string;
 }
 
-// Per-family kind labels used for {0} substitution on root-throw codes.
-// Mirrors the Go-side leafKindLabel in internal/compiled/typefns/module.go.
-
-// Shared per-kind body fragments — referenced by per-family entries so
-// the "Never has no inhabitants" sentence is identical across PJ001 /
-// SJ001 / TB001 / etc.
+// Shared per-kind body fragments — referenced by per-family entries so the
+// explanation is identical across PJ001 / SJ001 / TB001 / etc.
 const NEVER_DETAIL = `\`never\` is the empty type — no value can ever inhabit it. A field
 typed \`never\` cannot carry a runtime value, so there is nothing to
 encode/decode/validate.
@@ -104,10 +82,8 @@ Fix — use a stable string key (often a literal union):
   -  type Status = symbol;
 +  type Status = 'pending' | 'active' | 'done';`;
 
-// Build a per-family root-throw entry. The headline is `Cannot <verb>
-// <kind label> <suffix>.` where the kind label comes from the Go-side
-// leafKindLabel and is passed in via args[0]. The detail block carries
-// the full explanation + code-example fix.
+// Headline: `Cannot <verb> <kind label> <suffix>.`. Kind label comes from
+// the Go-side leafKindLabel and is passed via args[0].
 function rootThrow(verb: string, detail: string, suffix = ''): DiagnosticEntry {
   return {
     headline: `Cannot ${verb} \`{0}\`${suffix ? ' ' + suffix : ''}.`,
@@ -214,10 +190,8 @@ Fix — accept a pre-computed id from the caller:
   },
 
   // ─────────── Pure-fn family (PFE9xxx) — registerPureFnFactory ───────────
-  // PFE9001 / PFE9002 (non-literal namespace/fnId) and PFE9003 (non-inline
-  // factory) were retired with the marker migration. registerPureFnFactory
-  // now brands its args with CompTimeArgs<string> + PureFunction<F>, so
-  // shape diagnostics flow through CTA001 / PFN001 from the marker layer.
+  // PFE9001–PFE9003 retired with the marker migration; shape diagnostics
+  // now flow through CTA001 / PFN001.
 
   PFE9004: {
     headline: 'Duplicate `registerPureFnFactory` for `{0}` with a different body — only one definition can win.',
@@ -341,10 +315,7 @@ Fix:
   },
 
   // ──────────── Runtype family (root throws and child drops) ────────────
-  //
-  // Per-family root-throw entries share the same explanation body via the
-  // *_DETAIL constants above. Headlines mention the family verb so the
-  // user knows which call site triggered the diagnostic.
+  // Per-family entries share explanation bodies via the *_DETAIL constants.
 
   // prepareForJson (PJ)
   PJ001: rootThrow('encode', NEVER_DETAIL, 'to JSON'),
@@ -406,11 +377,8 @@ Fix:
   TE002: rootThrow('validate', SYMBOL_DETAIL),
 
   // ────────────── Child-position member drops (Warning) ──────────────
-  //
-  // These don't throw — they silently exclude one member from the
-  // emitter's output. The catalog templates explain WHAT was dropped and
-  // WHY, and point users at the CLAUDE.md "isType contract" section for
-  // the design rationale.
+  // These don't throw — they silently exclude one member from the output.
+  // See CLAUDE.md "isType contract" for the design rationale.
 
   // Function-typed property dropped (one entry per family, same shape)
   IT010: dropFunctionProp('isType', 'validated'),
@@ -540,11 +508,9 @@ function substitute(template: string, args: readonly string[] | undefined): stri
 }
 
 /**
- * Render the single-line headline for a diagnostic code+args pair.
- * Used by the Vite plugin's formatTscDiagnostic to fill the tsc problem-
- * matcher line. Returns a generic fallback when the code is unknown so
- * out-of-band codes (e.g. a future Go-side code not yet mirrored here)
- * still produce a useful line.
+ * Render the single-line headline for a code+args pair. Returns a generic
+ * fallback when the code is unknown so out-of-band codes still produce a
+ * useful line.
  */
 export function renderHeadline(code: string, args?: readonly string[]): string {
   const entry = DIAGNOSTIC_CATALOG[code];
@@ -552,12 +518,7 @@ export function renderHeadline(code: string, args?: readonly string[]): string {
   return substitute(entry.headline, args);
 }
 
-/**
- * Render the multi-line detail block for a diagnostic code+args pair, or
- * undefined when the entry has no detail. Vite's verbose log mode and
- * IDE hover surfaces this; the single-line tsc output uses only the
- * headline.
- */
+/** Render the multi-line detail block, or undefined when the entry has none. */
 export function renderDetail(code: string, args?: readonly string[]): string | undefined {
   const entry = DIAGNOSTIC_CATALOG[code];
   if (!entry || !entry.detail) return undefined;
@@ -567,17 +528,10 @@ export function renderDetail(code: string, args?: readonly string[]): string | u
 // ─────────────────── Runtime alwaysThrow factory ───────────────────
 
 /**
- * Build a throwing-factory for an alwaysThrow cache entry. The Go-side
- * compiler ships the diag code (e.g. 'PJ001') as the 8th arg of init()
- * and an optional `file:line:col` provenance hint as the 9th arg; the
- * cache module forwards both here. The factory throws
- * `[code] headline (at file:line:col)` on invocation. Centralised so
- * the catalog lives in one place. See docs/UNSUPPORTED-KINDS.md.
- *
- * The remaining args after siteHint are positional substitution values
- * for the catalog template — passed by the Go renderer in the same
- * `args` slot as build-time diagnostics. Today the renderer ships them
- * as part of the init() 10th+ args; a follow-up wires that explicitly.
+ * Build a throwing-factory for an alwaysThrow cache entry. Throws
+ * `[code] headline (at file:line:col)` (suffix omitted when no provenance).
+ * `args` are positional substitution values for the catalog template.
+ * See docs/UNSUPPORTED-KINDS.md.
  */
 export function alwaysThrowFactory(code: string, siteHint?: string, ...args: string[]): () => never {
   const headline = renderHeadline(code, args);
@@ -588,12 +542,7 @@ export function alwaysThrowFactory(code: string, siteHint?: string, ...args: str
   };
 }
 
-/**
- * Legacy alias for compatibility with the older `diagnosticMessages.ts`
- * import surface. Returns the headline only.
- *
- * @deprecated Prefer renderHeadline (or renderDetail for the full block).
- */
+/** @deprecated Use renderHeadline (or renderDetail). */
 export function messageForCode(code: string, args?: readonly string[]): string {
   return renderHeadline(code, args);
 }

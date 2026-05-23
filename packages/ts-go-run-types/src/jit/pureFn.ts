@@ -10,34 +10,19 @@ import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
 import {getJitUtils, pureFnKey} from './jitUtils.ts';
 import type {CompTimeArgs, PureFunction as PureFunctionMarker} from '../markers.ts';
 
-// Side-effect: the pureFns cache module's `initCache(jitUtils)`
-// registers every `CompiledPureFunction` entry (full record:
-// bodyHash, paramNames, code, pureFnDependencies, createPureFn) via
-// `jitUtils.addPureFn(key, entry)`. The cache module is the canonical
-// runtime home of every pure-fn body; the user's source's
-// `registerPureFnFactory(ns, fn, factory)` call is rewritten by the
-// Vite plugin to pass `null` as the factory argument.
+// Populate the pure-fn cache. The cache module is the canonical runtime home
+// of every pure-fn body; the user's `registerPureFnFactory(ns, fn, factory)`
+// call is rewritten by the Vite plugin to pass `null` as the factory argument.
 initPureFnsCache(getJitUtils());
 
 /**
  * Looks up the `CompiledPureFunction` the Go binary registered for
- * (namespace, functionID) via the pureFns cache module. The build-step
- * rewrite passes `null` as the factory argument, so the cache lookup
- * is the only side-effect at runtime; the factory body lives in the
- * cache module, not in this file.
+ * (namespace, functionID). The contract is encoded in the parameter brands
+ * (`CompTimeArgs` + `PureFunction`), so the Go scanner discovers calls via
+ * the brands — renaming or reordering parameters does NOT break extraction.
  *
- * The contract is encoded in the parameter brands rather than the
- * function name: `namespace` + `functionID` must be string literals
- * at the call site (or module-scope `const`-of-literal — see
- * `CompTimeArgs`); `createPureFn` must be an inline arrow/function
- * expression that passes the purity rules (see `PureFunction`). The Go
- * scanner discovers calls via these brands, so renaming the function
- * or shuffling parameter order does NOT break extraction — the
- * marker types are the source of truth.
- *
- * Pass a non-null factory to override `createPureFn` at runtime — used
- * by tests and dev-tools that hot-replace a pure function without
- * rebuilding the cache module. Production code passes `null`.
+ * Pass a non-null factory to override `createPureFn` at runtime — used by
+ * tests and dev-tools for hot-replace. Production code passes `null`.
  */
 export function registerPureFnFactory(
   namespace: CompTimeArgs<string>,
@@ -55,19 +40,14 @@ export function registerPureFnFactory(
     );
   }
   if (createPureFn) {
-    // Manual override path: tests / hot-replace. The build-step
-    // rewrite always passes `null`, so this branch is dev-tool only.
+    // Manual override — dev-tool only. The build rewrite always passes null.
     existing.createPureFn = createPureFn;
     existing.fn = undefined;
   }
   return existing;
 }
 
-// HMR: when the pureFns cache module re-evaluates after a user-file
-// change, re-register every entry against the live jitUtils so future
-// `registerPureFnFactory` lookups see updated metadata. `initCache` is
-// idempotent — `addPureFn` overwrites by composite key. Production
-// builds strip the whole block at bundle time.
+// HMR: re-register every entry against the live jitUtils on cache reload.
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const hot = (import.meta as unknown as {hot?: HMR}).hot;
 if (hot) {

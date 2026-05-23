@@ -3,16 +3,8 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the unknownKeysToUndefined cache module.
-// Served by the Go binary via the Vite plugin's `transform()` hook
-// after replacing the marker line below with generated `init(…)`
-// calls — one per cached RunType the UnknownKeysToUndefined emitter
-// supports.
-//
-// Mirrors `stripUnknownKeysCache.ts` shape with the `fnID: 'uku'` tag.
-// Every JitCompiledFn entry produces a (v) -> v mutator that sets
-// unknown properties to undefined (instead of deleting them). See
-// `isTypeCache.ts` for the JSDoc conventions.
+// unknownKeysToUndefined cache module. Each entry sets unknown properties to
+// `undefined` (vs `strip`, which deletes them).
 
 'use strict';
 

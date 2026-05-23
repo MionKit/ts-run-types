@@ -1,11 +1,9 @@
-// Atomic value generators ported verbatim from mion's
-// mocking/mockUtils.ts. Every random value the walker produces bottoms
-// out in one of these helpers, so generator quality is identical to
-// mion's. Keep changes in lockstep with the upstream file.
+// Atomic value generators ported verbatim from mion's mocking/mockUtils.ts.
+// Keep changes in lockstep with the upstream file.
 
 import {anyValuesList, stringCharSet, mockRegExpsList} from './constants.mock.ts';
 
-/** Random integer in `[min, max]` (inclusive on both ends). **/
+/** Random integer in `[min, max]`. **/
 export function random(min: number = 0, max: number = 10000): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -28,8 +26,7 @@ export function mockNumber(min: number = 0, max: number = 10000): number {
   return random(min, max);
 }
 
-/** Random string of `length` chars drawn from `allowedChars` minus any
- *  chars in `disallowedChars`. **/
+/** Random string of `length` chars from `allowedChars` minus `disallowedChars`. **/
 export function mockString(
   length: number = random(0, 30),
   allowedChars: string = stringCharSet,
@@ -54,8 +51,7 @@ export function mockRegExp(list: RegExp[] = mockRegExpsList): RegExp {
   return list[random(0, list.length - 1)];
 }
 
-/** Random date in `[minDate, maxDate]` (inclusive). Either bound may be
- *  a `Date` or a numeric timestamp. **/
+/** Random date in `[minDate, maxDate]`. Bounds may be `Date` or numeric timestamps. **/
 export function mockDate(minDate: Date | number = new Date(0), maxDate: Date | number = new Date()): Date {
   const min = typeof minDate === 'number' ? minDate : minDate.getTime();
   const max = typeof maxDate === 'number' ? maxDate : maxDate.getTime();

@@ -3,11 +3,7 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the fromBinary cache module. Served by the
-// Go binary via the Vite plugin's `transform()` hook after replacing the
-// marker line below with generated `init(…)` calls — one per cached
-// RunType the fromBinary emitter supports. See `isTypeCache.ts` for the
-// JSDoc conventions.
+// fromBinary cache module. Each entry reads bytes from a DataViewDeserializer.
 
 'use strict';
 
@@ -48,9 +44,7 @@ export function initCache(jitUtils) {
     jitUtils.addToJitCache(entry);
   }
   void init;
-  // Noop fallback for runtypes whose fromBinary emit collapsed to
-  // identity. Returns undefined since no bytes were consumed and the
-  // input ret param is undefined.
+  // Noop fallback for collapsed entries — returns the placeholder `ret`.
   function noopFromBinary(ret, Des) {
     void Des;
     return ret;

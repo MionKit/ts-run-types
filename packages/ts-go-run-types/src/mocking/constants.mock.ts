@@ -1,7 +1,5 @@
-// Default pools and option values for the mock walker. Ported verbatim
-// from mion's mocking/constants.mock.ts so behaviour stays in lockstep
-// — same regex pool, same character set, same any-values list. Bumping
-// any of these should be a deliberate, documented divergence.
+// Default pools and option values. Ported verbatim from mion's
+// mocking/constants.mock.ts — bumping any of these is a deliberate divergence.
 
 import type {MockOptions} from './mockTypes.ts';
 

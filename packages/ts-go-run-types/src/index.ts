@@ -1,32 +1,17 @@
-// @mionjs/ts-go-run-types — the public entry point. The marker family
-// (`InjectRuntypeId`, `getRuntypeId`, `reflectRuntypeId`, and the Phase
-// 2/3 siblings) lives in `./markers.ts`; this module re-exports it so
-// downstream consumers continue importing from the package root.
+// Public entry point for @mionjs/ts-go-run-types.
 export {type InjectRuntypeId, type CompTimeArgs, type PureFunction, getRuntypeId, reflectRuntypeId} from './markers.ts';
 
-// JIT runtime registry — migrated from `@mionjs/core`. Consumers (currently
-// `createIsType`) build a `JITUtils` via `getJitUtils()` and hand it to the
-// cache modules' `initCache(jitUtils)` export, which registers every
-// entry via the corresponding `add*` method on the jitUtils singleton.
-//
-// Exported BEFORE `./createIsType.ts` so the jit module's evaluation
-// completes before createIsType.ts and pureFn.ts trigger their cache-
-// module imports — those modules call `initCache(getJitUtils())` at
-// module top level, and we want `getJitUtils` to be a real function by
-// then through any ESM cycle.
+// JIT registry — exported BEFORE `./createJitFunctions.ts` so jitUtils is a
+// real function by the time downstream cache modules call `initCache(getJitUtils())`
+// at module top level through any ESM cycle.
 export {getJitUtils, getJitFnCaches, type JITUtils} from './jit/jitUtils.ts';
 
-// Side-effect: populate the run-type registry from the precompiled cache
-// module. Pulled in here so the registry is ready before any consumer
-// queries it via `getJitUtils().getRunType(id)`. Idempotent — calling
-// initCache again (e.g. after HMR) overwrites entries by id.
+// Populate the run-type registry from the precompiled cache module before any
+// consumer queries it. Idempotent — re-running overwrites entries by id.
 import {initCache as initRunTypesCache} from './caches/runTypesCache.ts';
 import {getJitUtils as _getJitUtilsForInit} from './jit/jitUtils.ts';
 initRunTypesCache(_getJitUtilsForInit());
 
-// HMR: refresh the run-type registry whenever the cache module
-// re-evaluates after a user-file change. Production builds strip the
-// `if (hot)` block at bundle time.
 type _HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const _hot = (import.meta as unknown as {hot?: _HMR}).hot;
 if (_hot) {
@@ -35,25 +20,12 @@ if (_hot) {
   });
 }
 
-// `pureFn.ts` MUST evaluate before any module whose cache factories
-// reference pure-fn helpers (typeErrors needs `mion::newRunTypeErr`).
-// Importing it before createIsType / createGetTypeErrors ensures the
-// pure-fn registry is populated by the time their `initCache` runs the
-// `createJitFn(jitUtils)` materialisation loop. Mirrors mion's
-// constraint that pure-fns register at module load time (run-types/src/
-// run-types-pure-fns.ts), not lazily.
+// `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
+// helpers (e.g. typeErrors needs `mion::newRunTypeErr`).
 export {registerPureFnFactory} from './jit/pureFn.ts';
 
-// Public createXxx surface. JSON I/O collapses to exactly two entry
-// functions — createJsonEncoder + createJsonDecoder. Each dispatches to
-// one or two underlying JIT primitives based on the `mode` option
-// (`'safe'` default vs `'unsafe'` fast path). The lower-level
-// prepareForJson / restoreFromJson / stringifyJson primitives remain
-// internal — the encoder/decoder pair is the only public JSON API.
-//
-// The deserialize-from-code test twins (`deserializeXxx`) are NOT part of
-// the public API — they live under `test/util/deserializeJitFunctions.ts`
-// and are only consumed by the validation/serialization test suites.
+// JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
+// level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
 export {
   createIsType,
   type IsTypeFn,
@@ -71,7 +43,6 @@ export {
   type UnknownKeyErrorsFn,
   createUnknownKeysToUndefined,
   type UnknownKeysToUndefinedFn,
-  // JSON I/O.
   createJsonEncoder,
   type JsonEncoderFn,
   type JsonEncoderOptions,
@@ -80,12 +51,8 @@ export {
   type JsonDecoderOptions,
 } from './createJitFunctions.ts';
 
-// Binary I/O — re-exported from a dedicated module so bundlers can
-// drop the binary subtree (the two binary cache modules, the encoder /
-// decoder closures, the DataView helper classes' binary use) when the
-// consumer's code never references either factory. Binary is a niche
-// feature (typed-array RPC, router-driven binary transport); JSON /
-// validation users shouldn't pay for it.
+// Binary I/O re-exported from a dedicated module so bundlers can drop the
+// binary subtree when consumers never reference either factory.
 export {
   createBinaryEncoder,
   type BinaryEncoderFn,
@@ -97,19 +64,13 @@ export {
   type FromBinaryFn,
 } from './createBinary.ts';
 
-// Mock-value generator — re-exported from `./mocking/createMockType.ts`
-// so bundlers can drop the entire mock subtree (the walker, atomic
-// generators, constant pools) when consumers don't reference
-// `createMockType`. Mock is a dev/test feature; production code
-// shouldn't pay for it.
+// Mock-value generator re-exported from `./mocking/` so bundlers can drop the
+// whole mock subtree when consumers don't reference `createMockType`.
 export {createMockType} from './mocking/createMockType.ts';
 export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
 
 // DataView helpers — exposed so consumers can pre-build a serializer /
-// deserializer instance and pass it to the encoder / decoder. Useful
-// when reusing buffers across many encodes (avoids the per-call
-// allocation). `setSerializationOptions` tunes the string-bytes cache
-// and the adaptive buffer-sizing knobs at runtime.
+// deserializer instance and pass it to the encoder / decoder for buffer reuse.
 export {
   createDataViewSerializer,
   createDataViewDeserializer,
