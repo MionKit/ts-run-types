@@ -106,9 +106,12 @@ describe('getTypeErrors / ATOMIC', () => {
   it('BigInt literal with noLiterals (degrades to bigint)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
   it('Symbol literal with noLiterals (degrades to symbol)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_symbol_noLiterals));
 
+  // Strict count — fails if the suite gains a new case without a
+  // matching `it(...)` above. Every case in this section must have
+  // a getTypeErrors thunk; the suite ships with full parity to
+  // isType, so the `Object.keys().length` count is the right gate.
   it('all atomic getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.ATOMIC).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.ATOMIC).length);
   });
 });
 
@@ -138,8 +141,7 @@ describe('getTypeErrors / ARRAY', () => {
   it('Array of tuples', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.tuple_array));
 
   it('all array getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.ARRAY).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.ARRAY).length);
   });
 });
 
@@ -180,8 +182,7 @@ describe('getTypeErrors / OBJECT', () => {
   it('Object with a discriminated-union string property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_with_union_prop));
 
   it('all object getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.OBJECT).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.OBJECT).length);
   });
 });
 
@@ -202,8 +203,7 @@ describe('getTypeErrors / TUPLE', () => {
   it('Tuple with named element labels (labels erased at runtime)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_named_labels));
 
   it('all tuple getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.TUPLE).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TUPLE).length);
   });
 });
 
@@ -222,8 +222,7 @@ describe('getTypeErrors / TEMPLATE_LITERAL', () => {
   it('Template literal with a union-of-literals placeholder', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
 
   it('all template-literal getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.TEMPLATE_LITERAL).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TEMPLATE_LITERAL).length);
   });
 });
 
@@ -239,8 +238,7 @@ describe('getTypeErrors / NATIVE', () => {
   it('Awaited<Promise<T>> — resolves to the wrapped type', () => assertGetTypeErrors(VALIDATION_SUITE.NATIVE.awaited_promise));
 
   it('all native getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.NATIVE).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.NATIVE).length);
   });
 });
 
@@ -259,8 +257,7 @@ describe('getTypeErrors / CIRCULAR', () => {
   it('Multiple circular types cross-referenced from a non-circular root', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
 
   it('all circular getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.CIRCULAR).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.CIRCULAR).length);
   });
 });
 
@@ -294,8 +291,7 @@ describe('getTypeErrors / UNION', () => {
   it('Union mixing a subset pair with a disjoint arm', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_subset_mixed_related_unrelated));
 
   it('all union getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UNION).length);
   });
 });
 
@@ -319,7 +315,6 @@ describe('getTypeErrors / UTILITY', () => {
   it('Omit<T, K> preserves optionality of remaining props', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
 
   it('all utility getTypeErrors tests ran', () => {
-    const activeCount = Object.values(VALIDATION_SUITE.UTILITY).filter((c) => c.getTypeErrors).length;
-    expect(ranTests).toBe(activeCount);
+    expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UTILITY).length);
   });
 });
