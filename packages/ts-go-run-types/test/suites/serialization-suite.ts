@@ -2339,6 +2339,118 @@ export const SERIALIZATION_SPEC = {
         deserializedValues: [{b: 123}],
       }),
     },
+
+    // ----------------------------------------------------------------
+    // Flattened-union shared-prop cases. When two union members declare
+    // a property with the same name, the flattened shape treats that
+    // property as a union of the per-member declared types. Round-trip
+    // is all-or-nothing per member: encode AND decode must dispatch to
+    // the matched member and apply that member's per-prop transform —
+    // never compose transforms across members. Each case exercises
+    // both encoder modes against both decoder modes via the adapter.
+    // ----------------------------------------------------------------
+
+    shared_prop_same_type: {
+      title: 'shared prop — same declared type in both members (Date)',
+      description:
+        'Discriminator `kind` selects the member; shared prop `at: Date` has the identical transform on both branches, so the round-trip only needs to prove that the dispatch does not lose the prop or double-transform it.',
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
+          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
+        >(),
+      safeDecoder: () =>
+        createJsonDecoder<
+          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
+        >(),
+      unsafeDecoder: () =>
+        createJsonDecoder<
+          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
+        >(undefined, {mode: 'unsafe'}),
+      getTestData: () => ({
+        values: [
+          {kind: 'created', at: new Date('2000-08-06T02:13:00.000Z'), by: 'alice'},
+          {kind: 'updated', at: new Date('2001-09-07T03:14:00.000Z'), reviewers: ['bob', 'carol']},
+        ],
+      }),
+    },
+
+    shared_prop_divergent_date_string: {
+      title: 'shared prop — Date in one member, string in the other',
+      description:
+        'Discriminator `kind` resolves which member matched. Shared prop `when: Date | string` MUST take the matched-member transform: `kind:event` → Date↔ISO; `kind:note` → raw string passthrough. Composing both transforms would corrupt either branch (a `Date.toISOString()` reapplied to a plain string, or a string parsed as Date when it should not be).',
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
+          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
+        >(),
+      safeDecoder: () =>
+        createJsonDecoder<
+          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
+        >(),
+      unsafeDecoder: () =>
+        createJsonDecoder<
+          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
+        >(undefined, {mode: 'unsafe'}),
+      getTestData: () => ({
+        values: [
+          {kind: 'event', when: new Date('2000-08-06T02:13:00.000Z'), label: 'kickoff'},
+          {kind: 'note', when: 'tomorrow morning', label: 'reminder'},
+        ],
+      }),
+    },
+
+    shared_prop_divergent_bigint_number: {
+      title: 'shared prop — bigint in one member, number in the other',
+      description:
+        'Discriminator `form` resolves the member. Shared prop `id: bigint | number` must follow the matched-member transform: `form:big` → bigint↔string; `form:small` → raw number. Other shared prop `label: string` is identical on both branches and must survive either dispatch.',
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
+          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
+        >(),
+      safeDecoder: () =>
+        createJsonDecoder<
+          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
+        >(),
+      unsafeDecoder: () =>
+        createJsonDecoder<
+          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
+        >(undefined, {mode: 'unsafe'}),
+      getTestData: () => ({
+        values: [
+          {form: 'big', id: 9007199254740993n, label: 'beyond Number.MAX_SAFE_INTEGER'},
+          {form: 'small', id: 42, label: 'fits in number'},
+        ],
+      }),
+    },
+
+    shared_prop_no_discriminator_structural: {
+      title: 'shared prop — no literal discriminator, member resolved structurally',
+      description:
+        'No tag-like literal field. Members differentiated by (a) shared prop `a` having divergent type (string vs boolean — a sub-union) and (b) unique companion props (`b: number` vs `c: Date`). The encoder/decoder dispatch must work purely on shape: which member’s required props match the input. Verifies the dispatch is not silently relying on a literal-discriminator fast path.',
+      unsafeEncoder: () =>
+        createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
+      safeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
+      unsafeDecoder: () =>
+        createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
+      getTestData: () => ({
+        values: [
+          {a: 'hello', b: 7},
+          {a: true, c: new Date('2000-08-06T02:13:00.000Z')},
+        ],
+      }),
+    },
   },
 
   ITERABLES: {
