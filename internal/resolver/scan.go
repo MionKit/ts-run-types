@@ -133,13 +133,19 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 	return sites, diagnostics, nil
 }
 
-// scanCall inspects one call expression and returns a Site when its
-// resolved signature opts into transformer injection via a trailing
-// `InjectRuntypeId<T>` parameter with a concretely-bound T. Also returns any
-// non-fatal MarkerDiagnostics emitted for the call (e.g. the
-// function-call-argument anti-pattern warning) — diagnostics are
-// independent of site emission and may be returned with or without
-// a site.
+// scanCall inspects one call expression. The flow is:
+//
+//  1. Walk every parameter of the resolved signature and detect any
+//     marker brand via `marker.DetectAny`. CompTimeArgs / PureFunction
+//     validation happens here regardless of whether the call also
+//     carries an injection marker — the marker IS the contract, not
+//     the function name or position.
+//  2. If the trailing parameter carries `InjectRuntypeId<T>`, run the
+//     injection-specific logic (free-type-parameter gate, reflect-form
+//     checks, options extraction, id assignment) and emit a Site.
+//  3. Otherwise return any accumulated diagnostics with no Site.
+//
+// Diagnostics always flow — they're independent of Site emission.
 func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, []diag.Diagnostic, bool) {
 	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
 	if signature == nil {
@@ -150,15 +156,63 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		return protocol.Site{}, nil, false
 	}
 	lastIndex := len(parameters) - 1
-	lastParam := parameters[lastIndex]
-	if lastParam == nil {
-		return protocol.Site{}, nil, false
+	callExpression := call.AsCallExpression()
+	argsCount := 0
+	if callExpression != nil && callExpression.Arguments != nil {
+		argsCount = len(callExpression.Arguments.Nodes)
 	}
-	paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
-	typeArgument, matched := marker.Detect(paramType, resolver.marker)
-	if !matched {
-		return protocol.Site{}, nil, false
+	// Walk every parameter and dispatch per marker Kind. CompTimeArgs /
+	// PureFunction validation runs regardless of whether the trailing
+	// slot is InjectRuntypeId — registerPureFnFactory and any other
+	// non-injection branded function must be validated too.
+	var diagnostics []diag.Diagnostic
+	var injectionTypeArgument *checker.Type
+	var injectionMatched bool
+	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
+		paramSymbol := parameters[paramIndex]
+		if paramSymbol == nil {
+			continue
+		}
+		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, paramSymbol)
+		kind, typeArg, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
+		if !matched {
+			continue
+		}
+		switch kind {
+		case marker.KindInjectRuntypeId:
+			// Only the trailing slot is recognised for injection. A
+			// non-trailing InjectRuntypeId is defensively ignored — the
+			// injection codegen below assumes the id sits at lastIndex.
+			if paramIndex == lastIndex {
+				injectionTypeArgument = typeArg
+				injectionMatched = true
+			}
+		case marker.KindCompTimeArgs:
+			if paramIndex >= argsCount {
+				continue
+			}
+			argumentNode := callExpression.Arguments.Nodes[paramIndex]
+			if argumentNode == nil {
+				continue
+			}
+			if diagnostic, ok := resolver.checkCompTimeArgs(file, argumentNode); ok {
+				diagnostics = append(diagnostics, diagnostic)
+			}
+		case marker.KindPureFunction:
+			if paramIndex >= argsCount {
+				continue
+			}
+			argumentNode := callExpression.Arguments.Nodes[paramIndex]
+			if argumentNode == nil {
+				continue
+			}
+			diagnostics = append(diagnostics, resolver.checkPureFunction(file, argumentNode)...)
+		}
 	}
+	if !injectionMatched {
+		return protocol.Site{}, diagnostics, false
+	}
+	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
 		// free type parameter. Skip: no id to inject until the wrapper
@@ -168,33 +222,24 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// breadcrumb.
 		sourceFile := ast.GetSourceFileOfNode(call)
 		if sourceFile == nil {
-			return protocol.Site{}, nil, false
+			return protocol.Site{}, diagnostics, false
 		}
 		startLine, startCol := scanLineCol(sourceFile, call.Pos())
 		endLine, endCol := scanLineCol(sourceFile, call.End())
-		diagnostic := diag.New(
+		diagnostics = append(diagnostics, diag.New(
 			diag.CodeMarkerFreeTypeParameter,
 			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-		)
-		return protocol.Site{}, []diag.Diagnostic{diagnostic}, false
-	}
-	argsCount := 0
-	if callExpression := call.AsCallExpression(); callExpression != nil && callExpression.Arguments != nil {
-		argsCount = len(callExpression.Arguments.Nodes)
+		))
+		return protocol.Site{}, diagnostics, false
 	}
 	// Caller has already placed an argument at (or past) the id slot.
 	// Never override an explicit pass-through — leave the call untouched.
 	if argsCount > lastIndex {
-		return protocol.Site{}, nil, false
+		return protocol.Site{}, diagnostics, false
 	}
-	// Diagnostics accumulated for this call. Emission is independent of
-	// site emission — every diagnostic flows back regardless of whether
-	// the call produces a Site at the end.
-	var diagnostics []diag.Diagnostic
 	// REFLECT-FORM CHECKS: only fire when T was inferred from a value
 	// argument (no explicit type-argument list) AND at least one value
 	// arg is present.
-	callExpression := call.AsCallExpression()
 	inReflectForm := callExpression != nil &&
 		(callExpression.TypeArguments == nil || len(callExpression.TypeArguments.Nodes) == 0) &&
 		argsCount > 0 && callExpression.Arguments != nil &&
@@ -230,12 +275,6 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			typeArgument = annotated
 		}
 	}
-	// Walk earlier params for CompTimeArgs<T> / PureFunction<F> brands.
-	// The trailing-id slot is already handled above; this loop validates
-	// every other branded parameter the user filled. Slots the user
-	// didn't fill are skipped (the brand only fires when an argument
-	// actually appears at that position).
-	diagnostics = append(diagnostics, resolver.scanSiblingMarkers(file, call, callExpression, parameters, lastIndex, argsCount)...)
 	options := extractRunTypeOptions(call, lastIndex, argsCount)
 	// noLiterals semantics (literal.ts:28-54): the literal node swaps to
 	// its base-kind runtype for validation purposes. We mirror this at
@@ -437,50 +476,6 @@ func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOpti
 		}
 	}
 	return opts
-}
-
-// scanSiblingMarkers walks every parameter *before* the trailing id
-// slot and emits diagnostics for non-injection markers
-// (CompTimeArgs<T>, PureFunction<F>) carried on those params. Slots the
-// user didn't fill are skipped — the brand only fires when an argument
-// actually appears at that position. The trailing param itself is
-// handled by the existing InjectRuntypeId path in scanCall.
-func (resolver *Resolver) scanSiblingMarkers(file string, call *ast.Node, callExpression *ast.CallExpression, parameters []*ast.Symbol, lastIndex, argsCount int) []diag.Diagnostic {
-	if callExpression == nil || callExpression.Arguments == nil {
-		return nil
-	}
-	var diagnostics []diag.Diagnostic
-	for paramIndex := 0; paramIndex < lastIndex; paramIndex++ {
-		if paramIndex >= argsCount {
-			break
-		}
-		paramSymbol := parameters[paramIndex]
-		if paramSymbol == nil {
-			continue
-		}
-		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, paramSymbol)
-		kind, _, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
-		if !matched {
-			continue
-		}
-		if paramIndex >= len(callExpression.Arguments.Nodes) {
-			continue
-		}
-		argumentNode := callExpression.Arguments.Nodes[paramIndex]
-		if argumentNode == nil {
-			continue
-		}
-		switch kind {
-		case marker.KindCompTimeArgs:
-			if diagnostic, ok := resolver.checkCompTimeArgs(file, argumentNode); ok {
-				diagnostics = append(diagnostics, diagnostic)
-			}
-		case marker.KindPureFunction:
-			diagnostics = append(diagnostics, resolver.checkPureFunction(file, argumentNode)...)
-		}
-		_ = call // call retained for future per-call diagnostic plumbing
-	}
-	return diagnostics
 }
 
 // checkPureFunction validates that argumentNode is an inline
