@@ -202,3 +202,27 @@ describe('prepareForJson / OBJECT', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.OBJECT).length);
   });
 });
+
+describe('prepareForJson / TUPLE', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Two-element tuple (string plus number)', () => assertPrepareForJson(JIT_SUITE.TUPLE.string_number_pair));
+  it('Six-element heterogeneous tuple (mion fixture)', () => assertPrepareForJson(JIT_SUITE.TUPLE.full_mion_tuple));
+  it('Tuple with trailing optional elements', () => assertPrepareForJson(JIT_SUITE.TUPLE.tuple_with_optional));
+  it('Tuple as array element (tuple inside array dependency call)', () => assertPrepareForJson(JIT_SUITE.TUPLE.nested_tuple_in_array));
+  it('Self-referential tuple via trailing optional self-ref', () => assertPrepareForJson(JIT_SUITE.TUPLE.tuple_circular));
+  it('Tuple with a function slot (must be undefined)', () => assertPrepareForJson(JIT_SUITE.TUPLE.tuple_with_non_serializable));
+  it('Tuple with a trailing rest segment', () => assertPrepareForJson(JIT_SUITE.TUPLE.tuple_rest));
+  it('Tuple with multiple trailing optional slots', () => assertPrepareForJson(JIT_SUITE.TUPLE.tuple_multiple_trailing_optionals));
+  it('Tuple with named element labels (labels erased at runtime)', () => assertPrepareForJson(JIT_SUITE.TUPLE.tuple_named_labels));
+  it('Empty tuple `[]` (only the empty array passes)', () => assertPrepareForJson(JIT_SUITE.TUPLE.empty_tuple));
+  it('Single-element tuple `[T]`', () => assertPrepareForJson(JIT_SUITE.TUPLE.single_element_tuple));
+  it('Readonly tuple (readonly [T, U])', () => assertPrepareForJson(JIT_SUITE.TUPLE.readonly_tuple));
+
+  it('all tuple prepareForJson tests ran', () => {
+    expect(ranTests).toBe(Object.keys(JIT_SUITE.TUPLE).length);
+  });
+});
