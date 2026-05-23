@@ -5,9 +5,6 @@ import type {Readable, Writable} from 'node:stream';
 import type {CacheKind, Replacement, Request, Response, RunType, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
-  // Optional marker overrides forwarded to the Go binary's CLI flags.
-  markerName?: string;
-  markerModule?: string;
   // When set, the resolver is spawned with --inline-sources-stdin and the
   // map is written as the first stdin line (JSON `{"sources": …}`) before
   // any request. Keys are paths relative to `cwd`; values are TS source.
@@ -275,8 +272,6 @@ export class ResolverClient extends ResolverClientBase {
     if (!opts.inlineSources && !opts.serverMode && tsconfigPath) {
       args.push('--tsconfig', tsconfigPath);
     }
-    if (opts.markerName) args.push('--marker-name', opts.markerName);
-    if (opts.markerModule) args.push('--marker-module', opts.markerModule);
     if (opts.inlineSources) args.push('--inline-sources-stdin');
     if (opts.serverMode) args.push('--inline-server');
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir);

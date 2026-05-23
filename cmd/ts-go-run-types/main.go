@@ -38,8 +38,6 @@ Options:
     --out-ts   PATH     after stdin is drained, write the runtime cache JS module to PATH
     --hash-length N     short-id length for type hashes (default 6)
     --literal-hash-length N  short-id length for literal-typed hashes (default 5)
-    --marker-name NAME  marker type alias (default InjectRuntypeId)
-    --marker-module M   package the marker is declared in (default @mionjs/ts-go-run-types)
     --single-threaded   force single-checker mode (useful for tests)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
@@ -72,8 +70,6 @@ func main() {
 		outTS              string
 		hashLength         int
 		literalHashLength  int
-		markerName         string
-		markerModule       string
 		singleThreaded     bool
 		inlineSourcesStdin bool
 		inlineServer       bool
@@ -89,8 +85,6 @@ func main() {
 	flag.StringVar(&outTS, "out-ts", "", "write runtime cache JS module to PATH after stdin EOF")
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 6)")
 	flag.IntVar(&literalHashLength, "literal-hash-length", 0, "short-id length for literal hashes (0 = default 5)")
-	flag.StringVar(&markerName, "marker-name", "", "marker type alias (default InjectRuntypeId)")
-	flag.StringVar(&markerModule, "marker-module", "", "marker package (default @mionjs/ts-go-run-types)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
 	flag.BoolVar(&inlineSourcesStdin, "inline-sources-stdin", false,
 		"read {\"sources\":{relpath:content}} from stdin before the request stream")
@@ -130,11 +124,8 @@ func main() {
 	resolverOpts := resolver.Options{
 		HashLength:        hashLength,
 		LiteralHashLength: literalHashLength,
-		Marker: marker.Options{
-			Name:   markerName,
-			Module: markerModule,
-		},
-		Cwd:            absCwd,
+		Marker:            marker.Options{},
+		Cwd:               absCwd,
 		SingleThreaded: singleThreaded,
 		CacheDir:       cacheDir,
 	}

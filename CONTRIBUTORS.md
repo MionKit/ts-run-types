@@ -134,8 +134,6 @@ Then send the same JSON ops to `/tmp/ts-go-run-types.sock` from another process.
 --out-ts PATH                 also write self-wired TS module on dump
 --hash-length N               default 6 (types)
 --literal-hash-length N       default 5 (literals)
---marker-name NAME            default InjectRuntypeId
---marker-module MODULE        default @mionjs/ts-go-run-types
 --single-threaded             disable parallel walk (debugging)
 ```
 

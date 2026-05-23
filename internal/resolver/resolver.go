@@ -99,8 +99,6 @@ func newJITStore(opts Options) *disk.Store {
 	fp := disk.Fingerprint(disk.FingerprintInputs{
 		HashLength:        opts.HashLength,
 		LiteralHashLength: opts.LiteralHashLength,
-		MarkerName:        opts.Marker.Name,
-		MarkerModule:      opts.Marker.Module,
 	})
 	return disk.New(opts.CacheDir, fp)
 }

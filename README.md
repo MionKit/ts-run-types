@@ -130,14 +130,15 @@ bin/ts-go-run-types --one-shot --tsconfig tsconfig.json < requests.jsonl > cache
 bin/ts-go-run-types --daemon --tsconfig tsconfig.json --socket /tmp/ts-go-run-types.sock
 ```
 
-### Marker overrides
+### Marker family
 
-```
---marker-name NAME       default: InjectRuntypeId
---marker-module MODULE   default: @mionjs/ts-go-run-types
-```
+Three marker brands are exported from `@mionjs/ts-go-run-types`:
 
-The marker is detected by both name AND declaring module, so a user's own `type InjectRuntypeId<T> = ...` declared elsewhere does not accidentally trigger rewrites.
+- `InjectRuntypeId<T>` — trailing-slot brand; the build injects a stable type-id at the call site.
+- `CompTimeArgs<T>` — the argument at this slot must be a literal (or a `const`-of-literal chain).
+- `PureFunction<F>` — the argument must be an inline arrow / function expression that passes the purity rules.
+
+Each marker is recognised by both its symbol name AND its declaring module, so a user's own `type InjectRuntypeId<T> = ...` declared elsewhere does not accidentally trigger the toolchain. The marker set is fixed (no `--marker-name` / `--marker-module` CLI knobs — those were retired in the marker migration); custom shapes can still be built by constructing `marker.Options{Specs: [...]}` directly from Go when embedding the resolver.
 
 ## Build & Test
 

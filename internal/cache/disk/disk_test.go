@@ -163,12 +163,12 @@ func TestStore_WriteAtomic(t *testing.T) {
 func TestFingerprint_OptionIsolation(t *testing.T) {
 	a := Fingerprint(FingerprintInputs{HashLength: 6, LiteralHashLength: 5})
 	b := Fingerprint(FingerprintInputs{HashLength: 8, LiteralHashLength: 5})
-	c := Fingerprint(FingerprintInputs{HashLength: 6, LiteralHashLength: 5, MarkerName: "Custom"})
+	c := Fingerprint(FingerprintInputs{HashLength: 6, LiteralHashLength: 7})
 	if a == b {
 		t.Errorf("hashLength change should move fingerprint: both %q", a)
 	}
 	if a == c {
-		t.Errorf("markerName change should move fingerprint: both %q", a)
+		t.Errorf("literalHashLength change should move fingerprint: both %q", a)
 	}
 	if d := Fingerprint(FingerprintInputs{HashLength: 6, LiteralHashLength: 5}); d != a {
 		t.Errorf("identical inputs should produce identical fingerprint: %q vs %q", a, d)
