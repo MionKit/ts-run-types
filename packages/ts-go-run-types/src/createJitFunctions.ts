@@ -201,20 +201,21 @@ export type BinaryEncoderFn = (value: unknown, serializer?: DataViewSerializer) 
  *  a pre-built `DataViewDeserializer`. **/
 export type BinaryDecoderFn<T = unknown> = (input: BinaryInput | DataViewDeserializer) => T;
 
-/** Caller-controlled options for `createBinaryEncoder<T>()`. Reserved
- *  for future extension (e.g. routeId, buffer-size hints). **/
+/** Caller-controlled options for `createBinaryEncoder<T>()`. **/
 export interface BinaryEncoderOptions {
-  /** Identifier for the encoder's auto-allocated buffer. Defaults to
-   *  `'binary'`. Surfaces in error messages and is preserved on the
-   *  serializer instance. **/
-  routeId?: string;
+  /** Stable string used to bucket adaptive-sizing history (and as a
+   *  diagnostic label on the auto-allocated serializer). Defaults to
+   *  the runtype hash, so every encoder for the same `T` shares size
+   *  history transparently. Pass an explicit value to group several
+   *  unrelated types under one bucket. **/
+  cacheKey?: string;
 }
 
-/** Caller-controlled options for `createBinaryDecoder<T>()`. Reserved
- *  for future extension. **/
+/** Caller-controlled options for `createBinaryDecoder<T>()`. **/
 export interface BinaryDecoderOptions {
-  /** Identifier for the decoder. Defaults to `'binary'`. **/
-  routeId?: string;
+  /** Stable string used as a diagnostic label on the auto-allocated
+   *  deserializer. Defaults to the runtype hash. **/
+  cacheKey?: string;
 }
 
 /** Caller-controlled options for `createJsonDecoder<T>()`. The decoder
@@ -475,11 +476,16 @@ export function createBinaryEncoder<T>(
       'createBinaryEncoder(): no id injected. vite-plugin-runtypes must be active for createBinaryEncoder to dispatch to a precompiled factory.'
     );
   }
-  const routeId = options?.routeId ?? 'binary';
+  const cacheKey = options?.cacheKey ?? id;
   const encodeFn = lookupJitFn<ToBinaryFn>('createBinaryEncoder', 'tb', id, noopToBinaryFn);
   return (value, serializer) => {
-    const ser = serializer ?? createDataViewSerializer(routeId);
+    const ownsSer = serializer === undefined;
+    const ser = serializer ?? createDataViewSerializer(cacheKey);
     encodeFn(value, ser);
+    // Only feed adaptive-sizing history when we own the serializer —
+    // a caller-supplied instance may be reused across multiple encodes
+    // and is responsible for its own end-of-payload semantics.
+    if (ownsSer) ser.markAsEnded();
     return ser.getBuffer();
   };
 }
@@ -498,7 +504,7 @@ export function createBinaryDecoder<T>(
       'createBinaryDecoder(): no id injected. vite-plugin-runtypes must be active for createBinaryDecoder to dispatch to a precompiled factory.'
     );
   }
-  const routeId = options?.routeId ?? 'binary';
+  const cacheKey = options?.cacheKey ?? id;
   const decodeFn = lookupJitFn<FromBinaryFn<T>>('createBinaryDecoder', 'fb', id, noopFromBinaryFn as FromBinaryFn<T>);
   return (input) => {
     // Distinguish DataViewDeserializer from raw buffer by checking for
@@ -510,7 +516,7 @@ export function createBinaryDecoder<T>(
     ) {
       des = input as DataViewDeserializer;
     } else {
-      des = createDataViewDeserializer(routeId, input as BinaryInput);
+      des = createDataViewDeserializer(cacheKey, input as BinaryInput);
     }
     return decodeFn(undefined, des);
   };
