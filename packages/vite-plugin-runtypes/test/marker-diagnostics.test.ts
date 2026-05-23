@@ -120,7 +120,7 @@ export const _ = createIsType<ReturnType<typeof makeUser>>();
     });
   });
 
-  register('warns with MKR003 when marker call has a free type parameter', async () => {
+  register('errors with MKR003 when marker call is inside a generic wrapper', async () => {
     const sources = {
       'free-tparam.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
 export function makeId<T>() {
@@ -133,8 +133,12 @@ export function makeId<T>() {
       const diagnostics = markerDiagsOf(response);
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics[0].code).toBe('MKR003');
-      expect(diagnostics[0].severity).toBe(Severity.Warning);
-      expect(diagnostics[0].message).toContain('free type parameter');
+      // Error severity (not Warning): if the generic wrapper is ever
+      // called, getRuntypeId() throws at runtime ("no id injected"). The
+      // build halts so the user fixes the structural issue before
+      // shipping the wrapper.
+      expect(diagnostics[0].severity).toBe(Severity.Error);
+      expect(diagnostics[0].message).toContain('generic function');
       // No site emitted — the marker can't be injected without a resolved T.
       // The user gets the build-time MKR003 + the runtime "no id injected"
       // throw when the wrapper is actually called.

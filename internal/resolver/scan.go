@@ -173,7 +173,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		diagnostic := diag.New(
 			diag.CodeMarkerFreeTypeParameter,
 			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-			"marker call has free type parameter; the rewrite needs T to be resolved. Move the call to a context where T is concrete, or accept a `RuntypeId<T>` from the caller.",
+			"marker call was made inside a generic function where the type argument is unknown until the function is invoked. The build can only compute an id for a concrete type (e.g. `User`, `{name: string}`). Either inline the marker call at each concrete call site, or accept the id as a `RuntypeId<T>` parameter from the caller.",
 		)
 		return protocol.Site{}, []diag.Diagnostic{diagnostic}, false
 	}
