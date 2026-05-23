@@ -170,41 +170,6 @@ func emitObjectUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) Ji
 	return JitCode{Code: combined, Type: CodeS}
 }
 
-// publishSiblingNamedKeysForIndexSig walks the object's children;
-// for each IndexSignature child, registers a closure-prologue
-// `const skip_<idxSigID> = new Set(['name1', 'name2'])` so the
-// index-sig emit can guard `if (skip_X.has(prop) || regex.test(prop))`.
-func publishSiblingNamedKeysForIndexSig(rt *protocol.RunType, ctx *EmitContext) {
-	var siblingNames []string
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil || resolved.Kind == protocol.KindIndexSignature {
-			continue
-		}
-		if resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
-			continue
-		}
-		if resolved.Name != "" {
-			siblingNames = append(siblingNames, resolved.Name)
-		}
-	}
-	if len(siblingNames) == 0 {
-		return
-	}
-	siblingNames = dedupSortStrings(siblingNames)
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil || resolved.Kind != protocol.KindIndexSignature {
-			continue
-		}
-		ctxKey := "siblingNamed_" + resolved.ID
-		if ctx.HasContextItem(ctxKey) {
-			continue
-		}
-		ctx.SetContextItem(ctxKey, "const "+ctxKey+" = new Set("+arrayToJSLiteral(siblingNames)+")")
-	}
-}
-
 func unknownKeysToUndefinedChildrenCode(rt *protocol.RunType, ctx *EmitContext) string {
 	var parts []string
 	for _, child := range rt.Children {
@@ -389,7 +354,7 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 		// set (see publishSiblingNamedKeysForIndexSig in
 		// emitObjectUnknownKeysToUndefined), exempt those keys from
 		// the regex-undefine sweep.
-		siblingSet := "siblingNamed_" + rt.ID
+		siblingSet := siblingNamedKeysCtxKey(rt)
 		guard := "!" + keyRegexVar + ".test(" + prop + ")"
 		if ctx.HasContextItem(siblingSet) {
 			guard = "!" + siblingSet + ".has(" + prop + ") && " + guard

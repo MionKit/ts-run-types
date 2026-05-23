@@ -537,6 +537,10 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 		}
 	}
 
+	// Publish sibling-named-prop set for any index-signature child
+	// (see emitObjectIsType for the rationale).
+	publishSiblingNamedKeysForIndexSig(rt, ctx)
+
 	// Compile per-child error-accumulation code, filtering the same
 	// way emitObjectIsType does, AND track whether all contributing
 	// children are optional so we can add the allOptionalCode guard.
@@ -697,6 +701,10 @@ func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v stri
 	body.WriteString(" in ")
 	body.WriteString(v)
 	body.WriteString(") {")
+	if skip := siblingNamedSkipCode(rt, ctx, keyVar); skip != "" {
+		body.WriteString(skip)
+		body.WriteString(" ")
+	}
 	if keyRegexVar != "" {
 		// Template-literal key failure → 'never' error at path
 		// [..., keyVar]. Mirrors mion's callJitErrWithPath('never', keyVar).
