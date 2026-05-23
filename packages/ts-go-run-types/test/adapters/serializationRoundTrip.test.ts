@@ -31,7 +31,7 @@
 //           verified via structuredClone snapshot, skipped for
 //           cycle-bearing shapes).
 //
-// `deserializedValues`, `throwsAtCompile`, `jsonStringifyThrows`,
+// `deserializedValues`, `factoryThrows`, `jsonStringifyThrows`,
 // `roundTripBestEffort`, `safeAdapterStringifyJsonNotParseable`, and
 // `getTestDataForStringify` carry per-case path-aware expectations
 // consumed inside each path's helper.
@@ -49,16 +49,17 @@ function safeStructuredClone(input: unknown): {ok: true; snapshot: unknown} | {o
 }
 
 function runCase(c: SerializationCase): void {
-  // throwsAtCompile cases — every factory must throw at invocation
-  // time. mion fails the runtype's emit step for unsupported kinds;
-  // our Go pipeline emits a runtime-throwing factory whose throw
-  // propagates up to the factory-call site here.
-  if (c.throwsAtCompile) {
-    expect(() => c.unsafeEncoder(), `${c.title}: unsafeEncoder factory must throw at compile time`).toThrow();
-    expect(() => c.safeEncoder(), `${c.title}: safeEncoder factory must throw at compile time`).toThrow();
-    expect(() => c.safeDirectEncoder(), `${c.title}: safeDirectEncoder factory must throw at compile time`).toThrow();
-    expect(() => c.safeDecoder(), `${c.title}: safeDecoder factory must throw at compile time`).toThrow();
-    expect(() => c.unsafeDecoder(), `${c.title}: unsafeDecoder factory must throw at compile time`).toThrow();
+  // factoryThrows cases — every `createXxx<T>()` factory throws on
+  // first call. mion fails the runtype's emit step for unsupported
+  // kinds; our Go pipeline emits an alwaysThrow cache entry whose
+  // throwing stub fires inside `lookupJitFn` at the factory-call site
+  // here. See docs/UNSUPPORTED-KINDS.md.
+  if (c.factoryThrows) {
+    expect(() => c.unsafeEncoder(), `${c.title}: unsafeEncoder factory must throw`).toThrow();
+    expect(() => c.safeEncoder(), `${c.title}: safeEncoder factory must throw`).toThrow();
+    expect(() => c.safeDirectEncoder(), `${c.title}: safeDirectEncoder factory must throw`).toThrow();
+    expect(() => c.safeDecoder(), `${c.title}: safeDecoder factory must throw`).toThrow();
+    expect(() => c.unsafeDecoder(), `${c.title}: unsafeDecoder factory must throw`).toThrow();
     return;
   }
 

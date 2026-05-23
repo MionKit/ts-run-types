@@ -11,8 +11,9 @@
 // circular refs, the lot. Cases where binary semantics diverge from
 // JSON (e.g. bigint extras that JSON.stringify rejects but binary
 // encodes natively) provide a `getBinaryTestData` override; cases
-// where binary throws at compile time but JSON doesn't (or vice versa)
-// provide a `binaryThrowsAtCompile` override.
+// where binary's alwaysThrow set differs from JSON's (e.g. a kind
+// binary refuses but JSON accepts) provide a `binaryFactoryThrows`
+// override.
 //
 // Strict coverage guard: a final `it()` per category asserts that
 // EVERY case has `binaryEncoder` + `binaryDecoder` populated. Adding a
@@ -24,10 +25,10 @@ import {SERIALIZATION_SPEC, type SerializationCase} from '../suites/serializatio
 import {deepCloneForRoundTrip, normalizeForComparison} from '../util/equalsHelpers.ts';
 
 function runCase(c: SerializationCase): void {
-  const throwsAtCompile = c.binaryThrowsAtCompile ?? c.throwsAtCompile ?? false;
-  if (throwsAtCompile) {
-    expect(() => c.binaryEncoder!(), `${c.title}: binaryEncoder factory must throw at compile time`).toThrow();
-    expect(() => c.binaryDecoder!(), `${c.title}: binaryDecoder factory must throw at compile time`).toThrow();
+  const factoryThrows = c.binaryFactoryThrows ?? c.factoryThrows ?? false;
+  if (factoryThrows) {
+    expect(() => c.binaryEncoder!(), `${c.title}: binaryEncoder factory must throw`).toThrow();
+    expect(() => c.binaryDecoder!(), `${c.title}: binaryDecoder factory must throw`).toThrow();
     return;
   }
 
