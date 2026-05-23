@@ -111,3 +111,30 @@ describe('getTypeErrors / ATOMIC', () => {
     expect(ranTests).toBe(activeCount);
   });
 });
+
+describe('getTypeErrors / ARRAY', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Array of strings', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array));
+  it('Array of numbers (rejects Infinity / NaN per element)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.number_array));
+  it('Array of booleans', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.boolean_array));
+  it('Array of bigints', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.bigint_array));
+  it('Array of Dates (rejects Invalid Date per element)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.date_array));
+  it('Array of RegExps', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.regexp_array));
+  it('Array of undefined values', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.undefined_array));
+  it('Array of nulls', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.null_array));
+  it('Generic Array<T> form (same emit as T[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.array_generic));
+  it('Two-dimensional string array (multi-level dependency call)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_2d));
+  it('Three-dimensional string array (depth stress)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_3d));
+  it('Array with noIsArrayCheck (Array.isArray guard stripped)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
+  it('Self-referential array (CircularArray = CircularArray[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_array));
+  it('Array of symbols (non-serializable — always rejected)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.symbol_array));
+
+  it('all array getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.ARRAY).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});

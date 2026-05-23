@@ -45,8 +45,8 @@ func (TypeErrorsEmitter) Args() []ArgSpec {
 
 // Supports mirrors IsTypeEmitter.Supports — every kind the isType
 // emitter handles should have a typeErrors arm too. The set grows
-// kind-by-kind as the implementation phases roll out; the current
-// scope is the atomic family.
+// kind-by-kind as the implementation phases roll out; current scope
+// is atomic + array.
 func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {
 		return false
@@ -60,6 +60,10 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindObject, protocol.KindRegexp,
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
+	case protocol.KindArray:
+		// Gate on a non-nil child — a malformed RunType with Kind=KindArray
+		// and Child=nil would reach Emit and panic.
+		return rt.Child != nil
 	case protocol.KindClass:
 		// Date is the only class kind in the atomic phase. Other
 		// classes (non-Date), Map, Set land in later phases.
@@ -238,6 +242,65 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		}
 		// Other class kinds land in later phases.
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindArray:
+		// mion:nodes/member/array.ts:emitTypeErrors. Allocates a loop
+		// counter, sets the child accessor (`v[i0]`) so the element's
+		// CompileChild adopts the subscript, sets the path literal (the
+		// counter var name) so element errors carry [..., i0] in their
+		// access-path, then composes:
+		//
+		//   if (!Array.isArray(v)) {
+		//     <callJitErr 'array'>
+		//   } else {
+		//     for (let i0 = 0; i0 < v.length; i0++) {
+		//       <childCode>
+		//     }
+		//   }
+		//
+		// Two collapse paths mirror mion: child empty + noIsArrayCheck
+		// → "" (whole check evaporates); child empty + no noIsArrayCheck
+		// → bare `if (!Array.isArray(v)) <err>;` (array-only check).
+		if rt.Child == nil {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		resolvedChild := ctx.ResolveRef(rt.Child)
+		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+			// Symbol[] / Function[] cannot be validated — mion throws at
+			// JIT-compile time. Emit an unconditional error so the
+			// runtime call surfaces the rejection consistently with
+			// `() => false` on the isType side.
+			return JitCode{Code: callJitErr(ctx, "array", "") + ";", Type: CodeS}
+		}
+		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
+		iVar := ctx.NextLocalVar("i")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		ctx.SetChildPathLiteral(iVar)
+		childJit := ctx.CompileChild(rt.Child, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		// If the child contributes no body (e.g. KindAny element),
+		// reduce to the bare array guard or a noop.
+		if childJit.Code == "" {
+			if noIsArrayCheck {
+				return JitCode{Code: "", Type: CodeS}
+			}
+			return JitCode{
+				Code: "if (!Array.isArray(" + v + ")) " + callJitErr(ctx, "array", ""),
+				Type: CodeS,
+			}
+		}
+		itemsCode := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		if noIsArrayCheck {
+			return JitCode{Code: itemsCode, Type: CodeS}
+		}
+		return JitCode{
+			Code: "if (!Array.isArray(" + v + ")) {" + callJitErr(ctx, "array", "") + "} else {" + itemsCode + "}",
+			Type: CodeS,
+		}
 	}
 	return JitCode{Code: "", Type: CodeNS}
 }
