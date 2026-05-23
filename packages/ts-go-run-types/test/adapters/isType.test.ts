@@ -297,6 +297,7 @@ describe('isType / CIRCULAR', () => {
   it('Self-referential object whose cycle closes via a tuple property', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_with_tuple_prop));
   it('Self-referential object whose cycle closes via an index signature', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_with_index_prop));
   it('Self-referential object with the cycle buried four levels deep', () => assertIsType(VALIDATION_SUITE.CIRCULAR.object_deeply_nested));
+  it('Non-circular root holding a circular child interface', () => assertIsType(VALIDATION_SUITE.CIRCULAR.circular_child_under_literal_root));
   it('Multiple circular types cross-referenced from a non-circular root', () => assertIsType(VALIDATION_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
 
   it('all circular isType tests ran', () => {
