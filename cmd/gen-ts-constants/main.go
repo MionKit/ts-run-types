@@ -34,6 +34,7 @@ func main() {
 	out.WriteString("export interface CacheModuleSettings {\n")
 	out.WriteString("  readonly name: string;\n")
 	out.WriteString("  readonly varPrefix: string;\n")
+	out.WriteString("  readonly tag: string;\n")
 	out.WriteString("}\n")
 	out.WriteString("\n")
 
@@ -46,7 +47,7 @@ func main() {
 	out.WriteString("export const CACHE_MODULES = {\n")
 	for _, key := range keys {
 		setting := constants.CacheModules[key]
-		out.WriteString(fmt.Sprintf("  %s: {name: %q, varPrefix: %q},\n", tsKey(key), setting.Name, setting.VarPrefix))
+		out.WriteString(fmt.Sprintf("  %s: {name: %q, varPrefix: %q, tag: %q},\n", tsKey(key), setting.Name, setting.VarPrefix, setting.Tag))
 	}
 	out.WriteString("} as const satisfies Record<string, CacheModuleSettings>;\n")
 	out.WriteString("\n")
@@ -58,6 +59,7 @@ func main() {
 		upper := strings.ToUpper(key)
 		out.WriteString(fmt.Sprintf("export const %s_VAR_PREFIX = %q;\n", upper, setting.VarPrefix))
 		out.WriteString(fmt.Sprintf("export const %s_MODULE_NAME = %q;\n", upper, setting.Name))
+		out.WriteString(fmt.Sprintf("export const %s_TAG = %q;\n", upper, setting.Tag))
 	}
 
 	out.WriteString("\n")

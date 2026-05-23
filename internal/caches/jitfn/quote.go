@@ -55,13 +55,23 @@ func stringSliceJS(xs []string) string {
 // strings. FilePath is intentionally NOT emitted: it's a Go-only
 // safety check used at walk time to assert the referenced pure-fn
 // exists in source, not part of the runtime contract.
+//
+// For pure-fns with a registered alias (see purefn_aliases.go), each
+// entry is emitted as a bare identifier reference to the matching
+// module-level `k_<alias>` const declared inside the cache skeleton
+// — saves ~20 bytes per occurrence vs the quoted literal. Pure-fns
+// without an alias fall back to the quoted form.
 func pureFnDepsJS(deps []protocol.PureFnDep) string {
 	if len(deps) == 0 {
 		return "[]"
 	}
 	parts := make([]string, len(deps))
 	for i, dep := range deps {
-		parts[i] = quoteJS(dep.Namespace + "::" + dep.FunctionName)
+		if _, ok := pureFnAliases[dep.FunctionName]; ok {
+			parts[i] = pureFnKeyVar(dep.FunctionName)
+		} else {
+			parts[i] = quoteJS(dep.Namespace + "::" + dep.FunctionName)
+		}
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }

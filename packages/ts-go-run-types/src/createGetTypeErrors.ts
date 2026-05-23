@@ -70,7 +70,7 @@ export function createGetTypeErrors<T>(
   }
   const cached = validatorCache.get(id);
   if (cached) return cached;
-  const entry = getJitUtils().getJIT('typeErrors_' + id) as JitCompiledFn | undefined;
+  const entry = getJitUtils().getJIT('te_' + id) as JitCompiledFn | undefined;
   if (!entry) {
     // Same fallback semantics as createIsType: registered runtypes with
     // no factory (noop-collapsed body, e.g. `any` / `unknown`) get a
@@ -115,7 +115,7 @@ export function deserializeGetTypeErrors<T>(
   }
   const cached = deserializedValidatorCache.get(id);
   if (cached) return cached;
-  const entry = getJitUtils().getJIT('typeErrors_' + id) as JitCompiledFn | undefined;
+  const entry = getJitUtils().getJIT('te_' + id) as JitCompiledFn | undefined;
   if (!entry) {
     if (getJitUtils().hasRunType(id)) {
       const validator: GetTypeErrorsFn = () => [];

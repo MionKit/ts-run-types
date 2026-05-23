@@ -8,7 +8,7 @@ import (
 
 func newTestWalker() *Walker {
 	rt := &protocol.RunType{Kind: protocol.KindString, ID: "root"}
-	return NewWalker(rt, "isType_root", IsTypeEmitter{})
+	return NewWalker(rt, "it_root", IsTypeEmitter{})
 }
 
 func TestNewWalker_DepsSlicesNonNilEmpty(t *testing.T) {

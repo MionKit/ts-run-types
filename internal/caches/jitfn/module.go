@@ -9,40 +9,38 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// isTypeInnerPrefix is the prefix for the INNER validator function
-// inside each createJitFn closure — what mion calls `jitFnHash` (the
-// name used for self-recursive calls inside the body). The skeleton's
-// `factory` builds the outer entry; the inner closure name is the only
-// place this prefix still surfaces in the emitted JS.
-const isTypeInnerPrefix = "isType_"
-
-// typeErrorsInnerPrefix mirrors isTypeInnerPrefix for the typeErrors
-// emit pipeline — the inner validator name inside each createJitFn
-// closure is `typeErrors_<hash>`.
-const typeErrorsInnerPrefix = "typeErrors_"
+// innerPrefix derives the inner-fn name prefix from a cache-module's
+// short Tag (e.g. "te" → "te_"). The inner validator function inside
+// each createJitFn closure is named `<innerPrefix><hash>`; the same
+// prefix namespaces the JS cache key registered via factory's first arg.
+func innerPrefix(settings constants.CacheModuleSettings) string {
+	return settings.Tag + "_"
+}
 
 // IsTypeModule writes the runtime artifact for the isType cache module:
 // the hand-authored skeleton with the marker line replaced by one
-// `factory(…);` call per cached RunType the IsTypeEmitter supports.
-// The skeleton's `factory` closes over the surrounding `initCache(jitUtils)`
+// `init(…);` call per cached RunType the IsTypeEmitter supports.
+// The skeleton's `init` closes over the surrounding `initCache(jitUtils)`
 // parameter, so the per-entry call site doesn't repeat the argument.
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is one
 // line once the Emitter is implemented.
 func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
-	return RenderFnModule(writer, dump, constants.CacheModules["isType"], IsTypeEmitter{}, isTypeInnerPrefix, cachetpl.SkeletonIsType)
+	settings := constants.CacheModules["isType"]
+	return RenderFnModule(writer, dump, settings, IsTypeEmitter{}, innerPrefix(settings), cachetpl.SkeletonIsType)
 }
 
 // TypeErrorsModule writes the runtime artifact for the typeErrors
 // cache module — sibling of IsTypeModule, same structure (skeleton +
 // generated factories), different emitter and skeleton.
 func TypeErrorsModule(writer io.Writer, dump protocol.Dump) error {
-	return RenderFnModule(writer, dump, constants.CacheModules["typeErrors"], TypeErrorsEmitter{}, typeErrorsInnerPrefix, cachetpl.SkeletonTypeErrors)
+	settings := constants.CacheModules["typeErrors"]
+	return RenderFnModule(writer, dump, settings, TypeErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonTypeErrors)
 }
 
 // RenderFnModule is the fn-agnostic module renderer. Emits one
-// `factory('hash', …);` line per supported RunType then splices the
-// result into the named skeleton. The skeleton's `factory` closes over
+// `init('hash', …);` line per supported RunType then splices the
+// result into the named skeleton. The skeleton's `init` closes over
 // `jitUtils` from its enclosing `initCache(jitUtils)`, so call sites
 // stay compact.
 //
@@ -92,8 +90,8 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		deps []string
 	}
 	// Entries are keyed by the namespaced JS cache hash (innerPrefix +
-	// runtype ID, e.g. "isType_abc123"). Sharing this key with the
-	// factory registration's first arg means downstream tooling
+	// runtype ID, e.g. "it_abc123"). Sharing this key with the
+	// init registration's first arg means downstream tooling
 	// (dangling-dep cascade, topo sort) operates on the same identifier
 	// the JS side sees in jitUtils.
 	entries := make(map[string]compiled, len(dump.RunTypes))
@@ -186,11 +184,11 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	return err
 }
 
-// renderEntryWithDeps compiles one RunType into its `factory(…);` line
+// renderEntryWithDeps compiles one RunType into its `init(…);` line
 // and returns the discovered jit-dependency hashes alongside. Inner
-// function name is `<innerPrefix><hash>` (e.g. "isType_abc123"); the
+// function name is `<innerPrefix><hash>` (e.g. "it_abc123"); the
 // outer factory's debug name (`<VarPrefix><hash>`, e.g.
-// "get_isType_abc123") is used only as the closure's printed name so
+// "g_it_abc123") is used only as the closure's printed name so
 // consumers see the same identity in stack traces. Noop bodies return
 // an empty line so the renderer skips them; consumers default to a
 // trivial fallback on the JS side.
@@ -233,7 +231,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		createJitFn,
 	}
 	deps := append([]string(nil), walker.JitDependencies...)
-	return "factory(" + joinArgs(args) + ");", deps
+	return "init(" + joinArgs(args) + ");", deps
 }
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.
