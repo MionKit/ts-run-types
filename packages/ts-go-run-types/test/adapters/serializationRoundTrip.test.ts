@@ -56,6 +56,7 @@ function runCase(c: SerializationCase): void {
   if (c.throwsAtCompile) {
     expect(() => c.unsafeEncoder(), `${c.title}: unsafeEncoder factory must throw at compile time`).toThrow();
     expect(() => c.safeEncoder(), `${c.title}: safeEncoder factory must throw at compile time`).toThrow();
+    expect(() => c.safeDirectEncoder(), `${c.title}: safeDirectEncoder factory must throw at compile time`).toThrow();
     expect(() => c.safeDecoder(), `${c.title}: safeDecoder factory must throw at compile time`).toThrow();
     expect(() => c.unsafeDecoder(), `${c.title}: unsafeDecoder factory must throw at compile time`).toThrow();
     return;
@@ -63,6 +64,7 @@ function runCase(c: SerializationCase): void {
 
   assertUnsafeRoundTrip(c);
   assertSafeRoundTrip(c);
+  assertSafeDirectRoundTrip(c);
 }
 
 // ---------- UNSAFE encode path ------------------------------------
@@ -154,6 +156,60 @@ function assertSafeRoundTrip(c: SerializationCase): void {
     // native `JSON.stringify` which renders Infinity / NaN as
     // `"null"` (parseable) — so this path falls through to the
     // normal round-trip check using `deserializedValues`.
+
+    const restored = decode(serialized);
+    const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
+    const {actual, expected} = normalizeForComparison(restored, expectedReference);
+    expect(actual, `${label}: values[${i}] round-trip should match expected reference`).toEqual(expected);
+  });
+}
+
+// ---------- SAFE-DIRECT encode path (single-pass stringifyJson) ---
+//
+// Same shape as assertSafeRoundTrip but builds the encoder via
+// `createJsonEncoder<T>(undefined, {mode: 'safeDirect'})` — the
+// single-pass `stringifyJson` JIT family. Pairs with `c.safeDecoder()`
+// (decoder is two-mode, both safe variants use the same decoder).
+// The no-mutation invariant still applies (single-pass stringify
+// walks the type, never the value).
+
+function assertSafeDirectRoundTrip(c: SerializationCase): void {
+  const label = `${c.title} [safeDirect]`;
+  const bestEffort = c.roundTripBestEffort ?? false;
+  const getTestData = c.getTestDataForStringify ?? c.getTestData;
+  const encode = c.safeDirectEncoder();
+  const decode = c.safeDecoder();
+  const {values, deserializedValues} = getTestData();
+
+  values.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    const preSnapshot = safeStructuredClone(input);
+
+    let serialized: string | undefined;
+    try {
+      serialized = encode(input);
+    } catch (e) {
+      if (bestEffort) return;
+      throw e;
+    }
+
+    if (preSnapshot.ok) {
+      expect(input, `${label}: values[${i}] — safeDirectEncoder must not mutate input`).toEqual(preSnapshot.snapshot);
+    }
+
+    if (serialized === undefined) return;
+    if (bestEffort) return;
+
+    if (c.safeAdapterStringifyJsonNotParseable) {
+      // safeDirect uses single-pass stringifyJson which at root for
+      // Infinity / NaN emits `String(Infinity)` = `"Infinity"` —
+      // unparseable by JSON.parse. Assert the decoder throws.
+      expect(
+        () => decode(serialized as string),
+        `${label}: values[${i}] expected decoder to throw (not valid JSON)`,
+      ).toThrow();
+      return;
+    }
 
     const restored = decode(serialized);
     const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
