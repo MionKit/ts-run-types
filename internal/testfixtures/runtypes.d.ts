@@ -13,4 +13,8 @@ declare module '@mionjs/ts-go-run-types' {
   export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   // Reflection marker — T inferred from a runtime value.
   export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+
+  // Compile-time-args brand — the Go scanner requires the argument to be
+  // fully literal at the call site or via a module-scope const initializer.
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
 }

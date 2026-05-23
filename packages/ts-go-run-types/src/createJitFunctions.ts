@@ -40,7 +40,7 @@ import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepare
 import {getJitUtils} from './jit/jitUtils.ts';
 import {lookupJitFn} from './jit/lookupJitFn.ts';
 import type {AnyFn, JitCompiledFn} from './jit/types.ts';
-import type {InjectRuntypeId} from './index.ts';
+import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -258,7 +258,7 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 
 export const createIsType = createJitFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
   val?: T,
-  options?: RunTypeOptions,
+  options?: CompTimeArgs<RunTypeOptions>,
   id?: InjectRuntypeId<T>
 ) => IsTypeFn;
 
@@ -266,31 +266,31 @@ export const createGetTypeErrors = createJitFunction<GetTypeErrorsFn>(
   'createGetTypeErrors',
   'te',
   getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => GetTypeErrorsFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => GetTypeErrorsFn;
 
 export const createHasUnknownKeys = createJitFunction<HasUnknownKeysFn>(
   'createHasUnknownKeys',
   'huk',
   () => false
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => HasUnknownKeysFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => HasUnknownKeysFn;
 
 export const createStripUnknownKeys = createJitFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
   'suk',
   identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => StripUnknownKeysFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => StripUnknownKeysFn;
 
 export const createUnknownKeyErrors = createJitFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => UnknownKeyErrorsFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => UnknownKeyErrorsFn;
 
 export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
   'uku',
   identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => UnknownKeysToUndefinedFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => UnknownKeysToUndefinedFn;
 
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
@@ -313,7 +313,7 @@ const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 /** Returns a JSON encoder for `T`. See `JsonEncoderOptions` for the
  *  full 5-combination matrix. Defaults: `strategy: 'clone',
  *  stripExtras: true`. **/
-export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRuntypeId<T>): JsonEncoderFn {
+export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRuntypeId<T>): JsonEncoderFn {
   void val;
   if (id === undefined) {
     throw new Error(
@@ -369,7 +369,7 @@ export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?:
  *  when the encoder didn't strip them). `stripExtras: false` skips the
  *  unknown-keys pass and passes undeclared properties through to the
  *  restored value untouched. **/
-export function createJsonDecoder<T>(val?: T, options?: JsonDecoderOptions, id?: InjectRuntypeId<T>): JsonDecoderFn<T> {
+export function createJsonDecoder<T>(val?: T, options?: CompTimeArgs<JsonDecoderOptions>, id?: InjectRuntypeId<T>): JsonDecoderFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(
