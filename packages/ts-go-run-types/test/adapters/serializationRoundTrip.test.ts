@@ -45,7 +45,18 @@ function assertRoundTrip(
   values.forEach((reference, i) => {
     const input = deepCloneForRoundTrip(reference);
     const prepared = prepare(input);
-    const serialized = JSON.stringify(prepared);
+    let serialized: string | undefined;
+    try {
+      serialized = JSON.stringify(prepared);
+    } catch (e) {
+      // Best-effort types (any / unknown / object) accept JSON
+      // failures — the broad-type contract is "if a value is
+      // JSON-supported it survives", and bigint / symbol / circular
+      // values legitimately throw at stringify. Non-bestEffort
+      // types re-throw so the failure stays visible.
+      if (bestEffort) return;
+      throw e;
+    }
     // Top-level undefined cannot be JSON-encoded — JSON.stringify
     // returns the JS value `undefined`. Skip the deep-equal half but
     // honour the contract that the prepare half didn't throw.

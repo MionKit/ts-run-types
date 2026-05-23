@@ -462,28 +462,12 @@ func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	refTable := ctx.walker.RefTable
-
-	// Per-member peek: which members got tuple-encoded on the prepare
-	// side? Only those need decode clauses here.
+	// Every member was tuple-wrapped on the prepare side (see
+	// emitUnionPrepareForJson — unions always wrap, no member-noop
+	// optimization). Generate a decode clause for every member.
 	needsTuple := make([]bool, len(children))
-	anyNeedsTuple := false
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, refTable)
-		rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, refTable)
-		nt := !pjNoop || !rjNoop
-		needsTuple[i] = nt
-		if nt {
-			anyNeedsTuple = true
-		}
-	}
-	if !anyNeedsTuple {
-		// Nothing was tuple-encoded — restore is identity.
-		return JitCode{Code: "", Type: CodeS}
+	for i := range children {
+		needsTuple[i] = true
 	}
 
 	decVar := ctx.NextLocalVar("dec")
@@ -544,11 +528,14 @@ func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID s
 
 // Finalize — same shape as PrepareForJsonEmitter.Finalize. Mirrors
 // mion's handleFunctionReturn for restoreFromJson: identity body for
-// noops, factory still emitted so dep-call chains resolve.
+// noops, factory still emitted so dep-call chains resolve. isNoop
+// is set to true on identity bodies to match mion's
+// `00JsonOnly.spec.ts` semantics (cache entry exists, but consumer
+// knows it can short-circuit).
 func (RestoreFromJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
 	if code == "" || code == "return v" {
-		return "return v", false
+		return "return v", true
 	}
 	return code, false
 }

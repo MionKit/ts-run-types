@@ -21,6 +21,48 @@ func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
 	return sourceFile, nil
 }
 
+// scanAllProgramFiles invokes dispatchScanFiles on every source file in
+// the Program that has not been scanned yet. Idempotent — scans are
+// cheap on already-seen files because callExpression traversal is
+// fast and the cache dedupes by structural id, so a re-scanned site
+// resolves to an existing entry without growing the cache.
+//
+// Called from the OpDump path so a `dump()` triggered by the Vite
+// plugin's cache module transform always sees the complete set of
+// runtypes, even when the cache module is requested before any user
+// source file has been transformed (and therefore scanned).
+//
+// Errors from individual file scans are skipped — a file the Program
+// doesn't carry can't be scanned but shouldn't block other files'
+// scans. This matches the loose-coupling between per-file marker
+// emission and the dump's transitive walk.
+func (resolver *Resolver) scanAllProgramFiles() {
+	if resolver.Program == nil || resolver.Program.TS == nil {
+		return
+	}
+	if resolver.scannedFiles == nil {
+		resolver.scannedFiles = map[string]struct{}{}
+	}
+	sourceFiles := resolver.Program.TS.SourceFiles()
+	files := make([]string, 0, len(sourceFiles))
+	for _, sf := range sourceFiles {
+		if sf == nil {
+			continue
+		}
+		fileName := sf.FileName()
+		if _, seen := resolver.scannedFiles[fileName]; seen {
+			continue
+		}
+		files = append(files, fileName)
+	}
+	if len(files) == 0 {
+		return
+	}
+	// Errors are non-fatal — keep scanning other files. The dump still
+	// returns whatever was reachable from successful scans.
+	_, _, _ = resolver.dispatchScanFiles(files)
+}
+
 // dispatchScanFiles walks every CallExpression in each requested file and
 // returns one Site per call whose resolved signature has a trailing
 // `RuntypeId<T>` parameter (where T is concretely bound). Sites for every
@@ -51,6 +93,18 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 			return true
 		})
 		resolver.recordFileIDs(file, sites[fileStart:])
+		if resolver.scannedFiles != nil {
+			resolver.scannedFiles[file] = struct{}{}
+			// File names from the Program's source list use absolute paths.
+			// scanFiles callers (the Vite plugin) pass relative paths. Mark
+			// both forms so scanAllProgramFiles's dedup check matches a
+			// previously scanned per-request file regardless of which form
+			// arrived first.
+			if resolver.Program != nil && resolver.Program.TS != nil {
+				absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
+				resolver.scannedFiles[absolutePath] = struct{}{}
+			}
+		}
 	}
 	return sites, diagnostics, nil
 }
