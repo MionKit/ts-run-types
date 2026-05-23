@@ -17,6 +17,23 @@ import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.
 
 function assertGetTypeErrors(c: ValidationCase): void {
   if (!c.getTypeErrors) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
+
+  // factoryThrows — alwaysThrow factory; every variant throws on
+  // invocation. getExpectedErrors / samples are not consulted.
+  if (c.factoryThrows) {
+    expect(() => c.getTypeErrors!(), `${c.title} [static]: factory must throw`).toThrow();
+    if (c.getTypeErrorsReflect)
+      expect(() => c.getTypeErrorsReflect(), `${c.title} [reflect]: factory must throw`).toThrow();
+    if (c.deserializeGetTypeErrors)
+      expect(() => c.deserializeGetTypeErrors!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
+    if (c.deserializeGetTypeErrorsReflect)
+      expect(
+        () => c.deserializeGetTypeErrorsReflect!(),
+        `${c.title} [deserialize-reflect]: factory must throw`
+      ).toThrow();
+    return;
+  }
+
   if (!c.getExpectedErrors) throw new Error(`case ${c.title}: missing getExpectedErrors thunk`);
   const {valid, invalid} = c.getSamples();
   const expected = c.getExpectedErrors();

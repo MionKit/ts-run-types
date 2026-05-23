@@ -125,6 +125,17 @@ export interface ValidationCase {
    *    (e.g. function kinds where mion returns `undefined`). **/
   mockTypeExpect?: 'value' | 'throw' | 'skip';
 
+  /** When true, every adapter thunk (isType / getTypeErrors / mockType
+   *  and their deserialize / reflect variants) is expected to throw
+   *  on invocation. Used for kinds that are unsupported at root —
+   *  the Go pipeline renders the factory as an `alwaysThrow` entry,
+   *  so the very first `createXxx<T>()` call surfaces the build-time
+   *  diagnostic at runtime. See docs/UNSUPPORTED-KINDS.md.
+   *
+   *  `getSamples` / `getExpectedErrors` are not consulted when this
+   *  flag is set — the test stops at the throw assertion. **/
+  factoryThrows?: boolean;
+
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
@@ -1019,7 +1030,7 @@ export const VALIDATION_SUITE = {
     symbol: {
       title: 'Symbol primitive',
       isTypeNotes:
-        'Strict typeof === "symbol". Accepts any symbol — keyed (`Symbol("foo")`), unkeyed (`Symbol()`), or well-known (`Symbol.iterator`). The literal string "symbol" is rejected.',
+        'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes IT002 / TE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
       isType: () => createIsType<symbol>(),
       deserializeIsType: () => deserializeIsType<symbol>(),
       isTypeReflect: () => {
@@ -1045,19 +1056,8 @@ export const VALIDATION_SUITE = {
         const v: symbol = Symbol();
         return createMockType(v);
       },
-      getSamples: () => ({
-        valid: [Symbol(), Symbol('foo')],
-        invalid: [undefined, 42, 'hello', null, 'symbol', {}, true],
-      }),
-      getExpectedErrors: () => [
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-      ],
+      factoryThrows: true,
+      getSamples: () => ({valid: [], invalid: []}),
     },
 
     undefined: {
@@ -1370,9 +1370,9 @@ export const VALIDATION_SUITE = {
 
     literal_symbol_noLiterals: {
       title: 'Symbol literal with noLiterals (degrades to symbol)',
-      description: 'degrades to symbol — typeof check',
+      description: 'degrades to bare symbol — unsupported at root',
       isTypeNotes:
-        '`{noLiterals: true}` degrades the literal to its base type `symbol`. The description-match is dropped — any symbol value passes.',
+        '`{noLiterals: true}` degrades the literal to its base type `symbol`, which is unsupported at root (see the `symbol` case above). The factory is rendered as alwaysThrow; the first `createXxx<typeof sym>()` call throws.',
       isType: () => {
         const sym = Symbol('hello');
         return createIsType<typeof sym>(undefined, {noLiterals: true});
@@ -1418,16 +1418,8 @@ export const VALIDATION_SUITE = {
         const v: typeof sym = sym;
         return createMockType(v);
       },
-      getSamples: () => ({
-        valid: [Symbol('world'), Symbol(), Symbol.iterator],
-        invalid: ['world', null, undefined, 'symbol'],
-      }),
-      getExpectedErrors: () => [
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-        [{path: [], expected: 'symbol'}],
-      ],
+      factoryThrows: true,
+      getSamples: () => ({valid: [], invalid: []}),
     },
 
     // `unknown` — like `any`, every value passes. UnknownRunType

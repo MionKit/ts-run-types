@@ -24,6 +24,20 @@ import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.
 
 function assertIsType(c: ValidationCase): void {
   if (!c.isType) throw new Error(`case ${c.title}: missing isType thunk`);
+
+  // factoryThrows — the Go pipeline rendered the runtype's factory as
+  // alwaysThrow (root-unsupported kinds like `symbol`). Every variant
+  // throws on invocation; nothing further to validate.
+  if (c.factoryThrows) {
+    expect(() => c.isType!(), `${c.title} [static]: factory must throw`).toThrow();
+    if (c.isTypeReflect) expect(() => c.isTypeReflect(), `${c.title} [reflect]: factory must throw`).toThrow();
+    if (c.deserializeIsType)
+      expect(() => c.deserializeIsType!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
+    if (c.deserializeIsTypeReflect)
+      expect(() => c.deserializeIsTypeReflect!(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
+    return;
+  }
+
   const {valid, invalid} = c.getSamples();
 
   // Static form: createIsType<T>().
