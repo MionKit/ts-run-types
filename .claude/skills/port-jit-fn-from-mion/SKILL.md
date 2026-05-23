@@ -1,7 +1,7 @@
 ---
 name: port-jit-fn-from-mion
 description: Port a JIT function (validator, serializer, coercer, …) from @mionjs/run-types into the ts-go-run-types Go-side AOT compiler + JS adapter + test suite. Use when the user asks to add isType-style / typeErrors-style / prepareForJson / jsonStringify / jsonDecode / coerce / any other named JIT family that already exists in the mion run-types package.
-argument-hint: <fn-name>  (e.g. prepareForJson)
+argument-hint: <fn-name>  (e.g. isType — OR a serialize/deserialize pair like "jsonStringify jsonDecode")
 effort: high
 ---
 
@@ -12,6 +12,33 @@ implementation in mion (`mion/packages/run-types/src/nodes/**/emit<Fn>.ts`).
 The mion source is the contract; your job is to mirror its emitted JS,
 its arg shape, and its pure-fn dependencies into the Go-side AOT
 compiler + JS-side adapter + shared test suite.
+
+## Serialization functions: BOTH halves must be ported together
+
+If the target function is part of a serialize/deserialize pair
+(`prepareForJson` ↔ `jsonDecode`, `jsonStringify` ↔ `jsonDecode`,
+any encode/decode pairing), this skill REQUIRES both halves to be
+ported in tandem. Reason: the only way to test a serializer's
+correctness is the round-trip
+`deserialize(serialize(v)) === v` — a half-ported serializer has
+nothing to assert against and can't be progressively verified.
+
+**Before doing anything else, if the user asked for a serializer**:
+
+- Confirm the user has provided BOTH function names (e.g. they said
+  "port `jsonStringify` and `jsonDecode`", not just "port
+  `jsonStringify`").
+- If only one half was named, use `AskUserQuestion` to ask the user
+  for the matching half explicitly. Suggest the obvious mion pairing
+  as the first option. Do not proceed until both names are pinned.
+- The plan, the phased rollout, and every per-phase verification
+  step must cover both halves together — never ship phase N of
+  serialize and phase N-1 of deserialize.
+
+Validators (`isType`, `getTypeErrors`) and other single-fn families
+(`coerce` returning a transformed value, `schemaFromType` returning
+a schema object) don't have this constraint — they're one fn per
+skill invocation.
 
 ## CRITICAL — present a plan before editing
 
@@ -82,15 +109,22 @@ With investigation done, enter plan mode and write a per-port plan
 into the plan file covering:
 
 - The target fn name + cache namespace (e.g. `prepareForJson` →
-  `prepareForJson_<hash>` cache keys)
+  `prepareForJson_<hash>` cache keys). **For serializers, BOTH
+  halves with their respective namespaces** (e.g. `prepareForJson_`
+  and `jsonDecode_`).
 - The kind list bucketed by phase (one phase per category)
 - The wire contract from step 2 (args, return, pure-fn deps, success
-  semantic)
+  semantic). **For serializers, the contract for BOTH halves plus
+  the round-trip equality criterion** (`deserialize(serialize(v))`
+  must `toEqual(v)` for every valid sample).
 - Any new pure fns that need adding to `run-types-pure-fns.ts`
+  (both halves of a pair may need different pure fns; list them
+  separately).
 - Whether this is the FIRST non-validator port (and therefore
   triggers the `validation-suite.ts` → `jit-suite.ts` rename — see
   step 8)
-- The verification commands from step 14
+- The verification commands from step 14, including the round-trip
+  assertion for each serializer pair.
 
 Call `ExitPlanMode` and wait for the user to approve.
 
@@ -321,6 +355,19 @@ Each phase ends green end-to-end before moving on:
 - Vite plugin tests pass
 
 Do not bundle phases. Each phase is a checkpoint.
+
+**For serializer pairs, every phase ports BOTH halves together** —
+e.g. phase 1 ships `prepareForJson` for atomic kinds AND `jsonDecode`
+for atomic kinds. Phase 1 is not green until the round-trip test
+(`deserialize(serialize(v))` deep-equals `v`) passes for every
+atomic sample. Never advance to phase 2 with only one half of the
+pair landed for phase 1 — there's nothing to verify against, and
+the asymmetry compounds across phases.
+
+If a kind genuinely cannot round-trip (e.g. `Date` serializes to
+a string and the deserialized value's prototype must be restored
+explicitly), surface that during the plan-mode gate; do not silently
+skip the round-trip assertion for it.
 
 ## Step 14 — Architectural invariants
 
