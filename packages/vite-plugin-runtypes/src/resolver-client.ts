@@ -149,6 +149,7 @@ export interface ResolverConnection {
   dump(opts?: DumpOptions): Promise<Response>;
   setSources(sources: Record<string, string>): Promise<void>;
   reset(): Promise<void>;
+  tsCompile(): Promise<number>;
   close(): void;
 }
 
@@ -219,6 +220,17 @@ abstract class ResolverClientBase implements ResolverConnection {
   async reset(): Promise<void> {
     const resp = await this.transport.request({op: 'reset'});
     if (resp.error) throw new Error(`reset: ${resp.error}`);
+  }
+
+  // tsCompile runs the embedded tsgo through bind + typecheck + Emit() on
+  // the current source overlay and returns the wall-time in milliseconds.
+  // Does NOT walk markers and does NOT render any ts-go-run-types cache
+  // modules — purely the TypeScript baseline. Caller must have called
+  // setSources first.
+  async tsCompile(): Promise<number> {
+    const resp = await this.transport.request({op: 'tsCompile'});
+    if (resp.error) throw new Error(`tsCompile: ${resp.error}`);
+    return resp.tsCompileMs ?? 0;
   }
 
   close(): void {

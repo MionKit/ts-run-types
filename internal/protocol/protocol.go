@@ -291,6 +291,15 @@ const (
 	// caller re-issues OpResolveID per id to drill in. Lets consumers walk
 	// member-type child refs without dumping the whole cache.
 	OpResolveID = "resolveId"
+	// OpTsCompile runs the embedded tsgo through bind + typecheck + emit
+	// on the resolver's current source overlay, returns the wall time in
+	// the response's TsCompileMs field, and discards the emit output.
+	// Does NOT walk markers, does NOT render any ts-go-run-types cache
+	// modules — it's the pure-TypeScript baseline measurement used by
+	// the bench orchestrators to show "what would tsc cost" next to the
+	// existing scanFiles latency. Caller seeds sources via OpSetSources
+	// first (same precondition as OpScanFiles).
+	OpTsCompile = "tsCompile"
 )
 
 // CacheKind enumerates the rendered cache-module bodies callers can opt into
@@ -473,7 +482,11 @@ type Response struct {
 	// from scanCall; surfaced through the same `this.warn` channel as
 	// pure-fn diagnostics.
 	MarkerDiagnostics []MarkerDiagnostic `json:"markerDiagnostics,omitempty"`
-	Error             string             `json:"error,omitempty"`
+	// TsCompileMs is populated by OpTsCompile only. Wall time of the
+	// tsgo bind + typecheck + Emit() pass on the resolver's current
+	// source overlay, in milliseconds. Zero for every other op.
+	TsCompileMs float64 `json:"tsCompileMs,omitempty"`
+	Error       string  `json:"error,omitempty"`
 }
 
 // PureFnDiagnostic is the wire shape of purefn.Diagnostic. The Vite
@@ -656,6 +669,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if len(response.MarkerDiagnostics) > 0 {
 		out["markerDiagnostics"] = response.MarkerDiagnostics
+	}
+	if response.TsCompileMs > 0 {
+		out["tsCompileMs"] = response.TsCompileMs
 	}
 	if response.Error != "" {
 		out["error"] = response.Error

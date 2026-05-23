@@ -1,9 +1,12 @@
 package resolver
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-run-types/internal/caches/jitfn"
 	"github.com/mionkit/ts-run-types/internal/caches/purefn"
@@ -349,6 +352,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			return protocol.Response{}
 		}
 		return protocol.Response{RunTypes: []*protocol.RunType{runType}}
+	case protocol.OpTsCompile:
+		ms, err := resolver.dispatchTsCompile()
+		if err != nil {
+			return protocol.Response{Error: err.Error()}
+		}
+		return protocol.Response{TsCompileMs: ms}
 	default:
 		return protocol.Response{Error: "unknown op: " + request.Op}
 	}
@@ -440,4 +449,28 @@ func wantsCache(requested []protocol.CacheKind, kind protocol.CacheKind) bool {
 		}
 	}
 	return false
+}
+
+// dispatchTsCompile runs the embedded tsgo through a full bind +
+// typecheck + emit pass on the resolver's current Program. Returns the
+// wall time in milliseconds. The emit output bytes are discarded — we
+// only care about timing. Does NOT walk markers, does NOT render any
+// ts-go-run-types cache modules — this is the pure-TypeScript baseline
+// measurement the bench orchestrators record alongside the existing
+// scanFiles latency.
+func (resolver *Resolver) dispatchTsCompile() (float64, error) {
+	if resolver.Program == nil || resolver.Program.TS == nil {
+		return 0, errors.New("tsCompile: no Program loaded; call setSources first")
+	}
+	start := time.Now()
+	// EmitOptions.WriteFile is the sink for emitted bytes. Discard
+	// everything — the test is the timing, not the output.
+	options := compiler.EmitOptions{
+		WriteFile: func(_ string, _ string, _ *compiler.WriteFileData) error {
+			// discard emit output — only the timing matters here
+			return nil
+		},
+	}
+	resolver.Program.TS.Emit(context.Background(), options)
+	return float64(time.Since(start).Microseconds()) / 1000.0, nil
 }

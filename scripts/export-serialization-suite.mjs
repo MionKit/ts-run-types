@@ -1,29 +1,30 @@
 #!/usr/bin/env node
 // Generates gendocs/serialization-suite.{json,md} from SERIALIZATION_SPEC.
 //
-// Same pipeline shape as scripts/export-validation-suite.mjs (this file
-// mirrors it line-for-line where the structure lines up), benching the
-// six JSON serialiser APIs the suite exposes:
+// Bench surface: all five encoder shapes from the orthogonal
+// (strategy, stripExtras) matrix + two decoder shapes (see APIS below).
+// Each (case, api) is measured for:
 //
-//   unsafe — prepareForJson + JSON.stringify
-//   safe   — stringifyJson
-//   decode — JSON.parse + restoreFromJson
+//   - Runtime ops/sec: pre-allocate a pool of fresh sample values
+//     outside the timed loop, then time `cycles * iters` calls into
+//     the api fn over the pool. Decode APIs additionally pre-encode
+//     each pool entry via the safe encoder so the timed loop measures
+//     pure parse + restore.
+//   - Compile latency (compileMs): spawn a dedicated serverMode
+//     ResolverClient, synthesise a .ts file wrapping the case body
+//     around the right create* import, drive reset + setSources +
+//     scanFiles with the matching includeCacheSources kind for
+//     COMPILE_CYCLES rounds, record scanFiles wall time. Measures the
+//     ts-go-run-types marker scan + cache emit phase.
+//   - Pure-TS compile latency (tsCompileMs): same setSources +
+//     tsCompile op, which runs the embedded tsgo through bind +
+//     typecheck + Emit() without touching the marker scanner. The two
+//     phases run sequentially in a real build pipeline (TypeScript 7
+//     has no transforms API yet), so the doc shows both numbers
+//     side-by-side rather than nested.
 //
-// For each (case, api):
-//   - Runtime phase: pre-allocate a pool of fresh sample values by
-//     calling case.getTestData() outside the timed loop, then time
-//     `cycles * iters` calls into the api fn over the pool. Decode APIs
-//     additionally pre-encode each pool entry once (non-flat decode uses
-//     the canonical stringifyJson) so the
-//     timed loop measures pure parse + restore.
-//   - Compile phase: spawn a dedicated serverMode ResolverClient,
-//     synthesise a .ts file wrapping the case body around the right
-//     create* import, drive reset + setSources + scanFiles with the
-//     matching includeCacheSources kind for COMPILE_CYCLES rounds,
-//     record scanFiles wall time as compileMs.
-//
-// Single-file orchestrator on purpose — see the matching header comment
-// in export-validation-suite.mjs.
+// Single-file orchestrator on purpose — see the matching header
+// comment in export-validation-suite.mjs.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -42,16 +43,32 @@ const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.md');
 const IDENTIFIER = 'SERIALIZATION_SPEC';
-const FN_FIELDS = ['prepareForJson', 'stringifyJson', 'restoreFromJson'];
+const FN_FIELDS = [
+  'safeEncoder',
+  'clonePreserveEncoder',
+  'mutateStripEncoder',
+  'safeDirectEncoder',
+  'unsafeEncoder',
+  'safeDecoder',
+  'unsafeDecoder',
+];
 
-// One API descriptor per measured surface. After the non-flat / safe
-// removal there's a single JSON encode/stringify/decode family; the
-// `family` field is retained for the markdown renderer but always
-// `'baseline'` now.
+// One API descriptor per measured shape. Five encoders cover the
+// (strategy, stripExtras) matrix exposed by JsonEncoderOptions:
+//   safe       → strategy='clone',  stripExtras=true   (pjs)
+//   clone-pres → strategy='clone',  stripExtras=false  (pjsp)
+//   mutate-str → strategy='mutate', stripExtras=true   (uku + pj compose)
+//   unsafe     → strategy='mutate', stripExtras=false  (pj)
+//   direct     → strategy='direct'                     (sj)
+// Two decoders cover stripExtras true / false.
 const APIS = [
-  {key: 'unsafe', family: 'baseline', kind: 'encode', factory: 'prepareForJson', cacheKind: 'prepareForJson'},
-  {key: 'safe', family: 'baseline', kind: 'stringify', factory: 'stringifyJson', cacheKind: 'stringifyJson'},
-  {key: 'decode', family: 'baseline', kind: 'decode', factory: 'restoreFromJson', cacheKind: 'restoreFromJson'},
+  {key: 'safe',           kind: 'encode', factory: 'safeEncoder',           cacheKind: 'prepareForJsonSafe'},
+  {key: 'clone-preserve', kind: 'encode', factory: 'clonePreserveEncoder',  cacheKind: 'prepareForJsonSafePreserve'},
+  {key: 'mutate-strip',   kind: 'encode', factory: 'mutateStripEncoder',    cacheKind: 'prepareForJson'},
+  {key: 'unsafe',         kind: 'encode', factory: 'unsafeEncoder',         cacheKind: 'prepareForJson'},
+  {key: 'direct',         kind: 'encode', factory: 'safeDirectEncoder',     cacheKind: 'stringifyJson'},
+  {key: 'safe-decode',    kind: 'decode', factory: 'safeDecoder',           cacheKind: 'restoreFromJson'},
+  {key: 'unsafe-decode',  kind: 'decode', factory: 'unsafeDecoder',         cacheKind: 'restoreFromJson'},
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
@@ -287,9 +304,11 @@ async function runRuntimePhase(suite) {
 // pool is empty.
 function benchOneApi(caseObj, api) {
   // Each api always builds its OWN pool from getTestData() so encode-path
-  // mutation across runs never leaks. The stringify path can optionally
-  // use getTestDataForStringify when present.
-  const useStringifyData = api.kind === 'stringify' && typeof caseObj.getTestDataForStringify === 'function';
+  // mutation across runs never leaks. The `direct` encoder can optionally
+  // use getTestDataForStringify when present (single-pass stringifyJson
+  // handles the some-broad-types samples differently than the
+  // prepareForJson family).
+  const useStringifyData = api.factory === 'safeDirectEncoder' && typeof caseObj.getTestDataForStringify === 'function';
   const selectValues = useStringifyData ? (c) => c.getTestDataForStringify().values : (c) => c.getTestData().values;
 
   // First fetch a single sample to size the pool (large shapes get a
@@ -316,7 +335,7 @@ function benchOneApi(caseObj, api) {
   }
   if (typeof factoryFn !== 'function') return null;
 
-  if (api.kind === 'encode' || api.kind === 'stringify') {
+  if (api.kind === 'encode') {
     // Probe every distinct sample in the case's values array once on a
     // throwaway copy; collect indices that survive. The bench pool then
     // only draws from surviving indices so a single bigint-in-`any`
@@ -357,10 +376,10 @@ function benchOneApi(caseObj, api) {
   if (caseObj.safeAdapterStringifyJsonNotParseable) return null;
   let encodedPool;
   try {
-    const stringify = caseObj.stringifyJson();
-    // Build a fresh encode pool so stringify sees clean values (some
-    // safe-path inputs mutate after JSON.stringify in the unsafe family;
-    // belt-and-braces).
+    // Use the safe (default) encoder to produce the pre-encoded JSON
+    // pool for decode benching. Pure-function shape, no mutation, same
+    // wire output as the other strip-extras encoders.
+    const stringify = caseObj.safeEncoder();
     const encodePool = buildPool(caseObj, selectValues, poolSize);
     encodedPool = buildEncodedPool(stringify, encodePool);
     // Filter to entries the decoder can actually parse + restore. Drops
@@ -395,15 +414,8 @@ function roundTripSanity(caseObj, api, sample, overrideFn) {
       return out !== undefined;
     }
     if (api.kind === 'encode') {
-      const prep = caseObj[api.factory]();
-      const v = deepClone(sample);
-      const prepared = prep(v);
-      const json = JSON.stringify(prepared, (_k, value) => (typeof value === 'bigint' ? value.toString() : value));
-      return typeof json === 'string';
-    }
-    if (api.kind === 'stringify') {
-      const stringify = caseObj[api.factory]();
-      const out = stringify(deepClone(sample));
+      const encode = caseObj[api.factory]();
+      const out = encode(deepClone(sample));
       return typeof out === 'string';
     }
   } catch {
@@ -422,7 +434,12 @@ function deepClone(value) {
   return out;
 }
 
-// Phase 4 — compile-time scan per (case, api). Skips throwsAtCompile.
+// Phase 4 — compile-time scan + pure-TS compile per (case, api).
+// Skips throwsAtCompile. Each cycle:
+//   - reset + setSources once
+//   - tsCompile()  → tsCompileMs (pure tsgo bind + typecheck + emit)
+//   - scanFiles()  → compileMs   (ts-go-run-types marker scan + cache emit)
+// Both timings recorded per (case, api).
 async function runCompilePhase(metrics, bodies) {
   const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true});
   const overlayDts = {__bench__: 'runtypes.d.ts', body: RUNTYPES_DTS};
@@ -443,20 +460,26 @@ async function runCompilePhase(metrics, bodies) {
       progress('compile', doneUnits, units.length, startWall, `${category}.${caseKey}.${api.key}`);
       metrics[category] ??= {};
       const relpath = `__bench__/${safe(category)}__${safe(caseKey)}__${api.key}.ts`;
-      const synth = buildSynthetic(body, api.factory);
+      const synth = buildSynthetic(body);
       const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [relpath]: synth};
-      const times = [];
+      const compileTimes = [];
+      const tsCompileTimes = [];
       for (let c = 0; c < COMPILE_CYCLES; c++) {
         await client.reset();
         await client.setSources(sourcesMap);
-        const start = performance.now();
+        // Pure-TS first: tsgo bind + typecheck + Emit() on this source set.
+        // Doesn't touch the marker scanner.
+        tsCompileTimes.push(await client.tsCompile());
+        // Then ts-go-run-types' own work: marker scan + cache emit.
+        const scanStart = performance.now();
         await client.scanFiles([relpath], {includeCacheSources: [api.cacheKind]});
-        times.push(performance.now() - start);
-        totalRpcs += 1;
+        compileTimes.push(performance.now() - scanStart);
+        totalRpcs += 2;
       }
       metrics[category][caseKey] ??= {};
       metrics[category][caseKey][api.key] ??= {};
-      metrics[category][caseKey][api.key].compileMs = statsOf(times);
+      metrics[category][caseKey][api.key].compileMs = statsOf(compileTimes);
+      metrics[category][caseKey][api.key].tsCompileMs = statsOf(tsCompileTimes);
     }
   } finally {
     client.close();
@@ -465,10 +488,11 @@ async function runCompilePhase(metrics, bodies) {
   return {totalRpcs, wallMs: performance.now() - startWall};
 }
 
-// Wraps the extracted factory body in an arrow probe + the matching
-// create* import. Mirrors validation-suite.mjs's buildSynthetic shape.
-function buildSynthetic(body, factory) {
-  return `import {${factory.replace(/^create/, 'create')}, createPrepareForJson, createStringifyJson, createRestoreFromJson} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+// Wraps the extracted factory body in an arrow probe. The body is the
+// RHS of a thunk like `() => createJsonEncoder<X>(...)`, so the
+// synthetic file imports both encoder + decoder constructors.
+function buildSynthetic(body) {
+  return `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {
@@ -484,35 +508,50 @@ function renderMarkdown(out) {
   lines.push('');
   lines.push(
     'Generated from `SERIALIZATION_SPEC` in `packages/ts-go-run-types/test/suites/serialization-suite.ts`. ' +
-      'Full per-case metrics (including compile-time scanFiles latency) live in `serialization-suite.json`. ' +
-      'Speedup columns show `flat / baseline` ops/sec — values > 1 mean the flat encoder is faster on that case.'
+      'Full per-case metrics (including compile-time scanFiles latency and pure-TS compile time) live in `serialization-suite.json`. ' +
+      'All ops/sec columns are absolute (no ratios). `ts-compile` measures pure tsgo typecheck + emit on the synthetic case file; ' +
+      '`compile` measures the ts-go-run-types marker scan + cache emit. The two phases run sequentially in a real build, not nested.'
   );
   lines.push('');
+  // Column order: title, ts-compile (ms), compile (ms), then one ops/sec
+  // column per APIS entry in the order declared.
   for (const [category, cases] of Object.entries(out)) {
     lines.push(`## ${category}`);
     lines.push('');
     lines.push('<table>');
     lines.push('<thead><tr>');
     lines.push('<th>title</th>');
-    lines.push('<th align="right">unsafe ops/sec</th>');
-    lines.push('<th align="right">safe ops/sec</th>');
-    lines.push('<th align="right">×/unsafe</th>');
-    lines.push('<th align="right">decode ops/sec</th>');
+    lines.push('<th align="right">ts-compile (ms)</th>');
+    lines.push('<th align="right">compile (ms)</th>');
+    for (const api of APIS) {
+      lines.push(`<th align="right">${htmlEscape(api.key)} ops/sec</th>`);
+    }
     lines.push('</tr></thead>');
     lines.push('<tbody>');
     for (const [caseKey, record] of Object.entries(cases)) {
       const title = record.title ?? caseKey;
       const m = record.metrics ?? {};
-      const cells = [];
-      const unsafe = m.unsafe?.opsPerSec?.mean ?? null;
-      cells.push(fmtNum(unsafe));
-      const safe = m.safe?.opsPerSec?.mean ?? null;
-      cells.push(fmtNum(safe), fmtRatio(unsafe && safe ? safe / unsafe : null));
-      const decode = m.decode?.opsPerSec?.mean ?? null;
-      cells.push(fmtNum(decode));
+      // ts-compile and compile are per-source-file — pick the first
+      // non-null value across the APIs (they're rendered against the
+      // same synthetic file). The compile column reuses each API's own
+      // compileMs (varies slightly by cacheKind requested).
+      let tsCompile = null;
+      let compile = null;
+      for (const api of APIS) {
+        const apiMetrics = m[api.key];
+        if (apiMetrics) {
+          if (tsCompile == null && apiMetrics.tsCompileMs?.mean != null) tsCompile = apiMetrics.tsCompileMs.mean;
+          if (compile == null && apiMetrics.compileMs?.mean != null) compile = apiMetrics.compileMs.mean;
+        }
+      }
       lines.push('<tr>');
       lines.push(`<td>${htmlEscape(title)}</td>`);
-      for (const c of cells) lines.push(`<td align="right">${c}</td>`);
+      lines.push(`<td align="right">${fmtNum(tsCompile)}</td>`);
+      lines.push(`<td align="right">${fmtNum(compile)}</td>`);
+      for (const api of APIS) {
+        const ops = m[api.key]?.opsPerSec?.mean ?? null;
+        lines.push(`<td align="right">${fmtNum(ops)}</td>`);
+      }
       lines.push('</tr>');
     }
     lines.push('</tbody>');
