@@ -1155,6 +1155,7 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 		if resolved.IsStatic {
 			// Static members don't appear on instances — never
 			// participate in isType validation.
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is not validated by isType")
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
@@ -1163,6 +1164,7 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 			// getJitChildren skips them; we match. For the callable
 			// case the CallSignature is already represented by the
 			// `typeof === 'function'` guard above.
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is not validated by isType")
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeE)
@@ -1247,6 +1249,7 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 		// mion: PropertySignature.getJitChild returns undefined when
 		// member.skipJit() is true (function kinds skipJit). Empty code
 		// is the parent's signal to drop this slot from the AND chain.
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is not validated by isType")
 		return JitCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)

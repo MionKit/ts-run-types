@@ -125,6 +125,49 @@ export const _ = getRuntypeId<never>();
 	}
 }
 
+// TestDiag_SilentSkip_FunctionMember pins the Phase 3 silent-skip
+// visibility: when an interface has a function-typed member, the JIT
+// silently drops it from the validator/serializer. The new diagnostic
+// surfaces that drop at build time so the user knows e.g. `onClick`
+// is not validated. The exact code (IT010 vs IT011) depends on whether
+// TypeScript parses the member as a method or a property — both flow
+// through the same family prefix (IT) so consumers can grep by prefix.
+func TestDiag_SilentSkip_FunctionMember_IsType(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface User { name: string; onClick: () => void; }
+export const _ = getRuntypeId<User>();
+`
+	r := setupInline(t, map[string]string{"u.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"u.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindIsType},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	var found *diag.Diagnostic
+	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
+		switch d.Code {
+		case diag.CodeISFunctionPropDropped, diag.CodeISMethodDropped:
+			d := d
+			found = &d
+		}
+		if found != nil {
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected IT010 or IT011 diagnostic, got %+v", resp.Diagnostics)
+	}
+	if found.Severity != diag.SeverityWarning {
+		t.Errorf("severity: got %d want %d", found.Severity, diag.SeverityWarning)
+	}
+	if !strings.Contains(found.Message, "onClick") {
+		t.Errorf("message: got %q, expected to mention 'onClick'", found.Message)
+	}
+}
+
 // TestDiag_RuntypeFansOutAcrossCallSites pins the per-user-direction
 // dedup rule: when N marker calls reference the same RT ID with the
 // same problem, emit N diagnostics — one per call site — not one

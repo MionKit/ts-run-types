@@ -300,9 +300,11 @@ func emitObjectRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string)
 			continue
 		}
 		if resolved.IsStatic {
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from restoreFromJson")
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is excluded from restoreFromJson")
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeS)
@@ -330,6 +332,7 @@ func emitPropertyRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v strin
 		return JitCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from restoreFromJson")
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)

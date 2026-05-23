@@ -288,9 +288,11 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 			continue
 		}
 		if resolved.IsStatic {
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from prepareForJsonSafe output")
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is excluded from prepareForJsonSafe output")
 			continue
 		}
 		if resolved.Kind == protocol.KindIndexSignature {
@@ -311,6 +313,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 			continue
 		}
 		if isFunctionLikeKind(propResolved.Kind) {
+			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+resolved.Name+" has function-typed value and is excluded from prepareForJsonSafe output")
 			continue
 		}
 		accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
