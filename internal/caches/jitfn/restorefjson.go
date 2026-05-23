@@ -53,6 +53,10 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindTupleMember:
 		return true
+	case protocol.KindUnion:
+		// Phase 7 — noop. See preparefjson.go union case for the
+		// rationale.
+		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Top-level function types: noop body (caller's responsibility).
@@ -183,6 +187,10 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Non-serializable — noop body.
+		return JitCode{Code: "", Type: CodeS}
+
+	case protocol.KindUnion:
+		// Phase 7 — noop. See preparefjson.go union case.
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
