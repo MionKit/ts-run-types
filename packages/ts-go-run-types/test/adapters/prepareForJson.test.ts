@@ -242,3 +242,35 @@ describe('prepareForJson / NATIVE', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.NATIVE).length);
   });
 });
+
+describe('prepareForJson / UNION', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Union of common atomic types (with Date and bigint)', () => assertPrepareForJson(JIT_SUITE.UNION.atomic_union));
+  it('Union of string literals (case-sensitive)', () => assertPrepareForJson(JIT_SUITE.UNION.string_literal_union));
+  it('Two-arm union of string and number', () => assertPrepareForJson(JIT_SUITE.UNION.string_or_number));
+  it('Union of array types (whole-array dispatch)', () => assertPrepareForJson(JIT_SUITE.UNION.union_of_array_types));
+  it('Array whose element type is a union', () => assertPrepareForJson(JIT_SUITE.UNION.array_of_union));
+  it('Union of disjoint object shapes', () => assertPrepareForJson(JIT_SUITE.UNION.union_of_object_shapes));
+  it('Discriminated union (shared kind literal, different payloads)', () => assertPrepareForJson(JIT_SUITE.UNION.discriminated_union));
+  it('Union of object arms each carrying a method', () => assertPrepareForJson(JIT_SUITE.UNION.union_with_methods));
+  it('Self-referential union via object and array arms', () => assertPrepareForJson(JIT_SUITE.UNION.circular_union));
+  it('Intersection of object shapes (resolved to one merged shape)', () => assertPrepareForJson(JIT_SUITE.UNION.intersection_to_object));
+  it('Union where one arm carries an index signature', () => assertPrepareForJson(JIT_SUITE.UNION.union_with_index_arm));
+  it('Discriminated union sharing one prop with arm-dependent type', () => assertPrepareForJson(JIT_SUITE.UNION.union_same_prop_different_types));
+  it('Union mixing array types and object shapes', () => assertPrepareForJson(JIT_SUITE.UNION.union_mixed_arrays_and_objects));
+  it('Union of shapes sharing a prop with different value types', () => assertPrepareForJson(JIT_SUITE.UNION.union_merged_property));
+  it('Union mixing arrays, plain objects, and index-signature shapes', () => assertPrepareForJson(JIT_SUITE.UNION.union_mixed_with_index));
+  it('Union with an `any` arm (collapses to any)', () => assertPrepareForJson(JIT_SUITE.UNION.union_with_any_fallback));
+  it('Union with an `unknown` arm (collapses to unknown)', () => assertPrepareForJson(JIT_SUITE.UNION.union_with_unknown_fallback));
+  it('Union with the smaller arm declared before its superset', () => assertPrepareForJson(JIT_SUITE.UNION.union_subset_small_first));
+  it('Union with a three-level subset chain', () => assertPrepareForJson(JIT_SUITE.UNION.union_subset_nested_levels));
+  it('Union mixing a subset pair with a disjoint arm', () => assertPrepareForJson(JIT_SUITE.UNION.union_subset_mixed_related_unrelated));
+
+  it('all union prepareForJson tests ran', () => {
+    expect(ranTests).toBe(Object.keys(JIT_SUITE.UNION).length);
+  });
+});
