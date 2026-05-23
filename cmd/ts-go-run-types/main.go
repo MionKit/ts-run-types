@@ -74,7 +74,7 @@ func main() {
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
-		emitCreateRTFn    bool
+		emitCacheFunctions    bool
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -93,7 +93,7 @@ func main() {
 		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
 	flag.StringVar(&cacheDir, "cache-dir", "",
 		"base directory for the on-disk RT artifact cache (empty disables)")
-	flag.BoolVar(&emitCreateRTFn, "emit-create-rt-fn", false,
+	flag.BoolVar(&emitCacheFunctions, "emit-create-rt-fn", false,
 		"emit the inline createRTFn closure on every cache entry alongside the body string. "+
 			"Default false — the JS side rebuilds the factory from `code` via `new Function` on first lookup. "+
 			"Set true for runtimes that disallow dynamic code (Cloudflare WorkerD, browser CSP without unsafe-eval).")
@@ -133,7 +133,7 @@ func main() {
 		Cwd:               absCwd,
 		SingleThreaded:    singleThreaded,
 		CacheDir:          cacheDir,
-		EmitCreateRTFn:   emitCreateRTFn,
+		EmitCreateRTFn:   emitCacheFunctions,
 	}
 
 	var r *resolver.Resolver

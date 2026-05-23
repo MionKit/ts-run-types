@@ -52,7 +52,7 @@
     "dev:test": "vitest watch",
     "lint": "eslint src",
     "format": "prettier --write 'src/**/*.ts'",
-    "clean": "rimraf dist .coverage",
+    "clean": "rimraf dist .coverage tsconfig.tsbuildinfo",
     "fresh-start": "pnpm run clean && rimraf node_modules"
   },
   "devDependencies": {

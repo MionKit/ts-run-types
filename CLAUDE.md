@@ -109,7 +109,7 @@ Write paired tests (not parameterized): each scenario is two distinct tests, eac
 
 ## Development Workflow
 
-- Never run `pnpm run build` during development (only for publishing)
+- Never run `pnpm run build` during development (only for publishing) — **EXCEPT for `vite-plugin-runtypes`**, which MUST be rebuilt after every src modification. The marker package's typecheck consumes the plugin via its published `dist/index.d.ts` (the plugin's `exports` map has no `"source"` condition like the marker package does), so stale dist types break consumer typechecking. Run `pnpm --filter vite-plugin-runtypes run build` after editing anything under [packages/vite-plugin-runtypes/src/](packages/vite-plugin-runtypes/src/).
 - Run `pnpm run clean` (nx reset + per-package clean) before a fresh start
 - After modifying Go sources, **rebuild the binary** before re-running JS plugin tests (see "Testing")
 - Use `pnpm run test` to run all JS tests; use `go test ./internal/...` for Go

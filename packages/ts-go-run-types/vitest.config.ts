@@ -45,8 +45,14 @@ export default defineConfig({
       //     `new Function('utl', code)`.
       // The production default leaves this off so emitted modules are
       // smaller and runtimes without `new Function` opt back in by
-      // setting `emitCreateRTFn: true` on the plugin themselves.
-      emitCreateRTFn: true,
+      // setting `emitCacheFunctions: true` on the plugin themselves.
+      emitCacheFunctions: true,
+      // Disable the on-disk RT artifact cache for test runs. The
+      // disk-cache feature has its own dedicated end-to-end suite in
+      // vite-plugin-runtypes/test/cache-disk.test.ts (which points at
+      // os.tmpdir()); the marker package's tests should not pollute
+      // node_modules/.cache with thousands of artifact files.
+      cacheDir: false,
     }),
   ],
   test: {
