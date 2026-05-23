@@ -142,7 +142,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// mion:nodes/atomic/never.ts:23-24 —
 		// `emitRestoreFromJson(): JitCode { throw new Error('Never
 		// type cannot be decoded from JSON.'); }`.
-		return JitThrow("Never type cannot be decoded from JSON.")
+		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be decoded from JSON.")
 
 	case protocol.KindUndefined:
 		// mion:nodes/atomic/undefined.ts:20 — `undefined`.
@@ -183,7 +183,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			// mion:nodes/native/nonSerializable.ts:27-28 —
 			// `emitRestoreFromJson(): JitCode { throw new Error('Jit
 			// compilation disabled for Non Serializable types.'); }`.
-			return JitThrow("Jit compilation disabled for Non Serializable types.")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
@@ -191,7 +191,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// mion:nodes/native/promise.ts:26-27 — emitRestoreFromJson
 		// throws "Jit compilation disabled for Non Serializable
 		// types.". Same throw-factory pattern as the prepare side.
-		return JitThrow("Jit compilation disabled for Non Serializable types.")
+		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindObjectLiteral:
 		return emitObjectRestoreFromJson(rt, ctx, v)
@@ -214,7 +214,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// `emitRestoreFromJson(): JitCode { throw new Error('Compile
 		// function RestoreFromJson not supported, call compileParams
 		// or compileReturn instead.'); }`.
-		return JitThrow("Compile function RestoreFromJson not supported, call compileParams or compileReturn instead.")
+		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Compile function RestoreFromJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
 		// Decodes the flat-union wire shape produced by
@@ -247,7 +247,7 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 			// Symmetric with emitPrepareForJson's array gate —
 			// mion's nodes/member/array.ts:148 throws on
 			// symbol[]/function[].
-			return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+			return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")

@@ -56,6 +56,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// unconditionally so editor surfaces update as the user types.
 		pureFnEntries, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
+		// jitDiagnostics is the sink the walker appends to at every
+		// JitThrow / silent-skip site reached during the cache renders
+		// below. Single sink covers every render in this dispatch so a
+		// single shared throw-site emits one diag per call site.
+		var jitDiagnostics []diag.Diagnostic
+		jitOpts := resolver.jitRenderOpts(&jitDiagnostics, resolver.buildProvenanceSites())
 		response := protocol.Response{
 			Sites:                           sites,
 			Replacements:                    pureFnReplacements,
@@ -112,98 +118,98 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				response.RunTypeCacheSource = rendered
 			}
 			if wantIsType {
-				isTypeRendered, isTypeErr := renderIsTypeModule(scoped, resolver.jitRenderOpts())
+				isTypeRendered, isTypeErr := renderIsTypeModule(scoped, jitOpts)
 				if isTypeErr != nil {
 					return protocol.Response{Error: isTypeErr.Error()}
 				}
 				response.IsTypeCacheSource = isTypeRendered
 			}
 			if wantTypeErrors {
-				typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(scoped, resolver.jitRenderOpts())
+				typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(scoped, jitOpts)
 				if typeErrorsErr != nil {
 					return protocol.Response{Error: typeErrorsErr.Error()}
 				}
 				response.TypeErrorsCacheSource = typeErrorsRendered
 			}
 			if wantPrepareForJson {
-				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped, resolver.jitRenderOpts())
+				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped, jitOpts)
 				if prepareErr != nil {
 					return protocol.Response{Error: prepareErr.Error()}
 				}
 				response.PrepareForJsonCacheSource = prepareRendered
 			}
 			if wantRestoreFromJson {
-				restoreRendered, restoreErr := renderRestoreFromJsonModule(scoped, resolver.jitRenderOpts())
+				restoreRendered, restoreErr := renderRestoreFromJsonModule(scoped, jitOpts)
 				if restoreErr != nil {
 					return protocol.Response{Error: restoreErr.Error()}
 				}
 				response.RestoreFromJsonCacheSource = restoreRendered
 			}
 			if wantStringifyJson {
-				stringifyRendered, stringifyErr := renderStringifyJsonModule(scoped, resolver.jitRenderOpts())
+				stringifyRendered, stringifyErr := renderStringifyJsonModule(scoped, jitOpts)
 				if stringifyErr != nil {
 					return protocol.Response{Error: stringifyErr.Error()}
 				}
 				response.StringifyJsonCacheSource = stringifyRendered
 			}
 			if wantPrepareForJsonSafe {
-				rendered, err := renderPrepareForJsonSafeModule(scoped, resolver.jitRenderOpts())
+				rendered, err := renderPrepareForJsonSafeModule(scoped, jitOpts)
 				if err != nil {
 					return protocol.Response{Error: err.Error()}
 				}
 				response.PrepareForJsonSafeCacheSource = rendered
 			}
 			if wantPrepareForJsonSafePreserve {
-				rendered, err := renderPrepareForJsonSafePreserveModule(scoped, resolver.jitRenderOpts())
+				rendered, err := renderPrepareForJsonSafePreserveModule(scoped, jitOpts)
 				if err != nil {
 					return protocol.Response{Error: err.Error()}
 				}
 				response.PrepareForJsonSafePreserveCacheSource = rendered
 			}
 			if wantHasUnknownKeys {
-				hukRendered, hukErr := renderHasUnknownKeysModule(scoped, resolver.jitRenderOpts())
+				hukRendered, hukErr := renderHasUnknownKeysModule(scoped, jitOpts)
 				if hukErr != nil {
 					return protocol.Response{Error: hukErr.Error()}
 				}
 				response.HasUnknownKeysCacheSource = hukRendered
 			}
 			if wantStripUnknownKeys {
-				sukRendered, sukErr := renderStripUnknownKeysModule(scoped, resolver.jitRenderOpts())
+				sukRendered, sukErr := renderStripUnknownKeysModule(scoped, jitOpts)
 				if sukErr != nil {
 					return protocol.Response{Error: sukErr.Error()}
 				}
 				response.StripUnknownKeysCacheSource = sukRendered
 			}
 			if wantUnknownKeyErrors {
-				ukeRendered, ukeErr := renderUnknownKeyErrorsModule(scoped, resolver.jitRenderOpts())
+				ukeRendered, ukeErr := renderUnknownKeyErrorsModule(scoped, jitOpts)
 				if ukeErr != nil {
 					return protocol.Response{Error: ukeErr.Error()}
 				}
 				response.UnknownKeyErrorsCacheSource = ukeRendered
 			}
 			if wantUnknownKeysToUndefined {
-				ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(scoped, resolver.jitRenderOpts())
+				ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(scoped, jitOpts)
 				if ukuErr != nil {
 					return protocol.Response{Error: ukuErr.Error()}
 				}
 				response.UnknownKeysToUndefinedCacheSource = ukuRendered
 			}
 			if wantUnknownKeysToUndefinedWire {
-				ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(scoped, resolver.jitRenderOpts())
+				ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(scoped, jitOpts)
 				if ukuwErr != nil {
 					return protocol.Response{Error: ukuwErr.Error()}
 				}
 				response.UnknownKeysToUndefinedWireCacheSource = ukuwRendered
 			}
 			if wantToBinary {
-				rendered, err := renderToBinaryModule(scoped, resolver.jitRenderOpts())
+				rendered, err := renderToBinaryModule(scoped, jitOpts)
 				if err != nil {
 					return protocol.Response{Error: err.Error()}
 				}
 				response.ToBinaryCacheSource = rendered
 			}
 			if wantFromBinary {
-				rendered, err := renderFromBinaryModule(scoped, resolver.jitRenderOpts())
+				rendered, err := renderFromBinaryModule(scoped, jitOpts)
 				if err != nil {
 					return protocol.Response{Error: err.Error()}
 				}
@@ -217,6 +223,9 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				response.PureFnsCacheSource = pureFnsRendered
 			}
 		}
+		// Flush JIT diagnostics into the unified response.Diagnostics slice
+		// so the Vite plugin's reception loop surfaces them via this.warn.
+		response.Diagnostics = append(response.Diagnostics, jitDiagnostics...)
 		return response
 	case protocol.OpDump:
 		// Ensure every source file in the Program has been scanned for
@@ -240,6 +249,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			RunTypes: fullDump.RunTypes,
 			Sites:    fullDump.Sites,
 		}
+		// jitDiagnostics is the JIT-render diagnostic sink for this dump.
+		// Mirrors the OpScanFiles branch — one sink shared across every
+		// per-kind render, flushed into response.Diagnostics once all
+		// renders have completed.
+		var jitDiagnostics []diag.Diagnostic
+		jitOpts := resolver.jitRenderOpts(&jitDiagnostics, resolver.buildProvenanceSites())
 		// Per-kind opt-in mirrors OpScanFiles. When IncludeCacheSources is
 		// omitted, callers get every cache source (legacy "give me
 		// everything" behavior preserved). When set, only the requested
@@ -270,98 +285,98 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			response.RunTypeCacheSource = rendered
 		}
 		if wantIsType {
-			isTypeRendered, isTypeErr := renderIsTypeModule(fullDump, resolver.jitRenderOpts())
+			isTypeRendered, isTypeErr := renderIsTypeModule(fullDump, jitOpts)
 			if isTypeErr != nil {
 				return protocol.Response{Error: isTypeErr.Error()}
 			}
 			response.IsTypeCacheSource = isTypeRendered
 		}
 		if wantTypeErrors {
-			typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(fullDump, resolver.jitRenderOpts())
+			typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(fullDump, jitOpts)
 			if typeErrorsErr != nil {
 				return protocol.Response{Error: typeErrorsErr.Error()}
 			}
 			response.TypeErrorsCacheSource = typeErrorsRendered
 		}
 		if wantPrepareForJson {
-			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump, resolver.jitRenderOpts())
+			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump, jitOpts)
 			if prepareErr != nil {
 				return protocol.Response{Error: prepareErr.Error()}
 			}
 			response.PrepareForJsonCacheSource = prepareRendered
 		}
 		if wantRestoreFromJson {
-			restoreRendered, restoreErr := renderRestoreFromJsonModule(fullDump, resolver.jitRenderOpts())
+			restoreRendered, restoreErr := renderRestoreFromJsonModule(fullDump, jitOpts)
 			if restoreErr != nil {
 				return protocol.Response{Error: restoreErr.Error()}
 			}
 			response.RestoreFromJsonCacheSource = restoreRendered
 		}
 		if wantStringifyJson {
-			stringifyRendered, stringifyErr := renderStringifyJsonModule(fullDump, resolver.jitRenderOpts())
+			stringifyRendered, stringifyErr := renderStringifyJsonModule(fullDump, jitOpts)
 			if stringifyErr != nil {
 				return protocol.Response{Error: stringifyErr.Error()}
 			}
 			response.StringifyJsonCacheSource = stringifyRendered
 		}
 		if wantPrepareForJsonSafe {
-			rendered, err := renderPrepareForJsonSafeModule(fullDump, resolver.jitRenderOpts())
+			rendered, err := renderPrepareForJsonSafeModule(fullDump, jitOpts)
 			if err != nil {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.PrepareForJsonSafeCacheSource = rendered
 		}
 		if wantPrepareForJsonSafePreserve {
-			rendered, err := renderPrepareForJsonSafePreserveModule(fullDump, resolver.jitRenderOpts())
+			rendered, err := renderPrepareForJsonSafePreserveModule(fullDump, jitOpts)
 			if err != nil {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.PrepareForJsonSafePreserveCacheSource = rendered
 		}
 		if wantHasUnknownKeys {
-			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump, resolver.jitRenderOpts())
+			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump, jitOpts)
 			if hukErr != nil {
 				return protocol.Response{Error: hukErr.Error()}
 			}
 			response.HasUnknownKeysCacheSource = hukRendered
 		}
 		if wantStripUnknownKeys {
-			sukRendered, sukErr := renderStripUnknownKeysModule(fullDump, resolver.jitRenderOpts())
+			sukRendered, sukErr := renderStripUnknownKeysModule(fullDump, jitOpts)
 			if sukErr != nil {
 				return protocol.Response{Error: sukErr.Error()}
 			}
 			response.StripUnknownKeysCacheSource = sukRendered
 		}
 		if wantUnknownKeyErrors {
-			ukeRendered, ukeErr := renderUnknownKeyErrorsModule(fullDump, resolver.jitRenderOpts())
+			ukeRendered, ukeErr := renderUnknownKeyErrorsModule(fullDump, jitOpts)
 			if ukeErr != nil {
 				return protocol.Response{Error: ukeErr.Error()}
 			}
 			response.UnknownKeyErrorsCacheSource = ukeRendered
 		}
 		if wantUnknownKeysToUndefined {
-			ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(fullDump, resolver.jitRenderOpts())
+			ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(fullDump, jitOpts)
 			if ukuErr != nil {
 				return protocol.Response{Error: ukuErr.Error()}
 			}
 			response.UnknownKeysToUndefinedCacheSource = ukuRendered
 		}
 		if wantUnknownKeysToUndefinedWire {
-			ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(fullDump, resolver.jitRenderOpts())
+			ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(fullDump, jitOpts)
 			if ukuwErr != nil {
 				return protocol.Response{Error: ukuwErr.Error()}
 			}
 			response.UnknownKeysToUndefinedWireCacheSource = ukuwRendered
 		}
 		if wantToBinary {
-			rendered, err := renderToBinaryModule(fullDump, resolver.jitRenderOpts())
+			rendered, err := renderToBinaryModule(fullDump, jitOpts)
 			if err != nil {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.ToBinaryCacheSource = rendered
 		}
 		if wantFromBinary {
-			rendered, err := renderFromBinaryModule(fullDump, resolver.jitRenderOpts())
+			rendered, err := renderFromBinaryModule(fullDump, jitOpts)
 			if err != nil {
 				return protocol.Response{Error: err.Error()}
 			}
@@ -375,6 +390,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			response.PureFnsCacheSource = pureFnsRendered
 			response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
 		}
+		response.Diagnostics = append(response.Diagnostics, jitDiagnostics...)
 		return response
 	case protocol.OpSetSources:
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {

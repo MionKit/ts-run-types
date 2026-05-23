@@ -129,7 +129,7 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
-		return JitThrow("Never type cannot be encoded to JSON.")
+		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be encoded to JSON.")
 
 	case protocol.KindBigInt:
 		return JitCode{Code: v + ".toString()", Type: CodeE}
@@ -152,12 +152,12 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJsonSafe(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			return JitThrow("Jit compilation disabled for Non Serializable types.")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		return JitThrow("Jit compilation disabled for Non Serializable types.")
+		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJsonSafe(rt, ctx, v)
@@ -170,7 +170,7 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return JitThrow("Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
+		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
 		return emitUnionPrepareForJsonSafe(rt, ctx, v)
@@ -639,7 +639,7 @@ func emitArrayPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 	}
 	resolvedChild := ctx.ResolveRef(rt.Child)
 	if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-		return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+		return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 	}
 	if isExtraProof(resolvedChild, ctx) {
 		return JitCode{Code: "", Type: CodeS}

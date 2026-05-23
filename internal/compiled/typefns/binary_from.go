@@ -116,10 +116,10 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return JitCode{Code: ret + " = " + des + ".desEnum()", Type: CodeS}
 
 	case protocol.KindNever:
-		return JitThrow("Never type cannot be deserialized from Binary")
+		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be deserialized from Binary")
 
 	case protocol.KindPromise:
-		return JitThrow("Jit compilation disabled for Non Serializable types.")
+		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindLiteral:
 		return emitLiteralFromBinary(rt, ret, des)
@@ -133,7 +133,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return JitThrow("Binary deserialization not supported for functions, call compileParams or compileReturn instead.")
+		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Binary deserialization not supported for functions, call compileParams or compileReturn instead.")
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyFromBinary(rt, ctx, ret, des)
@@ -155,7 +155,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableFromBinary(rt, ctx, ret, des)
 		case protocol.SubKindNonSerializable:
-			return JitThrow("Binary deserialization is disabled for Non Serializable types")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableElem, "Binary deserialization is disabled for Non Serializable types")
 		case protocol.SubKindNone:
 			return emitObjectFromBinary(rt, ctx, ret, des)
 		}
@@ -250,7 +250,7 @@ func emitArrayFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved != nil && isNonSerializableElementKind(resolved.Kind) {
-		return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+		return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 	}
 	lenVar := ctx.NextLocalVar("alen")
 	iVar := ctx.NextLocalVar("i")

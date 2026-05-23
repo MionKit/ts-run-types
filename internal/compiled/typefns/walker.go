@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -176,6 +177,53 @@ type Walker struct {
 	// NonSerializableRunType, the array.ts symbol[]/function[] check).
 	// First message wins; subsequent CodeNS leaves don't overwrite.
 	ThrowMessage string
+
+	// DiagSink is the destination for compile-time diagnostics this
+	// walker emits via EmitDiagnostic. Nil when the caller doesn't want
+	// diagnostics surfaced (e.g. unit tests that exercise the walker
+	// without provenance threading). The renderer sets it from
+	// RenderOpts.DiagSink so the dispatcher can collect everything in
+	// a single response.Diagnostics slice.
+	DiagSink *[]diag.Diagnostic
+	// rootProvenance is the list of marker call sites that reference
+	// the root RunType being walked. EmitDiagnostic fans out one
+	// Diagnostic per site so the user gets one entry per actionable
+	// call (per user direction: dedup is one-per-call-site, not
+	// one-per-typeid).
+	rootProvenance []diag.Site
+	// diagSeen prevents a single walk from emitting the same diagnostic
+	// code twice — without this, a deep tree with multiple unsupported
+	// leaves of the same kind would surface duplicate diagnostics for
+	// the same call site.
+	diagSeen map[string]bool
+}
+
+// EmitDiagnostic records a compile-time diagnostic against every call
+// site that references the root RunType being walked. No-op when DiagSink
+// is unwired, the code has already fired for this walk, or no provenance
+// sites are known. The diagnostic message can be either the static
+// Definition.Template (when args is empty) or a printf-style format
+// against args.
+func (w *Walker) EmitDiagnostic(code, message string) {
+	if w.DiagSink == nil {
+		return
+	}
+	if w.diagSeen[code] {
+		return
+	}
+	if w.diagSeen == nil {
+		w.diagSeen = map[string]bool{}
+	}
+	w.diagSeen[code] = true
+	if len(w.rootProvenance) == 0 {
+		// No call sites known — skip rather than emit a Diagnostic
+		// without provenance (would render as filePath="" in the
+		// canonical line, useless to the user).
+		return
+	}
+	for _, site := range w.rootProvenance {
+		*w.DiagSink = append(*w.DiagSink, diag.New(code, site, message))
+	}
 }
 
 // NewWalker primes a Walker for the given RunType + Emitter pair.
