@@ -8,26 +8,11 @@
 // Every JitCompiledFn entry the stripUnknownKeys emitter produces
 // takes a single value, deletes properties not declared in the schema
 // (in place), and returns the value. See `isTypeCache.ts` for the
-// JSDoc conventions used below.
+// JSDoc conventions.
 
 'use strict';
 
-/**
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').StripUnknownKeysFn>} StripUnknownKeysJitFn
- */
-
-/**
- * @typedef {object} StripUnknownKeysInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').StripUnknownKeysFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (SUK…) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').StripUnknownKeysJitFn} StripUnknownKeysJitFn */
 
 export function initCache(jitUtils) {
   // Pure-fn key consts referenced by emitted factory bodies.
