@@ -352,15 +352,13 @@ export interface Response {
   // runtime home of every pure-fn body. Populated by `dump` and on
   // `scanFiles` when the caller opts into `'pureFns'` (or `'all'`).
   pureFnsCacheSource?: string;
-  // Wire-side diagnostic records emitted alongside `pureFnsCacheSource`.
-  // The plugin re-emits each one via `this.warn` in canonical tsc format
-  // so VS Code's $tsc problem matcher picks them up; the build never
-  // fails on these.
-  pureFnsDiagnostics?: PureFnDiagnostic[];
-  // Marker-scanner warnings about anti-pattern call shapes (currently
-  // only "marker/function-call-arg"). Same surface as
-  // `pureFnsDiagnostics` — the plugin re-emits each via `this.warn`.
-  markerDiagnostics?: MarkerDiagnostic[];
+  // Diagnostics carries every non-fatal diagnostic the Go binary emits —
+  // pure-fn extractor (PFE9xxx), marker scanner (MKRxxx), JIT compiler
+  // (IT/TE/PJ/…/FB). The Family discriminator on each entry tells the
+  // consumer which subsystem produced it. The Vite plugin re-emits each
+  // via `this.warn(formatTscDiagnostic(d))` so VS Code's $tsc problem
+  // matcher picks them up; the build never fails on these.
+  diagnostics?: Diagnostic[];
   // tsCompile only — wall-time (ms) of the embedded tsgo's bind +
   // typecheck + emit pass on the current source overlay. Bench
   // orchestrators record this alongside scanFiles latency to show the
@@ -369,37 +367,52 @@ export interface Response {
   error?: string;
 }
 
-// PureFnDiagnostic mirrors the Go-side protocol.PureFnDiagnostic
-// shape. Modeled after the LSP Diagnostic schema so downstream tools can
-// ingest with minimal translation.
-export interface PureFnDiagnostic {
-  code: string;
-  category: 'error' | 'warning' | string;
-  message: string;
-  site: PureFnDiagSite;
-  related?: PureFnRelated[];
-}
+// Severity classifies a Diagnostic's impact. Numeric on the wire to
+// match the Go-side encoding; mirror the `as const` literal-union enum
+// shape so consumers can `switch (d.severity)` against the named values.
+export const Severity = {
+  Error: 1,
+  Warning: 2,
+  Info: 3,
+} as const;
+export type Severity = (typeof Severity)[keyof typeof Severity];
 
-export interface PureFnDiagSite {
+// Family classifies a Diagnostic by which subsystem produced it. Same
+// numeric-on-the-wire scheme as Severity.
+export const Family = {
+  PureFn: 1,
+  Marker: 2,
+  RunType: 3,
+} as const;
+export type Family = (typeof Family)[keyof typeof Family];
+
+// DiagnosticSite is a 1-based source location. `endLine` / `endCol` are
+// optional — runtype-family diagnostics (where the site is the marker
+// call rather than a type declaration) leave them zero.
+export interface DiagnosticSite {
   filePath: string;
   startLine: number;
   startCol: number;
-  endLine: number;
-  endCol: number;
+  endLine?: number;
+  endCol?: number;
 }
 
-// MarkerDiagnostic mirrors the Go-side protocol.MarkerDiagnostic shape.
-// Issued by the marker scanner for anti-pattern call shapes — currently
-// only the function-call-argument-in-reflect-form warning.
-export interface MarkerDiagnostic {
+export interface DiagnosticRelated extends DiagnosticSite {
+  message: string;
+}
+
+// Diagnostic mirrors the Go-side diag.Diagnostic. The Family
+// discriminator tells the consumer which subsystem produced it (purefn
+// extractor, marker scanner, runtype JIT compiler); the Code is the
+// stable identifier (PFE9001, MKR001, IT010, SJ001, …) and Severity
+// classifies impact.
+export interface Diagnostic {
   code: string;
-  category: 'warning' | string;
+  family: Family;
+  severity: Severity;
   message: string;
-  site: PureFnDiagSite;
-}
-
-export interface PureFnRelated extends PureFnDiagSite {
-  message: string;
+  site: DiagnosticSite;
+  related?: DiagnosticRelated[];
 }
 
 export interface Dump {

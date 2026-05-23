@@ -8,8 +8,9 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -25,7 +26,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if len(request.Files) == 0 {
 			return protocol.Response{Error: "scanFiles: files is required and must be non-empty"}
 		}
-		sites, markerDiags, err := resolver.dispatchScanFiles(request.Files)
+		sites, markerDiagnostics, err := resolver.dispatchScanFiles(request.Files)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
@@ -53,29 +54,29 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// one Replacement record the Vite plugin uses to null out the
 		// factory argument in the user's source. Diagnostics flow
 		// unconditionally so editor surfaces update as the user types.
-		pureFnEntries, pureFnDiags, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
+		pureFnEntries, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
+		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
 		response := protocol.Response{
-			Sites:                       sites,
-			Replacements:                pureFnReplacements,
-			Added:                       added,
-			AddedRunTypes:               addedRunTypes,
-			AddedIsType:                 addedIsType,
-			AddedTypeErrors:             addedTypeErrors,
-			AddedPrepareForJson:         addedPrepareForJson,
-			AddedRestoreFromJson:        addedRestoreFromJson,
-			AddedStringifyJson:          addedStringifyJson,
+			Sites:                           sites,
+			Replacements:                    pureFnReplacements,
+			Added:                           added,
+			AddedRunTypes:                   addedRunTypes,
+			AddedIsType:                     addedIsType,
+			AddedTypeErrors:                 addedTypeErrors,
+			AddedPrepareForJson:             addedPrepareForJson,
+			AddedRestoreFromJson:            addedRestoreFromJson,
+			AddedStringifyJson:              addedStringifyJson,
 			AddedPrepareForJsonSafe:         addedPrepareForJsonSafe,
 			AddedPrepareForJsonSafePreserve: addedPrepareForJsonSafePreserve,
-			AddedHasUnknownKeys:         addedHasUnknownKeys,
-			AddedStripUnknownKeys:       addedStripUnknownKeys,
-			AddedUnknownKeyErrors:       addedUnknownKeyErrors,
+			AddedHasUnknownKeys:             addedHasUnknownKeys,
+			AddedStripUnknownKeys:           addedStripUnknownKeys,
+			AddedUnknownKeyErrors:           addedUnknownKeyErrors,
 			AddedUnknownKeysToUndefined:     addedUnknownKeysToUndefined,
 			AddedUnknownKeysToUndefinedWire: addedUnknownKeysToUndefinedWire,
-			AddedToBinary:               addedToBinary,
-			AddedFromBinary:             addedFromBinary,
-			AddedPureFns:                addedPureFns,
-			PureFnsDiagnostics:          pureFnDiags,
-			MarkerDiagnostics:           markerDiags,
+			AddedToBinary:                   addedToBinary,
+			AddedFromBinary:                 addedFromBinary,
+			AddedPureFns:                    addedPureFns,
+			Diagnostics:                     combinedDiagnostics,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
@@ -367,12 +368,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			response.FromBinaryCacheSource = rendered
 		}
 		if wantPureFns {
-			pureFnsRendered, pureFnsDiags, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)
+			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)
 			if pureFnsErr != nil {
 				return protocol.Response{Error: pureFnsErr.Error()}
 			}
 			response.PureFnsCacheSource = pureFnsRendered
-			response.PureFnsDiagnostics = pureFnsDiags
+			response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
 		}
 		return response
 	case protocol.OpSetSources:
@@ -457,11 +458,11 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 // that drops one of its pure-fn calls still leaves the session entry
 // behind (matches the runTypes cache's structural-dedup contract;
 // the orphan is harmless until the next process restart).
-func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefns.Entry, diags []protocol.PureFnDiagnostic, replacements []protocol.Replacement, changed bool) {
+func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefns.Entry, diagnostics []diag.Diagnostic, replacements []protocol.Replacement, changed bool) {
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
-	entries, rawDiags := purefns.ExtractFromProgram(resolver.Program, files)
+	entries, diagnostics = purefns.ExtractFromProgram(resolver.Program, files)
 	for _, entry := range entries {
 		key := entry.Key()
 		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {
@@ -469,12 +470,8 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 			changed = true
 		}
 	}
-	diags = make([]protocol.PureFnDiagnostic, 0, len(rawDiags))
-	for _, diag := range rawDiags {
-		diags = append(diags, toWireDiagnostic(diag))
-	}
 	replacements = purefns.Replacements(entries)
-	return entries, diags, replacements, changed
+	return entries, diagnostics, replacements, changed
 }
 
 // wantsCache reports whether a scanFiles caller asked for `kind` — either

@@ -122,8 +122,7 @@ export interface ScanFilesResult {
   toBinaryCacheSource?: string;
   fromBinaryCacheSource?: string;
   pureFnsCacheSource?: string;
-  pureFnsDiagnostics?: import('./protocol.ts').PureFnDiagnostic[];
-  markerDiagnostics?: import('./protocol.ts').MarkerDiagnostic[];
+  diagnostics?: import('./protocol.ts').Diagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
   addedRunTypes?: boolean;
   addedIsType?: boolean;
@@ -198,8 +197,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       toBinaryCacheSource: resp.toBinaryCacheSource,
       fromBinaryCacheSource: resp.fromBinaryCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
-      pureFnsDiagnostics: resp.pureFnsDiagnostics,
-      markerDiagnostics: resp.markerDiagnostics,
+      diagnostics: resp.diagnostics,
       addedRunTypes: resp.addedRunTypes,
       addedIsType: resp.addedIsType,
       addedTypeErrors: resp.addedTypeErrors,

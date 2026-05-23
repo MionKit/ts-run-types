@@ -3,6 +3,7 @@ package purefns
 import (
 	"fmt"
 
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -88,11 +89,11 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 // idx is mutated in-place when lazy expansion adds entries — the
 // caller can keep using it afterwards (e.g. to inspect the now-larger
 // scanned-files set).
-func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup SourceFileLookup) []Diagnostic {
+func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup SourceFileLookup) []diag.Diagnostic {
 	if idx == nil {
 		return nil
 	}
-	var diagnostics []Diagnostic
+	var diagnostics []diag.Diagnostic
 	seenMisses := make(map[string]bool, len(deps))
 	for _, dep := range deps {
 		key := dep.Namespace + "::" + dep.FunctionName
@@ -120,15 +121,15 @@ func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup So
 			message += fmt.Sprintf(" (expected registerPureFnFactory(%q, %q, ...) in %s)",
 				dep.Namespace, dep.FunctionName, dep.FilePath)
 		}
-		diagnostics = append(diagnostics, Diagnostic{
-			Code:     CodeMissingPureFnDep,
-			Category: "error",
-			Message:  message,
-			// No DiagnosticSite — the dep was collected from a JIT
-			// walk, not a TS source position. Future enhancement: have
-			// the jit walker thread the source position of the
-			// utl.getPureFn(...) call through to here.
-		})
+		// No Site — the dep was collected from a JIT walk, not a TS
+		// source position. Future enhancement: have the jit walker
+		// thread the source position of the utl.getPureFn(...) call
+		// through to here.
+		diagnostics = append(diagnostics, diag.New(
+			diag.CodeMissingPureFnDep,
+			diag.Site{},
+			message,
+		))
 	}
 	return diagnostics
 }
