@@ -187,14 +187,46 @@ func (FromBinaryEmitter) Finalize(raw string) (string, bool) {
 }
 
 func emitLiteralFromBinary(rt *protocol.RunType, ret, des string) JitCode {
-	_ = rt
-	_ = ret
 	_ = des
-	// noLiterals isn't surfaced on protocol RunType yet — literal value
-	// is restored from the type definition at consumer code level, so
-	// the decode is a noop (matches mion's binary/fromBinary.ts when
-	// !opts.noLiterals).
-	return JitCode{Code: "", Type: CodeS}
+	// Mion's binary/fromBinary.ts treats literals as compile-time noops
+	// because the JIT body that REFERENCES the literal already has the
+	// value statically. For us, the JIT body is shared across consumers
+	// and the decoded value must be a usable object — so we restore the
+	// literal value at the accessor. Encoder writes no bytes (the
+	// discriminator from the surrounding union arm is the only signal);
+	// decoder assigns the literal value.
+	flagSet := make(map[string]bool, len(rt.Flags))
+	for _, flag := range rt.Flags {
+		flagSet[flag] = true
+	}
+	literal := rt.Literal
+	if flagSet["bigint"] {
+		decimal, ok := literal.(string)
+		if !ok {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		return JitCode{Code: ret + " = " + decimal + "n", Type: CodeS}
+	}
+	if flagSet["symbol"] {
+		entry, ok := literal.(map[string]any)
+		if !ok {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		name, _ := entry["symbol"].(string)
+		return JitCode{Code: ret + " = Symbol(" + quoteJS(name) + ")", Type: CodeS}
+	}
+	if entry, isMap := literal.(map[string]any); isMap {
+		if regexpEntry, isRegexp := entry["regexp"].(map[string]any); isRegexp {
+			source, _ := regexpEntry["source"].(string)
+			regFlags, _ := regexpEntry["flags"].(string)
+			return JitCode{Code: ret + " = new RegExp(" + quoteJS(source) + ", " + quoteJS(regFlags) + ")", Type: CodeS}
+		}
+	}
+	lit, err := jsLiteralFromAny(literal)
+	if err != nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return JitCode{Code: ret + " = " + lit, Type: CodeS}
 }
 
 func emitArrayFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string) JitCode {
