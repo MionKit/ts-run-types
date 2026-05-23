@@ -399,18 +399,20 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 	return JitCode{Code: body, Type: CodeS}
 }
 
-// emitUnionUnknownKeysToUndefined — uku at a union node is a no-op for
-// the SHARED factory. uku is composed by the safe decoder
-// (createJitFunctions.ts:341) as `restore(uku(JSON.parse(s)))`, where
-// the input is wire-shape `[-1, mergedObject]` or `[idx, value]` — a
-// 2-element array, not a raw object. Running a merged-allowlist strip
-// on the wrapper would clear the `0`/`1` indices and break restore.
-// The decoder-internal ukuWire family handles the wire shape via its
-// own wireFormat=true emit; the public createUnknownKeysToUndefined
-// API also routes here, accepting that union-shape inputs are a no-op
-// at runtime (matches the legacy behaviour pre-refactor).
+// emitUnionUnknownKeysToUndefined — public uku family's union arm.
+// Operates on runtime-shape input (raw object the user passed to
+// createUnknownKeysToUndefined or to the mutate+strip encoder
+// composition); walks the merged-allowlist via the shared helper.
+//
+// Safe to run the merged-allowlist strip directly on the user value
+// now that the decoder's safe pipeline uses ukuWire (which handles
+// the wire-format wrapper-peel separately) — uku no longer sees
+// wire-shape arrays.
 func emitUnionUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	_ = rt
-	_ = ctx
-	return JitCode{Code: "", Type: CodeS}
+	return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
+		Snippet: func(_ *EmitContext, accessor, keyVar string) string {
+			return accessor + "[" + keyVar + "] = undefined"
+		},
+		CodeShape: CodeS,
+	})
 }

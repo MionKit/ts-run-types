@@ -13,6 +13,7 @@ export const CACHE_MODULES = {
   isType: {name: 'isTypeModule', varPrefix: 'g_it_', tag: 'it'},
   prepareForJson: {name: 'prepareForJsonModule', varPrefix: 'g_pj_', tag: 'pj'},
   prepareForJsonSafe: {name: 'prepareForJsonSafeModule', varPrefix: 'g_pjs_', tag: 'pjs'},
+  prepareForJsonSafePreserve: {name: 'prepareForJsonSafePreserveModule', varPrefix: 'g_pjsp_', tag: 'pjsp'},
   pureFns: {name: 'pureFnsModule', varPrefix: '', tag: ''},
   restoreFromJson: {name: 'restoreFromJsonModule', varPrefix: 'g_rj_', tag: 'rj'},
   runTypes: {name: 'runTypesModule', varPrefix: 't_', tag: 't'},
@@ -36,6 +37,9 @@ export const PREPAREFORJSON_TAG = 'pj';
 export const PREPAREFORJSONSAFE_VAR_PREFIX = 'g_pjs_';
 export const PREPAREFORJSONSAFE_MODULE_NAME = 'prepareForJsonSafeModule';
 export const PREPAREFORJSONSAFE_TAG = 'pjs';
+export const PREPAREFORJSONSAFEPRESERVE_VAR_PREFIX = 'g_pjsp_';
+export const PREPAREFORJSONSAFEPRESERVE_MODULE_NAME = 'prepareForJsonSafePreserveModule';
+export const PREPAREFORJSONSAFEPRESERVE_TAG = 'pjsp';
 export const PUREFNS_VAR_PREFIX = '';
 export const PUREFNS_MODULE_NAME = 'pureFnsModule';
 export const PUREFNS_TAG = '';

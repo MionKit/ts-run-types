@@ -36,6 +36,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		addedRestoreFromJson := addedRunTypes && jitfn.AnyRestoreFromJsonSupported(added)
 		addedStringifyJson := addedRunTypes && jitfn.AnyStringifyJsonSupported(added)
 		addedPrepareForJsonSafe := addedRunTypes && jitfn.AnyPrepareForJsonSafeSupported(added)
+		addedPrepareForJsonSafePreserve := addedRunTypes && jitfn.AnyPrepareForJsonSafePreserveSupported(added)
 		addedHasUnknownKeys := addedRunTypes && jitfn.AnyHasUnknownKeysSupported(added)
 		addedStripUnknownKeys := addedRunTypes && jitfn.AnyStripUnknownKeysSupported(added)
 		addedUnknownKeyErrors := addedRunTypes && jitfn.AnyUnknownKeyErrorsSupported(added)
@@ -58,7 +59,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			AddedPrepareForJson:         addedPrepareForJson,
 			AddedRestoreFromJson:        addedRestoreFromJson,
 			AddedStringifyJson:          addedStringifyJson,
-			AddedPrepareForJsonSafe:     addedPrepareForJsonSafe,
+			AddedPrepareForJsonSafe:         addedPrepareForJsonSafe,
+			AddedPrepareForJsonSafePreserve: addedPrepareForJsonSafePreserve,
 			AddedHasUnknownKeys:         addedHasUnknownKeys,
 			AddedStripUnknownKeys:       addedStripUnknownKeys,
 			AddedUnknownKeyErrors:       addedUnknownKeyErrors,
@@ -75,6 +77,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantRestoreFromJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantStringifyJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
 		wantPrepareForJsonSafe := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafe)
+		wantPrepareForJsonSafePreserve := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafePreserve)
 		wantHasUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
 		wantStripUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
 		wantUnknownKeyErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
@@ -82,7 +85,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantUnknownKeysToUndefinedWire := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson ||
-			wantStringifyJson || wantPrepareForJsonSafe ||
+			wantStringifyJson || wantPrepareForJsonSafe || wantPrepareForJsonSafePreserve ||
 			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors ||
 			wantUnknownKeysToUndefined || wantUnknownKeysToUndefinedWire || wantPureFns
 		if request.IncludeRunTypes || anyCache {
@@ -138,6 +141,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: err.Error()}
 				}
 				response.PrepareForJsonSafeCacheSource = rendered
+			}
+			if wantPrepareForJsonSafePreserve {
+				rendered, err := renderPrepareForJsonSafePreserveModule(scoped)
+				if err != nil {
+					return protocol.Response{Error: err.Error()}
+				}
+				response.PrepareForJsonSafePreserveCacheSource = rendered
 			}
 			if wantHasUnknownKeys {
 				hukRendered, hukErr := renderHasUnknownKeysModule(scoped)
@@ -218,6 +228,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantRestoreFromJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantStringifyJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
 		wantPrepareForJsonSafe := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafe)
+		wantPrepareForJsonSafePreserve := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafePreserve)
 		wantHasUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
 		wantStripUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
 		wantUnknownKeyErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
@@ -272,6 +283,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.PrepareForJsonSafeCacheSource = rendered
+		}
+		if wantPrepareForJsonSafePreserve {
+			rendered, err := renderPrepareForJsonSafePreserveModule(fullDump)
+			if err != nil {
+				return protocol.Response{Error: err.Error()}
+			}
+			response.PrepareForJsonSafePreserveCacheSource = rendered
 		}
 		if wantHasUnknownKeys {
 			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump)

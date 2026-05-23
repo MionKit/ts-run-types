@@ -62,6 +62,11 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_pjs_",
 		Tag:       "pjs",
 	},
+	"prepareForJsonSafePreserve": {
+		Name:      "prepareForJsonSafePreserveModule",
+		VarPrefix: "g_pjsp_",
+		Tag:       "pjsp",
+	},
 	"hasUnknownKeys": {
 		Name:      "hasUnknownKeysModule",
 		VarPrefix: "g_huk_",

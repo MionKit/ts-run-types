@@ -251,15 +251,15 @@ describe('union types — strip/has/keyErrors', () => {
     expect(paths).toEqual(['evil', 'stranger']);
   });
 
-  it('unknownKeysToUndefined is a no-op on unions (decoder uses ukuWire instead)', () => {
-    // Public uku is intentionally a no-op on union nodes — the same factory
-    // is consumed by the safe decoder pipeline where the input is wire-shape.
-    // The decoder uses ukuWire to handle the wire wrapper; the public API
-    // documents this limitation.
+  it('unknownKeysToUndefined sets undeclared union keys to undefined', () => {
+    // Public uku now does the merged-allowlist strip on raw objects.
+    // Safe because the decoder pipeline switched to ukuWire (which
+    // handles the wire-format wrapper-peel separately) — uku no
+    // longer sees wire-shape arrays.
     const uku = createUnknownKeysToUndefined<Disjoint>();
     const v: Record<string, unknown> = {a: 'x', evil: 'e'};
     uku(v);
-    expect(v).toEqual({a: 'x', evil: 'e'});
+    expect(v).toEqual({a: 'x', evil: undefined});
   });
 
   it('discriminated-union: loose semantic — non-discriminated keys survive', () => {
