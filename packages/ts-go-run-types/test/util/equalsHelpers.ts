@@ -26,7 +26,16 @@
  *  elements compare cleanly. Symbols are reduced to a tagged
  *  description object so two distinct `Symbol(x)` values compare equal
  *  via toEqual (round-trip through JSON destroys symbol identity by
- *  design — only the description survives). **/
+ *  design — only the description survives).
+ *
+ *  Function-valued properties are stripped from BOTH sides before
+ *  comparison. Functions are intrinsically non-JSON-encodable
+ *  (`JSON.stringify(fn) === undefined` at root; functions inside
+ *  objects are silently dropped). Comparing against the original
+ *  unmutated reference would always fail for sample shapes like
+ *  `{name: 'x', cb: () => null}` — the round-trip leaves the function
+ *  out, the reference still has it. Stripping it on both sides gives
+ *  the honest "did the non-function shape survive?" comparison. **/
 export function normalizeForComparison(actual: any, expected: any): {actual: any; expected: any} {
   // Handle symbols — different Symbol instances with the same description
   // are NOT equal under Vitest's toEqual. Round-tripping a symbol through
@@ -52,10 +61,13 @@ export function normalizeForComparison(actual: any, expected: any): {actual: any
     }
     return {actual: resultActual, expected: resultExpected};
   }
-  // Handle nested objects.
+  // Handle nested objects. Function-valued keys (from either side) are
+  // filtered out — functions can't JSON-serialize and serializer emits
+  // already skip them, so the only way to compare honestly is to drop
+  // them on the reference side too.
   if (actual && expected && typeof actual === 'object' && typeof expected === 'object') {
-    const actualKeys = Object.keys(actual);
-    const expectedKeys = Object.keys(expected);
+    const actualKeys = Object.keys(actual).filter((k) => typeof actual[k] !== 'function');
+    const expectedKeys = Object.keys(expected).filter((k) => typeof expected[k] !== 'function');
     const allKeys = [...new Set([...actualKeys, ...expectedKeys])];
     const resultActual: any = {};
     const resultExpected: any = {};
