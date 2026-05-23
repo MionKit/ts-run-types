@@ -11,7 +11,7 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
-  // Marker type alias name. Defaults to "RuntypeId".
+  // Marker type alias name. Defaults to "InjectRuntypeId".
   markerName?: string;
   // Package the marker is declared in. Defaults to "@mionjs/ts-go-run-types".
   // Files that don't import the marker module are short-circuited.

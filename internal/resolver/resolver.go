@@ -33,7 +33,7 @@ type Options struct {
 	LiteralHashLength int
 	// Marker selects which type alias the scanner treats as the
 	// transformer's id-injection sentinel. Zero values default to
-	// `RuntypeId` from `@mionjs/ts-go-run-types`.
+	// `InjectRuntypeId` from `@mionjs/ts-go-run-types`.
 	Marker marker.Options
 	// Cwd is the working directory used when SetSources builds an inferred
 	// Program. Required for server-mode resolvers; ignored when a Program

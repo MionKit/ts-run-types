@@ -96,7 +96,7 @@ func TestScanFile_F17_StaticGetRuntypeId(t *testing.T) {
 		},
 		[]string{
 			"getRuntypeId<T>()",     // 17e — free type parameter inside body
-			"maskedWrapper('noop')", // 17f — non-@mionjs/ts-go-run-types RuntypeId
+			"maskedWrapper('noop')", // 17f — non-@mionjs/ts-go-run-types InjectRuntypeId
 		},
 	)
 }
@@ -116,16 +116,16 @@ func TestScanFile_F17b_ReflectRuntypeId(t *testing.T) {
 		},
 		[]string{
 			"reflectRuntypeId<T>(val)", // 17be — free type parameter inside body
-			"maskedWrapper('noop')",    // 17bf — non-@mionjs/ts-go-run-types RuntypeId
+			"maskedWrapper('noop')",    // 17bf — non-@mionjs/ts-go-run-types InjectRuntypeId
 		},
 	)
 }
 
 // TestScanFile_F18_ExplicitId_Static asserts the scanner skips calls whose
-// trailing `RuntypeId<T>` slot is already filled by an explicit caller-
+// trailing `InjectRuntypeId<T>` slot is already filled by an explicit caller-
 // supplied argument in the static form.
 func TestScanFile_F18_ExplicitId_Static(t *testing.T) {
-	const code = `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
 
 // 18a — caller passes an explicit string literal at the id slot. The
 // scanner must NOT emit a site here — rewriting would append a stray
@@ -136,7 +136,7 @@ getRuntypeId<{id: number; name: string}>('manualHash');
 getRuntypeId<string>('manualHash');
 
 // 18c — user-defined wrapper, caller already supplies the id.
-function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -155,7 +155,7 @@ isType<{flag: boolean}>(true, 'manualHash');
 
 // TestScanFile_F18_ExplicitId_Reflect is the reflection-form sibling.
 func TestScanFile_F18_ExplicitId_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
 
 // 18ba — direct reflect call with an explicit literal in the id slot.
 const u = {id: 1, name: 'm'} as {id: number; name: string};
@@ -166,7 +166,7 @@ const s: string = 'hello';
 reflectRuntypeId(s, 'manualHash');
 
 // 18bc — user-defined wrapper, caller already supplies the id.
-function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -186,13 +186,13 @@ isType<{flag: boolean}>(true, 'manualHash');
 // TestScanFile_Idempotent_Static: re-running scanFiles on a static-form
 // source must add zero new types and report the same site count.
 func TestScanFile_Idempotent_Static(t *testing.T) {
-	const code = `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
 
 getRuntypeId<{id: number; name: string}>();
 
 getRuntypeId<string>();
 
-function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -203,7 +203,7 @@ isType<{flag: boolean}>(true);
 
 // TestScanFile_Idempotent_Reflect is the reflection-form sibling.
 func TestScanFile_Idempotent_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
 
 const u = {id: 1, name: 'm'} as {id: number; name: string};
 reflectRuntypeId(u);
@@ -211,7 +211,7 @@ reflectRuntypeId(u);
 const s: string = 'hello';
 reflectRuntypeId(s);
 
-function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }

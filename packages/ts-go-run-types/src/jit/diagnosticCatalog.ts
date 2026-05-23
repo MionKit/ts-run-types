@@ -162,7 +162,7 @@ Fix — inline the marker at each concrete call site:
   }
 
 Fix — accept a pre-computed id from the caller:
-  function makeChecker<T>(id: RuntypeId<T>) {
+  function makeChecker<T>(id: InjectRuntypeId<T>) {
     return createIsType<T>(id);
   }
   const isUser = makeChecker<User>(getRuntypeId<User>());`,

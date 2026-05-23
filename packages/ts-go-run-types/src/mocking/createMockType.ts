@@ -13,7 +13,7 @@
 // dispatch and `./mockTypes.ts` for the option surface.
 
 import {getJitUtils} from '../jit/jitUtils.ts';
-import type {RuntypeId} from '../index.ts';
+import type {InjectRuntypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
@@ -29,7 +29,7 @@ import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './m
 export function createMockType<T>(
   val?: T,
   options?: RunTypeMockOptions,
-  id?: RuntypeId<T>
+  id?: InjectRuntypeId<T>
 ): MockTypeFn<T> {
   void val;
   if (id === undefined) {
