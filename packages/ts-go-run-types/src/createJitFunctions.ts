@@ -236,7 +236,6 @@ function lookupJitFn<F extends AnyFn>(callerName: string, prefix: string, id: st
 const identityValueFn = (v: unknown) => v;
 const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
 const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
-const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 
 export const createIsType = createJitFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
   val?: T,
@@ -250,11 +249,11 @@ export const createGetTypeErrors = createJitFunction<GetTypeErrorsFn>(
   getTypeErrorsIdentity
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => GetTypeErrorsFn;
 
-export const createHasUnknownKeys = createJitFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>
-) => HasUnknownKeysFn;
+export const createHasUnknownKeys = createJitFunction<HasUnknownKeysFn>(
+  'createHasUnknownKeys',
+  'huk',
+  () => false
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => HasUnknownKeysFn;
 
 export const createStripUnknownKeys = createJitFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',

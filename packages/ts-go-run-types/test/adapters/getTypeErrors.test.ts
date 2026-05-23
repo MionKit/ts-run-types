@@ -83,7 +83,8 @@ describe('getTypeErrors / ATOMIC', () => {
   it('Enum with mixed numeric and string members', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.enum_mixed));
   it('Numeric literal type (strict equality)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_2));
   it('String literal type (case-sensitive)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_a));
-  it('RegExp literal type (matched by source plus flags)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_regexp_simple));
+  it('RegExp literal type (matched by source plus flags)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_regexp_simple));
   it('RegExp literal with regex-metacharacters in the source', () =>
     assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_regexp_escaped));
   it('Boolean literal type (only true)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_true));
@@ -102,13 +103,16 @@ describe('getTypeErrors / ATOMIC', () => {
   it('Unknown type — every value passes', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.unknown));
 
   // noLiterals variants — literal types degrade to their base kind.
-  it('Numeric literal with noLiterals (degrades to number)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
-  it('String literal with noLiterals (degrades to string)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
+  it('Numeric literal with noLiterals (degrades to number)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
+  it('String literal with noLiterals (degrades to string)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
   it('RegExp literal with noLiterals (degrades to RegExp)', () =>
     assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_regexp_noLiterals));
   it('Boolean literal with noLiterals (degrades to boolean)', () =>
     assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_true_noLiterals));
-  it('BigInt literal with noLiterals (degrades to bigint)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
+  it('BigInt literal with noLiterals (degrades to bigint)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
   it('Symbol literal with noLiterals (degrades to symbol)', () =>
     assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_symbol_noLiterals));
 
@@ -136,11 +140,13 @@ describe('getTypeErrors / ARRAY', () => {
   it('Array of undefined values', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.undefined_array));
   it('Array of nulls', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.null_array));
   it('Generic Array<T> form (same emit as T[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.array_generic));
-  it('Two-dimensional string array (multi-level dependency call)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_2d));
+  it('Two-dimensional string array (multi-level dependency call)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_2d));
   it('Three-dimensional string array (depth stress)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_3d));
   it('Array with noIsArrayCheck (Array.isArray guard stripped)', () =>
     assertGetTypeErrors(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
-  it('Self-referential array (CircularArray = CircularArray[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_array));
+  it('Self-referential array (CircularArray = CircularArray[])', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_array));
   it('Array of symbols (non-serializable — always rejected)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.symbol_array));
   it('Array of unions (OR-chain per element)', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.union_array));
   it('Array of object literals', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.object_array));
@@ -180,9 +186,11 @@ describe('getTypeErrors / OBJECT', () => {
   it('Self-referential interface buried in a nested object', () =>
     assertGetTypeErrors(VALIDATION_SUITE.OBJECT.circular_interface_on_nested_object));
   it('Index signature with string values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_string));
-  it('Index signature combined with named properties', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_named_props));
+  it('Index signature combined with named properties', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_named_props));
   it('Nested index signatures (number leaf values)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_nested));
-  it('Nested index signatures with Date leaf values', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_date_value));
+  it('Nested index signatures with Date leaf values', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_date_value));
   it('Index signature on a nested (non-root) object property', () =>
     assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_non_root));
   it('Function type at top level (any function passes)', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.function_top_level));
@@ -196,9 +204,11 @@ describe('getTypeErrors / OBJECT', () => {
     assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params_with_optional));
   it('Parameters<F> tuple with a trailing rest segment', () =>
     assertGetTypeErrors(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
-  it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.record_union_keys));
+  it('Record<UnionKey, V> — resolves to a fixed-property shape', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.OBJECT.record_union_keys));
   it('Index signature with a union value type', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.union_value_index));
-  it('Object with a discriminated-union string property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_with_union_prop));
+  it('Object with a discriminated-union string property', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_with_union_prop));
   it('Interface that extends a parent interface', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_inheritance));
   it('Class that extends a parent class', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.class_inheritance));
   it('Index signature with a number key', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_number_key));
@@ -220,10 +230,13 @@ describe('getTypeErrors / TUPLE', () => {
   it('Tuple as array element (tuple inside array dependency call)', () =>
     assertGetTypeErrors(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
   it('Self-referential tuple via trailing optional self-ref', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_circular));
-  it('Tuple with a function slot (must be undefined)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
+  it('Tuple with a function slot (must be undefined)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
   it('Tuple with a trailing rest segment', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_rest));
-  it('Tuple with multiple trailing optional slots', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
-  it('Tuple with named element labels (labels erased at runtime)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_named_labels));
+  it('Tuple with multiple trailing optional slots', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
+  it('Tuple with named element labels (labels erased at runtime)', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_named_labels));
   it('Empty tuple `[]` (only the empty array passes)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.empty_tuple));
   it('Single-element tuple `[T]`', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.single_element_tuple));
   it('Readonly tuple (readonly [T, U])', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.readonly_tuple));
@@ -239,8 +252,10 @@ describe('getTypeErrors / TEMPLATE_LITERAL', () => {
     ranTests++;
   });
 
-  it('Template literal URL with a number placeholder', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.url_with_number_id));
-  it('Template literal URL with multiple placeholders', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.multi_segment_url));
+  it('Template literal URL with a number placeholder', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.url_with_number_id));
+  it('Template literal URL with multiple placeholders', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.multi_segment_url));
   it('Template literal starting with a string placeholder', () =>
     assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.leading_string_placeholder));
   it('Template literal with regex metacharacters in literal segments', () =>
@@ -322,7 +337,8 @@ describe('getTypeErrors / UNION', () => {
   it('Union where one arm carries an index signature', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_with_index_arm));
   it('Discriminated union sharing one prop with arm-dependent type', () =>
     assertGetTypeErrors(VALIDATION_SUITE.UNION.union_same_prop_different_types));
-  it('Union mixing array types and object shapes', () => assertGetTypeErrors(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
+  it('Union mixing array types and object shapes', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
   it('Union of shapes sharing a prop with different value types', () =>
     assertGetTypeErrors(VALIDATION_SUITE.UNION.union_merged_property));
   it('Union mixing arrays, plain objects, and index-signature shapes', () =>
@@ -353,19 +369,25 @@ describe('getTypeErrors / UTILITY', () => {
   it('Omit<T, K> — drops the named properties', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit));
   it('Exclude<U, X> on a string-literal union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.exclude_atomic));
   it('Extract<U, X> on a string-literal union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.extract_atomic));
-  it('Exclude<U, X> on a discriminated object union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.exclude_from_object_union));
+  it('Exclude<U, X> on a discriminated object union', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UTILITY.exclude_from_object_union));
   it('NonNullable<T> — strips null and undefined from a union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.non_nullable));
   it('ReturnType<F> — extracts the return type of a function', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.return_type));
   it('Readonly<T> — readonly bit erased at runtime', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.readonly));
   it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () =>
     assertGetTypeErrors(VALIDATION_SUITE.UTILITY.intersection_with_required_override));
-  it('Omit<T, K> preserves optionality of remaining props', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
-  it('keyof T — resolves to a union of string-literal keys', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.keyof_to_literal_union));
-  it('typeof variable — type query on a runtime value', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.typeof_variable_query));
-  it('Indexed access type — Person["name"] resolves to string', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.indexed_access_type));
+  it('Omit<T, K> preserves optionality of remaining props', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
+  it('keyof T — resolves to a union of string-literal keys', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UTILITY.keyof_to_literal_union));
+  it('typeof variable — type query on a runtime value', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UTILITY.typeof_variable_query));
+  it('Indexed access type — Person["name"] resolves to string', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UTILITY.indexed_access_type));
   it('Conditional type — T extends string ? boolean : number', () =>
     assertGetTypeErrors(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
-  it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.mapped_type_custom));
+  it('Custom mapped type — {[K in keyof T]: T[K] | null}', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.UTILITY.mapped_type_custom));
   it('Mapped type whose value is a conditional — per-prop shape diverges', () =>
     assertGetTypeErrors(VALIDATION_SUITE.UTILITY.mapped_type_with_conditional_value));
   it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () =>
@@ -388,7 +410,8 @@ describe('getTypeErrors / TYPE_MAPPINGS', () => {
     assertGetTypeErrors(VALIDATION_SUITE.TYPE_MAPPINGS.key_prefix_rename));
   it('Conditional key rename — swap one key, leave the rest', () =>
     assertGetTypeErrors(VALIDATION_SUITE.TYPE_MAPPINGS.key_conditional_rename));
-  it('Filter keys via `never` — drop sensitive props', () => assertGetTypeErrors(VALIDATION_SUITE.TYPE_MAPPINGS.key_filter_via_never));
+  it('Filter keys via `never` — drop sensitive props', () =>
+    assertGetTypeErrors(VALIDATION_SUITE.TYPE_MAPPINGS.key_filter_via_never));
 
   it('all type-mappings getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TYPE_MAPPINGS).length);

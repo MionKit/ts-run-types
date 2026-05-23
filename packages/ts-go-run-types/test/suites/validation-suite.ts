@@ -45,13 +45,7 @@
 // variants are sibling `<key>_noLiterals` entries — the
 // createIsType option threading is in place end-to-end.
 
-import {
-  createIsType,
-  createGetTypeErrors,
-  type IsTypeFn,
-  type GetTypeErrorsFn,
-  type RunTypeError,
-} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, type IsTypeFn, type GetTypeErrorsFn, type RunTypeError} from '@mionjs/ts-go-run-types';
 import {deserializeIsType, deserializeGetTypeErrors} from '../util/deserializeJitFunctions.ts';
 
 /** One atomic-type case in the shared suite. */
