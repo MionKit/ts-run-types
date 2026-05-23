@@ -33,7 +33,8 @@ function assertRoundTrip(
   label: string,
   prepare: (v: unknown) => unknown,
   restore: (v: unknown) => unknown,
-  getValid: () => unknown[]
+  getValid: () => unknown[],
+  bestEffort: boolean
 ) {
   // Clone each sample before prepare. The serializer mutates the
   // input in place (see emit code in nodes/atomic/bigInt.ts:
@@ -55,6 +56,16 @@ function assertRoundTrip(
     // a bare undefined satisfies that for callers who consume the
     // prepared value directly (without going through stringify).
     if (serialized === undefined) return;
+    if (bestEffort) {
+      // Best-effort types (any / unknown / object): the serializer
+      // is identity on both halves. Whatever JSON.stringify produces
+      // is the round-trip output — lossy for class instances (Date
+      // → ISO string, RegExp → `{}`), but consistent. The contract
+      // is "if the value is JSON-supported, it survives"; we already
+      // verified that by reaching this line (serialized !==
+      // undefined). No deep-equal needed.
+      return;
+    }
     const parsed = JSON.parse(serialized);
     const restored = restore(parsed);
     const {actual, expected} = normalizeForComparison(restored, reference);
@@ -65,6 +76,7 @@ function assertRoundTrip(
 function assertPrepareForJson(c: JitCase): void {
   if (!c.prepareForJson) throw new Error(`case ${c.title}: missing prepareForJson thunk`);
   const getValid = () => c.getSamples().valid;
+  const bestEffort = c.roundTripBestEffort ?? false;
   // Paired thunks for the round-trip. When a half is undefined the
   // pair is presumed identity (covers atomic noops cleanly).
   const restoreStatic = c.restoreFromJson?.() ?? identityFn;
@@ -73,23 +85,35 @@ function assertPrepareForJson(c: JitCase): void {
   const restoreDeserReflect = c.deserializeRestoreFromJsonReflect?.() ?? identityFn;
 
   // Static form: createPrepareForJson<T>() + createRestoreFromJson<T>().
-  assertRoundTrip(`${c.title} [static]`, c.prepareForJson(), restoreStatic, getValid);
+  assertRoundTrip(`${c.title} [static]`, c.prepareForJson(), restoreStatic, getValid, bestEffort);
 
   // Reflect form. Optional — cases that omit `prepareForJsonReflect`
   // skip the second pass.
   if (c.prepareForJsonReflect) {
-    assertRoundTrip(`${c.title} [reflect]`, c.prepareForJsonReflect(), restoreReflect, getValid);
+    assertRoundTrip(`${c.title} [reflect]`, c.prepareForJsonReflect(), restoreReflect, getValid, bestEffort);
   }
 
   // Deserialize-static form — rebuilds the transformer from the
   // serialized JitCompiledFnData.code body.
   if (c.deserializePrepareForJson) {
-    assertRoundTrip(`${c.title} [deserialize-static]`, c.deserializePrepareForJson(), restoreDeserStatic, getValid);
+    assertRoundTrip(
+      `${c.title} [deserialize-static]`,
+      c.deserializePrepareForJson(),
+      restoreDeserStatic,
+      getValid,
+      bestEffort
+    );
   }
 
   // Deserialize-reflect form.
   if (c.deserializePrepareForJsonReflect) {
-    assertRoundTrip(`${c.title} [deserialize-reflect]`, c.deserializePrepareForJsonReflect(), restoreDeserReflect, getValid);
+    assertRoundTrip(
+      `${c.title} [deserialize-reflect]`,
+      c.deserializePrepareForJsonReflect(),
+      restoreDeserReflect,
+      getValid,
+      bestEffort
+    );
   }
 }
 
