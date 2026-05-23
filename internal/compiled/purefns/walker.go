@@ -4,7 +4,10 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/mionkit/ts-run-types/internal/comptimeargs"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/marker"
 )
 
 // Entry is the in-Go shape that mirrors TS-side `Entry`.
@@ -54,11 +57,20 @@ type SourceFileLookup interface {
 	SourceFile(absPath string) *ast.SourceFile
 }
 
-// ExtractFromProgram walks every file in `files`, finds
-// registerPureFnFactory(<ns>, <fnName>, <factory>) calls, and returns
-// (deduped entries, diagnostics). Diagnostics never block compilation —
-// they're surfaced via the Vite plugin's `this.warn` channel using the
-// canonical tsc-compatible format.
+// ExtractFromProgram walks every file in `files`, finds calls whose
+// resolved signature carries the registerPureFnFactory marker shape
+// (CompTimeArgs<string> × 2 + PureFunction<F> on slots 0, 1, 2), and
+// returns (deduped entries, diagnostics). Discovery is marker-driven —
+// the callee name is irrelevant; the contract lives on the parameter
+// brands.
+//
+// Diagnostics never block compilation — they're surfaced via the Vite
+// plugin's `this.warn` channel using the canonical tsc-compatible
+// format. Note: marker-shape diagnostics (non-literal namespace / fnId
+// / factory) are emitted by `resolver.scanCall` via CTA001 / PFN001,
+// NOT here. This pass emits only purefn-specific diagnostics:
+// PFE9004 (cross-file collision), PFE9005 (destructured factory
+// param), PFE9006-9011 (purity), PFE9012-9013 (deps).
 //
 // Dedup semantics (per plan):
 //
@@ -69,7 +81,7 @@ type SourceFileLookup interface {
 //
 // Order: entries sorted by Key (alphabetical); diagnostics sorted by Site
 // (filepath, line, col) — both deterministic for stable test fixtures.
-func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []diag.Diagnostic) {
+func ExtractFromProgram(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, files []string) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
 	var diagnostics []diag.Diagnostic
 	seen := map[string]int{} // key → index in entries (the winner)
@@ -79,7 +91,7 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []dia
 		if sourceFile == nil {
 			continue
 		}
-		fileEntries, fileDiags := extractFromSourceFile(sourceFile)
+		fileEntries, fileDiags := extractFromSourceFile(typeChecker, markerOpts, sourceFile)
 		diagnostics = append(diagnostics, fileDiags...)
 		for _, entry := range fileEntries {
 			if winnerIdx, dup := seen[entry.Key()]; dup {
@@ -120,8 +132,8 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []dia
 }
 
 // extractFromFile walks a single source file resolved from lookup and
-// returns its pure-fn entries + extractor-side diagnostics (PFE9001-
-// PFE9003 + PFE9005 + purity violations). Called both by
+// returns its pure-fn entries + extractor-side diagnostics (PFE9005 +
+// purity violations + dep diagnostics). Called both by
 // ExtractFromProgram in the main pass and by index lazy-expansion when
 // a recorded jit dep points at an unscanned file.
 //
@@ -129,24 +141,23 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []dia
 // caller folds entries into a shared map and surfaces collisions there.
 // A nil/missing source file yields (nil, nil); the caller decides
 // whether that is an error.
-func extractFromFile(lookup SourceFileLookup, filePath string) ([]Entry, []diag.Diagnostic) {
+func extractFromFile(typeChecker *checker.Checker, markerOpts marker.Options, lookup SourceFileLookup, filePath string) ([]Entry, []diag.Diagnostic) {
 	sourceFile := lookup.SourceFile(filePath)
 	if sourceFile == nil {
 		return nil, nil
 	}
-	return extractFromSourceFile(sourceFile)
+	return extractFromSourceFile(typeChecker, markerOpts, sourceFile)
 }
 
 // extractFromSourceFile is the per-file extraction core: build symbol
 // table, walk every CallExpression, dispatch to extractOne. Shared by
 // the lookup-driven helper above and the original ExtractFromProgram
 // loop body (which already holds a *SourceFile in hand).
-func extractFromSourceFile(sourceFile *ast.SourceFile) ([]Entry, []diag.Diagnostic) {
+func extractFromSourceFile(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
 	var diagnostics []diag.Diagnostic
-	table := buildSymbolTable(sourceFile)
 	findCalls(sourceFile, func(call *ast.Node) {
-		entry, diags := extractOne(sourceFile, table, call)
+		entry, diags := extractOne(typeChecker, markerOpts, sourceFile, call)
 		diagnostics = append(diagnostics, diags...)
 		if entry != nil {
 			entries = append(entries, *entry)
@@ -171,18 +182,57 @@ func findCalls(sourceFile *ast.SourceFile, cb func(*ast.Node)) {
 	sourceFile.AsNode().ForEachChild(visit)
 }
 
-// extractOne processes a single CallExpression. Returns (nil, diagnostics)
-// when the call isn't a registerPureFnFactory invocation, or when an arg
-// can't be resolved. The returned Entry carries internal-only fields
-// (sourceFile, callPos) that the caller uses for cross-file collision
-// reporting; these never reach the wire.
-func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (*Entry, []diag.Diagnostic) {
+// isPureFnFactoryCall reports whether call's resolved signature carries
+// the registerPureFnFactory marker shape: at least 3 parameters where
+// slots 0 and 1 are branded CompTimeArgs<string> and slot 2 is branded
+// PureFunction<F>. Discovery is signature-driven — the callee name is
+// not consulted. A call from a function whose signature lacks any of
+// these brands is silently a no-op (returns false).
+func isPureFnFactoryCall(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) bool {
+	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)
+	if signature == nil {
+		return false
+	}
+	parameters := checker.Signature_parameters(signature)
+	if len(parameters) < 3 {
+		return false
+	}
+	return paramHasMarker(typeChecker, markerOpts, parameters[0], marker.KindCompTimeArgs) &&
+		paramHasMarker(typeChecker, markerOpts, parameters[1], marker.KindCompTimeArgs) &&
+		paramHasMarker(typeChecker, markerOpts, parameters[2], marker.KindPureFunction)
+}
+
+// paramHasMarker reports whether the parameter's resolved type carries
+// the specified marker brand. Wraps marker.DetectAny with the kind
+// filter.
+func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, paramSymbol *ast.Symbol, want marker.Kind) bool {
+	if paramSymbol == nil {
+		return false
+	}
+	paramType := checker.Checker_getTypeOfSymbol(typeChecker, paramSymbol)
+	kind, _, matched := marker.DetectAny(typeChecker, paramType, markerOpts)
+	return matched && kind == want
+}
+
+// extractOne processes a single CallExpression. Returns (nil, nil)
+// when the call's signature doesn't carry the registerPureFnFactory
+// marker shape (CompTimeArgs<string> × 2 + PureFunction<F>), or when
+// any of the three args can't be resolved to its literal form.
+//
+// Marker-shape validation (non-literal namespace / fnId / factory) is
+// emitted as CTA001 / PFN001 by `resolver.scanCall` — this function
+// does NOT double-report. Only purefn-specific diagnostics are
+// emitted here (PFE9005, PFE9006-9011, PFE9012-9013).
+//
+// The returned Entry carries internal-only fields (sourceFile, callPos)
+// that the caller uses for cross-file collision reporting; these never
+// reach the wire.
+func extractOne(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, call *ast.Node) (*Entry, []diag.Diagnostic) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil {
 		return nil, nil
 	}
-	callee := callExpr.Expression
-	if callee == nil || callee.Kind != ast.KindIdentifier || callee.Text() != "registerPureFnFactory" {
+	if !isPureFnFactoryCall(typeChecker, markerOpts, call) {
 		return nil, nil
 	}
 	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) < 3 {
@@ -193,42 +243,21 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	// Vite plugin nulls out the inline factory once the original
 	// extraction has produced a cache entry. Re-scanning the
 	// rewritten source must be a quiet no-op: no entry, no
-	// replacement, no diagnostic. Detection is intentionally narrow
-	// — exactly `null` as the third arg.
+	// replacement, no diagnostic.
 	if args[2].Kind == ast.KindNullKeyword {
 		return nil, nil
 	}
 	var diags []diag.Diagnostic
 
-	nsLit, nsReason := resolveStringArg(table, args[0])
-	if nsLit == nil {
-		diags = append(diags, diag.New(
-			diag.CodeNamespaceNotLiteral,
-			siteFromNode(sourceFile, args[0]),
-			nsReason,
-		))
-	}
+	nsLit, nsResult := comptimeargs.ResolveLiteralString(typeChecker, args[0])
+	fnNameLit, fnNameResult := comptimeargs.ResolveLiteralString(typeChecker, args[1])
+	factoryFn, factoryResult := comptimeargs.CheckLiteralFunction(typeChecker, args[2])
 
-	fnNameLit, fnNameReason := resolveStringArg(table, args[1])
-	if fnNameLit == nil {
-		diags = append(diags, diag.New(
-			diag.CodeFunctionIDNotLiteral,
-			siteFromNode(sourceFile, args[1]),
-			fnNameReason,
-		))
-	}
-
-	factoryFn, factoryReason := resolveFactoryArg(table, args[2])
-	if factoryFn == nil {
-		diags = append(diags, diag.New(
-			diag.CodeFactoryNotInline,
-			siteFromNode(sourceFile, args[2]),
-			factoryReason,
-		))
-	}
-
-	if nsLit == nil || fnNameLit == nil || factoryFn == nil {
-		return nil, diags
+	// Marker layer (resolver.scanCall) emits CTA001 / PFN001 for these
+	// failures. Silently bail without an entry — duplicate diagnostics
+	// would be noise.
+	if !nsResult.Ok || !fnNameResult.Ok || !factoryResult.Ok {
+		return nil, nil
 	}
 
 	namespace := nsLit.Text()
@@ -263,7 +292,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	// `pure-functions.ts` rule. Emits PFE9006-PFE9011 diagnostics for
 	// this/await/yield, dynamic import, forbidden identifiers, and
 	// closure-variable references. Build never fails; the entry still
-	// emits even when violations exist (same posture as PFE9001/9003).
+	// emits even when violations exist (same posture as PFE9005).
 	diags = append(diags, checkPurity(sourceFile, factoryFn)...)
 
 	// Static dep extraction — walk the factory body for calls like
@@ -280,7 +309,7 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 			}
 		}
 	}
-	pureFnDependencies, depDiags := extractDeps(sourceFile, factoryFn, table, utlName)
+	pureFnDependencies, depDiags := extractDeps(typeChecker, markerOpts, sourceFile, factoryFn, utlName)
 	diags = append(diags, depDiags...)
 
 	var code string

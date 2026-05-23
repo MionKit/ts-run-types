@@ -8,6 +8,7 @@
 import {initCache as initPureFnsCache} from '../caches/pureFnsCache.ts';
 import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
 import {getJitUtils, pureFnKey} from './jitUtils.ts';
+import type {CompTimeArgs, PureFunction as PureFunctionMarker} from '../markers.ts';
 
 // Side-effect: the pureFns cache module's `initCache(jitUtils)`
 // registers every `CompiledPureFunction` entry (full record:
@@ -18,17 +19,6 @@ import {getJitUtils, pureFnKey} from './jitUtils.ts';
 // Vite plugin to pass `null` as the factory argument.
 initPureFnsCache(getJitUtils());
 
-// ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║  WARNING: the Go binary's AST walker keys its pure-fn cache on the           ║
-// ║  string-literal arguments at arg-0 (namespace) and arg-1 (functionID), and   ║
-// ║  extracts {paramNames, code, bodyHash, pureFnDependencies} from the inline   ║
-// ║  factory at arg-2 — then rewrites the factory argument to `null` in the      ║
-// ║  user's source. Do NOT rename this function, change parameter order, or      ║
-// ║  replace the factory with a non-traceable reference — the extractor emits    ║
-// ║  a PFE9xxx diagnostic (shown in the editor's Problems panel) when it can't   ║
-// ║  resolve any arg to a local literal/function.                                ║
-// ╚══════════════════════════════════════════════════════════════════════════════╝
-
 /**
  * Looks up the `CompiledPureFunction` the Go binary registered for
  * (namespace, functionID) via the pureFns cache module. The build-step
@@ -36,14 +26,23 @@ initPureFnsCache(getJitUtils());
  * is the only side-effect at runtime; the factory body lives in the
  * cache module, not in this file.
  *
+ * The contract is encoded in the parameter brands rather than the
+ * function name: `namespace` + `functionID` must be string literals
+ * at the call site (or module-scope `const`-of-literal — see
+ * `CompTimeArgs`); `createPureFn` must be an inline arrow/function
+ * expression that passes the purity rules (see `PureFunction`). The Go
+ * scanner discovers calls via these brands, so renaming the function
+ * or shuffling parameter order does NOT break extraction — the
+ * marker types are the source of truth.
+ *
  * Pass a non-null factory to override `createPureFn` at runtime — used
  * by tests and dev-tools that hot-replace a pure function without
  * rebuilding the cache module. Production code passes `null`.
  */
 export function registerPureFnFactory(
-  namespace: string,
-  functionID: string,
-  createPureFn: PureFunctionFactory | null
+  namespace: CompTimeArgs<string>,
+  functionID: CompTimeArgs<string>,
+  createPureFn: PureFunctionMarker<PureFunctionFactory> | null
 ): CompiledPureFunction {
   const key = pureFnKey(namespace, functionID);
   const existing = getJitUtils().getCompiledPureFn(key);

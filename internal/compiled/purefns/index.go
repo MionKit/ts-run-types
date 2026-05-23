@@ -1,7 +1,9 @@
 package purefns
 
 import (
+	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -87,7 +89,7 @@ func (idx *Index) merge(entries []Entry, filePath string) {
 // idx is mutated in-place when lazy expansion adds entries — the
 // caller can keep using it afterwards (e.g. to inspect the now-larger
 // scanned-files set).
-func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup SourceFileLookup) []diag.Diagnostic {
+func ValidatePureFnDependencies(typeChecker *checker.Checker, markerOpts marker.Options, deps []protocol.PureFnDep, idx *Index, lookup SourceFileLookup) []diag.Diagnostic {
 	if idx == nil {
 		return nil
 	}
@@ -101,7 +103,7 @@ func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup So
 		// Maybe the dep references a file the main scan didn't cover.
 		// Parse it once, merge, then re-check.
 		if dep.FilePath != "" && !idx.Scanned(dep.FilePath) && lookup != nil {
-			entries, _ := extractFromFile(lookup, dep.FilePath)
+			entries, _ := extractFromFile(typeChecker, markerOpts, lookup, dep.FilePath)
 			idx.merge(entries, dep.FilePath)
 			if _, found := idx.Get(key); found {
 				continue

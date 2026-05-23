@@ -128,13 +128,44 @@ func checkLiteralFunctionRecursive(typeChecker *checker.Checker, node *ast.Node,
 	case ast.KindArrowFunction, ast.KindFunctionExpression:
 		return unwrapped, Result{Ok: true}
 	case ast.KindIdentifier:
+		// Identifier may resolve to a `const f = (…) => {…}` binding OR
+		// to a top-level `function f() {…}` declaration. Both are
+		// acceptable as "literal function definitions" from the marker's
+		// perspective — the function body is statically extractable in
+		// either form.
+		if fnDecl, ok := resolveFunctionDeclaration(typeChecker, unwrapped); ok {
+			return fnDecl, Result{Ok: true}
+		}
 		initializer, ok := resolveConstInitializer(typeChecker, unwrapped)
 		if !ok {
-			return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "identifier not a same-module `const` binding", FailingNode: unwrapped}
+			return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "identifier not a same-module `const` binding or `function` declaration", FailingNode: unwrapped}
 		}
 		return checkLiteralFunctionRecursive(typeChecker, initializer, depth+1)
 	}
 	return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "not an inline arrow or function expression", FailingNode: unwrapped}
+}
+
+// resolveFunctionDeclaration returns the top-level function declaration
+// the identifier resolves to, or (nil, false) when the symbol either
+// doesn't resolve or doesn't point at a function declaration. Mirrors
+// resolveConstInitializer's symbol-walk but matches FunctionDeclaration
+// instead of VariableDeclaration; the declaration node IS the function
+// literal, so callers treat it the same way as an arrow / function
+// expression at the leaf.
+func resolveFunctionDeclaration(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
+	if typeChecker == nil || identifier == nil {
+		return nil, false
+	}
+	symbol := typeChecker.GetSymbolAtLocation(identifier)
+	if symbol == nil {
+		return nil, false
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration != nil && declaration.Kind == ast.KindFunctionDeclaration {
+			return declaration, true
+		}
+	}
+	return nil, false
 }
 
 // ResolveLiteralString is the string-typed analogue of CheckLiteralFunction.

@@ -11,11 +11,8 @@ type (
 )
 
 const (
-	CodeNamespaceNotLiteral  = diag.CodeNamespaceNotLiteral
-	CodeFunctionIDNotLiteral = diag.CodeFunctionIDNotLiteral
-	CodeFactoryNotInline     = diag.CodeFactoryNotInline
-	CodeBodyHashCollision    = diag.CodeBodyHashCollision
-	CodeDestructuredParam    = diag.CodeDestructuredParam
+	CodeBodyHashCollision = diag.CodeBodyHashCollision
+	CodeDestructuredParam = diag.CodeDestructuredParam
 
 	CodePurityThis          = diag.CodePurityThis
 	CodePurityAwait         = diag.CodePurityAwait

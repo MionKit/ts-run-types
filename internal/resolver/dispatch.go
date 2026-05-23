@@ -216,7 +216,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				response.FromBinaryCacheSource = rendered
 			}
 			if wantPureFns {
-				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.Program, pureFnEntries, true)
+				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, pureFnEntries, true)
 				if pureFnsErr != nil {
 					return protocol.Response{Error: pureFnsErr.Error()}
 				}
@@ -383,7 +383,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			response.FromBinaryCacheSource = rendered
 		}
 		if wantPureFns {
-			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)
+			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, nil, false)
 			if pureFnsErr != nil {
 				return protocol.Response{Error: pureFnsErr.Error()}
 			}
@@ -478,7 +478,7 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
-	entries, diagnostics = purefns.ExtractFromProgram(resolver.Program, files)
+	entries, diagnostics = purefns.ExtractFromProgram(resolver.checker, resolver.marker, resolver.Program, files)
 	for _, entry := range entries {
 		key := entry.Key()
 		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {
