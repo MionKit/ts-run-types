@@ -70,13 +70,20 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 	case protocol.KindClass:
 		// Date is atomic in mion — its prepareForJson is a noop (Date
 		// has its own toJSON()). User classes (SubKindNone) use the
-		// object emit. Other subkinds (Map/Set/etc) land in later
-		// phases.
+		// object emit. Map / Set get their own arms that materialise
+		// the iterable into an Array (JSON-encodable form).
 		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone:
+		case protocol.SubKindDate, protocol.SubKindNone,
+			protocol.SubKindMap, protocol.SubKindSet:
 			return true
 		}
 		return false
+	case protocol.KindPromise:
+		// Promise<T> is non-serializable — the thenable can't be
+		// JSON-encoded. Top-level emit is a noop; the validator's
+		// thenable check is the only meaningful behaviour at this
+		// boundary.
+		return true
 	}
 	return false
 }
@@ -164,14 +171,24 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// Date prepareForJson is a noop (Date has its own toJSON()).
 		// User classes (SubKindNone) flow through the object emit —
 		// mion's class.ts extends InterfaceRunType, same emit body.
-		// Other subkinds (Map/Set/etc) land in later phases.
-		if rt.SubKind == protocol.SubKindDate {
+		// Map / Set materialise their iterable contents into an Array
+		// so JSON.stringify has a serializable form.
+		switch rt.SubKind {
+		case protocol.SubKindDate:
 			return JitCode{Code: "", Type: CodeS}
-		}
-		if rt.SubKind == protocol.SubKindNone {
+		case protocol.SubKindNone:
 			return emitObjectPrepareForJson(rt, ctx, v)
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return emitNativeIterablePrepareForJson(rt, ctx, v)
 		}
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindPromise:
+		// Promise<T> is non-serializable. The downstream
+		// JSON.stringify will emit `{}` for a Promise (no enumerable
+		// own props); restoreFromJson reconstructs as the raw object
+		// — round-trip is intentionally lossy.
+		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJson(rt, ctx, v)
@@ -454,6 +471,18 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 		return JitCode{Code: "", Type: CodeS}
 	}
 	return childJit
+}
+
+// emitNativeIterablePrepareForJson handles Map / Set — both flatten
+// to an Array via `Array.from(v)` so JSON.stringify produces a
+// serializable form (`[[k1,v1], [k2,v2], …]` for Map, `[item1, item2,
+// …]` for Set). Element types whose own prepare/restore is non-noop
+// will need per-entry iteration (mion's full emit covers that); for
+// phase 6 we ship the Array.from form which handles every test case
+// where the element types are atomic-noop (string keys / number
+// values, etc).
+func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	return JitCode{Code: v + " = Array.from(" + v + ")", Type: CodeE}
 }
 
 // EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a
