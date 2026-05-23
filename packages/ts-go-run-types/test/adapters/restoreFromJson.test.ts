@@ -134,3 +134,47 @@ describe('restoreFromJson / ARRAY', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.ARRAY).length);
   });
 });
+
+describe('restoreFromJson / OBJECT', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Simple interface with string and number props', () => assertRestoreFromJson(JIT_SUITE.OBJECT.simple_interface));
+  it('Object pinned with `as const` (readonly literal props)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.object_as_const_literals));
+  it('Object inferred via ReturnType<typeof factory>', () => assertRestoreFromJson(JIT_SUITE.OBJECT.object_via_return_type_utility));
+  it('Object inferred via property access on a parent shape', () => assertRestoreFromJson(JIT_SUITE.OBJECT.object_via_property_access));
+  it('Object inferred via array element access', () => assertRestoreFromJson(JIT_SUITE.OBJECT.object_via_array_access));
+  it('Interface with one optional property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_with_optional));
+  it('Interface with a Date property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_with_date));
+  it('Interface with a method (function prop skipped from check)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_with_method));
+  it('Interface with a nested object property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.nested_object));
+  it('Interface with a string-array property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_string_array_prop));
+  it('Self-referential interface (linked-list shape)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.circular_interface));
+  it('Self-referential interface via an array-of-self property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.circular_interface_on_array));
+  it('Self-referential interface buried in a nested object', () => assertRestoreFromJson(JIT_SUITE.OBJECT.circular_interface_on_nested_object));
+  it('Index signature with string values', () => assertRestoreFromJson(JIT_SUITE.OBJECT.index_signature_string));
+  it('Index signature combined with named properties', () => assertRestoreFromJson(JIT_SUITE.OBJECT.index_signature_named_props));
+  it('Nested index signatures (number leaf values)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.index_signature_nested));
+  it('Nested index signatures with Date leaf values', () => assertRestoreFromJson(JIT_SUITE.OBJECT.index_signature_date_value));
+  it('Index signature on a nested (non-root) object property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.index_signature_non_root));
+  it('Function type at top level (any function passes)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.function_top_level));
+  it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertRestoreFromJson(JIT_SUITE.OBJECT.record_union_keys));
+  it('Index signature with a union value type', () => assertRestoreFromJson(JIT_SUITE.OBJECT.union_value_index));
+  it('Object with a discriminated-union string property', () => assertRestoreFromJson(JIT_SUITE.OBJECT.object_with_union_prop));
+  it('Interface that extends a parent interface', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_inheritance));
+  it('Class that extends a parent class', () => assertRestoreFromJson(JIT_SUITE.OBJECT.class_inheritance));
+  it('Index signature with a number key', () => assertRestoreFromJson(JIT_SUITE.OBJECT.index_signature_number_key));
+  it('Interface with every property optional (plain-object guard)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_all_optional));
+  it('Callable interface (function plus data properties)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.interface_callable));
+  it('Class with two atomic props (instance or plain match)', () => assertRestoreFromJson(JIT_SUITE.OBJECT.class_simple));
+  it('RpcError-shaped class with branded discriminator', () => assertRestoreFromJson(JIT_SUITE.OBJECT.rpc_error_class));
+  it('Function parameters extracted via Parameters<F>', () => assertRestoreFromJson(JIT_SUITE.OBJECT.call_signature_params));
+  it('Parameters<F> tuple with a trailing optional argument', () => assertRestoreFromJson(JIT_SUITE.OBJECT.call_signature_params_with_optional));
+  it('Parameters<F> tuple with a trailing rest segment', () => assertRestoreFromJson(JIT_SUITE.OBJECT.call_signature_params_with_rest));
+
+  it('all object restoreFromJson tests ran', () => {
+    expect(ranTests).toBe(Object.keys(JIT_SUITE.OBJECT).length);
+  });
+});
