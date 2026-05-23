@@ -226,3 +226,19 @@ describe('prepareForJson / TUPLE', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.TUPLE).length);
   });
 });
+
+describe('prepareForJson / NATIVE', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Map with string keys and number values', () => assertPrepareForJson(JIT_SUITE.NATIVE.map_string_number));
+  it('Set of strings', () => assertPrepareForJson(JIT_SUITE.NATIVE.set_string));
+  it('Promise — thenable check, wrapped type not validated', () => assertPrepareForJson(JIT_SUITE.NATIVE.promise_string));
+  it('Awaited<Promise<T>> — resolves to the wrapped type', () => assertPrepareForJson(JIT_SUITE.NATIVE.awaited_promise));
+
+  it('all native prepareForJson tests ran', () => {
+    expect(ranTests).toBe(Object.keys(JIT_SUITE.NATIVE).length);
+  });
+});
