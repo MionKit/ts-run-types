@@ -46,7 +46,7 @@ func (TypeErrorsEmitter) Args() []ArgSpec {
 // Supports mirrors IsTypeEmitter.Supports — every kind the isType
 // emitter handles should have a typeErrors arm too. The set grows
 // kind-by-kind as the implementation phases roll out; current scope
-// is atomic + array.
+// is atomic + array + object/member + class (non-Date).
 func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {
 		return false
@@ -64,10 +64,28 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		// Gate on a non-nil child — a malformed RunType with Kind=KindArray
 		// and Child=nil would reach Emit and panic.
 		return rt.Child != nil
+	case protocol.KindObjectLiteral:
+		return true
 	case protocol.KindClass:
-		// Date is the only class kind in the atomic phase. Other
-		// classes (non-Date), Map, Set land in later phases.
-		return rt.SubKind == protocol.SubKindDate
+		// Date, non-Date class instances (treated as interface),
+		// and Map / Set / Promise variants. Other classes (NonSerializable)
+		// land in later phases (Map/Set in phase 6).
+		switch rt.SubKind {
+		case protocol.SubKindDate, protocol.SubKindNone:
+			return true
+		}
+		return false
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return true
+	case protocol.KindIndexSignature:
+		return true
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// Function-flavoured kinds emit `typeof v === 'function'` at
+		// top level (same as mion's nodes/function/function.ts). As
+		// children of an object they're skipped via the function-
+		// property-dropped rule in emitObjectTypeErrors.
+		return true
 	}
 	return false
 }
@@ -240,8 +258,32 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 				Type: CodeS,
 			}
 		}
-		// Other class kinds land in later phases.
+		if rt.SubKind == protocol.SubKindNone {
+			// Non-Date user classes — same emit as KindObjectLiteral
+			// per mion's class.ts (extends InterfaceRunType).
+			return emitObjectTypeErrors(rt, ctx, v)
+		}
+		// Map / Set / NonSerializable land in later phases.
 		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindObjectLiteral:
+		return emitObjectTypeErrors(rt, ctx, v)
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return emitPropertyTypeErrors(rt, ctx, v)
+
+	case protocol.KindIndexSignature:
+		return emitIndexSignatureTypeErrors(rt, ctx, v)
+
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// mion:nodes/function/function.ts:emitTypeErrors — `typeof v
+		// === 'function'`. Children (params, return) aren't validated
+		// here; treat the whole shape as opaque-callable.
+		return JitCode{
+			Code: "if (typeof " + v + " !== 'function') " + callJitErr(ctx, jitTypeNameForKind(rt.Kind), ""),
+			Type: CodeS,
+		}
 
 	case protocol.KindArray:
 		// mion:nodes/member/array.ts:emitTypeErrors. Allocates a loop
@@ -398,4 +440,212 @@ func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
 		Code: "if (!(" + isTypeExpr.Code + ")) " + callJitErr(ctx, "literal", ""),
 		Type: CodeS,
 	}
+}
+
+// emitObjectTypeErrors mirrors mion's
+// nodes/collection/interface.ts:emitTypeErrors. Builds the canonical
+// object-shape statement: a `typeof === 'object' && !== null` guard
+// (or `typeof === 'function'` for callable interfaces) that emits an
+// error on mismatch, otherwise runs each child's emitTypeErrors
+// statement.
+//
+// Children are filtered the same way mion's getJitChildren filters
+// (matching emitObjectIsType in istype.go): static + method-shaped
+// kinds dropped; PropertySignature wrapping a function-typed value
+// also dropped via its own empty emit.
+func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	// Detect a CallSignature child for the callable-interface case.
+	var callSigChild *protocol.RunType
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.Kind == protocol.KindCallSignature {
+			callSigChild = child
+			break
+		}
+	}
+
+	// Compile per-child error-accumulation code, filtering the same
+	// way emitObjectIsType does.
+	var childrenParts []string
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			// Method / MethodSignature / CallSignature on the shape —
+			// skip from the children body (callable case is handled by
+			// the typeof === 'function' guard below).
+			continue
+		}
+		childJit := ctx.CompileChild(child, CodeS)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			continue
+		}
+		childrenParts = append(childrenParts, childJit.Code)
+	}
+	childrenCode := strings.Join(childrenParts, ";")
+
+	var objectCheck string
+	if callSigChild != nil {
+		objectCheck = "typeof " + v + " === 'function'"
+	} else {
+		objectCheck = "typeof " + v + " === 'object' && " + v + " !== null"
+	}
+
+	expected := "objectLiteral"
+	if rt.Kind == protocol.KindClass {
+		expected = "class"
+	}
+	if callSigChild != nil {
+		expected = "function"
+	}
+
+	if childrenCode == "" {
+		// No contributing children — emit only the shape guard.
+		return JitCode{
+			Code: "if (!(" + objectCheck + ")) " + callJitErr(ctx, expected, ""),
+			Type: CodeS,
+		}
+	}
+	return JitCode{
+		Code: "if (!(" + objectCheck + ")) {" + callJitErr(ctx, expected, "") + "} else {" + childrenCode + "}",
+		Type: CodeS,
+	}
+}
+
+// emitPropertyTypeErrors handles KindProperty / KindPropertySignature.
+// Sets the child accessor + child path literal (the property name as a
+// JS string literal) before recursing, then wraps the child code in
+// an optional guard if the property is optional. Mirrors mion's
+// nodes/member/property.ts:emitTypeErrors.
+func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		// PropertySignature wrapping a function — skipped from the
+		// parent's children chain (mion's getJitChild → undefined).
+		return JitCode{Code: "", Type: CodeS}
+	}
+	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
+	ctx.SetChildAccessor(accessor)
+	ctx.SetChildPathLiteral(quoteJS(rt.Name))
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	ctx.SetChildPathLiteral("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if rt.Optional {
+		return JitCode{
+			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+			Type: CodeS,
+		}
+	}
+	return childJit
+}
+
+// emitIndexSignatureTypeErrors handles KindIndexSignature. Loops
+// `for (const k in v)` and runs each value's typeErrors with the key
+// var as the path segment. Template-literal key constraints emit a
+// per-key regex.test that records a 'never' error for keys that don't
+// match the pattern. Mirrors mion's
+// nodes/member/indexProperty.ts:emitTypeErrors.
+func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	// Template-literal key regex (`{[k: `api/${string}`]: T}`) lifted
+	// into the closure prologue, same shape as the isType emit.
+	keyRegexVar := ""
+	if rt.Index != nil {
+		indexResolved := ctx.ResolveRef(rt.Index)
+		if indexResolved != nil && indexResolved.Kind == protocol.KindTemplateLiteral {
+			if regex, ok := buildTemplateLiteralRegex(indexResolved); ok {
+				keyRegexVar = ctx.NextLocalVar("reIdx")
+				if !ctx.HasContextItem(keyRegexVar) {
+					ctx.SetContextItem(keyRegexVar, "const "+keyRegexVar+" = new RegExp("+quoteJSDouble(regex)+")")
+				}
+			}
+		}
+	}
+	keyVar := ctx.NextLocalVar("k")
+	ctx.SetChildAccessor(v + "[" + keyVar + "]")
+	ctx.SetChildPathLiteral(keyVar)
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	ctx.SetChildPathLiteral("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" && keyRegexVar == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	var body strings.Builder
+	body.WriteString("for (const ")
+	body.WriteString(keyVar)
+	body.WriteString(" in ")
+	body.WriteString(v)
+	body.WriteString(") {")
+	if keyRegexVar != "" {
+		// Template-literal key failure → 'never' error at path
+		// [..., keyVar]. Mirrors mion's callJitErrWithPath('never', keyVar).
+		body.WriteString("if (!")
+		body.WriteString(keyRegexVar)
+		body.WriteString(".test(")
+		body.WriteString(keyVar)
+		body.WriteString(")) ")
+		body.WriteString(callJitErr(ctx, "never", ""))
+		body.WriteString("; else ")
+	}
+	if childJit.Code != "" {
+		body.WriteString("{")
+		body.WriteString(childJit.Code)
+		body.WriteString("}")
+	}
+	body.WriteString("}")
+	return JitCode{Code: body.String(), Type: CodeS}
+}
+
+// jitTypeNameForKind returns the kindname mion uses for the
+// `expected` field on a RunTypeError record. Mirrors module.go's
+// jitTypeName function but for the no-RunType callers — function-
+// flavoured kinds map to their concrete name (function / method /
+// methodSignature / callSignature).
+func jitTypeNameForKind(kind protocol.ReflectionKind) string {
+	switch kind {
+	case protocol.KindFunction:
+		return "function"
+	case protocol.KindMethod:
+		return "method"
+	case protocol.KindMethodSignature:
+		return "methodSignature"
+	case protocol.KindCallSignature:
+		return "callSignature"
+	}
+	return ""
 }
