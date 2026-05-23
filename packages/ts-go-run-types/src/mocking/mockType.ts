@@ -45,11 +45,7 @@ import {stringCharSet} from './constants.mock.ts';
  *  the probability / length decay helper, then dispatches to the
  *  per-kind switch. The stack is popped via `finally` so a throw in a
  *  nested case can't leave the stack imbalanced. **/
-export function mockRunType(
-  runType: RunType,
-  options: RunTypeMockOptions,
-  stack: RunType[] = []
-): unknown {
+export function mockRunType(runType: RunType, options: RunTypeMockOptions, stack: RunType[] = []): unknown {
   stack.push(runType);
   try {
     const baseMockOpts = options.mock as MockOptions;
@@ -80,10 +76,7 @@ function countOccurrences(stack: RunType[], target: RunType): number {
  *  copy of `options` with a new `mock` slot — the inner pools
  *  (anyValuesList, regexpList, …) are shared by reference, which is
  *  fine because they're read-only. **/
-function decayOptionsForNesting(
-  options: RunTypeMockOptions,
-  nestLevel: number
-): RunTypeMockOptions {
+function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number): RunTypeMockOptions {
   const mOps = options.mock as MockOptions;
   const maxDepth = mOps.maxMockRecursion;
   const divisor = nestLevel;
@@ -127,10 +120,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.unknown:
       return mockAny(mOps.anyValuesList);
     case RunTypeKind.string:
-      return mockString(
-        mOps.stringLength ?? random(1, mOps.maxRandomStringLength),
-        mOps.stringCharSet || stringCharSet
-      );
+      return mockString(mOps.stringLength ?? random(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
     case RunTypeKind.number:
       return mockNumber(mOps.minNumber, mOps.maxNumber);
     case RunTypeKind.boolean:
@@ -238,9 +228,8 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (!child) return undefined;
       const name = runType.name as string | number | undefined;
       const perPropProb = mOps.optionalPropertyProbability;
-      const probability = (perPropProb && name !== undefined && perPropProb[name] !== undefined)
-        ? perPropProb[name]
-        : mOps.optionalProbability;
+      const probability =
+        perPropProb && name !== undefined && perPropProb[name] !== undefined ? perPropProb[name] : mOps.optionalProbability;
       if (probability < 0 || probability > 1) {
         throw new Error('optionalProbability must be between 0 and 1');
       }

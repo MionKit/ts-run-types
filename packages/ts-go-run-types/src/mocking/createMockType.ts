@@ -26,11 +26,7 @@ import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './m
  *  The `id` parameter is injected by `vite-plugin-runtypes` at build
  *  time (same marker convention as `createIsType` and friends). Calls
  *  outside the plugin's pipeline throw immediately. **/
-export function createMockType<T>(
-  val?: T,
-  options?: RunTypeMockOptions,
-  id?: InjectRuntypeId<T>
-): MockTypeFn<T> {
+export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRuntypeId<T>): MockTypeFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(

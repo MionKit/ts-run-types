@@ -56,10 +56,7 @@ export function mockRegExp(list: RegExp[] = mockRegExpsList): RegExp {
 
 /** Random date in `[minDate, maxDate]` (inclusive). Either bound may be
  *  a `Date` or a numeric timestamp. **/
-export function mockDate(
-  minDate: Date | number = new Date(0),
-  maxDate: Date | number = new Date()
-): Date {
+export function mockDate(minDate: Date | number = new Date(0), maxDate: Date | number = new Date()): Date {
   const min = typeof minDate === 'number' ? minDate : minDate.getTime();
   const max = typeof maxDate === 'number' ? maxDate : maxDate.getTime();
   if (min > max) throw new Error('minDate cannot be greater than maxDate');

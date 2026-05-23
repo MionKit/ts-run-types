@@ -165,10 +165,7 @@ export interface CreateSerializerOptions {
 /** Creates a DataView-based serializer. `cacheKey` is used both for
  *  diagnostics and as the size-history bucket — typically the runtype
  *  hash for ts-go-run-types callers, but any stable string works. **/
-export function createDataViewSerializer(
-  cacheKey: string,
-  options?: CreateSerializerOptions | number
-): DataViewSerializer {
+export function createDataViewSerializer(cacheKey: string, options?: CreateSerializerOptions | number): DataViewSerializer {
   // Number overload preserved for back-compat with mion-style callers
   // that pass an explicit size as the second positional arg.
   const explicitSize = typeof options === 'number' ? options : options?.size;
@@ -273,7 +270,10 @@ class DataViewSerializerImpl implements DataViewSerializer {
       // small. We need the explicit read-length check to surface the
       // failure as a RangeError — otherwise callers persist a corrupted
       // length prefix and round-trips silently lose data.
-      if (read < str.length) throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`);
+      if (read < str.length)
+        throw new RangeError(
+          `DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`
+        );
       const written = result.written ?? 0;
       this.view.setUint32(this.index, written, LE);
       this.index += 4 + written;
@@ -281,7 +281,10 @@ class DataViewSerializerImpl implements DataViewSerializer {
     }
     const cached = opts.stringBytesCache.get(str);
     if (cached) {
-      if (this.index + 4 + cached.length > this.buffer.byteLength) throw new RangeError(`DataViewSerializer: buffer too small for cached string (need ${4 + cached.length} bytes, have ${this.buffer.byteLength - this.index}). Call resize() and retry.`);
+      if (this.index + 4 + cached.length > this.buffer.byteLength)
+        throw new RangeError(
+          `DataViewSerializer: buffer too small for cached string (need ${4 + cached.length} bytes, have ${this.buffer.byteLength - this.index}). Call resize() and retry.`
+        );
       this.uint8View.set(cached, this.index + 4);
       this.view.setUint32(this.index, cached.length, LE);
       this.index += 4 + cached.length;
@@ -293,7 +296,10 @@ class DataViewSerializerImpl implements DataViewSerializer {
     const targetView = this.uint8View.subarray(this.index + 4);
     const result = textEncoder.encodeInto(str, targetView);
     const read = result.read ?? 0;
-    if (read < str.length) throw new RangeError(`DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`);
+    if (read < str.length)
+      throw new RangeError(
+        `DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`
+      );
     const written = result.written ?? 0;
     this.view.setUint32(this.index, written, LE);
     this.index += 4 + written;

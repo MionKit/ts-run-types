@@ -100,16 +100,13 @@ describe('mockType / ATOMIC', () => {
 
   it('Unknown type — every value passes', () => assertMockType(VALIDATION_SUITE.ATOMIC.unknown));
 
-  it('Numeric literal with noLiterals (degrades to number)', () =>
-    assertMockType(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
-  it('String literal with noLiterals (degrades to string)', () =>
-    assertMockType(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
+  it('Numeric literal with noLiterals (degrades to number)', () => assertMockType(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
+  it('String literal with noLiterals (degrades to string)', () => assertMockType(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
   it('RegExp literal with noLiterals (degrades to RegExp)', () =>
     assertMockType(VALIDATION_SUITE.ATOMIC.literal_regexp_noLiterals));
   it('Boolean literal with noLiterals (degrades to boolean)', () =>
     assertMockType(VALIDATION_SUITE.ATOMIC.literal_true_noLiterals));
-  it('BigInt literal with noLiterals (degrades to bigint)', () =>
-    assertMockType(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
+  it('BigInt literal with noLiterals (degrades to bigint)', () => assertMockType(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
   it('Symbol literal with noLiterals (degrades to symbol)', () =>
     assertMockType(VALIDATION_SUITE.ATOMIC.literal_symbol_noLiterals));
 
@@ -128,8 +125,7 @@ describe('mockType / ARRAY', () => {
   });
 
   it('Array of strings', () => assertMockType(VALIDATION_SUITE.ARRAY.string_array));
-  it('Array of numbers (rejects Infinity / NaN per element)', () =>
-    assertMockType(VALIDATION_SUITE.ARRAY.number_array));
+  it('Array of numbers (rejects Infinity / NaN per element)', () => assertMockType(VALIDATION_SUITE.ARRAY.number_array));
   it('Array of booleans', () => assertMockType(VALIDATION_SUITE.ARRAY.boolean_array));
   it('Array of bigints', () => assertMockType(VALIDATION_SUITE.ARRAY.bigint_array));
   it('Array of Dates (rejects Invalid Date per element)', () => assertMockType(VALIDATION_SUITE.ARRAY.date_array));
@@ -137,8 +133,7 @@ describe('mockType / ARRAY', () => {
   it('Array of undefined values', () => assertMockType(VALIDATION_SUITE.ARRAY.undefined_array));
   it('Array of nulls', () => assertMockType(VALIDATION_SUITE.ARRAY.null_array));
   it('Generic Array<T> form (same emit as T[])', () => assertMockType(VALIDATION_SUITE.ARRAY.array_generic));
-  it('Two-dimensional string array (multi-level dependency call)', () =>
-    assertMockType(VALIDATION_SUITE.ARRAY.string_array_2d));
+  it('Two-dimensional string array (multi-level dependency call)', () => assertMockType(VALIDATION_SUITE.ARRAY.string_array_2d));
   it('Three-dimensional string array (depth stress)', () => assertMockType(VALIDATION_SUITE.ARRAY.string_array_3d));
   it('Array with noIsArrayCheck (Array.isArray guard stripped)', () =>
     assertMockType(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
@@ -147,14 +142,11 @@ describe('mockType / ARRAY', () => {
   it('Array of unions (OR-chain per element)', () => assertMockType(VALIDATION_SUITE.ARRAY.union_array));
   it('Array of tuples', () => assertMockType(VALIDATION_SUITE.ARRAY.tuple_array));
 
-  it('Self-referential array (CircularArray = CircularArray[])', () =>
-    assertMockType(VALIDATION_SUITE.ARRAY.circular_array));
+  it('Self-referential array (CircularArray = CircularArray[])', () => assertMockType(VALIDATION_SUITE.ARRAY.circular_array));
   it('Recursive object whose cycle closes via an array property', () =>
     assertMockType(VALIDATION_SUITE.ARRAY.circular_object_with_array));
-  it('Array of symbols (non-serializable — always rejected)', () =>
-    assertMockType(VALIDATION_SUITE.ARRAY.symbol_array));
-  it('Readonly array (ReadonlyArray<T> / readonly T[])', () =>
-    assertMockType(VALIDATION_SUITE.ARRAY.readonly_string_array));
+  it('Array of symbols (non-serializable — always rejected)', () => assertMockType(VALIDATION_SUITE.ARRAY.symbol_array));
+  it('Readonly array (ReadonlyArray<T> / readonly T[])', () => assertMockType(VALIDATION_SUITE.ARRAY.readonly_string_array));
 
   it('all array mockType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.ARRAY).length);
@@ -174,36 +166,29 @@ describe('mockType / OBJECT', () => {
     assertMockType(VALIDATION_SUITE.OBJECT.object_via_return_type_utility));
   it('Object inferred via property access on a parent shape', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.object_via_property_access));
-  it('Object inferred via array element access', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.object_via_array_access));
+  it('Object inferred via array element access', () => assertMockType(VALIDATION_SUITE.OBJECT.object_via_array_access));
   it('Interface with one optional property', () => assertMockType(VALIDATION_SUITE.OBJECT.interface_with_optional));
   it('Interface with a Date property', () => assertMockType(VALIDATION_SUITE.OBJECT.interface_with_date));
   it('Interface with a method (function prop skipped from check)', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.interface_with_method));
   it('Interface with a nested object property', () => assertMockType(VALIDATION_SUITE.OBJECT.nested_object));
   it('Interface with a string-array property', () => assertMockType(VALIDATION_SUITE.OBJECT.interface_string_array_prop));
-  it('Self-referential interface (linked-list shape)', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.circular_interface));
+  it('Self-referential interface (linked-list shape)', () => assertMockType(VALIDATION_SUITE.OBJECT.circular_interface));
   it('Self-referential interface via an array-of-self property', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.circular_interface_on_array));
   it('Self-referential interface buried in a nested object', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.circular_interface_on_nested_object));
   it('Index signature with string values', () => assertMockType(VALIDATION_SUITE.OBJECT.index_signature_string));
-  it('Index signature combined with named properties', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.index_signature_named_props));
+  it('Index signature combined with named properties', () => assertMockType(VALIDATION_SUITE.OBJECT.index_signature_named_props));
   it('Nested index signatures (number leaf values)', () => assertMockType(VALIDATION_SUITE.OBJECT.index_signature_nested));
-  it('Nested index signatures with Date leaf values', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.index_signature_date_value));
+  it('Nested index signatures with Date leaf values', () => assertMockType(VALIDATION_SUITE.OBJECT.index_signature_date_value));
   it('Index signature on a nested (non-root) object property', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.index_signature_non_root));
-  it('Function type at top level (any function passes)', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.function_top_level));
+  it('Function type at top level (any function passes)', () => assertMockType(VALIDATION_SUITE.OBJECT.function_top_level));
 
-  it('Record<UnionKey, V> — resolves to a fixed-property shape', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.record_union_keys));
+  it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertMockType(VALIDATION_SUITE.OBJECT.record_union_keys));
   it('Index signature with a union value type', () => assertMockType(VALIDATION_SUITE.OBJECT.union_value_index));
-  it('Object with a discriminated-union string property', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.object_with_union_prop));
+  it('Object with a discriminated-union string property', () => assertMockType(VALIDATION_SUITE.OBJECT.object_with_union_prop));
   it('Interface that extends a parent interface', () => assertMockType(VALIDATION_SUITE.OBJECT.interface_inheritance));
   it('Class that extends a parent class', () => assertMockType(VALIDATION_SUITE.OBJECT.class_inheritance));
   it('Index signature with a number key', () => assertMockType(VALIDATION_SUITE.OBJECT.index_signature_number_key));
@@ -211,13 +196,11 @@ describe('mockType / OBJECT', () => {
   it('Interface with every property optional (plain-object guard)', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.interface_all_optional));
 
-  it('Callable interface (function plus data properties)', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.interface_callable));
+  it('Callable interface (function plus data properties)', () => assertMockType(VALIDATION_SUITE.OBJECT.interface_callable));
 
   it('Class with two atomic props (instance or plain match)', () => assertMockType(VALIDATION_SUITE.OBJECT.class_simple));
   it('RpcError-shaped class with branded discriminator', () => assertMockType(VALIDATION_SUITE.OBJECT.rpc_error_class));
-  it('Function parameters extracted via Parameters<F>', () =>
-    assertMockType(VALIDATION_SUITE.OBJECT.call_signature_params));
+  it('Function parameters extracted via Parameters<F>', () => assertMockType(VALIDATION_SUITE.OBJECT.call_signature_params));
   it('Parameters<F> tuple with a trailing optional argument', () =>
     assertMockType(VALIDATION_SUITE.OBJECT.call_signature_params_with_optional));
   it('Parameters<F> tuple with a trailing rest segment', () =>
@@ -240,10 +223,8 @@ describe('mockType / TUPLE', () => {
   it('Tuple as array element (tuple inside array dependency call)', () =>
     assertMockType(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
 
-  it('Self-referential tuple via trailing optional self-ref', () =>
-    assertMockType(VALIDATION_SUITE.TUPLE.tuple_circular));
-  it('Tuple with a function slot (must be undefined)', () =>
-    assertMockType(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
+  it('Self-referential tuple via trailing optional self-ref', () => assertMockType(VALIDATION_SUITE.TUPLE.tuple_circular));
+  it('Tuple with a function slot (must be undefined)', () => assertMockType(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
   it('Tuple with a trailing rest segment', () => assertMockType(VALIDATION_SUITE.TUPLE.tuple_rest));
   it('Tuple with multiple trailing optional slots', () =>
     assertMockType(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
@@ -282,8 +263,7 @@ describe('mockType / UNION', () => {
   it('Union where one arm carries an index signature', () => assertMockType(VALIDATION_SUITE.UNION.union_with_index_arm));
   it('Discriminated union sharing one prop with arm-dependent type', () =>
     assertMockType(VALIDATION_SUITE.UNION.union_same_prop_different_types));
-  it('Union mixing array types and object shapes', () =>
-    assertMockType(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
+  it('Union mixing array types and object shapes', () => assertMockType(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
   it('Union of shapes sharing a prop with different value types', () =>
     assertMockType(VALIDATION_SUITE.UNION.union_merged_property));
   it('Union mixing arrays, plain objects, and index-signature shapes', () =>
@@ -336,8 +316,7 @@ describe('mockType / NATIVE', () => {
 
   it('Map with string keys and number values', () => assertMockType(VALIDATION_SUITE.NATIVE.map_string_number));
   it('Set of strings', () => assertMockType(VALIDATION_SUITE.NATIVE.set_string));
-  it('Promise — thenable check, wrapped type not validated', () =>
-    assertMockType(VALIDATION_SUITE.NATIVE.promise_string));
+  it('Promise — thenable check, wrapped type not validated', () => assertMockType(VALIDATION_SUITE.NATIVE.promise_string));
   it('Awaited<Promise<T>> — resolves to the wrapped type', () => assertMockType(VALIDATION_SUITE.NATIVE.awaited_promise));
 
   it('all native mockType tests ran', () => {
@@ -383,26 +362,21 @@ describe('mockType / UTILITY', () => {
   it('Omit<T, K> — drops the named properties', () => assertMockType(VALIDATION_SUITE.UTILITY.omit));
   it('Exclude<U, X> on a string-literal union', () => assertMockType(VALIDATION_SUITE.UTILITY.exclude_atomic));
   it('Extract<U, X> on a string-literal union', () => assertMockType(VALIDATION_SUITE.UTILITY.extract_atomic));
-  it('Exclude<U, X> on a discriminated object union', () =>
-    assertMockType(VALIDATION_SUITE.UTILITY.exclude_from_object_union));
-  it('NonNullable<T> — strips null and undefined from a union', () =>
-    assertMockType(VALIDATION_SUITE.UTILITY.non_nullable));
+  it('Exclude<U, X> on a discriminated object union', () => assertMockType(VALIDATION_SUITE.UTILITY.exclude_from_object_union));
+  it('NonNullable<T> — strips null and undefined from a union', () => assertMockType(VALIDATION_SUITE.UTILITY.non_nullable));
   it('ReturnType<F> — extracts the return type of a function', () => assertMockType(VALIDATION_SUITE.UTILITY.return_type));
   it('Readonly<T> — readonly bit erased at runtime', () => assertMockType(VALIDATION_SUITE.UTILITY.readonly));
   it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () =>
     assertMockType(VALIDATION_SUITE.UTILITY.intersection_with_required_override));
-  it('Omit<T, K> preserves optionality of remaining props', () =>
-    assertMockType(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
+  it('Omit<T, K> preserves optionality of remaining props', () => assertMockType(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
   it('keyof T — resolves to a union of string-literal keys', () =>
     assertMockType(VALIDATION_SUITE.UTILITY.keyof_to_literal_union));
-  it('typeof variable — type query on a runtime value', () =>
-    assertMockType(VALIDATION_SUITE.UTILITY.typeof_variable_query));
+  it('typeof variable — type query on a runtime value', () => assertMockType(VALIDATION_SUITE.UTILITY.typeof_variable_query));
   it('Indexed access type — Person["name"] resolves to string', () =>
     assertMockType(VALIDATION_SUITE.UTILITY.indexed_access_type));
   it('Conditional type — T extends string ? boolean : number', () =>
     assertMockType(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
-  it('Custom mapped type — {[K in keyof T]: T[K] | null}', () =>
-    assertMockType(VALIDATION_SUITE.UTILITY.mapped_type_custom));
+  it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertMockType(VALIDATION_SUITE.UTILITY.mapped_type_custom));
   it('Mapped type whose value is a conditional — per-prop shape diverges', () =>
     assertMockType(VALIDATION_SUITE.UTILITY.mapped_type_with_conditional_value));
   it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () =>
@@ -425,8 +399,7 @@ describe('mockType / TYPE_MAPPINGS', () => {
     assertMockType(VALIDATION_SUITE.TYPE_MAPPINGS.key_prefix_rename));
   it('Conditional key rename — swap one key, leave the rest', () =>
     assertMockType(VALIDATION_SUITE.TYPE_MAPPINGS.key_conditional_rename));
-  it('Filter keys via `never` — drop sensitive props', () =>
-    assertMockType(VALIDATION_SUITE.TYPE_MAPPINGS.key_filter_via_never));
+  it('Filter keys via `never` — drop sensitive props', () => assertMockType(VALIDATION_SUITE.TYPE_MAPPINGS.key_filter_via_never));
 
   it('all type-mappings mockType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TYPE_MAPPINGS).length);

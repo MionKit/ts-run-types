@@ -89,8 +89,4 @@ export type MockTypeFn<T = unknown> = (options?: DeepPartial<RunTypeMockOptions>
 
 /** Recursive Partial — every object branch becomes optional in lockstep
  *  with mion's `DeepPartial`. Arrays and primitives stay as-is. **/
-export type DeepPartial<T> = T extends object
-  ? T extends ReadonlyArray<infer _>
-    ? T
-    : {[K in keyof T]?: DeepPartial<T[K]>}
-  : T;
+export type DeepPartial<T> = T extends object ? (T extends ReadonlyArray<infer _> ? T : {[K in keyof T]?: DeepPartial<T[K]>}) : T;
