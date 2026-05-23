@@ -72,6 +72,11 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_sjf_",
 		Tag:       "sjf",
 	},
+	"prepareForJsonSafe": {
+		Name:      "prepareForJsonSafeModule",
+		VarPrefix: "g_pjs_",
+		Tag:       "pjs",
+	},
 	"hasUnknownKeys": {
 		Name:      "hasUnknownKeysModule",
 		VarPrefix: "g_huk_",
