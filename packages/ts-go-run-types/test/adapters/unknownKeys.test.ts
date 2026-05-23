@@ -147,3 +147,43 @@ describe('nested unknown-keys cases', () => {
     expect(input).toEqual([{a: 'x'}, {a: 'y'}]);
   });
 });
+
+describe('index-signature & function-typed property cases', () => {
+  it('hasUnknownKeys returns false when the schema has an index signature (any key allowed)', () => {
+    const has = createHasUnknownKeys<{[key: string]: number}>();
+    expect(has({a: 1, b: 2, anyOther: 3})).toBe(false);
+  });
+
+  it('stripUnknownKeys is a passthrough when the schema has an index signature', () => {
+    const strip = createStripUnknownKeys<{[key: string]: number}>();
+    const input = {a: 1, b: 2, anyOther: 3};
+    strip(input);
+    expect(input).toEqual({a: 1, b: 2, anyOther: 3});
+  });
+
+  it('hasUnknownKeys reports unknown keys on a tuple inside an array', () => {
+    const has = createHasUnknownKeys<Array<[string, {a: number}]>>();
+    expect(
+      has([
+        ['x', {a: 1}],
+        ['y', {a: 2, extra: 1}],
+      ])
+    ).toBe(true);
+  });
+
+  it('unknownKeyErrors collects multiple errors when many unknown keys present', () => {
+    const validate = createUnknownKeyErrors<{a: string}>();
+    const errors = validate({a: 'x', extra1: 1, extra2: 2});
+    expect(errors).toHaveLength(2);
+    expect(errors.map((e) => e.path[0]).sort()).toEqual(['extra1', 'extra2']);
+    expect(errors.every((e) => e.expected === 'never')).toBe(true);
+  });
+
+  it('hasUnknownKeys default ignores the checkNonJitProps option for a JIT-only schema', () => {
+    // No function-typed children, so checkNonJitProps has no effect here —
+    // verifies the option threading doesn't break the basic case.
+    const has = createHasUnknownKeys<{a: string}>();
+    expect(has({a: 'x'}, {checkNonJitProps: true})).toBe(false);
+    expect(has({a: 'x', extra: 1}, {checkNonJitProps: true})).toBe(true);
+  });
+});
