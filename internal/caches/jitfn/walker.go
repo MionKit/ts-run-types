@@ -405,6 +405,19 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) JitCode 
 	}
 	shouldDepend := !w.Emitter.IsJitInlined(inlineCtx) && len(w.Stack) > 1
 	if shouldDepend {
+		// If the child kind isn't supported by this emitter, the
+		// renderer's outer loop won't emit a factory for it. Emitting
+		// a dependency call that references a non-existent factory
+		// would cascade-remove the parent at the dangling-dep stage.
+		// Treat unsupported non-inlined children as inline-noop
+		// (return empty code) so the parent's emit can compose
+		// around them — for serializer pairs, this matches the
+		// "skip the slot, let identity restore the original" semantic
+		// the JS-side createPrepareForJson fallback already uses for
+		// missing entries.
+		if !w.Emitter.Supports(rt) {
+			return JitCode{Code: "", Type: expectedCType}
+		}
 		// Namespaced childID — matches the factory registration key
 		// (the parent emit looks the child up via utl.getJIT(childID)
 		// and the JS-side cache stores entries under the namespaced

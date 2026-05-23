@@ -49,6 +49,10 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindIndexSignature:
 		return true
+	case protocol.KindTuple:
+		return true
+	case protocol.KindTupleMember:
+		return true
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
 		// Top-level function types: noop body (caller's responsibility).
@@ -159,6 +163,12 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 
 	case protocol.KindIndexSignature:
 		return emitIndexSignatureRestoreFromJson(rt, ctx, v)
+
+	case protocol.KindTuple:
+		return emitTupleRestoreFromJson(rt, ctx, v)
+
+	case protocol.KindTupleMember:
+		return emitTupleMemberRestoreFromJson(rt, ctx, v)
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
@@ -327,6 +337,80 @@ func emitIndexSignatureRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v
 	return JitCode{Code: body, Type: CodeS}
 }
 
+// emitTupleRestoreFromJson — sibling of emitTuplePrepareForJson.
+func emitTupleRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if len(rt.Children) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	var parts []string
+	for _, child := range rt.Children {
+		childJit := ctx.CompileChild(child, CodeS)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			parts = append(parts, childJit.Code)
+		}
+	}
+	if len(parts) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+}
+
+// emitTupleMemberRestoreFromJson — sibling of
+// emitTupleMemberPrepareForJson. The inverse-of-pad-with-null logic
+// restores `null` slots to `undefined` for optional members. Non-rest
+// non-optional members pass child code through.
+func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+		// Non-serializable element — set the slot to undefined on
+		// restore (matches mion's behaviour).
+		idxLit := positionStr(rt)
+		return JitCode{Code: v + "[" + idxLit + "] = undefined", Type: CodeS}
+	}
+	if isRestTupleMember(rt) {
+		iVar := ctx.NextLocalVar("i")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		childJit := ctx.CompileChild(rt.Child, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		return JitCode{Code: body, Type: CodeS}
+	}
+	idxLit := positionStr(rt)
+	accessor := v + "[" + idxLit + "]"
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeS)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if rt.Optional {
+		// Restore null sentinel back to undefined, then run the child
+		// transform only when the slot has a present (non-undefined)
+		// value.
+		optionalCode := "if (" + accessor + " === null) {" + accessor + " = undefined}"
+		if childJit.Code == "" {
+			return JitCode{Code: optionalCode, Type: CodeS}
+		}
+		return JitCode{Code: optionalCode + " else if (" + accessor + " !== undefined) {" + childJit.Code + "}", Type: CodeS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	return childJit
+}
+
 // EmitDependencyCall mirrors PrepareForJsonEmitter's — the parent
 // frame's `<vλl>` must capture the call's return so the
 // `v = new Date(v)` style rebind inside the inner function propagates
@@ -347,11 +431,13 @@ func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID s
 	return ctx.Vλl + " = " + call
 }
 
-// Finalize collapses empty / identity bodies to `return v` + noop flag.
+// Finalize — mirror of PrepareForJsonEmitter.Finalize. Always emits
+// an identity factory for noop entries so dep chains stay valid; see
+// the prepareForJson side for the full rationale.
 func (RestoreFromJsonEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
-	if code == "" || code == "return v" {
-		return "return v", true
+	if code == "" {
+		return "return v", false
 	}
 	return code, false
 }

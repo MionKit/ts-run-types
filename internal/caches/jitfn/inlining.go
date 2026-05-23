@@ -106,7 +106,19 @@ func DefaultIsJitInlined(ctx *InlineContext) bool {
 	if ctx.RT.Kind == protocol.KindObjectLiteral {
 		return false
 	}
-	if ctx.RT.Kind == protocol.KindClass && ctx.RT.SubKind != protocol.SubKindDate {
+	if ctx.RT.Kind == protocol.KindClass {
+		// Date is atomic in mion (extends AtomicRunType) — its emit is
+		// a single instanceof/`new Date(v)` expression with no child
+		// recursion, so inlining produces correct JS and avoids the
+		// dangling-dep cascade that would otherwise nuke any parent
+		// factory whose dep chain reaches a noop Date emit (e.g.
+		// prepareForJson<Date> is `{code: undefined, type: 'S'}` →
+		// no factory emitted → dep references a missing entry).
+		// Subkinds other than Date go through the named-collection
+		// (non-inlined) branch.
+		if ctx.RT.SubKind == protocol.SubKindDate {
+			return true
+		}
 		return false
 	}
 	if ctx.RT.Kind == protocol.KindTuple {
