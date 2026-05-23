@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 // normal console output and `--reporter=./scripts/runtypes-logs-reporter.mjs`
 // for the side-effect). The helpers in
 // packages/vite-plugin-runtypes/test/helpers/inline.ts attach
-// `task.meta.mionRuntypes = {title, sources, mode, responses}`; this
+// `task.meta.mionRunTypes = {title, sources, mode, responses}`; this
 // reporter walks the task tree on completion and emits one .ts file PER
 // CACHE per test under a three-level layout — bucketed by source test
 // file, then by test title, then split per cache kind:
@@ -32,10 +32,12 @@ const LOGS_DIR = path.join(REPO_ROOT, 'logs');
 const DTS_KEY = 'runtypes.d.ts';
 
 function slugify(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'unnamed';
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'unnamed'
+  );
 }
 
 function fileBasename(filePath) {
@@ -136,7 +138,7 @@ function collectCacheSources(response) {
   return out;
 }
 
-export default class RuntypesLogsReporter {
+export default class RunTypesLogsReporter {
   onInit() {
     fs.rmSync(LOGS_DIR, {recursive: true, force: true});
     fs.mkdirSync(LOGS_DIR, {recursive: true});
@@ -146,7 +148,7 @@ export default class RuntypesLogsReporter {
   onFinished(files) {
     let written = 0;
     for (const task of walkTasks(files)) {
-      const meta = task.meta?.mionRuntypes;
+      const meta = task.meta?.mionRunTypes;
       if (!meta) continue;
       const filePath = task.file?.filepath ?? task.file?.name ?? 'unknown';
       const bucket = fileBasename(filePath);

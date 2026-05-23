@@ -4,7 +4,7 @@ This document covers the **collection** `ReflectionKind`s — types that contain
 
 Each section shows:
 
-- both call forms (`getRuntypeId<T>()` static, `reflectRuntypeId(v)` reflection),
+- both call forms (`getRunTypeId<T>()` static, `reflectRunTypeId(v)` reflection),
 - the shape of the resulting cache entry,
 - how child slots are wired (refs vs inline).
 
@@ -17,9 +17,9 @@ Each section shows:
 A fixed-length list with per-slot types. The `children` array holds `KindTupleMember` entries; each member's `Optional` flag marks `[A, B?]`-style optional slots, `Rest` flags `[...A[]]`-style rest slots.
 
 ```ts
-getRuntypeId<[number, string?]>();
+getRunTypeId<[number, string?]>();
 const tup: [number, string?] = [1];
-reflectRuntypeId(tup);
+reflectRunTypeId(tup);
 ```
 
 Cache entry shape:
@@ -50,9 +50,9 @@ Flat list of member types. Discriminated unions, simple `A | B` unions, and stri
 
 ```ts
 type Result = {ok: true; value: number} | {ok: false; error: string};
-getRuntypeId<Result>();
+getRunTypeId<Result>();
 declare const x: Result;
-reflectRuntypeId(x);
+reflectRunTypeId(x);
 ```
 
 Cache entry shape:
@@ -75,7 +75,7 @@ Same shape as `KindUnion` but with intersection semantics. Members live in `chil
 
 ```ts
 type Mix = {a: number} & {b: string};
-getRuntypeId<Mix>();
+getRunTypeId<Mix>();
 ```
 
 ---
@@ -87,9 +87,9 @@ A free standing callable. Parameters live in `.parameters` (each a `KindParamete
 (For named callable members declared inside a class or object literal, see `Method` / `MethodSignature` in [member-types.md](member-types.md) — those carry the same parameter/return shape inline alongside a name.)
 
 ```ts
-getRuntypeId<(a: number, b: number) => number>();
+getRunTypeId<(a: number, b: number) => number>();
 const add = (a: number, b: number) => a + b;
-reflectRuntypeId(add);
+reflectRunTypeId(add);
 ```
 
 Cache entry shape:
@@ -135,9 +135,9 @@ A structural object. Each property lives in `children` as a `KindPropertySignatu
 
 ```ts
 type User = {id: number; name: string};
-getRuntypeId<User>();
+getRunTypeId<User>();
 const u = {id: 1, name: 'm'} as User;
-reflectRuntypeId(u);
+reflectRunTypeId(u);
 ```
 
 Cache entry shape:
@@ -163,9 +163,9 @@ For `{ [k: K]: V }`-style declarations. Lives inside the parent's `children` lis
 interface M {
   [k: string]: number;
 }
-getRuntypeId<M>();
+getRunTypeId<M>();
 declare const m: M;
-reflectRuntypeId(m);
+reflectRunTypeId(m);
 ```
 
 ```json
@@ -187,9 +187,9 @@ class User {
   id: number = 0;
   greet(): void {}
 }
-getRuntypeId<User>();
+getRunTypeId<User>();
 declare const u: User;
-reflectRuntypeId(u);
+reflectRunTypeId(u);
 ```
 
 Cache entry shape:
@@ -219,9 +219,9 @@ Cycle closure happens at the emit layer, not in the cache structure itself. Inte
 interface Tree {
   children: Tree[];
 }
-getRuntypeId<Tree>();
+getRunTypeId<Tree>();
 declare const t: Tree;
-reflectRuntypeId(t);
+reflectRunTypeId(t);
 ```
 
 The walk path is `Tree → Property("children") → Array → Tree`. The element-type slot of the inner `Array` is the same id as the root `Tree` entry. At runtime, `root.children[0].child.child === root` holds by reference.
@@ -235,9 +235,9 @@ interface A {
 interface B {
   a: A;
 }
-getRuntypeId<A>();
+getRunTypeId<A>();
 declare const a: A;
-reflectRuntypeId(a);
+reflectRunTypeId(a);
 ```
 
 Two cache entries (`A` and `B`); each closes back on the other through a property's `.child` slot. Cycle termination is by id-equality on the second visit, not by depth limit — the cache always wins.

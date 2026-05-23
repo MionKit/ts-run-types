@@ -13,14 +13,14 @@
 //
 // Marker scanning works the same as for the production factories — the
 // Vite plugin walks every call site whose resolved signature has a
-// trailing `id?: InjectRuntypeId<T>` slot, regardless of where the function is
+// trailing `id?: InjectRunTypeId<T>` slot, regardless of where the function is
 // declared. The vitest config's `tsconfig.test.json` puts `test/**` in the
 // plugin's scan scope, so calls to `deserializeXxx<T>()` from test files
 // get the same compile-time id injection that `createXxx<T>()` calls do.
 
 import {
   getRTUtils,
-  type InjectRuntypeId,
+  type InjectRunTypeId,
   type RunTypeOptions,
   type IsTypeFn,
   type GetTypeErrorsFn,
@@ -81,53 +81,53 @@ const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 export const deserializeIsType = deserializeRTFunction<IsTypeFn>('deserializeIsType', 'it', () => true) as unknown as <T>(
   val?: T,
   options?: RunTypeOptions,
-  id?: InjectRuntypeId<T>
+  id?: InjectRunTypeId<T>
 ) => IsTypeFn;
 
 export const deserializeGetTypeErrors = deserializeRTFunction<GetTypeErrorsFn>(
   'deserializeGetTypeErrors',
   'te',
   getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => GetTypeErrorsFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
 
 export const deserializeHasUnknownKeys = deserializeRTFunction<HasUnknownKeysFn>(
   'deserializeHasUnknownKeys',
   'huk',
   () => false
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => HasUnknownKeysFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => HasUnknownKeysFn;
 
 export const deserializeStripUnknownKeys = deserializeRTFunction<StripUnknownKeysFn>(
   'deserializeStripUnknownKeys',
   'suk',
   identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => StripUnknownKeysFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => StripUnknownKeysFn;
 
 export const deserializeUnknownKeyErrors = deserializeRTFunction<UnknownKeyErrorsFn>(
   'deserializeUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => UnknownKeyErrorsFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn;
 
 export const deserializeUnknownKeysToUndefined = deserializeRTFunction<UnknownKeysToUndefinedFn>(
   'deserializeUnknownKeysToUndefined',
   'uku',
   identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => UnknownKeysToUndefinedFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
 
 export const deserializePrepareForJson = deserializeRTFunction<PrepareForJsonFn>(
   'deserializePrepareForJson',
   'pj',
   identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => PrepareForJsonFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => PrepareForJsonFn;
 
 export const deserializeRestoreFromJson = deserializeRTFunction<RestoreFromJsonFn>(
   'deserializeRestoreFromJson',
   'rj',
   identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => RestoreFromJsonFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => RestoreFromJsonFn;
 
 export const deserializeStringifyJson = deserializeRTFunction<StringifyJsonFn>(
   'deserializeStringifyJson',
   'sj',
   stringifyJsonIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>) => StringifyJsonFn;
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>) => StringifyJsonFn;

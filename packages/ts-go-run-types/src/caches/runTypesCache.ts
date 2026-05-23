@@ -3,7 +3,7 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Runtypes cache module skeleton. The Go binary splices generated factory
+// RunTypes cache module skeleton. The Go binary splices generated factory
 // calls + ref assignments into the marker line below.
 //
 // - `rt(id, …)` adds one entry to the run-type registry with every ref slot

@@ -23,9 +23,9 @@ describe('vite-plugin-runtypes / utility-type round-trip', () => {
   runTest(
     'Required<T> strips optional static',
     {
-      'req.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'req.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = Required<{a?: string; b?: number}>;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -42,10 +42,10 @@ getRuntypeId<T>();
   runTest(
     'Required<T> strips optional reflect',
     {
-      'req.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'req.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type T = Required<{a?: string; b?: number}>;
 declare const value: T;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -64,9 +64,9 @@ reflectRuntypeId(value);
   runTest(
     'Partial<T> adds optional static',
     {
-      'part.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'part.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = Partial<{a: string; b: number}>;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -85,9 +85,9 @@ getRuntypeId<T>();
   runTest(
     'Readonly<T> adds readonly static',
     {
-      'ro.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'ro.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = Readonly<{a: string}>;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -102,9 +102,9 @@ getRuntypeId<T>();
   runTest(
     'Readonly<T> preserves optional static',
     {
-      'rop.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'rop.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = Readonly<{a?: string}>;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -122,10 +122,10 @@ getRuntypeId<T>();
   runTest(
     'Pick<T,K> keeps modifiers static',
     {
-      'pick.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'pick.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type S = {readonly a: string; b?: number};
 type T = Pick<S, 'a'>;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -141,10 +141,10 @@ getRuntypeId<T>();
   runTest(
     'Omit<T,K> drops only the picked prop static',
     {
-      'omit.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'omit.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type S = {a: string; readonly b: number};
 type T = Omit<S, 'a'>;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -162,10 +162,10 @@ getRuntypeId<T>();
   runTest(
     'user mapped type -? strips optional static',
     {
-      'umr.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'umr.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Req<T> = {[P in keyof T]-?: T[P]};
 type X = Req<{a?: string}>;
-getRuntypeId<X>();
+getRunTypeId<X>();
 `,
     },
     async (sources) => {
@@ -179,10 +179,10 @@ getRuntypeId<X>();
   runTest(
     'user mapped type -readonly strips readonly static',
     {
-      'umm.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'umm.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Mut<T> = {-readonly [P in keyof T]: T[P]};
 type X = Mut<{readonly a: string}>;
-getRuntypeId<X>();
+getRunTypeId<X>();
 `,
     },
     async (sources) => {
@@ -196,10 +196,10 @@ getRuntypeId<X>();
   runTest(
     'user mapped type +? adds optional static',
     {
-      'umo.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'umo.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Opt<T> = {[P in keyof T]+?: T[P]};
 type X = Opt<{a: string}>;
-getRuntypeId<X>();
+getRunTypeId<X>();
 `,
     },
     async (sources) => {
@@ -213,10 +213,10 @@ getRuntypeId<X>();
   runTest(
     'user mapped type +readonly adds readonly static',
     {
-      'umro.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'umro.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type RO<T> = {+readonly [P in keyof T]: T[P]};
 type X = RO<{a: string}>;
-getRuntypeId<X>();
+getRunTypeId<X>();
 `,
     },
     async (sources) => {

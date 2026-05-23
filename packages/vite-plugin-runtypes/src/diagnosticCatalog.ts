@@ -135,7 +135,7 @@ export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
   MKR001: {
     headline:
       '`{0}()` is being called at runtime just so the marker can read its return type — side effects, throws, or async work run for nothing.',
-    detail: `Reflect-form markers (\`createIsType(value)\`, \`reflectRuntypeId(value)\`)
+    detail: `Reflect-form markers (\`createIsType(value)\`, \`reflectRunTypeId(value)\`)
 invoke their argument expression at runtime; the value is then discarded —
 only its inferred type is used.
 
@@ -145,7 +145,7 @@ Fix — use the static form with \`ReturnType<>\`:
 
 Fix — pass an existing value of the desired type:
   const existingUser: User = ...;
-  const isUser = reflectRuntypeId(existingUser);`,
+  const isUser = reflectRunTypeId(existingUser);`,
   },
 
   CTA001: {
@@ -221,10 +221,10 @@ Fix — inline the marker at each concrete call site:
   }
 
 Fix — accept a pre-computed id from the caller:
-  function makeChecker<T>(id: InjectRuntypeId<T>) {
+  function makeChecker<T>(id: InjectRunTypeId<T>) {
     return createIsType<T>(id);
   }
-  const isUser = makeChecker<User>(getRuntypeId<User>());`,
+  const isUser = makeChecker<User>(getRunTypeId<User>());`,
   },
 
   // ─────────── Pure-fn family (PFE9xxx) — registerPureFnFactory ───────────
@@ -354,7 +354,7 @@ Fix:
 +  return utl.usePureFn('mion::myFn')(input);`,
   },
 
-  // ──────────── Runtype family (root throws and child drops) ────────────
+  // ──────────── RunType family (root throws and child drops) ────────────
   //
   // Per-family root-throw entries share the same explanation body via the
   // *_DETAIL constants above. Headlines mention the family verb so the

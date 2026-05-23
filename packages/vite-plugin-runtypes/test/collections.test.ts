@@ -1,6 +1,6 @@
 // End-to-end collection-type round-trip tests. Mirrors members.test.ts's
 // `evalCacheFor` + `getTypeFor` setup. Each scenario has paired static
-// (getRuntypeId<T>()) and reflect (reflectRuntypeId(v)) tests per the
+// (getRunTypeId<T>()) and reflect (reflectRunTypeId(v)) tests per the
 // marker test coverage rule (CLAUDE.md). Exercises the modifier and
 // position fields the Go serializer populates: optional/readonly/
 // visibility/abstract/static, isSafeName on properties/methods, and
@@ -21,13 +21,13 @@ describe('vite-plugin-runtypes / collection round-trip', () => {
   runTest(
     'object with optional+readonly+unsafe name static',
     {
-      'obj.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'obj.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface O {
   readonly id: number;
   nick?: string;
   "weird prop name \\n?>'\\\\\\t\\r": boolean;
 }
-getRuntypeId<O>();
+getRunTypeId<O>();
 `,
     },
     async (sources) => {
@@ -39,14 +39,14 @@ getRuntypeId<O>();
   runTest(
     'object with optional+readonly+unsafe name reflect',
     {
-      'obj.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'obj.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface O {
   readonly id: number;
   nick?: string;
   "weird prop name \\n?>'\\\\\\t\\r": boolean;
 }
 declare const value: O;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -80,7 +80,7 @@ reflectRuntypeId(value);
   runTest(
     'class with mixed property modifiers static',
     {
-      'cls.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'cls.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class U {
   public id = 0;
   private secret = "";
@@ -88,7 +88,7 @@ class U {
   readonly tag = "t";
   static count = 0;
 }
-getRuntypeId<U>();
+getRunTypeId<U>();
 `,
     },
     async (sources) => {
@@ -100,7 +100,7 @@ getRuntypeId<U>();
   runTest(
     'class with mixed property modifiers reflect',
     {
-      'cls.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'cls.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 class U {
   public id = 0;
   private secret = "";
@@ -109,7 +109,7 @@ class U {
   static count = 0;
 }
 declare const value: U;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -138,8 +138,8 @@ reflectRuntypeId(value);
   runTest(
     'labeled tuple with rest and optional static',
     {
-      'tup.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<[a: number, b?: string, ...rest: boolean[]]>();
+      'tup.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<[a: number, b?: string, ...rest: boolean[]]>();
 `,
     },
     async (sources) => {
@@ -151,9 +151,9 @@ getRuntypeId<[a: number, b?: string, ...rest: boolean[]]>();
   runTest(
     'labeled tuple with rest and optional reflect',
     {
-      'tup.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'tup.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 declare const value: [a: number, b?: string, ...rest: boolean[]];
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -181,11 +181,11 @@ reflectRuntypeId(value);
   runTest(
     'readonly index signature static',
     {
-      'idx.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'idx.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface M {
   readonly [k: string]: number;
 }
-getRuntypeId<M>();
+getRunTypeId<M>();
 `,
     },
     async (sources) => {
@@ -197,12 +197,12 @@ getRuntypeId<M>();
   runTest(
     'readonly index signature reflect',
     {
-      'idx.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'idx.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface M {
   readonly [k: string]: number;
 }
 declare const value: M;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {

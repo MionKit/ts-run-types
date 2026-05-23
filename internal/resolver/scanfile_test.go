@@ -77,66 +77,66 @@ func scanFixture(
 	}
 }
 
-// TestScanFile_F17_StaticGetRuntypeId walks the f17 fixture (static form
+// TestScanFile_F17_StaticGetRunTypeId walks the f17 fixture (static form
 // only) and asserts the scanner picks up exactly the four expected call
 // sites in source order, with the right param-index and a hash-shaped id.
 // The two negative cases (call inside a generic body; user-defined
-// `RuntypeId_Local` wrapper) must be excluded.
+// `RunTypeId_Local` wrapper) must be excluded.
 //
 // This is the main suite's one file-based regression for the tsconfig +
 // on-disk osvfs path. Every other resolver test uses resolveInline.
-func TestScanFile_F17_StaticGetRuntypeId(t *testing.T) {
+func TestScanFile_F17_StaticGetRunTypeId(t *testing.T) {
 	scanFixture(t,
 		"f17_runtype_id.ts",
 		[]struct{ needle, desc string }{
-			{"getRuntypeId<{id: number; name: string}>()", "17a: static, explicit object type"},
-			{"getRuntypeId<string>()", "17b: static, primitive type"},
+			{"getRunTypeId<{id: number; name: string}>()", "17a: static, explicit object type"},
+			{"getRunTypeId<string>()", "17b: static, primitive type"},
 			{"isType<{flag: boolean}>(true)", "17c: user wrapper, explicit T"},
 			{"nameOf({kind: 'node', value: 42})", "17d: user wrapper, inferred T"},
 		},
 		[]string{
-			"getRuntypeId<T>()",     // 17e — free type parameter inside body
-			"maskedWrapper('noop')", // 17f — non-@mionjs/ts-go-run-types InjectRuntypeId
+			"getRunTypeId<T>()",     // 17e — free type parameter inside body
+			"maskedWrapper('noop')", // 17f — non-@mionjs/ts-go-run-types InjectRunTypeId
 		},
 	)
 }
 
-// TestScanFile_F17b_ReflectRuntypeId is the reflection-form sibling of
+// TestScanFile_F17b_ReflectRunTypeId is the reflection-form sibling of
 // the F17 test. Same expectations: four positive sites against the
-// reflectRuntypeId fixture; the free-T body call and the foreign-alias
+// reflectRunTypeId fixture; the free-T body call and the foreign-alias
 // wrapper must be skipped.
-func TestScanFile_F17b_ReflectRuntypeId(t *testing.T) {
+func TestScanFile_F17b_ReflectRunTypeId(t *testing.T) {
 	scanFixture(t,
 		"f17b_reflect_runtype_id.ts",
 		[]struct{ needle, desc string }{
-			{"reflectRuntypeId(u)", "17ba: reflect, T inferred from object literal"},
-			{"reflectRuntypeId(s)", "17bb: reflect, T inferred from primitive"},
+			{"reflectRunTypeId(u)", "17ba: reflect, T inferred from object literal"},
+			{"reflectRunTypeId(s)", "17bb: reflect, T inferred from primitive"},
 			{"isType<{flag: boolean}>(true)", "17bc: user wrapper, explicit T"},
 			{"nameOf({kind: 'node', value: 42})", "17bd: user wrapper, inferred T"},
 		},
 		[]string{
-			"reflectRuntypeId<T>(val)", // 17be — free type parameter inside body
-			"maskedWrapper('noop')",    // 17bf — non-@mionjs/ts-go-run-types InjectRuntypeId
+			"reflectRunTypeId<T>(val)", // 17be — free type parameter inside body
+			"maskedWrapper('noop')",    // 17bf — non-@mionjs/ts-go-run-types InjectRunTypeId
 		},
 	)
 }
 
 // TestScanFile_F18_ExplicitId_Static asserts the scanner skips calls whose
-// trailing `InjectRuntypeId<T>` slot is already filled by an explicit caller-
+// trailing `InjectRunTypeId<T>` slot is already filled by an explicit caller-
 // supplied argument in the static form.
 func TestScanFile_F18_ExplicitId_Static(t *testing.T) {
-	const code = `import {getRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 // 18a — caller passes an explicit string literal at the id slot. The
 // scanner must NOT emit a site here — rewriting would append a stray
 // extra argument past the id slot.
-getRuntypeId<{id: number; name: string}>('manualHash');
+getRunTypeId<{id: number; name: string}>('manualHash');
 
 // 18b — caller passes an explicit literal at the id slot for a primitive.
-getRuntypeId<string>('manualHash');
+getRunTypeId<string>('manualHash');
 
 // 18c — user-defined wrapper, caller already supplies the id.
-function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -155,18 +155,18 @@ isType<{flag: boolean}>(true, 'manualHash');
 
 // TestScanFile_F18_ExplicitId_Reflect is the reflection-form sibling.
 func TestScanFile_F18_ExplicitId_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 // 18ba — direct reflect call with an explicit literal in the id slot.
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-reflectRuntypeId(u, 'manualHash');
+reflectRunTypeId(u, 'manualHash');
 
 // 18bb — reflect on a primitive with explicit literal.
 const s: string = 'hello';
-reflectRuntypeId(s, 'manualHash');
+reflectRunTypeId(s, 'manualHash');
 
 // 18bc — user-defined wrapper, caller already supplies the id.
-function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -186,13 +186,13 @@ isType<{flag: boolean}>(true, 'manualHash');
 // TestScanFile_Idempotent_Static: re-running scanFiles on a static-form
 // source must add zero new types and report the same site count.
 func TestScanFile_Idempotent_Static(t *testing.T) {
-	const code = `import {getRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
-getRuntypeId<{id: number; name: string}>();
+getRunTypeId<{id: number; name: string}>();
 
-getRuntypeId<string>();
+getRunTypeId<string>();
 
-function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -203,15 +203,15 @@ isType<{flag: boolean}>(true);
 
 // TestScanFile_Idempotent_Reflect is the reflection-form sibling.
 func TestScanFile_Idempotent_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId, type InjectRunTypeId} from '@mionjs/ts-go-run-types';
 
 const u = {id: 1, name: 'm'} as {id: number; name: string};
-reflectRuntypeId(u);
+reflectRunTypeId(u);
 
 const s: string = 'hello';
-reflectRuntypeId(s);
+reflectRunTypeId(s);
 
-function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
+function isType<T>(_v: unknown, id?: InjectRunTypeId<T>): InjectRunTypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }

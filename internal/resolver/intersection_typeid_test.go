@@ -13,7 +13,7 @@ import (
 // share a cache entry.
 // =========================================================================
 
-// twoSiteIDs runs scanFiles on a single-source file with N getRuntypeId
+// twoSiteIDs runs scanFiles on a single-source file with N getRunTypeId
 // call sites and returns their hash ids in declaration order.
 func twoSiteIDs(t *testing.T, code string) []string {
 	t.Helper()
@@ -33,13 +33,13 @@ func twoSiteIDs(t *testing.T, code string) []string {
 // The TS checker exposes the merged property set on the intersection
 // type, so typeid's collapsedIntersectionID falls through to objectID.
 func TestTypeID_Intersection_ObjectMerge_StableID(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type A = {a: string};
 type B = {b: number};
 type AB     = A & B;
 type AB_eq  = {a: string; b: number};
-getRuntypeId<AB>();
-getRuntypeId<AB_eq>();
+getRunTypeId<AB>();
+getRunTypeId<AB_eq>();
 `
 	ids := twoSiteIDs(t, code)
 	if len(ids) != 2 {
@@ -54,10 +54,10 @@ getRuntypeId<AB_eq>();
 // Otherwise `string` and `string & {__brand}` would share a cache slot
 // and brand info would be lost on lookup.
 func TestTypeID_Intersection_PrimitiveBrand_DistinctFromBarePrimitive(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
-getRuntypeId<string>();
-getRuntypeId<Email>();
+getRunTypeId<string>();
+getRunTypeId<Email>();
 `
 	ids := twoSiteIDs(t, code)
 	if len(ids) != 2 {
@@ -72,13 +72,13 @@ getRuntypeId<Email>();
 // must dedup. Achieved by sorting decorator ids in
 // collapsedIntersectionID.
 func TestTypeID_Intersection_BrandOrderInvariant(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type B1 = {readonly __b1: 1};
 type B2 = {readonly __b2: 2};
 type Left  = string & B1 & B2;
 type Right = string & B2 & B1;
-getRuntypeId<Left>();
-getRuntypeId<Right>();
+getRunTypeId<Left>();
+getRunTypeId<Right>();
 `
 	ids := twoSiteIDs(t, code)
 	if len(ids) != 2 {
@@ -92,10 +92,10 @@ getRuntypeId<Right>();
 // `string & number` collapses to never — its structural id must match
 // the bare `never` type so they share a cache entry.
 func TestTypeID_Intersection_Never_StableWithBareNever(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Conflict = string & number;
-getRuntypeId<never>();
-getRuntypeId<Conflict>();
+getRunTypeId<never>();
+getRunTypeId<Conflict>();
 `
 	ids := twoSiteIDs(t, code)
 	if len(ids) != 2 {

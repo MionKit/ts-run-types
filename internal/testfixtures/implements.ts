@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRuntypeId, reflectRuntypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -10,9 +10,9 @@ interface I1 {
 class C1 implements I1 {
   a: string = '';
 }
-const singleImplements = getRuntypeId<C1>();
+const singleImplements = getRunTypeId<C1>();
 declare const c1: C1;
-const singleImplementsReflect = reflectRuntypeId(c1);
+const singleImplementsReflect = reflectRunTypeId(c1);
 
 // 2 — Class implements multiple interfaces (order preserved).
 interface I2A {
@@ -25,7 +25,7 @@ class C2 implements I2A, I2B {
   a: string = '';
   b: number = 0;
 }
-const multiImplements = getRuntypeId<C2>();
+const multiImplements = getRunTypeId<C2>();
 
 // 3 — implements does NOT flatten interface members into the class's
 // declared properties. Children must reflect what C3 declares only.
@@ -38,7 +38,7 @@ class C3 implements I3 {
   b: number = 0;
   c: boolean = false;
 }
-const implementsKeepsOwnProps = getRuntypeId<C3>();
+const implementsKeepsOwnProps = getRunTypeId<C3>();
 
 // 4 — Class with both extends AND implements.
 interface I4 {
@@ -50,13 +50,13 @@ class B4 {
 class C4 extends B4 implements I4 {
   tag: 'i' = 'i';
 }
-const extendsAndImplements = getRuntypeId<C4>();
+const extendsAndImplements = getRunTypeId<C4>();
 
 // 5 — Plain class with no implements clause.
 class C5 {
   x: string = '';
 }
-const plainNoImplements = getRuntypeId<C5>();
+const plainNoImplements = getRunTypeId<C5>();
 
 export const __sites = {
   singleImplements,

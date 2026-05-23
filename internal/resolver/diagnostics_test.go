@@ -15,15 +15,15 @@ func runtypeDiagsOf(diagnostics []diag.Diagnostic) []diag.Diagnostic {
 	return filterDiagsByFamily(diagnostics, diag.FamilyRunType)
 }
 
-// TestDiag_RuntypeRTThrow_NeverAtRoot pins the end-to-end runtype
-// diagnostic flow. A `getRuntypeId<never>()` call site reaches the
+// TestDiag_RunTypeRTThrow_NeverAtRoot pins the end-to-end runtype
+// diagnostic flow. A `getRunTypeId<never>()` call site reaches the
 // prepareForJson emitter's RTThrow site for KindNever, which records
 // a PJ001 diagnostic against the marker call site. The diagnostic
 // fans out one entry per call site (per user direction: dedup is
 // one-per-call-site, not one-per-type-id).
-func TestDiag_RuntypeRTThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<never>();
+func TestDiag_RunTypeRTThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<never>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -62,12 +62,12 @@ export const _ = getRuntypeId<never>();
 	}
 }
 
-// TestDiag_RuntypeRTThrow_FunctionAtRoot exercises the function-root
-// throw across the JSON families. `getRuntypeId<() => void>()` reaches
+// TestDiag_RunTypeRTThrow_FunctionAtRoot exercises the function-root
+// throw across the JSON families. `getRunTypeId<() => void>()` reaches
 // the function-root RTThrow in each family.
-func TestDiag_RuntypeRTThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<() => void>();
+func TestDiag_RunTypeRTThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<() => void>();
 `
 	r := setupInline(t, map[string]string{"f.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -98,8 +98,8 @@ export const _ = getRuntypeId<() => void>();
 // see which RT family produced the diagnostic without parsing
 // message text.
 func TestDiag_PerFamilyPrefix_NeverAtRoot_DistinctCodes(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<never>();
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -132,9 +132,9 @@ export const _ = getRuntypeId<never>();
 // to the root. The rest of the object's validator still works.
 // See docs/UNSUPPORTED-KINDS.md.
 func TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface User { name: string; bad: never; }
-export const _ = getRuntypeId<User>();
+export const _ = getRunTypeId<User>();
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -188,11 +188,11 @@ export const _ = getRuntypeId<User>();
 }
 
 // TestDiag_SymbolUnsupported_PerFamily pins v2's reclassification of
-// KindSymbol — `getRuntypeId<symbol>()` produces an alwaysThrow factory
+// KindSymbol — `getRunTypeId<symbol>()` produces an alwaysThrow factory
 // (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<symbol>();
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -224,8 +224,8 @@ export const _ = getRuntypeId<symbol>();
 // when a root throws, the rendered init() carries the diag code as
 // the 8th arg, not an inline throwing factory body.
 func TestDiag_AlwaysThrowEntry_HasCodeOnWire(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<never>();
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -252,9 +252,9 @@ export const _ = getRuntypeId<never>();
 // TypeScript parses the member as a method or a property — both flow
 // through the same family prefix (IT) so consumers can grep by prefix.
 func TestDiag_SilentSkip_FunctionMember_IsType(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
-export const _ = getRuntypeId<User>();
+export const _ = getRunTypeId<User>();
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -287,15 +287,15 @@ export const _ = getRuntypeId<User>();
 	}
 }
 
-// TestDiag_RuntypeFansOutAcrossCallSites pins the per-user-direction
+// TestDiag_RunTypeFansOutAcrossCallSites pins the per-user-direction
 // dedup rule: when N marker calls reference the same RT ID with the
 // same problem, emit N diagnostics — one per call site — not one
 // shared by them all.
-func TestDiag_RuntypeFansOutAcrossCallSites(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const a = getRuntypeId<never>();
-export const b = getRuntypeId<never>();
-export const c = getRuntypeId<never>();
+func TestDiag_RunTypeFansOutAcrossCallSites(t *testing.T) {
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const a = getRunTypeId<never>();
+export const b = getRunTypeId<never>();
+export const c = getRunTypeId<never>();
 `
 	r := setupInline(t, map[string]string{"multi.ts": code})
 	resp := r.Dispatch(protocol.Request{

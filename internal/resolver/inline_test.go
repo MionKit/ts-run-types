@@ -14,9 +14,9 @@ import (
 // overlays it under the test cwd so caller snippets stay terse, the
 // same trick the FE helper uses (packages/vite-plugin-runtypes/test/helpers/inline.ts:30).
 const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
-  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
-  export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
-  export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
 }
 `
 

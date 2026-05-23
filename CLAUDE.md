@@ -44,7 +44,7 @@ Updating dependencies:
 - Uses **pnpm workspaces** for monorepo management (see [pnpm-workspace.yaml](pnpm-workspace.yaml)) + **Lerna** for lockstep versioning and topo-ordered scripts (see [lerna.json](lerna.json))
 - Both JS packages move in lockstep (`forcePublish: true`, `exact: true`)
 - Packages located under [packages/](packages/):
-  - `ts-go-run-types`: `@mionjs/ts-go-run-types` — `InjectRuntypeId<T>` marker type, `getRuntypeId` (static), `reflectRuntypeId` (reflection)
+  - `ts-go-run-types`: `@mionjs/ts-go-run-types` — `InjectRunTypeId<T>` marker type, `getRunTypeId` (static), `reflectRunTypeId` (reflection)
   - `vite-plugin-runtypes`: Vite plugin — spawns the Go binary, applies byte-offset rewrites, emits `virtual:runtypes-cache`
 - Run commands in a specific package: `pnpm --filter @mionjs/ts-go-run-types run <cmd>` or `pnpm --filter vite-plugin-runtypes run <cmd>`
 - Or navigate to package directory and run commands locally
@@ -56,7 +56,7 @@ Updating dependencies:
 - Go version: **≥ 1.26** (enforced by `go.mod`)
 - Build the binary with `go build -o bin/ts-go-run-types ./cmd/ts-go-run-types`
 - Run Go tests with `go test ./internal/...`
-- Go fixtures live in [internal/testfixtures](internal/testfixtures/) (F1–F17) covering atomic reflection kinds, primitives/objects/unions, inferred generics, and `InjectRuntypeId<T>` marker variants
+- Go fixtures live in [internal/testfixtures](internal/testfixtures/) (F1–F17) covering atomic reflection kinds, primitives/objects/unions, inferred generics, and `InjectRunTypeId<T>` marker variants
 - The Go pipeline is split into single-purpose packages under [internal/](internal/) (program, walker, marker, resolver, typeid, hashid, serialize, emit, protocol) — keep each one focused; do not introduce cross-package state
 - Our Go code lives ONLY in [cmd/](cmd/) and [internal/](internal/). Anything under [third_party/](third_party/) is an external dependency (see next section) — never edit it
 
@@ -83,10 +83,10 @@ Updating dependencies:
 
 Any test that exercises the marker API — in either Go under [internal/](internal/) or the JS plugin under [packages/vite-plugin-runtypes/test/](packages/vite-plugin-runtypes/test/) — MUST cover both forms:
 
-- the **static** form `getRuntypeId<T>()` — caller supplies `T` explicitly, no value;
-- the **reflection** form `reflectRuntypeId(value)` — `T` inferred from a runtime value.
+- the **static** form `getRunTypeId<T>()` — caller supplies `T` explicitly, no value;
+- the **reflection** form `reflectRunTypeId(value)` — `T` inferred from a runtime value.
 
-Write paired tests (not parameterized): each scenario is two distinct tests, each using the natural call shape for its intent — e.g. `getRuntypeId<string>()` vs `const s: string = 'hello'; reflectRuntypeId(s);`. Both forms should resolve to the same cache entry for equivalent `T`, and at least one paired test per suite should assert that hash equivalence (see `TestAtomic_FormEquivalence` in [internal/resolver/atomic_test.go](internal/resolver/atomic_test.go)).
+Write paired tests (not parameterized): each scenario is two distinct tests, each using the natural call shape for its intent — e.g. `getRunTypeId<string>()` vs `const s: string = 'hello'; reflectRunTypeId(s);`. Both forms should resolve to the same cache entry for equivalent `T`, and at least one paired test per suite should assert that hash equivalence (see `TestAtomic_FormEquivalence` in [internal/resolver/atomic_test.go](internal/resolver/atomic_test.go)).
 
 ## Publishing Modules
 
@@ -99,7 +99,7 @@ Write paired tests (not parameterized): each scenario is two distinct tests, eac
 ## Code Style
 
 - No 'I' prefix for interfaces or 'T' prefix for type parameters
-- Use 'InjectRuntypeId' (capital T in mid-word) for the marker type alias — same casing convention as mion's `RunType`
+- Use 'InjectRunTypeId' (capital T in mid-word) for the marker type alias — same casing convention as mion's `RunType`
 - Prefer type casting over type assertions
 - Maintain consistent formatting with the existing codebase
 - Don't use `@param` and `@returns` comments in JSDoc
@@ -133,7 +133,7 @@ The marker package's own tests import from its public name `@mionjs/ts-go-run-ty
 
 Both flags select the same `"source"` entry. Drop either one and the package self-import will resolve to the built `dist/` instead, breaking tests during dev when dist is missing or stale.
 
-The marker scanner in [`internal/marker/marker.go`](internal/marker/marker.go) gates `InjectRuntypeId<T>` recognition by walking up from the declaration's source file to the nearest `package.json` and matching its `"name"` field. This makes source-resolved imports work the same as `node_modules`-resolved ones — both end up at a `package.json` with `"name": "@mionjs/ts-go-run-types"`. **Don't reintroduce the old path-fragment heuristic.**
+The marker scanner in [`internal/marker/marker.go`](internal/marker/marker.go) gates `InjectRunTypeId<T>` recognition by walking up from the declaration's source file to the nearest `package.json` and matching its `"name"` field. This makes source-resolved imports work the same as `node_modules`-resolved ones — both end up at a `package.json` with `"name": "@mionjs/ts-go-run-types"`. **Don't reintroduce the old path-fragment heuristic.**
 
 The Go test suite ([`internal/testfixtures/runtypes.d.ts`](internal/testfixtures/runtypes.d.ts)) uses the older ambient `declare module` form because the fixtures live under `internal/` without their own package.json. That path is also still honored by the marker scanner — keep the overlay in sync with the marker package's public API when adding new marker functions.
 

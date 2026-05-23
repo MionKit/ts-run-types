@@ -49,11 +49,11 @@ export const _ = createIsType(makeUser());
     });
   });
 
-  register('warns for reflectRuntypeId with a function-call arg too', async () => {
+  register('warns for reflectRunTypeId with a function-call arg too', async () => {
     const sources = {
-      'reflect-fn.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'reflect-fn.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 function getValue(): string { return 'hello'; }
-export const _ = reflectRuntypeId(getValue());
+export const _ = reflectRunTypeId(getValue());
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -123,9 +123,9 @@ export const _ = createIsType<ReturnType<typeof makeUser>>();
 
   register('errors with MKR003 when marker call is inside a generic wrapper', async () => {
     const sources = {
-      'free-tparam.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'free-tparam.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export function makeId<T>() {
-  return getRuntypeId<T>();
+  return getRunTypeId<T>();
 }
 `,
     };
@@ -135,7 +135,7 @@ export function makeId<T>() {
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics[0].code).toBe('MKR003');
       // Error severity (not Warning): if the generic wrapper is ever
-      // called, getRuntypeId() throws at runtime ("no id injected"). The
+      // called, getRunTypeId() throws at runtime ("no id injected"). The
       // build halts so the user fixes the structural issue before
       // shipping the wrapper.
       expect(diagnostics[0].severity).toBe(Severity.Error);

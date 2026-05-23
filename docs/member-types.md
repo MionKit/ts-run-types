@@ -20,9 +20,9 @@ The members are:
 A homogeneous sequence. Element type lives in `.child`.
 
 ```ts
-getRuntypeId<string[]>();
+getRunTypeId<string[]>();
 const xs: string[] = ['a', 'b'];
-reflectRuntypeId(xs);
+reflectRunTypeId(xs);
 ```
 
 Cache entry shape:
@@ -40,9 +40,9 @@ Array is a member rather than a collection because it carries a single child typ
 A wrapper carrying the resolved value type in `.child`. Same single-unnamed-child shape as `Array`, just with async semantics — `Promise<T>` always resolves to exactly one type.
 
 ```ts
-getRuntypeId<Promise<number>>();
+getRunTypeId<Promise<number>>();
 declare const p: Promise<number>;
-reflectRuntypeId(p);
+reflectRunTypeId(p);
 ```
 
 Cache entry shape:

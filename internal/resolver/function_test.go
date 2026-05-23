@@ -26,18 +26,18 @@ import (
 // path; F35 is the most direct exercise of it.
 
 func TestF35_RestOnlyFunction_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Fn = (...args: string[]) => void;
-getRuntypeId<Fn>();
+getRunTypeId<Fn>();
 `
 	r, root := resolveInline(t, code)
 	assertF35RestOnlyFunction(t, r, root)
 }
 
 func TestF35_RestOnlyFunction_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(...args: string[]): void {}
-reflectRuntypeId(fn);
+reflectRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF35RestOnlyFunction(t, r, root)
@@ -85,18 +85,18 @@ func assertF35RestOnlyFunction(t *testing.T, r *resolver.Resolver, root *protoco
 //	(a: number, b?: string, ...rest: boolean[]) => string
 
 func TestF36_MixedFunction_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Fn = (a: number, b?: string, ...rest: boolean[]) => string;
-getRuntypeId<Fn>();
+getRunTypeId<Fn>();
 `
 	r, root := resolveInline(t, code)
 	assertF36MixedFunction(t, r, root)
 }
 
 func TestF36_MixedFunction_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(a: number, b?: string, ...rest: boolean[]): string { return ""; }
-reflectRuntypeId(fn);
+reflectRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF36MixedFunction(t, r, root)
@@ -163,18 +163,18 @@ func assertF36MixedFunction(t *testing.T, r *resolver.Resolver, root *protocol.R
 //	(x: number) => Promise<{ok: boolean}>
 
 func TestF37_PromiseReturn_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Fn = (x: number) => Promise<{ok: boolean}>;
-getRuntypeId<Fn>();
+getRunTypeId<Fn>();
 `
 	r, root := resolveInline(t, code)
 	assertF37PromiseReturn(t, r, root)
 }
 
 func TestF37_PromiseReturn_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 async function fn(x: number): Promise<{ok: boolean}> { return {ok: true}; }
-reflectRuntypeId(fn);
+reflectRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF37PromiseReturn(t, r, root)
@@ -214,23 +214,23 @@ func assertF37PromiseReturn(t *testing.T, r *resolver.Resolver, root *protocol.R
 //	class Service { greet(name: string, opts?: {tag: string}): string { … } }
 
 func TestF38_ClassMethodFullShape_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
-getRuntypeId<Service>();
+getRunTypeId<Service>();
 `
 	r, root := resolveInline(t, code)
 	assertF38ClassMethodFullShape(t, r, root)
 }
 
 func TestF38_ClassMethodFullShape_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 class Service {
   greet(name: string, opts?: {tag: string}): string { return ""; }
 }
 declare const value: Service;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF38ClassMethodFullShape(t, r, root)
@@ -285,19 +285,19 @@ func assertF38ClassMethodFullShape(t *testing.T, r *resolver.Resolver, root *pro
 //	interface I { greet(name: string): string; }
 
 func TestF39_MethodSignatureFullShape_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { greet(name: string): string; }
-getRuntypeId<I>();
+getRunTypeId<I>();
 `
 	r, root := resolveInline(t, code)
 	assertF39MethodSignatureFullShape(t, r, root)
 }
 
 func TestF39_MethodSignatureFullShape_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { greet(name: string): string; }
 declare const value: I;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF39MethodSignatureFullShape(t, r, root)
@@ -342,9 +342,9 @@ func assertF39MethodSignatureFullShape(t *testing.T, r *resolver.Resolver, root 
 // sig + no properties → KindFunction" path that F35/F36/F37 exercise.
 
 func TestF40_CallSignatureInMixedObject_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface Tagged { (x: number): string; tag: "tagged"; }
-getRuntypeId<Tagged>();
+getRunTypeId<Tagged>();
 `
 	r, root := resolveInline(t, code)
 	assertF40CallSignature(t, r, root)

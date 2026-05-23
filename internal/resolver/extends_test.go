@@ -16,10 +16,10 @@ import (
 // ---- class extends ---------------------------------------------------------
 
 func TestClassExtends_PopulatesExtendsArguments(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { a = ''; }
 class B extends A { b = 0; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindClass {
@@ -35,10 +35,10 @@ getRuntypeId<B>();
 }
 
 func TestClassExtends_InheritsParentProperties(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { a: string = ''; }
 class B extends A { b: number = 0; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	names := propertyNames(dump(r), tn)
@@ -48,10 +48,10 @@ getRuntypeId<B>();
 }
 
 func TestClassExtends_PropertyOverride_LastWins(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { name: string = ''; }
 class B extends A { name: 'fixed' = 'fixed'; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	nameProp := findMember(dump(r), tn, "name")
@@ -65,11 +65,11 @@ getRuntypeId<B>();
 }
 
 func TestClassExtends_ChainedInheritance(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { a: string = ''; }
 class B extends A { b: number = 0; }
 class C extends B { c: boolean = false; }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.ExtendsArguments) != 1 {
@@ -86,10 +86,10 @@ getRuntypeId<C>();
 }
 
 func TestClassExtends_GenericParent(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A<T> { value!: T; }
 class B extends A<string> { extra: number = 0; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.ExtendsArguments) != 1 {
@@ -111,10 +111,10 @@ getRuntypeId<B>();
 }
 
 func TestClassExtends_AddsOwnPropertiesAfter(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class Base { foo: string = ''; }
 class Child extends Base { bar: number = 0; }
-getRuntypeId<Child>();
+getRunTypeId<Child>();
 `
 	r, tn := resolveInline(t, code)
 	names := propertyNames(dump(r), tn)
@@ -126,10 +126,10 @@ getRuntypeId<Child>();
 // ---- interface extends -----------------------------------------------------
 
 func TestInterfaceExtends_PopulatesExtends(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface A { a: string; }
 interface B extends A { b: number; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindObjectLiteral {
@@ -149,10 +149,10 @@ getRuntypeId<B>();
 }
 
 func TestInterfaceExtends_FlattensInheritedProps(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface A { a: string; }
 interface B extends A { b: number; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	names := propertyNames(dump(r), tn)
@@ -162,10 +162,10 @@ getRuntypeId<B>();
 }
 
 func TestInterfaceExtends_PropertyOverride_LastWins(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface A { x: string; }
 interface B extends A { x: 'a' | 'b'; }
-getRuntypeId<B>();
+getRunTypeId<B>();
 `
 	r, tn := resolveInline(t, code)
 	xProp := findMember(dump(r), tn, "x")
@@ -179,11 +179,11 @@ getRuntypeId<B>();
 }
 
 func TestInterfaceExtends_MultipleParents(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface A { a: string; }
 interface B { b: number; }
 interface C extends A, B { c: boolean; }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.Extends) != 2 {
@@ -196,12 +196,12 @@ getRuntypeId<C>();
 }
 
 func TestInterfaceExtends_DiamondInheritance(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface A { a: string; }
 interface B extends A { b: number; }
 interface C extends A { c: boolean; }
 interface D extends B, C { d: bigint; }
-getRuntypeId<D>();
+getRunTypeId<D>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.Extends) != 2 {
@@ -224,9 +224,9 @@ getRuntypeId<D>();
 }
 
 func TestInterfaceExtends_TypeAliasHasNoExtends(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if len(tn.Extends) != 0 {
@@ -235,8 +235,8 @@ getRuntypeId<T>();
 }
 
 func TestInterfaceExtends_AnonymousHasNoExtends(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<{a: string}>();
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<{a: string}>();
 `
 	_, tn := resolveInline(t, code)
 	if len(tn.Extends) != 0 {

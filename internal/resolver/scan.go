@@ -67,7 +67,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 
 // dispatchScanFiles walks every CallExpression in each requested file and
 // returns one Site per call whose resolved signature has a trailing
-// `InjectRuntypeId<T>` parameter (where T is concretely bound). Sites for every
+// `InjectRunTypeId<T>` parameter (where T is concretely bound). Sites for every
 // file are returned flat, each tagged with .File so callers can filter.
 //
 // After each per-file scan, recordFileIDs walks the sites' RunType graphs
@@ -80,7 +80,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // The scanner walks CallExpression AST nodes ONLY and assigns typeids
 // ONLY for marker call arguments (cache.AssignID is invoked exclusively
 // from scanCall when marker.DetectAny matches the trailing slot as
-// InjectRuntypeId). Type projection
+// InjectRunTypeId). Type projection
 // (cache.AssignID → cache.Serialize) is rooted at marker-referenced
 // types and follows children transitively from there — it never
 // reaches into the file's top-level declarations, exported type
@@ -141,7 +141,7 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 //     validation happens here regardless of whether the call also
 //     carries an injection marker — the marker IS the contract, not
 //     the function name or position.
-//  2. If the trailing parameter carries `InjectRuntypeId<T>`, run the
+//  2. If the trailing parameter carries `InjectRunTypeId<T>`, run the
 //     injection-specific logic (free-type-parameter gate, reflect-form
 //     checks, options extraction, id assignment) and emit a Site.
 //  3. Otherwise return any accumulated diagnostics with no Site.
@@ -164,7 +164,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	}
 	// Walk every parameter and dispatch per marker Kind. CompTimeArgs /
 	// PureFunction validation runs regardless of whether the trailing
-	// slot is InjectRuntypeId — registerPureFnFactory and any other
+	// slot is InjectRunTypeId — registerPureFnFactory and any other
 	// non-injection branded function must be validated too.
 	var diagnostics []diag.Diagnostic
 	var injectionTypeArgument *checker.Type
@@ -180,9 +180,9 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			continue
 		}
 		switch kind {
-		case marker.KindInjectRuntypeId:
+		case marker.KindInjectRunTypeId:
 			// Only the trailing slot is recognised for injection. A
-			// non-trailing InjectRuntypeId is defensively ignored — the
+			// non-trailing InjectRunTypeId is defensively ignored — the
 			// injection codegen below assumes the id sits at lastIndex.
 			if paramIndex == lastIndex {
 				injectionTypeArgument = typeArg
@@ -327,7 +327,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	}
 	// NOTE on encoder/decoder options (strategy / stripExtras):
 	// These are NOT folded into the runtype id. Doing so would make
-	// `getRuntypeId<T>()` and `createJsonEncoder<T>({strategy:
+	// `getRunTypeId<T>()` and `createJsonEncoder<T>({strategy:
 	// 'mutate'})` resolve to DIFFERENT ids for the same `T` — breaking
 	// the invariant that one type has one canonical typeid. Instead,
 	// the runtime dispatches options via the RT-family PREFIX:
@@ -363,7 +363,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 //     explicitly, regardless of how many value args came before the id.
 //   - Else if at least one user arg was supplied → reflect form. The
 //     value for T lives at slot 0 by convention (the leading positional
-//     parameter — `_value` for `reflectRuntypeId`, `val` for
+//     parameter — `_value` for `reflectRunTypeId`, `val` for
 //     `createIsType`). Harvest from Arguments[0]. If slot 0 is
 //     `undefined` (the static-with-options shorthand
 //     `createIsType<T>(undefined, {opts})`), the trace fails harmlessly
@@ -417,15 +417,15 @@ type runTypeOptions struct {
 // slot immediately before id. For `createIsType<T>(val?, options?, id?)`
 // that's slot 1; for any future function with `(options?, id?)` it
 // would be slot 0. Marker functions without an options param
-// (`getRuntypeId<T>(id?)`, `reflectRuntypeId(_value, id?)`) are
-// inherently safe — `reflectRuntypeId`'s slot 0 holds a value, which
+// (`getRunTypeId<T>(id?)`, `reflectRunTypeId(_value, id?)`) are
+// inherently safe — `reflectRunTypeId`'s slot 0 holds a value, which
 // is allowed to be an object literal but won't contain known option
 // keys, so the lookup returns zero opts.
 func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOptions {
 	var opts runTypeOptions
 	// Options live at the slot immediately before the id slot. If
 	// lastIndex==0 the function has no slots before id at all
-	// (e.g. getRuntypeId<T>(id?)).
+	// (e.g. getRunTypeId<T>(id?)).
 	if lastIndex == 0 {
 		return opts
 	}

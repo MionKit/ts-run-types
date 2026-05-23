@@ -42,8 +42,8 @@ describe('vite-plugin-runtypes / isType precompiler', () => {
 
   register('emits a working RTCompiledFn entry for `string`', async () => {
     const sources = {
-      'string.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+      'string.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `,
     };
     await withInlineSources(sources, async ({client, sources: augmented}) => {

@@ -28,21 +28,21 @@ import (
 //	}
 
 func TestF29_CircularObject_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface Circular {
   n: number;
   s: string;
   c?: Circular;
   d?: Date;
 }
-getRuntypeId<Circular>();
+getRunTypeId<Circular>();
 `
 	r, root := resolveInline(t, code)
 	assertF29CircularObject(t, r, root)
 }
 
 func TestF29_CircularObject_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface Circular {
   n: number;
   s: string;
@@ -50,7 +50,7 @@ interface Circular {
   d?: Date;
 }
 declare const value: Circular;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF29CircularObject(t, r, root)
@@ -111,19 +111,19 @@ func assertF29CircularObject(t *testing.T, r *resolver.Resolver, root *protocol.
 // later — here we only verify the cycle-safety property.
 
 func TestF30_CircularArrayUnion_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type CuArray = (CuArray | Date | number | string)[];
-getRuntypeId<CuArray>();
+getRunTypeId<CuArray>();
 `
 	r, root := resolveInline(t, code)
 	assertF30CircularArrayUnion(t, r, root)
 }
 
 func TestF30_CircularArrayUnion_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type CuArray = (CuArray | Date | number | string)[];
 declare const value: CuArray;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF30CircularArrayUnion(t, r, root)
@@ -189,23 +189,23 @@ func assertF30CircularArrayUnion(t *testing.T, r *resolver.Resolver, root *proto
 //	}
 
 func TestF31_CircularTuple_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularTuple {
   tuple: [bigint, CircularTuple?];
 }
-getRuntypeId<CircularTuple>();
+getRunTypeId<CircularTuple>();
 `
 	r, root := resolveInline(t, code)
 	assertF31CircularTuple(t, r, root)
 }
 
 func TestF31_CircularTuple_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularTuple {
   tuple: [bigint, CircularTuple?];
 }
 declare const value: CircularTuple;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF31CircularTuple(t, r, root)
@@ -271,23 +271,23 @@ func assertF31CircularTuple(t *testing.T, r *resolver.Resolver, root *protocol.R
 //	}
 
 func TestF32_CircularIndex_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularIndex {
   index: {[key: string]: CircularIndex};
 }
-getRuntypeId<CircularIndex>();
+getRunTypeId<CircularIndex>();
 `
 	r, root := resolveInline(t, code)
 	assertF32CircularIndex(t, r, root)
 }
 
 func TestF32_CircularIndex_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularIndex {
   index: {[key: string]: CircularIndex};
 }
 declare const value: CircularIndex;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF32CircularIndex(t, r, root)
@@ -348,23 +348,23 @@ func assertF32CircularIndex(t *testing.T, r *resolver.Resolver, root *protocol.R
 // appear exactly once.
 
 func TestF33_CircularDeep_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularDeep {
   deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
 }
-getRuntypeId<CircularDeep>();
+getRunTypeId<CircularDeep>();
 `
 	r, root := resolveInline(t, code)
 	assertF33CircularDeep(t, r, root)
 }
 
 func TestF33_CircularDeep_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface CircularDeep {
   deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
 }
 declare const value: CircularDeep;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF33CircularDeep(t, r, root)
@@ -449,7 +449,7 @@ func walkProp(t *testing.T, types []*protocol.RunType, parent *protocol.RunType,
 // back-edge must close on its expected canonical id.
 
 func TestF34_NestedAndMultipleCircular_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface ICircularDeep {
   name: string;
   big: bigint;
@@ -471,14 +471,14 @@ interface RootCircular {
   ciRoort?: RootCircular;
   ciDate: ICircularDate;
 }
-getRuntypeId<RootCircular>();
+getRunTypeId<RootCircular>();
 `
 	r, root := resolveInline(t, code)
 	assertF34NestedAndMultipleCircular(t, r, root)
 }
 
 func TestF34_NestedAndMultipleCircular_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface ICircularDeep {
   name: string;
   big: bigint;
@@ -501,7 +501,7 @@ interface RootCircular {
   ciDate: ICircularDate;
 }
 declare const value: RootCircular;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF34NestedAndMultipleCircular(t, r, root)
