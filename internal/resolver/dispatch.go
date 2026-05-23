@@ -31,6 +31,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
 		addedIsType := addedRunTypes && jitfn.AnyIsTypeSupported(added)
+		addedTypeErrors := addedRunTypes && jitfn.AnyTypeErrorsSupported(added)
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
@@ -44,14 +45,16 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			Added:              added,
 			AddedRunTypes:      addedRunTypes,
 			AddedIsType:        addedIsType,
+			AddedTypeErrors:    addedTypeErrors,
 			AddedPureFns:       addedPureFns,
 			PureFnsDiagnostics: pureFnDiags,
 			MarkerDiagnostics:  markerDiags,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
+		wantTypeErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		anyCache := wantRunType || wantIsType || wantPureFns
+		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPureFns
 		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
@@ -70,6 +73,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: isTypeErr.Error()}
 				}
 				response.IsTypeCacheSource = isTypeRendered
+			}
+			if wantTypeErrors {
+				typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(scoped)
+				if typeErrorsErr != nil {
+					return protocol.Response{Error: typeErrorsErr.Error()}
+				}
+				response.TypeErrorsCacheSource = typeErrorsRendered
 			}
 			if wantPureFns {
 				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.Program, pureFnEntries, true)
@@ -97,6 +107,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		noFilter := len(request.IncludeCacheSources) == 0
 		wantRunType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
+		wantTypeErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
 		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		if wantRunType {
 			rendered, renderErr := renderRunTypesModule(fullDump)
@@ -111,6 +122,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: isTypeErr.Error()}
 			}
 			response.IsTypeCacheSource = isTypeRendered
+		}
+		if wantTypeErrors {
+			typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(fullDump)
+			if typeErrorsErr != nil {
+				return protocol.Response{Error: typeErrorsErr.Error()}
+			}
+			response.TypeErrorsCacheSource = typeErrorsRendered
 		}
 		if wantPureFns {
 			pureFnsRendered, pureFnsDiags, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)

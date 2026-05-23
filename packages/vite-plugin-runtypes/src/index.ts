@@ -26,11 +26,12 @@ const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
 // resolve the package's `exports` map at startup. Anchored on the
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
-const CACHE_FILE_RE = /[/\\]caches[/\\](runTypesCache|isTypeCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+const CACHE_FILE_RE = /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',
   isTypeCache: 'isType',
+  getTypeErrorsCache: 'typeErrors',
   pureFnsCache: 'pureFns',
 };
 
@@ -163,6 +164,7 @@ export default function runtypes(options: PluginOptions) {
         const kindsToInvalidate: CacheKind[] = [];
         if (result.addedRunTypes) kindsToInvalidate.push('runType');
         if (result.addedIsType) kindsToInvalidate.push('isType');
+        if (result.addedTypeErrors) kindsToInvalidate.push('typeErrors');
         if (result.addedPureFns) kindsToInvalidate.push('pureFns');
         for (const kind of kindsToInvalidate) {
           const cacheId = cacheModuleIds[kind];
@@ -182,11 +184,12 @@ export default function runtypes(options: PluginOptions) {
 // pickCacheSource pulls the rendered body field matching `kind` off a
 // dump response. Centralised so the transform hook stays terse.
 function pickCacheSource(
-  dump: {runTypeCacheSource?: string; isTypeCacheSource?: string; pureFnsCacheSource?: string},
+  dump: {runTypeCacheSource?: string; isTypeCacheSource?: string; typeErrorsCacheSource?: string; pureFnsCacheSource?: string},
   kind: CacheKind
 ): string | undefined {
   if (kind === 'runType') return dump.runTypeCacheSource;
   if (kind === 'isType') return dump.isTypeCacheSource;
+  if (kind === 'typeErrors') return dump.typeErrorsCacheSource;
   if (kind === 'pureFns') return dump.pureFnsCacheSource;
   return undefined;
 }

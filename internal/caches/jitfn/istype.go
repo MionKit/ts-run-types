@@ -134,6 +134,15 @@ func (IsTypeEmitter) IsJitInlined(ctx *InlineContext) bool {
 	return DefaultIsJitInlined(ctx)
 }
 
+// ReturnName is the JS identifier the walker appends after a
+// statement-shaped body. For isType the validator's "result" is the
+// boolean expression itself (CodeE / CodeRB shapes carry their own
+// return); the statement-shape fallback returns the first arg (`v`)
+// matching mion's baseline behaviour for non-error fns.
+func (IsTypeEmitter) ReturnName() string {
+	return "v"
+}
+
 // Emit is the single big switch over ReflectionKind. Each arm mirrors
 // the body of the corresponding mion `emitIsType` method under
 // mion-run-types:packages/run-types/src/nodes/atomic/<name>.ts —
