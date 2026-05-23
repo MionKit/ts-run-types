@@ -298,3 +298,112 @@ describe('union types — strip/has/keyErrors', () => {
     expect(v).toEqual({b: true, anything: 99});
   });
 });
+
+// ============================================================================
+// Map<K, V> and Set<T> — iterable unknown-keys
+// ============================================================================
+//
+// Mion's IterableRunType (mion/packages/run-types/src/nodes/native/Iterable.ts)
+// emits per-entry iteration for all four unknown-keys variants. When the
+// element / key / value type carries its own unknown-keys handling (a nested
+// object with extras), the iterable recurses into each entry.
+//
+// `hasUnknownKeys(Map<string, SmallObject>)` must report `true` when an
+// inner object carries an extra property — mirrors mion's map.spec.ts:159-216
+// and the equivalent set.spec.ts. Same logic applies to the strip / report /
+// undefine variants.
+
+interface SmallObject {
+  a: string;
+  b: number;
+}
+
+describe('iterables — Map<K, V> unknown-keys', () => {
+  it('hasUnknownKeys: false when no inner object carries extras', () => {
+    const has = createHasUnknownKeys<Map<string, SmallObject>>();
+    const m = new Map<string, SmallObject>([
+      ['k1', {a: 'x', b: 1}],
+      ['k2', {a: 'y', b: 2}],
+    ]);
+    expect(has(m)).toBe(false);
+  });
+
+  it('hasUnknownKeys: true when an inner value object has an extra key', () => {
+    const has = createHasUnknownKeys<Map<string, SmallObject>>();
+    const m = new Map<string, unknown>([
+      ['k1', {a: 'x', b: 1, extra: 'gone'}],
+      ['k2', {a: 'y', b: 2}],
+    ]);
+    expect(has(m as Map<string, SmallObject>)).toBe(true);
+  });
+
+  it('unknownKeyErrors: empty when no inner extras', () => {
+    const errs = createUnknownKeyErrors<Map<string, SmallObject>>();
+    const m = new Map<string, SmallObject>([['k1', {a: 'x', b: 1}]]);
+    expect(errs(m)).toEqual([]);
+  });
+
+  it('unknownKeyErrors: reports per-entry unknown key with path', () => {
+    const errs = createUnknownKeyErrors<Map<string, SmallObject>>();
+    const m = new Map<string, unknown>([['k1', {a: 'x', b: 1, extra: 'gone'}]]);
+    const out = errs(m as Map<string, SmallObject>);
+    expect(out).toHaveLength(1);
+    expect(out[0].expected).toBe('never');
+    // The extra-key segment should appear in the path; we don't pin the
+    // exact intermediate shape (mion uses `{key, index, failed}` envelope
+    // tokens). Required minimum: the extra key name itself.
+    expect(out[0].path).toContain('extra');
+  });
+
+  it('stripUnknownKeys: removes extras from inner value objects', () => {
+    const strip = createStripUnknownKeys<Map<string, SmallObject>>();
+    const m = new Map<string, unknown>([['k1', {a: 'x', b: 1, extra: 'gone'}]]);
+    strip(m as Map<string, SmallObject>);
+    expect(m.get('k1')).toEqual({a: 'x', b: 1});
+  });
+
+  it('unknownKeysToUndefined: sets inner extras to undefined', () => {
+    const uku = createUnknownKeysToUndefined<Map<string, SmallObject>>();
+    const m = new Map<string, unknown>([['k1', {a: 'x', b: 1, extra: 'gone'}]]);
+    uku(m as Map<string, SmallObject>);
+    const inner = m.get('k1') as Record<string, unknown>;
+    expect(inner.a).toBe('x');
+    expect(inner.b).toBe(1);
+    expect(inner.extra).toBe(undefined);
+    expect('extra' in inner).toBe(true);
+  });
+});
+
+describe('iterables — Set<T> unknown-keys', () => {
+  it('hasUnknownKeys: false when no element object carries extras', () => {
+    const has = createHasUnknownKeys<Set<SmallObject>>();
+    const s = new Set<SmallObject>([{a: 'x', b: 1}]);
+    expect(has(s)).toBe(false);
+  });
+
+  it('hasUnknownKeys: true when an element object has an extra key', () => {
+    const has = createHasUnknownKeys<Set<SmallObject>>();
+    const s: Set<SmallObject> = new Set([
+      {a: 'x', b: 1, extra: 'gone'} as SmallObject,
+    ]);
+    expect(has(s)).toBe(true);
+  });
+
+  it('stripUnknownKeys: removes extras from each element', () => {
+    const strip = createStripUnknownKeys<Set<SmallObject>>();
+    const inner: Record<string, unknown> = {a: 'x', b: 1, extra: 'gone'};
+    const s = new Set([inner]) as unknown as Set<SmallObject>;
+    strip(s);
+    // The Set retains the same object reference; mutation is in place.
+    expect(inner).toEqual({a: 'x', b: 1});
+  });
+
+  it('unknownKeyErrors: reports unknown keys on elements', () => {
+    const errs = createUnknownKeyErrors<Set<SmallObject>>();
+    const s = new Set([{a: 'x', b: 1, extra: 'gone'} as SmallObject]);
+    const out = errs(s);
+    expect(out).toHaveLength(1);
+    expect(out[0].expected).toBe('never');
+    expect(out[0].path).toContain('extra');
+  });
+});

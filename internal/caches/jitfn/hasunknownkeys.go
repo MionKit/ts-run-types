@@ -1,6 +1,9 @@
 package jitfn
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -125,8 +128,11 @@ func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 	case protocol.KindObjectLiteral:
 		return emitObjectHasUnknownKeys(rt, ctx)
 	case protocol.KindClass:
-		if rt.SubKind == protocol.SubKindNone {
+		switch rt.SubKind {
+		case protocol.SubKindNone:
 			return emitObjectHasUnknownKeys(rt, ctx)
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return emitNativeIterableHasUnknownKeys(rt, ctx, ctx.Vλl)
 		}
 		return JitCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
@@ -428,4 +434,64 @@ func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
 		},
 		CodeShape: CodeE,
 	})
+}
+
+// emitNativeIterableHasUnknownKeys mirrors mion's
+// IterableRunType.emitHasUnknownKeys (nodes/native/Iterable.ts:86-103).
+// For each entry in the Map/Set, runs the wrapped child's
+// hasUnknownKeys expression; returns true on the first hit. When every
+// wrapped child compiles to a noop (e.g. Set<string>, Map<string, number>
+// where neither key nor value carries an object with extras), the entire
+// iteration is elided — Finalize folds the empty body into `return false`.
+//
+// Accessors:
+//   - Set: the loop binding `e0` IS the element (no array unwrap)
+//   - Map: `e0` is the `[key, value]` tuple; `e0[0]` is key, `e0[1]` is
+//     value — matches the prepare/restore-side accessor convention used
+//     elsewhere (mion's MapKeyRunType / MapValueRunType useArrayAccessor).
+func emitNativeIterableHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isMap := rt.SubKind == protocol.SubKindMap
+	ctorName := "Map"
+	if !isMap {
+		ctorName = "Set"
+	}
+
+	var innerTypes []*protocol.RunType
+	if isMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		innerTypes = []*protocol.RunType{keyType, valueType}
+	} else {
+		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
+	}
+
+	entryVar := ctx.NextLocalVar("e")
+	var childChecks []string
+	for i, innerType := range innerTypes {
+		if innerType == nil {
+			continue
+		}
+		accessor := entryVar
+		if isMap {
+			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
+		}
+		ctx.SetChildAccessor(accessor)
+		childJit := ctx.CompileChild(innerType, CodeE)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			childChecks = append(childChecks, "if ("+childJit.Code+") return true;")
+		}
+	}
+
+	if len(childChecks) == 0 {
+		return JitCode{Code: "", Type: CodeE}
+	}
+
+	body := "if (!(" + v + " instanceof " + ctorName + ")) return false;" +
+		"for (const " + entryVar + " of " + v + ") {" +
+		strings.Join(childChecks, "") +
+		"} return false"
+	return JitCode{Code: body, Type: CodeRB}
 }
