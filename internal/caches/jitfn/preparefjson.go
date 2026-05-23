@@ -44,6 +44,10 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindObject, protocol.KindRegexp,
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
+	case protocol.KindArray:
+		// Gate on a non-nil child — a malformed RunType with KindArray
+		// and Child=nil would reach Emit and panic.
+		return rt.Child != nil
 	case protocol.KindClass:
 		// Date is atomic in mion — its prepareForJson is a noop (Date
 		// has its own toJSON()). Other class subkinds land in future
@@ -150,6 +154,38 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// Inline the dispatch here: bigint / symbol / regexp literals
 		// behave like the bare kind; primitive literals are noops.
 		return emitLiteralPrepareForJson(rt, v)
+
+	case protocol.KindArray:
+		// mion:nodes/member/array.ts:emitPrepareForJson. Allocates an
+		// index counter, sets the child accessor (`v[i0]`) so the
+		// element's CompileChild adopts the subscript, then composes:
+		//
+		//   for (let i0 = 0; i0 < v.length; i0++) {<childCode>}
+		//
+		// The child's emit is responsible for the per-element mutation
+		// (e.g. bigint child returns `v[i0] = v[i0].toString()`). Empty
+		// child code collapses the whole loop to a noop. Non-serializable
+		// element kinds (Symbol[] / Function[]) emit CodeNS so the
+		// whole factory is skipped — same stance as isType / typeErrors.
+		if rt.Child == nil {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		resolvedChild := ctx.ResolveRef(rt.Child)
+		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		iVar := ctx.NextLocalVar("i")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		childJit := ctx.CompileChild(rt.Child, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		return JitCode{Code: body, Type: CodeS}
 	}
 	return JitCode{Code: "", Type: CodeNS}
 }
@@ -178,19 +214,35 @@ func emitLiteralPrepareForJson(rt *protocol.RunType, v string) JitCode {
 	return JitCode{Code: "", Type: CodeS}
 }
 
-// EmitDependencyCall mirrors IsTypeEmitter's. Self-recursive calls
-// drop the `.fn` indirection; cross-fn calls register a context-item
-// and invoke `<hash>.fn(args)`.
+// EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a
+// prepareForJson dependency call mutates v INSIDE the inner function
+// (e.g. `return v = v.toString()`) so the outer caller must capture
+// the return value to actually see the transformed shape — `v[i0]`
+// in the parent's frame won't auto-update from the inner function's
+// local rebind. We wrap the call site with the assignment:
+//
+//	<vλl> = <childHash>.fn(<vλl>)
+//
+// For nested compounds (Date[][] etc.) the inner function mutates its
+// argument array in place AND returns the same reference, so the
+// outer assignment is a same-ref no-op semantically — but it KEEPS
+// the same shape as the atomic-leaf case (e.g. `v[i0] = childHash.fn(v[i0])`
+// where the leaf emits `return v = new Date(v)`), which lets the
+// array emit treat dependency-call children identically to inline
+// atomic children. Self-recursive calls drop the `.fn` indirection.
 func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	args := ctx.Vλl
 	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	var call string
 	if isSelf {
-		return ctx.walker.FnName + "(" + args + ")"
+		call = ctx.walker.FnName + "(" + args + ")"
+	} else {
+		if !ctx.HasContextItem(childID) {
+			ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+		}
+		call = childID + ".fn(" + args + ")"
 	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + args + ")"
+	return ctx.Vλl + " = " + call
 }
 
 // Finalize collapses empty / noop bodies to `return v` + noop flag.

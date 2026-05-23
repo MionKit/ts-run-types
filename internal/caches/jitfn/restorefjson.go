@@ -39,6 +39,8 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		protocol.KindObject, protocol.KindRegexp,
 		protocol.KindLiteral, protocol.KindEnum:
 		return true
+	case protocol.KindArray:
+		return rt.Child != nil
 	case protocol.KindClass:
 		if rt.SubKind == protocol.SubKindDate {
 			return true
@@ -136,6 +138,31 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		// mion:nodes/atomic/literal.ts:80 — defers to the underlying
 		// kind's emit.
 		return emitLiteralRestoreFromJson(rt, v)
+
+	case protocol.KindArray:
+		// mion:nodes/member/array.ts:emitRestoreFromJson — same body
+		// shape as emitPrepareForJson. Each element gets the child's
+		// restoreFromJson applied in place. Empty child code collapses
+		// the whole loop to a noop.
+		if rt.Child == nil {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		resolvedChild := ctx.ResolveRef(rt.Child)
+		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		iVar := ctx.NextLocalVar("i")
+		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		childJit := ctx.CompileChild(rt.Child, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			return JitCode{Code: "", Type: CodeS}
+		}
+		body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		return JitCode{Code: body, Type: CodeS}
 	}
 	return JitCode{Code: "", Type: CodeNS}
 }
@@ -164,17 +191,24 @@ func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) JitCode {
 	return JitCode{Code: "", Type: CodeS}
 }
 
-// EmitDependencyCall mirrors PrepareForJsonEmitter's.
+// EmitDependencyCall mirrors PrepareForJsonEmitter's — the parent
+// frame's `<vλl>` must capture the call's return so the
+// `v = new Date(v)` style rebind inside the inner function propagates
+// to the outer caller. See PrepareForJsonEmitter.EmitDependencyCall
+// for the full rationale.
 func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	args := ctx.Vλl
 	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	var call string
 	if isSelf {
-		return ctx.walker.FnName + "(" + args + ")"
+		call = ctx.walker.FnName + "(" + args + ")"
+	} else {
+		if !ctx.HasContextItem(childID) {
+			ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+		}
+		call = childID + ".fn(" + args + ")"
 	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + args + ")"
+	return ctx.Vλl + " = " + call
 }
 
 // Finalize collapses empty / identity bodies to `return v` + noop flag.
