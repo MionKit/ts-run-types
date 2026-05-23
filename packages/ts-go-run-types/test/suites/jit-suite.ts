@@ -2055,6 +2055,26 @@ export const JIT_SUITE = {
         const v: string[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<string[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string[]>(),
+      prepareForJsonReflect: () => {
+        const v: string[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(),
+      restoreFromJsonReflect: () => {
+        const v: string[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello', 'world']],
         // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
@@ -2097,6 +2117,26 @@ export const JIT_SUITE = {
         const v: number[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<number[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<number[]>(),
+      prepareForJsonReflect: () => {
+        const v: number[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: number[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<number[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<number[]>(),
+      restoreFromJsonReflect: () => {
+        const v: number[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: number[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], [1, 2, 3], [42]],
         invalid: [[1, '2'], 'not-array', [Infinity], [-Infinity], [NaN], null, undefined, [null], [BigInt(1)]],
@@ -2136,6 +2176,26 @@ export const JIT_SUITE = {
         const v: boolean[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<boolean[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<boolean[]>(),
+      prepareForJsonReflect: () => {
+        const v: boolean[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: boolean[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<boolean[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<boolean[]>(),
+      restoreFromJsonReflect: () => {
+        const v: boolean[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: boolean[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], [true, false]],
         invalid: [[true, 42], 'nope', null, undefined, [0], [1], [null]],
@@ -2172,6 +2232,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: bigint[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<bigint[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<bigint[]>(),
+      prepareForJsonReflect: () => {
+        const v: bigint[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: bigint[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<bigint[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<bigint[]>(),
+      restoreFromJsonReflect: () => {
+        const v: bigint[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: bigint[] = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [1n, 2n]],
@@ -2211,6 +2291,26 @@ export const JIT_SUITE = {
         const v: Date[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<Date[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Date[]>(),
+      prepareForJsonReflect: () => {
+        const v: Date[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Date[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Date[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date[]>(),
+      restoreFromJsonReflect: () => {
+        const v: Date[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Date[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
         invalid: [['2024'], [42], [new Date('invalid')], null, undefined],
@@ -2245,6 +2345,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: RegExp[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<RegExp[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<RegExp[]>(),
+      prepareForJsonReflect: () => {
+        const v: RegExp[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: RegExp[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<RegExp[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<RegExp[]>(),
+      restoreFromJsonReflect: () => {
+        const v: RegExp[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: RegExp[] = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [/abc/, new RegExp('abc')]],
@@ -2284,6 +2404,26 @@ export const JIT_SUITE = {
         const v: undefined[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<undefined[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<undefined[]>(),
+      prepareForJsonReflect: () => {
+        const v: undefined[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: undefined[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<undefined[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<undefined[]>(),
+      restoreFromJsonReflect: () => {
+        const v: undefined[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: undefined[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], [undefined, undefined]],
         invalid: [[null], [42], null, undefined, [0], [''], [false]],
@@ -2321,6 +2461,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: null[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<null[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<null[]>(),
+      prepareForJsonReflect: () => {
+        const v: null[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: null[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<null[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<null[]>(),
+      restoreFromJsonReflect: () => {
+        const v: null[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: null[] = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], [null]],
@@ -2360,6 +2520,26 @@ export const JIT_SUITE = {
         const v: Array<string> = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<Array<string>>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<Array<string>>(),
+      prepareForJsonReflect: () => {
+        const v: Array<string> = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: Array<string> = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<Array<string>>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Array<string>>(),
+      restoreFromJsonReflect: () => {
+        const v: Array<string> = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: Array<string> = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         invalid: ['hello', [42], null, undefined],
@@ -2395,6 +2575,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string[][] = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<string[][]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string[][]>(),
+      prepareForJsonReflect: () => {
+        const v: string[][] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string[][] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string[][]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][]>(),
+      restoreFromJsonReflect: () => {
+        const v: string[][] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string[][] = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -2453,6 +2653,26 @@ export const JIT_SUITE = {
         const v: string[][][] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<string[][][]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<string[][][]>(),
+      prepareForJsonReflect: () => {
+        const v: string[][][] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string[][][] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<string[][][]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][][]>(),
+      restoreFromJsonReflect: () => {
+        const v: string[][][] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string[][][] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
         invalid: [[[['a', 2]]], [['a']], ['a'], null, undefined, [[[null]]], [[[42]]]],
@@ -2499,6 +2719,26 @@ export const JIT_SUITE = {
         const v: string[] = [];
         return deserializeGetTypeErrors(v, {noIsArrayCheck: true});
       },
+      prepareForJson: () => createPrepareForJson<string[]>(undefined, {noIsArrayCheck: true}),
+      deserializePrepareForJson: () => deserializePrepareForJson<string[]>(undefined, {noIsArrayCheck: true}),
+      prepareForJsonReflect: () => {
+        const v: string[] = [];
+        return createPrepareForJson(v, {noIsArrayCheck: true});
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: string[] = [];
+        return deserializePrepareForJson(v, {noIsArrayCheck: true});
+      },
+      restoreFromJson: () => createRestoreFromJson<string[]>(undefined, {noIsArrayCheck: true}),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(undefined, {noIsArrayCheck: true}),
+      restoreFromJsonReflect: () => {
+        const v: string[] = [];
+        return createRestoreFromJson(v, {noIsArrayCheck: true});
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: string[] = [];
+        return deserializeRestoreFromJson(v, {noIsArrayCheck: true});
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         // Without the guard, non-array inputs may not be rejected by
@@ -2538,6 +2778,26 @@ export const JIT_SUITE = {
         const v: {a: string}[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<{a: string}[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<{a: string}[]>(),
+      prepareForJsonReflect: () => {
+        const v: {a: string}[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: {a: string}[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<{a: string}[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<{a: string}[]>(),
+      restoreFromJsonReflect: () => {
+        const v: {a: string}[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: {a: string}[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [[], [{a: 'hello'}, {a: 'world'}], [{a: 'hello', extraA: 'extraA'}, {a: 'world'}]],
         invalid: ['not-an-array', [{a: 42}], [{}], [null], null, undefined, [{a: null}], [{a: undefined}]],
@@ -2576,6 +2836,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: (string | number)[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<(string | number)[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<(string | number)[]>(),
+      prepareForJsonReflect: () => {
+        const v: (string | number)[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: (string | number)[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<(string | number)[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<(string | number)[]>(),
+      restoreFromJsonReflect: () => {
+        const v: (string | number)[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: (string | number)[] = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], ['a', 1, 'b', 2], [1], ['a']],
@@ -2622,6 +2902,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number][] = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<[string, number][]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<[string, number][]>(),
+      prepareForJsonReflect: () => {
+        const v: [string, number][] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: [string, number][] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<[string, number][]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<[string, number][]>(),
+      restoreFromJsonReflect: () => {
+        const v: [string, number][] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: [string, number][] = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [
@@ -2693,6 +2993,42 @@ export const JIT_SUITE = {
         const v: CircularArray = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => {
+        type CircularArray = CircularArray[];
+        return createPrepareForJson<CircularArray>();
+      },
+      deserializePrepareForJson: () => {
+        type CircularArray = CircularArray[];
+        return deserializePrepareForJson<CircularArray>();
+      },
+      prepareForJsonReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => {
+        type CircularArray = CircularArray[];
+        return createRestoreFromJson<CircularArray>();
+      },
+      deserializeRestoreFromJson: () => {
+        type CircularArray = CircularArray[];
+        return deserializeRestoreFromJson<CircularArray>();
+      },
+      restoreFromJsonReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
         const arrA: any = [];
@@ -2758,6 +3094,42 @@ export const JIT_SUITE = {
         const v: ObjectType = {a: 'hello'};
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return createPrepareForJson<ObjectType>();
+      },
+      deserializePrepareForJson: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return deserializePrepareForJson<ObjectType>();
+      },
+      prepareForJsonReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return createRestoreFromJson<ObjectType>();
+      },
+      deserializeRestoreFromJson: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return deserializeRestoreFromJson<ObjectType>();
+      },
+      restoreFromJsonReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 'hello'},
@@ -2814,6 +3186,26 @@ export const JIT_SUITE = {
         const v: symbol[] = [];
         return deserializeGetTypeErrors(v);
       },
+      prepareForJson: () => createPrepareForJson<symbol[]>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<symbol[]>(),
+      prepareForJsonReflect: () => {
+        const v: symbol[] = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: symbol[] = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<symbol[]>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<symbol[]>(),
+      restoreFromJsonReflect: () => {
+        const v: symbol[] = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: symbol[] = [];
+        return deserializeRestoreFromJson(v);
+      },
       getSamples: () => ({
         valid: [],
         invalid: [[Symbol('a')], [], 'not array', null, [42]],
@@ -2855,6 +3247,26 @@ export const JIT_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: ReadonlyArray<string> = [];
         return deserializeGetTypeErrors(v);
+      },
+      prepareForJson: () => createPrepareForJson<ReadonlyArray<string>>(),
+      deserializePrepareForJson: () => deserializePrepareForJson<ReadonlyArray<string>>(),
+      prepareForJsonReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return createPrepareForJson(v);
+      },
+      deserializePrepareForJsonReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return deserializePrepareForJson(v);
+      },
+      restoreFromJson: () => createRestoreFromJson<ReadonlyArray<string>>(),
+      deserializeRestoreFromJson: () => deserializeRestoreFromJson<ReadonlyArray<string>>(),
+      restoreFromJsonReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return createRestoreFromJson(v);
+      },
+      deserializeRestoreFromJsonReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return deserializeRestoreFromJson(v);
       },
       getSamples: () => ({
         valid: [[], ['hello'], ['a', 'b', 'c']],
