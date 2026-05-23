@@ -113,3 +113,28 @@ export function reflectRuntypeId<T>(_value: RejectAny<T>, id?: InjectRuntypeId<T
  * `CTA0xx` diagnostics.
  */
 export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+
+/**
+ * Pure-function marker. Brands a function-typed parameter so the Go
+ * scanner enforces that the matching argument is *both* an inline
+ * function definition (arrow or function expression, at the call site
+ * or via a module-scope `const` whose initializer is itself a function
+ * literal) *and* passes the purity rules — no `this`, no `await` /
+ * `yield`, no dynamic `import`, no eval / Function, no closure over
+ * outer bindings (only allow-listed globals and same-scope vars), no
+ * forbidden hosts (`fetch`, `process`, `window`, …).
+ *
+ * Strictly stronger than `CompTimeArgs<F>` when F is a function: every
+ * value `PureFunction<F>` accepts is also a `CompTimeArgs<F>` literal,
+ * but `PureFunction` additionally requires purity. Use this for
+ * function arguments the JIT plans to inline / AOT-compile; use
+ * `CompTimeArgs<F>` when you only need the literal-shape guarantee
+ * (e.g. for stable hashing of the function's source text).
+ *
+ * Pure static check: the brand is a phantom intersection
+ * (`F & {__mionPureFunctionBrand?: never}`) so the value flows through
+ * unwrapped. Inline-shape violations produce a `PFN001` diagnostic;
+ * purity violations propagate via the existing `PFE9006`–`PFE9011`
+ * codes from the `purefns` extractor (reused unchanged).
+ */
+export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};

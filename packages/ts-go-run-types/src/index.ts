@@ -2,7 +2,7 @@
 // (`InjectRuntypeId`, `getRuntypeId`, `reflectRuntypeId`, and the Phase
 // 2/3 siblings) lives in `./markers.ts`; this module re-exports it so
 // downstream consumers continue importing from the package root.
-export {type InjectRuntypeId, type CompTimeArgs, getRuntypeId, reflectRuntypeId} from './markers.ts';
+export {type InjectRuntypeId, type CompTimeArgs, type PureFunction, getRuntypeId, reflectRuntypeId} from './markers.ts';
 
 // JIT runtime registry — migrated from `@mionjs/core`. Consumers (currently
 // `createIsType`) build a `JITUtils` via `getJitUtils()` and hand it to the

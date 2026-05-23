@@ -5,4 +5,5 @@ declare module '@mionjs/ts-go-run-types' {
   export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
 }
