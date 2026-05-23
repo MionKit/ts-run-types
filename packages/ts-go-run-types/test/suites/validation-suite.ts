@@ -1804,10 +1804,37 @@ export const VALIDATION_SUITE = {
         const v: (string | number)[] = [];
         return deserializeIsType(v);
       },
+      getTypeErrors: () => createGetTypeErrors<(string | number)[]>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | number)[]>(),
+      getTypeErrorsReflect: () => {
+        const v: (string | number)[] = [];
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: (string | number)[] = [];
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [[], ['a', 1, 'b', 2], [1], ['a']],
         invalid: [[true], 'a', [null], ['a', true], null, undefined, [BigInt(1)], [Infinity]],
       }),
+      getExpectedErrors: () => [
+        // [true] — element 0 fails union (boolean not in string|number).
+        [{path: [0], expected: 'union'}],
+        // 'a' — not an array.
+        [{path: [], expected: 'array'}],
+        // [null] — element 0 fails union.
+        [{path: [0], expected: 'union'}],
+        // ['a', true] — element 1 (true) fails union; element 0 ('a') OK.
+        [{path: [1], expected: 'union'}],
+        [{path: [], expected: 'array'}],
+        [{path: [], expected: 'array'}],
+        // [BigInt(1)] — bigint not in union.
+        [{path: [0], expected: 'union'}],
+        // [Infinity] — Number.isFinite fails for Infinity (number arm
+        // rejects it), bigint arm also fails → union fails.
+        [{path: [0], expected: 'union'}],
+      ],
     },
 
     tuple_array: {
@@ -2756,10 +2783,16 @@ export const VALIDATION_SUITE = {
         const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
         return deserializeIsType(v);
       },
-      // getTypeErrors omitted — the value type is `string | number`,
-      // a union which the typeErrors emitter doesn't support yet
-      // (phase 7). Index signature + named-prop coverage with a
-      // single-type value lands in index_signature_string above.
+      getTypeErrors: () => createGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
+      deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
+      getTypeErrorsReflect: () => {
+        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
+        return createGetTypeErrors(v);
+      },
+      deserializeGetTypeErrorsReflect: () => {
+        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
+        return deserializeGetTypeErrors(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 'x', b: 1},
@@ -2768,6 +2801,23 @@ export const VALIDATION_SUITE = {
         ],
         invalid: [{a: 1, b: 1}, {a: 'x'}, null, {a: 'x', b: 1, extra: true}],
       }),
+      getExpectedErrors: () => [
+        // {a: 1, b: 1} — index-sig checks every own key. Both 'a' (=1)
+        // and 'b' (=1) are valid by index-sig (string|number). But
+        // named prop 'a: string' fails because v.a is 1 (number, not
+        // string). Mion runs BOTH the named-prop checks and the
+        // index-sig loop, so 'a' fails the string check from the
+        // named prop side. Note: 'a' is allowed in the for-in loop's
+        // index check (number is in union) so no extra error there.
+        [{path: ['a'], expected: 'string'}],
+        // {a: 'x'} — named prop 'b' missing → undefined fails number.
+        // For-in loop only sees key 'a' which IS in the union (string).
+        [{path: ['b'], expected: 'number'}],
+        [{path: [], expected: 'objectLiteral'}],
+        // {a: 'x', b: 1, extra: true} — named props OK; for-in loop
+        // sees key 'extra' (true) which fails the union check.
+        [{path: ['extra'], expected: 'union'}],
+      ],
     },
 
     index_signature_nested: {
