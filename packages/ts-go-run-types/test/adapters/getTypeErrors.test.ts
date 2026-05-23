@@ -202,6 +202,26 @@ describe('getTypeErrors / TUPLE', () => {
   });
 });
 
+describe('getTypeErrors / TEMPLATE_LITERAL', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Template literal URL with a number placeholder', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.url_with_number_id));
+  it('Template literal URL with multiple placeholders', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.multi_segment_url));
+  it('Template literal starting with a string placeholder', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.leading_string_placeholder));
+  it('Template literal with regex metacharacters in literal segments', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.regex_special_chars));
+  it('Object with a template-literal-typed string property', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_nested_in_object));
+  it('Index signature whose key is a template literal pattern', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_index_key));
+  it('Template literal with a union-of-literals placeholder', () => assertGetTypeErrors(VALIDATION_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
+
+  it('all template-literal getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.TEMPLATE_LITERAL).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
 describe('getTypeErrors / NATIVE', () => {
   let ranTests = 0;
   afterEach(() => {
@@ -215,6 +235,20 @@ describe('getTypeErrors / NATIVE', () => {
 
   it('all native getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.NATIVE).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+describe('getTypeErrors / CIRCULAR', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Self-referential object with optional self-ref and Date prop', () => assertGetTypeErrors(VALIDATION_SUITE.CIRCULAR.object_full_mion_shape));
+
+  it('all circular getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.CIRCULAR).filter((c) => c.getTypeErrors).length;
     expect(ranTests).toBe(activeCount);
   });
 });
@@ -238,6 +272,23 @@ describe('getTypeErrors / UNION', () => {
 
   it('all union getTypeErrors tests ran', () => {
     const activeCount = Object.values(VALIDATION_SUITE.UNION).filter((c) => c.getTypeErrors).length;
+    expect(ranTests).toBe(activeCount);
+  });
+});
+
+describe('getTypeErrors / UTILITY', () => {
+  let ranTests = 0;
+  afterEach(() => {
+    ranTests++;
+  });
+
+  it('Exclude<U, X> on a string-literal union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.exclude_atomic));
+  it('Extract<U, X> on a string-literal union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.extract_atomic));
+  it('NonNullable<T> — strips null and undefined from a union', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.non_nullable));
+  it('ReturnType<F> — extracts the return type of a function', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.return_type));
+
+  it('all utility getTypeErrors tests ran', () => {
+    const activeCount = Object.values(VALIDATION_SUITE.UTILITY).filter((c) => c.getTypeErrors).length;
     expect(ranTests).toBe(activeCount);
   });
 });
