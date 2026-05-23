@@ -98,6 +98,8 @@ describe('getTypeErrors / ATOMIC', () => {
   it('Undefined primitive (distinct from null)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.undefined));
   it('Void — accepts undefined, rejects null', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.void));
 
+  it('Unknown type — every value passes', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.unknown));
+
   // noLiterals variants — literal types degrade to their base kind.
   it('Numeric literal with noLiterals (degrades to number)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
   it('String literal with noLiterals (degrades to string)', () => assertGetTypeErrors(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
@@ -139,6 +141,7 @@ describe('getTypeErrors / ARRAY', () => {
   it('Array of object literals', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.object_array));
   it('Recursive object whose cycle closes via an array property', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.circular_object_with_array));
   it('Array of tuples', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.tuple_array));
+  it('Readonly array (ReadonlyArray<T> / readonly T[])', () => assertGetTypeErrors(VALIDATION_SUITE.ARRAY.readonly_string_array));
 
   it('all array getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.ARRAY).length);
@@ -180,6 +183,9 @@ describe('getTypeErrors / OBJECT', () => {
   it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.record_union_keys));
   it('Index signature with a union value type', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.union_value_index));
   it('Object with a discriminated-union string property', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.object_with_union_prop));
+  it('Interface that extends a parent interface', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.interface_inheritance));
+  it('Class that extends a parent class', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.class_inheritance));
+  it('Index signature with a number key', () => assertGetTypeErrors(VALIDATION_SUITE.OBJECT.index_signature_number_key));
 
   it('all object getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.OBJECT).length);
@@ -201,6 +207,9 @@ describe('getTypeErrors / TUPLE', () => {
   it('Tuple with a trailing rest segment', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_rest));
   it('Tuple with multiple trailing optional slots', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
   it('Tuple with named element labels (labels erased at runtime)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.tuple_named_labels));
+  it('Empty tuple `[]` (only the empty array passes)', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.empty_tuple));
+  it('Single-element tuple `[T]`', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.single_element_tuple));
+  it('Readonly tuple (readonly [T, U])', () => assertGetTypeErrors(VALIDATION_SUITE.TUPLE.readonly_tuple));
 
   it('all tuple getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TUPLE).length);
@@ -313,6 +322,11 @@ describe('getTypeErrors / UTILITY', () => {
   it('Readonly<T> — readonly bit erased at runtime', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.readonly));
   it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.intersection_with_required_override));
   it('Omit<T, K> preserves optionality of remaining props', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
+  it('keyof T — resolves to a union of string-literal keys', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.keyof_to_literal_union));
+  it('typeof variable — type query on a runtime value', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.typeof_variable_query));
+  it('Indexed access type — Person["name"] resolves to string', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.indexed_access_type));
+  it('Conditional type — T extends string ? boolean : number', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
+  it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertGetTypeErrors(VALIDATION_SUITE.UTILITY.mapped_type_custom));
 
   it('all utility getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UTILITY).length);

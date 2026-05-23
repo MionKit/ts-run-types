@@ -103,6 +103,8 @@ describe('isType / ATOMIC', () => {
   it('Undefined primitive (distinct from null)', () => assertIsType(VALIDATION_SUITE.ATOMIC.undefined));
   it('Void — accepts undefined, rejects null', () => assertIsType(VALIDATION_SUITE.ATOMIC.void));
 
+  it('Unknown type — every value passes', () => assertIsType(VALIDATION_SUITE.ATOMIC.unknown));
+
   // noLiterals variants — literal types degrade to their base kind.
   it('Numeric literal with noLiterals (degrades to number)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
   it('String literal with noLiterals (degrades to string)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
@@ -147,6 +149,7 @@ describe('isType / ARRAY', () => {
   it('Self-referential array (CircularArray = CircularArray[])', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_array));
   it('Recursive object whose cycle closes via an array property', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_object_with_array));
   it('Array of symbols (non-serializable — always rejected)', () => assertIsType(VALIDATION_SUITE.ARRAY.symbol_array));
+  it('Readonly array (ReadonlyArray<T> / readonly T[])', () => assertIsType(VALIDATION_SUITE.ARRAY.readonly_string_array));
 
   it('all array isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.ARRAY).length);
@@ -182,6 +185,9 @@ describe('isType / OBJECT', () => {
   it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertIsType(VALIDATION_SUITE.OBJECT.record_union_keys));
   it('Index signature with a union value type', () => assertIsType(VALIDATION_SUITE.OBJECT.union_value_index));
   it('Object with a discriminated-union string property', () => assertIsType(VALIDATION_SUITE.OBJECT.object_with_union_prop));
+  it('Interface that extends a parent interface', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_inheritance));
+  it('Class that extends a parent class', () => assertIsType(VALIDATION_SUITE.OBJECT.class_inheritance));
+  it('Index signature with a number key', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_number_key));
 
   it('Interface with every property optional (plain-object guard)', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_all_optional));
 
@@ -214,6 +220,9 @@ describe('isType / TUPLE', () => {
   it('Tuple with a trailing rest segment', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_rest));
   it('Tuple with multiple trailing optional slots', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_multiple_trailing_optionals));
   it('Tuple with named element labels (labels erased at runtime)', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_named_labels));
+  it('Empty tuple `[]` (only the empty array passes)', () => assertIsType(VALIDATION_SUITE.TUPLE.empty_tuple));
+  it('Single-element tuple `[T]`', () => assertIsType(VALIDATION_SUITE.TUPLE.single_element_tuple));
+  it('Readonly tuple (readonly [T, U])', () => assertIsType(VALIDATION_SUITE.TUPLE.readonly_tuple));
 
   it('all tuple isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.TUPLE).length);
@@ -354,6 +363,11 @@ describe('isType / UTILITY', () => {
   // validation-suite.ts.
   it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () => assertIsType(VALIDATION_SUITE.UTILITY.intersection_with_required_override));
   it('Omit<T, K> preserves optionality of remaining props', () => assertIsType(VALIDATION_SUITE.UTILITY.omit_keeping_optional));
+  it('keyof T — resolves to a union of string-literal keys', () => assertIsType(VALIDATION_SUITE.UTILITY.keyof_to_literal_union));
+  it('typeof variable — type query on a runtime value', () => assertIsType(VALIDATION_SUITE.UTILITY.typeof_variable_query));
+  it('Indexed access type — Person["name"] resolves to string', () => assertIsType(VALIDATION_SUITE.UTILITY.indexed_access_type));
+  it('Conditional type — T extends string ? boolean : number', () => assertIsType(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
+  it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertIsType(VALIDATION_SUITE.UTILITY.mapped_type_custom));
 
   it('all utility isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UTILITY).length);
