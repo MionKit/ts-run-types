@@ -3,7 +3,11 @@ package jitfn
 import "strings"
 
 // WrapClosure produces the outer factory function that wraps a jit
-// function's inner body with its context-item prologue.
+// function's inner body with its context-item prologue. Returns both
+// the full declaration (used as the live `createJitFn` arg in the
+// rendered cache module) and the bare body (the contents between the
+// `(utl){ … }` braces — what gets stored in `JitCompiledFnData.code`
+// for `new Function('utl', body)` reconstruction on the consumer side).
 //
 // Shape mirrors mion's createJitFunction.ts:47 + printClosure
 // (jitFnCompiler.ts:732):
@@ -30,13 +34,15 @@ import "strings"
 // produced by Walker.Compile. contextLines is the joined context-items
 // prologue produced by Walker.ContextLines (empty when there are no
 // context items, as in the v1 KindString path).
-func WrapClosure(factoryName string, innerFnDeclaration string, contextLines string) string {
-	var body strings.Builder
+func WrapClosure(factoryName string, innerFnDeclaration string, contextLines string) (decl, body string) {
+	var b strings.Builder
 	if contextLines != "" {
-		body.WriteString(contextLines)
-		body.WriteString(";")
+		b.WriteString(contextLines)
+		b.WriteString(";")
 	}
-	body.WriteString("return ")
-	body.WriteString(innerFnDeclaration)
-	return "function " + factoryName + "(utl){" + body.String() + "}"
+	b.WriteString("return ")
+	b.WriteString(innerFnDeclaration)
+	body = b.String()
+	decl = "function " + factoryName + "(utl){" + body + "}"
+	return decl, body
 }

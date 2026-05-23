@@ -120,12 +120,8 @@ function restoreCompiledJitFn(
  */
 function restoreCreateJitFn(fnData: JitCompiledFnData, jUtil: JITUtils): JitCompiledFn {
   const fnName = fnData.jitFnHash;
-  // fnData.code already contains the complete function with context (e.g., "const x = ...; return function fnName(args){...}")
-  const fnWithContext = `'use strict'; ${fnData.code}`;
   try {
-    // Create wrapper function that works as a factory and returns the actual jit function
-    const wrapperWithContext = new Function('utl', fnWithContext) as (utl: JITUtils) => (...args: any[]) => any;
-    // Execute the wrapper with jitUtils to get the final function
+    const wrapperWithContext = buildFactoryFromCode(fnData.code) as (utl: JITUtils) => (...args: any[]) => any;
     const fn = wrapperWithContext(jUtil);
     const jitFn = fnData as Mutable<JitCompiledFn>;
     jitFn.createJitFn = wrapperWithContext;
@@ -137,6 +133,16 @@ function restoreCreateJitFn(fnData: JitCompiledFnData, jUtil: JITUtils): JitComp
 }
 
 /**
+ * Builds a fresh factory closure from a serialized JitCompiledFnData.code body via `new Function('utl', code)`.
+ * `code` is expected to be the factory body — the contents between `function(utl){ … }` braces — as
+ * emitted by the Go-side WrapClosure. Strict mode is forced via a leading `'use strict';` directive.
+ * Caller is responsible for invoking the returned closure with jitUtils to obtain the live validator.
+ */
+export function buildFactoryFromCode(code: string): (utl: JITUtils) => (...args: any[]) => any {
+  return new Function('utl', `'use strict'; ${code}`) as (utl: JITUtils) => (...args: any[]) => any;
+}
+
+/**
  * Restores a pure function from serialized function data.
  * This function mutates the input data!!!
  * Creates a dynamic function using the serialized code (which already contains the complete function with context),
@@ -144,12 +150,8 @@ function restoreCreateJitFn(fnData: JitCompiledFnData, jUtil: JITUtils): JitComp
  */
 function restorePureFunction(pureFnData: PureFunctionData, jUtil: JITUtils): CompiledPureFunction {
   const fnName = pureFnData.fnName;
-  // pureFnData.code already contains the complete function with context
-  const fnWithContext = `'use strict'; ${pureFnData.code}`;
   try {
-    // Create wrapper function that works as a factory and returns the actual pure function
-    const wrapperWithContext = new Function('utl', fnWithContext) as PureFunctionFactory;
-    // Execute the wrapper with jitUtils to get the final function
+    const wrapperWithContext = buildFactoryFromCode(pureFnData.code) as PureFunctionFactory;
     const fn = wrapperWithContext(jUtil);
     const pureFn = pureFnData as Mutable<CompiledPureFunction>;
     pureFn.createPureFn = wrapperWithContext;

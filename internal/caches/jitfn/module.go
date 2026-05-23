@@ -192,11 +192,17 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	if isNoop {
 		return "", nil
 	}
-	createJitFn := WrapClosure(factoryName, innerFn, walker.ContextLines())
+	createJitFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
+	// The 3rd arg (`code`) carries the factory BODY — the contents
+	// between the `function(utl){ … }` braces — so a consumer holding
+	// only the serialized JitCompiledFnData can rebuild the validator
+	// via `new Function('utl', code)(jitUtils)`. The inner-validator
+	// body remains embedded in `code` (as `return function …(v){…}`)
+	// AND is the entire payload of `createJitFn` for live invocation.
 	args := []string{
 		quoteJS(runType.ID),
 		quoteJS(jitTypeName(runType)),
-		quoteJS(walker.Code),
+		quoteJS(factoryBody),
 		boolJS(isNoop),
 		stringSliceJS(walker.JitDependencies),
 		pureFnDepsJS(walker.PureFnDependencies),
