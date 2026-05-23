@@ -667,7 +667,14 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 		if childJit.Code == "" {
 			return JitCode{Code: "", Type: CodeS}
 		}
-		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		// Write the rest count (= v.length - position) as a uint32
+		// before the items. Decoder reads this and loops
+		// `i = position; i < position + count`. Without the length
+		// prefix the decoder misaligns by 4 bytes and reads garbage.
+		pos := positionStr(rt)
+		restCount := v + ".length - " + pos
+		body := ser + ".view.setUint32(" + ser + ".index, " + restCount + ", 1); " + ser + ".index += 4;" +
+			"for (let " + iVar + " = " + pos + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
 		return JitCode{Code: body, Type: CodeS}
 	}
 	idxLit := positionStr(rt)

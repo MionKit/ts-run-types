@@ -1,295 +1,91 @@
-// Binary round-trip adapter — drives a focused subset of types
-// through createBinaryEncoder → createBinaryDecoder and asserts the
-// decoded value deep-equals the original. Mirrors the
-// serialization-suite pattern but stays narrow until the binary port's
-// emit logic is verified across every bucket.
+// Binary round-trip adapter — drives every case in `SERIALIZATION_SPEC`
+// through `binaryEncoder` → `binaryDecoder` and asserts the decoded
+// value deep-equals the original (or the per-case `deserializedValues`
+// override when round-trip is asymmetric — class instances becoming
+// plain objects, functions in tuples becoming undefined, etc).
 //
-// Success criterion: decoder(encoder(v)) deep-equals v. Cases where
-// the round-trip is asymmetric (e.g. functions stripped on decode)
-// document the asymmetry inline.
+// Coverage parity: this adapter is the binary sibling of
+// `serializationRoundTrip.test.ts`. The two run against the same
+// `SERIALIZATION_SPEC`, so binary inherits every JSON case
+// automatically — Parameters<typeof fn>, ReturnType<typeof fn>,
+// circular refs, the lot. Cases where binary semantics diverge from
+// JSON (e.g. bigint extras that JSON.stringify rejects but binary
+// encodes natively) provide a `getBinaryTestData` override; cases
+// where binary throws at compile time but JSON doesn't (or vice versa)
+// provide a `binaryThrowsAtCompile` override.
+//
+// Strict coverage guard: a final `it()` per category asserts that
+// EVERY case has `binaryEncoder` + `binaryDecoder` populated. Adding a
+// case to `SERIALIZATION_SPEC` without binary thunks will surface as a
+// failing test, not a silent skip.
 
 import {describe, expect, it} from 'vitest';
-import {
-  createBinaryEncoder,
-  createBinaryDecoder,
-  createDataViewSerializer,
-} from '@mionjs/ts-go-run-types';
+import {SERIALIZATION_SPEC, type SerializationCase} from '../suites/serialization-suite.ts';
+import {deepCloneForRoundTrip, normalizeForComparison} from '../util/equalsHelpers.ts';
 
-describe('binary round-trip: atomic', () => {
-  it('string', () => {
-    const enc = createBinaryEncoder<string>();
-    const dec = createBinaryDecoder<string>();
-    for (const v of ['', 'hello', '🌍', 'مرحبا', '你好', 'Здравствуйте']) {
-      expect(dec(enc(v))).toBe(v);
+function runCase(c: SerializationCase): void {
+  const throwsAtCompile = c.binaryThrowsAtCompile ?? c.throwsAtCompile ?? false;
+  if (throwsAtCompile) {
+    expect(() => c.binaryEncoder!(), `${c.title}: binaryEncoder factory must throw at compile time`).toThrow();
+    expect(() => c.binaryDecoder!(), `${c.title}: binaryDecoder factory must throw at compile time`).toThrow();
+    return;
+  }
+
+  const bestEffort = c.roundTripBestEffort ?? false;
+  const encode = c.binaryEncoder!();
+  const decode = c.binaryDecoder!();
+  // Test-data resolution:
+  //  1. `getBinaryTestData` — explicit binary override, wins.
+  //  2. `getTestDataForStringify` — binary strips extras at encode (only
+  //     declared props go through), same as the safe JSON path; reusing
+  //     stringify's cleaned `deserializedValues` saves a case-by-case
+  //     copy.
+  //  3. `getTestData` — fallback for the ~90% of cases with no
+  //     stringify-specific expectation.
+  const testDataThunk = c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData;
+  const {values, deserializedValues} = testDataThunk();
+
+  values.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    let buf;
+    try {
+      buf = encode(input);
+    } catch (e) {
+      // Best-effort types (any / unknown / object) accept binary failures
+      // the same way the JSON adapter does — the contract is "if a value
+      // is supported it survives", not "every value survives".
+      if (bestEffort) return;
+      throw e;
+    }
+    if (bestEffort) {
+      // For best-effort cases the encoder succeeding is the contract;
+      // skip the round-trip equality check.
+      return;
+    }
+    const restored = decode(buf);
+    const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
+    const {actual, expected} = normalizeForComparison(restored, expectedReference);
+    expect(actual, `${c.title}: values[${i}] binary round-trip should match expected reference`).toEqual(expected);
+  });
+}
+
+// Per-category drive — generates one `describe` block per top-level
+// bucket in `SERIALIZATION_SPEC` and one `it` per case. Plus a final
+// `it` per category that hard-asserts every case in the bucket has
+// binary thunks defined.
+for (const [bucketName, bucket] of Object.entries(SERIALIZATION_SPEC) as Array<[string, Record<string, SerializationCase>]>) {
+  describe(`binary round-trip: ${bucketName}`, () => {
+    for (const [, c] of Object.entries(bucket)) {
+      if (!c.binaryEncoder || !c.binaryDecoder) {
+        // Surface missing coverage as a failure — adapter contract is
+        // every case in the spec gets binary thunks.
+        it(`${c.title}: has binary thunks`, () => {
+          expect(c.binaryEncoder, `${c.title}: missing binaryEncoder thunk`).toBeTypeOf('function');
+          expect(c.binaryDecoder, `${c.title}: missing binaryDecoder thunk`).toBeTypeOf('function');
+        });
+        continue;
+      }
+      it(c.title, () => runCase(c));
     }
   });
-
-  it('number', () => {
-    const enc = createBinaryEncoder<number>();
-    const dec = createBinaryDecoder<number>();
-    for (const v of [0, 1, -1, 1.5, Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]) {
-      expect(dec(enc(v))).toBe(v);
-    }
-  });
-
-  it('boolean', () => {
-    const enc = createBinaryEncoder<boolean>();
-    const dec = createBinaryDecoder<boolean>();
-    expect(dec(enc(true))).toBe(true);
-    expect(dec(enc(false))).toBe(false);
-  });
-
-  it('bigint', () => {
-    const enc = createBinaryEncoder<bigint>();
-    const dec = createBinaryDecoder<bigint>();
-    for (const v of [0n, 1n, -1n, 1234567890123456789n]) {
-      expect(dec(enc(v))).toBe(v);
-    }
-  });
-
-  it('null', () => {
-    const enc = createBinaryEncoder<null>();
-    const dec = createBinaryDecoder<null>();
-    expect(dec(enc(null))).toBe(null);
-  });
-
-  it('Date', () => {
-    const enc = createBinaryEncoder<Date>();
-    const dec = createBinaryDecoder<Date>();
-    const v = new Date('2024-06-15T12:30:00Z');
-    const out = dec(enc(v)) as Date;
-    expect(out instanceof Date).toBe(true);
-    expect(out.getTime()).toBe(v.getTime());
-  });
-
-  it('RegExp', () => {
-    const enc = createBinaryEncoder<RegExp>();
-    const dec = createBinaryDecoder<RegExp>();
-    const v = /hello-(world)+/gi;
-    const out = dec(enc(v)) as RegExp;
-    expect(out instanceof RegExp).toBe(true);
-    expect(out.source).toBe(v.source);
-    expect(out.flags).toBe(v.flags);
-  });
-});
-
-describe('binary round-trip: arrays', () => {
-  it('string[]', () => {
-    const enc = createBinaryEncoder<string[]>();
-    const dec = createBinaryDecoder<string[]>();
-    const v = ['a', 'b', 'c', 'd'];
-    expect(dec(enc(v))).toEqual(v);
-  });
-
-  it('number[]', () => {
-    const enc = createBinaryEncoder<number[]>();
-    const dec = createBinaryDecoder<number[]>();
-    const v = [1, 2, 3, 4.5, -7];
-    expect(dec(enc(v))).toEqual(v);
-  });
-
-  it('empty array', () => {
-    const enc = createBinaryEncoder<string[]>();
-    const dec = createBinaryDecoder<string[]>();
-    expect(dec(enc([]))).toEqual([]);
-  });
-});
-
-describe('binary round-trip: object literals', () => {
-  it('flat required props', () => {
-    interface U {
-      name: string;
-      age: number;
-    }
-    const enc = createBinaryEncoder<U>();
-    const dec = createBinaryDecoder<U>();
-    const v: U = {name: 'Alice', age: 30};
-    expect(dec(enc(v))).toEqual(v);
-  });
-
-  it('mixed required + optional', () => {
-    interface U {
-      name: string;
-      nickname?: string;
-      age: number;
-    }
-    const enc = createBinaryEncoder<U>();
-    const dec = createBinaryDecoder<U>();
-    const present: U = {name: 'Alice', nickname: 'Al', age: 30};
-    const absent: U = {name: 'Bob', age: 25};
-    expect(dec(enc(present))).toEqual(present);
-    // Absent optional should decode without the nickname property OR
-    // with nickname === undefined. The latter is the natural shape from
-    // the bitmap-skip codepath.
-    const decoded = dec(enc(absent)) as U;
-    expect(decoded.name).toBe('Bob');
-    expect(decoded.age).toBe(25);
-    expect(decoded.nickname).toBeUndefined();
-  });
-
-  it('nested objects', () => {
-    interface Inner {
-      x: number;
-    }
-    interface Outer {
-      inner: Inner;
-      label: string;
-    }
-    const enc = createBinaryEncoder<Outer>();
-    const dec = createBinaryDecoder<Outer>();
-    const v: Outer = {inner: {x: 42}, label: 'root'};
-    expect(dec(enc(v))).toEqual(v);
-  });
-});
-
-describe('binary round-trip: with shared serializer', () => {
-  it('allows passing a pre-built serializer', () => {
-    const enc = createBinaryEncoder<string>();
-    const dec = createBinaryDecoder<string>();
-    const ser = createDataViewSerializer('test');
-    const buf = enc('hello', ser);
-    expect(dec(buf)).toBe('hello');
-  });
-});
-
-describe('binary round-trip: tuples', () => {
-  it('fixed tuple [string, number]', () => {
-    type T = [string, number];
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    const v: T = ['hello', 42];
-    expect(dec(enc(v))).toEqual(v);
-  });
-
-  it('tuple with optional [string, number?]', () => {
-    type T = [string, number?];
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    const present: T = ['x', 1];
-    expect(dec(enc(present))).toEqual(present);
-  });
-});
-
-describe('binary round-trip: Map / Set', () => {
-  it('Map<string, number>', () => {
-    type T = Map<string, number>;
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    const v = new Map<string, number>([
-      ['a', 1],
-      ['b', 2],
-      ['c', 3],
-    ]);
-    const out = dec(enc(v)) as Map<string, number>;
-    expect(out instanceof Map).toBe(true);
-    expect([...out.entries()]).toEqual([...v.entries()]);
-  });
-
-  it('Set<string>', () => {
-    type T = Set<string>;
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    const v = new Set<string>(['a', 'b', 'c']);
-    const out = dec(enc(v)) as Set<string>;
-    expect(out instanceof Set).toBe(true);
-    expect([...out]).toEqual([...v]);
-  });
-
-  it('empty Map', () => {
-    type T = Map<string, number>;
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    const v = new Map<string, number>();
-    const out = dec(enc(v)) as Map<string, number>;
-    expect(out instanceof Map).toBe(true);
-    expect(out.size).toBe(0);
-  });
-});
-
-describe('binary round-trip: enum', () => {
-  it('numeric enum', () => {
-    enum Color {
-      Red = 0,
-      Green = 1,
-      Blue = 2,
-    }
-    const enc = createBinaryEncoder<Color>();
-    const dec = createBinaryDecoder<Color>();
-    expect(dec(enc(Color.Red))).toBe(Color.Red);
-    expect(dec(enc(Color.Green))).toBe(Color.Green);
-    expect(dec(enc(Color.Blue))).toBe(Color.Blue);
-  });
-
-  it('string enum', () => {
-    enum Mode {
-      Light = 'light',
-      Dark = 'dark',
-    }
-    const enc = createBinaryEncoder<Mode>();
-    const dec = createBinaryDecoder<Mode>();
-    expect(dec(enc(Mode.Light))).toBe('light');
-    expect(dec(enc(Mode.Dark))).toBe('dark');
-  });
-});
-
-describe('binary round-trip: literals', () => {
-  it('string literal "a"', () => {
-    type T = 'a';
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    expect(dec(enc('a'))).toBe('a');
-  });
-
-  it('numeric literal 42', () => {
-    type T = 42;
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    expect(dec(enc(42))).toBe(42);
-  });
-
-  it('union of string literals (no carrier object)', () => {
-    type T = 'a' | 'b' | 'c';
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    expect(dec(enc('a'))).toBe('a');
-    expect(dec(enc('b'))).toBe('b');
-    expect(dec(enc('c'))).toBe('c');
-  });
-});
-
-describe('binary round-trip: unions (flat-prop format)', () => {
-  it('atomic union string | number', () => {
-    type T = string | number;
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    expect(dec(enc('hello'))).toBe('hello');
-    expect(dec(enc(42))).toBe(42);
-  });
-
-  it('atomic union string | boolean | number', () => {
-    type T = string | boolean | number;
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    expect(dec(enc('s'))).toBe('s');
-    expect(dec(enc(true))).toBe(true);
-    expect(dec(enc(42))).toBe(42);
-  });
-
-  it('object union with shared props', () => {
-    type T = {kind: 'a'; value: number} | {kind: 'b'; label: string};
-    const enc = createBinaryEncoder<T>();
-    const dec = createBinaryDecoder<T>();
-    const a: T = {kind: 'a', value: 1};
-    const b: T = {kind: 'b', label: 'hi'};
-    // The flat-prop encoder merges these into one envelope with kind +
-    // value (when present) + label (when present). Decoded shape carries
-    // every merged prop slot, with undefined for the branch that didn't
-    // match.
-    const aOut = dec(enc(a)) as Record<string, unknown>;
-    expect(aOut.kind).toBe('a');
-    expect(aOut.value).toBe(1);
-    const bOut = dec(enc(b)) as Record<string, unknown>;
-    expect(bOut.kind).toBe('b');
-    expect(bOut.label).toBe('hi');
-  });
-});
+}

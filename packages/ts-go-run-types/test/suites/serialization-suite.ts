@@ -20,7 +20,16 @@
 // Parameters<typeof fn> and ReturnType<typeof fn> utilities — same
 // type-level slicing, no extra factories required.
 
-import {createJsonDecoder, createJsonEncoder, type JsonDecoderFn, type JsonEncoderFn} from '@mionjs/ts-go-run-types';
+import {
+  createBinaryDecoder,
+  createBinaryEncoder,
+  createJsonDecoder,
+  createJsonEncoder,
+  type BinaryDecoderFn,
+  type BinaryEncoderFn,
+  type JsonDecoderFn,
+  type JsonEncoderFn,
+} from '@mionjs/ts-go-run-types';
 
 // ========================================================================
 // SERIALIZATION_SPEC — single source of truth for the round-trip cases.
@@ -134,7 +143,32 @@ export interface SerializationCase {
    *  pass before serialize. Tests assert the throw at JSON.stringify
    *  time instead of attempting a round-trip. **/
   jsonStringifyThrows?: boolean;
+
+  /** Binary encoder thunk for this case. Mirrors the structure of the
+   *  JSON encoder thunks (full type setup inline so the marker plugin
+   *  can inject the runtype hash at the call site). The adapter pairs
+   *  it with `binaryDecoder` for a deep-equal round-trip assertion. **/
+  binaryEncoder?: () => BinaryEncoderFn;
+
+  /** Binary decoder thunk. Must come paired with `binaryEncoder`. **/
+  binaryDecoder?: () => BinaryDecoderFn;
+
+  /** Override `throwsAtCompile` for binary alone. Use only when binary
+   *  has a different compile-time contract than JSON (e.g. a kind
+   *  binary refuses but JSON accepts, or vice versa). Falls back to
+   *  `throwsAtCompile` when unset. **/
+  binaryThrowsAtCompile?: boolean;
+
+  /** Override `getTestData` for binary alone. Use only when binary's
+   *  round-trip diverges from JSON — e.g. bigint extras that
+   *  JSON.stringify rejects but binary encodes natively. Falls back
+   *  to `getTestData` when unset. **/
+  getBinaryTestData?: () => {values: unknown[]; deserializedValues?: unknown[]};
 }
+
+// Re-exports so the binary adapter (and any future suite consumer) can
+// import the factory pair from the same module as `SERIALIZATION_SPEC`.
+export {createBinaryEncoder, createBinaryDecoder};
 
 export const SERIALIZATION_SPEC = {
   ATOMIC: {
@@ -147,6 +181,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string>(),
       unsafeDecoder: () => createJsonDecoder<string>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<string>(),
+      binaryDecoder: () => createBinaryDecoder<string>(),
       getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
     },
     number: {
@@ -158,6 +194,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<number>(),
       unsafeDecoder: () => createJsonDecoder<number>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<number>(),
+      binaryDecoder: () => createBinaryDecoder<number>(),
       getTestData: () => ({
         values: [
           0,
@@ -185,6 +223,14 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<number>(),
       unsafeDecoder: () => createJsonDecoder<number>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<number>(),
+      binaryDecoder: () => createBinaryDecoder<number>(),
+      // Binary writes float64, which preserves Infinity/NaN natively —
+      // no conversion to null like JSON.stringify does.
+      getBinaryTestData: () => ({
+        values: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN],
+        deserializedValues: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN],
+      }),
       getTestData: () => ({
         values: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN],
         // After JSON.stringify(Infinity) === 'null', restore yields null.
@@ -206,6 +252,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<RegExp>(),
       unsafeDecoder: () => createJsonDecoder<RegExp>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<RegExp>(),
+      binaryDecoder: () => createBinaryDecoder<RegExp>(),
       getTestData: () => ({values: [/abc/, /xyz/i, /\d+/g, /^[a-z]+$/]}),
     },
     bigint: {
@@ -217,6 +265,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<bigint>(),
       unsafeDecoder: () => createJsonDecoder<bigint>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<bigint>(),
+      binaryDecoder: () => createBinaryDecoder<bigint>(),
       getTestData: () => ({values: [1n]}),
     },
     boolean: {
@@ -228,6 +278,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<boolean>(),
       unsafeDecoder: () => createJsonDecoder<boolean>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<boolean>(),
+      binaryDecoder: () => createBinaryDecoder<boolean>(),
       getTestData: () => ({values: [true]}),
     },
     any: {
@@ -239,6 +291,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<any>(),
       unsafeDecoder: () => createJsonDecoder<any>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<any>(),
+      binaryDecoder: () => createBinaryDecoder<any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [42, 'hello', true, null, 0, -1, 1.1, {a: 1, b: 2}, [1, 2, 3, null]]}),
     },
@@ -253,6 +307,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<any>(),
       unsafeDecoder: () => createJsonDecoder<any>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<any>(),
+      binaryDecoder: () => createBinaryDecoder<any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [undefined, [undefined, 123, null], new Date('2000-08-06T02:13:00.000Z'), BigInt(1)]}),
     },
@@ -265,6 +321,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<null>(),
       unsafeDecoder: () => createJsonDecoder<null>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<null>(),
+      binaryDecoder: () => createBinaryDecoder<null>(),
       getTestData: () => ({values: [null]}),
     },
     undefined: {
@@ -276,6 +334,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<undefined>(),
       unsafeDecoder: () => createJsonDecoder<undefined>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<undefined>(),
+      binaryDecoder: () => createBinaryDecoder<undefined>(),
       getTestData: () => ({values: [undefined]}),
     },
     date: {
@@ -287,6 +347,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date>(),
       unsafeDecoder: () => createJsonDecoder<Date>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Date>(),
+      binaryDecoder: () => createBinaryDecoder<Date>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     enum_color: {
@@ -347,6 +409,22 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<Color>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createBinaryEncoder<Color>();
+      },
+      binaryDecoder: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createBinaryDecoder<Color>();
+      },
       getTestData: () => {
         enum Color {
           Red = 'red',
@@ -365,6 +443,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<symbol>(),
       unsafeDecoder: () => createJsonDecoder<symbol>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<symbol>(),
+      binaryDecoder: () => createBinaryDecoder<symbol>(),
       getTestData: () => ({values: [Symbol('foo'), Symbol()]}),
     },
     object: {
@@ -376,6 +456,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<object>(),
       unsafeDecoder: () => createJsonDecoder<object>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<object>(),
+      binaryDecoder: () => createBinaryDecoder<object>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [{a: 42, b: 'hello'}, null]}),
     },
@@ -388,6 +470,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<void>(),
       unsafeDecoder: () => createJsonDecoder<void>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<void>(),
+      binaryDecoder: () => createBinaryDecoder<void>(),
       getTestData: () => ({values: [undefined]}),
     },
     never: {
@@ -400,6 +484,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<never>(),
       unsafeDecoder: () => createJsonDecoder<never>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<never>(),
+      binaryDecoder: () => createBinaryDecoder<never>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -412,6 +498,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<'hello'>(),
       unsafeDecoder: () => createJsonDecoder<'hello'>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<'hello'>(),
+      binaryDecoder: () => createBinaryDecoder<'hello'>(),
       getTestData: () => ({values: ['hello']}),
     },
     literal_number: {
@@ -423,6 +511,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<42>(),
       unsafeDecoder: () => createJsonDecoder<42>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<42>(),
+      binaryDecoder: () => createBinaryDecoder<42>(),
       getTestData: () => ({values: [42]}),
     },
     literal_boolean: {
@@ -434,6 +524,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<true>(),
       unsafeDecoder: () => createJsonDecoder<true>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<true>(),
+      binaryDecoder: () => createBinaryDecoder<true>(),
       getTestData: () => ({values: [true]}),
     },
     literal_regexp: {
@@ -466,6 +558,14 @@ export const SERIALIZATION_SPEC = {
         const reg = /abc/;
         return createJsonDecoder<typeof reg>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        const reg = /abc/;
+        return createBinaryEncoder<typeof reg>();
+      },
+      binaryDecoder: () => {
+        const reg = /abc/;
+        return createBinaryDecoder<typeof reg>();
+      },
       getTestData: () => ({values: [/abc/]}),
     },
   },
@@ -480,6 +580,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string[]>(),
       unsafeDecoder: () => createJsonDecoder<string[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<string[]>(),
+      binaryDecoder: () => createBinaryDecoder<string[]>(),
       getTestData: () => ({values: [['hello', 'world'], []]}),
     },
     array_date: {
@@ -491,6 +593,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date[]>(),
       unsafeDecoder: () => createJsonDecoder<Date[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Date[]>(),
+      binaryDecoder: () => createBinaryDecoder<Date[]>(),
       getTestData: () => ({
         values: [[new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')], []],
       }),
@@ -504,6 +608,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<undefined[]>(),
       unsafeDecoder: () => createJsonDecoder<undefined[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<undefined[]>(),
+      binaryDecoder: () => createBinaryDecoder<undefined[]>(),
       getTestData: () => ({values: [[undefined, undefined]]}),
     },
     multi_dimensional: {
@@ -515,6 +621,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string[][]>(),
       unsafeDecoder: () => createJsonDecoder<string[][]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<string[][]>(),
+      binaryDecoder: () => createBinaryDecoder<string[][]>(),
       getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
     },
     non_serializable_in_array: {
@@ -527,6 +635,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<symbol[]>(),
       unsafeDecoder: () => createJsonDecoder<symbol[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<symbol[]>(),
+      binaryDecoder: () => createBinaryDecoder<symbol[]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -559,6 +669,14 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => {
         type CircularArray = CircularArray[];
         return createJsonDecoder<CircularArray>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        type CircularArray = CircularArray[];
+        return createBinaryEncoder<CircularArray>();
+      },
+      binaryDecoder: () => {
+        type CircularArray = CircularArray[];
+        return createBinaryDecoder<CircularArray>();
       },
       getTestData: () => {
         type CircularArray = CircularArray[];
@@ -651,6 +769,26 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(),
+      binaryDecoder: () => createBinaryDecoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(),
       getTestData: () => {
         const value = {
           startDate: new Date('2000-08-06T02:13:00.000Z'),
@@ -743,6 +881,28 @@ export const SERIALIZATION_SPEC = {
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
         return createJsonDecoder<ManyOptional>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createBinaryEncoder<ManyOptional>();
+      },
+      binaryDecoder: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createBinaryDecoder<ManyOptional>();
       },
       getTestData: () => ({
         values: [{a0: 0, a1: 1, b0: 16, a8: 8, b7: 23, b15: 31}, {a0: 0, b8: 24}, {}],
@@ -876,6 +1036,42 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<MySerializableClass>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createBinaryEncoder<MySerializableClass>();
+      },
+      binaryDecoder: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createBinaryDecoder<MySerializableClass>();
+      },
       getTestData: () => {
         class MySerializableClass {
           name: string;
@@ -961,6 +1157,24 @@ export const SERIALIZATION_SPEC = {
           extendedProp: string = 'extended';
         }
         return createJsonDecoder<ExtendedClass>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createBinaryEncoder<ExtendedClass>();
+      },
+      binaryDecoder: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createBinaryDecoder<ExtendedClass>();
       },
       getTestData: () => {
         class BaseClass {
@@ -1074,6 +1288,34 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<NonSerializableClass>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createBinaryEncoder<NonSerializableClass>();
+      },
+      binaryDecoder: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createBinaryDecoder<NonSerializableClass>();
+      },
       getTestData: () => {
         class NonSerializableClass {
           constructor(
@@ -1103,6 +1345,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string; b: number; c: undefined}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string; b: number; c: undefined}>(),
       getTestData: () => ({
         values: [{a: 'hello', b: 42, c: undefined}],
         deserializedValues: [{a: 'hello', b: 42}],
@@ -1117,6 +1361,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string; b?: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
     },
     all_optional_fields: {
@@ -1128,6 +1374,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a?: string; b?: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{a?: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
     },
     extras_passthrough_unsafe: {
@@ -1225,6 +1473,30 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(),
+      binaryDecoder: () => createBinaryDecoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(),
       getTestData: () => {
         const startDate = new Date('2000-08-06T02:13:00.000Z');
         const objectWithExtraParams = {
@@ -1328,6 +1600,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ICircular>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createBinaryEncoder<ICircular>();
+      },
+      binaryDecoder: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createBinaryDecoder<ICircular>();
+      },
       getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
     },
     interface_circular_array: {
@@ -1380,6 +1666,20 @@ export const SERIALIZATION_SPEC = {
           children?: ICircularArray[];
         }
         return createJsonDecoder<ICircularArray>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createBinaryEncoder<ICircularArray>();
+      },
+      binaryDecoder: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createBinaryDecoder<ICircularArray>();
       },
       getTestData: () => ({
         values: [
@@ -1466,6 +1766,28 @@ export const SERIALIZATION_SPEC = {
           };
         }
         return createJsonDecoder<ICircularDeep>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createBinaryEncoder<ICircularDeep>();
+      },
+      binaryDecoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createBinaryDecoder<ICircularDeep>();
       },
       getTestData: () => ({
         values: [
@@ -1563,6 +1885,30 @@ export const SERIALIZATION_SPEC = {
           ciChild: ICircularDeep;
         }
         return createJsonDecoder<RootNotCircular>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createBinaryEncoder<RootNotCircular>();
+      },
+      binaryDecoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createBinaryDecoder<RootNotCircular>();
       },
       getTestData: () => ({
         values: [
@@ -1727,6 +2073,48 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<RootCircular>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createBinaryEncoder<RootCircular>();
+      },
+      binaryDecoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createBinaryDecoder<RootCircular>();
+      },
       getTestData: () => {
         interface ICircularDeep {
           name: string;
@@ -1808,6 +2196,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ObjectWithMethods>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createBinaryEncoder<ObjectWithMethods>();
+      },
+      binaryDecoder: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createBinaryDecoder<ObjectWithMethods>();
+      },
       getTestData: () => {
         interface ObjectWithMethods {
           name: string;
@@ -1834,6 +2236,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: string}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{[key: string]: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{[key: string]: string}>(),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
     },
     index_property_and_prop: {
@@ -1848,6 +2252,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string; [key: string]: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string; [key: string]: string}>(),
       getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
     },
     index_property_extra: {
@@ -1873,6 +2279,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(),
       unsafeDecoder: () =>
         createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string; b: number; [key: string]: string | number}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string; b: number; [key: string]: string | number}>(),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
     },
     multiple_index_props: {
@@ -1898,6 +2306,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       unsafeDecoder: () =>
         createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      binaryDecoder: () => createBinaryDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       getTestData: () => {
         const objWithSymbolKeys = {
           key1: 'value1',
@@ -1926,6 +2336,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{[key: string]: {[key: string]: number}}>(),
+      binaryDecoder: () => createBinaryDecoder<{[key: string]: {[key: string]: number}}>(),
       getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
     },
     index_property_nested_date: {
@@ -1940,6 +2352,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{[key: string]: {[key: string]: Date}}>(),
+      binaryDecoder: () => createBinaryDecoder<{[key: string]: {[key: string]: Date}}>(),
       getTestData: () => ({
         values: [
           {
@@ -1960,6 +2374,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{[key: string]: bigint}>(),
+      binaryDecoder: () => createBinaryDecoder<{[key: string]: bigint}>(),
       getTestData: () => ({
         values: [
           {key1: 1n, key2: 2n},
@@ -1983,6 +2399,8 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
       unsafeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
+      binaryDecoder: () => createBinaryDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
       getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
     },
   },
@@ -2000,6 +2418,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
       unsafeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<[Date, number, string, null, string[], bigint]>(),
+      binaryDecoder: () => createBinaryDecoder<[Date, number, string, null, string[], bigint]>(),
       getTestData: () => ({
         values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
       }),
@@ -2016,6 +2436,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
       unsafeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<[number, bigint?, boolean?, number?]>(),
+      binaryDecoder: () => createBinaryDecoder<[number, bigint?, boolean?, number?]>(),
       getTestData: () => ({
         values: [
           [3, undefined, true, 4],
@@ -2032,6 +2454,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
       unsafeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<[number, ...bigint[]]>(),
+      binaryDecoder: () => createBinaryDecoder<[number, ...bigint[]]>(),
       getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
     },
     tuple_with_non_serializable: {
@@ -2043,6 +2467,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[number, () => any]>(),
       unsafeDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<[number, () => any]>(),
+      binaryDecoder: () => createBinaryDecoder<[number, () => any]>(),
       getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
     },
     tuple_circular: {
@@ -2074,6 +2500,14 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createJsonDecoder<TupleCircular>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createBinaryEncoder<TupleCircular>();
+      },
+      binaryDecoder: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createBinaryDecoder<TupleCircular>();
       },
       getTestData: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -2149,6 +2583,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ICircularTuple>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createBinaryEncoder<ICircularTuple>();
+      },
+      binaryDecoder: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createBinaryDecoder<ICircularTuple>();
+      },
       getTestData: () => {
         interface ICircularTuple {
           name: string;
@@ -2209,6 +2657,18 @@ export const SERIALIZATION_SPEC = {
           return new Date(a);
         }
         return createJsonDecoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      binaryEncoder: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createBinaryEncoder<Parameters<typeof fnNoOptional>>();
+      },
+      binaryDecoder: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createBinaryDecoder<Parameters<typeof fnNoOptional>>();
       },
       getTestData: () => ({
         values: [
@@ -2274,6 +2734,22 @@ export const SERIALIZATION_SPEC = {
           return 1n;
         }
         return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      binaryEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createBinaryEncoder<Parameters<typeof fnOptionalParams>>();
+      },
+      binaryDecoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createBinaryDecoder<Parameters<typeof fnOptionalParams>>();
       },
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
@@ -2345,6 +2821,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createBinaryEncoder<ReturnType<typeof fnOptionalParam>>();
+      },
+      binaryDecoder: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createBinaryDecoder<ReturnType<typeof fnOptionalParam>>();
+      },
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     function_with_rest_parameters: {
@@ -2412,6 +2906,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createBinaryEncoder<Parameters<typeof fnRestParams>>();
+      },
+      binaryDecoder: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createBinaryDecoder<Parameters<typeof fnRestParams>>();
+      },
       getTestData: () => ({
         values: [
           [3, true, new Date('2000-08-06T02:13:00.000Z'), new Date('2000-08-06T02:13:00.000Z')],
@@ -2477,6 +2989,22 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createBinaryEncoder<Parameters<typeof fnOptionalParams>>();
+      },
+      binaryDecoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createBinaryDecoder<Parameters<typeof fnOptionalParams>>();
+      },
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
         return {values: [[d, true], [d]]};
@@ -2540,6 +3068,22 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createBinaryEncoder<ReturnType<typeof fnOptionalParams>>();
+      },
+      binaryDecoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createBinaryDecoder<ReturnType<typeof fnOptionalParams>>();
+      },
       getTestData: () => ({values: [1n]}),
     },
     function_with_only_rest_parameters: {
@@ -2592,6 +3136,20 @@ export const SERIALIZATION_SPEC = {
           return new Date(0);
         }
         return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      binaryEncoder: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createBinaryEncoder<Parameters<typeof fnOnlyRestParams>>();
+      },
+      binaryDecoder: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createBinaryDecoder<Parameters<typeof fnOnlyRestParams>>();
       },
       getTestData: () => ({values: [[3, 2, 1], []]}),
     },
@@ -2660,6 +3218,29 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createBinaryEncoder<Parameters<typeof fnWithCallback>>();
+      },
+      binaryDecoder: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createBinaryDecoder<Parameters<typeof fnWithCallback>>();
+      },
+      // JSON silently drops the function-valued param; binary refuses
+      // function kinds outright at JIT-compile time per mion's binary
+      // contract — there's no canonical wire shape for function-valued
+      // tuple members.
+      binaryThrowsAtCompile: true,
       getTestData: () => ({
         values: [
           [3, true, () => null],
@@ -2737,6 +3318,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createBinaryEncoder<ReturnType<typeof fnReturnsPromise>>();
+      },
+      binaryDecoder: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createBinaryDecoder<ReturnType<typeof fnReturnsPromise>>();
+      },
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2806,6 +3405,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createBinaryEncoder<ReturnType<typeof fnReturnsFunction>>();
+      },
+      binaryDecoder: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createBinaryDecoder<ReturnType<typeof fnReturnsFunction>>();
+      },
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2822,6 +3439,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
       unsafeDecoder: () =>
         createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Parameters<{(a: number, b: boolean): string}>>(),
+      binaryDecoder: () => createBinaryDecoder<Parameters<{(a: number, b: boolean): string}>>(),
       getTestData: () => ({values: [[3, true]]}),
     },
     call_signature_return: {
@@ -2837,6 +3456,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
       unsafeDecoder: () =>
         createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
+      binaryDecoder: () => createBinaryDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
       getTestData: () => ({values: ['result']}),
     },
   },
@@ -2856,6 +3477,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       unsafeDecoder: () =>
         createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      binaryDecoder: () => createBinaryDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     exclude_atomic: {
@@ -2871,6 +3494,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
       unsafeDecoder: () =>
         createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
+      binaryDecoder: () => createBinaryDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
       getTestData: () => ({values: ['name', 3, 4]}),
     },
     exclude_objects: {
@@ -2924,6 +3549,20 @@ export const SERIALIZATION_SPEC = {
         type Shape = Circle | Square | Triangle;
         return createJsonDecoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createBinaryEncoder<Exclude<Shape, Circle>>();
+      },
+      binaryDecoder: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createBinaryDecoder<Exclude<Shape, Circle>>();
+      },
       getTestData: () => ({
         values: [
           {kind: 'square', x: 5},
@@ -2957,6 +3596,8 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      binaryDecoder: () => createBinaryDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       getTestData: () => ({
         values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
       }),
@@ -2987,6 +3628,8 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      binaryDecoder: () => createBinaryDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       getTestData: () => ({values: ['name']}),
     },
     extract_objects: {
@@ -3026,6 +3669,16 @@ export const SERIALIZATION_SPEC = {
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createJsonDecoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createBinaryEncoder<Extract<Shape, ToExtract>>();
+      },
+      binaryDecoder: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createBinaryDecoder<Extract<Shape, ToExtract>>();
+      },
       getTestData: () => ({values: [{kind: 'square', x: 5}]}),
     },
     partial_properties: {
@@ -3054,6 +3707,8 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
+      binaryDecoder: () => createBinaryDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
       getTestData: () => {
         const createdAt = new Date('2000-08-06T02:13:00.000Z');
         return {values: [{name: 'John'}, {age: 30}, {createdAt}, {}]};
@@ -3088,6 +3743,8 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      binaryDecoder: () => createBinaryDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     omit_properties: {
@@ -3117,6 +3774,8 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      binaryDecoder: () => createBinaryDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     record_type: {
@@ -3128,6 +3787,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Record<string, Date>>(),
       unsafeDecoder: () => createJsonDecoder<Record<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Record<string, Date>>(),
+      binaryDecoder: () => createBinaryDecoder<Record<string, Date>>(),
       getTestData: () => ({
         values: [
           {
@@ -3153,6 +3814,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(),
       unsafeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Date | number | string | null | bigint>(),
+      binaryDecoder: () => createBinaryDecoder<Date | number | string | null | bigint>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
     },
     union_array: {
@@ -3167,6 +3830,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(),
       unsafeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<string[] | number[] | boolean[] | Date[]>(),
+      binaryDecoder: () => createBinaryDecoder<string[] | number[] | boolean[] | Date[]>(),
       getTestData: () => ({
         values: [
           ['a', 'b', 'c'],
@@ -3189,6 +3854,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(),
       unsafeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<(string | bigint | boolean | Date)[]>(),
+      binaryDecoder: () => createBinaryDecoder<(string | bigint | boolean | Date)[]>(),
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
         return {
@@ -3224,6 +3891,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       unsafeDecoder: () =>
         createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
     },
     union_with_discriminator_property: {
@@ -3277,6 +3946,18 @@ export const SERIALIZATION_SPEC = {
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(),
+      binaryDecoder: () => createBinaryDecoder<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(),
       getTestData: () => ({
         values: [
           {type: 'a', otherProp: true},
@@ -3317,6 +3998,8 @@ export const SERIALIZATION_SPEC = {
           undefined,
           {stripExtras: false}
         ),
+      binaryEncoder: () => createBinaryEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      binaryDecoder: () => createBinaryDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
     },
     union_index_property_with_discriminator: {
@@ -3377,6 +4060,20 @@ export const SERIALIZATION_SPEC = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      binaryDecoder: () => createBinaryDecoder<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 1n, c: 2n}]}),
     },
     circular_union_with_discriminator: {
@@ -3408,6 +4105,14 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createJsonDecoder<UnionC>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createBinaryEncoder<UnionC>();
+      },
+      binaryDecoder: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createBinaryDecoder<UnionC>();
       },
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -3457,6 +4162,12 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(),
+      binaryDecoder: () => createBinaryDecoder<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(),
       getTestData: () => {
         const objWithName = {
           name: 'John',
@@ -3493,6 +4204,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<number | {name: string} | any>(),
       unsafeDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<number | {name: string} | any>(),
+      binaryDecoder: () => createBinaryDecoder<number | {name: string} | any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [42, {name: 'test'}, 'fallback to any', true, null]}),
     },
@@ -3510,6 +4223,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
       unsafeDecoder: () =>
         createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Date | number | string | (() => any)>(),
+      binaryDecoder: () => createBinaryDecoder<Date | number | string | (() => any)>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -3540,6 +4255,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{b: 123, c: 123n}]}),
       // Safe-path adapter: stringifyJson strips the extra `c: 123n` in
@@ -3560,6 +4277,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
       // Symbol-valued props are silently dropped by JSON.stringify
       // (per ECMAScript spec) — no throw, no round-trip mismatch
       // because the symbol was never reachable post-stringify
@@ -3612,6 +4331,8 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
+      binaryDecoder: () => createBinaryDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
       getTestData: () => ({
         values: [
           {kind: 'created', at: new Date('2000-08-06T02:13:00.000Z'), by: 'alice'},
@@ -3651,6 +4372,8 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
       getTestData: () => ({
         values: [
           {kind: 'event', when: new Date('2000-08-06T02:13:00.000Z'), label: 'kickoff'},
@@ -3690,6 +4413,8 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
           stripExtras: false,
         }),
+      binaryEncoder: () => createBinaryEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
       getTestData: () => ({
         values: [
           {form: 'big', id: 9007199254740993n, label: 'beyond Number.MAX_SAFE_INTEGER'},
@@ -3712,6 +4437,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
       getTestData: () => ({
         values: [
           {a: 'hello', b: 7},
@@ -3731,6 +4458,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Set<string>>(),
       unsafeDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Set<string>>(),
+      binaryDecoder: () => createBinaryDecoder<Set<string>>(),
       getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
     },
     set_small_object: {
@@ -3804,6 +4533,26 @@ export const SERIALIZATION_SPEC = {
           prop5?: bigint;
         }
         return createJsonDecoder<Set<SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createBinaryEncoder<Set<SmallObject>>();
+      },
+      binaryDecoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createBinaryDecoder<Set<SmallObject>>();
       },
       getTestData: () => {
         interface SmallObject {
@@ -3889,6 +4638,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<DeepWithSet>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createBinaryEncoder<DeepWithSet>();
+      },
+      binaryDecoder: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createBinaryDecoder<DeepWithSet>();
+      },
       getTestData: () => {
         const setB = new Set([
           {s: 'a', arr: [1, 2, 3]},
@@ -3910,6 +4677,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Map<string, number>>(),
       unsafeDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Map<string, number>>(),
+      binaryDecoder: () => createBinaryDecoder<Map<string, number>>(),
       getTestData: () => ({
         values: [
           new Map<string, number>([
@@ -3991,6 +4760,26 @@ export const SERIALIZATION_SPEC = {
           prop5?: bigint;
         }
         return createJsonDecoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createBinaryEncoder<Map<string, SmallObject>>();
+      },
+      binaryDecoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createBinaryDecoder<Map<string, SmallObject>>();
       },
       getTestData: () => {
         interface SmallObject {
@@ -4083,6 +4872,26 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createBinaryEncoder<Map<SmallObject, number>>();
+      },
+      binaryDecoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createBinaryDecoder<Map<SmallObject, number>>();
+      },
       getTestData: () => {
         interface SmallObject {
           prop1: string;
@@ -4153,6 +4962,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<DeepWithMap>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createBinaryEncoder<DeepWithMap>();
+      },
+      binaryDecoder: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createBinaryDecoder<DeepWithMap>();
+      },
       getTestData: () => ({
         values: [
           {
@@ -4174,6 +4997,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Map<bigint, number>>(),
       unsafeDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Map<bigint, number>>(),
+      binaryDecoder: () => createBinaryDecoder<Map<bigint, number>>(),
       getTestData: () => ({
         values: [
           new Map<bigint, number>([
@@ -4193,6 +5018,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Map<string, Date>>(),
       unsafeDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Map<string, Date>>(),
+      binaryDecoder: () => createBinaryDecoder<Map<string, Date>>(),
       getTestData: () => ({
         values: [
           new Map<string, Date>([
@@ -4235,6 +5062,14 @@ export const SERIALIZATION_SPEC = {
         type CircularObject = {name: string; child?: CircularObject};
         return createJsonDecoder<CircularObject>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createBinaryEncoder<CircularObject>();
+      },
+      binaryDecoder: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createBinaryDecoder<CircularObject>();
+      },
       getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
     },
     circular_union_array: {
@@ -4266,6 +5101,14 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createJsonDecoder<CuArray>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createBinaryEncoder<CuArray>();
+      },
+      binaryDecoder: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createBinaryDecoder<CuArray>();
       },
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -4322,6 +5165,18 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<CircularTuple>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createBinaryEncoder<CircularTuple>();
+      },
+      binaryDecoder: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createBinaryDecoder<CircularTuple>();
+      },
       getTestData: () => ({
         values: [{list: [1n, {list: [2n, {list: [3n, {list: [4n]}]}]}]}, {list: [1n, {list: [2n]}]}, {list: [1n]}],
       }),
@@ -4369,6 +5224,18 @@ export const SERIALIZATION_SPEC = {
           index: {[key: string]: CircularIndex};
         }
         return createJsonDecoder<CircularIndex>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createBinaryEncoder<CircularIndex>();
+      },
+      binaryDecoder: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createBinaryDecoder<CircularIndex>();
       },
       getTestData: () => ({
         values: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
@@ -4418,6 +5285,18 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonDecoder<CircularDeep>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createBinaryEncoder<CircularDeep>();
+      },
+      binaryDecoder: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createBinaryDecoder<CircularDeep>();
+      },
       getTestData: () => ({
         values: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
       }),
@@ -4451,6 +5330,14 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createJsonDecoder<CircularTupleComplex>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createBinaryEncoder<CircularTupleComplex>();
+      },
+      binaryDecoder: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createBinaryDecoder<CircularTupleComplex>();
       },
       getTestData: () => ({values: [[1n, [2n, [3n, [4n]]]], [1n, [2n]], [1n]]}),
     },
@@ -4512,6 +5399,22 @@ export const SERIALIZATION_SPEC = {
         };
         return createJsonDecoder<ObjCircularArr>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createBinaryEncoder<ObjCircularArr>();
+      },
+      binaryDecoder: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createBinaryDecoder<ObjCircularArr>();
+      },
       getTestData: () => ({
         values: [
           {
@@ -4534,6 +5437,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<`api/users/${number}`>(),
       unsafeDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<`api/users/${number}`>(),
+      binaryDecoder: () => createBinaryDecoder<`api/users/${number}`>(),
       getTestData: () => ({
         values: [
           'api/users/0',
@@ -4557,6 +5462,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
       unsafeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{url: `api/user/${number}`; method: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{url: `api/user/${number}`; method: string}>(),
       getTestData: () => ({
         values: [
           {url: 'api/user/1', method: 'GET'},
@@ -4577,6 +5484,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{[key: `api/${string}`]: number}>(),
+      binaryDecoder: () => createBinaryDecoder<{[key: `api/${string}`]: number}>(),
       getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
     },
     url_index_key_with_named: {
@@ -4602,6 +5511,8 @@ export const SERIALIZATION_SPEC = {
       safeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
       unsafeDecoder: () =>
         createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+      binaryDecoder: () => createBinaryDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
       getTestData: () => ({
         values: [{meta: 'a'}, {meta: 'b', 'api/users': 1}, {meta: 'c', 'api/users': 1, 'api/posts': 2}],
       }),
@@ -4618,6 +5529,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Promise<string>>(),
       unsafeDecoder: () => createJsonDecoder<Promise<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Promise<string>>(),
+      binaryDecoder: () => createBinaryDecoder<Promise<string>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -4630,6 +5543,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Int8Array>(),
       unsafeDecoder: () => createJsonDecoder<Int8Array>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Int8Array>(),
+      binaryDecoder: () => createBinaryDecoder<Int8Array>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -4642,6 +5557,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: Int8Array}>(),
       unsafeDecoder: () => createJsonDecoder<{a: Int8Array}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{a: Int8Array}>(),
+      binaryDecoder: () => createBinaryDecoder<{a: Int8Array}>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -4654,6 +5571,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Int8Array[]>(),
       unsafeDecoder: () => createJsonDecoder<Int8Array[]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<Int8Array[]>(),
+      binaryDecoder: () => createBinaryDecoder<Int8Array[]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -4666,6 +5585,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[Int8Array]>(),
       unsafeDecoder: () => createJsonDecoder<[Int8Array]>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<[Int8Array]>(),
+      binaryDecoder: () => createBinaryDecoder<[Int8Array]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -4705,6 +5626,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', extra: 'hello'}],
         // Unsafe: extra preserved through round-trip.
@@ -4726,6 +5649,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
       getTestDataForStringify: () => ({
@@ -4745,6 +5670,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', sym: Symbol('extra')}],
         // JSON.stringify drops the symbol — restored shape has no `sym`.
@@ -4764,6 +5691,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
+      binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', fn: () => 0}],
         deserializedValues: [{declared: 'x'}],
@@ -4784,6 +5713,8 @@ export const SERIALIZATION_SPEC = {
       safeDirectEncoder: () => createJsonEncoder<{outer: {declared: string}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(),
       unsafeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(undefined, {stripExtras: false}),
+      binaryEncoder: () => createBinaryEncoder<{outer: {declared: string}}>(),
+      binaryDecoder: () => createBinaryDecoder<{outer: {declared: string}}>(),
       getTestData: () => ({
         values: [{outer: {declared: 'x', extra: 'y'}}],
         // Unsafe: nested extra preserved.
@@ -5050,6 +5981,76 @@ export const SERIALIZATION_SPEC = {
           meta: {category: string; priority: number; lastSeen: Date};
         }
         return createJsonDecoder<WideRecord>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createBinaryEncoder<WideRecord>();
+      },
+      binaryDecoder: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createBinaryDecoder<WideRecord>();
       },
       getTestData: () => {
         interface WideRecord {
@@ -5467,6 +6468,104 @@ export const SERIALIZATION_SPEC = {
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonDecoder<LargeObjectUnion>(undefined, {stripExtras: false});
       },
+      binaryEncoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createBinaryEncoder<LargeObjectUnion>();
+      },
+      binaryDecoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createBinaryDecoder<LargeObjectUnion>();
+      },
       getTestData: () => {
         interface ProductEvent {
           kind: 'product';
@@ -5649,6 +6748,50 @@ export const SERIALIZATION_SPEC = {
         }
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonDecoder<MixedLargeUnion>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createBinaryEncoder<MixedLargeUnion>();
+      },
+      binaryDecoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createBinaryDecoder<MixedLargeUnion>();
       },
       getTestData: () => {
         interface ProductEvent {
@@ -5873,6 +7016,62 @@ export const SERIALIZATION_SPEC = {
           categories: DeepNestedLevel2[];
         }
         return createJsonDecoder<DeepNestedLevel1>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
+        return createBinaryEncoder<DeepNestedLevel1>();
+      },
+      binaryDecoder: () => {
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
+        return createBinaryDecoder<DeepNestedLevel1>();
       },
       getTestData: () => {
         interface DeepNestedLeaf {
@@ -6129,6 +7328,68 @@ export const SERIALIZATION_SPEC = {
         }
         type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
         return createJsonDecoder<LargeClassUnion>(undefined, {stripExtras: false});
+      },
+      binaryEncoder: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createBinaryEncoder<LargeClassUnion>();
+      },
+      binaryDecoder: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createBinaryDecoder<LargeClassUnion>();
       },
       getTestData: () => {
         class LargeClassA {
