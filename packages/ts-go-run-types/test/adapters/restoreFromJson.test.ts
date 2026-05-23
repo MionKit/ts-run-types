@@ -45,9 +45,7 @@ function assertRoundTrip(
 
 function assertRestoreFromJson(c: JitCase): void {
   if (!c.restoreFromJson) throw new Error(`case ${c.title}: missing restoreFromJson thunk`);
-  // Use getRoundTripValid when defined — see prepareForJson.test.ts for
-  // rationale (narrower set for broad types like `object`).
-  const getValid = c.getRoundTripValid ?? (() => c.getSamples().valid);
+  const getValid = () => c.getSamples().valid;
   const prepareStatic = c.prepareForJson?.() ?? identityFn;
   const prepareReflect = c.prepareForJsonReflect?.() ?? identityFn;
   const prepareDeserStatic = c.deserializePrepareForJson?.() ?? identityFn;

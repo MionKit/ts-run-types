@@ -64,10 +64,7 @@ function assertRoundTrip(
 
 function assertPrepareForJson(c: JitCase): void {
   if (!c.prepareForJson) throw new Error(`case ${c.title}: missing prepareForJson thunk`);
-  // Use getRoundTripValid when defined — narrower sample set for cases
-  // whose static type is too broad to preserve class info through the
-  // round-trip (e.g. `object` excludes Date / RegExp).
-  const getValid = c.getRoundTripValid ?? (() => c.getSamples().valid);
+  const getValid = () => c.getSamples().valid;
   // Paired thunks for the round-trip. When a half is undefined the
   // pair is presumed identity (covers atomic noops cleanly).
   const restoreStatic = c.restoreFromJson?.() ?? identityFn;

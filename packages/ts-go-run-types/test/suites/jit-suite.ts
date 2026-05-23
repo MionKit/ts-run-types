@@ -134,14 +134,6 @@ export interface JitCase {
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
   /** Reflect-form companion to `deserializeRestoreFromJson`. */
   deserializeRestoreFromJsonReflect?: () => RestoreFromJsonFn;
-  /** Optional override for the valid samples used by the
-   *  prepareForJson + restoreFromJson round-trip adapters. When the
-   *  static type is too broad to preserve class info through JSON
-   *  (e.g. `object` containing a Date — the type doesn't know to
-   *  reconstruct), the case can declare a narrower sample set just for
-   *  the round-trip tests. Defaults to `getSamples().valid` when
-   *  undefined. **/
-  getRoundTripValid?: () => unknown[];
 
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
@@ -1249,13 +1241,6 @@ export const JIT_SUITE = {
         const v: object = {};
         return deserializeRestoreFromJson(v);
       },
-      // Static type `object` is too broad to preserve class info through
-      // JSON: a Date sample round-trips to an ISO string (the validator
-      // doesn't know to reconstruct), and a RegExp round-trips to `{}`
-      // (RegExp has no toJSON). Restrict the round-trip set to plain
-      // JSON-clean values; the isType / getTypeErrors adapters keep the
-      // broader sample list.
-      getRoundTripValid: () => [{}, {a: 42, b: 'hello'}, []],
       getSamples: () => ({
         valid: [{}, {a: 42, b: 'hello'}, [], new Date(), /abc/],
         invalid: [null, undefined, 42, 'hello', true, Symbol()],
@@ -1989,10 +1974,6 @@ export const JIT_SUITE = {
         const v: unknown = null;
         return deserializeRestoreFromJson(v);
       },
-      // Static type `unknown` is too broad to preserve class info (Date,
-      // Symbol, function) through a JSON round-trip — same rationale as
-      // `object`. Restrict the round-trip samples to JSON-clean values.
-      getRoundTripValid: () => [null, undefined, 42, 'hello', true, {}, []],
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello', true, {}, [], Symbol(), () => null, new Date()],
         invalid: [],
@@ -3815,13 +3796,6 @@ export const JIT_SUITE = {
         const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
         return deserializeRestoreFromJson(v);
       },
-      // Function-typed `cb` is dropped by JSON.stringify (functions
-      // become `undefined`), so the round-trip can't preserve the
-      // original. The serializer correctly skips the function property
-      // — the comparison-side reference also needs to skip it. Strip
-      // `cb` from the round-trip samples; the validator adapters keep
-      // the full sample list.
-      getRoundTripValid: () => [{name: 'x'}, {name: 'x', cb: null}, {name: 'x', cb: 'not-a-fn'}],
       getSamples: () => ({
         valid: [
           {name: 'x'},
@@ -5194,13 +5168,6 @@ export const JIT_SUITE = {
         const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
         return deserializeRestoreFromJson(v);
       },
-      // The third valid sample carries a `someMethod` function which
-      // JSON.stringify drops. The first sample is a class instance with
-      // its own (prototype) `someMethod` — also dropped. After the
-      // round-trip both lose their function, so the reference side
-      // would mismatch. Limit the round-trip samples to plain-data
-      // objects (which the serializer correctly preserves).
-      getRoundTripValid: () => [{date: new Date(), name: 'x'}],
       getSamples: () => {
         class Match {
           date = new Date();
@@ -5838,16 +5805,6 @@ export const JIT_SUITE = {
         const v: Parameters<CallSig> = [3, true];
         return deserializeRestoreFromJson(v);
       },
-      // Tuple support isn't wired into the serializer pair yet
-      // (lands in phase 4). With no factory for `[number, boolean,
-      // ...Date[]]`, the identity fallback runs — but the Date rest
-      // elements don't survive identity JSON round-trip. Restrict the
-      // round-trip samples to the Date-free entries; phase 4 will
-      // drop this override.
-      getRoundTripValid: () => [
-        [3, false],
-        [3, true],
-      ],
       getSamples: () => {
         const date1 = new Date();
         const date2 = new Date();
@@ -8028,12 +7985,6 @@ export const JIT_SUITE = {
         };
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip narrowed to the samples without function values —
-      // JSON.stringify drops functions, so a sample carrying
-      // `getName: () => 'x'` returns `{name: 'x'}` after the round
-      // trip, which the comparison legitimately fails. The function-
-      // free samples cover the union dispatch end-to-end.
-      getRoundTripValid: () => [{name: 'x'}, {age: 1}],
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
@@ -8393,14 +8344,6 @@ export const JIT_SUITE = {
         ];
         return deserializeRestoreFromJson(v);
       },
-      // Round-trip narrowed — `{b: 123, c: 123n}` carries an extra
-      // `c: 123n` (BigInt) that's outside the matched union member's
-      // shape (`{b: number}` knows nothing about `c`). The object
-      // emit only transforms declared props, so the bare BigInt
-      // reaches JSON.stringify which throws "Do not know how to
-      // serialize a BigInt". Same issue as `{c: bigint; aa: 'string'}`'s
-      // sample for the same reason.
-      getRoundTripValid: () => [['a', 'b', 'c'], [1, 2, 3], [true, false], {a: 'hello', aa: true}],
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -10129,12 +10072,6 @@ export const JIT_SUITE = {
         const v: Promise<string> = Promise.resolve('x');
         return deserializeRestoreFromJson(v);
       },
-      // Promise / thenable round-trip is inherently lossy: JSON.stringify
-      // produces `{}` for both (no enumerable own props on a Promise;
-      // the `then` function gets dropped on a thenable). mion's emit
-      // throws for non-serializable types at JIT-compile time; we
-      // soft-skip the round-trip samples instead.
-      getRoundTripValid: () => [],
       getSamples: () => {
         const realPromise = Promise.resolve('x');
         const thenable = {then: () => null};
