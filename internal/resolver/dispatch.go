@@ -32,6 +32,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		addedRunTypes := len(added) > 0
 		addedIsType := addedRunTypes && jitfn.AnyIsTypeSupported(added)
 		addedTypeErrors := addedRunTypes && jitfn.AnyTypeErrorsSupported(added)
+		addedPrepareForJson := addedRunTypes && jitfn.AnyPrepareForJsonSupported(added)
+		addedRestoreFromJson := addedRunTypes && jitfn.AnyRestoreFromJsonSupported(added)
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
@@ -40,21 +42,25 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// unconditionally so editor surfaces update as the user types.
 		pureFnEntries, pureFnDiags, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
 		response := protocol.Response{
-			Sites:              sites,
-			Replacements:       pureFnReplacements,
-			Added:              added,
-			AddedRunTypes:      addedRunTypes,
-			AddedIsType:        addedIsType,
-			AddedTypeErrors:    addedTypeErrors,
-			AddedPureFns:       addedPureFns,
-			PureFnsDiagnostics: pureFnDiags,
-			MarkerDiagnostics:  markerDiags,
+			Sites:                sites,
+			Replacements:         pureFnReplacements,
+			Added:                added,
+			AddedRunTypes:        addedRunTypes,
+			AddedIsType:          addedIsType,
+			AddedTypeErrors:      addedTypeErrors,
+			AddedPrepareForJson:  addedPrepareForJson,
+			AddedRestoreFromJson: addedRestoreFromJson,
+			AddedPureFns:         addedPureFns,
+			PureFnsDiagnostics:   pureFnDiags,
+			MarkerDiagnostics:    markerDiags,
 		}
 		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
 		wantTypeErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
+		wantPrepareForJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
+		wantRestoreFromJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPureFns
+		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson || wantPureFns
 		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
@@ -80,6 +86,20 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: typeErrorsErr.Error()}
 				}
 				response.TypeErrorsCacheSource = typeErrorsRendered
+			}
+			if wantPrepareForJson {
+				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped)
+				if prepareErr != nil {
+					return protocol.Response{Error: prepareErr.Error()}
+				}
+				response.PrepareForJsonCacheSource = prepareRendered
+			}
+			if wantRestoreFromJson {
+				restoreRendered, restoreErr := renderRestoreFromJsonModule(scoped)
+				if restoreErr != nil {
+					return protocol.Response{Error: restoreErr.Error()}
+				}
+				response.RestoreFromJsonCacheSource = restoreRendered
 			}
 			if wantPureFns {
 				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.Program, pureFnEntries, true)
@@ -108,6 +128,8 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantRunType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
 		wantIsType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindIsType)
 		wantTypeErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindTypeErrors)
+		wantPrepareForJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
+		wantRestoreFromJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		if wantRunType {
 			rendered, renderErr := renderRunTypesModule(fullDump)
@@ -129,6 +151,20 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: typeErrorsErr.Error()}
 			}
 			response.TypeErrorsCacheSource = typeErrorsRendered
+		}
+		if wantPrepareForJson {
+			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump)
+			if prepareErr != nil {
+				return protocol.Response{Error: prepareErr.Error()}
+			}
+			response.PrepareForJsonCacheSource = prepareRendered
+		}
+		if wantRestoreFromJson {
+			restoreRendered, restoreErr := renderRestoreFromJsonModule(fullDump)
+			if restoreErr != nil {
+				return protocol.Response{Error: restoreErr.Error()}
+			}
+			response.RestoreFromJsonCacheSource = restoreRendered
 		}
 		if wantPureFns {
 			pureFnsRendered, pureFnsDiags, pureFnsErr := renderPureFnsModule(resolver.Program, nil, false)

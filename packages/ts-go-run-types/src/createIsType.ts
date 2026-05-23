@@ -137,7 +137,7 @@ const deserializedValidatorCache = new Map<string, IsTypeFn>();
  *  materialised `entry.fn`. This is the path a consumer takes after
  *  ingesting a serialized cache over the wire (see
  *  `restoreCompiledJitFns` in `jit/restoreJitFns.ts`); shipping a
- *  thunk in every ValidationCase lets the test suite verify the
+ *  thunk in every JitCase lets the test suite verify the
  *  serialize → deserialize round-trip produces an equivalent validator.
  *
  *  Same call shapes as `createIsType` (static + reflect) and the same

@@ -31,12 +31,12 @@ import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-cli
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const SUITE_PATH = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/validation-suite.ts');
+const SUITE_PATH = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/jit-suite.ts');
 const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
-const OUT_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.json');
-const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
-const IDENTIFIER = 'VALIDATION_SUITE';
+const OUT_PATH = path.join(REPO_ROOT, 'gendocs/jit-suite.json');
+const MD_PATH = path.join(REPO_ROOT, 'gendocs/jit-suite.md');
+const IDENTIFIER = 'JIT_SUITE';
 const FN_FIELDS = ['isType', 'isTypeReflect', 'getSamples'];
 const APIS = ['isType', 'isTypeReflect'];
 
@@ -110,7 +110,7 @@ async function loadSuiteWithPlugin() {
   });
   try {
     const mod = await server.ssrLoadModule(SUITE_PATH);
-    return mod.VALIDATION_SUITE;
+    return mod.JIT_SUITE;
   } finally {
     await server.close();
   }

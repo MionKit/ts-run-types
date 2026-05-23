@@ -38,6 +38,25 @@ func TypeErrorsModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, TypeErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonTypeErrors)
 }
 
+// PrepareForJsonModule writes the runtime artifact for the prepareForJson
+// cache module — half of the JSON serializer/deserializer pair. Same
+// structure as IsTypeModule with the PrepareForJsonEmitter and its
+// dedicated skeleton.
+func PrepareForJsonModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["prepareForJson"]
+	return RenderFnModule(writer, dump, settings, PrepareForJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJson)
+}
+
+// RestoreFromJsonModule writes the runtime artifact for the
+// restoreFromJson cache module — paired with PrepareForJsonModule.
+// The round-trip
+// `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
+// must deep-equal v for every supported runtype.
+func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["restoreFromJson"]
+	return RenderFnModule(writer, dump, settings, RestoreFromJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJson)
+}
+
 // RenderFnModule is the fn-agnostic module renderer. Emits one
 // `init('hash', …);` line per supported RunType then splices the
 // result into the named skeleton. The skeleton's `init` closes over

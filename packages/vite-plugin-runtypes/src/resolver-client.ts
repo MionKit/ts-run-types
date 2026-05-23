@@ -101,6 +101,8 @@ export interface ScanFilesResult {
   runTypeCacheSource?: string;
   isTypeCacheSource?: string;
   typeErrorsCacheSource?: string;
+  prepareForJsonCacheSource?: string;
+  restoreFromJsonCacheSource?: string;
   pureFnsCacheSource?: string;
   pureFnsDiagnostics?: import('./protocol.ts').PureFnDiagnostic[];
   markerDiagnostics?: import('./protocol.ts').MarkerDiagnostic[];
@@ -108,6 +110,8 @@ export interface ScanFilesResult {
   addedRunTypes?: boolean;
   addedIsType?: boolean;
   addedTypeErrors?: boolean;
+  addedPrepareForJson?: boolean;
+  addedRestoreFromJson?: boolean;
   addedPureFns?: boolean;
 }
 
@@ -152,12 +156,16 @@ abstract class ResolverClientBase implements ResolverConnection {
       runTypeCacheSource: resp.runTypeCacheSource,
       isTypeCacheSource: resp.isTypeCacheSource,
       typeErrorsCacheSource: resp.typeErrorsCacheSource,
+      prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
+      restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
       pureFnsDiagnostics: resp.pureFnsDiagnostics,
       markerDiagnostics: resp.markerDiagnostics,
       addedRunTypes: resp.addedRunTypes,
       addedIsType: resp.addedIsType,
       addedTypeErrors: resp.addedTypeErrors,
+      addedPrepareForJson: resp.addedPrepareForJson,
+      addedRestoreFromJson: resp.addedRestoreFromJson,
       addedPureFns: resp.addedPureFns,
     };
   }

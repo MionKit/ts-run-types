@@ -208,7 +208,7 @@ export interface Replacement {
 // into on a scanFiles request via Request.includeCacheSources. Mirrors
 // the Go-side protocol.CacheKind. `'all'` is a forward-compatible
 // shortcut: when present every other kind is treated as requested.
-export type CacheKind = 'runType' | 'isType' | 'typeErrors' | 'pureFns' | 'all';
+export type CacheKind = 'runType' | 'isType' | 'typeErrors' | 'prepareForJson' | 'restoreFromJson' | 'pureFns' | 'all';
 
 export interface Request {
   op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
@@ -248,6 +248,12 @@ export interface Response {
   // RunType has a supported emitTypeErrors arm, so the typeErrors
   // cache module needs invalidating.
   addedTypeErrors?: boolean;
+  // Sibling of addedIsType for the JSON serializer pair. Set when at
+  // least one newly-interned RunType has a supported emit arm in the
+  // matching emitter — the Vite plugin invalidates each cache module
+  // independently based on its own flag.
+  addedPrepareForJson?: boolean;
+  addedRestoreFromJson?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
   // Replacements is the byte-range rewrite list the Vite plugin
@@ -280,6 +286,12 @@ export interface Response {
   // and on `scanFiles` when the caller opts into `'typeErrors'`
   // (or `'all'`).
   typeErrorsCacheSource?: string;
+  // Siblings of `isTypeCacheSource` for the JSON serializer pair. Same
+  // factory shape, same consumer pattern — populated by `dump` and on
+  // `scanFiles` when the caller opts into the matching cache kind
+  // (or `'all'`).
+  prepareForJsonCacheSource?: string;
+  restoreFromJsonCacheSource?: string;
   // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
   // <factory>)` call. Body is a sequence of `factory(key, bodyHash,

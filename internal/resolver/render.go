@@ -52,6 +52,24 @@ func renderTypeErrorsModule(dump protocol.Dump) (string, error) {
 	})
 }
 
+// renderPrepareForJsonModule emits the prepareForJson cache module —
+// the JSON serializer half of the round-trip pair. Backed by
+// jitfn.PrepareForJsonEmitter.
+func renderPrepareForJsonModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderPrepareForJsonModule", func(w io.Writer) error {
+		return jitfn.PrepareForJsonModule(w, dump)
+	})
+}
+
+// renderRestoreFromJsonModule emits the restoreFromJson cache module —
+// the JSON deserializer half of the round-trip pair. Backed by
+// jitfn.RestoreFromJsonEmitter.
+func renderRestoreFromJsonModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderRestoreFromJsonModule", func(w io.Writer) error {
+		return jitfn.RestoreFromJsonModule(w, dump)
+	})
+}
+
 // renderPureFnsModule renders the pureFns cache-module body for the
 // program. When `entries` is non-nil it's used directly (the
 // OpScanFiles caller already ran extractPureFnsForScan and passes its
