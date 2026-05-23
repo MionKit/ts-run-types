@@ -137,6 +137,15 @@ export interface JitCompiledFnData {
    * Undefined for normal and noop entries. See docs/UNSUPPORTED-KINDS.md.
    */
   readonly alwaysThrowCode?: string;
+  /**
+   * `file:line:col` of the first known marker call site that referenced
+   * this runtype. Set alongside `alwaysThrowCode` on alwaysThrow entries
+   * so the runtime error message can suffix `(at file:line:col)` and
+   * point the user straight at the offending call. Undefined for normal
+   * and noop entries, or when the renderer has no provenance for the
+   * type (orphaned cache entry — rare). See docs/UNSUPPORTED-KINDS.md.
+   */
+  readonly alwaysThrowSite?: string;
 }
 
 export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnData {
