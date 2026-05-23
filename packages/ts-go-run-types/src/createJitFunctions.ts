@@ -17,7 +17,7 @@ import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonS
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
 import {lookupJitFn} from './jit/jitUtils.ts';
-import type {AnyFn, JitCompiledFn} from './jit/types.ts';
+import type {AnyFn} from './jit/types.ts';
 import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
 
 // =============================================================================
@@ -153,7 +153,7 @@ function createJitFunction<F extends AnyFn>(
       );
     }
     const utils = getJitUtils();
-    const entry = utils.getJIT(prefix + '_' + id) as JitCompiledFn | undefined;
+    const entry = utils.getJIT(prefix + '_' + id);
     if (entry) return entry.fn as F;
     if (utils.hasRunType(id)) return identityFn;
     throw new Error(

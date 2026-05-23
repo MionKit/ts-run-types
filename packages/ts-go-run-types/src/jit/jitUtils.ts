@@ -6,8 +6,8 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 import type {
-  JitCompiledFn,
-  JitFunctionsCache,
+  CompiledTypeFn,
+  TypesFunctionsCache,
   PureFunctionsCache,
   DeserializeClassFn,
   AnyClass,
@@ -17,79 +17,33 @@ import type {
   RunType,
   RunTypesCache,
   AnyFn,
+  InitializedTypeFn,
+  Mutable,
 } from './types.ts';
 import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
 import type {CompTimeArgs} from '../markers.ts';
-
-/** Builds a fresh factory closure from a serialized code body via
- *  `new Function('utl', code)`. Forces strict mode. **/
-export function buildFactoryFromCode(code: string): (utl: JITUtils) => (...args: any[]) => any {
-  return new Function('utl', `'use strict'; ${code}`) as (utl: JITUtils) => (...args: any[]) => any;
-}
-
-// `console` is universally available at runtime but the package's tsconfig
-// sets `types: []` so the global isn't otherwise visible.
-declare const console: {warn(...args: any[]): void};
-
-const jitFnsCache: JitFunctionsCache = {};
-const pureFnsCache: PureFunctionsCache = {};
-const runTypesCache: RunTypesCache = {};
-const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
-const serializableClassRegistry = new Map<string, SerializableClass>();
-
-/** Composite key for the pure-fn cache: `<namespace>::<fnName>`. **/
-export function pureFnKey(namespace: string, fnName: string): string {
-  return namespace + '::' + fnName;
-}
 
 /**
  * Shape of jitUtils. Must be defined as a type — `typeof jitUtils` breaks
  * reflection.
  */
-export interface JITUtils {
-  addToJitCache(comp: JitCompiledFn): void;
-  removeFromJitCache(comp: JitCompiledFn): void;
-  getJIT(jitFnHash: string): JitCompiledFn | undefined;
-  getJitFn(jitFnHash: string): (...args: any[]) => any;
-  hasJitFn(jitFnHash: string): boolean;
-  /** Add a compiled pure function. `key` is the composite `"namespace::fnName"`. */
-  addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction;
-  usePureFn(key: CompTimeArgs<string>): PureFunction;
-  getPureFn(key: CompTimeArgs<string>): PureFunction | undefined;
-  getCompiledPureFn(key: CompTimeArgs<string>): CompiledPureFunction | undefined;
-  hasPureFn(key: CompTimeArgs<string>): boolean;
-  /** Find a pure function across all namespaces. */
-  findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined;
-  /** Add or overwrite a run-type entry. */
-  addRunType(id: string, runType: RunType): RunType;
-  removeRunType(id: string): void;
-  getRunType(id: string): RunType | undefined;
-  /** Throws when missing. Use when absence is a bug. */
-  useRunType(id: string): RunType;
-  hasRunType(id: string): boolean;
-  setSerializableClass<C extends SerializableClass>(cls: C): void;
-  useSerializeClass(className: string): SerializableClass;
-  getSerializeClass(className: string): SerializableClass | undefined;
-  setDeserializeFn<C extends AnyClass>(cls: C, deserializeFn: DeserializeClassFn<InstanceType<C>>): void;
-  useDeserializeFn(className: string): DeserializeClassFn<any>;
-  getDeserializeFn(className: string): DeserializeClassFn<any> | undefined;
-  /**
-   * Build a throwing-factory for an alwaysThrow cache entry. Throws
-   * `[code] message (at file:line:col)` on invocation (suffix omitted when
-   * no provenance is known). See docs/UNSUPPORTED-KINDS.md.
-   */
-  alwaysThrowFactory(code: string, siteHint?: string): () => never;
-}
+export type JITUtils = typeof jitUtils;
 
-const jitUtils: JITUtils = {
-  addToJitCache(comp: JitCompiledFn) {
+const jitFnsCache: TypesFunctionsCache = {};
+const pureFnsCache: PureFunctionsCache = {};
+const runTypesCache: RunTypesCache = {};
+const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
+const serializableClassRegistry = new Map<string, SerializableClass>();
+
+const jitUtils = {
+  addToJitCache(comp: CompiledTypeFn) {
     jitFnsCache[comp.jitFnHash] = comp;
   },
-  removeFromJitCache(comp: JitCompiledFn) {
+  removeFromJitCache(comp: CompiledTypeFn) {
     if (!jitFnsCache[comp.jitFnHash]) return;
     (jitFnsCache[comp.jitFnHash] as any) = undefined;
   },
-  getJIT(jitFnHash: string): JitCompiledFn | undefined {
+  getJIT(jitFnHash: string): InitializedTypeFn | undefined {
     const entry = jitFnsCache[jitFnHash];
     if (!entry) return undefined;
     materializeJitFn(entry);
@@ -104,7 +58,6 @@ const jitUtils: JITUtils = {
   hasJitFn(jitFnHash: string) {
     return !!jitFnsCache[jitFnHash];
   },
-
   addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction {
     if (!key) throw new Error('Pure function key must be a non-empty "namespace::fnName" string');
     const existing = pureFnsCache[key];
@@ -124,25 +77,35 @@ const jitUtils: JITUtils = {
     pureFnsCache[key] = compiledFn;
     return compiledFn;
   },
-  usePureFn(key: string): PureFunction {
+  // The `CompTimeArgs<string>` brand on the next five lookup methods is
+  // load-bearing. The Go-side pure-fn dep extractor
+  // (internal/compiled/purefns/deps.go) walks every `registerPureFnFactory`
+  // body and, for each `<utl>.<method>(<literalKey>)` call where `<method>`
+  // is branded `CompTimeArgs<string>`, records `<literalKey>` as a static
+  // dependency on the enclosing pure-fn's entry. The brand both (a)
+  // declares the literal-only precondition in the type signature and (b)
+  // tells the Go scanner which methods participate in dep extraction
+  // without a hard-coded method-name allowlist. Dropping the brand
+  // silently disables dep extraction and leaves `pureFnDependencies` empty.
+  usePureFn(key: CompTimeArgs<string>): PureFunction {
     const compiled = pureFnsCache[key];
     if (!compiled) throw new Error(`Pure function not found for key "${key}"`);
     initPureFunction(compiled);
     return compiled.fn;
   },
-  getPureFn(key: string): PureFunction | undefined {
+  getPureFn(key: CompTimeArgs<string>): PureFunction | undefined {
     const compiled = pureFnsCache[key];
     if (!compiled) return;
     initPureFunction(compiled);
     return compiled.fn;
   },
-  getCompiledPureFn(key: string): CompiledPureFunction | undefined {
+  getCompiledPureFn(key: CompTimeArgs<string>): CompiledPureFunction | undefined {
     return pureFnsCache[key];
   },
-  hasPureFn(key: string): boolean {
+  hasPureFn(key: CompTimeArgs<string>): boolean {
     return !!pureFnsCache[key];
   },
-  findCompiledPureFn(fnName: string): CompiledPureFunction | undefined {
+  findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined {
     const suffix = '::' + fnName;
     for (const key of Object.keys(pureFnsCache)) {
       if (key === fnName || key.endsWith(suffix)) return pureFnsCache[key];
@@ -211,7 +174,7 @@ export function getJitUtils(): JITUtils {
  *  objects are the originals used by JIT functions. */
 export function getJitFnCaches() {
   return {
-    jitFnsCache: jitFnsCache as Readonly<JitFunctionsCache>,
+    jitFnsCache: jitFnsCache as Readonly<TypesFunctionsCache>,
     pureFnsCache: pureFnsCache as Readonly<PureFunctionsCache>,
   };
 }
@@ -227,12 +190,23 @@ function initPureFunction(compiled: CompiledPureFunction): asserts compiled is R
  *  collapsed to a noop, or throws. **/
 export function lookupJitFn<F extends AnyFn>(callerName: string, prefix: string, id: string, identityFn: F): F {
   const utils = getJitUtils();
-  const entry = utils.getJIT(prefix + '_' + id) as JitCompiledFn | undefined;
+  const entry = utils.getJIT(prefix + '_' + id) as CompiledTypeFn | undefined;
   if (entry) return entry.fn as F;
   if (utils.hasRunType(id)) return identityFn;
   throw new Error(
     `${callerName}(): no JitCompiledFn entry for "${prefix}_${id}" in jitUtils. The build pipeline didn't emit a factory for that runtype.`
   );
+}
+
+/** Composite key for the pure-fn cache: `<namespace>::<fnName>`. **/
+export function pureFnKey(namespace: string, fnName: string): string {
+  return namespace + '::' + fnName;
+}
+
+/** Builds a fresh factory closure from a serialized code body via
+ *  `new Function('utl', code)`. Forces strict mode. **/
+export function buildFactoryFromCode(code: string): (utl: JITUtils) => (...args: any[]) => any {
+  return new Function('utl', `'use strict'; ${code}`) as (utl: JITUtils) => (...args: any[]) => any;
 }
 
 /** Cycle guard. When entry A's createJitFn invokes `getJIT('B')` and B's
@@ -258,18 +232,14 @@ const materializing = new Set<string>();
  *
  *  alwaysThrow entries: `entry.createJitFn` is the throwing closure from
  *  `alwaysThrowFactory(code, site)`; it ignores `utl` and throws. **/
-function materializeJitFn(entry: JitCompiledFn): void {
+function materializeJitFn(entry: CompiledTypeFn): asserts entry is InitializedTypeFn {
   if (entry.fn) return;
   if (materializing.has(entry.jitFnHash)) return;
   if (!entry.createJitFn && !entry.code) return;
   materializing.add(entry.jitFnHash);
   try {
-    if (!entry.createJitFn) {
-      (entry as {createJitFn: JitCompiledFn['createJitFn']}).createJitFn = buildFactoryFromCode(
-        entry.code
-      ) as JitCompiledFn['createJitFn'];
-    }
-    entry.fn = entry.createJitFn(jitUtils);
+    if (!entry.createJitFn) (entry as Mutable<CompiledTypeFn>).createJitFn = buildFactoryFromCode(entry.code);
+    (entry as Mutable<CompiledTypeFn>).fn = (entry as InitializedTypeFn).createJitFn(jitUtils);
   } finally {
     materializing.delete(entry.jitFnHash);
   }

@@ -13,21 +13,21 @@ import (
 // extractDeps walks factoryFn's body for `<utlName>.<method>(<keyLit>)`
 // patterns and collects the literal keys as the entry's
 // pureFnDependencies. The recognised methods are discovered via the
-// `CompTimeArgs<string>` brand on their first parameter — see D4 in
-// the plan. The string-literal `<keyLit>` is resolved against a
-// factory-local symbol table first (fast path for `const KEY = '…'`
-// declared inside the factory body), then via
-// `comptimeargs.ResolveLiteralString` (covers file-level / imported
-// const bindings via the checker).
+// `CompTimeArgs<string>` brand on their first parameter (see the brand
+// annotations on jitUtils' pure-fn lookup methods in
+// packages/ts-go-run-types/src/jit/jitUtils.ts). The string-literal
+// `<keyLit>` is resolved against a factory-local symbol table first
+// (fast path for `const KEY = '…'` declared inside the factory body),
+// then via `comptimeargs.ResolveLiteralString` (covers file-level /
+// imported const bindings via the checker).
 //
 // When utlName is empty (factory has no first parameter), returns
 // (nil, nil) — the caller is free to register the entry without deps.
 //
 // For findCompiledPureFn the literal is a bare fnName; we emit it with
 // an empty namespace prefix (`"::" + fnName`) so the runtime's
-// cross-namespace resolver (mion's findCompiledPureFn) treats it the
-// same way as a suffix match. This mirrors the historical behaviour of
-// the tracking proxy.
+// cross-namespace resolver treats it the same way as a suffix match.
+// This mirrors the historical behaviour of the tracking proxy.
 func extractDeps(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, factoryFn *ast.Node, utlName string) ([]string, []diag.Diagnostic) {
 	if utlName == "" {
 		return nil, nil
@@ -65,9 +65,8 @@ func extractDeps(typeChecker *checker.Checker, markerOpts marker.Options, source
 // handleCall checks one CallExpression. When the callee is a
 // property access (`<utlName>.<method>(...)`) AND the called method's
 // first parameter is branded `CompTimeArgs<string>` (the brand-based
-// allowlist for jitUtils pure-fn lookup methods, per D4), resolves the
-// first argument to a string literal and records it; otherwise it's a
-// no-op.
+// allowlist for jitUtils pure-fn lookup methods), resolves the first
+// argument to a string literal and records it; otherwise it's a no-op.
 func handleCall(
 	typeChecker *checker.Checker,
 	markerOpts marker.Options,
@@ -130,9 +129,8 @@ func handleCall(
 
 // calleeFirstParamIsCompTimeArgs reports whether the resolved
 // signature of call has its first parameter branded
-// `CompTimeArgs<string>` (via marker.DetectAny). This is the
-// brand-driven replacement for the old hard-coded jitUtils method
-// allowlist.
+// `CompTimeArgs<string>` (via marker.DetectAny). Brand-driven
+// discovery avoids a hard-coded jitUtils-method allowlist.
 func calleeFirstParamIsCompTimeArgs(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) bool {
 	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)
 	if signature == nil {
