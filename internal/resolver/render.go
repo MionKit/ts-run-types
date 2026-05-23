@@ -34,6 +34,7 @@ func (resolver *Resolver) jitRenderOpts(sink *[]diag.Diagnostic, provenance map[
 		Lookup:          resolver.cache,
 		DiagSink:        sink,
 		ProvenanceSites: provenance,
+		EmitCreateJitFn: resolver.opts.EmitCreateJitFn,
 	}
 }
 

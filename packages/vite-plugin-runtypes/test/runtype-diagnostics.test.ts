@@ -234,4 +234,64 @@ export const _ = getRuntypeId<[number, symbol]>();
       expect(codes).toContain('TB006');
     });
   });
+
+  // The default emit mode (no inline createJitFn) keeps the cache
+  // module compact by leaving the validator body in arg-3 only and
+  // shipping the `u` (= undefined) alias as arg-7. The JS-side
+  // materializeJitFn rebuilds the factory via `new Function('utl',
+  // code)` on first lookup. Test runs themselves opt INTO the
+  // inline-factory shape via vitest config (so suites cover both
+  // materialisation paths) — this regression spins up a one-shot
+  // ResolverClient with the production default and pins the smaller
+  // emit shape.
+  register('default emit (no inline createJitFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
+    const sources = {
+      'mini.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface User { name: string; age: number; tags: string[]; }
+export const _ = getRuntypeId<User>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const inlineOn = await client.scanFiles(Object.keys(sources), {
+        includeCacheSources: ['isType'],
+      });
+      const inlineOnBody = inlineOn.isTypeCacheSource ?? '';
+      // The default shared client runs with emitCreateJitFn=true so
+      // we get the inline factory here as a baseline.
+      expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(/function g_it_[A-Za-z0-9]+\(utl\)/);
+    });
+
+    // Spin up a one-shot client with the production default
+    // (emitCreateJitFn omitted → false) and assert the smaller shape.
+    const {ResolverClient} = await import('../src/resolver-client.ts');
+    const path = await import('node:path');
+    const ROOT = path.resolve(__dirname, '../../..');
+    const oneShot = new ResolverClient(`${ROOT}/bin/ts-go-run-types`, ROOT, '', {serverMode: true});
+    try {
+      await oneShot.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
+      const response = await oneShot.scanFiles(Object.keys(sources), {
+        includeCacheSources: ['isType'],
+      });
+      const body = response.isTypeCacheSource ?? '';
+      // arg-7 should be the `u` alias for every non-noop, non-
+      // alwaysThrow entry. Sanity-check by scanning init lines.
+      const initLines = body.split('\n').filter((line) => line.startsWith("init('it_"));
+      expect(initLines.length, 'expected at least one init line for User').toBeGreaterThan(0);
+      for (const line of initLines) {
+        // Noop entries use the 4-arg short form `init('it_X','...',undefined,true);`
+        // — skip those.
+        if (line.includes(',undefined,true);')) continue;
+        expect(line, `default emit must end with ",u);" — got: ${line}`).toMatch(/,u\);$/);
+      }
+      // And the closure-form must be completely absent under the default.
+      expect(body, 'default emit must NOT contain function g_it_<hash>(utl)').not.toMatch(/function g_it_[A-Za-z0-9]+\(utl\)/);
+    } finally {
+      oneShot.close();
+    }
+  });
 });
+
+// RUNTYPES_DTS overlay is borrowed via the helper; re-import the
+// constant for the one-shot probe above so the inline `setSources`
+// call doesn't have to re-declare the marker module.
+import {RUNTYPES_DTS} from './helpers/inline.ts';

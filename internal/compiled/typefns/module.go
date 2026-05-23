@@ -38,6 +38,16 @@ type RenderOpts struct {
 	// coordinates — without it, a JitThrow would record a diagnostic
 	// with empty Site and the warning would be useless in the editor.
 	ProvenanceSites map[string][]diag.Site
+	// EmitCreateJitFn opts the renderer into emitting the inline
+	// `createJitFn` closure alongside the body `code` string. False
+	// (the default) writes `u` (the `const u = undefined` alias) in the
+	// arg-7 slot and the JS-side materializer rebuilds the factory from
+	// `code` via `new Function('utl', code)` lazily on first lookup.
+	// True writes the full `function g_<hash>(utl){…}` declaration so
+	// runtimes that disallow `new Function` (Cloudflare WorkerD,
+	// browser CSP without `unsafe-eval`, …) can still materialise
+	// validators. See docs/UNSUPPORTED-KINDS.md.
+	EmitCreateJitFn bool
 }
 
 // innerPrefix derives the inner-fn name prefix from a cache-module's
@@ -404,12 +414,24 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// between the `function(utl){ … }` braces — so a consumer holding
 	// only the serialized JitCompiledFnData can rebuild the validator
 	// via `new Function('utl', code)(jitUtils)`. The inner-validator
-	// body remains embedded in `code` (as `return function …(v){…}`)
-	// AND is the entire payload of `createJitFn` for live invocation.
+	// body remains embedded in `code` (as `return function …(v){…}`).
+	//
+	// The 7th arg (`createJitFn`) is OMITTED by default (rendered as
+	// the `u = undefined` alias declared once at the top of the
+	// module): the JS-side materializeJitFn rebuilds the factory from
+	// `code` on first `getJIT(hash)` call. The opt-in branch under
+	// `opts.EmitCreateJitFn` writes the full `function g_<hash>(utl)
+	// {…}` declaration so runtimes without `new Function` (Cloudflare
+	// WorkerD, sandboxed iframes, etc.) can materialise validators
+	// without the dynamic-code path.
 	//
 	// First arg is the namespaced cache key (innerPrefix + runType.ID)
 	// so the JS-side jitFnsCache slot is distinct from the same
 	// runtype's isType / prepareForJson / … entries.
+	createJitFnArg := "u"
+	if opts.EmitCreateJitFn {
+		createJitFnArg = createJitFn
+	}
 	args := []string{
 		quoteJS(innerName),
 		quoteJS(jitTypeName(runType)),
@@ -417,7 +439,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		boolJS(isNoop),
 		stringSliceJS(walker.JitDependencies),
 		pureFnDepsJS(walker.PureFnDependencies),
-		createJitFn,
+		createJitFnArg,
 	}
 	deps := append([]string(nil), walker.JitDependencies...)
 	line := "init(" + joinArgs(args) + ");"
