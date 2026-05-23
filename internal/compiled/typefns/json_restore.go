@@ -429,13 +429,14 @@ func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v st
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
-		// Non-serializable element — set the slot to undefined on
-		// restore (matches mion's behaviour).
-		idxLit := positionStr(rt)
-		return JitCode{Code: v + "[" + idxLit + "] = undefined", Type: CodeS}
+	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
 	}
+	// Function-typed tuple slots fall through to CompileChild — the
+	// function arm returns CodeNS, the walker latches the leaf, and the
+	// renderer surfaces an alwaysThrow. Restoring a function slot to
+	// `undefined` (the previous silent behaviour) hid the unsupported
+	// shape from the user.
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")

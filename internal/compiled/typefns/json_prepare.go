@@ -521,12 +521,14 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
-		// Non-serializable element — leave it for the validator to flag;
-		// no transformation here.
+	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
+	// Function-typed tuple slots fall through to CompileChild — the
+	// function arm returns CodeNS, the walker latches the leaf, and the
+	// renderer surfaces an alwaysThrow factory. Tuple slots are
+	// positional (no absorb), so dropping silently would emit a lossy
+	// validator. See docs/UNSUPPORTED-KINDS.md.
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
