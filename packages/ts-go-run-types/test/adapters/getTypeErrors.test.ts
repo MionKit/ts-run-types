@@ -84,7 +84,8 @@ describe('getTypeErrors / ATOMIC', () => {
   it('Numeric literal type (strict equality)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_2));
   it('String literal type (case-sensitive)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_a));
   it('RegExp literal type (matched by source plus flags)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_regexp_simple));
-  it('RegExp literal with regex-metacharacters in the source', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_regexp_escaped));
+  it('RegExp literal with regex-metacharacters in the source', () =>
+    assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_regexp_escaped));
   it('Boolean literal type (only true)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_true));
   it('BigInt literal type (only 1n)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_1n));
   it('Symbol literal type (matched by description)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_symbol));
@@ -103,10 +104,13 @@ describe('getTypeErrors / ATOMIC', () => {
   // noLiterals variants — literal types degrade to their base kind.
   it('Numeric literal with noLiterals (degrades to number)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_2_noLiterals));
   it('String literal with noLiterals (degrades to string)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_a_noLiterals));
-  it('RegExp literal with noLiterals (degrades to RegExp)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_regexp_noLiterals));
-  it('Boolean literal with noLiterals (degrades to boolean)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_true_noLiterals));
+  it('RegExp literal with noLiterals (degrades to RegExp)', () =>
+    assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_regexp_noLiterals));
+  it('Boolean literal with noLiterals (degrades to boolean)', () =>
+    assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_true_noLiterals));
   it('BigInt literal with noLiterals (degrades to bigint)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_1n_noLiterals));
-  it('Symbol literal with noLiterals (degrades to symbol)', () => assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_symbol_noLiterals));
+  it('Symbol literal with noLiterals (degrades to symbol)', () =>
+    assertGetTypeErrors(JIT_SUITE.ATOMIC.literal_symbol_noLiterals));
 
   // Strict count — fails if the suite gains a new case without a
   // matching `it(...)` above. Every case in this section must have
@@ -134,12 +138,14 @@ describe('getTypeErrors / ARRAY', () => {
   it('Generic Array<T> form (same emit as T[])', () => assertGetTypeErrors(JIT_SUITE.ARRAY.array_generic));
   it('Two-dimensional string array (multi-level dependency call)', () => assertGetTypeErrors(JIT_SUITE.ARRAY.string_array_2d));
   it('Three-dimensional string array (depth stress)', () => assertGetTypeErrors(JIT_SUITE.ARRAY.string_array_3d));
-  it('Array with noIsArrayCheck (Array.isArray guard stripped)', () => assertGetTypeErrors(JIT_SUITE.ARRAY.string_array_noIsArrayCheck));
+  it('Array with noIsArrayCheck (Array.isArray guard stripped)', () =>
+    assertGetTypeErrors(JIT_SUITE.ARRAY.string_array_noIsArrayCheck));
   it('Self-referential array (CircularArray = CircularArray[])', () => assertGetTypeErrors(JIT_SUITE.ARRAY.circular_array));
   it('Array of symbols (non-serializable — always rejected)', () => assertGetTypeErrors(JIT_SUITE.ARRAY.symbol_array));
   it('Array of unions (OR-chain per element)', () => assertGetTypeErrors(JIT_SUITE.ARRAY.union_array));
   it('Array of object literals', () => assertGetTypeErrors(JIT_SUITE.ARRAY.object_array));
-  it('Recursive object whose cycle closes via an array property', () => assertGetTypeErrors(JIT_SUITE.ARRAY.circular_object_with_array));
+  it('Recursive object whose cycle closes via an array property', () =>
+    assertGetTypeErrors(JIT_SUITE.ARRAY.circular_object_with_array));
   it('Array of tuples', () => assertGetTypeErrors(JIT_SUITE.ARRAY.tuple_array));
   it('Readonly array (ReadonlyArray<T> / readonly T[])', () => assertGetTypeErrors(JIT_SUITE.ARRAY.readonly_string_array));
 
@@ -155,31 +161,41 @@ describe('getTypeErrors / OBJECT', () => {
   });
 
   it('Simple interface with string and number props', () => assertGetTypeErrors(JIT_SUITE.OBJECT.simple_interface));
-  it('Object pinned with `as const` (readonly literal props)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.object_as_const_literals));
-  it('Object inferred via ReturnType<typeof factory>', () => assertGetTypeErrors(JIT_SUITE.OBJECT.object_via_return_type_utility));
-  it('Object inferred via property access on a parent shape', () => assertGetTypeErrors(JIT_SUITE.OBJECT.object_via_property_access));
+  it('Object pinned with `as const` (readonly literal props)', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.object_as_const_literals));
+  it('Object inferred via ReturnType<typeof factory>', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.object_via_return_type_utility));
+  it('Object inferred via property access on a parent shape', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.object_via_property_access));
   it('Object inferred via array element access', () => assertGetTypeErrors(JIT_SUITE.OBJECT.object_via_array_access));
   it('Interface with one optional property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.interface_with_optional));
   it('Interface with a Date property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.interface_with_date));
-  it('Interface with a method (function prop skipped from check)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.interface_with_method));
+  it('Interface with a method (function prop skipped from check)', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.interface_with_method));
   it('Interface with a nested object property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.nested_object));
   it('Interface with a string-array property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.interface_string_array_prop));
   it('Self-referential interface (linked-list shape)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.circular_interface));
-  it('Self-referential interface via an array-of-self property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.circular_interface_on_array));
-  it('Self-referential interface buried in a nested object', () => assertGetTypeErrors(JIT_SUITE.OBJECT.circular_interface_on_nested_object));
+  it('Self-referential interface via an array-of-self property', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.circular_interface_on_array));
+  it('Self-referential interface buried in a nested object', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.circular_interface_on_nested_object));
   it('Index signature with string values', () => assertGetTypeErrors(JIT_SUITE.OBJECT.index_signature_string));
   it('Index signature combined with named properties', () => assertGetTypeErrors(JIT_SUITE.OBJECT.index_signature_named_props));
   it('Nested index signatures (number leaf values)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.index_signature_nested));
   it('Nested index signatures with Date leaf values', () => assertGetTypeErrors(JIT_SUITE.OBJECT.index_signature_date_value));
-  it('Index signature on a nested (non-root) object property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.index_signature_non_root));
+  it('Index signature on a nested (non-root) object property', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.index_signature_non_root));
   it('Function type at top level (any function passes)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.function_top_level));
-  it('Interface with every property optional (plain-object guard)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.interface_all_optional));
+  it('Interface with every property optional (plain-object guard)', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.interface_all_optional));
   it('Callable interface (function plus data properties)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.interface_callable));
   it('Class with two atomic props (instance or plain match)', () => assertGetTypeErrors(JIT_SUITE.OBJECT.class_simple));
   it('RpcError-shaped class with branded discriminator', () => assertGetTypeErrors(JIT_SUITE.OBJECT.rpc_error_class));
   it('Function parameters extracted via Parameters<F>', () => assertGetTypeErrors(JIT_SUITE.OBJECT.call_signature_params));
-  it('Parameters<F> tuple with a trailing optional argument', () => assertGetTypeErrors(JIT_SUITE.OBJECT.call_signature_params_with_optional));
-  it('Parameters<F> tuple with a trailing rest segment', () => assertGetTypeErrors(JIT_SUITE.OBJECT.call_signature_params_with_rest));
+  it('Parameters<F> tuple with a trailing optional argument', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.call_signature_params_with_optional));
+  it('Parameters<F> tuple with a trailing rest segment', () =>
+    assertGetTypeErrors(JIT_SUITE.OBJECT.call_signature_params_with_rest));
   it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertGetTypeErrors(JIT_SUITE.OBJECT.record_union_keys));
   it('Index signature with a union value type', () => assertGetTypeErrors(JIT_SUITE.OBJECT.union_value_index));
   it('Object with a discriminated-union string property', () => assertGetTypeErrors(JIT_SUITE.OBJECT.object_with_union_prop));
@@ -201,7 +217,8 @@ describe('getTypeErrors / TUPLE', () => {
   it('Two-element tuple (string plus number)', () => assertGetTypeErrors(JIT_SUITE.TUPLE.string_number_pair));
   it('Six-element heterogeneous tuple (mion fixture)', () => assertGetTypeErrors(JIT_SUITE.TUPLE.full_mion_tuple));
   it('Tuple with trailing optional elements', () => assertGetTypeErrors(JIT_SUITE.TUPLE.tuple_with_optional));
-  it('Tuple as array element (tuple inside array dependency call)', () => assertGetTypeErrors(JIT_SUITE.TUPLE.nested_tuple_in_array));
+  it('Tuple as array element (tuple inside array dependency call)', () =>
+    assertGetTypeErrors(JIT_SUITE.TUPLE.nested_tuple_in_array));
   it('Self-referential tuple via trailing optional self-ref', () => assertGetTypeErrors(JIT_SUITE.TUPLE.tuple_circular));
   it('Tuple with a function slot (must be undefined)', () => assertGetTypeErrors(JIT_SUITE.TUPLE.tuple_with_non_serializable));
   it('Tuple with a trailing rest segment', () => assertGetTypeErrors(JIT_SUITE.TUPLE.tuple_rest));
@@ -224,11 +241,16 @@ describe('getTypeErrors / TEMPLATE_LITERAL', () => {
 
   it('Template literal URL with a number placeholder', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.url_with_number_id));
   it('Template literal URL with multiple placeholders', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.multi_segment_url));
-  it('Template literal starting with a string placeholder', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.leading_string_placeholder));
-  it('Template literal with regex metacharacters in literal segments', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.regex_special_chars));
-  it('Object with a template-literal-typed string property', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.template_literal_nested_in_object));
-  it('Index signature whose key is a template literal pattern', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.template_literal_index_key));
-  it('Template literal with a union-of-literals placeholder', () => assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
+  it('Template literal starting with a string placeholder', () =>
+    assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.leading_string_placeholder));
+  it('Template literal with regex metacharacters in literal segments', () =>
+    assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.regex_special_chars));
+  it('Object with a template-literal-typed string property', () =>
+    assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.template_literal_nested_in_object));
+  it('Index signature whose key is a template literal pattern', () =>
+    assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.template_literal_index_key));
+  it('Template literal with a union-of-literals placeholder', () =>
+    assertGetTypeErrors(JIT_SUITE.TEMPLATE_LITERAL.template_literal_union_placeholder));
 
   it('all template-literal getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.TEMPLATE_LITERAL).length);
@@ -257,13 +279,20 @@ describe('getTypeErrors / CIRCULAR', () => {
     ranTests++;
   });
 
-  it('Self-referential object with optional self-ref and Date prop', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_full_mion_shape));
-  it('Self-referential array whose union element includes the array itself', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.array_of_union_with_self_ref));
-  it('Self-referential object whose cycle closes via a tuple property', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_with_tuple_prop));
-  it('Self-referential object whose cycle closes via an index signature', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_with_index_prop));
-  it('Self-referential object with the cycle buried four levels deep', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_deeply_nested));
-  it('Non-circular root holding a circular child interface', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.circular_child_under_literal_root));
-  it('Multiple circular types cross-referenced from a non-circular root', () => assertGetTypeErrors(JIT_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
+  it('Self-referential object with optional self-ref and Date prop', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_full_mion_shape));
+  it('Self-referential array whose union element includes the array itself', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.array_of_union_with_self_ref));
+  it('Self-referential object whose cycle closes via a tuple property', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_with_tuple_prop));
+  it('Self-referential object whose cycle closes via an index signature', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_with_index_prop));
+  it('Self-referential object with the cycle buried four levels deep', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.object_deeply_nested));
+  it('Non-circular root holding a circular child interface', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.circular_child_under_literal_root));
+  it('Multiple circular types cross-referenced from a non-circular root', () =>
+    assertGetTypeErrors(JIT_SUITE.CIRCULAR.multiple_circular_types_cross_referenced));
 
   it('all circular getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.CIRCULAR).length);
@@ -282,22 +311,30 @@ describe('getTypeErrors / UNION', () => {
   it('Union of array types (whole-array dispatch)', () => assertGetTypeErrors(JIT_SUITE.UNION.union_of_array_types));
   it('Array whose element type is a union', () => assertGetTypeErrors(JIT_SUITE.UNION.array_of_union));
   it('Union of disjoint object shapes', () => assertGetTypeErrors(JIT_SUITE.UNION.union_of_object_shapes));
-  it('Discriminated union (shared kind literal, different payloads)', () => assertGetTypeErrors(JIT_SUITE.UNION.discriminated_union));
+  it('Discriminated union (shared kind literal, different payloads)', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.discriminated_union));
   it('Union of object arms each carrying a method', () => assertGetTypeErrors(JIT_SUITE.UNION.union_with_methods));
   it('Self-referential union via object and array arms', () => assertGetTypeErrors(JIT_SUITE.UNION.circular_union));
-  it('Intersection of object shapes (resolved to one merged shape)', () => assertGetTypeErrors(JIT_SUITE.UNION.intersection_to_object));
+  it('Intersection of object shapes (resolved to one merged shape)', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.intersection_to_object));
 
   // mion union.spec.ts ports — additional arms / shapes
   it('Union where one arm carries an index signature', () => assertGetTypeErrors(JIT_SUITE.UNION.union_with_index_arm));
-  it('Discriminated union sharing one prop with arm-dependent type', () => assertGetTypeErrors(JIT_SUITE.UNION.union_same_prop_different_types));
+  it('Discriminated union sharing one prop with arm-dependent type', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.union_same_prop_different_types));
   it('Union mixing array types and object shapes', () => assertGetTypeErrors(JIT_SUITE.UNION.union_mixed_arrays_and_objects));
-  it('Union of shapes sharing a prop with different value types', () => assertGetTypeErrors(JIT_SUITE.UNION.union_merged_property));
-  it('Union mixing arrays, plain objects, and index-signature shapes', () => assertGetTypeErrors(JIT_SUITE.UNION.union_mixed_with_index));
+  it('Union of shapes sharing a prop with different value types', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.union_merged_property));
+  it('Union mixing arrays, plain objects, and index-signature shapes', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.union_mixed_with_index));
   it('Union with an `any` arm (collapses to any)', () => assertGetTypeErrors(JIT_SUITE.UNION.union_with_any_fallback));
-  it('Union with an `unknown` arm (collapses to unknown)', () => assertGetTypeErrors(JIT_SUITE.UNION.union_with_unknown_fallback));
-  it('Union with the smaller arm declared before its superset', () => assertGetTypeErrors(JIT_SUITE.UNION.union_subset_small_first));
+  it('Union with an `unknown` arm (collapses to unknown)', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.union_with_unknown_fallback));
+  it('Union with the smaller arm declared before its superset', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.union_subset_small_first));
   it('Union with a three-level subset chain', () => assertGetTypeErrors(JIT_SUITE.UNION.union_subset_nested_levels));
-  it('Union mixing a subset pair with a disjoint arm', () => assertGetTypeErrors(JIT_SUITE.UNION.union_subset_mixed_related_unrelated));
+  it('Union mixing a subset pair with a disjoint arm', () =>
+    assertGetTypeErrors(JIT_SUITE.UNION.union_subset_mixed_related_unrelated));
 
   it('all union getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.UNION).length);
@@ -320,16 +357,21 @@ describe('getTypeErrors / UTILITY', () => {
   it('NonNullable<T> — strips null and undefined from a union', () => assertGetTypeErrors(JIT_SUITE.UTILITY.non_nullable));
   it('ReturnType<F> — extracts the return type of a function', () => assertGetTypeErrors(JIT_SUITE.UTILITY.return_type));
   it('Readonly<T> — readonly bit erased at runtime', () => assertGetTypeErrors(JIT_SUITE.UTILITY.readonly));
-  it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () => assertGetTypeErrors(JIT_SUITE.UTILITY.intersection_with_required_override));
+  it('Partial<T> intersected with Required<Pick<T, K>> (re-requires one prop)', () =>
+    assertGetTypeErrors(JIT_SUITE.UTILITY.intersection_with_required_override));
   it('Omit<T, K> preserves optionality of remaining props', () => assertGetTypeErrors(JIT_SUITE.UTILITY.omit_keeping_optional));
   it('keyof T — resolves to a union of string-literal keys', () => assertGetTypeErrors(JIT_SUITE.UTILITY.keyof_to_literal_union));
   it('typeof variable — type query on a runtime value', () => assertGetTypeErrors(JIT_SUITE.UTILITY.typeof_variable_query));
   it('Indexed access type — Person["name"] resolves to string', () => assertGetTypeErrors(JIT_SUITE.UTILITY.indexed_access_type));
-  it('Conditional type — T extends string ? boolean : number', () => assertGetTypeErrors(JIT_SUITE.UTILITY.conditional_type_resolved));
+  it('Conditional type — T extends string ? boolean : number', () =>
+    assertGetTypeErrors(JIT_SUITE.UTILITY.conditional_type_resolved));
   it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertGetTypeErrors(JIT_SUITE.UTILITY.mapped_type_custom));
-  it('Mapped type whose value is a conditional — per-prop shape diverges', () => assertGetTypeErrors(JIT_SUITE.UTILITY.mapped_type_with_conditional_value));
-  it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () => assertGetTypeErrors(JIT_SUITE.UTILITY.distributive_conditional_over_union));
-  it('DeepPartial<T> — recursive mapped type with nested optionality', () => assertGetTypeErrors(JIT_SUITE.UTILITY.deep_partial_recursive_mapped));
+  it('Mapped type whose value is a conditional — per-prop shape diverges', () =>
+    assertGetTypeErrors(JIT_SUITE.UTILITY.mapped_type_with_conditional_value));
+  it('Distributive conditional — `Wrap<string | number>` → `{w:string} | {w:number}`', () =>
+    assertGetTypeErrors(JIT_SUITE.UTILITY.distributive_conditional_over_union));
+  it('DeepPartial<T> — recursive mapped type with nested optionality', () =>
+    assertGetTypeErrors(JIT_SUITE.UTILITY.deep_partial_recursive_mapped));
 
   it('all utility getTypeErrors tests ran', () => {
     expect(ranTests).toBe(Object.keys(JIT_SUITE.UTILITY).length);
@@ -342,8 +384,10 @@ describe('getTypeErrors / TYPE_MAPPINGS', () => {
     ranTests++;
   });
 
-  it('Key prefix via template literal — `prefix_${K}` rename', () => assertGetTypeErrors(JIT_SUITE.TYPE_MAPPINGS.key_prefix_rename));
-  it('Conditional key rename — swap one key, leave the rest', () => assertGetTypeErrors(JIT_SUITE.TYPE_MAPPINGS.key_conditional_rename));
+  it('Key prefix via template literal — `prefix_${K}` rename', () =>
+    assertGetTypeErrors(JIT_SUITE.TYPE_MAPPINGS.key_prefix_rename));
+  it('Conditional key rename — swap one key, leave the rest', () =>
+    assertGetTypeErrors(JIT_SUITE.TYPE_MAPPINGS.key_conditional_rename));
   it('Filter keys via `never` — drop sensitive props', () => assertGetTypeErrors(JIT_SUITE.TYPE_MAPPINGS.key_filter_via_never));
 
   it('all type-mappings getTypeErrors tests ran', () => {

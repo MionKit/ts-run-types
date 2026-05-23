@@ -22,11 +22,7 @@ const validatorCache = new Map<string, RestoreFromJsonFn>();
  *  Two equivalent call shapes (static + reflect). Sync — materialised
  *  at cache-init time. Throws when no id is injected or the entry is
  *  missing. **/
-export function createRestoreFromJson<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): RestoreFromJsonFn {
+export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn {
   void val;
   void options;
   if (id === undefined) {
@@ -62,11 +58,7 @@ const deserializedValidatorCache = new Map<string, RestoreFromJsonFn>();
 /** Like `createRestoreFromJson<T>()`, but rebuilds the transformer from
  *  the serialized `JitCompiledFnData.code` body via
  *  `new Function('utl', code)(jitUtils)`. Mirrors `deserializeIsType`. **/
-export function deserializeRestoreFromJson<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): RestoreFromJsonFn {
+export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn {
   void val;
   void options;
   if (id === undefined) {

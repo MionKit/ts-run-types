@@ -56,11 +56,7 @@ const validatorCache = new Map<string, GetTypeErrorsFn>();
  *
  *  Throws when called without the plugin active (no `id` injected) or
  *  when jitUtils doesn't contain an entry for the expected hash. **/
-export function createGetTypeErrors<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): GetTypeErrorsFn {
+export function createGetTypeErrors<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): GetTypeErrorsFn {
   void val; // runtime-ignored; only used by type-checker to infer T
   void options; // runtime-ignored; baked into id at compile time
   if (id === undefined) {
@@ -101,11 +97,7 @@ const deserializedValidatorCache = new Map<string, GetTypeErrorsFn>();
  *  serialized `JitCompiledFnData.code` body via `new Function('utl',
  *  code)(jitUtils)` instead of reusing the cache module's already-
  *  materialised `entry.fn`. Mirrors deserializeIsType. **/
-export function deserializeGetTypeErrors<T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>,
-): GetTypeErrorsFn {
+export function deserializeGetTypeErrors<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): GetTypeErrorsFn {
   void val;
   void options;
   if (id === undefined) {
