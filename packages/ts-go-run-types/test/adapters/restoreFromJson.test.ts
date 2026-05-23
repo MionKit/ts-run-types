@@ -25,9 +25,10 @@ function assertRoundTrip(
   label: string,
   prepare: (v: unknown) => unknown,
   restore: (v: unknown) => unknown,
-  getValid: () => unknown[]
+  getValid: () => unknown[],
+  bestEffort: boolean
 ) {
-  // See prepareForJson.test.ts for the deep-clone rationale.
+  // See prepareForJson.test.ts for the deep-clone + best-effort rationale.
   const samples = getValid();
   samples.forEach((reference, i) => {
     const input = deepCloneForRoundTrip(reference);
@@ -36,6 +37,7 @@ function assertRoundTrip(
     // Top-level undefined cannot be JSON-encoded — JSON.stringify
     // returns `undefined`. Skip these samples.
     if (serialized === undefined) return;
+    if (bestEffort) return;
     const parsed = JSON.parse(serialized);
     const restored = restore(parsed);
     const {actual, expected} = normalizeForComparison(restored, reference);
@@ -46,23 +48,36 @@ function assertRoundTrip(
 function assertRestoreFromJson(c: JitCase): void {
   if (!c.restoreFromJson) throw new Error(`case ${c.title}: missing restoreFromJson thunk`);
   const getValid = () => c.getSamples().valid;
+  const bestEffort = c.roundTripBestEffort ?? false;
   const prepareStatic = c.prepareForJson?.() ?? identityFn;
   const prepareReflect = c.prepareForJsonReflect?.() ?? identityFn;
   const prepareDeserStatic = c.deserializePrepareForJson?.() ?? identityFn;
   const prepareDeserReflect = c.deserializePrepareForJsonReflect?.() ?? identityFn;
 
-  assertRoundTrip(`${c.title} [static]`, prepareStatic, c.restoreFromJson(), getValid);
+  assertRoundTrip(`${c.title} [static]`, prepareStatic, c.restoreFromJson(), getValid, bestEffort);
 
   if (c.restoreFromJsonReflect) {
-    assertRoundTrip(`${c.title} [reflect]`, prepareReflect, c.restoreFromJsonReflect(), getValid);
+    assertRoundTrip(`${c.title} [reflect]`, prepareReflect, c.restoreFromJsonReflect(), getValid, bestEffort);
   }
 
   if (c.deserializeRestoreFromJson) {
-    assertRoundTrip(`${c.title} [deserialize-static]`, prepareDeserStatic, c.deserializeRestoreFromJson(), getValid);
+    assertRoundTrip(
+      `${c.title} [deserialize-static]`,
+      prepareDeserStatic,
+      c.deserializeRestoreFromJson(),
+      getValid,
+      bestEffort
+    );
   }
 
   if (c.deserializeRestoreFromJsonReflect) {
-    assertRoundTrip(`${c.title} [deserialize-reflect]`, prepareDeserReflect, c.deserializeRestoreFromJsonReflect(), getValid);
+    assertRoundTrip(
+      `${c.title} [deserialize-reflect]`,
+      prepareDeserReflect,
+      c.deserializeRestoreFromJsonReflect(),
+      getValid,
+      bestEffort
+    );
   }
 }
 

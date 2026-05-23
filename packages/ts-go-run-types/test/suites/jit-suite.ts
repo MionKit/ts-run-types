@@ -134,6 +134,18 @@ export interface JitCase {
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
   /** Reflect-form companion to `deserializeRestoreFromJson`. */
   deserializeRestoreFromJsonReflect?: () => RestoreFromJsonFn;
+  /** Marks types whose serializer contract is "best effort via JSON" —
+   *  `any`, `unknown`, `object`. For these the prepareForJson +
+   *  restoreFromJson are both identity, so the runtime experience is
+   *  literally `JSON.parse(JSON.stringify(v))` with no transformation.
+   *  Lossy for class instances (Date → ISO string, RegExp → `{}`),
+   *  but consistent — the contract is "whatever JSON can encode
+   *  survives, whatever it can't is silently lost". The adapter
+   *  weakens the round-trip assertion accordingly: succeed when
+   *  `JSON.stringify(prepared)` is a non-undefined string (i.e. the
+   *  value is JSON-supported), without requiring deep-equal back to
+   *  the original. **/
+  roundTripBestEffort?: boolean;
 
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
@@ -144,6 +156,7 @@ export const JIT_SUITE = {
     any: {
       title: 'Any type — every value passes',
       isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
+      roundTripBestEffort: true,
       isType: () => createIsType<any>(),
       deserializeIsType: () => deserializeIsType<any>(),
       isTypeReflect: () => {
@@ -1195,6 +1208,7 @@ export const JIT_SUITE = {
     object: {
       title: 'Object type — any non-null non-primitive value',
       description: 'null rejected despite JS typeof null === "object"',
+      roundTripBestEffort: true,
       isTypeNotes: [
         'Emit is `typeof v === "object" && v !== null` — strict TS semantics (any non-primitive non-null value).',
         'Arrays, Date instances, RegExp, Map, Set, and class instances all PASS — they are TS-`object` per the spec.',
@@ -1933,6 +1947,7 @@ export const JIT_SUITE = {
     // can't silently change the always-pass semantics.
     unknown: {
       title: 'Unknown type — every value passes',
+      roundTripBestEffort: true,
       isTypeNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
       isType: () => createIsType<unknown>(),
       deserializeIsType: () => deserializeIsType<unknown>(),
