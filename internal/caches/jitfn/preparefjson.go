@@ -634,21 +634,51 @@ func peekMemberIsNoop(member *protocol.RunType, emitter Emitter, ctx *EmitContex
 	return result
 }
 
-// unionMemberNeedsTuple is the single source of truth shared by all three
-// JSON-round-trip union emitters (prepareForJson, stringifyJson,
-// restoreFromJson) for the per-member `[memberIndex, value]` wrap decision.
-// Mirrors mion's `needsTupleEncoding = !!encJit?.code || !!decJit?.code`
-// (mion/jitCompilers/json/stringifyJson.ts:295-306) — a member skips the
-// wrap iff BOTH prepareForJson and restoreFromJson would compile to a
-// noop on it.
+// unionMemberNeedsTuple reports whether a single union member is
+// non-noop on either half of the round-trip. Kept for callers that
+// still ask the per-member question; the union-wide wrap decision now
+// flows through unionNeedsTuple, which is all-or-nothing.
 //
 // Pure on (member, ctx.walker.RefTable). The active emitter on `ctx` is
-// intentionally ignored — all three callers route through here so the
-// wire shape stays identical between pj/sj encode and rj decode.
+// intentionally ignored.
 func unionMemberNeedsTuple(member *protocol.RunType, ctx *EmitContext) bool {
 	pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, ctx)
 	rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, ctx)
 	return !(pjNoop && rjNoop)
+}
+
+// unionNeedsTuple is the all-or-nothing wrap decision for the non-flat
+// union family. Either every member's encoded form gets the
+// `[memberIndex, value]` envelope or none of them do — there is no
+// per-member shortcut.
+//
+// The previous per-member rule (skip wrap iff member is noop on both
+// halves) was fragile: the decoder used a runtime heuristic
+// (`Array.isArray + length === 2 + typeof v[0] === 'number'`) to
+// distinguish wrapped from raw values, which silently corrupted union
+// members whose raw form happened to look like the envelope —
+// `number[] | Date` with `[5, 7]`, `[number, string] | Date` with
+// `[5, "hi"]`, and so on. The all-or-nothing rule lets the decoder
+// always know at compile time whether the union round-trips raw
+// (every member noop on both halves) or always unwraps the envelope
+// (any member non-noop).
+//
+// Trade-off: arrays/tuples whose elements are JSON-noop (string[],
+// number[], …) now always get wrapped when their union has any
+// non-noop sibling. Encode does one extra allocation per call for
+// those values; decode loses its shape-gate cost. Correctness wins
+// over the small encode perf.
+func unionNeedsTuple(children []*protocol.RunType, ctx *EmitContext) bool {
+	for _, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		if unionMemberNeedsTuple(member, ctx) {
+			return true
+		}
+	}
+	return false
 }
 
 // unionMemberIsTypeCheck returns a JS expression that checks whether
@@ -757,25 +787,14 @@ func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	// Per-member tuple-wrap decision — mirrors mion's
-	// `needsTupleEncoding = !!encJit?.code || !!decJit?.code`
-	// (jitCompilers/json/stringifyJson.ts:295-306). A member that's
-	// noop on BOTH prepareForJson AND restoreFromJson skips the
-	// `[memberIndex, value]` envelope; the decode-side shape gate
-	// (emitUnionRestoreFromJson) distinguishes wrapped vs raw at
-	// runtime. unionMemberNeedsTuple is the single source of truth
-	// shared by all three union emit families so the wire shape stays
-	// identical between pj/sj encode and rj decode.
-	needsTuple := make([]bool, len(children))
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		needsTuple[i] = unionMemberNeedsTuple(member, ctx)
-	}
+	// All-or-nothing tuple-wrap decision. See unionNeedsTuple's comment
+	// for the rationale — the per-member rule is fragile because the
+	// decoder needs a runtime heuristic to distinguish wrapped from raw,
+	// and that heuristic mis-fires on legitimate values whose raw form
+	// matches the envelope shape.
+	needsTuple := unionNeedsTuple(children, ctx)
 
-	// Second pass: build the if/else chain.
+	// Build the if/else chain.
 	var clauses []string
 	for i, childRef := range children {
 		member := ctx.ResolveRef(childRef)
@@ -802,7 +821,7 @@ func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 				body += ";"
 			}
 		}
-		if needsTuple[i] {
+		if needsTuple {
 			body += v + " = [" + strconv.Itoa(i) + ", " + v + "]"
 		}
 

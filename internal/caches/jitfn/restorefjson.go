@@ -471,16 +471,17 @@ func emitTupleMemberRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v st
 	return childJit
 }
 
-// emitUnionRestoreFromJson mirrors mion's
-// nodes/collection/union.ts:emitRestoreFromJson. Checks whether the
-// incoming value is the `[memberIndex, encodedValue]` envelope produced
-// by emitUnionPrepareForJson; if so, dispatches on the index to run
-// the matching member's restoreFromJson. If not a tuple, the value is
-// a noop-member's raw form — pass through unchanged.
+// emitUnionRestoreFromJson — decode-side of the union JSON round-trip.
+// Under the all-or-nothing wrap rule (see unionNeedsTuple in
+// preparefjson.go) the decoder knows at compile time whether the wire
+// shape is wrapped:
 //
-// Only members that needed tuple-encoding on the prepare side get
-// decode clauses here — same per-member peek as emitUnionPrepareForJson
-// keeps the two halves in sync.
+//   - unionNeedsTuple(children) == false → the whole union round-trips
+//     raw, decoder is identity (emit nothing).
+//   - unionNeedsTuple(children) == true → every encoded value is a
+//     `[memberIndex, value]` envelope, so the decoder unwraps
+//     unconditionally and dispatches on the index. No shape gate, no
+//     ambiguity with raw values that happen to look like tuples.
 func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	children := rt.SafeUnionChildren
 	if len(children) == 0 {
@@ -490,36 +491,15 @@ func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	// Per-member tuple-wrap decision — shared with
-	// emitUnionPrepareForJson / emitUnionStringifyJson via
-	// unionMemberNeedsTuple. Only members that were tuple-wrapped on the
-	// encode side need a decode clause here; skip-wrapped members are
-	// noop on both halves so their raw values land in the "gate
-	// fails → pass through unchanged" branch below.
-	needsTuple := make([]bool, len(children))
-	anyWrapped := false
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		needsTuple[i] = unionMemberNeedsTuple(member, ctx)
-		if needsTuple[i] {
-			anyWrapped = true
-		}
-	}
 	// If no member needs the wrap, the whole union round-trips raw —
 	// the decoder is identity, no shape gate / dispatch required.
-	if !anyWrapped {
+	if !unionNeedsTuple(children, ctx) {
 		return JitCode{Code: "", Type: CodeS}
 	}
 
 	decVar := ctx.NextLocalVar("dec")
 	var clauses []string
 	for i, childRef := range children {
-		if !needsTuple[i] {
-			continue
-		}
 		member := ctx.ResolveRef(childRef)
 		if member == nil {
 			continue
@@ -542,11 +522,9 @@ func emitUnionRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 	}
 	inner := strings.Join(clauses, "") + " else { throw new Error(" + errVar + ") }"
 
-	// Tuple-shape gate — a raw (non-tuple-encoded) value matches no
-	// member-encoded sample shape, so pass it through unchanged.
-	body := "if (Array.isArray(" + v + ") && " + v + ".length === 2 && typeof " + v + "[0] === 'number') {" +
-		"const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" +
-		inner + "}"
+	// Unconditional unwrap — every encoded value is a [memberIndex, value]
+	// envelope under the all-or-nothing wrap rule.
+	body := "const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" + inner
 	return JitCode{Code: body, Type: CodeS}
 }
 

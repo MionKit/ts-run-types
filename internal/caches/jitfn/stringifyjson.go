@@ -755,6 +755,11 @@ func emitUnionStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	if !ctx.HasContextItem(errVar) {
 		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not StringifyJson union: item does not belong to the union'")
 	}
+	// All-or-nothing tuple wrap — see unionNeedsTuple's comment in
+	// preparefjson.go for the rationale. Every member's stringified
+	// form must agree with the encoder + decoder on whether the wire
+	// shape is wrapped.
+	needsTuple := unionNeedsTuple(children, ctx)
 	var clauses []string
 	for i, childRef := range children {
 		member := ctx.ResolveRef(childRef)
@@ -773,12 +778,9 @@ func emitUnionStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 		if isObjectLikeKind(member.Kind) {
 			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
 		}
-		// Tuple-wrap decision — shared with emitUnionPrepareForJson /
-		// emitUnionRestoreFromJson via unionMemberNeedsTuple so all
-		// three emit families agree on the wire shape per member.
 		stringified := childJit.Code
 		var emitted string
-		if unionMemberNeedsTuple(member, ctx) {
+		if needsTuple {
 			emitted = "'[" + strconv.Itoa(i) + ",' + " + stringified + " + ']'"
 		} else {
 			emitted = stringified
