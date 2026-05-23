@@ -8,9 +8,9 @@
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').GetTypeErrorsRTFn} GetTypeErrorsRTFn */
+/** @typedef {import('../runtypes/types.ts').GetTypeErrorsRTFn} GetTypeErrorsRTFn */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   // Pure-fn key consts referenced by emitted factory bodies. Mirror the
   // Go-side alias table at internal/compiled/typefns/purefn_aliases.go.

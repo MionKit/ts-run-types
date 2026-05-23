@@ -1,5 +1,5 @@
 // Vendored copy of the diagnostic catalog from
-// packages/ts-go-run-types/src/rt/diagnosticCatalog.ts. Kept in sync
+// packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts. Kept in sync
 // manually for now — a follow-up `gen:diag-catalog` script will pick one
 // canonical source-of-truth file and emit both copies.
 //

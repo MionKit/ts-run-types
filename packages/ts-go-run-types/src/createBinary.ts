@@ -6,8 +6,8 @@
 
 import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
 import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
-import {getRTUtils} from './rt/rtUtils.ts';
-import {lookupRTFn} from './rt/rtUtils.ts';
+import {getRTUtils} from './runtypes/rtUtils.ts';
+import {lookupRTFn} from './runtypes/rtUtils.ts';
 import {
   createDataViewSerializer,
   createDataViewDeserializer,
@@ -15,7 +15,7 @@ import {
   type DataViewDeserializer,
   type StrictArrayBuffer,
   type BinaryInput,
-} from './rt/dataView.ts';
+} from './runtypes/dataView.ts';
 import type {InjectRuntypeId} from './index.ts';
 
 // =============================================================================

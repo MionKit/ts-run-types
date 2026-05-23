@@ -15,9 +15,9 @@ import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCac
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
-import {getRTUtils} from './rt/rtUtils.ts';
-import {lookupRTFn} from './rt/rtUtils.ts';
-import type {AnyFn} from './rt/types.ts';
+import {getRTUtils} from './runtypes/rtUtils.ts';
+import {lookupRTFn} from './runtypes/rtUtils.ts';
+import type {AnyFn} from './runtypes/types.ts';
 import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
 
 // =============================================================================

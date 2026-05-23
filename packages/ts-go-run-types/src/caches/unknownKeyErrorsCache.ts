@@ -8,9 +8,9 @@
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').UnknownKeyErrorsRTFn} UnknownKeyErrorsRTFn */
+/** @typedef {import('../runtypes/types.ts').UnknownKeyErrorsRTFn} UnknownKeyErrorsRTFn */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   // Pure-fn key consts referenced by emitted factory bodies.
   const k_nRT = 'mion::newRunTypeErr';

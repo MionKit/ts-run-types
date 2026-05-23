@@ -9,9 +9,9 @@
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').PrepareForJsonRTFn} PrepareForJsonRTFn */
+/** @typedef {import('../runtypes/types.ts').PrepareForJsonRTFn} PrepareForJsonRTFn */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   function init(
     rtFnHash,

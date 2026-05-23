@@ -9,7 +9,7 @@
 // `mockRunType` bails out with `undefined` past `maxMockRecursion` (default 10).
 
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
-import type {RunType} from '../rt/types.ts';
+import type {RunType} from '../runtypes/types.ts';
 import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
 import {
   mockAny,

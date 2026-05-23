@@ -8,9 +8,9 @@
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').StripUnknownKeysRTFn} StripUnknownKeysRTFn */
+/** @typedef {import('../runtypes/types.ts').StripUnknownKeysRTFn} StripUnknownKeysRTFn */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   const k_gUKFA = 'mion::getUnknownKeysFromArray';
 

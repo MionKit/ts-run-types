@@ -12,13 +12,13 @@
 //
 // `@ts-nocheck`'d so the served output parses identically through Vite and
 // through `new Function`. The JSDoc `@typedef`s below pull the cache-entry
-// shape from `../rt/types.ts` for hover-typing.
+// shape from `../runtypes/types.ts` for hover-typing.
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').IsTypeRTFn} IsTypeRTFn */
+/** @typedef {import('../runtypes/types.ts').IsTypeRTFn} IsTypeRTFn */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   // Entries register with `fn: undefined`; the closure is materialized lazily
   // on first `getRT(hash)`. This delays `createRTFn(rtUtils)` until ALL
