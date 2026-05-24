@@ -11,6 +11,7 @@
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../runtypes/types.ts';
 import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
+import {getRunTypeFormat} from '../runtypes/formatRegistry.ts';
 import {
   mockAny,
   mockBigInt,
@@ -86,6 +87,15 @@ function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number):
 function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): unknown {
   const mOps = options.mock as MockOptions;
   const kind = runType.kind as number;
+
+  // TypeFormat brand: a registered formatter knows how to produce a
+  // value that satisfies the format (drawing from mockSamples for
+  // pattern formats — a regex can't be reversed). Falls through to the
+  // kind-default when no formatter is registered.
+  if (runType.formatAnnotation) {
+    const formatter = getRunTypeFormat(kind, runType.formatAnnotation);
+    if (formatter) return formatter._mock(runType.formatAnnotation);
+  }
 
   switch (kind) {
     case RunTypeKind.never:

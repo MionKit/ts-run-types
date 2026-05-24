@@ -249,6 +249,16 @@ func writeFooter(buffer *strings.Builder, runType *protocol.RunType) {
 	if len(runType.Decorators) > 0 {
 		buffer.WriteString(fmt.Sprintf("%s.decorators = [%s];\n", name, joinRefs(runType.Decorators)))
 	}
+	// formatAnnotation — name + params for a TypeFormat brand. Emitted
+	// as a JSON object literal (valid JS); the runtime reads it for
+	// mock generation (mockSamples) and format-formatter lookup. Params
+	// is already JSON-serialisable (strings / numbers / bools / nested
+	// maps / arrays / RegexpParam → {source,flags}).
+	if runType.FormatAnnotation != nil {
+		if encoded, err := json.Marshal(runType.FormatAnnotation); err == nil {
+			buffer.WriteString(fmt.Sprintf("%s.formatAnnotation = %s;\n", name, string(encoded)))
+		}
+	}
 	if len(runType.TypeArguments) > 0 {
 		buffer.WriteString(fmt.Sprintf("%s.typeArguments = [%s];\n", name, joinRefs(runType.TypeArguments)))
 	}
