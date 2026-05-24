@@ -220,6 +220,14 @@ func (computer *Computer) objectID(tsType *checker.Type, kind protocol.Reflectio
 		}
 	}
 
+	// Builtin Temporal types (Temporal.PlainDate, …): their structural id is
+	// the SubKind prefix, same scheme as Date. Namespace-qualified detection
+	// keeps a user `PlainDate` distinct. Checked before the Date/Map/Set
+	// switch since Temporal types are namespace members, not top-level.
+	if info, ok := TemporalInfoForType(tsType); ok {
+		return strconv.Itoa(int(info.SubKind))
+	}
+
 	// Built-in classes — Date / Map / Set — get their own subKind id, exactly
 	// as mion's `computeClassTypeId` does in `lib/typeId.ts:149`. The numeric
 	// prefix is the SubKind (2001 / 2002 / 2003), not KindClass.
@@ -444,6 +452,11 @@ func objectKind(typeChecker *checker.Checker, tsType *checker.Type) protocol.Ref
 	}
 	if typeChecker.IsArrayLikeType(tsType) {
 		return protocol.KindArray
+	}
+	// Builtin Temporal types are namespace-member interfaces tsgo reports as
+	// object literals; mion-style we treat them as classes (atomic builtins).
+	if _, ok := TemporalInfoForType(tsType); ok {
+		return protocol.KindClass
 	}
 	if symbol := tsType.Symbol(); symbol != nil {
 		switch symbol.Name {
