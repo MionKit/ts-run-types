@@ -1,0 +1,421 @@
+# Mion JIT Port — Status, Deviations, and Open Failures
+
+Status snapshot of every JIT function family ported from
+[mion's `@mionjs/run-types`](https://github.com/mionkit/mion) into
+ts-go-run-types: what was ported, where our emit intentionally
+deviates from mion, and the precise list of currently-failing tests
+with their root cause (sample-data mismatch vs. real implementation
+gap) so follow-up work can be triaged.
+
+Current test counts (after the most recent push):
+
+- **`@mionjs/ts-go-run-types`**: 491 pass / 9 fail (478 stable + 2
+  new union-throw doc cases + 11 nominal — see breakdown below)
+- **`vite-plugin-runtypes`**: 208 / 208
+- **Go (`internal/...`)**: all green
+
+## Migrated JIT function families
+
+| Family                     | Mion source                                                          | Go emitter                                              | JS factory                                 | Cache tag |
+|----------------------------|----------------------------------------------------------------------|---------------------------------------------------------|--------------------------------------------|-----------|
+| `isType`                   | `nodes/**/emitIsType` + `lib/jitFnCompiler.ts`                       | `internal/caches/jitfn/istype.go`                       | `createIsType` / `deserializeIsType`       | `it`      |
+| `getTypeErrors`            | `nodes/**/emitTypeErrors` + `JitErrorsFnCompiler`                    | `internal/caches/jitfn/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
+| `prepareForJson`           | `nodes/**/emitPrepareForJson`                                        | `internal/caches/jitfn/preparefjson.go`                 | `createPrepareForJson` / `deserializePrepareForJson` | `pj` |
+| `restoreFromJson`          | `nodes/**/emitRestoreFromJson`                                       | `internal/caches/jitfn/restorefjson.go`                 | `createRestoreFromJson` / `deserializeRestoreFromJson` | `rj` |
+| `hasUnknownKeys`           | `nodes/**/emitHasUnknownKeys` + `callCheckUnknownProperties`         | `internal/caches/jitfn/hasunknownkeys.go`               | `createHasUnknownKeys` / `deserializeHasUnknownKeys` | `huk` |
+| `stripUnknownKeys`         | `nodes/**/emitStripUnknownKeys`                                      | `internal/caches/jitfn/stripunknownkeys.go`             | `createStripUnknownKeys` / `deserializeStripUnknownKeys` | `suk` |
+| `unknownKeyErrors`         | `nodes/**/emitUnknownKeyErrors`                                      | `internal/caches/jitfn/unknownkeyerrors.go`             | `createUnknownKeyErrors` / `deserializeUnknownKeyErrors` | `uke` |
+| `unknownKeysToUndefined`   | `nodes/**/emitUnknownKeysToUndefined`                                | `internal/caches/jitfn/unknownkeystoundefined.go`       | `createUnknownKeysToUndefined` / `deserializeUnknownKeysToUndefined` | `uku` |
+
+Pure-fn helpers added to `packages/ts-go-run-types/src/run-types-pure-fns.ts`:
+
+- `cpf_getUnknownKeysFromArray(value, knownKeys)` — returns the array
+  of keys present on `value` but not in `knownKeys`
+- `cpf_hasUnknownKeysFromArray(value, knownKeys)` — boolean predicate
+  variant of the above
+
+Per-kind coverage (where ✓ = inline emit, → child = recurses into
+the kind's children via `comp.compile<Fn>`, ✗ = no-op / not
+applicable):
+
+| Kind                    | isType | typeErrors | prepareForJson | restoreFromJson | hasUnknownKeys | stripUnknownKeys | unknownKeyErrors | unknownKeysToUndefined |
+|-------------------------|--------|------------|----------------|------------------|----------------|------------------|------------------|------------------------|
+| string / number / bool  | ✓      | ✓          | ✗ noop         | ✗ noop           | ✗ false        | ✗ noop           | ✗ []             | ✗ noop                 |
+| bigint                  | ✓      | ✓          | ✓ `toString`   | ✓ `BigInt(v)`    | ✗              | ✗                | ✗                | ✗                      |
+| symbol                  | ✓      | ✓          | ✓ tagged str   | ✓ reconstruct    | ✗              | ✗                | ✗                | ✗                      |
+| regexp                  | ✓      | ✓          | ✓ `toString`   | ✓ `new RegExp`   | ✗              | ✗                | ✗                | ✗                      |
+| date                    | ✓      | ✓          | ✗ via `toJSON` | ✓ `new Date(v)`  | ✗              | ✗                | ✗                | ✗                      |
+| literal / enum          | ✓      | ✓          | ✗              | ✗                | ✗              | ✗                | ✗                | ✗                      |
+| null / undefined / void | ✓      | ✓          | ✗              | ✗                | ✗              | ✗                | ✗                | ✗                      |
+| never                   | ✓ false| ✓          | ✓ throw        | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
+| any / unknown / object  | ✓ true | ✓ []       | ✗ identity     | ✗ identity       | ✗              | ✗                | ✗                | ✗                      |
+| objectLiteral / class   | ✓      | ✓          | ✓ → children   | ✓ → children     | ✓ at-level + → children | ✓ at-level + → children | ✓ at-level + → children | ✓ at-level + → children |
+| property / propSig      | ✓      | ✓          | ✓ → member     | ✓ → member       | ✓ → member     | ✓ → member       | ✓ → member       | ✓ → member             |
+| indexSignature          | ✓      | ✓          | ✓ → value      | ✓ → value        | ✓ (per pattern)| ✓ (per pattern)  | ✓ (per pattern)  | ✓ (per pattern)        |
+| array                   | ✓      | ✓          | ✓ → element    | ✓ → element      | ✓ → element    | ✓ → element      | ✓ → element      | ✓ → element            |
+| tuple / tupleMember     | ✓      | ✓          | ✓ → slots      | ✓ → slots        | ✓ → slots      | ✓ → slots        | ✓ → slots        | ✓ → slots              |
+| union                   | ✓      | ✓          | ✓ `[idx, val]` | ✓ `[idx, val]`   | ✓ per arm      | ✓ per arm        | ✓ per arm        | ✓ per arm              |
+| intersection            | ✓      | ✓          | ✗ noop         | ✗ noop           | ✗              | ✗                | ✗                | ✗                      |
+| templateLiteral         | ✓      | ✓          | ✗              | ✗                | ✗              | ✗                | ✗                | ✗                      |
+| function / method       | ✓ `typeof` | ✓     | ✗ noop         | ✗ noop           | ✗              | ✗                | ✗                | ✗                      |
+| Map / Set (SubKind)     | ✓      | ✓          | ⚠ Array.from   | ⚠ ctor wrap      | ✓ → element    | ✓ → element      | ✓ → element      | ✓ → element            |
+| Promise                 | ✓ thenable | ✓      | ✓ throw        | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
+| NonSerializable (Int8Array, …) | ✓ throw | ✓ throw | ✓ throw   | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
+
+⚠ marks the known-incomplete Map/Set JSON arms — see "Open
+failures" → ITERABLES below.
+
+## Intentional deviations from mion
+
+These are decisions where our emit deliberately differs from mion's
+source. Each one is documented in the corresponding Go file's
+comments; this is the consolidated list.
+
+### 1. `isNoop` factory always emitted (mion drops factory when noop)
+
+**Where**: `internal/caches/jitfn/preparefjson.go` `Finalize` (and the
+mirror in `restorefjson.go`).
+
+**Mion**: when a body collapses to `return v` with no transformation,
+mion's `createJitCompiledFunction` sets `isNoop: true` and elides the
+inner factory.
+
+**Us**: we set `isNoop: false` and emit the identity factory anyway —
+**~30 bytes per noop entry, ~few KB total** in real apps. Reason: our
+parent emit calls `<childHash>.fn(v[i])` unconditionally; if the
+factory is missing, the call hits `undefined.fn` and crashes. To keep
+parent dep-call chains correct, we always emit a real fn even when
+it's the identity. Cost is the binary-overhead trade-off — verified
+correct in the noop test adapter (`serializationNoop.test.ts`).
+
+Documented divergence; not a bug.
+
+### 2. Known-keys array sorted (mion preserves insertion order)
+
+**Where**: `internal/caches/jitfn/unknownkeys_shared.go`.
+
+**Mion**: builds the known-keys literal as `Array.from(new Set(...))`
+which preserves the order properties appear in the source TS type.
+
+**Us**: `sort.Strings(keys)` for byte-stable cache output. JS-side
+semantics are identical (set membership check), only the literal
+ordering in the emitted code differs.
+
+Reason: Go's `map[string]struct{}` iteration is intentionally
+randomized; without an explicit sort, every binary invocation would
+produce a different cache module hash, breaking the deterministic-
+output invariant the Vite plugin relies on for cache validity.
+
+Documented divergence; not a bug.
+
+### 3. `hasUnknownKeys` Finalize defaults to `false` for empty bodies
+
+**Where**: `internal/caches/jitfn/hasunknownkeys.go` `Finalize`.
+
+**Mion**: same — atomic kinds produce `return false`.
+
+**Us**: same. The other three families in the family (`stripUnknownKeys`,
+`unknownKeysToUndefined`, `unknownKeyErrors`) finalize to their own
+identities (`return v` / `return v` / `return er` respectively).
+
+Not a divergence — listed here as a parity confirmation since the
+four-fn family has subtle finalize behavior worth pinning.
+
+### 4. JSON-family throw-at-JIT-compile for non-serializable kinds
+
+**Where**: `internal/caches/jitfn/preparefjson.go` Supports + Emit
+for `KindNever` / `KindPromise` / function-flavoured kinds /
+`SubKindNonSerializable`.
+
+**Mion**: throws synchronously from the emit method
+(`throw new Error('Jit compilation disabled for Non Serializable
+types.');`) — the factory creation itself fails.
+
+**Us**: emits a runtime-throwing factory (`JitThrow(...)`) — the
+factory creation succeeds, but **calling** the resulting fn throws.
+Same observable contract from a userland test (the
+`throwsAtCompile: true` adapter helper invokes `c.prepareForJson()`
+and asserts it throws), but the throw moves from emit-time to
+first-call-time.
+
+Reason: our AOT pipeline doesn't have a way to surface emit-time
+throws through the cache module — the binary writes all cache
+entries to a JS file, then the JS runtime imports them. A
+throw-at-emit would have to be encoded as a TypeScript runtime
+construct anyway. The runtime-throw shape lets the JS factory be a
+plain `() => { throw … }`, which is what we emit.
+
+Documented divergence; not a bug.
+
+### 5. Union encoding strictly `[memberIndex, value]`, no shortcut
+
+**Where**: `internal/caches/jitfn/preparefjson.go` `emitUnionPrepareForJson`.
+
+**Mion**: per-member, only wraps `[memberIndex, value]` when the
+member's own prepare/restore is non-noop; for an all-atomic-noop
+member the value is returned as-is and the decode shape-check
+distinguishes encoded vs raw.
+
+**Us**: always wraps every encoded value. Less efficient (extra
+2-element array per union member) but simpler dispatch on decode.
+
+Trade-off, not a bug. Could be optimized to match mion's shortcut.
+
+### 6. `JIT_SUITE` → `VALIDATION_SUITE` rename
+
+**Where**: `packages/ts-go-run-types/test/suites/validation-suite.ts`.
+
+The shared suite was originally named `jit-suite` when it carried
+thunks for every JIT family. Once the JSON pair was moved to its
+own `serialization-suite.ts` (because JSON samples need
+`deserializedValues` and the JSON-throws-on-extras contract clashes
+with isType's "extras are valid" semantic), the remaining file only
+covers `isType` and `getTypeErrors` — so it's been renamed to
+`validation-suite.ts` to match its actual scope.
+
+Pure refactor; no behavioral change.
+
+## Open failures — analysis
+
+Eight deterministic failures + one parallelism flake. Each entry:
+
+- **Where** — our test file + section
+- **What our test asserts** — input + expected output
+- **What mion asserts** — the corresponding mion spec file + assertion
+- **Why mion behaves that way** — the mion emit path that produces
+  the expected output
+- **Classification** — `BUG` (real implementation gap on our side),
+  `SAMPLE-MISPORT` (our test data contradicts mion's actual semantic),
+  or `RACE` (parallelism interaction, not a correctness issue)
+
+### Failure 1 — `OBJECTS > strip extra params (mion semantic — extras pass through)`
+
+- **Where**: `test/adapters/serializationRoundTrip.test.ts` →
+  `serialization-suite.ts` `OBJECTS.strip_extra_params`
+- **What our test asserts**: input `objectWithExtraParams` (includes
+  extras `extraA`, `extraB`, `extraC`, and nested-object extras
+  `deep.cExtra`, `?other weird p.eExtra`); expected
+  `noExtraParams` (extras stripped).
+- **What mion asserts**:
+  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/03JsonObjects.spec.ts:138-149`.
+  Mion expects `deserialized === originalValues[i]` where
+  `originalValues = getTestData(true).values = [objectWithExtraParams]`
+  (extras intact). The line `// expect(deserializedValues[i]).toEqual(deserialized); // native JSON.stringify do not strip extra params`
+  is commented out in mion's spec with the explicit comment.
+- **Why mion behaves that way**:
+  `mion/packages/run-types/src/nodes/collection/interface.ts:129-137`
+  `emitPrepareForJson` only iterates declared children; extras are
+  never visited but also never deleted. JSON.stringify preserves
+  them (modulo type — bigint extras would throw, but these are all
+  JSON-serializable).
+- **Classification**: **SAMPLE-MISPORT**. Our case has
+  `deserializedValues: [noExtraParams]` claiming strip; mion's spec
+  comments that out. Fix: remove `deserializedValues` from our case
+  so the adapter falls back to the input. Implementation matches
+  mion already.
+
+### Failure 2 — `RECORDS > multiple index properties (symbol keys skipped)`
+
+- **Where**: `serialization-suite.ts` `RECORDS.multiple_index_props`
+- **What our test asserts**: input `{key1: 'value1', key2: 'value2'}`
+  (typed as `{[k: string]: string; [k: number]: string; [k: symbol]: Date}`);
+  expected `{key1: 'value1', key2: 'value2'}` (string keys
+  preserved, symbol entries dropped because JSON.stringify drops
+  symbol-keyed props).
+- **What our test gets**: `{key1: Invalid Date, key2: Invalid Date}`.
+  String values are being passed to `new Date(...)` during
+  `restoreFromJson`, producing Invalid Date.
+- **What mion asserts**:
+  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/04JsonRecords.spec.ts:49-58`
+  asserts `deserializedValues[i] === deserialized`.
+- **Why mion behaves that way**: mion's `IndexSignatureRunType` emits
+  one branch PER index signature, gated on a key-pattern regex. The
+  string-key sig matches `key1`/`key2` and applies the string
+  transform (noop). The symbol-key sig matches none of the
+  surviving keys post-JSON.stringify (symbols don't serialize).
+- **Why we fail**: our index-sig emit appears to collapse multiple
+  signatures into a single arm and pick the LAST one (the Date arm),
+  applying `new Date(v)` to every value. The key-pattern dispatch
+  is missing.
+- **Classification**: **BUG** in our index-signature emit for the
+  multi-signature case. Single-signature index sigs work correctly
+  (see passing `index_property_nested`, `index_property_bigint`).
+  Follow-up: port mion's per-pattern dispatch from
+  `nodes/member/indexProperty.ts:103-155` into our
+  `emitIndexSignaturePrepareForJson` /
+  `emitIndexSignatureRestoreFromJson`.
+
+### Failure 3 — `UNIONS > union of object shapes`
+
+- **Where**: `serialization-suite.ts` `UNIONS.union_object_with_discriminator`
+- **What our test asserts**: type
+  `{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}`
+  with input `{c: 1n}`. Expected: round-trip preserves `{c: 1n}`.
+- **What our test gets**: `TypeError: Do not know how to serialize a BigInt` at JSON.stringify.
+- **What mion asserts**:
+  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/09JsonUnions.spec.ts:79-88`
+  asserts round-trip equality.
+- **Why mion behaves that way**:
+  `mion/packages/run-types/src/nodes/collection/union.ts:114-152`
+  `emitPrepareForJson` builds an if/else dispatch over the union
+  members using `getChildIsTypeWithLooseCheck` per arm. The arms
+  are tried in declaration order: `{a: string; aa: boolean}` first,
+  then `{b: number}`, then `{c: bigint}` (matches `{c: 1n}` → bigint
+  transform applied → JSON.stringify-safe), `{d?: string}` last.
+- **Why we fail**: our union dispatch picks `{d?: string}` BEFORE
+  `{c: bigint}` for input `{c: 1n}`. The all-optional arm matches
+  anything (no required props), so our isType-style loose check
+  considers `{c: 1n}` a valid `{d?: string}` (d absent is OK, c is
+  treated as an unknown extra), and dispatches to that arm — whose
+  prepareForJson is a noop. The bigint never gets transformed.
+- **Classification**: **BUG** in our union arm priority / loose-check.
+  Two possible fixes: (a) re-order arms so more-specific shapes
+  (more required props) are checked before all-optional ones; (b)
+  make the loose check stricter so an arm only matches when at
+  least one of its declared props is present in the value. Mion's
+  `getChildIsTypeWithLooseCheck` likely does (b) — its
+  implementation lives at `nodes/collection/union.ts`.
+
+### Failure 4 — `ITERABLES > Set<SmallObject>`
+
+- **Where**: `serialization-suite.ts` `ITERABLES.set_small_object`
+- **What our test asserts**: `Set<SmallObject>` with three elements
+  including one carrying `prop5: BigInt(100)`. Expected: round-trip
+  preserves the Set with bigint intact (via prepareForJson →
+  toString → JSON.stringify → JSON.parse → restoreFromJson →
+  BigInt).
+- **What our test gets**: `TypeError: Do not know how to serialize a BigInt` at JSON.stringify.
+- **What mion asserts**:
+  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/11JsonIterables.spec.ts:26-35`
+  asserts `deserialized === originalValues[i]`.
+- **Why mion behaves that way**:
+  `mion/packages/run-types/src/nodes/native/Iterable.ts:49-65`
+  `emitPrepareForJson` emits:
+  ```js
+  const ml_n = [];
+  for (let v of v) { <element-transform-code>; ml_n.push(v); }
+  v = ml_n;
+  ```
+  The `<element-transform-code>` is the result of recursively
+  compiling `prepareForJson` for the element type (here:
+  `SmallObject`, which contains a bigint field).
+- **Why we fail**:
+  `internal/caches/jitfn/preparefjson.go:691` `emitNativeIterablePrepareForJson`
+  returns `v = Array.from(v)` — pure shape conversion, no per-
+  element transform. The source comment at lines 686-690 explicitly
+  notes "Element types whose own prepare/restore is non-noop will
+  need per-entry iteration (mion's full emit covers that)".
+- **Classification**: **BUG** — known unimplemented in our phase 6.
+  Follow-up: port mion's per-entry iteration form, calling the
+  element runtype's dependency chain inside the loop.
+
+### Failure 5 — `ITERABLES > Map<string, SmallObject>`
+
+Same root cause as Failure 4 (Map element values are objects
+containing a bigint). Same fix.
+
+### Failure 6 — `ITERABLES > Map<SmallObject, number>`
+
+Same root cause as Failure 4 (Map keys are objects containing a
+bigint). Same fix; the iteration form needs to handle the
+`[key, value]` tuple shape mion uses for Map entries (the key half
+and the value half each get their own transform).
+
+### Failure 7 — `ITERABLES > Map with bigint keys`
+
+- **Where**: `serialization-suite.ts` `ITERABLES.map_with_bigint_keys`
+- **What our test asserts**: `Map<bigint, number>` round-trip
+  preserves bigint keys.
+- **What mion asserts**:
+  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/11JsonIterables.spec.ts`
+  asserts round-trip equality (assumes per-element transform recurses
+  into key + value).
+- **Why we fail**: same as #4 — `Array.from(v)` preserves the bigint
+  keys verbatim; JSON.stringify on the resulting `[[1n, 1], [2n, 2], …]`
+  throws on the bigint. With mion's per-entry transform, the bigint
+  keys would go through the `toString()` rewrite first.
+- **Classification**: **BUG**, same fix as #4.
+
+### Failure 8 — `CIRCULAR_REFS > CircularTuple object with discriminator`
+
+- **Where**: `serialization-suite.ts` `CIRCULAR_REFS.circular_tuple`
+- **What our test asserts**: `interface CircularTuple { list: [bigint, CircularTuple?] }`
+  with deeply-nested input round-trips intact.
+- **What our test gets**: this failure is **flaky** under default
+  vitest `pool: threads` — sometimes a `TypeError: Do not know how
+  to serialize a BigInt`, sometimes succeeds. Deterministic under
+  `pool: forks` / `--no-file-parallelism` (passes consistently).
+- **What mion asserts**:
+  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/10JsonCircular.spec.ts:37-46`
+  asserts round-trip equality.
+- **Why mion behaves that way**: mion's `TupleRunType.emitPrepareForJson`
+  with a recursive child emits a self-recursive dep call. The bigint
+  slot gets its `toString()` transform; the recursive `CircularTuple?`
+  slot calls back into the same factory.
+- **Why we fail**: likely a related instance of the union/iterable
+  bug — when the circular ref closes via a tuple member with an
+  optional self-ref, the recursive dep call shape isn't
+  consistently set up. Investigation is open. The race-condition
+  flavor of this failure (`object_with_tuple_prop` on
+  isType/getTypeErrors under `pool: threads`) is a separate
+  parallelism issue, see Failure 9.
+- **Classification**: **BUG** — exact mechanism not yet pinpointed.
+  Possibly related to dep-call envelope for self-recursive tuple
+  members.
+
+### Failure 9 (flake) — `isType / getTypeErrors > CIRCULAR > Self-referential object whose cycle closes via a tuple property`
+
+- **Where**: `test/adapters/isType.test.ts` and `getTypeErrors.test.ts`
+  → `validation-suite.ts` `CIRCULAR.object_with_tuple_prop`
+- **What our test asserts**: `interface CircularTuple { tuple: [bigint, CircularTuple?] }`
+  validates correctly. Returns `true` for valid samples, accumulates
+  expected errors for invalid samples.
+- **What our test gets**: passes when run in isolation, when running
+  the full `pnpm --filter @mionjs/ts-go-run-types test`, intermittently
+  produces `expected false to be true` for the recursive validator
+  on a valid sample. Deterministic under `--pool=forks` or
+  `--no-file-parallelism`.
+- **Why mion behaves that way**: not applicable — this is our
+  test-infrastructure issue, not a mion-emit comparison.
+- **Why we fail**: the runtype cache / vite-plugin transform interacts
+  with vitest's `threads` worker pool in a way that occasionally
+  emits a different runtype-graph for this specific shape. The
+  smoking gun is that the same test passes when run in isolation,
+  passes deterministically under `pool: forks`, and was hidden
+  pre-cleanup because more total tests masked the timing window.
+- **Classification**: **RACE** in the test infrastructure, not a
+  correctness bug in the emit. Out of scope for the mion-port
+  surface. Could be worked around by setting `pool: 'forks'` in
+  `packages/ts-go-run-types/vitest.config.ts` at the cost of slower
+  test runs.
+
+## Recommended follow-up order
+
+Ranked by bang-per-fix (number of failing tests resolved per work
+unit):
+
+1. **Map/Set per-entry element transform** (`internal/caches/jitfn/preparefjson.go`
+   `emitNativeIterablePrepareForJson` + restorefjson mirror) — fixes
+   Failures 4, 5, 6, 7. Reference: `nodes/native/Iterable.ts:49-82` in mion.
+2. **Multi-signature index property dispatch**
+   (`emitIndexSignaturePrepareForJson` + restorefjson mirror) — fixes
+   Failure 2. Reference: `nodes/member/indexProperty.ts:103-155`.
+3. **Union arm priority / loose-check tightening**
+   (`emitUnionPrepareForJson` + the loose isType helper used by union
+   dispatch) — fixes Failure 3. Reference: `nodes/collection/union.ts:114-152`
+   + `getChildIsTypeWithLooseCheck`.
+4. **CircularTuple self-recursive dep-call** — fixes Failure 8.
+   Investigation needed to pinpoint the diverging emit shape.
+5. **Sample fix for strip_extra_params** — fixes Failure 1. Remove
+   `deserializedValues` from the case (a one-line change in
+   `serialization-suite.ts`).
+6. **(Optional) `pool: forks` for ts-go-run-types tests** — masks
+   Failure 9 race; doesn't fix root cause.
+
+## Reference
+
+- Mion source tree: `/home/user/mion/packages/run-types/src/`
+- Our Go emit source tree: `/home/user/ts-run-types/internal/caches/jitfn/`
+- Our JS adapter source tree: `/home/user/ts-run-types/packages/ts-go-run-types/src/`
+- Test suites: `/home/user/ts-run-types/packages/ts-go-run-types/test/suites/{validation,serialization}-suite.ts`
+- Test adapters: `/home/user/ts-run-types/packages/ts-go-run-types/test/adapters/*.test.ts`
