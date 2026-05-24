@@ -66,9 +66,7 @@ describe('FormatAlpha — typeErrors diagnostics', () => {
   it('non-alpha pushes a pattern TypeFormatError', () => {
     const collect = createGetTypeErrors<FormatAlpha>();
     const errors = collect('abc123');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'stringFormat') as
-      | {name: string; val: unknown}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'stringFormat')?.format;
     expect(formatErr).toBeDefined();
     expect(formatErr?.val).toBe('pattern');
   });

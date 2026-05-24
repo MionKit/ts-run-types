@@ -359,15 +359,32 @@ func FormatAnnotationStructuralKey(annotation *protocol.FormatAnnotation) string
 	return builder.String()
 }
 
+// structuralKeyIgnoredParams are format-param keys excluded from the
+// structural id at every nesting depth. They carry mock/diagnostic
+// metadata, not validation behaviour — so two formats that validate
+// identically but differ only in samples or error message must still
+// dedup to one cache entry (and the surviving entry's samples are valid
+// for all of them, since they share the same validation structure).
+// Mirrors mion's `defaultIgnoreFormatProps`.
+var structuralKeyIgnoredParams = map[string]bool{
+	"mockSamples": true,
+	"message":     true,
+}
+
 // canonicalLiteralMap serialises a literal-value map with sorted keys at
 // every nesting depth so equivalent maps hash to the same string.
+// Metadata-only keys (structuralKeyIgnoredParams) are skipped so they
+// don't fragment the cache.
 func canonicalLiteralMap(values map[string]any) string {
-	if len(values) == 0 {
-		return "{}"
-	}
 	keys := make([]string, 0, len(values))
 	for key := range values {
+		if structuralKeyIgnoredParams[key] {
+			continue
+		}
 		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return "{}"
 	}
 	sort.Strings(keys)
 	var builder strings.Builder

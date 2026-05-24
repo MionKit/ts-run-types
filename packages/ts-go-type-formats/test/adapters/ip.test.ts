@@ -65,9 +65,7 @@ describe('FormatIP — typeErrors diagnostics', () => {
   it('invalid IP pushes a TypeFormatError naming the version', () => {
     const collect = createGetTypeErrors<FormatIPv4>();
     const errors = collect('999.999.999.999');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'ip') as
-      | {name: string; val: unknown}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'ip')?.format;
     expect(formatErr).toBeDefined();
     expect(formatErr?.val).toBe(4);
   });

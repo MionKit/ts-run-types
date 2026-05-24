@@ -87,10 +87,6 @@ func (dateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vÎ
 	}
 	alias := pureFnAlias(ctx, fnName)
 	call := alias + "(" + vÎ»l + ")"
-	pathLiteral := "['format']"
-	if pathExpr != "" {
-		pathLiteral = "[..." + pathExpr + ",'format']"
-	}
 	return "if (!(" + call + ")) " +
-		errorsArr + ".push({name:'date',formatPath:" + pathLiteral + ",val:" + strconv.Quote(format) + "});"
+		formatErrCall(ctx, pathExpr, errorsArr, "string", "date", "format", strconv.Quote(format))
 }
