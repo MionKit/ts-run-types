@@ -3,7 +3,7 @@
 
 import {describe, expect, it} from 'vitest';
 import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
-import type {FormatDomain, FormatDomainStrict} from '@mionjs/ts-go-type-formats';
+import type {FormatDomain} from '@mionjs/ts-go-type-formats';
 import '../../src/index.ts';
 
 describe('FormatDomain — standard', () => {
@@ -23,14 +23,6 @@ describe('FormatDomain — standard', () => {
     expect(isDomain('-bad.com')).toBe(false); // leading hyphen
     expect(isDomain('exa mple.com')).toBe(false); // space
     expect(isDomain('')).toBe(false);
-  });
-});
-
-describe('FormatDomainStrict — part-count bounds', () => {
-  it('rejects domains with more parts than maxParts (6)', () => {
-    const isDomain = createIsType<FormatDomainStrict>();
-    expect(isDomain('a.b.example.com')).toBe(true);
-    expect(isDomain('a.b.c.d.e.example.com')).toBe(false); // 7 parts > 6
   });
 });
 

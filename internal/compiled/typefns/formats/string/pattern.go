@@ -1,0 +1,179 @@
+package string
+
+import (
+	"regexp"
+	"strings"
+
+	"github.com/mionkit/ts-run-types/internal/compiled/runtype/typeid"
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
+
+// recoverPattern extracts a regex source+flags from a format's `pattern`
+// param. Two accepted shapes, both producing the same result:
+//   - {source: '…', flags: '…'} — string literals (the .d.ts-safe form
+//     the built-in formats use).
+//   - {val: typeof SOME_REGEX}  — recovered from the declaration AST by
+//     the typeid scanner (a user's own regex const).
+//
+// Returns ok=false when there is no usable pattern param.
+func recoverPattern(params map[string]any) (source, flags string, ok bool) {
+	raw, present := params["pattern"]
+	if !present {
+		return "", "", false
+	}
+	pattern, isMap := raw.(map[string]any)
+	if !isMap {
+		return "", "", false
+	}
+	// typeof-recovered form: val is a typeid.RegexpParam.
+	if regexpParam, isRegexp := pattern["val"].(typeid.RegexpParam); isRegexp {
+		return regexpParam.Source, regexpParam.Flags, true
+	}
+	// string-literal form: explicit source (+ optional flags).
+	if src, isString := pattern["source"].(string); isString {
+		flagStr, _ := pattern["flags"].(string)
+		return src, flagStr, true
+	}
+	return "", "", false
+}
+
+// recoverSamples extracts the mockSamples param as a list of strings.
+// Accepts both the array form (`['a','b']` → []any) and the single
+// allowed-chars string form (`'abc…'`), the latter returned as a
+// one-element slice. Non-string entries are skipped.
+func recoverSamples(params map[string]any) []string {
+	raw, present := params["mockSamples"]
+	if !present {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if str, ok := item.(string); ok {
+				out = append(out, str)
+			}
+		}
+		return out
+	case string:
+		return []string{typed}
+	}
+	return nil
+}
+
+// namedPatternIsType is the isType body for a pattern format (domain /
+// email / url): the AND of any length bounds and the regex test, plus
+// build-time mockSample validation. Empty when neither is present.
+func namedPatternIsType(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl string) string {
+	if annotation == nil {
+		return ""
+	}
+	conditions := lengthConditions(annotation.Params, vλl)
+	if source, flags, ok := recoverPattern(annotation.Params); ok {
+		validateSamples(ctx, source, flags, recoverSamples(annotation.Params))
+		conditions = append(conditions, emitPatternTest(ctx, source, flags, vλl))
+	}
+	return strings.Join(conditions, " && ")
+}
+
+// namedPatternErrors is the typeErrors body for a pattern format. One
+// push per failing length bound, plus one for the pattern, each tagged
+// with the format name.
+func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr, name string) string {
+	if annotation == nil {
+		return ""
+	}
+	statements := lengthErrorStatements(annotation.Params, vλl, pathExpr, errorsArr)
+	if source, flags, ok := recoverPattern(annotation.Params); ok {
+		test := emitPatternTest(ctx, source, flags, vλl)
+		pathLiteral := "['" + name + "']"
+		if pathExpr != "" {
+			pathLiteral = "[..." + pathExpr + ",'" + name + "']"
+		}
+		statements = append(statements,
+			"if (!("+test+")) "+errorsArr+".push({name:'"+name+"',formatPath:"+pathLiteral+",val:'"+name+"'});")
+	}
+	return strings.Join(statements, ";")
+}
+
+// emitPatternTest hoists `const re_N = new RegExp(source, flags)` into
+// the factory prologue and returns the `re_N.test(vλl)` expression.
+// Mirrors the template-literal isType emitter's hoist pattern so the
+// regex compiles once per factory, not per validator call.
+func emitPatternTest(ctx formats.EmitContext, source, flags, vλl string) string {
+	reVar := ctx.NextLocalVar("reFmt")
+	if !ctx.HasContextItem(reVar) {
+		construct := "const " + reVar + " = new RegExp(" + quoteJSDoubleLocal(source) + ", " + quoteJSDoubleLocal(flags) + ")"
+		ctx.SetContextItem(reVar, construct)
+	}
+	return reVar + ".test(" + vλl + ")"
+}
+
+// validateSamples compiles the pattern with Go's RE2 engine and checks
+// every mockSample against it, emitting CodeFMTSampleMismatch for any
+// that fail. When the pattern uses JS-only regex features RE2 can't
+// compile (lookarounds, backreferences) we skip validation rather than
+// false-positive — RE2 is a best-effort build-time oracle, not the
+// runtime engine.
+func validateSamples(ctx formats.EmitContext, source, flags string, samples []string) {
+	if len(samples) == 0 {
+		return
+	}
+	compiled, err := regexp.Compile(re2Pattern(source, flags))
+	if err != nil {
+		return // RE2 can't represent this JS regex — skip rather than mis-report.
+	}
+	for _, sample := range samples {
+		if !compiled.MatchString(sample) {
+			ctx.EmitDiagnostic(diag.CodeFMTSampleMismatch, sample, source)
+		}
+	}
+}
+
+// re2Pattern translates a JS regex source+flags into an RE2 pattern
+// string. JS `i`/`m`/`s` map to RE2 inline flags; `u`/`g`/`y`/`d` are
+// irrelevant to a match test (RE2 is UTF-8 by default and `\p{…}` works
+// without `u`).
+func re2Pattern(source, flags string) string {
+	var inline strings.Builder
+	for _, flag := range flags {
+		switch flag {
+		case 'i', 'm', 's':
+			inline.WriteRune(flag)
+		}
+	}
+	if inline.Len() == 0 {
+		return source
+	}
+	return "(?" + inline.String() + ")" + source
+}
+
+// quoteJSDoubleLocal is a package-local copy of typefns.quoteJSDouble —
+// a double-quoted JS string encoder (double quotes keep backslash-dense
+// regex sources readable). Kept here to avoid exporting the typefns
+// helper across the package boundary.
+func quoteJSDoubleLocal(value string) string {
+	var builder strings.Builder
+	builder.Grow(len(value) + 2)
+	builder.WriteByte('"')
+	for _, r := range value {
+		switch r {
+		case '\\':
+			builder.WriteString(`\\`)
+		case '"':
+			builder.WriteString(`\"`)
+		case '\n':
+			builder.WriteString(`\n`)
+		case '\r':
+			builder.WriteString(`\r`)
+		case '\t':
+			builder.WriteString(`\t`)
+		default:
+			builder.WriteRune(r)
+		}
+	}
+	builder.WriteByte('"')
+	return builder.String()
+}
