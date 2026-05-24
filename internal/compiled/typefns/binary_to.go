@@ -601,6 +601,35 @@ func emitOptionalBitmapInit(ctx *EmitContext, ser string, optionalLength int, is
 	return init, bitmapVar
 }
 
+// readOptionalBitmapInit is the decode-side mirror of emitOptionalBitmapInit:
+// it reserves the optional-presence bitmap bytes at the current deserializer
+// index and returns the init code + the JS var holding the bitmap's start
+// index. isTuple selects the `tbmI`/`bmI` name prefix for parity with the
+// encode side.
+func readOptionalBitmapInit(ctx *EmitContext, des string, optionalLength int, isTuple bool) (string, string) {
+	prefix := ""
+	if isTuple {
+		prefix = "t"
+	}
+	bitmapLength := (optionalLength + 7) / 8
+	bitmapVar := ctx.NextLocalVar(prefix + "bmI")
+	var bitmapInit string
+	if bitmapLength > 1 {
+		bitmapInit = "const " + bitmapVar + " = " + des + ".index;" + des + ".index += " + strconv.Itoa(bitmapLength)
+	} else {
+		bitmapInit = "const " + bitmapVar + " = " + des + ".index++"
+	}
+	return bitmapInit, bitmapVar
+}
+
+// bitCheckExpr returns the JS expression testing whether optional slot i's
+// presence bit is set in the decode-side bitmap rooted at bitmapVar.
+func bitCheckExpr(des, bitmapVar string, i int) string {
+	byteOffset := i / 8
+	bitIdx := i & 7
+	return "(" + des + ".view.getUint8(" + bitmapVar + " + " + strconv.Itoa(byteOffset) + ") & " + strconv.Itoa(1<<bitIdx) + ")"
+}
+
 // emitTupleToBinary mirrors mion's binary/toBinary.ts:306-349.
 //
 // Wire shape: required, optional bitmap + values, rest. Function-param
