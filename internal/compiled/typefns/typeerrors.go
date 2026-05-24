@@ -191,6 +191,11 @@ func baseKindGuard(kind protocol.ReflectionKind, vλl string) string {
 		return "Number.isFinite(" + vλl + ")"
 	case protocol.KindBigInt:
 		return "typeof " + vλl + " === 'bigint'"
+	case protocol.KindClass:
+		// Native Date format (KindClass + SubKindDate): guard the min/max
+		// bound check so it only runs on a valid Date — `.getTime()` on a
+		// non-Date would throw instead of pushing a clean error.
+		return vλl + " instanceof Date && !isNaN(" + vλl + ".getTime())"
 	}
 	return ""
 }

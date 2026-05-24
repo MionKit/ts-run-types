@@ -112,6 +112,23 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 		return
 	}
 
+	// Builtin-class × brand: `FormatDate<P>` lowers to `Date & {brand}`,
+	// which the checker keeps as a real intersection of two object members
+	// (the Date interface + the sentinel-bearing brand object). Neither is
+	// a primitive, so without this branch it would fall through to the
+	// object×object merge below and lose BOTH the Date class identity
+	// (SubKindDate, classType wiring) AND the format brand. Detect a
+	// recognised builtin-class member alongside a brand member, project the
+	// class, and lift the annotation — the same shape a bare `Date` node
+	// gets, plus the FormatAnnotation a string format gets.
+	if classMember, annotation := splitBuiltinClassBrand(cache.typeChecker, objectMembers); classMember != nil && annotation != nil {
+		// Reuse the standalone-Date class projector so SubKind / ClassRef /
+		// classType wiring stay identical, then lift the brand on top.
+		cache.projectClass(classMember, node)
+		node.FormatAnnotation = annotation
+		return
+	}
+
 	// Object × object — surface the merged shape as an objectLiteral.
 	// We DON'T route through projectObjectType because its
 	// IsArrayLikeType / Promise / class branches call GetTypeArguments
@@ -164,6 +181,39 @@ func (cache *Cache) projectPrimitiveInto(tsType *checker.Type, node *protocol.Ru
 	default:
 		node.Kind = typeid.KindOf(cache.typeChecker, tsType)
 	}
+}
+
+// builtinClassNames are the lib.d.ts interfaces mion treats as classes
+// (mirrors the switch in projectClass / projectObjectType). A member with
+// one of these symbol names is the "base" of a `Builtin & {brand}`
+// intersection — currently only Date carries a format family, but the set
+// matches the class projector so future builtin formats slot in.
+var builtinClassNames = map[string]bool{"Date": true, "Map": true, "Set": true, "RegExp": true}
+
+// splitBuiltinClassBrand inspects the object members of an intersection
+// for the `Builtin & {brand}` shape: exactly one member is a recognised
+// builtin class (by symbol name) and exactly one carries a TypeFormat
+// brand. Returns (classMember, annotation) when both are present, else
+// (nil, nil) so the caller falls back to the normal object merge.
+func splitBuiltinClassBrand(typeChecker *checker.Checker, objectMembers []*checker.Type) (*checker.Type, *protocol.FormatAnnotation) {
+	var classMember *checker.Type
+	var annotation *protocol.FormatAnnotation
+	for _, member := range objectMembers {
+		if found := typeid.FormatAnnotationFromType(typeChecker, member); found != nil {
+			if annotation != nil {
+				return nil, nil // two brands — not the shape we handle
+			}
+			annotation = found
+			continue
+		}
+		if symbol := member.Symbol(); symbol != nil && builtinClassNames[symbol.Name] {
+			if classMember != nil {
+				return nil, nil // two builtin classes — ambiguous
+			}
+			classMember = member
+		}
+	}
+	return classMember, annotation
 }
 
 func isLiteralFlags(flags checker.TypeFlags) bool {

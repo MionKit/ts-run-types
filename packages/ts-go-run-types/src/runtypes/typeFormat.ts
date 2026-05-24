@@ -13,9 +13,11 @@
 // these two sentinel properties and lifts them into the RunType's
 // FormatAnnotation field.
 
-// Base primitives a format may wrap. Future families extend this
-// union; for now we stay aligned with mion's TypeFormatPrimitives.
-export type TypeFormatBase = string | number | bigint;
+// Base types a format may wrap. Primitives (mion's TypeFormatPrimitives)
+// plus the native `Date` object for the FormatDate family — the Go-side
+// scanner lifts the brand off a `Date & {brand}` intersection the same
+// way it does for `string & {brand}`.
+export type TypeFormatBase = string | number | bigint | Date;
 
 // TypeFormatParams is the JSON-serialisable shape every format's
 // params object must satisfy. Nested objects, arrays of primitives,

@@ -291,8 +291,27 @@ Implement these as a **table-driven** Go test (one row per matrix cell, assertin
 
 ---
 
-## 9. Remaining unknown to resolve during implementation
+## 9. Implementation outcome (resolved)
 
-All design decisions are resolved (see section 0). One **code-level unknown** remains, to be confirmed in the first implementation step of Phase 2:
+Both phases are implemented, tested, and committed.
 
-- Whether the `KindClass`/builtin-`Date` arm of the `istype`/`typeerrors` walk currently consults `formats.LookupForRunType`, and whether the scanner lifts the format brand off a `Date & {…}` intersection. If either is missing, wire it (small, localized change in `runtype/typeid/formats.go` and the class arm of the host emitters). This does not change the plan — only its effort estimate for Phase 2.
+**Phase 2 code-level unknown — resolved.** `FormatDate<P>` lowers to
+`Date & {brand}`, which tsgo keeps as a **real `TypeFlagsIntersection`**
+of two object members (the `Date` interface + the sentinel-bearing brand
+object), so it flows through `collapseIntersection`. The previous code
+sent that case to the object×object merge, losing both the `Date`
+identity and the brand. Fix: `splitBuiltinClassBrand` in
+`internal/compiled/runtype/intersection_collapse.go` detects a recognised
+builtin-class member (Date/Map/Set/RegExp) alongside a format-brand
+member, projects the class (reusing `projectClass` → `SubKindDate` +
+`ClassRef`) and lifts the `FormatAnnotation`. The host `istype`/
+`typeerrors` class arm already AND-chains a registered format emitter's
+check after the base `instanceof Date` check (the splice was kind-agnostic
+on `CodeE`/`CodeS`), so no host-emitter change was needed beyond a
+`baseKindGuard` entry for `KindClass` so the typeErrors bound check only
+runs on a valid Date.
+
+The `nativeDate` emitter (`internal/compiled/typefns/formats/datetime/
+nativeDate.go`) compares the Date's `getTime()` against baked absolute
+epochs / `cpf_relativeNowKey` relative bounds (dateTimeKind — both
+component groups allowed). `TypeFormatBase` was widened to include `Date`.
