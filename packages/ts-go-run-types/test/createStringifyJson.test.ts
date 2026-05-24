@@ -48,6 +48,18 @@ describe('createStringifyJson — atomic raw output', () => {
   test('undefined — top-level returns the JS value undefined', () => {
     const sjs = createStringifyJson<undefined>();
     expect(sjs(undefined)).toBeUndefined();
+    // Mion-parity: `expect(typeof serialized).toBe('undefined')` —
+    // top-level undefined is not a valid JSON document, so the JIT
+    // fn returns the JS undefined sentinel rather than a string.
+    expect(typeof sjs(undefined)).toBe('undefined');
+  });
+
+  test('void — top-level returns the JS value undefined', () => {
+    const sjs = createStringifyJson<void>();
+    // Same as undefined — mion's stringifyJson emits `undefined` for
+    // both KindUndefined and KindVoid.
+    expect(sjs(undefined)).toBeUndefined();
+    expect(typeof sjs(undefined)).toBe('undefined');
   });
 
   test('bigint — quoted decimal string', () => {
