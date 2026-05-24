@@ -475,17 +475,7 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 func (TypeErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
-	args := ctx.Vλl + "," + pthArg + "," + errArg
-	var callCode string
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		callCode = ctx.walker.FnName + "(" + args + ")"
-	} else {
-		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-		}
-		callCode = childID + ".fn(" + args + ")"
-	}
+	callCode := ctx.emitDepCall(childID, ctx.Vλl+","+pthArg+","+errArg, "")
 	pathLit := ctx.AccessPathLiteral("")
 	pathLen := ctx.AccessPathLength("")
 	if pathLen == 0 {
@@ -1007,9 +997,7 @@ func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v str
 // typeErrors closure invokes `utl.getRT('it_<hash>')`.
 func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isTypeHash := constants.CacheModules["isType"].Tag + "_" + rt.ID
-	if !ctx.HasContextItem(isTypeHash) {
-		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getRT("+quoteJS(isTypeHash)+")")
-	}
+	ctx.registerRTLookup(isTypeHash)
 	return RTCode{
 		Code: "if (!" + isTypeHash + ".fn(" + v + ")) " + callRTErr(ctx, "union", ""),
 		Type: CodeS,

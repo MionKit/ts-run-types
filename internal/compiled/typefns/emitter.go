@@ -221,6 +221,37 @@ func (ctx *EmitContext) GetContextItem(key string) (string, bool) {
 	return ctx.walker.ContextItems.get(key)
 }
 
+// registerRTLookup ensures the closure-prologue declaration
+// `const <childID> = utl.getRT('<childID>')` exists so the inner factory
+// resolves the child RT via the rtUtils singleton. Idempotent — the ordered
+// context-item set dedups repeat registrations.
+func (ctx *EmitContext) registerRTLookup(childID string) {
+	if !ctx.HasContextItem(childID) {
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
+	}
+}
+
+// emitDepCall builds the JS expression that invokes child childID's
+// precompiled factory with argsExpr. Self-recursive calls (childID is the
+// current fn's own RTFnHash) call the inner function declaration directly;
+// cross-function calls go through `<childID>.fn(args)` and register the getRT
+// lookup. A non-empty assignTo wraps the result as `<assignTo> = <call>` (the
+// mutate-in-place families); empty assignTo returns the bare call expression.
+// Mirrors mion's BaseFnCompiler.callDependency.
+func (ctx *EmitContext) emitDepCall(childID, argsExpr, assignTo string) string {
+	var call string
+	if ctx.walker != nil && childID == ctx.walker.RTFnHash {
+		call = ctx.walker.FnName + "(" + argsExpr + ")"
+	} else {
+		ctx.registerRTLookup(childID)
+		call = childID + ".fn(" + argsExpr + ")"
+	}
+	if assignTo != "" {
+		return assignTo + " = " + call
+	}
+	return call
+}
+
 // AddPureFnDependency records that the emitted body reaches a pure-fn
 // at `utl.getPureFn(<namespace>, <fnName>)`. The walker forwards each
 // dependency to the resolver's integrity check at end of compilation —

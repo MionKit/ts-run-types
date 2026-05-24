@@ -1493,19 +1493,7 @@ func hasFlag(flags []string, target string) bool {
 // — registered once per hash thanks to the ordered-items set; sibling
 // children in the same parent body see the same `const` declaration.
 func (IsTypeEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		// Self-recursion bottoms out by calling the inner function
-		// declaration directly (its name is in scope inside its own
-		// body). mion uses the full `isType_<hash>` identifier in its
-		// callDependency; ours matches via walker.FnName.
-		return ctx.walker.FnName + "(" + args + ")"
-	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + args + ")"
+	return ctx.emitDepCall(childID, ctx.Vλl, "")
 }
 
 // emitLiteral mirrors mion's compileIsLiteral (literal.ts:88-105).
