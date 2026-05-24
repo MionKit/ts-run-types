@@ -28,6 +28,7 @@ import {
 } from './mockUtils.ts';
 import {stringCharSet} from './constants.mock.ts';
 import {mockBoundedNativeDate} from './mockDateTimeBounds.ts';
+import {mockTemporal, isTemporalSubKind} from './mockTemporal.ts';
 
 /** Public entry. Tracks descent via `stack`, applies probability/length decay
  *  based on re-entry count (cycle detector via reference identity — the
@@ -181,6 +182,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       }
       if (subKind === RunTypeSubKind.map) return mockMap(runType, options, stack);
       if (subKind === RunTypeSubKind.set) return mockSet(runType, options, stack);
+      if (isTemporalSubKind(subKind)) return mockTemporal(subKind as number);
       if (subKind === RunTypeSubKind.nonSerializable) {
         throw new Error('Mock is disabled for non-serializable types.');
       }
