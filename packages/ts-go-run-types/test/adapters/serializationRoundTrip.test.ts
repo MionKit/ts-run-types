@@ -1,48 +1,109 @@
-// Serialization round-trip adapter — drives the standalone serialization
-// suite ported from mion's `serialization-suite.ts`. Both halves of the
-// JSON pair (prepareForJson + restoreFromJson) are exercised per case
-// in a single it() because mion's suite always pairs them. The sibling
-// `validation-suite.ts` (consumed by isType.test.ts /
-// getTypeErrors.test.ts) covers validation-family cases; JSON cases
-// live exclusively here.
+// Merged serialization round-trip adapter — drives the standalone
+// `SERIALIZATION_SPEC` through BOTH JSON serialise paths in a single
+// file. Replaces the previous split between this file (unsafe path) and
+// `serializationStringifyJsonRoundTrip.test.ts` (safe path).
 //
-// Success criterion:
+// The two paths:
 //
-//   restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))
-//     ≅ deserializedValues[i] ?? values[i]   (via normalizeForComparison)
+//   - unsafe: prepareForJson(v) → JSON.stringify(prepared) → JSON.parse → restoreFromJson
+//   - safe:   stringifyJson(v)                              → JSON.parse → restoreFromJson
 //
-// `deserializedValues` is supplied by cases whose restored shape
-// intentionally diverges from the original — e.g. functions in tuples
-// decode to `undefined`, class instances decode to plain objects, etc.
-// Falls through to `values[i]` when omitted.
+// One describe/it scaffold; each `it()` calls `runCase(c)` which
+// exercises both paths sequentially. Per-path helpers
+// (`assertUnsafeRoundTrip` / `assertSafeRoundTrip`) are self-contained
+// — no `mode` parameter, no cross-path branching. Each path fetches its
+// own `c.getTestData()` because the unsafe path's `prepareForJson`
+// mutates `v` in place; sharing one `values` array across both paths
+// would feed mutated state into the safe path.
 //
-// `throwsAtCompile: true` cases assert that the prepareForJson /
-// restoreFromJson thunks throw on invocation (factory creation time).
-// Our implementation may diverge from mion here (mion throws inside
-// the emitter; our Go pipeline falls back to identity for unsupported
-// types). When that divergence surfaces, the test fails visibly — per
-// the testing-absolute-rules, the implementation is the bug, not the
-// test.
+// Success criteria:
 //
-// `roundTripBestEffort: true` cases (any / unknown / object) skip the
-// deep-equal step and check only that JSON.stringify produces a
-// non-undefined output — the broad-type contract is "if it's
-// JSON-supported it survives" without requiring shape equivalence.
+//   unsafe: restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))
+//             ≅ deserializedValues[i] ?? values[i]
+//   safe:   restoreFromJson(JSON.parse(stringifyJson(v)))
+//             ≅ deserializedValues[i] ?? values[i]
+//           AND stringifyJson does NOT mutate v (read-only contract,
+//           verified via structuredClone snapshot, skipped for
+//           cycle-bearing shapes).
+//
+// `deserializedValues`, `throwsAtCompile`, `jsonStringifyThrows`,
+// `roundTripBestEffort`, `safeAdapterStringifyJsonNotParseable`, and
+// `getTestDataForStringify` carry per-case path-aware expectations
+// consumed inside each path's helper.
 
 import {afterEach, describe, expect, it} from 'vitest';
+import {createRestoreFromJson} from '@mionjs/ts-go-run-types';
 import {SERIALIZATION_SPEC, type SerializationCase} from '../suites/serialization-suite.ts';
 import {deepCloneForRoundTrip, normalizeForComparison} from '../util/equalsHelpers.ts';
 
 const identityFn = (v: unknown) => v;
 
-function assertRoundTrip(
-  label: string,
+function safeStructuredClone(input: unknown): {ok: true; snapshot: unknown} | {ok: false} {
+  try {
+    return {ok: true, snapshot: structuredClone(input)};
+  } catch {
+    return {ok: false};
+  }
+}
+
+function runCase(c: SerializationCase): void {
+  // throwsAtCompile cases — every factory must throw at invocation
+  // time. mion fails the runtype's emit step for unsupported kinds;
+  // our Go pipeline emits no factory and falls through to identity —
+  // which makes this assertion fail visibly. Intended divergence
+  // surface; the implementation is the bug, not the test.
+  if (c.throwsAtCompile) {
+    expect(() => c.prepareForJson(), `${c.title}: prepareForJson factory must throw at compile time`).toThrow();
+    expect(() => c.restoreFromJson(), `${c.title}: restoreFromJson factory must throw at compile time`).toThrow();
+    expect(() => c.stringifyJson(), `${c.title}: stringifyJson factory must throw at compile time`).toThrow();
+    return;
+  }
+
+  assertUnsafeRoundTrip(c);
+  assertSafeRoundTrip(c);
+}
+
+// ---------- UNSAFE path: prepareForJson + JSON.stringify -----------
+
+function assertUnsafeRoundTrip(c: SerializationCase): void {
+  // jsonStringifyThrows — unsafe-only contract. prepareForJson runs
+  // successfully but JSON.stringify throws because the input carries a
+  // non-serializable structural extra (bigint, etc) that prepareForJson
+  // doesn't strip. Documents mion's "extras pass through" semantic.
+  if (c.jsonStringifyThrows) {
+    const prepare = c.prepareForJson();
+    const {values} = c.getTestData();
+    values.forEach((reference, i) => {
+      const input = deepCloneForRoundTrip(reference);
+      const prepared = prepare(input);
+      expect(() => JSON.stringify(prepared), `${c.title} [unsafe]: JSON.stringify(prepareForJson(values[${i}])) must throw`).toThrow();
+    });
+    return;
+  }
+
+  const bestEffort = c.roundTripBestEffort ?? false;
+  const restoreStatic = c.restoreFromJson?.() ?? identityFn;
+  const restoreDeser = c.deserializeRestoreFromJson?.();
+
+  // Fresh getTestData() per variant — prepareForJson mutates `v` in
+  // place, so the static and deserialize variants must NOT share the
+  // same `values` array.
+  runUnsafePair(c, 'static', c.prepareForJson(), restoreStatic, c.getTestData(), bestEffort);
+  if (c.deserializePrepareForJson && restoreDeser) {
+    runUnsafePair(c, 'deserialize', c.deserializePrepareForJson(), restoreDeser, c.getTestData(), bestEffort);
+  }
+}
+
+function runUnsafePair(
+  c: SerializationCase,
+  variant: string,
   prepare: (v: unknown) => unknown,
   restore: (v: unknown) => unknown,
-  getTestData: () => {values: unknown[]; deserializedValues?: unknown[]},
+  testData: {values: unknown[]; deserializedValues?: unknown[]},
   bestEffort: boolean
-) {
-  const {values, deserializedValues} = getTestData();
+): void {
+  const label = `${c.title} [unsafe:${variant}]`;
+  const {values, deserializedValues} = testData;
   values.forEach((reference, i) => {
     const input = deepCloneForRoundTrip(reference);
     const prepared = prepare(input);
@@ -50,26 +111,20 @@ function assertRoundTrip(
     try {
       serialized = JSON.stringify(prepared);
     } catch (e) {
-      // Best-effort types (any / unknown / object) accept JSON
-      // failures — the broad-type contract is "if a value is
-      // JSON-supported it survives", and bigint / symbol / circular
-      // values legitimately throw at stringify. Non-bestEffort
-      // types re-throw so the failure stays visible.
+      // Best-effort types accept JSON failures — the broad-type
+      // contract is "if a value is JSON-supported it survives".
       if (bestEffort) return;
       throw e;
     }
     // Top-level undefined cannot be JSON-encoded — JSON.stringify
     // returns the JS value `undefined`. Skip the deep-equal half but
-    // honour the contract that the prepare half didn't throw.
+    // honour the contract that prepare didn't throw.
     if (serialized === undefined) return;
-    if (bestEffort) {
-      // Broad type: success = JSON-encodable. No shape comparison.
-      return;
-    }
+    if (bestEffort) return;
     const parsed = JSON.parse(serialized);
     const restored = restore(parsed);
-    // mion's deserializedValues holds the expected restored shape when
-    // the round-trip is intentionally asymmetric (functions → undefined,
+    // deserializedValues holds the expected restored shape when the
+    // round-trip is intentionally asymmetric (functions → undefined,
     // class instances → plain objects, etc).
     const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
     const {actual, expected} = normalizeForComparison(restored, expectedReference);
@@ -77,72 +132,74 @@ function assertRoundTrip(
   });
 }
 
-function runCase(c: SerializationCase): void {
-  // throwsAtCompile cases: the prepareForJson / restoreFromJson
-  // factory invocation itself must throw. mion fails the runtype's
-  // emit step for unsupported kinds; our Go pipeline emits no factory
-  // and createPrepareForJson falls through to identity — which would
-  // make this assertion fail visibly. That's the intended divergence
-  // surface for the next implementation round.
-  if (c.throwsAtCompile) {
-    expect(() => c.prepareForJson(), `${c.title}: prepareForJson factory must throw at compile time`).toThrow();
-    expect(() => c.restoreFromJson(), `${c.title}: restoreFromJson factory must throw at compile time`).toThrow();
-    return;
-  }
+// ---------- SAFE path: stringifyJson (single-pass) -----------------
 
-  // jsonStringifyThrows cases: the factory builds successfully and
-  // prepareForJson runs, but JSON.stringify on the prepared output
-  // throws — typically because the input carries a non-serializable
-  // structural extra (bigint, circular ref) that mion's serializer
-  // doesn't strip. Documents the "extras pass through" contract.
-  if (c.jsonStringifyThrows) {
-    const prepare = c.prepareForJson();
-    const {values} = c.getTestData();
-    values.forEach((reference, i) => {
-      const input = deepCloneForRoundTrip(reference);
-      const prepared = prepare(input);
-      expect(() => JSON.stringify(prepared), `${c.title}: JSON.stringify(prepareForJson(values[${i}])) must throw`).toThrow();
-    });
-    return;
-  }
-
+function assertSafeRoundTrip(c: SerializationCase): void {
   const bestEffort = c.roundTripBestEffort ?? false;
-  const getTestData = c.getTestData;
-
-  // Paired thunks for the round-trip. Same 4-variant pattern as
-  // validation-suite adapters — when a half is undefined the pair is presumed
-  // identity (covers atomic noops cleanly).
+  const getTestData = c.getTestDataForStringify ?? c.getTestData;
+  const stringify = c.stringifyJson();
   const restoreStatic = c.restoreFromJson?.() ?? identityFn;
-  const restoreReflect = c.restoreFromJsonReflect?.() ?? identityFn;
-  const restoreDeserStatic = c.deserializeRestoreFromJson?.() ?? identityFn;
-  const restoreDeserReflect = c.deserializeRestoreFromJsonReflect?.() ?? identityFn;
+  const restoreDeser = c.deserializeRestoreFromJson?.();
 
-  assertRoundTrip(`${c.title} [static]`, c.prepareForJson(), restoreStatic, getTestData, bestEffort);
-
-  if (c.prepareForJsonReflect) {
-    assertRoundTrip(`${c.title} [reflect]`, c.prepareForJsonReflect(), restoreReflect, getTestData, bestEffort);
-  }
-
-  if (c.deserializePrepareForJson) {
-    assertRoundTrip(
-      `${c.title} [deserialize-static]`,
-      c.deserializePrepareForJson(),
-      restoreDeserStatic,
-      getTestData,
-      bestEffort
-    );
-  }
-
-  if (c.deserializePrepareForJsonReflect) {
-    assertRoundTrip(
-      `${c.title} [deserialize-reflect]`,
-      c.deserializePrepareForJsonReflect(),
-      restoreDeserReflect,
-      getTestData,
-      bestEffort
-    );
+  // Fresh getTestData() per variant. stringifyJson itself is read-only
+  // (load-bearing contract — verified below), so sharing across
+  // variants would be technically safe, but the per-variant fetch
+  // matches the unsafe path's shape and stays cheap.
+  runSafePair(c, 'stringify', stringify, restoreStatic, getTestData(), bestEffort);
+  if (restoreDeser) {
+    runSafePair(c, 'stringify+deserialize', stringify, restoreDeser, getTestData(), bestEffort);
   }
 }
+
+function runSafePair(
+  c: SerializationCase,
+  variant: string,
+  stringify: (v: unknown) => string | undefined,
+  restore: (v: unknown) => unknown,
+  testData: {values: unknown[]; deserializedValues?: unknown[]},
+  bestEffort: boolean
+): void {
+  const label = `${c.title} [safe:${variant}]`;
+  const {values, deserializedValues} = testData;
+  values.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    const preSnapshot = safeStructuredClone(input);
+
+    let serialized: string | undefined;
+    try {
+      serialized = stringify(input);
+    } catch (e) {
+      if (bestEffort) return;
+      throw e;
+    }
+
+    // No-mutation invariant — load-bearing for stringifyJson's
+    // read-only contract. Skipped for shapes structuredClone refuses
+    // (cycles).
+    if (preSnapshot.ok) {
+      expect(input, `${label}: values[${i}] — stringifyJson must not mutate input`).toEqual(preSnapshot.snapshot);
+    }
+
+    if (serialized === undefined) return;
+    if (bestEffort) return;
+
+    if (c.safeAdapterStringifyJsonNotParseable) {
+      // mion's number-not-supported semantic: `String(Infinity)` is
+      // `"Infinity"` — not a valid JSON document. Assert the parse
+      // throws instead of attempting a round-trip.
+      expect(() => JSON.parse(serialized!), `${label}: values[${i}] expected JSON.parse to throw (not valid JSON)`).toThrow();
+      return;
+    }
+
+    const parsed = JSON.parse(serialized);
+    const restored = restore(parsed);
+    const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
+    const {actual, expected} = normalizeForComparison(restored, expectedReference);
+    expect(actual, `${label}: values[${i}] round-trip should match expected reference`).toEqual(expected);
+  });
+}
+
+// ---------- Sections ------------------------------------------------
 
 describe('serialization / ATOMIC', () => {
   let ranTests = 0;
@@ -208,7 +265,7 @@ describe('serialization / OBJECTS', () => {
   it('undefined is omitted in object prop', () => runCase(SERIALIZATION_SPEC.OBJECTS.undefined_in_object));
   it('optional properties order', () => runCase(SERIALIZATION_SPEC.OBJECTS.optional_properties_order));
   it('all optional fields', () => runCase(SERIALIZATION_SPEC.OBJECTS.all_optional_fields));
-  it('unsafe path preserves extras (mion semantic — JSON.stringify does not strip)', () =>
+  it('extras passthrough — unsafe preserves, safe strips', () =>
     runCase(SERIALIZATION_SPEC.OBJECTS.extras_passthrough_unsafe));
   it('interface circular', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular));
   it('interface circular array', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_array));
@@ -326,9 +383,9 @@ describe('serialization / UNIONS', () => {
   it('union with methods — methods should be excluded', () => runCase(SERIALIZATION_SPEC.UNIONS.union_with_methods));
   it('union with any — checked last as fallback', () => runCase(SERIALIZATION_SPEC.UNIONS.union_with_any));
   it('union with non-serializable type throws', () => runCase(SERIALIZATION_SPEC.UNIONS.union_with_non_serializable));
-  it('union member with extra bigint prop → JSON.stringify throws', () =>
+  it('union member with extra bigint prop — path-dependent (unsafe throws, safe strips)', () =>
     runCase(SERIALIZATION_SPEC.UNIONS.union_extra_bigint_prop_throws));
-  it('union member with extra symbol prop → JSON.stringify drops it', () =>
+  it('union member with extra symbol prop — declared-only output on both paths', () =>
     runCase(SERIALIZATION_SPEC.UNIONS.union_extra_symbol_prop_drops));
 
   it('all UNIONS serialization tests ran', () => {
@@ -410,16 +467,11 @@ describe('serialization / OTHERS', () => {
   });
 });
 
-// EXTRA_PARAMS section — documents the divergence between the unsafe
-// path (this adapter: prepareForJson + JSON.stringify) and the safe
-// path (forthcoming serializationSafeRoundTrip.test.ts: strip +
-// prepareForJson + JSON.stringify). On the unsafe path, only the
-// `getTestData` expectations are asserted — extras pass through to
-// JSON.stringify, which preserves JSON-compatible ones, throws on
-// bigint extras (via `jsonStringifyThrows`), and silently drops
-// symbol/function-valued extras. `getTestDataForStringify` on these
-// cases describes the safe-path expectation (stripped output) and is
-// ignored by this adapter.
+// EXTRA_PARAMS — divergence test bed. Unsafe path asserts extras
+// pass-through (and throws on bigint extras); safe path asserts
+// strip-in-emit. Each case's getTestDataForStringify override (when
+// set) describes the stripped expectation that assertSafeRoundTrip
+// uses.
 describe('serialization / EXTRA_PARAMS', () => {
   let ranTests = 0;
   afterEach(() => {
@@ -441,3 +493,7 @@ describe('serialization / EXTRA_PARAMS', () => {
     expect(ranTests).toBe(Object.keys(SERIALIZATION_SPEC.EXTRA_PARAMS).length);
   });
 });
+
+// createRestoreFromJson is the explicit "this adapter uses the standard
+// restoreFromJson family" declaration — kept from the safe-path file.
+void createRestoreFromJson;
