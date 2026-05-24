@@ -18,7 +18,7 @@
 - [x] **T4** — Set error-path now `{key: safe(item), index}` (getTypeErrors + unknownKeyErrors); wrong "set.ts doesn't override" comment fixed.
 - [x] **T3** — non-serializable array element now propagates `CodeNS` → alwaysThrow (removed the redundant `return false`/unconditional-error carve-out in istype + typeErrors; leaf now latches correctly).
 - [x] **T2** — `decorators` → `typeMeta` (Go + JS + vite-plugin + wire tag + footer); dead number `Brand` field removed; generic `atomic & {obj}` metadata surfaced as opaque `typeMeta` (structural-id already folds it idempotently). Formats untouched.
-- [ ] **T8** — reflection-shape JS test suite.
+- [x] **T8** — reflection-shape suite (`vite-plugin-runtypes/test/reflectionShape.test.ts`, 20 tests): isCircular, typeMeta, discriminated union, Map/Set subKind+args, enum, tuple flags, class heritage, template literal, bigint/regexp literal rehydration. Also fixed the vite-plugin RunType type (inlined→isCircular, +subKind, −brand).
 - [ ] **T6** — string-format mock generators + transforms + activate `it.todo`s.
 - [ ] **T7** — custom class serializer/deserializer registry (needs your 4 API answers).
 

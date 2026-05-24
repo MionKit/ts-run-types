@@ -81,17 +81,15 @@ export interface ClassRef {
 export interface RunType {
   id?: string;
   kind: ReflectionKind | typeof KIND_REF;
+  subKind?: number;
 
   // TypeAnnotations
   typeName?: string;
   typeArguments?: RunType[];
-  inlined?: true;
+  isCircular?: boolean;
 
   // TypeLiteral
   literal?: unknown;
-
-  // TypeNumber.brand (v2)
-  brand?: number;
 
   // shared
   name?: string;
