@@ -1,9 +1,9 @@
 // Registration module for every pure fn the Go-side format emitters
 // reach via `utl.getPureFn('mionFormats::<name>')`. Each cpf_* below
 // is registered at module load; importing this file from
-// `src/index.ts` (which is the package's public surface) is enough
-// to guarantee the registrations happen before any user code
-// references a format type.
+// `src/formats/index.ts` (the `@mionjs/ts-go-run-types/formats`
+// subpath surface) is enough to guarantee the registrations happen
+// before any user code references a format type.
 //
 // Mirrors mion's `packages/type-formats/src/type-formats-pure-fns.ts`
 // minus the deepkit-coupled `getPureFn` typing — our utl is the
@@ -11,7 +11,8 @@
 //
 // Phase 3 ships cpf_isUUID. Subsequent phases append more.
 
-import {registerPureFnFactory, type RTUtils} from '@mionjs/ts-go-run-types';
+import {registerPureFnFactory} from '../../runtypes/pureFn.ts';
+import type {RTUtils} from '../../runtypes/rtUtils.ts';
 
 // FormatParams_UUID — the wire-shape params object the Go emitter
 // passes to cpf_isUUID at runtime. Mirrors mion's FormatParams_UUID
@@ -214,9 +215,7 @@ registerPureFnFactory('mionFormats', 'isTimeString_ISO_TZ', function (utl: RTUti
     const isPositiveTZ = isZ || value.indexOf('+') !== -1;
     const isNegativeTZ = isZ || value.indexOf('-') !== -1;
     if (!isZ && !isPositiveTZ && !isNegativeTZ) return false;
-    const timeAndTz = isZ
-      ? [value.substring(0, value.length - 1), 'Z']
-      : value.split(isPositiveTZ ? '+' : '-');
+    const timeAndTz = isZ ? [value.substring(0, value.length - 1), 'Z'] : value.split(isPositiveTZ ? '+' : '-');
     if (timeAndTz.length !== 2) return false;
     return isTime(timeAndTz[0]) && isTZ(timeAndTz[1]);
   };
@@ -337,4 +336,3 @@ registerPureFnFactory('mionFormats', 'isIPV6', function (utl: RTUtils) {
     return true;
   };
 });
-

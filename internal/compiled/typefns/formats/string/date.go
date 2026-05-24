@@ -8,7 +8,7 @@ import (
 )
 
 // dateEmitter implements the format named "date" — FormatStringDate<P>
-// in `@mionjs/ts-go-type-formats`. The `format` param selects one of
+// in `@mionjs/ts-go-run-types/formats`. The `format` param selects one of
 // six date-parsing pure fns (cpf_isDateString_YMD / _DMY / _MDY / _YM
 // / _MD / _DM). Mirrors mion's DateStringRunTypeFormat.getFormatPureFn
 // dispatch (packages/type-formats/src/string/date.runtype.ts).

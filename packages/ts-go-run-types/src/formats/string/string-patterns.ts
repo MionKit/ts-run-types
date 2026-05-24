@@ -11,7 +11,7 @@
 // so the consumer-facing recovery story is handled separately (shipping
 // the pattern through the runtypes cache) — not yet wired.
 
-import {registerFormatPattern} from '@mionjs/ts-go-run-types';
+import {registerFormatPattern} from '../../runtypes/formatPattern.ts';
 
 // Latin domain: each label ≤63 chars, tld 2-63 latin letters.
 export const DOMAIN_PATTERN = registerFormatPattern({
