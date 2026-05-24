@@ -563,6 +563,10 @@ func peekEmitterTag(emitter Emitter) string {
 		return "pj"
 	case RestoreFromJsonEmitter:
 		return "rj"
+	case PrepareForJsonFlatEmitter:
+		return "pjf"
+	case RestoreFromJsonFlatEmitter:
+		return "rjf"
 	}
 	return ""
 }

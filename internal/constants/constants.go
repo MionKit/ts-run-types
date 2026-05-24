@@ -57,6 +57,21 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_sj_",
 		Tag:       "sj",
 	},
+	"prepareForJsonFlat": {
+		Name:      "prepareForJsonFlatModule",
+		VarPrefix: "g_pjf_",
+		Tag:       "pjf",
+	},
+	"restoreFromJsonFlat": {
+		Name:      "restoreFromJsonFlatModule",
+		VarPrefix: "g_rjf_",
+		Tag:       "rjf",
+	},
+	"stringifyJsonFlat": {
+		Name:      "stringifyJsonFlatModule",
+		VarPrefix: "g_sjf_",
+		Tag:       "sjf",
+	},
 	"hasUnknownKeys": {
 		Name:      "hasUnknownKeysModule",
 		VarPrefix: "g_huk_",
