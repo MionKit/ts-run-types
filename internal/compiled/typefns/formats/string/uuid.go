@@ -47,7 +47,7 @@ func (uuidEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl s
 		// validateParams catches misconfiguration at build time.
 		return ""
 	}
-	aliasKey := registerUUIDDependency(ctx)
+	aliasKey := pureFnAlias(ctx, "isUUID")
 	return aliasKey + "(" + vλl + ",{version:" + strconv.Quote(version) + "})"
 }
 
@@ -64,7 +64,7 @@ func (uuidEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, v�
 	if !ok {
 		return ""
 	}
-	aliasKey := registerUUIDDependency(ctx)
+	aliasKey := pureFnAlias(ctx, "isUUID")
 	call := aliasKey + "(" + vλl + ",{version:" + strconv.Quote(version) + "})"
 	pathLiteral := "['version']"
 	if pathExpr != "" {
@@ -95,17 +95,4 @@ func readVersion(params map[string]any) (string, bool) {
 		return strconv.Itoa(typed), true
 	}
 	return "", false
-}
-
-// registerUUIDDependency wires the cpf_isUUID pure-fn dependency
-// into the current factory and returns the JS alias the emitted body
-// uses. Idempotent: multiple call sites in one factory share one
-// declaration.
-func registerUUIDDependency(ctx formats.EmitContext) string {
-	ctx.AddPureFnDependency("mionFormats", "isUUID", typeFormatsPureFnFilePath)
-	alias := "cpf_isUUID"
-	if !ctx.HasContextItem(alias) {
-		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::isUUID')")
-	}
-	return alias
 }
