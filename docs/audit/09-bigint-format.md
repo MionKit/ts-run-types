@@ -24,7 +24,9 @@
 - **Mock:** `packages/ts-go-run-types/src/mocking/mockBigIntFormat.ts` — `registerMockingFunction(RunTypeKind.bigint, …)`; ports `_mock` (:28-47); `toBig` (:52-57) strips trailing `n` / unwraps meta / truncates number.
 - **Cache tags:** `it`/`te` (validation), `tb`/`fb` (binary), `pj`/`rj`/`sj`/`pjs`/`pjsp` (JSON — plain bigint path). **Public API:** `createIsType<FormatBigInt<…>>`, `createGetTypeErrors<…>`, `createBinaryEncoder/Decoder<…>`, `createJsonEncoder/Decoder<…>`, `createMockType<…>`.
 
-## 3. Per-bigint-format × {validation, json-ser, binary-ser} comparison
+## 3. Per-kind / per-feature comparison
+
+_Per-bigint-format × {validation, json-ser, binary-ser}._
 
 `Match?`: ✅ correct · ⚠️ by-design divergence · ❌ gap. Columns: **validation** = isType + typeErrors; **json-ser** = prepareForJson/restoreFromJson/stringifyJson; **binary-ser** = toBinary/fromBinary. Per-format rows below; the per-predicate emitter rows follow.
 
