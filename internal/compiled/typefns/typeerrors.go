@@ -407,14 +407,10 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		if rt.Child == nil {
 			return RTCode{Code: "", Type: CodeS}
 		}
-		resolvedChild := ctx.ResolveRef(rt.Child)
-		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-			// Symbol[] / Function[] cannot be validated — mion throws at
-			// RT-compile time. Emit an unconditional error so the
-			// runtime call surfaces the rejection consistently with
-			// `() => false` on the isType side.
-			return RTCode{Code: callRTErr(ctx, "array", "") + ";", Type: CodeS}
-		}
+		// Non-serializable element (symbol / function) → the child compile
+		// below returns CodeNS (leaf = the element), propagated upward by the
+		// `childRT.Type == CodeNS` check → alwaysThrow at root, absorb at a
+		// property. (T3; matches istype.go's array arm.)
 		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
