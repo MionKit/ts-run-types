@@ -10,6 +10,10 @@
 // import so it survives import-type elision when a consumer only pulls
 // the type aliases below.
 import './string/stringFormatMock.ts';
+// Side-effect: registerFormatPattern validates each built-in pattern's
+// mockSamples against its regex at load. The type-only re-export below
+// would otherwise never evaluate string-patterns.ts.
+import './string/string-patterns.ts';
 
 // Re-export the full string-format type surface.
 export type * from './string/stringFormats.ts';
