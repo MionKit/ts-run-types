@@ -37,6 +37,12 @@
       "types": "./dist/formats/index.d.ts",
       "import": "./dist/formats/index.js",
       "require": "./dist/formats/index.cjs"
+    },
+    "./formats/temporal": {
+      "source": "./src/formats/datetime/temporalFormats.ts",
+      "types": "./dist/formats/datetime/temporalFormats.d.ts",
+      "import": "./dist/formats/datetime/temporalFormats.js",
+      "require": "./dist/formats/datetime/temporalFormats.cjs"
     }
   },
   "files": [
