@@ -18,13 +18,8 @@ import type {
   Samples,
   StringParams,
 } from '../formats/string/stringFormats.ts';
-import type {
-  DateFmt,
-  FormatParams_Date,
-  FormatParams_DateTime,
-  FormatParams_Time,
-  TimeFmt,
-} from '../formats/datetime/stringDateTimeFormats.ts';
+import type {FormatParams_Date, FormatParams_DateTime, FormatParams_Time} from '../formats/datetime/stringDateTimeFormats.ts';
+import {mockBoundedDate, mockBoundedTime, mockBoundedDateTime} from './mockDateTimeBounds.ts';
 
 // mockStringFormat dispatches on the format name. Returns undefined for
 // an unrecognised name so the mock walker falls back to the kind-default
@@ -36,12 +31,16 @@ function mockStringFormat(annotation: FormatAnnotation): unknown {
       return mockStringParams(params as StringParams);
     case 'uuid':
       return mockUuid(params as Partial<FormatParams_UUID>);
-    case 'date':
-      return mockDateLayout((params as Partial<FormatParams_Date>).format ?? 'ISO');
-    case 'time':
-      return mockTimeLayout((params as Partial<FormatParams_Time>).format ?? 'ISO');
+    case 'date': {
+      const dateParams = params as Partial<FormatParams_Date>;
+      return mockBoundedDate(dateParams.format ?? 'ISO', dateParams.min, dateParams.max);
+    }
+    case 'time': {
+      const timeParams = params as Partial<FormatParams_Time>;
+      return mockBoundedTime(timeParams.format ?? 'ISO', timeParams.min, timeParams.max);
+    }
     case 'dateTime':
-      return mockDateTime(params as Partial<FormatParams_DateTime>);
+      return mockBoundedDateTime(params as Partial<FormatParams_DateTime>);
     case 'ip':
       return mockIp(params as Partial<FormatParams_IP>);
     case 'domain':
@@ -180,80 +179,9 @@ function randomUUIDv7(): string {
   return `${full.slice(0, 8)}-${full.slice(8, 12)}-${full.slice(12, 16)}-${full.slice(16, 20)}-${full.slice(20, 32)}`;
 }
 
-// ──────────────────────────── Date / Time ───────────────────────────
-
-function maxDaysInMonth(year: number, month: number): number {
-  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
-  if (month === 4 || month === 6 || month === 9 || month === 11) return 30;
-  return 31;
-}
-
-function mockDateLayout(format: DateFmt): string {
-  const yy = Math.floor(Math.random() * 9999) + 1;
-  const mm = Math.floor(Math.random() * 12) + 1;
-  const dd = Math.floor(Math.random() * maxDaysInMonth(yy, mm)) + 1;
-  const year = String(yy).padStart(4, '0');
-  const month = String(mm).padStart(2, '0');
-  const day = String(dd).padStart(2, '0');
-  switch (format) {
-    case 'DD-MM-YYYY':
-      return `${day}-${month}-${year}`;
-    case 'MM-DD-YYYY':
-      return `${month}-${day}-${year}`;
-    case 'YYYY-MM':
-      return `${year}-${month}`;
-    case 'MM-DD':
-      return `${month}-${day}`;
-    case 'DD-MM':
-      return `${day}-${month}`;
-    default: // ISO / YYYY-MM-DD
-      return `${year}-${month}-${day}`;
-  }
-}
-
-function mockTimeLayout(format: TimeFmt): string {
-  const hours = String(Math.floor(Math.random() * 24)).padStart(2, '0');
-  const minutes = String(Math.floor(Math.random() * 60)).padStart(2, '0');
-  const seconds = String(Math.floor(Math.random() * 60)).padStart(2, '0');
-  switch (format) {
-    case 'ISO':
-    case 'HH:mm:ss[.mmm]TZ':
-      return `${hours}:${minutes}:${seconds}${mockMilliseconds()}${mockTimeZone()}`;
-    case 'HH:mm:ss[.mmm]':
-      return `${hours}:${minutes}:${seconds}${mockMilliseconds()}`;
-    case 'HH:mm:ss':
-      return `${hours}:${minutes}:${seconds}`;
-    case 'HH:mm':
-      return `${hours}:${minutes}`;
-    case 'mm:ss':
-      return `${minutes}:${seconds}`;
-    case 'HH':
-      return hours;
-    case 'mm':
-      return minutes;
-    case 'ss':
-      return seconds;
-    default:
-      return `${hours}:${minutes}:${seconds}`;
-  }
-}
-
-function mockMilliseconds(): string {
-  if (Math.random() > 0.5) return '';
-  return `.${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-}
-
-function mockTimeZone(): string {
-  if (Math.random() > 0.5) return 'Z';
-  const hours = String(Math.floor(Math.random() * 24)).padStart(2, '0');
-  const minutes = String(Math.floor(Math.random() * 60)).padStart(2, '0');
-  return `${Math.random() > 0.5 ? '+' : '-'}${hours}:${minutes}`;
-}
-
-function mockDateTime(params: Partial<FormatParams_DateTime>): string {
-  const splitChar = params.splitChar ?? 'T';
-  return `${mockDateLayout(params.date?.format ?? 'ISO')}${splitChar}${mockTimeLayout(params.time?.format ?? 'ISO')}`;
-}
+// Date / Time / DateTime mocking lives in ./mockDateTimeBounds.ts — it must
+// honor the min/max bounds (absolute or relative now±P) so the mock re-passes
+// isType, which requires mirroring the validator's per-kind key scale.
 
 // ──────────────────────────────── IP ────────────────────────────────
 
