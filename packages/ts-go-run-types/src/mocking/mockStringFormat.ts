@@ -33,11 +33,11 @@ function mockStringFormat(annotation: FormatAnnotation): unknown {
       return mockUuid(params as Partial<FormatParams_UUID>);
     case 'date': {
       const dateParams = params as Partial<FormatParams_Date>;
-      return mockBoundedDate(dateParams.format ?? 'ISO', dateParams.min, dateParams.max);
+      return mockBoundedDate(dateParams.format ?? 'ISO', dateParams);
     }
     case 'time': {
       const timeParams = params as Partial<FormatParams_Time>;
-      return mockBoundedTime(timeParams.format ?? 'ISO', timeParams.min, timeParams.max);
+      return mockBoundedTime(timeParams.format ?? 'ISO', timeParams);
     }
     case 'dateTime':
       return mockBoundedDateTime(params as Partial<FormatParams_DateTime>);
