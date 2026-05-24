@@ -28,7 +28,7 @@ import {
 } from './mockUtils.ts';
 import {stringCharSet} from './constants.mock.ts';
 import {mockBoundedNativeDate} from './mockDateTimeBounds.ts';
-import {mockTemporal, isTemporalSubKind} from './mockTemporal.ts';
+import {mockTemporal, isTemporalSubKind, temporalBoundsFromAnnotation} from './mockTemporal.ts';
 
 /** Public entry. Tracks descent via `stack`, applies probability/length decay
  *  based on re-entry count (cycle detector via reference identity — the
@@ -193,7 +193,12 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       }
       if (subKind === RunTypeSubKind.map) return mockMap(runType, options, stack);
       if (subKind === RunTypeSubKind.set) return mockSet(runType, options, stack);
-      if (isTemporalSubKind(subKind)) return mockTemporal(subKind as number);
+      if (isTemporalSubKind(subKind)) {
+        // FormatTemporalX<{min,max,gt,lt}> brands an orderable Temporal type
+        // with bounds; honor them so the mock re-passes isType.
+        const bounds = temporalBoundsFromAnnotation(runType.formatAnnotation);
+        return mockTemporal(subKind as number, bounds);
+      }
       if (subKind === RunTypeSubKind.nonSerializable) {
         throw new Error('Mock is disabled for non-serializable types.');
       }

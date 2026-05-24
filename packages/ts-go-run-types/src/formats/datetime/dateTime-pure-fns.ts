@@ -295,11 +295,18 @@ registerPureFnFactory('mionFormats', 'timeStrToMs', function () {
       mins = Number(parts[0]);
       secMs = Number(parts[1]) * 1000;
     } else {
-      // HH:mm:ss, HH:mm:ss[.mmm], ISO — three segments
+      // HH:mm:ss, HH:mm:ss[.mmm], ISO — up to three segments. A dateTime
+      // bound parses its time half as 'ISO' regardless of the declared
+      // nested layout, so the value may legitimately carry fewer segments
+      // (e.g. an 'HH:mm' nested time → '14:30'). The structural check has
+      // already validated the value against its real layout; here we only
+      // need a tolerant key, so absent segments contribute 0.
       hours = Number(parts[0]);
-      mins = Number(parts[1]);
-      const secParts = parts[2].split('.');
-      secMs = Number(secParts[0]) * 1000 + (secParts[1] ? Number(secParts[1]) : 0);
+      mins = parts[1] ? Number(parts[1]) : 0;
+      if (parts[2]) {
+        const secParts = parts[2].split('.');
+        secMs = Number(secParts[0]) * 1000 + (secParts[1] ? Number(secParts[1]) : 0);
+      }
     }
     return hours * 3600000 + mins * 60000 + secMs;
   };

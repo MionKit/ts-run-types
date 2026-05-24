@@ -13,8 +13,10 @@ import {TypeFormat} from '../runtypes/typeFormat.ts';
 // ─────────────────────────── NumberFormat ───────────────────────────
 
 // NumberParams — the wire-serialisable params shape for FormatNumber.
-// Cross-param invariants (integer⊕float, min⊕gt, max⊕lt, multipleOf rules)
-// are validated build-time in Go.
+// Cross-param invariants (integer⊕float, ordering min≤max / gt<lt,
+// multipleOf rules) are validated build-time in Go. min/max (inclusive) and
+// gt/lt (exclusive) may all coexist — they simply AND at runtime; there is
+// no min⊕gt / max⊕lt mutual exclusivity, matching the date families.
 export interface NumberParams {
   integer?: boolean;
   float?: boolean;

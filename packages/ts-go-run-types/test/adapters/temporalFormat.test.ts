@@ -11,12 +11,14 @@
 // @mionjs/ts-go-run-types/formats/temporal subpath.
 
 import {describe, expect, it} from 'vitest';
-import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import type {
   FormatTemporalPlainDate,
   FormatTemporalInstant,
   FormatTemporalPlainTime,
   FormatTemporalPlainDateTime,
+  FormatTemporalPlainYearMonth,
+  FormatTemporalZonedDateTime,
 } from '@mionjs/ts-go-run-types/formats/temporal';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -91,5 +93,62 @@ describe('Temporal relative now±P bounds (wide margins, clock-independent)', ()
   it('bare now as max rejects the far future', () => {
     const isType = createIsType<FormatTemporalPlainDate<{max: 'now'}>>();
     expect(isType(T.PlainDate.from('2999-01-01'))).toBe(false);
+  });
+});
+
+// Bound-aware mocking — every generated value must re-pass isType for the
+// same bounded type, across all orderable Temporal types and both inclusive
+// (min/max) and exclusive (gt/lt) bounds.
+describe('FormatTemporalX mock — every generated value satisfies its bounds', () => {
+  const ITERATIONS = 40;
+
+  it('PlainDate min/max — mock stays in range', () => {
+    const isType = createIsType<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+    const mock = createMockType<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('PlainDate gt/lt — mock stays strictly inside', () => {
+    const isType = createIsType<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
+    const mock = createMockType<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-01-10'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('Instant min/max — mock stays in range', () => {
+    const isType = createIsType<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+    const mock = createMockType<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('PlainTime gt/lt — mock stays strictly inside', () => {
+    const isType = createIsType<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+    const mock = createMockType<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('PlainDateTime min/max — mock stays in range', () => {
+    const isType = createIsType<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const mock = createMockType<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('PlainYearMonth min/max — mock stays in range', () => {
+    const isType = createIsType<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+    const mock = createMockType<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('ZonedDateTime min/max — mock stays in range', () => {
+    const isType =
+      createIsType<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+    const mock =
+      createMockType<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
+  });
+
+  it('PlainDate relative min:now-P1Y max:now+P1Y — mock stays in range', () => {
+    const isType = createIsType<FormatTemporalPlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
+    const mock = createMockType<FormatTemporalPlainDate<{min: 'now-P1Y'; max: 'now+P1Y'}>>();
+    for (let i = 0; i < ITERATIONS; i++) expect(isType(mock()), `iter ${i}`).toBe(true);
   });
 });
