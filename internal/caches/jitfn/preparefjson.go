@@ -426,6 +426,16 @@ func emitIndexSignaturePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
+	// Mion's IndexSignatureRunType.skipJit (indexProperty.ts:30-36)
+	// drops symbol-keyed sigs from every JIT fn except toJSCode.
+	// for-in doesn't enumerate symbol keys anyway, so the loop body
+	// would be dead, but matching mion's emit shape avoids
+	// corrupting unrelated string/number keys when the symbol-keyed
+	// value type is non-noop (e.g. `[k: symbol]: Date` running
+	// `new Date(v[k])` over every enumerable key).
+	if isSymbolKeyedIndexSig(rt, ctx) {
+		return JitCode{Code: "", Type: CodeS}
+	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
 		return JitCode{Code: "", Type: CodeS}
@@ -586,12 +596,75 @@ func peekMemberIsNoop(member *protocol.RunType, emitter Emitter, refTable map[st
 // declaration. The `?.fn(v) ?? true` fallback handles noop kinds
 // (any / unknown) whose isType factories don't exist — their runtime
 // semantic is "always passes".
+//
+// For all-optional object members (weak types in TS), the bare isType
+// would match ANY object (no required props to fail on), so an input
+// like `{c: 1n}` against union `... | {d?: string}` would incorrectly
+// dispatch to the {d?} arm. Mirror mion's getChildIsTypeWithLooseCheck
+// (union.ts:56-78) by appending a property-presence gate from
+// looseCheckGate — TypeScript's actual weak-type semantic requires
+// at least one of the member's own props to be present, or the value
+// to be an empty object.
 func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
 	isTypeHash := constants.CacheModules["isType"].Tag + "_" + member.ID
 	if !ctx.HasContextItem(isTypeHash) {
 		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getJIT("+quoteJS(isTypeHash)+")")
 	}
-	return "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
+	base := "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
+	gate := looseCheckGate(member, ctx, v)
+	if gate == "" {
+		return base
+	}
+	return "(" + base + " && " + gate + ")"
+}
+
+// looseCheckGate mirrors mion's getChildIsTypeWithLooseCheck
+// (union.ts:56-78). Returns the additional property-presence gate
+// when a union member is an all-optional object-like type with no
+// index signature; returns "" when no gate is needed (member is not
+// object-like, has at least one required prop, or carries an index
+// signature). The gate shape is:
+//
+//	(("p1" in v) || ("p2" in v) || ... || Object.keys(v).length === 0)
+//
+// which encodes TS's weak-type rule: a value matches an all-optional
+// shape only if at least one of its declared props is present OR the
+// value is the empty object.
+func looseCheckGate(member *protocol.RunType, ctx *EmitContext, v string) string {
+	if member.Kind != protocol.KindObjectLiteral && member.Kind != protocol.KindClass {
+		return ""
+	}
+	var propNames []string
+	for _, childRef := range member.Children {
+		child := ctx.ResolveRef(childRef)
+		if child == nil {
+			continue
+		}
+		// Index signatures absorb arbitrary keys — TS doesn't require
+		// any specific prop to be present, so the loose-check doesn't
+		// apply.
+		if child.Kind == protocol.KindIndexSignature {
+			return ""
+		}
+		if child.Kind != protocol.KindProperty && child.Kind != protocol.KindPropertySignature {
+			continue
+		}
+		// One required prop means the bare isType already enforces
+		// presence — no extra gate needed.
+		if !child.Optional {
+			return ""
+		}
+		propNames = append(propNames, child.Name)
+	}
+	if len(propNames) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(propNames)+1)
+	for _, name := range propNames {
+		parts = append(parts, "("+quoteJS(name)+" in "+v+")")
+	}
+	parts = append(parts, "Object.keys("+v+").length === 0")
+	return "(" + strings.Join(parts, " || ") + ")"
 }
 
 // emitUnionPrepareForJson mirrors mion's
@@ -680,16 +753,74 @@ func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 	return JitCode{Code: strings.Join(clauses, ""), Type: CodeS}
 }
 
-// emitNativeIterablePrepareForJson handles Map / Set — both flatten
-// to an Array via `Array.from(v)` so JSON.stringify produces a
-// serializable form (`[[k1,v1], [k2,v2], …]` for Map, `[item1, item2,
-// …]` for Set). Element types whose own prepare/restore is non-noop
-// will need per-entry iteration (mion's full emit covers that); for
-// phase 6 we ship the Array.from form which handles every test case
-// where the element types are atomic-noop (string keys / number
-// values, etc).
+// emitNativeIterablePrepareForJson handles Map / Set — mirrors mion's
+// nodes/native/Iterable.ts:49-65 emitPrepareForJson. For each entry,
+// the wrapped child types (KindParameter wrappers in rt.Arguments
+// carrying SubKindMapKey / SubKindMapValue / SubKindSetItem) get
+// their own transform applied. The collected per-entry result is
+// staged into a fresh array and v is rebound at the end so
+// JSON.stringify sees the array form.
+//
+// Shape (Map with non-noop value or key, or Set with non-noop element):
+//
+//	const ml0 = [];
+//	for (let e0 of v) {
+//	  <key/element transform>; <value transform>;
+//	  ml0.push(e0);
+//	}
+//	v = ml0
+//
+// Accessors:
+//   - Set: the loop binding e0 IS the element (mion's
+//     SetKeyRunType.skipSettingAccessor() returns true)
+//   - Map: e0 is the [k, v] tuple; accessors are e0[0] (key) and
+//     e0[1] (value) — mirrors MapKeyRunType / MapValueRunType
+//     useArrayAccessor with index 0 / 1
+//
+// When every wrapped child compiles to empty (atomic-noop elements
+// like Set<string> / Map<string, number>), fall back to the original
+// shape `v = Array.from(v)` so the no-loop fast path is preserved
+// for already-passing tests.
 func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	return JitCode{Code: v + " = Array.from(" + v + ")", Type: CodeE}
+	isMap := rt.SubKind == protocol.SubKindMap
+	var innerTypes []*protocol.RunType
+	if isMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		innerTypes = []*protocol.RunType{keyType, valueType}
+	} else {
+		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
+	}
+
+	entryVar := ctx.NextLocalVar("e")
+	var childCodes []string
+	for i, innerType := range innerTypes {
+		if innerType == nil {
+			continue
+		}
+		accessor := entryVar
+		if isMap {
+			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
+		}
+		ctx.SetChildAccessor(accessor)
+		childJit := ctx.CompileChild(innerType, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			childCodes = append(childCodes, childJit.Code)
+		}
+	}
+
+	if len(childCodes) == 0 {
+		return JitCode{Code: v + " = Array.from(" + v + ")", Type: CodeS}
+	}
+
+	resVar := ctx.NextLocalVar("ml")
+	body := "const " + resVar + " = []; for (let " + entryVar + " of " + v + ") {" +
+		strings.Join(childCodes, ";") + ";" + resVar + ".push(" + entryVar + ")} " +
+		v + " = " + resVar
+	return JitCode{Code: body, Type: CodeS}
 }
 
 // EmitDependencyCall mirrors IsTypeEmitter's, with one twist: a

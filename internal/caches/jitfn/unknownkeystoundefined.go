@@ -306,6 +306,9 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
+	if isSymbolKeyedIndexSig(rt, ctx) {
+		return JitCode{Code: "", Type: CodeS}
+	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
 		return JitCode{Code: "", Type: CodeS}

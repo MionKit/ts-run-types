@@ -361,6 +361,13 @@ func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) Ji
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeE}
 	}
+	// Symbol-keyed sigs are skipped from JIT compilation per mion's
+	// IndexSignatureRunType.skipJit (indexProperty.ts:30-36). Empty
+	// CodeE drops the sig from the parent's OR chain; if this is the
+	// root, Finalize collapses the empty body to `return false`.
+	if isSymbolKeyedIndexSig(rt, ctx) {
+		return JitCode{Code: "", Type: CodeE}
+	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
 		return JitCode{Code: "", Type: CodeE}

@@ -9,10 +9,17 @@ gap) so follow-up work can be triaged.
 
 Current test counts (after the most recent push):
 
-- **`@mionjs/ts-go-run-types`**: 491 pass / 9 fail (478 stable + 2
-  new union-throw doc cases + 11 nominal — see breakdown below)
+- **`@mionjs/ts-go-run-types`**: 499 pass / 1 fail (down from 9 fails).
+  The one open failure is the deferred `OBJECTS.strip_extra_params`
+  sample — see "Open failures" → Failure 1.
 - **`vite-plugin-runtypes`**: 208 / 208
 - **Go (`internal/...`)**: all green
+
+Closed since the prior snapshot:
+
+- Failures 2–9 in the "Open failures — analysis" section below.
+  Resolutions summarised at the top of each entry, full breakdown
+  follows. Net: -8 deterministic failures, no remaining flakes.
 
 ## Migrated JIT function families
 
@@ -58,12 +65,9 @@ applicable):
 | intersection            | ✓      | ✓          | ✗ noop         | ✗ noop           | ✗              | ✗                | ✗                | ✗                      |
 | templateLiteral         | ✓      | ✓          | ✗              | ✗                | ✗              | ✗                | ✗                | ✗                      |
 | function / method       | ✓ `typeof` | ✓     | ✗ noop         | ✗ noop           | ✗              | ✗                | ✗                | ✗                      |
-| Map / Set (SubKind)     | ✓      | ✓          | ⚠ Array.from   | ⚠ ctor wrap      | ✓ → element    | ✓ → element      | ✓ → element      | ✓ → element            |
+| Map / Set (SubKind)     | ✓      | ✓          | ✓ → element    | ✓ → element      | ✓ → element    | ✓ → element      | ✓ → element      | ✓ → element            |
 | Promise                 | ✓ thenable | ✓      | ✓ throw        | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
 | NonSerializable (Int8Array, …) | ✓ throw | ✓ throw | ✓ throw   | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
-
-⚠ marks the known-incomplete Map/Set JSON arms — see "Open
-failures" → ITERABLES below.
 
 ## Intentional deviations from mion
 
@@ -177,7 +181,10 @@ Pure refactor; no behavioral change.
 
 ## Open failures — analysis
 
-Eight deterministic failures + one parallelism flake. Each entry:
+**Status snapshot**: 1 open (Failure 1, deferred), 8 closed
+(Failures 2–9). Each closed entry leads with a `**Closed by**` line
+pointing at the fix; the original analysis is kept verbatim below
+for archeology / future regression triage. Each entry:
 
 - **Where** — our test file + section
 - **What our test asserts** — input + expected output
@@ -189,6 +196,16 @@ Eight deterministic failures + one parallelism flake. Each entry:
   or `RACE` (parallelism interaction, not a correctness issue)
 
 ### Failure 1 — `OBJECTS > strip extra params (mion semantic — extras pass through)`
+
+**Status**: **OPEN, deferred** — the extras pass-through semantic
+needs a separate decision pass. Code-side, our prepareForJson already
+matches mion (extras never visited, JSON.stringify preserves them in
+the output). The test sample's `deserializedValues: [noExtraParams]`
+override asserts the opposite of mion's actual spec (which has the
+strip expectation commented out with the explicit note that
+`JSON.stringify do not strip extra params`). Removing the override
+would close this — but the user is reviewing the extras semantic
+before any change here lands.
 
 - **Where**: `test/adapters/serializationRoundTrip.test.ts` →
   `serialization-suite.ts` `OBJECTS.strip_extra_params`
@@ -215,6 +232,13 @@ Eight deterministic failures + one parallelism flake. Each entry:
   mion already.
 
 ### Failure 2 — `RECORDS > multiple index properties (symbol keys skipped)`
+
+**Closed by**: symbol-keyed-index-sig skip in all 8 `emitIndexSignature*`
+emitters (mirrors mion's `IndexSignatureRunType.skipJit`
+`indexProperty.ts:30-36`). New shared helper `isSymbolKeyedIndexSig`
+in `internal/caches/jitfn/istype.go`; gate added to prepareForJson,
+restoreFromJson, isType, typeErrors, hasUnknownKeys, stripUnknownKeys,
+unknownKeyErrors, unknownKeysToUndefined.
 
 - **Where**: `serialization-suite.ts` `RECORDS.multiple_index_props`
 - **What our test asserts**: input `{key1: 'value1', key2: 'value2'}`
@@ -247,6 +271,16 @@ Eight deterministic failures + one parallelism flake. Each entry:
 
 ### Failure 3 — `UNIONS > union of object shapes`
 
+**Closed by**: union loose-check port. New `looseCheckGate` helper in
+`internal/caches/jitfn/preparefjson.go` mirrors mion's
+`UnionRunType.getChildIsTypeWithLooseCheck` (`union.ts:56-78`) — for
+an all-optional object member (no required props, no index sig) the
+bare isType is wrapped with a property-presence gate so a value that
+shares no declared property with the member fails the arm. Wired
+into `unionMemberIsTypeCheck` (preparefjson) and `emitUnionIsType`
+(istype) for full mion parity. Arm dispatch in preparefjson now picks
+the correct concrete member before falling back to the weak shape.
+
 - **Where**: `serialization-suite.ts` `UNIONS.union_object_with_discriminator`
 - **What our test asserts**: type
   `{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}`
@@ -277,6 +311,19 @@ Eight deterministic failures + one parallelism flake. Each entry:
   implementation lives at `nodes/collection/union.ts`.
 
 ### Failure 4 — `ITERABLES > Set<SmallObject>`
+
+**Closed by** (with Failures 5–7): Map/Set per-entry element recursion
+in `emitNativeIterablePrepareForJson`
+(`internal/caches/jitfn/preparefjson.go`) and the new
+`emitNativeIterableRestoreFromJson`
+(`internal/caches/jitfn/restorefjson.go`). Mirrors mion's
+`IterableRunType.emitPrepareForJson` / `emitRestoreFromJson`
+(`nodes/native/Iterable.ts:49-82`): for non-noop element / key /
+value types, emit `const ml0 = []; for (let e0 of v) { … push }; v = ml0`
+on the prepare side and `for (let e0 = 0; e0 < v.length; e0++) { … }; v = new Map(v)`
+on restore. Atomic-noop fast-path falls back to the original
+`v = Array.from(v)` / `v = new Map(v)` shape. Reuses existing
+`mapKeyValueTypes` / `setItemType` helpers in `istype.go`.
 
 - **Where**: `serialization-suite.ts` `ITERABLES.set_small_object`
 - **What our test asserts**: `Set<SmallObject>` with three elements
@@ -311,17 +358,22 @@ Eight deterministic failures + one parallelism flake. Each entry:
 
 ### Failure 5 — `ITERABLES > Map<string, SmallObject>`
 
-Same root cause as Failure 4 (Map element values are objects
-containing a bigint). Same fix.
+**Closed by**: see Failure 4. Same root cause (Map element values are
+objects containing a bigint); same fix.
 
 ### Failure 6 — `ITERABLES > Map<SmallObject, number>`
 
-Same root cause as Failure 4 (Map keys are objects containing a
-bigint). Same fix; the iteration form needs to handle the
-`[key, value]` tuple shape mion uses for Map entries (the key half
-and the value half each get their own transform).
+**Closed by**: see Failure 4. Same root cause (Map keys are objects
+containing a bigint); same fix. The implementation iterates over both
+`rt.Arguments` slots (key wrapper + value wrapper) so each half gets
+its own transform via `e0[0]` / `e0[1]` accessors — matches the
+`[key, value]` tuple shape mion uses for Map entries.
 
 ### Failure 7 — `ITERABLES > Map with bigint keys`
+
+**Closed by**: see Failure 4. Same fix — the bigint key gets the
+`toString()` rewrite through the per-entry transform applied to
+`e0[0]`.
 
 - **Where**: `serialization-suite.ts` `ITERABLES.map_with_bigint_keys`
 - **What our test asserts**: `Map<bigint, number>` round-trip
@@ -337,6 +389,31 @@ and the value half each get their own transform).
 - **Classification**: **BUG**, same fix as #4.
 
 ### Failure 8 — `CIRCULAR_REFS > CircularTuple object with discriminator`
+
+**Closed by** (with Failure 9): structural-id cycle-ref disambiguation
+in `internal/caches/runtype/typeid/typeid.go`. The original analysis
+mis-classified this as a `BUG` with unclear mechanism; the actual
+root cause was a structural-dedup collision between two
+`interface CircularTuple` declarations in different test files
+(`validation-suite.ts` uses `tuple: [bigint, CircularTuple?]`,
+`serialization-suite.ts` uses `list: [bigint, CircularTuple?]`).
+Both inner tuple shapes were `[bigint, $cycle(KindObjectLiteral)?]`
+— identical structural IDs after dedup, so the single shared tuple
+entry's optional slot pointed at *whichever* outer entry was
+registered last (sometimes `tuple`, sometimes `list`). The
+intermittent failures (sometimes `expected false to be true`,
+sometimes `Do not know how to serialize a BigInt`) flipped based on
+emit order.
+
+mion never hits this because its runtime JIT compiles per-call — the
+two declarations live in independent compile passes. Our AOT cache
+is project-global so the dedup applies across files. Fix: extend
+`cycleRef` to fall back to the symbol's first-declaration position
+when the type has no alias name; two interfaces with the same name
+and shape but different declaration positions now produce distinct
+cycle tokens, so the surrounding tuple IDs differ and the cache
+holds one entry per outer interface. `aliasName`-bearing types are
+unaffected (named type aliases continue to disambiguate as before).
 
 - **Where**: `serialization-suite.ts` `CIRCULAR_REFS.circular_tuple`
 - **What our test asserts**: `interface CircularTuple { list: [bigint, CircularTuple?] }`
@@ -365,6 +442,15 @@ and the value half each get their own transform).
 
 ### Failure 9 (flake) — `isType / getTypeErrors > CIRCULAR > Self-referential object whose cycle closes via a tuple property`
 
+**Closed by**: see Failure 8 — same root cause. The original
+"test-infrastructure RACE" classification was wrong: `pool: 'forks'`
+did NOT fix the failures (verified during port-completion).
+Switching workers only changed *which* of the two CircularTuple
+declarations registered last, so the flake symptom shifted between
+serialization, isType, and typeErrors test files but never went
+away. The cycle-ref position fix in Failure 8 closes this
+deterministically — `pool` config is not needed.
+
 - **Where**: `test/adapters/isType.test.ts` and `getTypeErrors.test.ts`
   → `validation-suite.ts` `CIRCULAR.object_with_tuple_prop`
 - **What our test asserts**: `interface CircularTuple { tuple: [bigint, CircularTuple?] }`
@@ -391,26 +477,33 @@ and the value half each get their own transform).
 
 ## Recommended follow-up order
 
-Ranked by bang-per-fix (number of failing tests resolved per work
-unit):
+Items 1–4 below were completed in the port-finalization pass; item
+5 (the strip_extra_params sample) is the one remaining open
+failure, deferred for a separate decision on the extras semantic.
 
-1. **Map/Set per-entry element transform** (`internal/caches/jitfn/preparefjson.go`
-   `emitNativeIterablePrepareForJson` + restorefjson mirror) — fixes
-   Failures 4, 5, 6, 7. Reference: `nodes/native/Iterable.ts:49-82` in mion.
-2. **Multi-signature index property dispatch**
-   (`emitIndexSignaturePrepareForJson` + restorefjson mirror) — fixes
-   Failure 2. Reference: `nodes/member/indexProperty.ts:103-155`.
-3. **Union arm priority / loose-check tightening**
-   (`emitUnionPrepareForJson` + the loose isType helper used by union
-   dispatch) — fixes Failure 3. Reference: `nodes/collection/union.ts:114-152`
-   + `getChildIsTypeWithLooseCheck`.
-4. **CircularTuple self-recursive dep-call** — fixes Failure 8.
-   Investigation needed to pinpoint the diverging emit shape.
-5. **Sample fix for strip_extra_params** — fixes Failure 1. Remove
-   `deserializedValues` from the case (a one-line change in
-   `serialization-suite.ts`).
-6. **(Optional) `pool: forks` for ts-go-run-types tests** — masks
-   Failure 9 race; doesn't fix root cause.
+1. ~~**Map/Set per-entry element transform**~~ — DONE; closes
+   Failures 4, 5, 6, 7.
+2. ~~**Symbol-keyed index signature skip**~~ — DONE; closes
+   Failure 2. Mion's actual gate is per-fn `skipJit` for
+   symbol-keyed sigs (`indexProperty.ts:30-36`), not per-pattern
+   dispatch as originally proposed — the for-in loop doesn't
+   enumerate symbol keys at runtime anyway, but the previous
+   non-skipping emit corrupted unrelated string/number keys when
+   the symbol sig's value type was non-noop (e.g. Date).
+3. ~~**Union loose-check**~~ — DONE; closes Failure 3. Implemented
+   as `looseCheckGate` helper wired into both `unionMemberIsTypeCheck`
+   (preparefjson dispatch) and `emitUnionIsType` (full mion parity).
+4. ~~**CircularTuple cycle-ref disambiguation**~~ — DONE; closes
+   Failures 8 + 9. The flake-classification of Failure 9 was wrong:
+   `pool: 'forks'` did not fix it (verified). Real root cause was a
+   structural-id collision via cycle ref — fixed in
+   `typeid/typeid.go` cycleRef by appending the symbol's first
+   declaration position when no alias name is in play.
+5. **Sample fix for strip_extra_params** — DEFERRED. Removing
+   `deserializedValues` from the case would close Failure 1, but the
+   extras pass-through semantic is being reviewed separately. The
+   implementation already matches mion (extras never visited);
+   only the test sample contradicts mion's spec.
 
 ## Reference
 
