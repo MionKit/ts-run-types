@@ -152,6 +152,19 @@ const (
 	CodeUKWFunctionPropDropped = "UKW010"
 )
 
+// Class-serializer family (CLS) — advisory, Warning severity. Emitted once
+// per named plain user class (KindClass + SubKindNone) reached by a
+// serialization family (pj / pjs / pjsp / rj / sj / tb / fb) when NO custom
+// serializer is registered for the class name: the class is serialized
+// structurally (declared props in, prototype-less plain object out). The
+// user can register a custom (de)serializer via registerClassSerializer to
+// opt into round-tripping a real instance. NOT emitted for isType /
+// getTypeErrors, builtins (Date/Map/Set/RegExp/nonSerializable), or
+// anonymous classes. Args: [className].
+const (
+	CodeCLSStructuralFallback = "CLS001"
+)
+
 func init() {
 	// Root-position errors — render a throwing factory.
 	for _, code := range []string{
@@ -194,4 +207,11 @@ func init() {
 	// type-definition bug; surface it as an error.
 	register(Definition{Code: CodeFMTSampleMismatch, Family: FamilyRunType, Severity: SeverityError, Title: "format mockSample does not match pattern"})
 	register(Definition{Code: CodeFMTInvalidParams, Family: FamilyRunType, Severity: SeverityError, Title: "invalid type-format params"})
+
+	// Class-serializer family — a named plain user class is serialized
+	// structurally because no custom serializer is registered. Advisory,
+	// not a failure: the structural fallback round-trips data fine; the
+	// warning just tells the user they CAN register a serializer for full
+	// instance reconstruction.
+	register(Definition{Code: CodeCLSStructuralFallback, Family: FamilyRunType, Severity: SeverityWarning, Title: "user class serialized structurally — register a serializer for custom (de)serialization"})
 }

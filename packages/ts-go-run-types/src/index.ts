@@ -24,6 +24,11 @@ if (_hot) {
 // helpers (e.g. typeErrors needs `mion::newRunTypeErr`).
 export {registerPureFnFactory} from './runtypes/pureFn.ts';
 
+// Custom class serializer registry — register a serialize/deserialize pair
+// for a user-defined class so the JSON + binary families route through it
+// instead of the structural object emit. See classSerializerRegistry.ts.
+export {registerClassSerializer, type ClassSerializer} from './runtypes/classSerializerRegistry.ts';
+
 // Type-format base machinery — the per-format types live under
 // `src/formats/` (the `@mionjs/ts-go-run-types/formats` subpath); the
 // brand alias + the mock registry sit here at the root so the format
