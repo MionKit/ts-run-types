@@ -338,47 +338,64 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	return JitCode{Code: body, Type: CodeRB}
 }
 
-// emitObjectStringifyJson — mion:stringifyJson.ts:367-441
-// (compileStringifyInterface / compileStringifyClass). Iterates
-// children in mion's optional-first sort order
-// (interface.ts:getJsonStringifySortedChildren) and joins their
-// fragments inside `'{' + … + '}'`.
+// emitObjectStringifyJson — mion:stringifyJson.ts:367-401
+// (compileStringifyInterface / compileInterfaceIntoArray /
+// compileStringifyClass). Two paths matching mion's perf split:
 //
-// Trailing-comma correctness: the last non-skip child sets
-// `skipCommas=true` on the parent frame so its emit omits the
-// trailing comma. Mion's optional-first sort keeps the LAST child
-// non-optional whenever possible — a required member always emits
-// a non-empty fragment, so the trailing-comma logic stays static.
-// (When every child is optional, the last-iteration skipCommas+empty
-// case still yields a syntactically valid `{}` after the leading-
-// optional emits collapse — see emitPropertyStringifyJson's
-// optional-empty branch.)
+//  1. **At least one required child** — static `+` concat with
+//     mion's optional-first sort + `skipCommas=true` on the last
+//     iteration. Fast — pure string concatenation, no array
+//     allocation, no runtime filtering. The optional-first sort
+//     guarantees the last child is required (always emits a
+//     non-empty fragment), so the trailing-comma logic stays
+//     static.
+//
+//  2. **All children optional** — fallback array-join path mirroring
+//     mion's `compileInterfaceIntoArray`. Each prop's emit
+//     conditionally contributes (empty string when undefined); the
+//     parent runs `[...emits].filter(Boolean).join(',')` to drop
+//     gaps and rejoin. Slower (extra array + filter), but correct
+//     when every child could be absent at runtime.
+//
+// Property declaration order within each "optional" group is
+// preserved (stable sort).
 func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	// Collect emit-eligible children, dropping function-shaped/static
-	// members the same way the prepare emit does.
 	type pendingChild struct {
 		ref      *protocol.RunType
 		optional bool
 	}
 	var pending []pendingChild
+	allOptional := true
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
 		if resolved == nil || resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
 			continue
 		}
 		opt := resolved.Optional
-		// Index signatures emit a loop that may produce empty output —
-		// treat them as "optional" for the sort so they don't land
-		// last and orphan a trailing comma.
+		// Index signatures emit a for-in loop that may produce an
+		// empty fragment when the object has no own keys. Treat them
+		// as "optional-equivalent" for both the sort and the
+		// all-optional check — mion's getJsonStringifySortedChildren
+		// + compileInterfaceIntoArray do the same.
 		if resolved.Kind == protocol.KindIndexSignature {
 			opt = true
 		}
 		pending = append(pending, pendingChild{ref: child, optional: opt})
+		if !opt {
+			allOptional = false
+		}
 	}
-	// Mion's getJsonStringifySortedChildren — stable sort, optional
-	// children first. Uses a manual insertion sort to preserve
-	// declaration order within each group (sort.SliceStable would also
-	// work but inlining keeps the dependency surface clear).
+	if len(pending) == 0 {
+		return JitCode{Code: "'{}'", Type: CodeE}
+	}
+	// Stable sort, optional-first. Preserves declaration order
+	// within each group. For the "at least one required" path the
+	// sort guarantees the last iteration lands on a required
+	// child — required children always emit a non-empty fragment,
+	// so the `skipCommas=true` set on the final iteration cleanly
+	// strips the trailing comma. For the "all optional" path the
+	// sort has no effect (every child is optional) — the
+	// filter-and-join wrap handles correctness regardless of order.
 	for i := 1; i < len(pending); i++ {
 		for j := i; j > 0; j-- {
 			if pending[j-1].optional || !pending[j].optional {
@@ -387,17 +404,49 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 			pending[j-1], pending[j] = pending[j], pending[j-1]
 		}
 	}
-	if len(pending) == 0 {
-		return JitCode{Code: "'{}'", Type: CodeE}
+
+	if allOptional {
+		// Array-join fallback — mion's compileInterfaceIntoArray. We
+		// run each prop emit with skipCommas=true (no per-prop
+		// trailing comma) so the prop returns a bare value fragment
+		// or empty string. The outer wrap filters the empties out
+		// and rejoins with `,`.
+		parts := make([]string, 0, len(pending))
+		setSkipCommas(ctx, true)
+		for _, p := range pending {
+			childJit := ctx.CompileChild(p.ref, CodeE)
+			if childJit.Type == CodeNS {
+				clearSkipCommas(ctx)
+				return JitCode{Code: "", Type: CodeNS}
+			}
+			if childJit.Code == "" {
+				continue
+			}
+			parts = append(parts, childJit.Code)
+		}
+		clearSkipCommas(ctx)
+		if len(parts) == 0 {
+			return JitCode{Code: "'{}'", Type: CodeE}
+		}
+		// `[a, b, ...].filter(Boolean).join(',')` — Boolean coerces
+		// '' to false and any non-empty string to true, so empty
+		// entries drop out. Equivalent to mion's `ns.push` + final
+		// `ns.join(',')` shape (one allocation + one walk), inlined
+		// without the IIFE so the caller still sees a CodeE result.
+		return JitCode{Code: "'{'+[" + strings.Join(parts, ",") + "].filter(Boolean).join(',')+'}'", Type: CodeE}
 	}
+
+	// At-least-one-required path: static `+` concat. skipCommas set
+	// on the last iteration so the trailing required prop omits the
+	// comma; preceding props (required and optional alike) include
+	// it.
 	parts := make([]string, 0, len(pending))
 	for i, p := range pending {
-		// Skip-commas is set on the parent frame (this Emit's
-		// receiver) and consumed by the child property emit.
 		isLast := i == len(pending)-1
 		setSkipCommas(ctx, isLast)
 		childJit := ctx.CompileChild(p.ref, CodeE)
 		if childJit.Type == CodeNS {
+			clearSkipCommas(ctx)
 			return JitCode{Code: "", Type: CodeNS}
 		}
 		if childJit.Code == "" {

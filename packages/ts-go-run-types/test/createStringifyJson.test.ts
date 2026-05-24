@@ -133,6 +133,87 @@ describe('createStringifyJson — compound shapes', () => {
   });
 });
 
+// Mion's `compileStringifyInterface` has TWO paths:
+//
+//   1. At-least-one-required → static `+` concat with optional-first
+//      sort + skipCommas-on-last. Fast; no allocations.
+//   2. All-optional → IIFE that pushes each prop into a `ns` array
+//      and final-joins with ','. Required because the static + concat
+//      shape would emit invalid JSON with a trailing comma when only
+//      some of the optional props are present at runtime.
+//
+// These tests catch the bug-mode where path (2) is missing — the
+// emit produces `{"a":"x",}` (trailing comma) and JSON.parse throws.
+// They MUST run through the actual JIT factory (not JSON.stringify
+// fallback) to exercise the emit.
+describe('createStringifyJson — all-optional objects (mion array-join fallback)', () => {
+  test('all-optional, first present + second absent — must NOT emit trailing comma', () => {
+    type T = {a?: string; b?: string};
+    const sjs = createStringifyJson<T>();
+    const out = sjs({a: 'helloA'});
+    // The bug-mode output would be `{"a":"helloA",}` — invalid JSON.
+    // After the fix: array-join filter drops the empty `b` slot and
+    // the result is the canonical `{"a":"helloA"}`.
+    expect(out).toBe('{"a":"helloA"}');
+    expect(() => JSON.parse(out!)).not.toThrow();
+    expect(JSON.parse(out!)).toEqual({a: 'helloA'});
+  });
+
+  test('all-optional, first absent + second present', () => {
+    type T = {a?: string; b?: string};
+    const sjs = createStringifyJson<T>();
+    const out = sjs({b: 'helloB'});
+    // Leading-empty case — bug-mode might emit `{,"b":"helloB"}`
+    // (leading comma) if filter logic is broken.
+    expect(out).toBe('{"b":"helloB"}');
+    expect(() => JSON.parse(out!)).not.toThrow();
+    expect(JSON.parse(out!)).toEqual({b: 'helloB'});
+  });
+
+  test('all-optional, middle gap — first + third present, second absent', () => {
+    type T = {a?: string; b?: string; c?: string};
+    const sjs = createStringifyJson<T>();
+    const out = sjs({a: 'helloA', c: 'helloC'});
+    // Middle-gap case — bug-mode might emit `{"a":"helloA",,"c":"helloC"}`
+    // (double comma) if the filter doesn't collapse empty slots.
+    expect(out).toBe('{"a":"helloA","c":"helloC"}');
+    expect(() => JSON.parse(out!)).not.toThrow();
+    expect(JSON.parse(out!)).toEqual({a: 'helloA', c: 'helloC'});
+  });
+
+  test('all-optional, all present', () => {
+    // Avoid `boolean` here — TS reflects boolean as `true | false`
+    // (a union), which would force the [idx, val] tuple-wrap and
+    // muddle this test's intent. Atomic-only optional types isolate
+    // the all-optional array-join path.
+    type T = {a?: string; b?: number; c?: string};
+    const sjs = createStringifyJson<T>();
+    const out = sjs({a: 'x', b: 42, c: 'y'});
+    expect(() => JSON.parse(out!)).not.toThrow();
+    expect(JSON.parse(out!)).toEqual({a: 'x', b: 42, c: 'y'});
+  });
+
+  test('all-optional, none present — empty object', () => {
+    type T = {a?: string; b?: number};
+    const sjs = createStringifyJson<T>();
+    const out = sjs({});
+    expect(out).toBe('{}');
+    expect(() => JSON.parse(out!)).not.toThrow();
+    expect(JSON.parse(out!)).toEqual({});
+  });
+
+  test('all-optional with bigint — array-join path still honours per-kind encoding', () => {
+    // Per-kind encoding (bigint quoted) must still happen inside the
+    // array-join path — exercises the property emit's value fragment
+    // composing correctly under the skipCommas=true mode.
+    type T = {n?: bigint; s?: string};
+    const sjs = createStringifyJson<T>();
+    const out = sjs({n: 123n});
+    expect(out).toBe('{"n":"123"}');
+    expect(JSON.parse(out!)).toEqual({n: '123'});
+  });
+});
+
 describe('createStringifyJson — no-mutation invariant (divergence from prepareForJson)', () => {
   test('bigint input field stays a bigint after stringifyJson', () => {
     type T = {n: bigint};
