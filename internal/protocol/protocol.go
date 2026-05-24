@@ -120,9 +120,6 @@ type RunType struct {
 	// TypeLiteral
 	Literal any `json:"literal,omitempty"`
 
-	// TypeNumber.brand — number brand subtype (integer / int8 / …). v1: never set.
-	Brand *int `json:"brand,omitempty"`
-
 	// TypeProperty / TypePropertySignature / TypeMethod / TypeMethodSignature
 	// / TypeParameter / TypeEnumMember — name is `string | number | symbol` in
 	// the reflection model; we only emit string. Symbol-named props get a
@@ -203,13 +200,18 @@ type RunType struct {
 	// materialise the full per-member struct.
 	UnionDiscriminators []*RunType `json:"unionDiscriminators,omitempty"`
 
-	// Decorators — surviving object-literal types from a collapsed
-	// intersection that combined a primitive with one or more brand
-	// objects (e.g. `string & {__brand: "Email"}`). Each entry is a
-	// ref to an objectLiteral RunType. Mirrors deepkit's
-	// TypeAnnotations.decorators field. Order is the declaration order
-	// of the object-literal members in the original intersection.
-	Decorators []*RunType `json:"decorators,omitempty"`
+	// TypeMeta — opaque type-level metadata: the object-literal members
+	// that survive a collapsed intersection of a primitive with one or
+	// more metadata objects (e.g. `string & {__brand: "Email"}` or
+	// `number & {currency: "USD"}`). Any `atomic & { obj }` qualifies —
+	// no brand marker is required. Each entry is a ref to an objectLiteral
+	// RunType, passed through untouched for consumers to read. This is the
+	// generic form of deepkit's "type decorators" (TypeAnnotations.decorators),
+	// renamed from `decorators` to avoid confusion with JS `@decorator`s and
+	// to subsume the former number `brand` field. Order is the declaration
+	// order of the members in the original intersection. FormatAnnotation
+	// (below) is the validating specialisation, lifted out of TypeMeta.
+	TypeMeta []*RunType `json:"typeMeta,omitempty"`
 
 	// FormatAnnotation — populated when a primitive is branded with a
 	// TypeFormat<Base, Name, Params, ...> marker from
@@ -219,7 +221,7 @@ type RunType struct {
 	// structural id folds Name + canonicalised Params into the hash so
 	// two distinct param sets produce two distinct cache entries;
 	// equivalent param sets (regardless of key order) collapse to one.
-	// Lifted into a dedicated field rather than living in Decorators
+	// Lifted into a dedicated field rather than living in TypeMeta
 	// so the emit hook is a single pointer check, not a per-emit
 	// decorator-array scan.
 	FormatAnnotation *FormatAnnotation `json:"formatAnnotation,omitempty"`

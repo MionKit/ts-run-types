@@ -21,7 +21,7 @@ Living document. Captures **what's implemented**, **what's deliberately out of s
 | String type-formats                 | ✅         | `@mionjs/ts-go-run-types/formats` — StringFormat/UUID/Date/Time/DateTime/IP/Domain/Email/URL/DefaultStringFormats; brand scanner + idempotent hashing |
 | Number/bigint type-formats          | ✅         | Go: `internal/compiled/typefns/formats/numeric/{numberformat.go,bigintformat.go}`; JS: `packages/ts-go-run-types/src/formats/{numberFormats.ts,bigintFormats.ts}` |
 | Binary serialization                | ✅         | Go: `internal/compiled/typefns/{binary_to.go,binary_from.go}`; JS: `packages/ts-go-run-types/src/{createBinary.ts,runtypes/dataView.ts}`; allOptional/paramsSlice router conveniences intentionally not ported (see "Binary serialization — function-params router conveniences") |
-| Decorators (general-purpose)        | ❌ pending | brand scanner landed for formats; general decorators (arbitrary brand objects beyond the format name+params shape) still pending |
+| Generic type-metadata (`typeMeta`)  | ✅         | any `atomic & { obj }` intersection surfaces its object members as opaque `typeMeta` (renamed from `decorators`; subsumes the old number `brand`). TS `@decorator`-syntax capture + validating constraint decorators (`MinLength<5>`) remain out of scope |
 | `infer` kind                        | ❌ pending | reserved in the enum, only meaningful inside unresolved conditional types       |
 | Pre-process build mode              | ❌ pending | bundler-agnostic CLI that writes the cache without Vite                         |
 | Serializer circular-detection       | ❌ pending | typefns currently treats every compound as non-inlined as a safer default       |

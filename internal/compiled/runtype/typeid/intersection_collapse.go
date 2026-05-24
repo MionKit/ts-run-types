@@ -84,7 +84,7 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 		brandIDs := make([]string, 0, len(objectMembers))
 		var formatKey string
 		for _, objectMember := range objectMembers {
-			// Format brands are lifted out of Decorators on the serialize
+			// Format brands are lifted out of TypeMeta on the serialize
 			// side; here we mirror the lift in the ID so two intersections
 			// that differ only in their format brand still hash distinctly.
 			// Canonical params (sorted keys, recursed) make order-of-keys

@@ -150,7 +150,7 @@ export interface RunType {
   // primitive with one or more brand objects (e.g. `string & {__brand}`).
   // Each entry is a ref to an objectLiteral RunType. Mirrors deepkit's
   // TypeAnnotations.decorators.
-  decorators?: RunType[];
+  typeMeta?: RunType[];
 
   // populated when a primitive is branded with a TypeFormat<Base, Name,
   // Params, ...> marker from `@mionjs/ts-go-run-types/formats`. Sibling of

@@ -94,10 +94,10 @@ getRunTypeId<Email>();
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString for branded string, got kind=%d", tn.Kind)
 	}
-	if len(tn.Decorators) != 1 {
-		t.Fatalf("expected exactly 1 decorator, got %d", len(tn.Decorators))
+	if len(tn.TypeMeta) != 1 {
+		t.Fatalf("expected exactly 1 decorator, got %d", len(tn.TypeMeta))
 	}
-	dec := deref(dump(r), tn.Decorators[0])
+	dec := deref(dump(r), tn.TypeMeta[0])
 	if dec == nil || dec.Kind != protocol.KindObjectLiteral {
 		t.Fatalf("expected decorator to be an objectLiteral, got %+v", dec)
 	}
@@ -113,8 +113,8 @@ reflectRunTypeId(v);
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString, got kind=%d", tn.Kind)
 	}
-	if len(tn.Decorators) != 1 {
-		t.Fatalf("expected exactly 1 decorator, got %d", len(tn.Decorators))
+	if len(tn.TypeMeta) != 1 {
+		t.Fatalf("expected exactly 1 decorator, got %d", len(tn.TypeMeta))
 	}
 }
 
@@ -129,8 +129,8 @@ getRunTypeId<Tagged>();
 	if tn.Kind != protocol.KindString {
 		t.Fatalf("expected KindString, got kind=%d", tn.Kind)
 	}
-	if len(tn.Decorators) != 2 {
-		t.Fatalf("expected exactly 2 decorators, got %d", len(tn.Decorators))
+	if len(tn.TypeMeta) != 2 {
+		t.Fatalf("expected exactly 2 decorators, got %d", len(tn.TypeMeta))
 	}
 }
 
@@ -145,8 +145,8 @@ getRunTypeId<UserId>();
 	if tn.Kind != protocol.KindNumber {
 		t.Fatalf("expected KindNumber, got kind=%d", tn.Kind)
 	}
-	if len(tn.Decorators) != 1 {
-		t.Fatalf("expected 1 decorator, got %d", len(tn.Decorators))
+	if len(tn.TypeMeta) != 1 {
+		t.Fatalf("expected 1 decorator, got %d", len(tn.TypeMeta))
 	}
 }
 

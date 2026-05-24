@@ -88,7 +88,7 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 	// primitive, attach each object literal as a decorator — unless the
 	// object literal is recognised as a TypeFormat brand, in which case
 	// it is lifted onto node.FormatAnnotation and skipped from the
-	// Decorators array. Recognition is structural (presence of the two
+	// TypeMeta array. Recognition is structural (presence of the two
 	// sentinel properties); see typeid.FormatAnnotationFromType.
 	primary := primitiveMember
 	if literalMember != nil {
@@ -101,7 +101,7 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 				node.FormatAnnotation = annotation
 				continue
 			}
-			node.Decorators = append(node.Decorators, cache.Serialize(objectMember))
+			node.TypeMeta = append(node.TypeMeta, cache.Serialize(objectMember))
 		}
 		return
 	}

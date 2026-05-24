@@ -51,7 +51,7 @@ reflectRunTypeId(value);
     expect(names).toContain('b');
   }
 
-  // ---- primitive × brand → string + decorators ----------------------------
+  // ---- primitive × brand → string + typeMeta ----------------------------
 
   runTest(
     'primitive & brand static',
@@ -85,9 +85,9 @@ reflectRunTypeId(value);
   function assertBranded(cache: Parameters<typeof getTypeFor>[0]) {
     const root = getTypeFor(cache, 'brand.ts');
     expect(root.kind).toBe(ReflectionKind.string);
-    expect(root.decorators).toBeDefined();
-    expect(root.decorators!.length).toBe(1);
-    expect(root.decorators![0].kind).toBe(ReflectionKind.objectLiteral);
+    expect(root.typeMeta).toBeDefined();
+    expect(root.typeMeta!.length).toBe(1);
+    expect(root.typeMeta![0].kind).toBe(ReflectionKind.objectLiteral);
   }
 
   // ---- primitive × multiple brands ----------------------------------------
@@ -104,7 +104,7 @@ getRunTypeId<Tagged>();
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'multi.ts');
       expect(root.kind).toBe(ReflectionKind.string);
-      expect(root.decorators?.length).toBe(2);
+      expect(root.typeMeta?.length).toBe(2);
     }
   );
 
@@ -122,7 +122,7 @@ getRunTypeId<UserId>();
       const cache = await evalCacheFor(sources);
       const root = getTypeFor(cache, 'numbrand.ts');
       expect(root.kind).toBe(ReflectionKind.number);
-      expect(root.decorators?.length).toBe(1);
+      expect(root.typeMeta?.length).toBe(1);
     }
   );
 
