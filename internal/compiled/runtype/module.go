@@ -79,7 +79,7 @@ func renderFactoryArgs(runType *protocol.RunType) []string {
 		intPtrArg(runType.Visibility),   // 10: visibility
 		boolArg(runType.IsSafeName),     // 11: isSafeName
 		intPtrArg(runType.Position),     // 12: position
-		boolArg(runType.Inlined),        // 13: inlined
+		boolArg(runType.IsCircular),     // 13: isCircular
 		flagsArg(runType.Flags),         // 14: flags
 		stringArg(runType.Description),  // 15: description
 		jsonArg(runType.DefaultVal),     // 16: defaultVal

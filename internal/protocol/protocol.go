@@ -103,19 +103,18 @@ type RunType struct {
 	Family        Family     `json:"family,omitempty"`
 	TypeName      string     `json:"typeName,omitempty"`
 	TypeArguments []*RunType `json:"typeArguments,omitempty"`
-	Inlined       bool       `json:"inlined,omitempty"`
 	// IsCircular flags a RunType that appears inside its own subtree
 	// (e.g. `type CA = CA[]`). Mirrors mion's `isCircular` flag on
 	// BaseRunType (run-types/src/lib/baseRunTypes.ts) — the RT compiler
 	// uses it to force a self-recursive dependency call instead of
-	// inlining the body. The serializer does NOT yet auto-set this
-	// field; circular types still work end-to-end because every
-	// composite kind (Array / Object / Class / Tuple / Union) is
-	// non-inlined by default in typefns/inlining.go — see the docs
-	// there for the tradeoff (slightly less optimal: anonymous
-	// non-circular composites get their own factory too). When a
-	// proper circular-detection pass lands the inlining predicate
-	// can flip those compounds back to "inline unless circular".
+	// inlining the body. Auto-set by the serializer's projection pass
+	// (runtype/serialize.go assignID: a back-edge to an in-progress id
+	// marks the node circular) and rendered into the cache at the
+	// `isCircular` slot so consumers can read it directly. Note:
+	// composite kinds (Array/Object/Class/Tuple/Union) are still
+	// non-inlined unconditionally in typefns/inlining.go — flipping them
+	// to "inline unless circular or named" additionally needs TypeName
+	// population on anonymous declarations (deferred).
 	IsCircular bool `json:"isCircular,omitempty"`
 
 	// TypeLiteral
