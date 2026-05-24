@@ -79,7 +79,11 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       VERIFIED: Inlined/IsCircular/Description/Brand declared but NEVER assigned (grep empty);
       intersection collapsed (serialize.go:607); kind numbering parity 0-35. Follow-ups: add JS
       reflection-shape suite; populate IsCircular→inline-unless-circular; Inlined; Description(JSDoc).
-- [ ] 02 isType                                    → docs/audit/02-istype.md
+- [x] 02 isType → docs/audit/02-istype.md ✅ fully ported. VERIFIED: mion promise.ts emitIsType
+      THROWS (port does thenable check istype.go:324 = real ⚠️ divergence); TEMPLATE_LITERAL suite
+      cases ACTIVE (not todo — stale comment). Minor: arity guard omitted; symbol[] elem→return false
+      (not alwaysThrow); redundant union obj guards; all compounds de-inlined; strictTypes not plumbed.
+      Side-fix applied: UNSUPPORTED-KINDS.md now notes KindPromise is validation-supported.
 - [ ] 03 getTypeErrors                             → docs/audit/03-gettypeerrors.md
 - [ ] 04 unknown-keys family (huk/suk/uke/uku/ukuw)→ docs/audit/04-unknown-keys.md
 - [ ] 05 JSON serialization (pj/pjs/pjsp/sj/rj)    → docs/audit/05-json-serialization.md
