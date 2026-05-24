@@ -508,13 +508,7 @@ func emitNativeIterableRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v
 		ctorName = "Set"
 	}
 
-	var innerTypes []*protocol.RunType
-	if isMap {
-		keyType, valueType := mapKeyValueTypes(rt, ctx)
-		innerTypes = []*protocol.RunType{keyType, valueType}
-	} else {
-		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
-	}
+	innerTypes := iterableInnerTypes(rt, ctx)
 
 	indexVar := ctx.NextLocalVar("e")
 	var childCodes []string
