@@ -84,3 +84,25 @@ func (ipEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl
 func (ipEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	return vλl + ".toLowerCase()"
 }
+
+// ValidateParams checks the `version` param is 4, 6, or 'any' when present.
+func (ipEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	raw, present := annotation.Params["version"]
+	if !present {
+		return nil
+	}
+	switch value := raw.(type) {
+	case string:
+		if value == "any" || value == "4" || value == "6" {
+			return nil
+		}
+	case float64:
+		if value == 4 || value == 6 {
+			return nil
+		}
+	}
+	return []string{"FormatIP: `version` must be 4, 6, or 'any'"}
+}

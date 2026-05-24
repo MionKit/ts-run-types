@@ -50,6 +50,36 @@ func (domainEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl stri
 	return vλl + ".toLowerCase()"
 }
 
+// ValidateParams ports mion's DomainRunTypeFormat.validateParams
+// (domain.runtype.ts:235-248): names/tld travel together, are mutually
+// exclusive with pattern, and the length/part bounds stay in range.
+func (domainEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	params := annotation.Params
+	var errs []string
+	_, hasNames := params["names"].(map[string]any)
+	_, hasTld := params["tld"].(map[string]any)
+	_, hasPattern := params["pattern"]
+	if hasNames != hasTld {
+		errs = append(errs, "FormatDomain: `names` and `tld` must be used together")
+	}
+	if (hasNames || hasTld) && hasPattern {
+		errs = append(errs, "FormatDomain: cannot combine `pattern` with `names`/`tld`")
+	}
+	if value, ok := readNumberParam(params, "maxLength"); ok && value > 253 {
+		errs = append(errs, "FormatDomain: `maxLength` cannot be greater than 253")
+	}
+	if value, ok := readNumberParam(params, "maxParts"); ok && value < 2 {
+		errs = append(errs, "FormatDomain: `maxParts` cannot be less than 2")
+	}
+	if value, ok := readNumberParam(params, "minParts"); ok && value < 2 {
+		errs = append(errs, "FormatDomain: `minParts` cannot be less than 2")
+	}
+	return errs
+}
+
 // domainHasNames reports whether the decomposition path applies — i.e.
 // the params carry a `names` sub-format object (names/tld come together,
 // mion validateParams enforces it).

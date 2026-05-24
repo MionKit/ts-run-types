@@ -132,6 +132,15 @@ const (
 	// a canonical valid value, so a mismatch is always a type-definition
 	// bug. Args: [sample, pattern-source].
 	CodeFMTSampleMismatch = "FMT001"
+
+	// CodeFMTInvalidParams — a format's params violate an invariant
+	// (mutually-exclusive options, out-of-range bound, missing required
+	// mockSamples, unknown enum value, …). Error severity: the type
+	// definition is malformed and the emitted validator would be
+	// unreachable or wrong. Args: [violation message]. Replaces mion's
+	// build-time `validateParams` throw (run JS-side at JIT compile; we
+	// run it AOT in Go and surface it as a diagnostic).
+	CodeFMTInvalidParams = "FMT002"
 )
 
 // Unknown-keys family — no root throws today; only child drops.
@@ -184,4 +193,5 @@ func init() {
 	// Format-family — a mockSample that contradicts its own pattern is a
 	// type-definition bug; surface it as an error.
 	register(Definition{Code: CodeFMTSampleMismatch, Family: FamilyRunType, Severity: SeverityError, Title: "format mockSample does not match pattern"})
+	register(Definition{Code: CodeFMTInvalidParams, Family: FamilyRunType, Severity: SeverityError, Title: "invalid type-format params"})
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -175,6 +176,14 @@ func (e IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCTyp
 	// format-specific regex / call.
 	if base.Type == CodeE && base.Code != "" && rt != nil && rt.FormatAnnotation != nil {
 		if emitter, ok := formats.LookupForRunType(rt); ok {
+			// Build-time param validation (mion's validateParams, run AOT).
+			// Emitted from the isType walk since isType is rendered for every
+			// format-bearing string; deduped per-code-per-walk by the walker.
+			if validator, ok := emitter.(formats.ParamValidator); ok {
+				for _, msg := range validator.ValidateParams(rt.FormatAnnotation) {
+					ctx.EmitDiagnostic(diag.CodeFMTInvalidParams, msg)
+				}
+			}
 			check := emitter.EmitIsTypeCheck(rt.FormatAnnotation, ctx.Vλl, ctx)
 			if check != "" {
 				base.Code = "(" + base.Code + " && (" + check + "))"

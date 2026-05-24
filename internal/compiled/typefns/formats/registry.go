@@ -86,6 +86,16 @@ type Emitter interface {
 	EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
 }
 
+// ParamValidator is an OPTIONAL Emitter capability: formats that have
+// build-time param invariants (mutual exclusivity, ranges, required
+// mockSamples, enum membership) implement it. Replaces mion's JS-side
+// `validateParams` throw — we run it AOT in Go and the host emits a
+// CodeFMTInvalidParams diagnostic per returned message. Returns nil when
+// the params are valid.
+type ParamValidator interface {
+	ValidateParams(annotation *protocol.FormatAnnotation) []string
+}
+
 // FormatTransformer is an OPTIONAL Emitter capability: formats that
 // mutate the value as part of the `format` RT-fn (string transforms like
 // trim/lowercase; domain/ip/url lowercasing) implement it. Formats with
