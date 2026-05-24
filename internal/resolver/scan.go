@@ -213,6 +213,12 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if !injectionMatched {
 		return protocol.Site{}, diagnostics, false
 	}
+	// Guard against a `Temporal.*` type that silently resolved to `any`
+	// because the consumer's tsconfig lib doesn't load the Temporal
+	// namespace — otherwise the emitted validator accepts anything. Emitted
+	// for the injection call regardless of what the type argument resolved
+	// to (it inspects the written syntax, not the resolved type).
+	diagnostics = append(diagnostics, resolver.detectTemporalNotLoaded(file, call)...)
 	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
