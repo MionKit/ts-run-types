@@ -17,7 +17,7 @@ import type {MinMax, DateTimeBound} from './dateTimeParams.ts';
 // an absolute ISO datetime literal OR a relative now±P spec; both date
 // and time duration components are allowed (a Date carries both). An
 // Invalid Date (NaN) is always rejected by the base check.
-export interface FormatParams_NativeDate extends MinMax<DateTimeBound> {}
+export type FormatParams_NativeDate = MinMax<DateTimeBound>;
 
 // FormatDate — the branded `Date` alias users annotate with, e.g.
 // `FormatDate<{min: 'now'}>` (no past dates) or
