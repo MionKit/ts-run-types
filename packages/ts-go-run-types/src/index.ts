@@ -62,6 +62,8 @@ export {
   type UnknownKeyErrorsFn,
   createUnknownKeysToUndefined,
   type UnknownKeysToUndefinedFn,
+  createFormat,
+  type FormatFn,
   createJsonEncoder,
   type JsonEncoderFn,
   type JsonEncoderOptions,

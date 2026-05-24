@@ -339,23 +339,24 @@ const (
 type CacheKind string
 
 const (
-	CacheKindRunType                CacheKind = "runType"
-	CacheKindIsType                 CacheKind = "isType"
-	CacheKindTypeErrors             CacheKind = "typeErrors"
-	CacheKindPrepareForJson         CacheKind = "prepareForJson"
-	CacheKindRestoreFromJson        CacheKind = "restoreFromJson"
-	CacheKindStringifyJson          CacheKind = "stringifyJson"
+	CacheKindRunType                    CacheKind = "runType"
+	CacheKindIsType                     CacheKind = "isType"
+	CacheKindTypeErrors                 CacheKind = "typeErrors"
+	CacheKindPrepareForJson             CacheKind = "prepareForJson"
+	CacheKindRestoreFromJson            CacheKind = "restoreFromJson"
+	CacheKindStringifyJson              CacheKind = "stringifyJson"
 	CacheKindPrepareForJsonSafe         CacheKind = "prepareForJsonSafe"
 	CacheKindPrepareForJsonSafePreserve CacheKind = "prepareForJsonSafePreserve"
-	CacheKindHasUnknownKeys         CacheKind = "hasUnknownKeys"
-	CacheKindStripUnknownKeys       CacheKind = "stripUnknownKeys"
-	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
+	CacheKindHasUnknownKeys             CacheKind = "hasUnknownKeys"
+	CacheKindStripUnknownKeys           CacheKind = "stripUnknownKeys"
+	CacheKindUnknownKeyErrors           CacheKind = "unknownKeyErrors"
 	CacheKindUnknownKeysToUndefined     CacheKind = "unknownKeysToUndefined"
 	CacheKindUnknownKeysToUndefinedWire CacheKind = "unknownKeysToUndefinedWire"
 	CacheKindToBinary                   CacheKind = "toBinary"
 	CacheKindFromBinary                 CacheKind = "fromBinary"
+	CacheKindFormat                     CacheKind = "format"
 	CacheKindPureFns                    CacheKind = "pureFns"
-	CacheKindAll                    CacheKind = "all"
+	CacheKindAll                        CacheKind = "all"
 )
 
 // Request is the union of all query operations (see resolver/dispatch).
@@ -441,6 +442,10 @@ type Response struct {
 	// RunType has a supported emit arm in the corresponding emitter.
 	AddedToBinary   bool `json:"addedToBinary,omitempty"`
 	AddedFromBinary bool `json:"addedFromBinary,omitempty"`
+	// AddedFormat mirrors AddedIsType for the `format` transform emitter —
+	// true when a newly-interned RunType carries a value-transforming
+	// format (string transform / domain/ip/url lowercasing).
+	AddedFormat bool `json:"addedFormat,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -499,6 +504,10 @@ type Response struct {
 	// projection semantics as PrepareForJsonCacheSource.
 	ToBinaryCacheSource   string `json:"toBinaryCacheSource,omitempty"`
 	FromBinaryCacheSource string `json:"fromBinaryCacheSource,omitempty"`
+	// FormatCacheSource is the rendered body of the `virtual:runtypes-format`
+	// module — the `format` transform RT family (createFormat<T>). Same
+	// factory shape and projection semantics as IsTypeCacheSource.
+	FormatCacheSource string `json:"formatCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -617,6 +626,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedFromBinary {
 		out["addedFromBinary"] = true
 	}
+	if response.AddedFormat {
+		out["addedFormat"] = true
+	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
 	}
@@ -673,6 +685,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.FromBinaryCacheSource != "" {
 		out["fromBinaryCacheSource"] = response.FromBinaryCacheSource
+	}
+	if response.FormatCacheSource != "" {
+		out["formatCacheSource"] = response.FormatCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource

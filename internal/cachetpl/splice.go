@@ -28,22 +28,23 @@ const MarkerLine = "// #### REPLACE HERE ####"
 // Skeleton names — match the file names under
 // packages/ts-go-run-types/src/caches/.
 const (
-	SkeletonRunTypes               = "runTypesCache.ts"
-	SkeletonIsType                 = "isTypeCache.ts"
-	SkeletonTypeErrors             = "getTypeErrorsCache.ts"
-	SkeletonPrepareForJson         = "prepareForJsonCache.ts"
-	SkeletonRestoreFromJson        = "restoreFromJsonCache.ts"
-	SkeletonStringifyJson          = "stringifyJsonCache.ts"
+	SkeletonRunTypes                   = "runTypesCache.ts"
+	SkeletonIsType                     = "isTypeCache.ts"
+	SkeletonTypeErrors                 = "getTypeErrorsCache.ts"
+	SkeletonPrepareForJson             = "prepareForJsonCache.ts"
+	SkeletonRestoreFromJson            = "restoreFromJsonCache.ts"
+	SkeletonStringifyJson              = "stringifyJsonCache.ts"
 	SkeletonPrepareForJsonSafe         = "prepareForJsonSafeCache.ts"
 	SkeletonPrepareForJsonSafePreserve = "prepareForJsonSafePreserveCache.ts"
-	SkeletonHasUnknownKeys         = "hasUnknownKeysCache.ts"
-	SkeletonStripUnknownKeys       = "stripUnknownKeysCache.ts"
-	SkeletonUnknownKeyErrors       = "unknownKeyErrorsCache.ts"
+	SkeletonHasUnknownKeys             = "hasUnknownKeysCache.ts"
+	SkeletonStripUnknownKeys           = "stripUnknownKeysCache.ts"
+	SkeletonUnknownKeyErrors           = "unknownKeyErrorsCache.ts"
 	SkeletonUnknownKeysToUndefined     = "unknownKeysToUndefinedCache.ts"
 	SkeletonUnknownKeysToUndefinedWire = "unknownKeysToUndefinedWireCache.ts"
 	SkeletonToBinary                   = "toBinaryCache.ts"
 	SkeletonFromBinary                 = "fromBinaryCache.ts"
-	SkeletonPureFns                = "pureFnsCache.ts"
+	SkeletonFormat                     = "formatCache.ts"
+	SkeletonPureFns                    = "pureFnsCache.ts"
 )
 
 // Splice loads the named skeleton, replaces the single MarkerLine line

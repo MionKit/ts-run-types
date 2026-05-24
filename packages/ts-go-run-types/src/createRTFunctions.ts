@@ -15,6 +15,7 @@ import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCac
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
+import {initCache as initFormatCache} from './caches/formatCache.ts';
 import {getRTUtils} from './runtypes/rtUtils.ts';
 import {lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn} from './runtypes/types.ts';
@@ -88,6 +89,30 @@ export type UnknownKeyErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment
  *  unknown property to `undefined` instead of removing it. **/
 export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
 
+/** FormatValue<T> reduces a type to the plain runtime value the format
+ *  transform operates on: TypeFormat brands collapse to their base
+ *  (string formats → `string`), nested objects / arrays recurse. The
+ *  brand exists only at the type level (erased at runtime), so callers
+ *  pass and receive plain data — `createFormat<FormatLowercase>()` is
+ *  `(value: string) => string`, not a branded-in/branded-out fn. **/
+export type FormatValue<T> = T extends string
+  ? string
+  : T extends number
+    ? number
+    : T extends boolean
+      ? boolean
+      : T extends readonly (infer E)[]
+        ? FormatValue<E>[]
+        : T extends object
+          ? {[K in keyof T]: FormatValue<T[K]>}
+          : T;
+
+/** Transform function returned by `createFormat<T>()`. Applies the value
+ *  mutations declared by any TypeFormat in `T` (string trim / lowercase /
+ *  uppercase / capitalize; domain / ip / url lowercasing) and returns the
+ *  transformed value. Identity when `T` carries no transforming format. **/
+export type FormatFn<T> = (value: FormatValue<T>) => FormatValue<T>;
+
 // Internal RT-primitive signatures consumed by the JSON encoder/decoder.
 export type PrepareForJsonFn = (value: unknown) => unknown;
 export type RestoreFromJsonFn = (value: unknown) => unknown;
@@ -143,6 +168,7 @@ initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
 initPrepareForJsonSafeCache(_utils);
 initPrepareForJsonSafePreserveCache(_utils);
+initFormatCache(_utils);
 // Binary cache init lives in `./createBinary.ts` so binary cache modules
 // don't get pulled into bundles that never reference the binary encoder/decoder.
 
@@ -224,6 +250,14 @@ export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefi
   'uku',
   identityValueFn
 ) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
+
+// createFormat returns a `(value) => transformedValue` for `T`. Identity
+// fallback covers both noop-format types and the no-plugin case.
+export const createFormat = createRTFunction<FormatFn<unknown>>(
+  'createFormat',
+  'fmt',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => FormatFn<T>;
 
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
@@ -328,4 +362,5 @@ if (hot) {
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/prepareForJsonSafePreserveCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/formatCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }

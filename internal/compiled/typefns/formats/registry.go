@@ -86,6 +86,21 @@ type Emitter interface {
 	EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
 }
 
+// FormatTransformer is an OPTIONAL Emitter capability: formats that
+// mutate the value as part of the `format` RT-fn (string transforms like
+// trim/lowercase; domain/ip/url lowercasing) implement it. Formats with
+// no transform (uuid/date/time/…) simply don't, and the format emitter
+// treats them as identity. Kept off the mandatory Emitter surface so
+// adding a transform to one format doesn't force a no-op method onto
+// every other.
+type FormatTransformer interface {
+	// EmitFormatTransform returns a JS EXPRESSION that transforms `vλl`
+	// (e.g. `v.trim().toLowerCase()`), or "" when this format's params
+	// specify no transform (identity). The format emitter wraps a
+	// non-empty result as `vλl = <expr>`.
+	EmitFormatTransform(annotation *protocol.FormatAnnotation, vλl string, ctx EmitContext) string
+}
+
 var (
 	registryMu sync.RWMutex
 	registry   = map[registryKey]Emitter{}

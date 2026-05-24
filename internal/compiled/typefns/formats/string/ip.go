@@ -78,3 +78,9 @@ func (ipEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl
 	return "if (!(" + check + ")) " +
 		formatErrCall(ctx, pathExpr, errorsArr, "string", "ip", "version", versionLiteral)
 }
+
+// EmitFormatTransform lowercases the IP (mion ip.runtype.ts:44 —
+// canonicalises IPv6 hex digits to lower case; a no-op for IPv4).
+func (ipEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+	return vλl + ".toLowerCase()"
+}
