@@ -123,8 +123,7 @@ describe('format getTypeErrors / STRING_FORMAT', () => {
   it('FormatUrlHttp — http(s) only', () => assertFormatGetTypeErrors(STRING.urlHttp));
   it('FormatUrlFile — file URLs', () => assertFormatGetTypeErrors(STRING.urlFile));
   it('registerFormatPattern — slug regex recovered from the call site', () => assertFormatGetTypeErrors(STRING.pattern_slug));
-  it('registerFormatPattern — {source, flags} overload (case-insensitive)', () =>
-    assertFormatGetTypeErrors(STRING.pattern_hex));
+  it('registerFormatPattern — {source, flags} overload (case-insensitive)', () => assertFormatGetTypeErrors(STRING.pattern_hex));
 
   it('all STRING_FORMAT getTypeErrors tests ran', () => {
     expect(ranTests).toBe(withGetTypeErrors(STRING));

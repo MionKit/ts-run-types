@@ -21,10 +21,10 @@ const unknownKeysPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-f
 //
 // Mirrors mion's addObjectPropsToContext output (interface.ts:232-269).
 type objectKeysContext struct {
-	keysName          string   // variable name in closure scope for the RT-children key array
-	allKeysName       string   // variable name in closure scope for the ALL-children key array
+	keysName         string   // variable name in closure scope for the RT-children key array
+	allKeysName      string   // variable name in closure scope for the ALL-children key array
 	rtChildrenNames  []string // sorted unique RT-children property names
-	allChildrenNames  []string // sorted unique ALL-children property names
+	allChildrenNames []string // sorted unique ALL-children property names
 	hasNonRTChildren bool     // true when RT children is a strict subset of ALL children
 }
 
@@ -56,10 +56,10 @@ func addObjectPropsToContext(rt *protocol.RunType, ctx *EmitContext) objectKeysC
 	}
 
 	return objectKeysContext{
-		keysName:          keysName,
-		allKeysName:       allKeysName,
+		keysName:         keysName,
+		allKeysName:      allKeysName,
 		rtChildrenNames:  rtChildrenNames,
-		allChildrenNames:  allChildrenNames,
+		allChildrenNames: allChildrenNames,
 		hasNonRTChildren: hasNonRTChildren,
 	}
 }

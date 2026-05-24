@@ -78,7 +78,7 @@ func main() {
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
-		emitCacheFunctions    bool
+		emitCacheFunctions bool
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -137,7 +137,7 @@ func main() {
 		Cwd:               absCwd,
 		SingleThreaded:    singleThreaded,
 		CacheDir:          cacheDir,
-		EmitCreateRTFn:   emitCacheFunctions,
+		EmitCreateRTFn:    emitCacheFunctions,
 	}
 
 	var r *resolver.Resolver

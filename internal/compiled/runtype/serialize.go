@@ -653,7 +653,7 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 }
 
 // projectTemplateLiteral serializes a TS template literal type
-// (`` `prefix-${number}` ``) onto the Literal field. Mirrors mion's
+// (“ `prefix-${number}` “) onto the Literal field. Mirrors mion's
 // approach: store the literal text segments + placeholder spans so
 // the RT emit can build an anchored regex.
 //

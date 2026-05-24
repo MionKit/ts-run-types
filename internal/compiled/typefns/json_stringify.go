@@ -538,12 +538,12 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 // inside string literals).
 //
 // Approach:
-//   1. JSON-marshal the name to get a valid JSON string literal —
-//      `json.Marshal("weird name \n?")` → `"weird name \n?"` (with
-//      backslash + n as text).
-//   2. JS-escape the result for embedding in a single-quoted JS
-//      literal — backslashes and single quotes get escaped.
-//   3. Append the `:` separator inside the same JS literal.
+//  1. JSON-marshal the name to get a valid JSON string literal —
+//     `json.Marshal("weird name \n?")` → `"weird name \n?"` (with
+//     backslash + n as text).
+//  2. JS-escape the result for embedding in a single-quoted JS
+//     literal — backslashes and single quotes get escaped.
+//  3. Append the `:` separator inside the same JS literal.
 //
 // When JS evaluates the emitted literal, the result is the
 // JSON-encoded property prefix (`"weird name \n?":` as a text
