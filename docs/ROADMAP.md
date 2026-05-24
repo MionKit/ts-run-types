@@ -13,7 +13,7 @@ Living document. Captures **what's implemented**, **what's deliberately out of s
 | Wire formats                        | ✅         | JSON dump + self-wired TS module (`--out-json` / `--out-ts`)                    |
 | Vite plugin                         | ✅         | byte-offset rewriter, `virtual:runtypes-cache` module                           |
 | Go fixture tests                    | ✅         | F1–F30 + atomic / object / circular kinds                                       |
-| Vite plugin tests                   | ✅         | rewrite, atomic, wrapping suites — 201/201                                      |
+| Vite plugin tests                   | ✅         | rewrite, atomic, wrapping + projection suites — all green                                      |
 | `isType` RT emit                   | ✅         | every mion node category ported; see `test/adapters/isType.test.ts`             |
 | `templateLiteral` projection+emit   | ✅         | regex-compile at RT-build time; also wired into index-signature key patterns   |
 | Native containers (Map/Set/Promise) | ✅         | `instanceof` + iteration over `.entries()` / `.values()`; thenable check        |
