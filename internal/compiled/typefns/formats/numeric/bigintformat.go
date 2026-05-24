@@ -151,19 +151,25 @@ func bigIntType(params map[string]any) (isBigInt64, isBigUint64 bool) {
 }
 
 // ValidateParams ports mion's BigIntRunTypeFormat.validateParams
-// (bigIntFormat.runtype.ts:189-219) MINUS the {min,gt}/{max,lt} mutual
-// exclusivity: as with the number + date families, all four bounds may
-// coexist and simply AND at runtime ("allow all combinations"). Only
-// inversion of a lower-vs-upper pair (min>max, gt>=lt) is rejected, plus
-// multipleOf>0. No integer/float distinction. A `0n` bound is falsy in
-// mion and so escapes the ordering checks — replicated via the explicit
-// non-zero guards.
+// (bigIntFormat.runtype.ts:189-219): mutual-exclusivity of {min,gt} and
+// {max,lt} (a lower/upper edge is inclusive OR exclusive, never both),
+// min>max, gt>=lt, multipleOf>0. No integer/float distinction. The
+// `[x,y].filter(Boolean)` / `x && y` checks are kept mion-faithful: a `0n`
+// bound is falsy in mion and so escapes these checks — replicated via
+// bigTruthy + the explicit non-zero guards.
 func (bigintFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
 	}
 	params := annotation.Params
 	var errs []string
+
+	if bigTruthy(params, "min")+bigTruthy(params, "gt") > 1 {
+		errs = append(errs, "BigIntFormat: cannot specify more than one of `min` or `gt`")
+	}
+	if bigTruthy(params, "max")+bigTruthy(params, "lt") > 1 {
+		errs = append(errs, "BigIntFormat: cannot specify more than one of `max` or `lt`")
+	}
 
 	min, hasMin := readBigIntParam(params, "min")
 	max, hasMax := readBigIntParam(params, "max")
@@ -180,4 +186,13 @@ func (bigintFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 		errs = append(errs, "BigIntFormat: `multipleOf` must be greater than 0")
 	}
 	return errs
+}
+
+// bigTruthy returns 1 when the bigint param is present AND non-zero
+// (mion's `[…].filter(Boolean)` drops 0n), else 0.
+func bigTruthy(params map[string]any, key string) int {
+	if value, ok := readBigIntParam(params, key); ok && value.Sign() != 0 {
+		return 1
+	}
+	return 0
 }

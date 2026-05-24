@@ -81,7 +81,11 @@ func TestDateTimeBounds_Matrix(t *testing.T) {
 		{"date_gt_gt_lt", "date", `{format: 'YYYY-MM-DD'; gt: '2020-06-01'; lt: '2020-01-01'}`, true, "greater than"},
 		{"date_min_gt_lt", "date", `{format: 'YYYY-MM-DD'; min: '2020-06-01'; lt: '2020-01-01'}`, true, "greater than"},
 		{"date_gt_gt_max", "date", `{format: 'YYYY-MM-DD'; gt: '2020-06-01'; max: '2020-01-01'}`, true, "greater than"},
-		{"date_all_four_ok", "date", `{format: 'YYYY-MM-DD'; min: '2020-01-01'; gt: '2020-02-01'; lt: '2020-11-01'; max: '2020-12-01'}`, false, ""},
+		// inclusive⊕exclusive: a lower (or upper) edge is one or the other.
+		{"date_min_and_gt_rejected", "date", `{format: 'YYYY-MM-DD'; min: '2020-01-01'; gt: '2020-02-01'}`, true, "both `min` and `gt`"},
+		{"date_max_and_lt_rejected", "date", `{format: 'YYYY-MM-DD'; max: '2020-12-01'; lt: '2020-11-01'}`, true, "both `max` and `lt`"},
+		{"date_min_lt_distinct_ok", "date", `{format: 'YYYY-MM-DD'; min: '2020-01-01'; lt: '2020-11-01'}`, false, ""},
+		{"date_gt_max_distinct_ok", "date", `{format: 'YYYY-MM-DD'; gt: '2020-02-01'; max: '2020-12-01'}`, false, ""},
 		{"date_gt_wrong_layout", "date", `{format: 'YYYY-MM-DD'; gt: '08:30'}`, true, "valid"},
 		{"date_gt_rel_date_ok", "date", `{format: 'YYYY-MM-DD'; gt: 'now-P1Y'}`, false, ""},
 		{"date_lt_rel_time_rejected", "date", `{format: 'YYYY-MM-DD'; lt: 'now+PT1H'}`, true, "time components"},

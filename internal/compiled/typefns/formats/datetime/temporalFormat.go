@@ -77,12 +77,21 @@ func (e temporalFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotat
 		}
 		errs = append(errs, restrictComponents(parsed, key, e.relBoundKind())...)
 	}
+	// A bound edge is inclusive (`min`/`max`) OR exclusive (`gt`/`lt`),
+	// never both — same rule as the string-date + number/bigint families.
+	if hasBound(annotation.Params, "min") && hasBound(annotation.Params, "gt") {
+		errs = append(errs, "Format"+temporalTitle(e.info)+": cannot specify both `min` and `gt` (a lower bound is inclusive or exclusive, not both)")
+	}
+	if hasBound(annotation.Params, "max") && hasBound(annotation.Params, "lt") {
+		errs = append(errs, "Format"+temporalTitle(e.info)+": cannot specify both `max` and `lt` (an upper bound is inclusive or exclusive, not both)")
+	}
 	return errs
 }
 
 // temporalBoundOps maps each bound param to the sign the static `compare`
 // result must satisfy to PASS: min `>= 0`, max `<= 0`, gt `> 0`, lt `< 0`.
-// All four AND together (no exclusivity — see the numeric/date families).
+// Surviving bounds AND together — at most one lower (min XOR gt) and one
+// upper (max XOR lt); the same edge can't be both (see ValidateParams).
 var temporalBoundOps = []struct {
 	key string
 	op  string
