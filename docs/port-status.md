@@ -227,17 +227,33 @@ Documented divergence; not a bug.
 
 ### 5. Union encoding strictly `[memberIndex, value]`, no shortcut
 
-**Where**: `internal/caches/jitfn/preparefjson.go` `emitUnionPrepareForJson`.
+**Where**:
+- `internal/caches/jitfn/preparefjson.go` `emitUnionPrepareForJson`
+- `internal/caches/jitfn/stringifyjson.go` `emitUnionStringifyJson`
 
 **Mion**: per-member, only wraps `[memberIndex, value]` when the
 member's own prepare/restore is non-noop; for an all-atomic-noop
 member the value is returned as-is and the decode shape-check
-distinguishes encoded vs raw.
+distinguishes encoded vs raw. Mion's stringifyJson exposes this in
+the union spec's code-introspection tests
+(`stringifySpec/09StringifyUnions.spec.ts:51-77, 70-77`) which
+assert the generated JIT source does NOT contain a `[<idx>,`
+wrap-marker for noop members.
 
-**Us**: always wraps every encoded value. Less efficient (extra
-2-element array per union member) but simpler dispatch on decode.
+**Us**: always wraps every encoded value, in both prepareForJson AND
+stringifyJson. Less efficient (extra 2-element array per union
+member) but simpler dispatch on decode. The two emit families
+agree on wire shape, so the round-trip is correct; restoreFromJson's
+shape-check still handles both wrapped and unwrapped inputs, so
+mion's wire format is also readable by our restoreFromJson — only
+our emit-time output differs.
 
-Trade-off, not a bug. Could be optimized to match mion's shortcut.
+Trade-off, not a bug. Mion's `skipEncode + needsTupleEncoding`
+optimisation
+(`mion/.../stringifyJson.ts:295-306` and
+`union.ts:127`) is the canonical fix; porting it requires
+coordinating BOTH our prepareForJson + stringifyJson + restoreFromJson
+shape-check at once, which is queued as a follow-up.
 
 ### 6. `JIT_SUITE` → `VALIDATION_SUITE` rename
 
