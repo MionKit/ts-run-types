@@ -39,6 +39,12 @@ type NumberFirstTF = {bounded: FormatNumber<{min: 0; max: 10}>; whole: FormatNum
 const DateFirst = define({past: {type: 'date', max: 'now'}});
 type DateFirstTF = {past: FormatDate<{max: 'now'}>};
 
+// An inline value-channel regex converges with the type-first {source,flags}
+// form for the same pattern — the Go scanner recovers identical {source,flags}
+// from either authoring path.
+const RegexFirst = define({slug: {type: 'string', pattern: /^[a-z-]+$/}});
+type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: ''}}>};
+
 describe('value-first / convergence with type-first', () => {
   it('string model converges to the same validator', () => {
     expect(createIsType<ModelType<typeof StringFirst>>()).toBe(createIsType<StringFirstTF>());
@@ -50,5 +56,9 @@ describe('value-first / convergence with type-first', () => {
 
   it('date model converges to the same validator', () => {
     expect(createIsType<ModelType<typeof DateFirst>>()).toBe(createIsType<DateFirstTF>());
+  });
+
+  it('inline regex converges with the type-first {source,flags} form', () => {
+    expect(createIsType<ModelType<typeof RegexFirst>>()).toBe(createIsType<RegexFirstTF>());
   });
 });
