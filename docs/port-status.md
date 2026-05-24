@@ -9,17 +9,45 @@ gap) so follow-up work can be triaged.
 
 Current test counts (after the most recent push):
 
-- **`@mionjs/ts-go-run-types`**: 499 pass / 1 fail (down from 9 fails).
-  The one open failure is the deferred `OBJECTS.strip_extra_params`
-  sample — see "Open failures" → Failure 1.
+- **`@mionjs/ts-go-run-types`**: 506 pass / 0 fail. All 9 original
+  open failures closed; 6 new EXTRA_PARAMS section tests added
+  (5 cases + 1 meta-counter).
 - **`vite-plugin-runtypes`**: 208 / 208
 - **Go (`internal/...`)**: all green
 
 Closed since the prior snapshot:
 
-- Failures 2–9 in the "Open failures — analysis" section below.
+- Failures 1–9 in the "Open failures — analysis" section below.
   Resolutions summarised at the top of each entry, full breakdown
-  follows. Net: -8 deterministic failures, no remaining flakes.
+  follows. Net: -9 deterministic failures, no remaining flakes.
+
+## JSON serialisation semantics — two paths
+
+mion ships two paths for `T → JSON-string` with intentionally-
+different extras semantics; we mirror both in the test suite:
+
+- **Unsafe path** (`prepareForJson + JSON.stringify`):
+  `prepareForJson` walks declared children, transforms them in
+  place, and mutates `v`. Extras (properties not in the type) are
+  never visited and pass through to `JSON.stringify`, which then
+  includes JSON-compatible extras, throws on bigint extras, and
+  silently drops symbol-/function-valued extras. This is the
+  baseline path exercised by `test/adapters/serializationRoundTrip.test.ts`.
+- **Safe path** (`stripUnknownKeys + prepareForJson + JSON.stringify`,
+  equivalent to mion's `stringifyJson` JIT family which we have not
+  yet ported): extras are stripped before serialise, so the output
+  contains only declared keys regardless of what was on `v`. A new
+  `test/adapters/serializationSafeRoundTrip.test.ts` runs against
+  the same suite in a follow-up phase.
+
+`SerializationCase.getTestData` is the canonical source for the
+unsafe-path expectations. `getTestDataForStringify` is an optional
+override consumed by the safe adapter when the expected output
+diverges (typically only for extras-bearing cases). The new
+`EXTRA_PARAMS` section in `test/suites/serialization-suite.ts`
+documents every divergence kind in executable form
+(JSON-compatible extras, bigint extras, symbol/function extras,
+nested extras).
 
 ## Migrated JIT function families
 
@@ -197,15 +225,23 @@ for archeology / future regression triage. Each entry:
 
 ### Failure 1 — `OBJECTS > strip extra params (mion semantic — extras pass through)`
 
-**Status**: **OPEN, deferred** — the extras pass-through semantic
-needs a separate decision pass. Code-side, our prepareForJson already
-matches mion (extras never visited, JSON.stringify preserves them in
-the output). The test sample's `deserializedValues: [noExtraParams]`
-override asserts the opposite of mion's actual spec (which has the
-strip expectation commented out with the explicit note that
-`JSON.stringify do not strip extra params`). Removing the override
-would close this — but the user is reviewing the extras semantic
-before any change here lands.
+**Closed by**: test-suite restructure to document both serialise
+paths explicitly. The case was renamed to
+`OBJECTS.extras_passthrough_unsafe` and its incorrect
+`deserializedValues: [noExtraParams]` override was dropped — the
+unsafe path now correctly compares against the input (extras
+preserved through `prepareForJson + JSON.stringify`). The strip
+expectation moves to `getTestDataForStringify` for consumption by
+the forthcoming safe adapter. A new top-level `EXTRA_PARAMS`
+section documents every extras-divergence in executable form:
+JSON-compatible passthrough, bigint-extra-throws, symbol/function
+silent-drops, nested extras. See the "JSON serialisation
+semantics" section above for the contract.
+
+The misleadingly-named `UNIONS.union_extra_symbol_prop_throws` was
+also renamed to `UNIONS.union_extra_symbol_prop_drops` in the same
+pass (`JSON.stringify` silently drops symbol-valued props per
+ECMAScript spec — no throw was ever exercised).
 
 - **Where**: `test/adapters/serializationRoundTrip.test.ts` →
   `serialization-suite.ts` `OBJECTS.strip_extra_params`
@@ -499,11 +535,13 @@ failure, deferred for a separate decision on the extras semantic.
    structural-id collision via cycle ref — fixed in
    `typeid/typeid.go` cycleRef by appending the symbol's first
    declaration position when no alias name is in play.
-5. **Sample fix for strip_extra_params** — DEFERRED. Removing
-   `deserializedValues` from the case would close Failure 1, but the
-   extras pass-through semantic is being reviewed separately. The
-   implementation already matches mion (extras never visited);
-   only the test sample contradicts mion's spec.
+5. ~~**Sample fix for strip_extra_params**~~ — DONE; closes
+   Failure 1. The case was renamed to
+   `OBJECTS.extras_passthrough_unsafe` (drops the misleading
+   `deserializedValues` override) and a new top-level `EXTRA_PARAMS`
+   section was added to document the unsafe-vs-safe path divergence
+   in executable form. See the "JSON serialisation semantics"
+   section near the top of this doc for the contract.
 
 ## Reference
 
