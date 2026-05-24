@@ -51,7 +51,7 @@ export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: 
     // renderer skipped emission. Mion's `12JsonOthers.spec.ts`
     // expects a throw at runtype.createJitFunction time — surfacing
     // that here is a future-phase task: doing so today regresses
-    // jit-suite cases (Array<symbol>, Promise<string>) whose
+    // serialization-suite cases (Array<symbol>, Promise<string>) whose
     // round-trip thunks invoke createPrepareForJson but never exercise
     // the fn (empty valid samples). Falling back to identity keeps
     // those cases trivially green while the serialization-suite's
