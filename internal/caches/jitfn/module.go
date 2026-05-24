@@ -67,6 +67,31 @@ func StringifyJsonModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, StringifyJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJson)
 }
 
+// PrepareForJsonFlatModule writes the runtime artifact for the
+// prepareForJsonFlat cache module — the optimised sibling of
+// PrepareForJsonModule. Same per-kind dispatch except for KindUnion,
+// which encodes object members into a merged `[-1, mergedObject]`
+// envelope (see union_flat.go).
+func PrepareForJsonFlatModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["prepareForJsonFlat"]
+	return RenderFnModule(writer, dump, settings, PrepareForJsonFlatEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonFlat)
+}
+
+// RestoreFromJsonFlatModule — sibling of RestoreFromJsonModule;
+// decodes the wire shape produced by PrepareForJsonFlatModule /
+// StringifyJsonFlatModule.
+func RestoreFromJsonFlatModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["restoreFromJsonFlat"]
+	return RenderFnModule(writer, dump, settings, RestoreFromJsonFlatEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJsonFlat)
+}
+
+// StringifyJsonFlatModule — sibling of StringifyJsonModule; emits the
+// JSON for the flat-union wire shape directly.
+func StringifyJsonFlatModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["stringifyJsonFlat"]
+	return RenderFnModule(writer, dump, settings, StringifyJsonFlatEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJsonFlat)
+}
+
 // HasUnknownKeysModule writes the runtime artifact for the
 // hasUnknownKeys cache module — boolean predicate per mion's
 // emitHasUnknownKeys.
