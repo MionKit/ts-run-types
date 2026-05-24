@@ -305,6 +305,7 @@ const (
 	CacheKindTypeErrors             CacheKind = "typeErrors"
 	CacheKindPrepareForJson         CacheKind = "prepareForJson"
 	CacheKindRestoreFromJson        CacheKind = "restoreFromJson"
+	CacheKindStringifyJson          CacheKind = "stringifyJson"
 	CacheKindHasUnknownKeys         CacheKind = "hasUnknownKeys"
 	CacheKindStripUnknownKeys       CacheKind = "stripUnknownKeys"
 	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
@@ -363,6 +364,11 @@ type Response struct {
 	// RunType has a supported emit arm in the corresponding emitter.
 	AddedPrepareForJson  bool `json:"addedPrepareForJson,omitempty"`
 	AddedRestoreFromJson bool `json:"addedRestoreFromJson,omitempty"`
+	// AddedStringifyJson mirrors AddedPrepareForJson for the
+	// stringifyJson emitter — single-pass JSON.stringify that walks
+	// the type rather than `v`. Set per emitter so the Vite plugin
+	// invalidates the stringifyJson cache module independently.
+	AddedStringifyJson bool `json:"addedStringifyJson,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
 	// / AddedUnknownKeysToUndefined mirror AddedIsType for the
 	// unknown-keys family ported from mion's
@@ -401,6 +407,12 @@ type Response struct {
 	// factory shape and projection semantics as IsTypeCacheSource.
 	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
 	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
+	// StringifyJsonCacheSource is the rendered body of the
+	// `virtual:runtypes-stringifyJson` module — single-pass JIT that
+	// walks the type and emits a JSON string directly. Sibling of
+	// PrepareForJsonCacheSource; same factory shape and projection
+	// semantics.
+	StringifyJsonCacheSource string `json:"stringifyJsonCacheSource,omitempty"`
 	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
@@ -535,6 +547,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedRestoreFromJson {
 		out["addedRestoreFromJson"] = true
 	}
+	if response.AddedStringifyJson {
+		out["addedStringifyJson"] = true
+	}
 	if response.AddedHasUnknownKeys {
 		out["addedHasUnknownKeys"] = true
 	}
@@ -573,6 +588,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.RestoreFromJsonCacheSource != "" {
 		out["restoreFromJsonCacheSource"] = response.RestoreFromJsonCacheSource
+	}
+	if response.StringifyJsonCacheSource != "" {
+		out["stringifyJsonCacheSource"] = response.StringifyJsonCacheSource
 	}
 	if response.HasUnknownKeysCacheSource != "" {
 		out["hasUnknownKeysCacheSource"] = response.HasUnknownKeysCacheSource

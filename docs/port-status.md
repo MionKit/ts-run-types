@@ -9,10 +9,14 @@ gap) so follow-up work can be triaged.
 
 Current test counts (after the most recent push):
 
-- **`@mionjs/ts-go-run-types`**: 524 pass / 0 fail. All 9 original
+- **`@mionjs/ts-go-run-types`**: 549 pass / 0 fail. All 9 original
   open failures closed; 6 new EXTRA_PARAMS section tests added
   (5 cases + 1 meta-counter); 18 new wrapper-factory tests added
-  (`test/safeUnsafeJsonWrappers.test.ts`).
+  (`test/safeUnsafeJsonWrappers.test.ts`); 25 new tests for the
+  ported `stringifyJson` JIT family (`test/createStringifyJson.test.ts`)
+  covering per-kind raw output, no-mutation invariant, extras
+  stripped in the emit, and parsed-equality contrast with
+  `JSON.stringify(prepareForJson(v))`.
 - **`vite-plugin-runtypes`**: 208 / 208
 - **Go (`internal/...`)**: all green
 
@@ -34,13 +38,15 @@ different extras semantics; we mirror both:
   includes JSON-compatible extras, throws on bigint extras, and
   silently drops symbol-/function-valued extras. Public API:
   `createUnsafeJsonStringify<T>()` + `createUnsafeJsonParse<T>()`.
-- **Safe path** (`stripUnknownKeys + prepareForJson + JSON.stringify`,
-  equivalent to mion's `stringifyJson` JIT family which we have not
-  yet ported as a single-pass JIT — composition is observably
-  equivalent for our supported kinds): extras are stripped before
-  serialise, so the output contains only declared keys regardless
-  of what was on `v`. Public API: `createSafeJsonStringify<T>()` +
-  `createSafeJsonParse<T>(undefined, {onUnknownKeys})`.
+- **Safe path** (single-pass `stringifyJson` JIT — ported from mion's
+  `jitCompilers/json/stringifyJson.ts`, see "Migrated JIT function
+  families" below). Extras are stripped by construction in the emit
+  (walks declared members only, never `v`'s own enumerable keys),
+  `v` is not mutated, and JSON-incompatible extras are silently
+  dropped before they can crash. Public API:
+  `createStringifyJson<T>()` direct, OR
+  `createSafeJsonStringify<T>()` wrapper (single JIT call internally)
+  + `createSafeJsonParse<T>(undefined, {onUnknownKeys})`.
   `createSafeJsonParse` accepts `{onUnknownKeys: 'strip' | 'error'}`
   in its 2nd positional slot (default `'strip'`); `'error'` runs
   `unknownKeyErrors` first and throws `SafeJsonParseError`
@@ -68,6 +74,7 @@ Test infrastructure:
 | `getTypeErrors`            | `nodes/**/emitTypeErrors` + `JitErrorsFnCompiler`                    | `internal/caches/jitfn/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
 | `prepareForJson`           | `nodes/**/emitPrepareForJson`                                        | `internal/caches/jitfn/preparefjson.go`                 | `createPrepareForJson` / `deserializePrepareForJson` | `pj` |
 | `restoreFromJson`          | `nodes/**/emitRestoreFromJson`                                       | `internal/caches/jitfn/restorefjson.go`                 | `createRestoreFromJson` / `deserializeRestoreFromJson` | `rj` |
+| `stringifyJson`            | `jitCompilers/json/stringifyJson.ts` (`createStringifyCompiler`)     | `internal/caches/jitfn/stringifyjson.go`                | `createStringifyJson` / `deserializeStringifyJson` | `sj` |
 | `hasUnknownKeys`           | `nodes/**/emitHasUnknownKeys` + `callCheckUnknownProperties`         | `internal/caches/jitfn/hasunknownkeys.go`               | `createHasUnknownKeys` / `deserializeHasUnknownKeys` | `huk` |
 | `stripUnknownKeys`         | `nodes/**/emitStripUnknownKeys`                                      | `internal/caches/jitfn/stripunknownkeys.go`             | `createStripUnknownKeys` / `deserializeStripUnknownKeys` | `suk` |
 | `unknownKeyErrors`         | `nodes/**/emitUnknownKeyErrors`                                      | `internal/caches/jitfn/unknownkeyerrors.go`             | `createUnknownKeyErrors` / `deserializeUnknownKeyErrors` | `uke` |
@@ -107,6 +114,34 @@ applicable):
 | Map / Set (SubKind)     | ✓      | ✓          | ✓ → element    | ✓ → element      | ✓ → element    | ✓ → element      | ✓ → element      | ✓ → element            |
 | Promise                 | ✓ thenable | ✓      | ✓ throw        | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
 | NonSerializable (Int8Array, …) | ✓ throw | ✓ throw | ✓ throw   | ✓ throw          | ✗              | ✗                | ✗                | ✗                      |
+
+`stringifyJson` per-kind coverage (mirrors mion's
+`createStringifyCompiler` switch). All entries produce a JS
+expression / return-block whose runtime value is a JSON-string
+fragment (the parent emit concatenates fragments with `+`).
+
+| Kind                       | stringifyJson emit                                       |
+|----------------------------|----------------------------------------------------------|
+| any / unknown / object     | `JSON.stringify(v)`                                      |
+| string / templateLiteral   | `JSON.stringify(v)`                                      |
+| number / null              | `String(v)` at root; bare `v` nested                     |
+| boolean                    | `(v ? 'true' : 'false')`                                 |
+| bigint                     | `'"' + v.toString() + '"'` (manual quoting)              |
+| regexp                     | `JSON.stringify(v.toString())`                           |
+| symbol                     | `JSON.stringify('Symbol:' + (v.description || ''))`      |
+| undefined                  | `undefined` at root; `'null'` in array; `null` else      |
+| void                       | `undefined`                                              |
+| enum                       | `JSON.stringify(v)` (defensive — both string + number)    |
+| literal                    | defers to underlying primitive kind                       |
+| never / Promise / NonSerializable / function-at-root | throw at JIT-compile (surfaced via `JitThrow` runtime factory) |
+| array                      | for-loop into `ls.push(child)`; `'[' + ls.join(',') + ']'` |
+| objectLiteral / class      | `'{' + props.join('+') + '}'` (declaration order)         |
+| property / propertySignature | `'"name":' + childCode + sep`; optional → empty when undefined |
+| indexSignature             | for-in loop; `JSON.stringify(k) + ':' + childCode` per entry; symbol-keyed sigs skipped |
+| tuple / tupleMember        | `'[' + slots.join('+') + ']'`; optional slots → `'null'` |
+| union                      | if/else dispatch via `looseCheckGate`; `'[idx,' + value + ']'` per arm |
+| Map / Set                  | for-of into `ls.push(entry-fragment)`; Map → `'[' + k + ',' + v + ']'`, Set → bare element |
+| Date (SubKindDate)         | `'"' + v.toJSON() + '"'` (manual quoting)                |
 
 ## Intentional deviations from mion
 

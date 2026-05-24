@@ -52,6 +52,11 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_rj_",
 		Tag:       "rj",
 	},
+	"stringifyJson": {
+		Name:      "stringifyJsonModule",
+		VarPrefix: "g_sj_",
+		Tag:       "sj",
+	},
 	"hasUnknownKeys": {
 		Name:      "hasUnknownKeysModule",
 		VarPrefix: "g_huk_",

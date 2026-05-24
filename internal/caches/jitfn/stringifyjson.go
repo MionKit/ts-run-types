@@ -1,0 +1,786 @@
+package jitfn
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
+
+// StringifyJsonEmitter implements the `stringifyJson` jit function —
+// mion's single-pass JSON serialiser that builds the output string
+// directly from the TYPE rather than mutating `v` in place and
+// delegating to JSON.stringify. Extras are stripped by construction:
+// the emit walks declared members only, so unknown keys never reach
+// the output regardless of what's on `v`.
+//
+// Paired with RestoreFromJsonEmitter — round-trip
+// `restoreFromJson(JSON.parse(stringifyJson(v)))` must deep-equal v
+// for every valid sample. Output is observably equivalent to
+// `JSON.stringify(prepareForJson(v))` modulo property order (mion
+// sorts optional members first; we keep declaration order — see
+// docs/port-status.md "Intentional deviations from mion") and the
+// no-mutation contract on `v`.
+//
+// Mirrors mion's per-kind switch in
+// mion/packages/run-types/src/jitCompilers/json/stringifyJson.ts
+// (`createStringifyCompiler`).
+type StringifyJsonEmitter struct{}
+
+// Args — same single-arg shape as prepareForJson; the value to
+// stringify enters via `v`.
+func (StringifyJsonEmitter) Args() []ArgSpec {
+	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
+}
+
+// Supports gates the renderer's top-level loop. Mirrors mion's
+// stringifyJson which supports every reflection kind (some via
+// emit-time throws — see Emit below). Function-shaped kinds at root
+// throw at emit; function-shaped as object-property children get
+// dropped at the parent loop.
+func (StringifyJsonEmitter) Supports(rt *protocol.RunType) bool {
+	if rt == nil {
+		return false
+	}
+	switch rt.Kind {
+	case protocol.KindAny, protocol.KindUnknown,
+		protocol.KindVoid,
+		protocol.KindNull, protocol.KindUndefined,
+		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
+		protocol.KindBigInt, protocol.KindSymbol,
+		protocol.KindObject, protocol.KindRegexp,
+		protocol.KindLiteral, protocol.KindEnum:
+		return true
+	case protocol.KindNever:
+		return true
+	case protocol.KindArray:
+		return rt.Child != nil
+	case protocol.KindObjectLiteral:
+		return true
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return true
+	case protocol.KindIndexSignature:
+		return true
+	case protocol.KindTuple:
+		return true
+	case protocol.KindTupleMember:
+		return true
+	case protocol.KindUnion:
+		return len(rt.Children) > 0
+	case protocol.KindIntersection:
+		return true
+	case protocol.KindTemplateLiteral:
+		return true
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		return true
+	case protocol.KindClass:
+		switch rt.SubKind {
+		case protocol.SubKindDate, protocol.SubKindNone,
+			protocol.SubKindMap, protocol.SubKindSet,
+			protocol.SubKindNonSerializable:
+			return true
+		}
+		return false
+	case protocol.KindPromise:
+		return true
+	}
+	return false
+}
+
+// AnyStringifyJsonSupported reports whether at least one runtype in
+// the slice is supported by the StringifyJsonEmitter.
+func AnyStringifyJsonSupported(runTypes []*protocol.RunType) bool {
+	emitter := StringifyJsonEmitter{}
+	for _, rt := range runTypes {
+		if emitter.Supports(rt) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsJitInlined delegates to DefaultIsJitInlined — same heuristics as
+// prepareForJson.
+func (StringifyJsonEmitter) IsJitInlined(ctx *InlineContext) bool {
+	return DefaultIsJitInlined(ctx)
+}
+
+// ReturnName is `v` — but the emit body returns a JSON string built
+// from `v`, not `v` itself. The arg name is kept for parity with the
+// other families.
+func (StringifyJsonEmitter) ReturnName() string {
+	return "v"
+}
+
+// Emit dispatches the per-kind switch. Each arm mirrors the body of
+// mion's `createStringifyCompiler` switch
+// (jitCompilers/json/stringifyJson.ts:41).
+//
+// Convention: every arm returns a JS expression (CodeE) that
+// evaluates to a JSON-encoded string fragment. Root-frame arms
+// produce a complete JSON document; nested arms produce a fragment
+// the parent emit concatenates with `+`. `IsRoot()` distinguishes
+// the two (mirrors mion's `comp.getNestLevel(runType) === 0`).
+func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+	if rt == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	v := ctx.Vλl
+	switch rt.Kind {
+
+	case protocol.KindAny, protocol.KindUnknown, protocol.KindObject:
+		// mion:stringifyJson.ts:44-46, 100-101 — delegate to
+		// JSON.stringify when the type carries no schema info.
+		return JitCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
+
+	case protocol.KindString, protocol.KindTemplateLiteral:
+		// mion:stringifyJson.ts:105-112 — string + template-literal
+		// runtime values are plain strings.
+		return JitCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
+
+	case protocol.KindBigInt:
+		// mion:stringifyJson.ts:47-48 — manually-quoted decimal
+		// string; matches `JSON.stringify(v.toString())` byte-for-byte
+		// but skips one function call.
+		return JitCode{Code: "'\"'+" + v + ".toString()+'\"'", Type: CodeE}
+
+	case protocol.KindBoolean:
+		// mion:stringifyJson.ts:49-50.
+		return JitCode{Code: "(" + v + " ? 'true' : 'false')", Type: CodeE}
+
+	case protocol.KindEnum:
+		// mion:stringifyJson.ts:51-53 — number enums emit the bare
+		// numeric value (already a valid JSON literal at any
+		// position); string enums quote via JSON.stringify. Without
+		// an Index distinction in our Go IR, default to the safe
+		// JSON.stringify shape.
+		return JitCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
+
+	case protocol.KindLiteral:
+		return emitLiteralStringifyJson(rt, ctx, v)
+
+	case protocol.KindNever:
+		// mion:stringifyJson.ts:90-91 — `Never type cannot be stringified.`
+		return JitThrow("Never type cannot be stringified.")
+
+	case protocol.KindNull, protocol.KindNumber:
+		// mion:stringifyJson.ts:92-99 — at root, `String(v)` wraps
+		// the value into a JS string so the JIT fn returns a
+		// JSON-parseable result. At non-root, the bare `v` works
+		// because the parent concatenates with `+` (auto-stringifies).
+		if ctx.IsRoot() {
+			return JitCode{Code: "String(" + v + ")", Type: CodeE}
+		}
+		return JitCode{Code: v, Type: CodeE}
+
+	case protocol.KindRegexp:
+		// mion:stringifyJson.ts:102-104.
+		return JitCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
+
+	case protocol.KindSymbol:
+		// mion:stringifyJson.ts:108-109.
+		return JitCode{Code: "JSON.stringify('Symbol:'+(" + v + ".description||''))", Type: CodeE}
+
+	case protocol.KindUndefined:
+		// mion:stringifyJson.ts:113-118 — at root, emit `undefined`
+		// so the JIT fn returns the JS value undefined (top-level
+		// undefined is not a valid JSON document). In an array
+		// position, emit `'null'` so the slot is JSON-valid. Inside
+		// an object, emit `null` (still JSON-valid; the property
+		// emit logic handles the optional case separately).
+		if ctx.IsRoot() {
+			return JitCode{Code: "undefined", Type: CodeE}
+		}
+		if parentIsArrayLike(ctx) {
+			return JitCode{Code: "'null'", Type: CodeE}
+		}
+		return JitCode{Code: "null", Type: CodeE}
+
+	case protocol.KindVoid:
+		// mion:stringifyJson.ts:120-121.
+		return JitCode{Code: "undefined", Type: CodeE}
+
+	case protocol.KindArray:
+		return emitArrayStringifyJson(rt, ctx, v)
+
+	case protocol.KindObjectLiteral, protocol.KindIntersection:
+		return emitObjectStringifyJson(rt, ctx, v)
+
+	case protocol.KindClass:
+		switch rt.SubKind {
+		case protocol.SubKindDate:
+			// mion:stringifyJson.ts:405-406 — manually quoted to skip
+			// one JSON.stringify call.
+			return JitCode{Code: "'\"'+" + v + ".toJSON()+'\"'", Type: CodeE}
+		case protocol.SubKindNone:
+			return emitObjectStringifyJson(rt, ctx, v)
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return emitNativeIterableStringifyJson(rt, ctx, v)
+		case protocol.SubKindNonSerializable:
+			return JitThrow("Jit compilation disabled for Non Serializable types.")
+		}
+		return JitCode{Code: "", Type: CodeNS}
+
+	case protocol.KindPromise:
+		// mion:stringifyJson.ts:250-252.
+		return JitThrow("Jit compilation disabled for Non Serializable types.")
+
+	case protocol.KindProperty, protocol.KindPropertySignature:
+		return emitPropertyStringifyJson(rt, ctx, v)
+
+	case protocol.KindIndexSignature:
+		return emitIndexSignatureStringifyJson(rt, ctx, v)
+
+	case protocol.KindTuple:
+		return emitTupleStringifyJson(rt, ctx, v)
+
+	case protocol.KindTupleMember:
+		return emitTupleMemberStringifyJson(rt, ctx, v)
+
+	case protocol.KindUnion:
+		return emitUnionStringifyJson(rt, ctx, v)
+
+	case protocol.KindFunction, protocol.KindMethod,
+		protocol.KindMethodSignature, protocol.KindCallSignature:
+		// mion:stringifyJson.ts:183-187 — function-shaped at root
+		// throws; param-shaped is handled by function-param emit
+		// (not reachable as a top-level JIT fn).
+		return JitThrow("Compile function StringifyJson not supported, call compileParams or compileReturn instead.")
+	}
+	return JitCode{Code: "", Type: CodeNS}
+}
+
+// EmitDependencyCall mirrors PrepareForJsonEmitter's. stringifyJson
+// is a pure read of `v` so the dep-call shape is a plain call —
+// `<childHash>.fn(<v>)` returns the child's JSON-string contribution;
+// the parent embeds that string into the surrounding JSON shape.
+// Self-recursive calls drop the `.fn` indirection.
+func (StringifyJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
+	args := ctx.Vλl
+	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	if isSelf {
+		return ctx.walker.FnName + "(" + args + ")"
+	}
+	if !ctx.HasContextItem(childID) {
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+	}
+	return childID + ".fn(" + args + ")"
+}
+
+// Finalize wraps the emitted body in `return …` for expression
+// bodies. CodeRB bodies already contain their own `return` statements
+// (multi-line for-loop bodies that build a result via local vars).
+//
+// Atomic-noop kinds collapse to a JSON.stringify(v) noop — there's
+// no "true identity" for stringifyJson because the input is a value
+// and the output is a string. The skeleton's noop fallback runs
+// JSON.stringify at call time.
+func (StringifyJsonEmitter) Finalize(raw string) (string, bool) {
+	code := normaliseWhitespace(raw)
+	if code == "" {
+		return "return JSON.stringify(v)", true
+	}
+	return code, false
+}
+
+// emitLiteralStringifyJson — mion:stringifyJson.ts:56-89 defers
+// literal kinds to their underlying primitive emit. We replicate
+// the dispatch inline based on the literal's Flags / shape.
+func emitLiteralStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	flagSet := make(map[string]bool, len(rt.Flags))
+	for _, flag := range rt.Flags {
+		flagSet[flag] = true
+	}
+	if flagSet["bigint"] {
+		return JitCode{Code: "'\"'+" + v + ".toString()+'\"'", Type: CodeE}
+	}
+	if flagSet["symbol"] {
+		return JitCode{Code: "JSON.stringify('Symbol:'+(" + v + ".description||''))", Type: CodeE}
+	}
+	if entry, isMap := rt.Literal.(map[string]any); isMap {
+		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
+			return JitCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
+		}
+	}
+	// Primitive literal (number / string / boolean / null) — defer
+	// to JSON.stringify, which handles each shape correctly. This
+	// matches mion's `JSON.stringify(${comp.vλl})` default branch.
+	return JitCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
+}
+
+// emitArrayStringifyJson — mion:stringifyJson.ts:125-144. Builds
+// the JSON array by mapping each element through the child emit and
+// joining with ','.
+func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "'[]'", Type: CodeE}
+	}
+	resolvedChild := ctx.ResolveRef(rt.Child)
+	if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+		return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+	}
+	iVar := ctx.NextLocalVar("i")
+	ctx.SetChildAccessor(v + "[" + iVar + "]")
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
+	}
+	jsonItems := ctx.NextLocalVar("ls")
+	resultVal := ctx.NextLocalVar("res")
+	body := "const " + jsonItems + " = []; for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" +
+		"const " + resultVal + " = " + childJit.Code + "; " + jsonItems + ".push(" + resultVal + ");}" +
+		" return '[' + " + jsonItems + ".join(',') + ']'"
+	return JitCode{Code: body, Type: CodeRB}
+}
+
+// emitObjectStringifyJson — mion:stringifyJson.ts:367-441
+// (compileStringifyInterface / compileStringifyClass). Iterates
+// children in mion's optional-first sort order
+// (interface.ts:getJsonStringifySortedChildren) and joins their
+// fragments inside `'{' + … + '}'`.
+//
+// Trailing-comma correctness: the last non-skip child sets
+// `skipCommas=true` on the parent frame so its emit omits the
+// trailing comma. Mion's optional-first sort keeps the LAST child
+// non-optional whenever possible — a required member always emits
+// a non-empty fragment, so the trailing-comma logic stays static.
+// (When every child is optional, the last-iteration skipCommas+empty
+// case still yields a syntactically valid `{}` after the leading-
+// optional emits collapse — see emitPropertyStringifyJson's
+// optional-empty branch.)
+func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	// Collect emit-eligible children, dropping function-shaped/static
+	// members the same way the prepare emit does.
+	type pendingChild struct {
+		ref      *protocol.RunType
+		optional bool
+	}
+	var pending []pendingChild
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil || resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		opt := resolved.Optional
+		// Index signatures emit a loop that may produce empty output —
+		// treat them as "optional" for the sort so they don't land
+		// last and orphan a trailing comma.
+		if resolved.Kind == protocol.KindIndexSignature {
+			opt = true
+		}
+		pending = append(pending, pendingChild{ref: child, optional: opt})
+	}
+	// Mion's getJsonStringifySortedChildren — stable sort, optional
+	// children first. Uses a manual insertion sort to preserve
+	// declaration order within each group (sort.SliceStable would also
+	// work but inlining keeps the dependency surface clear).
+	for i := 1; i < len(pending); i++ {
+		for j := i; j > 0; j-- {
+			if pending[j-1].optional || !pending[j].optional {
+				break
+			}
+			pending[j-1], pending[j] = pending[j], pending[j-1]
+		}
+	}
+	if len(pending) == 0 {
+		return JitCode{Code: "'{}'", Type: CodeE}
+	}
+	parts := make([]string, 0, len(pending))
+	for i, p := range pending {
+		// Skip-commas is set on the parent frame (this Emit's
+		// receiver) and consumed by the child property emit.
+		isLast := i == len(pending)-1
+		setSkipCommas(ctx, isLast)
+		childJit := ctx.CompileChild(p.ref, CodeE)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			continue
+		}
+		parts = append(parts, childJit.Code)
+	}
+	clearSkipCommas(ctx)
+	if len(parts) == 0 {
+		return JitCode{Code: "'{}'", Type: CodeE}
+	}
+	return JitCode{Code: "'{'+" + strings.Join(parts, "+") + "+'}'", Type: CodeE}
+}
+
+// emitPropertyStringifyJson — mion:stringifyJson.ts:199-216.
+// Renders one property as `'"name":' + childCode + ','` (or without
+// the trailing comma when the parent flagged skipCommas).
+//
+// Optional properties: when `v.name` is undefined, the entire
+// fragment collapses to the empty string so the JSON object doesn't
+// carry a `"name":undefined` slot (invalid JSON) or a dangling
+// comma.
+func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	// `"name":` prefix as a JS string literal — double-quoted so the
+	// emitted JSON output uses double quotes around the property
+	// name (the JSON spec requires them).
+	propPrefix := "'" + jsonPropPrefix(rt.Name, rt.IsSafeName) + "'"
+	sepCode := "','"
+	if getSkipCommas(ctx) {
+		sepCode = "''"
+	}
+	if rt.Optional {
+		// `accessor === undefined ? '' : propPrefix + childCode + sep`
+		return JitCode{Code: "(" + accessor + " === undefined ? '' : " + propPrefix + "+" + childJit.Code + "+" + sepCode + ")", Type: CodeE}
+	}
+	return JitCode{Code: propPrefix + "+" + childJit.Code + "+" + sepCode, Type: CodeE}
+}
+
+// jsonPropPrefix renders the JS string literal contents (without the
+// outer single quotes — the caller wraps them) for one property's
+// `"name":` prefix.
+func jsonPropPrefix(name string, isSafeName bool) string {
+	if isSafeName {
+		// Identifier-safe name: emit `"<name>":` directly.
+		return `"` + name + `":`
+	}
+	// Non-safe name (contains spaces, special chars, …): escape via
+	// JSON.stringify at compile time so the emitted constant is
+	// already a valid JS string literal that produces valid JSON
+	// when concatenated.
+	escaped := jsonEscapeForSingleQuote(name)
+	return `"` + escaped + `":`
+}
+
+// jsonEscapeForSingleQuote escapes a string for embedding inside a
+// single-quoted JS string literal that will be parsed by JS and
+// then included as a JSON property name. Mirrors what mion does via
+// `JSON.stringify(name)` at compile time but produces only the
+// inner characters (without the surrounding quotes mion's JSON.stringify
+// adds — we add those ourselves).
+//
+// Escaped chars: single-quote (for the JS literal), backslash, control
+// chars (\n, \r, \t), and double-quote (for the embedded JSON name
+// quotes — already handled by the surrounding `"` in jsonPropPrefix).
+func jsonEscapeForSingleQuote(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 4)
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '\'':
+			b.WriteString(`\'`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// emitIndexSignatureStringifyJson — mion:stringifyJson.ts:145-170.
+// for-in over the value's own keys, building `"key":value` pairs.
+// Symbol-keyed sigs are skipped per the shared isSymbolKeyedIndexSig
+// helper (mion's skipJit contract).
+func emitIndexSignatureStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if isSymbolKeyedIndexSig(rt, ctx) {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	keyVar := ctx.NextLocalVar("k")
+	ctx.SetChildAccessor(v + "[" + keyVar + "]")
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if childJit.Code == "" {
+		return JitCode{Code: "", Type: CodeE}
+	}
+	arr := ctx.NextLocalVar("ls")
+	// Separator suffix matches mion's `+","` when not skipping commas
+	// after the last property. Index sig results don't know whether
+	// they're "last" — mion's heuristic is: when the parent has other
+	// children (named props), the index loop's output trails with
+	// `,`; when it's the only producer, trailing comma is omitted by
+	// the outer wrap. Use the parent's skipCommas flag (same as
+	// emitPropertyStringifyJson).
+	trailingSep := "+','"
+	if getSkipCommas(ctx) {
+		trailingSep = ""
+	}
+	body := "const " + arr + " = []; for (const " + keyVar + " in " + v + ") {" +
+		"if (" + v + "[" + keyVar + "] !== undefined) " + arr + ".push(JSON.stringify(" + keyVar + ") + ':' + " + childJit.Code + ");" +
+		"} if (!" + arr + ".length) return ''; return " + arr + ".join(',')" + trailingSep
+	return JitCode{Code: body, Type: CodeRB}
+}
+
+// emitTupleStringifyJson — mion:stringifyJson.ts:269-279.
+// `'[' + slotEmits.join('+') + ']'`. Empty tuple → `'[]'`.
+func emitTupleStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if len(rt.Children) == 0 {
+		return JitCode{Code: "'[]'", Type: CodeE}
+	}
+	parts := make([]string, 0, len(rt.Children))
+	for _, child := range rt.Children {
+		childJit := ctx.CompileChild(child, CodeE)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			parts = append(parts, childJit.Code)
+		}
+	}
+	if len(parts) == 0 {
+		return JitCode{Code: "'[]'", Type: CodeE}
+	}
+	return JitCode{Code: "'['+" + strings.Join(parts, "+") + "+']'", Type: CodeE}
+}
+
+// emitTupleMemberStringifyJson — mion:stringifyJson.ts:239-249.
+// Each slot emits its child code prefixed by a separator (`,` unless
+// the slot is at index 0). Optional slots emit `'null'` when
+// undefined.
+func emitTupleMemberStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	if rt.Child == nil {
+		// Non-serializable / function-shaped slot — emit `'null'`.
+		isFirst := positionInt(rt) == 0
+		sep := "','+"
+		if isFirst {
+			sep = ""
+		}
+		return JitCode{Code: sep + "'null'", Type: CodeE}
+	}
+	resolved := ctx.ResolveRef(rt.Child)
+	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+		isFirst := positionInt(rt) == 0
+		sep := "','+"
+		if isFirst {
+			sep = ""
+		}
+		return JitCode{Code: sep + "'null'", Type: CodeE}
+	}
+	idxLit := positionStr(rt)
+	accessor := v + "[" + idxLit + "]"
+	ctx.SetChildAccessor(accessor)
+	childJit := ctx.CompileChild(rt.Child, CodeE)
+	ctx.SetChildAccessor("")
+	if childJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	childCode := childJit.Code
+	if childCode == "" {
+		childCode = "'null'"
+	}
+	isFirst := positionInt(rt) == 0
+	sep := "','+"
+	if isFirst {
+		sep = ""
+	}
+	if rt.Optional {
+		return JitCode{Code: "(" + accessor + " === undefined ? " + sep + "'null' : " + sep + childCode + ")", Type: CodeE}
+	}
+	return JitCode{Code: sep + childCode, Type: CodeE}
+}
+
+// emitUnionStringifyJson — mion:stringifyJson.ts:283-322.
+// Per-member if/else chain dispatching via the shared looseCheckGate
+// helper. Each arm produces a JSON string fragment; wrap with the
+// `[memberIndex, value]` envelope when either prepare or restore is
+// non-noop (matches the on-the-wire shape produced by
+// emitUnionPrepareForJson).
+func emitUnionStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	children := rt.SafeUnionChildren
+	if len(children) == 0 {
+		children = rt.Children
+	}
+	if len(children) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	errVar := ctx.NextLocalVar("uErr")
+	if !ctx.HasContextItem(errVar) {
+		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not StringifyJson union: item does not belong to the union'")
+	}
+	var clauses []string
+	for i, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		childJit := ctx.CompileChild(childRef, CodeE)
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code == "" {
+			continue
+		}
+		isTypeExpr := unionMemberIsTypeCheck(member, ctx, v)
+		guard := isTypeExpr
+		if isObjectLikeKind(member.Kind) {
+			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
+		}
+		// Tuple-wrap decision — match emitUnionPrepareForJson's
+		// always-wrap stance for now. Refinement to mion's
+		// skipEncode optimisation (skip wrap when both pj and rj
+		// would be noop) is a later perf pass.
+		stringified := childJit.Code
+		tupleWrap := "'[" + strconv.Itoa(i) + ",' + " + stringified + " + ']'"
+		clause := "if (" + guard + ") { return " + tupleWrap + ";}"
+		if len(clauses) > 0 {
+			clause = " else " + clause
+		}
+		clauses = append(clauses, clause)
+	}
+	clauses = append(clauses, " else { throw new Error("+errVar+") }")
+	return JitCode{Code: strings.Join(clauses, ""), Type: CodeRB}
+}
+
+// emitNativeIterableStringifyJson handles Map / Set —
+// mion:stringifyJson.ts:407-414 + createStringifyIterable lines 446-473.
+// Both iterate `for (const entry of v)`, building per-entry fragments
+// joined as a JSON array.
+func emitNativeIterableStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isMap := rt.SubKind == protocol.SubKindMap
+	var innerTypes []*protocol.RunType
+	if isMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		innerTypes = []*protocol.RunType{keyType, valueType}
+	} else {
+		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
+	}
+	entryVar := ctx.NextLocalVar("e")
+	var childParts []string
+	for i, innerType := range innerTypes {
+		if innerType == nil {
+			continue
+		}
+		accessor := entryVar
+		if isMap {
+			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
+		}
+		ctx.SetChildAccessor(accessor)
+		childJit := ctx.CompileChild(innerType, CodeE)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			childParts = append(childParts, childJit.Code)
+		}
+	}
+	if len(childParts) == 0 {
+		// Fall back to JSON.stringify(Array.from(v)) — gives the
+		// same `[[k,v],…]` / `[item,…]` shape mion produces when
+		// every element is a JSON-noop type.
+		return JitCode{Code: "JSON.stringify(Array.from(" + v + "))", Type: CodeE}
+	}
+	jsonItems := ctx.NextLocalVar("ls")
+	resultVal := ctx.NextLocalVar("res")
+	var childrenResult string
+	if len(childParts) > 1 {
+		// Map: emit `[key, value]` array per entry.
+		childrenResult = "'['+" + strings.Join(childParts, "+','+") + "+']'"
+	} else {
+		// Set: emit the element directly per entry.
+		childrenResult = childParts[0]
+	}
+	body := "const " + jsonItems + " = []; for (const " + entryVar + " of " + v + ") {" +
+		"const " + resultVal + " = " + childrenResult + "; " + jsonItems + ".push(" + resultVal + ");}" +
+		" return '[' + " + jsonItems + ".join(',') + ']'"
+	return JitCode{Code: body, Type: CodeRB}
+}
+
+// --- Helpers ----------------------------------------------------------
+
+// parentIsArrayLike — true when the closest stack frame above us is
+// an array / tuple. Used by the undefined emit to choose between
+// `'null'` (array slot — JSON requires a literal) and `null` (object
+// property — the property emit's optional-guard handles wrapping).
+func parentIsArrayLike(ctx *EmitContext) bool {
+	if ctx.walker == nil || len(ctx.walker.Stack) < 2 {
+		return false
+	}
+	parent := ctx.walker.Stack[len(ctx.walker.Stack)-2].RT
+	if parent == nil {
+		return false
+	}
+	switch parent.Kind {
+	case protocol.KindArray, protocol.KindTuple, protocol.KindTupleMember:
+		return true
+	}
+	return false
+}
+
+// skipCommas flag plumbing — set on the parent frame (via a
+// context-item entry keyed on a known constant) so the child
+// property emit can consume it before the parent's loop body
+// continues.
+const skipCommasKey = "__sj_skip_commas__"
+
+func setSkipCommas(ctx *EmitContext, value bool) {
+	if value {
+		ctx.SetContextItem(skipCommasKey, "1")
+	} else {
+		// Reset the marker by clearing the context-item we stash on
+		// it. Context items are appended-only at the walker level;
+		// store the bit in the walker's nextLocalVar counters table
+		// instead, keyed on the same constant.
+		ctx.SetContextItem(skipCommasKey, "")
+	}
+}
+
+func clearSkipCommas(ctx *EmitContext) {
+	ctx.SetContextItem(skipCommasKey, "")
+}
+
+func getSkipCommas(ctx *EmitContext) bool {
+	value, ok := ctx.GetContextItem(skipCommasKey)
+	return ok && value == "1"
+}
+
+// positionInt — typed integer view of TupleMember.Position. Returns 0
+// when Position is nil (defensive — every tuple member should carry
+// a position from the serializer).
+func positionInt(rt *protocol.RunType) int {
+	if rt == nil || rt.Position == nil {
+		return 0
+	}
+	return *rt.Position
+}

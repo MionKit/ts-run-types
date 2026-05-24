@@ -115,6 +115,8 @@ export {createPrepareForJson, deserializePrepareForJson, type PrepareForJsonFn} 
 
 export {createRestoreFromJson, deserializeRestoreFromJson, type RestoreFromJsonFn} from './createRestoreFromJson.ts';
 
+export {createStringifyJson, deserializeStringifyJson, type StringifyJsonFn} from './createStringifyJson.ts';
+
 export {
   createHasUnknownKeys,
   deserializeHasUnknownKeys,

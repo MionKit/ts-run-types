@@ -192,12 +192,14 @@ describe('createSafeJsonParse — onUnknownKeys option', () => {
 describe('JSON wrappers — mutation surface', () => {
   type T = {declared: string};
 
-  test('safe stringify mutates the input (strip + prepare both write through)', () => {
-    const safeStr = createSafeJsonStringify<T>();
-    const input = {declared: 'x', extra: 'y'};
+  test('safe stringify does NOT mutate the input (single-pass stringifyJson reads, does not write)', () => {
+    const safeStr = createSafeJsonStringify<T & {extra: string; big: bigint}>();
+    // bigint in input is load-bearing: prepareForJson would have
+    // rebound it to '123'. Asserting bigint identity proves
+    // stringifyJson read-only-ness through the safe wrapper.
+    const input = {declared: 'x', extra: 'y', big: 123n};
     safeStr(input);
-    // strip ran on the original input, so the extra is gone.
-    expect(Object.keys(input)).toEqual(['declared']);
+    expect(input).toEqual({declared: 'x', extra: 'y', big: 123n});
   });
 
   test('unsafe stringify mutates the input via prepareForJson (extras stay)', () => {
