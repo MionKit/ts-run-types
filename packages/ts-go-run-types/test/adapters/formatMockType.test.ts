@@ -28,50 +28,54 @@ describe('format mockType / STRING_FORMAT', () => {
     ranTests++;
   });
 
-  it.todo('FormatString maxLength — bounds the upper length');
-  it.todo('FormatString minLength — bounds the lower length');
-  it.todo('FormatString length — exact length only');
-  it.todo('FormatString minLength + maxLength — bounds both ends');
-  it.todo('FormatString allowedChars — only the allowed set passes');
-  it.todo('FormatString allowedChars ignoreCase — folds case');
-  it.todo('FormatString allowedChars — regex-special chars treated literally');
+  it('FormatString maxLength — bounds the upper length', () => assertMockType(STRING.string_maxLength));
+  it('FormatString minLength — bounds the lower length', () => assertMockType(STRING.string_minLength));
+  it('FormatString length — exact length only', () => assertMockType(STRING.string_length));
+  it('FormatString minLength + maxLength — bounds both ends', () => assertMockType(STRING.string_range));
+  it('FormatString allowedChars — only the allowed set passes', () => assertMockType(STRING.string_allowedChars));
+  it('FormatString allowedChars ignoreCase — folds case', () => assertMockType(STRING.string_allowedChars_ignoreCase));
+  it('FormatString allowedChars — regex-special chars treated literally', () =>
+    assertMockType(STRING.string_allowedChars_literal));
   it('FormatString disallowedChars — rejects any disallowed char', () => assertMockType(STRING.string_disallowedChars));
-  it.todo('FormatString allowedValues — enum-like exact match');
-  it.todo('FormatString allowedValues ignoreCase — folds case across the set');
-  it.todo('FormatString allowedValues — regex-special chars matched literally');
+  it('FormatString allowedValues — enum-like exact match', () => assertMockType(STRING.string_allowedValues));
+  it('FormatString allowedValues ignoreCase — folds case across the set', () =>
+    assertMockType(STRING.string_allowedValues_ignoreCase));
+  it('FormatString allowedValues — regex-special chars matched literally', () =>
+    assertMockType(STRING.string_allowedValues_escaped));
   it('FormatString disallowedValues — rejects the listed values', () => assertMockType(STRING.string_disallowedValues));
-  it.todo('FormatString allowedValues — custom errorMessage surfaces as format.val');
+  it('FormatString allowedValues — custom errorMessage surfaces as format.val', () =>
+    assertMockType(STRING.string_customErrorMessage));
   it('FormatAlpha — letters only', () => assertMockType(STRING.alpha));
   it('FormatAlphaNumeric — letters and digits', () => assertMockType(STRING.alphaNumeric));
   it('FormatNumeric — digits only', () => assertMockType(STRING.numeric));
-  it.todo('FormatAlpha with maxLength — char class plus length bound');
+  it('FormatAlpha with maxLength — char class plus length bound', () => assertMockType(STRING.alpha_withLength));
   it('FormatLowercase — transformer-only, validates as a plain string', () => assertMockType(STRING.lowercase_validate));
   it('FormatUUIDv4 — accepts v4, rejects v7 and malformed', () => assertMockType(STRING.uuidv4));
   it('FormatUUIDv7 — accepts v7, rejects v4', () => assertMockType(STRING.uuidv7));
   it('FormatStringDate — ISO / YYYY-MM-DD (default)', () => assertMockType(STRING.date_iso));
-  it.todo('FormatStringDate — DD-MM-YYYY layout');
-  it.todo('FormatStringDate — YYYY-MM layout (no day)');
-  it.todo('FormatStringDate — MM-DD layout (no year)');
-  it.todo('FormatStringTime — ISO (default, tz-aware)');
-  it.todo('FormatStringTime — HH:mm:ss fixed layout');
-  it.todo('FormatStringTime — HH:mm:ss[.mmm] optional milliseconds');
-  it.todo('FormatStringDateTime — default (ISO date T ISO time)');
-  it.todo('FormatStringDateTime — custom nested layouts + splitChar');
-  it.todo('FormatIPv4 — dotted-quad addresses');
-  it.todo('FormatIPv6 — colon-separated, loopback allowed');
-  it.todo('FormatIP — accepts both v4 and v6');
-  it.todo('FormatIPv4WithPort — v4 with port');
-  it.todo('FormatIPv6WithPort — v6 with bracketed port');
+  it('FormatStringDate — DD-MM-YYYY layout', () => assertMockType(STRING.date_DMY));
+  it('FormatStringDate — YYYY-MM layout (no day)', () => assertMockType(STRING.date_YM));
+  it('FormatStringDate — MM-DD layout (no year)', () => assertMockType(STRING.date_MD));
+  it('FormatStringTime — ISO (default, tz-aware)', () => assertMockType(STRING.time_iso));
+  it('FormatStringTime — HH:mm:ss fixed layout', () => assertMockType(STRING.time_HHmmss));
+  it('FormatStringTime — HH:mm:ss[.mmm] optional milliseconds', () => assertMockType(STRING.time_HHmmss_ms));
+  it('FormatStringDateTime — default (ISO date T ISO time)', () => assertMockType(STRING.dateTime_default));
+  it('FormatStringDateTime — custom nested layouts + splitChar', () => assertMockType(STRING.dateTime_custom));
+  it('FormatIPv4 — dotted-quad addresses', () => assertMockType(STRING.ipv4));
+  it('FormatIPv6 — colon-separated, loopback allowed', () => assertMockType(STRING.ipv6));
+  it('FormatIP — accepts both v4 and v6', () => assertMockType(STRING.ip_any));
+  it('FormatIPv4WithPort — v4 with port', () => assertMockType(STRING.ipv4_port));
+  it('FormatIPv6WithPort — v6 with bracketed port', () => assertMockType(STRING.ipv6_port));
   it('FormatDomain — standard', () => assertMockType(STRING.domain));
-  it.todo('FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge');
+  it('FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge', () => assertMockType(STRING.domainStrict));
   it('FormatEmail — standard', () => assertMockType(STRING.email));
-  it.todo('FormatEmailPunycode — accepts punycode-tld domains');
-  it.todo('FormatEmailStrict — localPart + domain decomposition');
+  it('FormatEmailPunycode — accepts punycode-tld domains', () => assertMockType(STRING.emailPunycode));
+  it('FormatEmailStrict — localPart + domain decomposition', () => assertMockType(STRING.emailStrict));
   it('FormatUrl — standard (http/ftp/ws schemes)', () => assertMockType(STRING.url));
-  it.todo('FormatUrlHttp — http(s) only');
-  it.todo('FormatUrlFile — file URLs');
+  it('FormatUrlHttp — http(s) only', () => assertMockType(STRING.urlHttp));
+  it('FormatUrlFile — file URLs', () => assertMockType(STRING.urlFile));
   it('registerFormatPattern — slug regex recovered from the call site', () => assertMockType(STRING.pattern_slug));
-  it.todo('registerFormatPattern — {source, flags} overload (case-insensitive)');
+  it('registerFormatPattern — {source, flags} overload (case-insensitive)', () => assertMockType(STRING.pattern_hex));
 
   it('all STRING_FORMAT mockType tests ran', () => {
     expect(ranTests).toBe(withMockType(STRING));

@@ -17,6 +17,8 @@ import type {
   FormatParams_IP,
   FormatParams_Time,
   FormatParams_UUID,
+  FormatParams_Url,
+  PatternParam,
   Samples,
   StringParams,
   TimeFmt,
@@ -45,7 +47,7 @@ function mockStringFormat(annotation: FormatAnnotation): unknown {
     case 'email':
       return mockEmail(params as FormatParams_Email);
     case 'url':
-      return pickSample((params as {mockSamples?: readonly string[]}).mockSamples) ?? 'https://example.com';
+      return mockUrl(params as FormatParams_Url);
     default:
       return undefined;
   }
@@ -57,10 +59,19 @@ registerMockingFunction(RunTypeKind.string, mockStringFormat);
 
 function mockStringParams(params: StringParams): string {
   if (params.allowedValues) return pickSample(params.allowedValues.val) ?? '';
+  // Pattern / disallowed-value samples can't be reversed from a regex, so
+  // we draw from the supplied samples. When length bounds are present, keep
+  // only the samples that satisfy them (mion's pattern formats encode their
+  // mockSamples as a char-set string and length-bound that; the ts-go port
+  // keeps array samples + filters by length — e.g. FormatAlpha<{maxLength:3}>
+  // must not pick a 5-char sample).
   const sample = pickSample(
-    params.mockSamples ??
-      (params.pattern as {mockSamples?: readonly string[]} | undefined)?.mockSamples ??
-      toSampleList(params.disallowedValues?.mockSamples)
+    filterSamplesByLength(
+      params.mockSamples ??
+        patternSampleList(params.pattern) ??
+        toSampleList(params.disallowedValues?.mockSamples),
+      params
+    )
   );
   if (sample !== undefined) return sample;
   const charSet = params.allowedChars?.val ?? asCharString(params.disallowedChars?.mockSamples);
@@ -69,6 +80,33 @@ function mockStringParams(params: StringParams): string {
     throw new Error('StringFormat: a `pattern` requires `mockSamples` to mock — none provided.');
   }
   return randomString(pickMockLength(params));
+}
+
+// patternSampleList returns a pattern's `mockSamples` as a string[] (the
+// Go scanner emits them as an array even when the source literal was a
+// single char-set string), or undefined when the pattern carries none.
+function patternSampleList(pattern: PatternParam | undefined): readonly string[] | undefined {
+  const samples = (pattern as {mockSamples?: Samples} | undefined)?.mockSamples;
+  return toSampleList(samples);
+}
+
+// filterSamplesByLength drops samples that violate the length bounds
+// (length / minLength / maxLength). Returns the original list when no
+// bound applies, and falls back to the unfiltered list if filtering
+// would leave nothing to pick from.
+function filterSamplesByLength(
+  samples: readonly string[] | undefined,
+  params: StringParams
+): readonly string[] | undefined {
+  if (!samples || samples.length === 0) return samples;
+  if (params.length === undefined && params.minLength === undefined && params.maxLength === undefined) return samples;
+  const kept = samples.filter((sample) => {
+    if (params.length !== undefined && sample.length !== params.length) return false;
+    if (params.minLength !== undefined && sample.length < params.minLength) return false;
+    if (params.maxLength !== undefined && sample.length > params.maxLength) return false;
+    return true;
+  });
+  return kept.length > 0 ? kept : samples;
 }
 
 // pickSample returns a random entry from a non-empty list, else undefined.
@@ -229,24 +267,51 @@ function mockIp(params: Partial<FormatParams_IP>): string {
 }
 
 function mockIpV4(params: Partial<FormatParams_IP>): string {
-  if (params.allowLocalHost && Math.random() > 0.8) return Math.random() > 0.5 ? 'localhost' : '127:0:0:1';
-  return Array.from({length: 4}, () => Math.floor(Math.random() * 256)).join('.');
+  // '127:0:0:1' is a valid v4 loopback only WITHOUT a port — the allowPort
+  // address parser splits on ':' and rejects >2 segments — so when ports
+  // are allowed the loopback is emitted as 'localhost' (the colon-free form).
+  if (params.allowLocalHost && Math.random() > 0.8) {
+    return params.allowPort ? 'localhost' : Math.random() > 0.5 ? 'localhost' : '127:0:0:1';
+  }
+  const address = Array.from({length: 4}, () => Math.floor(Math.random() * 256)).join('.');
+  return params.allowPort ? `${address}:${randomPort()}` : address;
 }
 
 function mockIpV6(params: Partial<FormatParams_IP>): string {
-  if (params.allowLocalHost && Math.random() > 0.8) return Math.random() > 0.5 ? '0:0:0:0:0:0:0:1' : '::1';
-  return Array.from({length: 8}, () => Math.floor(Math.random() * 0xffff).toString(16)).join(':');
+  if (params.allowLocalHost && Math.random() > 0.8) {
+    const loopback = Math.random() > 0.5 ? '0:0:0:0:0:0:0:1' : '::1';
+    // The allowPort v6 parser requires the bracketed `[addr]` (optionally
+    // `[addr]:port`) form — a bare address fails to match.
+    return params.allowPort ? `[${loopback}]` : loopback;
+  }
+  const address = Array.from({length: 8}, () => Math.floor(Math.random() * 0xffff).toString(16)).join(':');
+  return params.allowPort ? `[${address}]:${randomPort()}` : address;
+}
+
+// randomPort returns a valid 0-65535 port for the *WithPort IP formats.
+function randomPort(): number {
+  return Math.floor(Math.random() * 65536);
 }
 
 // ─────────────────────────── Domain / Email ─────────────────────────
 
 function mockDomain(params: FormatParams_Domain): string {
+  // names/tld decomposition (FormatDomainStrict): draw a label + tld from
+  // their sub-pattern samples (mion uses the names/tld char-sets). The
+  // samples live under `<part>.pattern.mockSamples` (or a bare mockSamples).
   if (params.names || params.tld) {
-    const name = pickSample(toSampleList(params.names?.mockSamples)) ?? 'example';
-    const tld = pickSample(toSampleList(params.tld?.mockSamples)) ?? 'com';
+    const name = pickSample(domainPartSamples(params.names)) ?? 'example';
+    const tld = pickSample(domainPartSamples(params.tld)) ?? 'com';
     return `${name}.${tld}`;
   }
-  return pickSample(params.mockSamples) ?? 'example.com';
+  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern))) ?? 'example.com';
+}
+
+// domainPartSamples reads a names/tld sub-format's samples, preferring its
+// own `mockSamples` and falling back to its `pattern.mockSamples`.
+function domainPartSamples(part: {mockSamples?: Samples; pattern?: unknown} | undefined): readonly string[] | undefined {
+  if (!part) return undefined;
+  return toSampleList(part.mockSamples) ?? patternSampleList(asPattern(part.pattern));
 }
 
 function mockEmail(params: FormatParams_Email): string {
@@ -255,5 +320,21 @@ function mockEmail(params: FormatParams_Email): string {
     const domain = params.domain ? mockDomain(params.domain) : 'example.com';
     return `${local}@${domain}`;
   }
-  return pickSample(params.mockSamples) ?? 'john@example.com';
+  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern))) ?? 'john@example.com';
+}
+
+// ──────────────────────────────── URL ───────────────────────────────
+
+function mockUrl(params: FormatParams_Url): string {
+  // URL formats bake their scheme set into the pattern, which can't be
+  // reversed — draw from the pattern's mockSamples (http(s)/ftp/ws,
+  // http-only, or file:// per variant). Default only fits the generic URL.
+  return pickSample(params.mockSamples ?? patternSampleList(asPattern(params.pattern))) ?? 'https://example.com';
+}
+
+// asPattern coerces a domain/email/url `pattern` param (a `{source, flags}`
+// or `{val: RegExp}` union) to the PatternParam shape patternSampleList
+// reads — only the `mockSamples` field matters for mocking.
+function asPattern(pattern: unknown): PatternParam | undefined {
+  return pattern as PatternParam | undefined;
 }
