@@ -22,13 +22,19 @@
 
 import {
   createPrepareForJson,
+  createPrepareForJsonFlat,
   deserializePrepareForJson,
   createRestoreFromJson,
+  createRestoreFromJsonFlat,
   deserializeRestoreFromJson,
   createStringifyJson,
+  createStringifyJsonFlat,
   type PrepareForJsonFn,
+  type PrepareForJsonFlatFn,
   type RestoreFromJsonFn,
+  type RestoreFromJsonFlatFn,
   type StringifyJsonFn,
+  type StringifyJsonFlatFn,
 } from '@mionjs/ts-go-run-types';
 
 // ========================================================================
@@ -181,6 +187,222 @@ function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
 }
 
 // ========================================================================
+// LARGE_OBJECTS support types — module-scoped so reflection resolves
+// the same identity per call. These shapes drive the
+// LARGE_OBJECTS bucket and exist to expose runtime cost
+// differences between the flat and non-flat JSON families on
+// the kinds of shapes that show up in real applications.
+// ========================================================================
+
+interface WideRecord {
+  id: number;
+  name: string;
+  description: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isActive: boolean;
+  score: number;
+  rank: number;
+  tag1: string;
+  tag2: string;
+  tag3: string;
+  tag4: string;
+  tag5: string;
+  count1: number;
+  count2: number;
+  count3: number;
+  flag1: boolean;
+  flag2: boolean;
+  flag3: boolean;
+  big1: bigint;
+  big2: bigint;
+  alias: string;
+  email: string;
+  city: string;
+  country: string;
+  postal: string;
+  width: number;
+  height: number;
+  weight: number;
+  meta: {category: string; priority: number; lastSeen: Date};
+}
+
+interface ProductEvent {
+  kind: 'product';
+  id: string;
+  sku: string;
+  price: number;
+  available: boolean;
+  releasedAt: Date;
+  stock: number;
+}
+interface UserEvent {
+  kind: 'user';
+  id: string;
+  username: string;
+  email: string;
+  signedUpAt: Date;
+  loginCount: number;
+  isPremium: boolean;
+}
+interface OrderEvent {
+  kind: 'order';
+  id: string;
+  total: number;
+  itemCount: number;
+  placedAt: Date;
+  shipped: boolean;
+  customerId: string;
+}
+interface PaymentEvent {
+  kind: 'payment';
+  id: string;
+  amount: number;
+  currency: string;
+  processedAt: Date;
+  refunded: boolean;
+  txId: string;
+}
+interface SessionEvent {
+  kind: 'session';
+  id: string;
+  userId: string;
+  startedAt: Date;
+  durationMs: number;
+  ipHash: string;
+  device: string;
+}
+
+type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+
+type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+
+interface DeepNestedLeaf {
+  id: number;
+  value: string;
+  when: Date;
+}
+interface DeepNestedLevel5 {
+  name: string;
+  leaves: DeepNestedLeaf[];
+}
+interface DeepNestedLevel4 {
+  label: string;
+  children: DeepNestedLevel5[];
+}
+interface DeepNestedLevel3 {
+  group: string;
+  branches: DeepNestedLevel4[];
+}
+interface DeepNestedLevel2 {
+  category: string;
+  groups: DeepNestedLevel3[];
+}
+interface DeepNestedLevel1 {
+  root: string;
+  categories: DeepNestedLevel2[];
+}
+
+class LargeClassA {
+  kind!: 'classA';
+  alpha!: string;
+  count!: number;
+  flag!: boolean;
+  when!: Date;
+  total!: bigint;
+  tags!: string[];
+}
+class LargeClassB {
+  kind!: 'classB';
+  beta!: string;
+  ratio!: number;
+  enabled!: boolean;
+  releasedAt!: Date;
+  score!: bigint;
+  metadata!: {label: string; weight: number};
+}
+class LargeClassC {
+  kind!: 'classC';
+  gamma!: string;
+  amount!: number;
+  paid!: boolean;
+  processedAt!: Date;
+  txId!: string;
+  steps!: number[];
+}
+
+type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+
+function buildWideRecord(seed: number): WideRecord {
+  return {
+    id: seed,
+    name: `record-${seed}`,
+    description: `Description for record ${seed} with extra body text`,
+    createdAt: new Date('2024-01-15T12:00:00.000Z'),
+    updatedAt: new Date('2024-06-15T12:00:00.000Z'),
+    isActive: true,
+    score: seed * 1.5,
+    rank: seed % 100,
+    tag1: `tag-a-${seed}`,
+    tag2: `tag-b-${seed}`,
+    tag3: `tag-c-${seed}`,
+    tag4: `tag-d-${seed}`,
+    tag5: `tag-e-${seed}`,
+    count1: seed * 2,
+    count2: seed * 3,
+    count3: seed * 4,
+    flag1: seed % 2 === 0,
+    flag2: seed % 3 === 0,
+    flag3: seed % 5 === 0,
+    big1: BigInt(seed) * 1_000_000n,
+    big2: BigInt(seed) * 9_999_999n,
+    alias: `alias-${seed}`,
+    email: `user${seed}@example.com`,
+    city: 'Springfield',
+    country: 'XX',
+    postal: '00000',
+    width: 1024,
+    height: 768,
+    weight: 12.5,
+    meta: {category: 'default', priority: seed % 10, lastSeen: new Date('2024-12-01T00:00:00.000Z')},
+  };
+}
+
+function buildLargeClassA(): LargeClassA {
+  const inst = new LargeClassA();
+  inst.kind = 'classA';
+  inst.alpha = 'alpha-value';
+  inst.count = 42;
+  inst.flag = true;
+  inst.when = new Date('2024-03-15T08:30:00.000Z');
+  inst.total = 10_000n;
+  inst.tags = ['x', 'y', 'z'];
+  return inst;
+}
+function buildLargeClassB(): LargeClassB {
+  const inst = new LargeClassB();
+  inst.kind = 'classB';
+  inst.beta = 'beta-value';
+  inst.ratio = 3.14159;
+  inst.enabled = false;
+  inst.releasedAt = new Date('2024-05-01T00:00:00.000Z');
+  inst.score = 99_999n;
+  inst.metadata = {label: 'meta', weight: 1.5};
+  return inst;
+}
+function buildLargeClassC(): LargeClassC {
+  const inst = new LargeClassC();
+  inst.kind = 'classC';
+  inst.gamma = 'gamma-value';
+  inst.amount = 250.5;
+  inst.paid = true;
+  inst.processedAt = new Date('2024-07-20T18:45:00.000Z');
+  inst.txId = 'tx-abc-123';
+  inst.steps = [1, 2, 3, 4, 5];
+  return inst;
+}
+
+// ========================================================================
 // SERIALIZATION_SPEC — single source of truth for the round-trip cases
 // ========================================================================
 
@@ -214,6 +436,16 @@ export interface SerializationCase {
   safeAdapterStringifyJsonNotParseable?: boolean;
   restoreFromJson: () => RestoreFromJsonFn;
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
+
+  /** Optimised flat-union JSON serialiser triplet. Same T as the
+   *  non-flat factories; the flat encoder merges object-union
+   *  members into a `[-1, mergedObject]` envelope to skip per-member
+   *  isType walks. Required for every case so the serialisation bench
+   *  (`scripts/export-serialization-suite.mjs`) can compare both
+   *  families side-by-side. **/
+  prepareForJsonFlat: () => PrepareForJsonFlatFn;
+  stringifyJsonFlat: () => StringifyJsonFlatFn;
+  restoreFromJsonFlat: () => RestoreFromJsonFlatFn;
 
   /** Sample values to round-trip via the **unsafe** path
    *  (`prepareForJson + JSON.stringify` / `JSON.parse + restoreFromJson`).
@@ -282,6 +514,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<string>(),
       stringifyJson: () => createStringifyJson<string>(),
       restoreFromJson: () => createRestoreFromJson<string>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<string>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<string>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<string>(),
       deserializePrepareForJson: () => deserializePrepareForJson<string>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<string>(),
       getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
@@ -291,6 +526,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<number>(),
       stringifyJson: () => createStringifyJson<number>(),
       restoreFromJson: () => createRestoreFromJson<number>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<number>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<number>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<number>(),
       deserializePrepareForJson: () => deserializePrepareForJson<number>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<number>(),
       getTestData: () => ({
@@ -316,6 +554,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<number>(),
       stringifyJson: () => createStringifyJson<number>(),
       restoreFromJson: () => createRestoreFromJson<number>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<number>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<number>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<number>(),
       getTestData: () => ({
         values: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN],
         // After JSON.stringify(Infinity) === 'null', restore yields null.
@@ -333,6 +574,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<RegExp>(),
       stringifyJson: () => createStringifyJson<RegExp>(),
       restoreFromJson: () => createRestoreFromJson<RegExp>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<RegExp>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<RegExp>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<RegExp>(),
       deserializePrepareForJson: () => deserializePrepareForJson<RegExp>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<RegExp>(),
       getTestData: () => ({values: [/abc/, /xyz/i, /\d+/g, /^[a-z]+$/]}),
@@ -342,6 +586,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<bigint>(),
       stringifyJson: () => createStringifyJson<bigint>(),
       restoreFromJson: () => createRestoreFromJson<bigint>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<bigint>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<bigint>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<bigint>(),
       deserializePrepareForJson: () => deserializePrepareForJson<bigint>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<bigint>(),
       getTestData: () => ({values: [1n]}),
@@ -351,6 +598,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<boolean>(),
       stringifyJson: () => createStringifyJson<boolean>(),
       restoreFromJson: () => createRestoreFromJson<boolean>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<boolean>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<boolean>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<boolean>(),
       deserializePrepareForJson: () => deserializePrepareForJson<boolean>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<boolean>(),
       getTestData: () => ({values: [true]}),
@@ -360,6 +610,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<any>(),
       stringifyJson: () => createStringifyJson<any>(),
       restoreFromJson: () => createRestoreFromJson<any>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<any>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<any>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<any>(),
       deserializePrepareForJson: () => deserializePrepareForJson<any>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<any>(),
       roundTripBestEffort: true,
@@ -372,6 +625,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<any>(),
       stringifyJson: () => createStringifyJson<any>(),
       restoreFromJson: () => createRestoreFromJson<any>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<any>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<any>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [undefined, [undefined, 123, null], new Date('2000-08-06T02:13:00.000Z'), BigInt(1)]}),
     },
@@ -380,6 +636,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<null>(),
       stringifyJson: () => createStringifyJson<null>(),
       restoreFromJson: () => createRestoreFromJson<null>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<null>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<null>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<null>(),
       deserializePrepareForJson: () => deserializePrepareForJson<null>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<null>(),
       getTestData: () => ({values: [null]}),
@@ -389,6 +648,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<undefined>(),
       stringifyJson: () => createStringifyJson<undefined>(),
       restoreFromJson: () => createRestoreFromJson<undefined>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<undefined>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<undefined>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<undefined>(),
       deserializePrepareForJson: () => deserializePrepareForJson<undefined>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<undefined>(),
       getTestData: () => ({values: [undefined]}),
@@ -398,6 +660,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Date>(),
       stringifyJson: () => createStringifyJson<Date>(),
       restoreFromJson: () => createRestoreFromJson<Date>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Date>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Date>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Date>(),
       deserializePrepareForJson: () => deserializePrepareForJson<Date>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
@@ -407,6 +672,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Color>(),
       stringifyJson: () => createStringifyJson<Color>(),
       restoreFromJson: () => createRestoreFromJson<Color>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Color>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Color>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Color>(),
       deserializePrepareForJson: () => deserializePrepareForJson<Color>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<Color>(),
       getTestData: () => ({values: [Color.Red, Color.Green]}),
@@ -416,6 +684,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<symbol>(),
       stringifyJson: () => createStringifyJson<symbol>(),
       restoreFromJson: () => createRestoreFromJson<symbol>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<symbol>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<symbol>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<symbol>(),
       deserializePrepareForJson: () => deserializePrepareForJson<symbol>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<symbol>(),
       getTestData: () => ({values: [Symbol('foo'), Symbol()]}),
@@ -425,6 +696,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<object>(),
       stringifyJson: () => createStringifyJson<object>(),
       restoreFromJson: () => createRestoreFromJson<object>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<object>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<object>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<object>(),
       deserializePrepareForJson: () => deserializePrepareForJson<object>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<object>(),
       roundTripBestEffort: true,
@@ -435,6 +709,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<void>(),
       stringifyJson: () => createStringifyJson<void>(),
       restoreFromJson: () => createRestoreFromJson<void>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<void>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<void>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<void>(),
       deserializePrepareForJson: () => deserializePrepareForJson<void>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<void>(),
       getTestData: () => ({values: [undefined]}),
@@ -445,6 +722,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<never>(),
       stringifyJson: () => createStringifyJson<never>(),
       restoreFromJson: () => createRestoreFromJson<never>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<never>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<never>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<never>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -453,6 +733,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<'hello'>(),
       stringifyJson: () => createStringifyJson<'hello'>(),
       restoreFromJson: () => createRestoreFromJson<'hello'>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<'hello'>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<'hello'>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<'hello'>(),
       deserializePrepareForJson: () => deserializePrepareForJson<'hello'>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<'hello'>(),
       getTestData: () => ({values: ['hello']}),
@@ -462,6 +745,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<42>(),
       stringifyJson: () => createStringifyJson<42>(),
       restoreFromJson: () => createRestoreFromJson<42>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<42>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<42>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<42>(),
       deserializePrepareForJson: () => deserializePrepareForJson<42>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<42>(),
       getTestData: () => ({values: [42]}),
@@ -471,6 +757,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<true>(),
       stringifyJson: () => createStringifyJson<true>(),
       restoreFromJson: () => createRestoreFromJson<true>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<true>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<true>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<true>(),
       deserializePrepareForJson: () => deserializePrepareForJson<true>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<true>(),
       getTestData: () => ({values: [true]}),
@@ -489,6 +778,18 @@ export const SERIALIZATION_SPEC = {
         const reg = /abc/;
         return createRestoreFromJson<typeof reg>();
       },
+      prepareForJsonFlat: () => {
+        const reg = /abc/;
+        return createPrepareForJsonFlat<typeof reg>();
+      },
+      stringifyJsonFlat: () => {
+        const reg = /abc/;
+        return createStringifyJsonFlat<typeof reg>();
+      },
+      restoreFromJsonFlat: () => {
+        const reg = /abc/;
+        return createRestoreFromJsonFlat<typeof reg>();
+      },
       getTestData: () => ({values: [/abc/]}),
     },
   },
@@ -499,6 +800,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<string[]>(),
       stringifyJson: () => createStringifyJson<string[]>(),
       restoreFromJson: () => createRestoreFromJson<string[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<string[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<string[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<string[]>(),
       deserializePrepareForJson: () => deserializePrepareForJson<string[]>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(),
       getTestData: () => ({values: [['hello', 'world'], []]}),
@@ -508,6 +812,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Date[]>(),
       stringifyJson: () => createStringifyJson<Date[]>(),
       restoreFromJson: () => createRestoreFromJson<Date[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Date[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Date[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Date[]>(),
       deserializePrepareForJson: () => deserializePrepareForJson<Date[]>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date[]>(),
       getTestData: () => ({
@@ -519,6 +826,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<undefined[]>(),
       stringifyJson: () => createStringifyJson<undefined[]>(),
       restoreFromJson: () => createRestoreFromJson<undefined[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<undefined[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<undefined[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<undefined[]>(),
       getTestData: () => ({values: [[undefined, undefined]]}),
     },
     multi_dimensional: {
@@ -526,6 +836,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<string[][]>(),
       stringifyJson: () => createStringifyJson<string[][]>(),
       restoreFromJson: () => createRestoreFromJson<string[][]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<string[][]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<string[][]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<string[][]>(),
       deserializePrepareForJson: () => deserializePrepareForJson<string[][]>(),
       deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][]>(),
       getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
@@ -536,6 +849,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<symbol[]>(),
       stringifyJson: () => createStringifyJson<symbol[]>(),
       restoreFromJson: () => createRestoreFromJson<symbol[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<symbol[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<symbol[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<symbol[]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -552,6 +868,18 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => {
         type CircularArray = CircularArray[];
         return createRestoreFromJson<CircularArray>();
+      },
+      prepareForJsonFlat: () => {
+        type CircularArray = CircularArray[];
+        return createPrepareForJsonFlat<CircularArray>();
+      },
+      stringifyJsonFlat: () => {
+        type CircularArray = CircularArray[];
+        return createStringifyJsonFlat<CircularArray>();
+      },
+      restoreFromJsonFlat: () => {
+        type CircularArray = CircularArray[];
+        return createRestoreFromJsonFlat<CircularArray>();
       },
       getTestData: () => {
         type CircularArray = CircularArray[];
@@ -591,6 +919,39 @@ export const SERIALIZATION_SPEC = {
         }>(),
       restoreFromJson: () =>
         createRestoreFromJson<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -649,6 +1010,39 @@ export const SERIALIZATION_SPEC = {
         };
         return createRestoreFromJson<ManyOptional>();
       },
+      prepareForJsonFlat: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createPrepareForJsonFlat<ManyOptional>();
+      },
+      stringifyJsonFlat: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createStringifyJsonFlat<ManyOptional>();
+      },
+      restoreFromJsonFlat: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createRestoreFromJsonFlat<ManyOptional>();
+      },
       getTestData: () => ({
         values: [{a0: 0, a1: 1, b0: 16, a8: 8, b7: 23, b15: 31}, {a0: 0, b8: 24}, {}],
       }),
@@ -658,6 +1052,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<MySerializableClass>(),
       stringifyJson: () => createStringifyJson<MySerializableClass>(),
       restoreFromJson: () => createRestoreFromJson<MySerializableClass>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<MySerializableClass>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<MySerializableClass>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<MySerializableClass>(),
       getTestData: () => {
         const item = new MySerializableClass();
         const restored = {name: item.name, surname: item.surname, id: item.id, startDate: item.startDate};
@@ -693,6 +1090,33 @@ export const SERIALIZATION_SPEC = {
         }
         return createRestoreFromJson<ExtendedClass>();
       },
+      prepareForJsonFlat: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createPrepareForJsonFlat<ExtendedClass>();
+      },
+      stringifyJsonFlat: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createStringifyJsonFlat<ExtendedClass>();
+      },
+      restoreFromJsonFlat: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createRestoreFromJsonFlat<ExtendedClass>();
+      },
       getTestData: () => {
         class BaseClass {
           baseProp: string = 'base';
@@ -710,6 +1134,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<NonSerializableClass>(),
       stringifyJson: () => createStringifyJson<NonSerializableClass>(),
       restoreFromJson: () => createRestoreFromJson<NonSerializableClass>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<NonSerializableClass>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<NonSerializableClass>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<NonSerializableClass>(),
       getTestData: () => {
         const item = new NonSerializableClass('John', 'Doe', 0, new Date('2000-08-06T02:13:00.000Z'));
         const restored = {name: item.name, surname: item.surname, id: item.id, startDate: item.startDate};
@@ -721,6 +1148,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string; b: number; c: undefined}>(),
       stringifyJson: () => createStringifyJson<{a: string; b: number; c: undefined}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; b: number; c: undefined}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string; b: number; c: undefined}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string; b: number; c: undefined}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string; b: number; c: undefined}>(),
       getTestData: () => ({
         values: [{a: 'hello', b: 42, c: undefined}],
         deserializedValues: [{a: 'hello', b: 42}],
@@ -731,6 +1161,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string; b?: string}>(),
       stringifyJson: () => createStringifyJson<{a: string; b?: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; b?: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string; b?: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string; b?: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
     },
     all_optional_fields: {
@@ -738,6 +1171,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a?: string; b?: string}>(),
       stringifyJson: () => createStringifyJson<{a?: string; b?: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a?: string; b?: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a?: string; b?: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a?: string; b?: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a?: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
     },
     extras_passthrough_unsafe: {
@@ -772,6 +1208,45 @@ export const SERIALIZATION_SPEC = {
         }>(),
       restoreFromJson: () =>
         createRestoreFromJson<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -858,6 +1333,27 @@ export const SERIALIZATION_SPEC = {
         }
         return createRestoreFromJson<ICircular>();
       },
+      prepareForJsonFlat: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createPrepareForJsonFlat<ICircular>();
+      },
+      stringifyJsonFlat: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createStringifyJsonFlat<ICircular>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createRestoreFromJsonFlat<ICircular>();
+      },
       getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
     },
     interface_circular_array: {
@@ -865,6 +1361,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ICircularArray>(),
       stringifyJson: () => createStringifyJson<ICircularArray>(),
       restoreFromJson: () => createRestoreFromJson<ICircularArray>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ICircularArray>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ICircularArray>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ICircularArray>(),
       getTestData: () => ({
         values: [
           {name: 'hello', children: []},
@@ -877,6 +1376,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ICircularDeep>(),
       stringifyJson: () => createStringifyJson<ICircularDeep>(),
       restoreFromJson: () => createRestoreFromJson<ICircularDeep>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ICircularDeep>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ICircularDeep>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ICircularDeep>(),
       getTestData: () => ({
         values: [
           {name: 'hello', big: 1n, embedded: {hello: 'world'}},
@@ -893,6 +1395,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<RootNotCircular>(),
       stringifyJson: () => createStringifyJson<RootNotCircular>(),
       restoreFromJson: () => createRestoreFromJson<RootNotCircular>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<RootNotCircular>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<RootNotCircular>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<RootNotCircular>(),
       getTestData: () => ({
         values: [
           {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}}},
@@ -912,6 +1417,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<RootCircular>(),
       stringifyJson: () => createStringifyJson<RootCircular>(),
       restoreFromJson: () => createRestoreFromJson<RootCircular>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<RootCircular>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<RootCircular>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<RootCircular>(),
       getTestData: () => {
         const ciDate: ICircularDate = {date: new Date('2000-08-06T02:13:00.000Z'), month: 1, year: 2021};
         return {
@@ -935,6 +1443,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ObjectWithMethods>(),
       stringifyJson: () => createStringifyJson<ObjectWithMethods>(),
       restoreFromJson: () => createRestoreFromJson<ObjectWithMethods>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ObjectWithMethods>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ObjectWithMethods>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ObjectWithMethods>(),
       getTestData: () => {
         const objWithMethod = {
           name: 'John',
@@ -953,6 +1464,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{[key: string]: string}>(),
       stringifyJson: () => createStringifyJson<{[key: string]: string}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{[key: string]: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{[key: string]: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{[key: string]: string}>(),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
     },
     index_property_and_prop: {
@@ -960,6 +1474,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string; [key: string]: string}>(),
       stringifyJson: () => createStringifyJson<{a: string; [key: string]: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; [key: string]: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string; [key: string]: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string; [key: string]: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string; [key: string]: string}>(),
       getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
     },
     index_property_extra: {
@@ -967,6 +1484,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string; b: number; [key: string]: string | number}>(),
       stringifyJson: () => createStringifyJson<{a: string; b: number; [key: string]: string | number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; b: number; [key: string]: string | number}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string; b: number; [key: string]: string | number}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string; b: number; [key: string]: string | number}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string; b: number; [key: string]: string | number}>(),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
     },
     multiple_index_props: {
@@ -974,6 +1494,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       stringifyJson: () => createStringifyJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       getTestData: () => {
         const objWithSymbolKeys = {
           key1: 'value1',
@@ -995,6 +1518,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: number}}>(),
       stringifyJson: () => createStringifyJson<{[key: string]: {[key: string]: number}}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: number}}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{[key: string]: {[key: string]: number}}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{[key: string]: {[key: string]: number}}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{[key: string]: {[key: string]: number}}>(),
       getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
     },
     index_property_nested_date: {
@@ -1002,6 +1528,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: Date}}>(),
       stringifyJson: () => createStringifyJson<{[key: string]: {[key: string]: Date}}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: Date}}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{[key: string]: {[key: string]: Date}}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{[key: string]: {[key: string]: Date}}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{[key: string]: {[key: string]: Date}}>(),
       getTestData: () => ({
         values: [
           {
@@ -1018,6 +1547,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{[key: string]: bigint}>(),
       stringifyJson: () => createStringifyJson<{[key: string]: bigint}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: string]: bigint}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{[key: string]: bigint}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{[key: string]: bigint}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{[key: string]: bigint}>(),
       getTestData: () => ({
         values: [
           {key1: 1n, key2: 2n},
@@ -1030,6 +1562,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{b: string; c: {a: string; [key: string]: string}}>(),
       stringifyJson: () => createStringifyJson<{b: string; c: {a: string; [key: string]: string}}>(),
       restoreFromJson: () => createRestoreFromJson<{b: string; c: {a: string; [key: string]: string}}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{b: string; c: {a: string; [key: string]: string}}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{b: string; c: {a: string; [key: string]: string}}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{b: string; c: {a: string; [key: string]: string}}>(),
       getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
     },
   },
@@ -1040,6 +1575,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<[Date, number, string, null, string[], bigint]>(),
       stringifyJson: () => createStringifyJson<[Date, number, string, null, string[], bigint]>(),
       restoreFromJson: () => createRestoreFromJson<[Date, number, string, null, string[], bigint]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<[Date, number, string, null, string[], bigint]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<[Date, number, string, null, string[], bigint]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<[Date, number, string, null, string[], bigint]>(),
       getTestData: () => ({
         values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
       }),
@@ -1049,6 +1587,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<[number, bigint?, boolean?, number?]>(),
       stringifyJson: () => createStringifyJson<[number, bigint?, boolean?, number?]>(),
       restoreFromJson: () => createRestoreFromJson<[number, bigint?, boolean?, number?]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<[number, bigint?, boolean?, number?]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<[number, bigint?, boolean?, number?]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<[number, bigint?, boolean?, number?]>(),
       getTestData: () => ({
         values: [
           [3, undefined, true, 4],
@@ -1061,6 +1602,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<[number, ...bigint[]]>(),
       stringifyJson: () => createStringifyJson<[number, ...bigint[]]>(),
       restoreFromJson: () => createRestoreFromJson<[number, ...bigint[]]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<[number, ...bigint[]]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<[number, ...bigint[]]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<[number, ...bigint[]]>(),
       getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
     },
     tuple_with_non_serializable: {
@@ -1068,6 +1612,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<[number, () => any]>(),
       stringifyJson: () => createStringifyJson<[number, () => any]>(),
       restoreFromJson: () => createRestoreFromJson<[number, () => any]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<[number, () => any]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<[number, () => any]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<[number, () => any]>(),
       getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
     },
     tuple_circular: {
@@ -1083,6 +1630,18 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createRestoreFromJson<TupleCircular>();
+      },
+      prepareForJsonFlat: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createPrepareForJsonFlat<TupleCircular>();
+      },
+      stringifyJsonFlat: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createStringifyJsonFlat<TupleCircular>();
+      },
+      restoreFromJsonFlat: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createRestoreFromJsonFlat<TupleCircular>();
       },
       getTestData: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -1112,6 +1671,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ICircularTuple>(),
       stringifyJson: () => createStringifyJson<ICircularTuple>(),
       restoreFromJson: () => createRestoreFromJson<ICircularTuple>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ICircularTuple>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ICircularTuple>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ICircularTuple>(),
       getTestData: () => {
         const obj1: ICircularTuple = {name: 'hello', parent: ['world', {name: 'world'}]};
         const obj2: ICircularTuple = {name: 'hello', parent: ['world', {name: 'world', parent: ['hello', obj1]}]};
@@ -1130,6 +1692,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnNoOptional>>(),
       stringifyJson: () => createStringifyJson<Parameters<typeof fnNoOptional>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnNoOptional>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnNoOptional>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnNoOptional>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnNoOptional>>(),
       getTestData: () => ({
         values: [
           [3, true, 'hello'],
@@ -1142,6 +1707,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnOptionalParams>>(),
       stringifyJson: () => createStringifyJson<Parameters<typeof fnOptionalParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOptionalParams>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnOptionalParams>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnOptionalParams>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnOptionalParams>>(),
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
         return {values: [[d, true], [d]]};
@@ -1152,6 +1720,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnOptionalParam>>(),
       stringifyJson: () => createStringifyJson<ReturnType<typeof fnOptionalParam>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnOptionalParam>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnOptionalParam>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnOptionalParam>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnOptionalParam>>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     function_with_rest_parameters: {
@@ -1159,6 +1730,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnRestParams>>(),
       stringifyJson: () => createStringifyJson<Parameters<typeof fnRestParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnRestParams>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnRestParams>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnRestParams>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnRestParams>>(),
       getTestData: () => ({
         values: [
           [3, true, new Date('2000-08-06T02:13:00.000Z'), new Date('2000-08-06T02:13:00.000Z')],
@@ -1171,6 +1745,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnOptionalParams>>(),
       stringifyJson: () => createStringifyJson<Parameters<typeof fnOptionalParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOptionalParams>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnOptionalParams>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnOptionalParams>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnOptionalParams>>(),
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
         return {values: [[d, true], [d]]};
@@ -1181,6 +1758,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnOptionalParams>>(),
       stringifyJson: () => createStringifyJson<ReturnType<typeof fnOptionalParams>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnOptionalParams>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnOptionalParams>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnOptionalParams>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnOptionalParams>>(),
       getTestData: () => ({values: [1n]}),
     },
     function_with_only_rest_parameters: {
@@ -1188,6 +1768,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnOnlyRestParams>>(),
       stringifyJson: () => createStringifyJson<Parameters<typeof fnOnlyRestParams>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOnlyRestParams>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnOnlyRestParams>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnOnlyRestParams>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnOnlyRestParams>>(),
       getTestData: () => ({values: [[3, 2, 1], []]}),
     },
     non_serializable_params: {
@@ -1195,6 +1778,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<typeof fnWithCallback>>(),
       stringifyJson: () => createStringifyJson<Parameters<typeof fnWithCallback>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnWithCallback>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnWithCallback>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnWithCallback>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnWithCallback>>(),
       getTestData: () => ({
         values: [
           [3, true, () => null],
@@ -1212,6 +1798,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnReturnsPromise>>(),
       stringifyJson: () => createStringifyJson<ReturnType<typeof fnReturnsPromise>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnReturnsPromise>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnReturnsPromise>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnReturnsPromise>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnReturnsPromise>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -1221,6 +1810,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ReturnType<typeof fnReturnsFunction>>(),
       stringifyJson: () => createStringifyJson<ReturnType<typeof fnReturnsFunction>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnReturnsFunction>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnReturnsFunction>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnReturnsFunction>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnReturnsFunction>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -1229,6 +1821,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Parameters<{(a: number, b: boolean): string}>>(),
       stringifyJson: () => createStringifyJson<Parameters<{(a: number, b: boolean): string}>>(),
       restoreFromJson: () => createRestoreFromJson<Parameters<{(a: number, b: boolean): string}>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<{(a: number, b: boolean): string}>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<{(a: number, b: boolean): string}>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<{(a: number, b: boolean): string}>>(),
       getTestData: () => ({values: [[3, true]]}),
     },
     call_signature_return: {
@@ -1236,6 +1831,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ReturnType<{(a: number, b: boolean): string}>>(),
       stringifyJson: () => createStringifyJson<ReturnType<{(a: number, b: boolean): string}>>(),
       restoreFromJson: () => createRestoreFromJson<ReturnType<{(a: number, b: boolean): string}>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<{(a: number, b: boolean): string}>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<{(a: number, b: boolean): string}>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<{(a: number, b: boolean): string}>>(),
       getTestData: () => ({values: ['result']}),
     },
   },
@@ -1246,6 +1844,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       stringifyJson: () => createStringifyJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       restoreFromJson: () => createRestoreFromJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     exclude_atomic: {
@@ -1253,6 +1854,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Exclude<'name' | 'age' | number, 'age'>>(),
       stringifyJson: () => createStringifyJson<Exclude<'name' | 'age' | number, 'age'>>(),
       restoreFromJson: () => createRestoreFromJson<Exclude<'name' | 'age' | number, 'age'>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Exclude<'name' | 'age' | number, 'age'>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Exclude<'name' | 'age' | number, 'age'>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Exclude<'name' | 'age' | number, 'age'>>(),
       getTestData: () => ({values: ['name', 3, 4]}),
     },
     exclude_objects: {
@@ -1278,6 +1882,27 @@ export const SERIALIZATION_SPEC = {
         type Shape = Circle | Square | Triangle;
         return createRestoreFromJson<Exclude<Shape, Circle>>();
       },
+      prepareForJsonFlat: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createPrepareForJsonFlat<Exclude<Shape, Circle>>();
+      },
+      stringifyJsonFlat: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createStringifyJsonFlat<Exclude<Shape, Circle>>();
+      },
+      restoreFromJsonFlat: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createRestoreFromJsonFlat<Exclude<Shape, Circle>>();
+      },
       getTestData: () => ({
         values: [
           {kind: 'square', x: 5},
@@ -1290,6 +1915,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       stringifyJson: () => createStringifyJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       restoreFromJson: () => createRestoreFromJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       getTestData: () => ({
         values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
       }),
@@ -1299,6 +1927,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       stringifyJson: () => createStringifyJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       restoreFromJson: () => createRestoreFromJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       getTestData: () => ({values: ['name']}),
     },
     extract_objects: {
@@ -1318,6 +1949,21 @@ export const SERIALIZATION_SPEC = {
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createRestoreFromJson<Extract<Shape, ToExtract>>();
       },
+      prepareForJsonFlat: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createPrepareForJsonFlat<Extract<Shape, ToExtract>>();
+      },
+      stringifyJsonFlat: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createStringifyJsonFlat<Extract<Shape, ToExtract>>();
+      },
+      restoreFromJsonFlat: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createRestoreFromJsonFlat<Extract<Shape, ToExtract>>();
+      },
       getTestData: () => ({values: [{kind: 'square', x: 5}]}),
     },
     partial_properties: {
@@ -1325,6 +1971,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Partial<{name: string; age: number; createdAt: Date}>>(),
       stringifyJson: () => createStringifyJson<Partial<{name: string; age: number; createdAt: Date}>>(),
       restoreFromJson: () => createRestoreFromJson<Partial<{name: string; age: number; createdAt: Date}>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Partial<{name: string; age: number; createdAt: Date}>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Partial<{name: string; age: number; createdAt: Date}>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Partial<{name: string; age: number; createdAt: Date}>>(),
       getTestData: () => {
         const createdAt = new Date('2000-08-06T02:13:00.000Z');
         return {values: [{name: 'John'}, {age: 30}, {createdAt}, {}]};
@@ -1338,6 +1987,12 @@ export const SERIALIZATION_SPEC = {
         createStringifyJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       restoreFromJson: () =>
         createRestoreFromJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     omit_properties: {
@@ -1345,6 +2000,12 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       stringifyJson: () => createStringifyJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       restoreFromJson: () => createRestoreFromJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     record_type: {
@@ -1352,6 +2013,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Record<string, Date>>(),
       stringifyJson: () => createStringifyJson<Record<string, Date>>(),
       restoreFromJson: () => createRestoreFromJson<Record<string, Date>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Record<string, Date>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Record<string, Date>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Record<string, Date>>(),
       getTestData: () => ({
         values: [
           {
@@ -1370,6 +2034,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Date | number | string | null | bigint>(),
       stringifyJson: () => createStringifyJson<Date | number | string | null | bigint>(),
       restoreFromJson: () => createRestoreFromJson<Date | number | string | null | bigint>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Date | number | string | null | bigint>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Date | number | string | null | bigint>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Date | number | string | null | bigint>(),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
     },
     union_array: {
@@ -1377,6 +2044,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<string[] | number[] | boolean[] | Date[]>(),
       stringifyJson: () => createStringifyJson<string[] | number[] | boolean[] | Date[]>(),
       restoreFromJson: () => createRestoreFromJson<string[] | number[] | boolean[] | Date[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<string[] | number[] | boolean[] | Date[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<string[] | number[] | boolean[] | Date[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<string[] | number[] | boolean[] | Date[]>(),
       getTestData: () => ({
         values: [
           ['a', 'b', 'c'],
@@ -1392,6 +2062,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<(string | bigint | boolean | Date)[]>(),
       stringifyJson: () => createStringifyJson<(string | bigint | boolean | Date)[]>(),
       restoreFromJson: () => createRestoreFromJson<(string | bigint | boolean | Date)[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<(string | bigint | boolean | Date)[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<(string | bigint | boolean | Date)[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<(string | bigint | boolean | Date)[]>(),
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
         return {
@@ -1409,6 +2082,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       stringifyJson: () => createStringifyJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
     },
     union_with_discriminator_property: {
@@ -1429,6 +2105,27 @@ export const SERIALIZATION_SPEC = {
         >(),
       restoreFromJson: () =>
         createRestoreFromJson<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
@@ -1455,6 +2152,18 @@ export const SERIALIZATION_SPEC = {
         >(),
       restoreFromJson: () =>
         createRestoreFromJson<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
@@ -1485,6 +2194,30 @@ export const SERIALIZATION_SPEC = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 1n, c: 2n}]}),
     },
     circular_union_with_discriminator: {
@@ -1500,6 +2233,18 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createRestoreFromJson<UnionC>();
+      },
+      prepareForJsonFlat: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createPrepareForJsonFlat<UnionC>();
+      },
+      stringifyJsonFlat: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createStringifyJsonFlat<UnionC>();
+      },
+      restoreFromJsonFlat: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createRestoreFromJsonFlat<UnionC>();
       },
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -1533,6 +2278,18 @@ export const SERIALIZATION_SPEC = {
         createRestoreFromJson<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
+      prepareForJsonFlat: () =>
+        createPrepareForJsonFlat<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(),
+      stringifyJsonFlat: () =>
+        createStringifyJsonFlat<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(),
+      restoreFromJsonFlat: () =>
+        createRestoreFromJsonFlat<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(),
       getTestData: () => {
         const objWithName = {
           name: 'John',
@@ -1563,6 +2320,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<number | {name: string} | any>(),
       stringifyJson: () => createStringifyJson<number | {name: string} | any>(),
       restoreFromJson: () => createRestoreFromJson<number | {name: string} | any>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<number | {name: string} | any>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<number | {name: string} | any>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<number | {name: string} | any>(),
       roundTripBestEffort: true,
       getTestData: () => ({values: [42, {name: 'test'}, 'fallback to any', true, null]}),
     },
@@ -1572,6 +2332,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Date | number | string | (() => any)>(),
       stringifyJson: () => createStringifyJson<Date | number | string | (() => any)>(),
       restoreFromJson: () => createRestoreFromJson<Date | number | string | (() => any)>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Date | number | string | (() => any)>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Date | number | string | (() => any)>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Date | number | string | (() => any)>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -1597,6 +2360,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
       stringifyJson: () => createStringifyJson<{a: string} | {b: number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string} | {b: number}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string} | {b: number}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string} | {b: number}>(),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{b: 123, c: 123n}]}),
       // Safe-path adapter: stringifyJson strips the extra `c: 123n` in
@@ -1612,6 +2378,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
       stringifyJson: () => createStringifyJson<{a: string} | {b: number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: string} | {b: number}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: string} | {b: number}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: string} | {b: number}>(),
       // Symbol-valued props are silently dropped by JSON.stringify
       // (per ECMAScript spec) — no throw, no round-trip mismatch
       // because the symbol was never reachable post-stringify
@@ -1630,6 +2399,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Set<string>>(),
       stringifyJson: () => createStringifyJson<Set<string>>(),
       restoreFromJson: () => createRestoreFromJson<Set<string>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Set<string>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Set<string>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Set<string>>(),
       getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
     },
     set_small_object: {
@@ -1637,6 +2409,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Set<SmallObject>>(),
       stringifyJson: () => createStringifyJson<Set<SmallObject>>(),
       restoreFromJson: () => createRestoreFromJson<Set<SmallObject>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Set<SmallObject>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Set<SmallObject>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Set<SmallObject>>(),
       getTestData: () => ({
         values: [
           new Set<SmallObject>([
@@ -1676,6 +2451,33 @@ export const SERIALIZATION_SPEC = {
         }
         return createRestoreFromJson<DeepWithSet>();
       },
+      prepareForJsonFlat: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createPrepareForJsonFlat<DeepWithSet>();
+      },
+      stringifyJsonFlat: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createStringifyJsonFlat<DeepWithSet>();
+      },
+      restoreFromJsonFlat: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createRestoreFromJsonFlat<DeepWithSet>();
+      },
       getTestData: () => {
         const setB = new Set([
           {s: 'a', arr: [1, 2, 3]},
@@ -1693,6 +2495,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Map<string, number>>(),
       stringifyJson: () => createStringifyJson<Map<string, number>>(),
       restoreFromJson: () => createRestoreFromJson<Map<string, number>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<string, number>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Map<string, number>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<string, number>>(),
       getTestData: () => ({
         values: [
           new Map<string, number>([
@@ -1708,6 +2513,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Map<string, SmallObject>>(),
       stringifyJson: () => createStringifyJson<Map<string, SmallObject>>(),
       restoreFromJson: () => createRestoreFromJson<Map<string, SmallObject>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<string, SmallObject>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Map<string, SmallObject>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<string, SmallObject>>(),
       getTestData: () => ({
         values: [
           new Map<string, SmallObject>([
@@ -1723,6 +2531,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Map<SmallObject, number>>(),
       stringifyJson: () => createStringifyJson<Map<SmallObject, number>>(),
       restoreFromJson: () => createRestoreFromJson<Map<SmallObject, number>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<SmallObject, number>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Map<SmallObject, number>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<SmallObject, number>>(),
       getTestData: () => ({
         values: [
           new Map<SmallObject, number>([
@@ -1756,6 +2567,27 @@ export const SERIALIZATION_SPEC = {
         }
         return createRestoreFromJson<DeepWithMap>();
       },
+      prepareForJsonFlat: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createPrepareForJsonFlat<DeepWithMap>();
+      },
+      stringifyJsonFlat: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createStringifyJsonFlat<DeepWithMap>();
+      },
+      restoreFromJsonFlat: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createRestoreFromJsonFlat<DeepWithMap>();
+      },
       getTestData: () => ({
         values: [
           {
@@ -1773,6 +2605,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Map<bigint, number>>(),
       stringifyJson: () => createStringifyJson<Map<bigint, number>>(),
       restoreFromJson: () => createRestoreFromJson<Map<bigint, number>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<bigint, number>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Map<bigint, number>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<bigint, number>>(),
       getTestData: () => ({
         values: [
           new Map<bigint, number>([
@@ -1788,6 +2623,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Map<string, Date>>(),
       stringifyJson: () => createStringifyJson<Map<string, Date>>(),
       restoreFromJson: () => createRestoreFromJson<Map<string, Date>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<string, Date>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Map<string, Date>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<string, Date>>(),
       getTestData: () => ({
         values: [
           new Map<string, Date>([
@@ -1814,6 +2652,18 @@ export const SERIALIZATION_SPEC = {
         type CircularObject = {name: string; child?: CircularObject};
         return createRestoreFromJson<CircularObject>();
       },
+      prepareForJsonFlat: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createPrepareForJsonFlat<CircularObject>();
+      },
+      stringifyJsonFlat: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createStringifyJsonFlat<CircularObject>();
+      },
+      restoreFromJsonFlat: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createRestoreFromJsonFlat<CircularObject>();
+      },
       getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
     },
     circular_union_array: {
@@ -1829,6 +2679,18 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createRestoreFromJson<CuArray>();
+      },
+      prepareForJsonFlat: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createPrepareForJsonFlat<CuArray>();
+      },
+      stringifyJsonFlat: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createStringifyJsonFlat<CuArray>();
+      },
+      restoreFromJsonFlat: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createRestoreFromJsonFlat<CuArray>();
       },
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -1861,6 +2723,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createRestoreFromJson<CircularTuple>();
       },
+      prepareForJsonFlat: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createPrepareForJsonFlat<CircularTuple>();
+      },
+      stringifyJsonFlat: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createStringifyJsonFlat<CircularTuple>();
+      },
+      restoreFromJsonFlat: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createRestoreFromJsonFlat<CircularTuple>();
+      },
       getTestData: () => ({
         values: [{list: [1n, {list: [2n, {list: [3n, {list: [4n]}]}]}]}, {list: [1n, {list: [2n]}]}, {list: [1n]}],
       }),
@@ -1884,6 +2764,24 @@ export const SERIALIZATION_SPEC = {
           index: {[key: string]: CircularIndex};
         }
         return createRestoreFromJson<CircularIndex>();
+      },
+      prepareForJsonFlat: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createPrepareForJsonFlat<CircularIndex>();
+      },
+      stringifyJsonFlat: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createStringifyJsonFlat<CircularIndex>();
+      },
+      restoreFromJsonFlat: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createRestoreFromJsonFlat<CircularIndex>();
       },
       getTestData: () => ({
         values: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
@@ -1909,6 +2807,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createRestoreFromJson<CircularDeep>();
       },
+      prepareForJsonFlat: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createPrepareForJsonFlat<CircularDeep>();
+      },
+      stringifyJsonFlat: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createStringifyJsonFlat<CircularDeep>();
+      },
+      restoreFromJsonFlat: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createRestoreFromJsonFlat<CircularDeep>();
+      },
       getTestData: () => ({
         values: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
       }),
@@ -1927,6 +2843,18 @@ export const SERIALIZATION_SPEC = {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createRestoreFromJson<CircularTupleComplex>();
       },
+      prepareForJsonFlat: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createPrepareForJsonFlat<CircularTupleComplex>();
+      },
+      stringifyJsonFlat: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createStringifyJsonFlat<CircularTupleComplex>();
+      },
+      restoreFromJsonFlat: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createRestoreFromJsonFlat<CircularTupleComplex>();
+      },
       getTestData: () => ({values: [[1n, [2n, [3n, [4n]]]], [1n, [2n]], [1n]]}),
     },
     object_with_circular_array: {
@@ -1934,6 +2862,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<ObjCircularArr>(),
       stringifyJson: () => createStringifyJson<ObjCircularArr>(),
       restoreFromJson: () => createRestoreFromJson<ObjCircularArr>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<ObjCircularArr>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<ObjCircularArr>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ObjCircularArr>(),
       getTestData: () => ({
         values: [
           {
@@ -1952,6 +2883,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<`api/users/${number}`>(),
       stringifyJson: () => createStringifyJson<`api/users/${number}`>(),
       restoreFromJson: () => createRestoreFromJson<`api/users/${number}`>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<`api/users/${number}`>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<`api/users/${number}`>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<`api/users/${number}`>(),
       getTestData: () => ({
         values: [
           'api/users/0',
@@ -1968,6 +2902,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{url: `api/user/${number}`; method: string}>(),
       stringifyJson: () => createStringifyJson<{url: `api/user/${number}`; method: string}>(),
       restoreFromJson: () => createRestoreFromJson<{url: `api/user/${number}`; method: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{url: `api/user/${number}`; method: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{url: `api/user/${number}`; method: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{url: `api/user/${number}`; method: string}>(),
       getTestData: () => ({
         values: [
           {url: 'api/user/1', method: 'GET'},
@@ -1981,6 +2918,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{[key: `api/${string}`]: number}>(),
       stringifyJson: () => createStringifyJson<{[key: `api/${string}`]: number}>(),
       restoreFromJson: () => createRestoreFromJson<{[key: `api/${string}`]: number}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{[key: `api/${string}`]: number}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{[key: `api/${string}`]: number}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{[key: `api/${string}`]: number}>(),
       getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
     },
     url_index_key_with_named: {
@@ -1988,6 +2928,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{meta: string; [key: `api/${string}`]: string | number}>(),
       stringifyJson: () => createStringifyJson<{meta: string; [key: `api/${string}`]: string | number}>(),
       restoreFromJson: () => createRestoreFromJson<{meta: string; [key: `api/${string}`]: string | number}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{meta: string; [key: `api/${string}`]: string | number}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{meta: string; [key: `api/${string}`]: string | number}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{meta: string; [key: `api/${string}`]: string | number}>(),
       getTestData: () => ({
         values: [{meta: 'a'}, {meta: 'b', 'api/users': 1}, {meta: 'c', 'api/users': 1, 'api/posts': 2}],
       }),
@@ -2000,6 +2943,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Promise<string>>(),
       stringifyJson: () => createStringifyJson<Promise<string>>(),
       restoreFromJson: () => createRestoreFromJson<Promise<string>>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Promise<string>>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Promise<string>>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Promise<string>>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2008,6 +2954,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Int8Array>(),
       stringifyJson: () => createStringifyJson<Int8Array>(),
       restoreFromJson: () => createRestoreFromJson<Int8Array>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Int8Array>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Int8Array>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Int8Array>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2016,6 +2965,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{a: Int8Array}>(),
       stringifyJson: () => createStringifyJson<{a: Int8Array}>(),
       restoreFromJson: () => createRestoreFromJson<{a: Int8Array}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{a: Int8Array}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{a: Int8Array}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{a: Int8Array}>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2024,6 +2976,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<Int8Array[]>(),
       stringifyJson: () => createStringifyJson<Int8Array[]>(),
       restoreFromJson: () => createRestoreFromJson<Int8Array[]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<Int8Array[]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<Int8Array[]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Int8Array[]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2032,6 +2987,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<[Int8Array]>(),
       stringifyJson: () => createStringifyJson<[Int8Array]>(),
       restoreFromJson: () => createRestoreFromJson<[Int8Array]>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<[Int8Array]>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<[Int8Array]>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<[Int8Array]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2067,6 +3025,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
       stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{declared: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{declared: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', extra: 'hello'}],
         // Unsafe: extra preserved through round-trip.
@@ -2084,6 +3045,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
       stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{declared: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{declared: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{declared: string}>(),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
       getTestDataForStringify: () => ({
@@ -2099,6 +3063,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
       stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{declared: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{declared: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', sym: Symbol('extra')}],
         // JSON.stringify drops the symbol — restored shape has no `sym`.
@@ -2114,6 +3081,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{declared: string}>(),
       stringifyJson: () => createStringifyJson<{declared: string}>(),
       restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{declared: string}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{declared: string}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{declared: string}>(),
       getTestData: () => ({
         values: [{declared: 'x', fn: () => 0}],
         deserializedValues: [{declared: 'x'}],
@@ -2128,6 +3098,9 @@ export const SERIALIZATION_SPEC = {
       prepareForJson: () => createPrepareForJson<{outer: {declared: string}}>(),
       stringifyJson: () => createStringifyJson<{outer: {declared: string}}>(),
       restoreFromJson: () => createRestoreFromJson<{outer: {declared: string}}>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<{outer: {declared: string}}>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<{outer: {declared: string}}>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<{outer: {declared: string}}>(),
       getTestData: () => ({
         values: [{outer: {declared: 'x', extra: 'y'}}],
         // Unsafe: nested extra preserved.
@@ -2136,6 +3109,112 @@ export const SERIALIZATION_SPEC = {
         values: [{outer: {declared: 'x', extra: 'y'}}],
         deserializedValues: [{outer: {declared: 'x'}}],
       }),
+    },
+  },
+
+  // LARGE_OBJECTS — realistic 30+-prop interfaces, multi-member
+  // discriminated unions, mixed atomic+object unions, and deeply
+  // nested shapes. The flat JSON family's headline optimisation is
+  // skipping per-member isType walks at union dispatch, so the
+  // object-union and mixed-union cases here are where the
+  // serialisation bench should surface a measurable speedup.
+  LARGE_OBJECTS: {
+    wide_interface: {
+      title: 'wide interface — 30 mixed-type properties',
+      description:
+        'Single interface with 30+ properties spanning scalars, Date, bigint, nested object — exercises the per-field walk cost without any union dispatch.',
+      prepareForJson: () => createPrepareForJson<WideRecord>(),
+      stringifyJson: () => createStringifyJson<WideRecord>(),
+      restoreFromJson: () => createRestoreFromJson<WideRecord>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<WideRecord>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<WideRecord>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<WideRecord>(),
+      getTestData: () => ({values: [buildWideRecord(1)]}),
+    },
+    object_union_5: {
+      title: 'discriminated union of 5 large object members',
+      description:
+        'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an isType walk per candidate member.',
+      prepareForJson: () => createPrepareForJson<LargeObjectUnion>(),
+      stringifyJson: () => createStringifyJson<LargeObjectUnion>(),
+      restoreFromJson: () => createRestoreFromJson<LargeObjectUnion>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<LargeObjectUnion>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<LargeObjectUnion>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<LargeObjectUnion>(),
+      getTestData: () => ({
+        values: [
+          {
+            kind: 'product',
+            id: 'p-1',
+            sku: 'SKU-001',
+            price: 19.99,
+            available: true,
+            releasedAt: new Date('2024-02-01T00:00:00.000Z'),
+            stock: 42,
+          } satisfies ProductEvent,
+        ],
+      }),
+    },
+    mixed_union_atomic_and_large_objects: {
+      title: 'mixed union — atomic + large object members',
+      description:
+        'string | number | ProductEvent | UserEvent — exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
+      prepareForJson: () => createPrepareForJson<MixedLargeUnion>(),
+      stringifyJson: () => createStringifyJson<MixedLargeUnion>(),
+      restoreFromJson: () => createRestoreFromJson<MixedLargeUnion>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<MixedLargeUnion>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<MixedLargeUnion>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<MixedLargeUnion>(),
+      getTestData: () => ({
+        values: [
+          {
+            kind: 'product',
+            id: 'p-9',
+            sku: 'SKU-999',
+            price: 49.5,
+            available: false,
+            releasedAt: new Date('2024-04-10T00:00:00.000Z'),
+            stock: 0,
+          } satisfies ProductEvent,
+        ],
+      }),
+    },
+    deep_nested: {
+      title: 'five-level deeply nested object with arrays of objects',
+      description: 'Walks five levels of nested arrays of objects to amplify per-property overhead.',
+      prepareForJson: () => createPrepareForJson<DeepNestedLevel1>(),
+      stringifyJson: () => createStringifyJson<DeepNestedLevel1>(),
+      restoreFromJson: () => createRestoreFromJson<DeepNestedLevel1>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<DeepNestedLevel1>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<DeepNestedLevel1>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<DeepNestedLevel1>(),
+      getTestData: () => {
+        const leaf: DeepNestedLeaf = {id: 1, value: 'leaf', when: new Date('2024-01-01T00:00:00.000Z')};
+        const level5: DeepNestedLevel5 = {name: 'l5', leaves: [leaf, leaf, leaf]};
+        const level4: DeepNestedLevel4 = {label: 'l4', children: [level5, level5]};
+        const level3: DeepNestedLevel3 = {group: 'l3', branches: [level4, level4]};
+        const level2: DeepNestedLevel2 = {category: 'l2', groups: [level3, level3]};
+        const level1: DeepNestedLevel1 = {root: 'l1', categories: [level2, level2]};
+        return {values: [level1]};
+      },
+    },
+    large_class_union: {
+      title: 'discriminated union of three large class instances',
+      description:
+        'Three-member class union — restore decodes to plain objects (class instances do not survive JSON round-trip).',
+      prepareForJson: () => createPrepareForJson<LargeClassUnion>(),
+      stringifyJson: () => createStringifyJson<LargeClassUnion>(),
+      restoreFromJson: () => createRestoreFromJson<LargeClassUnion>(),
+      prepareForJsonFlat: () => createPrepareForJsonFlat<LargeClassUnion>(),
+      stringifyJsonFlat: () => createStringifyJsonFlat<LargeClassUnion>(),
+      restoreFromJsonFlat: () => createRestoreFromJsonFlat<LargeClassUnion>(),
+      getTestData: () => {
+        const a = buildLargeClassA();
+        return {
+          values: [a],
+          deserializedValues: [{...a}],
+        };
+      },
     },
   },
 } as const satisfies Record<string, Record<string, SerializationCase>>;

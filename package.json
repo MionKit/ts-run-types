@@ -27,6 +27,8 @@
     "gen:ts-constants": "go run ./cmd/gen-ts-constants > packages/vite-plugin-runtypes/src/runtypes-constants.generated.ts",
     "pregen:validation-suite-json": "pnpm --filter vite-plugin-runtypes run build",
     "gen:validation-suite-json": "node scripts/export-validation-suite.mjs",
+    "pregen:serialization-suite-json": "pnpm --filter vite-plugin-runtypes run build",
+    "gen:serialization-suite-json": "node scripts/export-serialization-suite.mjs",
     "format": "prettier --write 'packages/**/*.{ts,md}'",
     "check-format": "prettier --check 'packages/**/*.{ts,md}'",
     "check-format-pre-commit": "prettier --check",
