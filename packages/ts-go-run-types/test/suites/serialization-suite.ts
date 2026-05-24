@@ -1,9 +1,9 @@
 // Serialization suite ported from
 // mion/packages/run-types/src/jitCompilers/serialization-suite.ts.
 //
-// Runs ALONGSIDE jit-suite.ts as a separate, JSON-specific driver. The
-// jit-suite covers isType / getTypeErrors / prepareForJson /
-// restoreFromJson with broad validator-oriented samples; this suite
+// Runs ALONGSIDE validation-suite.ts as a separate, JSON-specific driver.
+// validation-suite covers isType / getTypeErrors with broad
+// validator-oriented samples; this suite
 // goes deeper into JSON serialization edge cases (richer Date/BigInt
 // samples, more union shapes, dedicated ITERABLES + RECORDS +
 // CIRCULAR_REFS buckets, function-shape variants via TS utility types).
@@ -189,7 +189,7 @@ export interface SerializationCase {
   description?: string;
 
   // Round-trip thunks. Static is required; reflect / deserialize
-  // variants are optional. Same 4-variant pattern as jit-suite.ts.
+  // variants are optional. Same 4-variant pattern as validation-suite.ts.
   prepareForJson: () => PrepareForJsonFn;
   prepareForJsonReflect?: () => PrepareForJsonFn;
   deserializePrepareForJson?: () => PrepareForJsonFn;

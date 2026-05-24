@@ -1,11 +1,12 @@
 // Serialization round-trip adapter — drives the standalone serialization
-// suite ported from mion's `serialization-suite.ts`. Runs ALONGSIDE the
-// `prepareForJson.test.ts` / `restoreFromJson.test.ts` adapters that
-// consume the validator-shared `jit-suite.ts`. Both halves of the
+// suite ported from mion's `serialization-suite.ts`. Both halves of the
 // JSON pair (prepareForJson + restoreFromJson) are exercised per case
-// in a single it() because mion's suite always pairs them.
+// in a single it() because mion's suite always pairs them. The sibling
+// `validation-suite.ts` (consumed by isType.test.ts /
+// getTypeErrors.test.ts) covers validation-family cases; JSON cases
+// live exclusively here.
 //
-// Success criterion mirrors prepareForJson.test.ts:
+// Success criterion:
 //
 //   restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))
 //     ≅ deserializedValues[i] ?? values[i]   (via normalizeForComparison)
@@ -109,7 +110,7 @@ function runCase(c: SerializationCase): void {
   const getTestData = c.getTestData;
 
   // Paired thunks for the round-trip. Same 4-variant pattern as
-  // jit-suite adapters — when a half is undefined the pair is presumed
+  // validation-suite adapters — when a half is undefined the pair is presumed
   // identity (covers atomic noops cleanly).
   const restoreStatic = c.restoreFromJson?.() ?? identityFn;
   const restoreReflect = c.restoreFromJsonReflect?.() ?? identityFn;

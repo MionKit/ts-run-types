@@ -56,7 +56,7 @@ import {
 } from '@mionjs/ts-go-run-types';
 
 /** One atomic-type case in the shared suite. */
-export interface JitCase {
+export interface ValidationCase {
   title: string;
   description?: string;
   /** User-facing notes about isType validation behavior — surfaces
@@ -114,7 +114,7 @@ export interface JitCase {
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
 
-export const JIT_SUITE = {
+export const VALIDATION_SUITE = {
   ATOMIC: {
     any: {
       title: 'Any type — every value passes',
@@ -9552,14 +9552,14 @@ export const JIT_SUITE = {
     },
   },
 } as const satisfies {
-  ATOMIC: Record<string, JitCase>;
-  ARRAY: Record<string, JitCase>;
-  OBJECT: Record<string, JitCase>;
-  TUPLE: Record<string, JitCase>;
-  UNION: Record<string, JitCase>;
-  TEMPLATE_LITERAL: Record<string, JitCase>;
-  NATIVE: Record<string, JitCase>;
-  CIRCULAR: Record<string, JitCase>;
-  UTILITY: Record<string, JitCase>;
-  TYPE_MAPPINGS: Record<string, JitCase>;
+  ATOMIC: Record<string, ValidationCase>;
+  ARRAY: Record<string, ValidationCase>;
+  OBJECT: Record<string, ValidationCase>;
+  TUPLE: Record<string, ValidationCase>;
+  UNION: Record<string, ValidationCase>;
+  TEMPLATE_LITERAL: Record<string, ValidationCase>;
+  NATIVE: Record<string, ValidationCase>;
+  CIRCULAR: Record<string, ValidationCase>;
+  UTILITY: Record<string, ValidationCase>;
+  TYPE_MAPPINGS: Record<string, ValidationCase>;
 };
