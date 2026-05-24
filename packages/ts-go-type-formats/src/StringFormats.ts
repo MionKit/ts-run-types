@@ -11,18 +11,13 @@
 // Phase 1 scaffold: no string formats registered yet. Each subsequent
 // phase appends one block per format family.
 
-// Side-effect imports for runtime registration land here as each
-// format module ships in subsequent phases. Keeping the block in
-// place (commented for now) makes the wiring obvious and avoids a
-// later sweep through history to find the right place.
-// import './string/stringFormat.runtype.ts';
-// import './string/uuid.runtype.ts';
+// Side-effect imports register each format with the runtime
+// formatRegistry at module load. Subsequent phases append to this
+// block.
+import './string/stringFormat.runtype.ts';
 
-// Type re-exports — same story; uncommented per phase.
-// export type {FormatString} from './string/stringFormat.runtype.ts';
-// export type {FormatUUIDv4} from './string/uuid.runtype.ts';
-
-// Public surface placeholder. Removing this `export {}` once a real
-// type ships above is fine — TypeScript only needs a single export
-// for the module to be treated as a module.
-export {};
+// Type aliases — public consumer-facing surface. Concrete classes
+// (StringRunTypeFormat, ...) intentionally NOT re-exported: users
+// hold the format types, never construct the runtype-format
+// instances themselves.
+export type {FormatString, StringParams} from './string/stringFormat.runtype.ts';
