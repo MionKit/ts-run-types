@@ -14,12 +14,14 @@ Living document. Captures **what's implemented**, **what's deliberately out of s
 | Vite plugin                         | ✅         | byte-offset rewriter, `virtual:runtypes-cache` module                           |
 | Go fixture tests                    | ✅         | F1–F30 + atomic / object / circular kinds                                       |
 | Vite plugin tests                   | ✅         | rewrite, atomic, wrapping suites — 201/201                                      |
-| `isType` RT emit                   | ✅         | every mion node category ported; 139 active validation cases, see below         |
+| `isType` RT emit                   | ✅         | every mion node category ported; see `test/adapters/isType.test.ts`             |
 | `templateLiteral` projection+emit   | ✅         | regex-compile at RT-build time; also wired into index-signature key patterns   |
 | Native containers (Map/Set/Promise) | ✅         | `instanceof` + iteration over `.entries()` / `.values()`; thenable check        |
 | Docs                                | ✅         | ARCHITECTURE.md "Reflection shape" section                                      |
-| String type-formats                 | ✅         | `@mionjs/ts-go-type-formats` — StringFormat/UUID/Date/Time/DateTime/IP/Domain/Email/URL/DefaultStringFormats; brand scanner + idempotent hashing |
-| Decorators / `TypeNumberBrand`      | ❌ pending | brand scanner landed for formats (see below); number/bigint formats + general decorators still pending |
+| String type-formats                 | ✅         | `@mionjs/ts-go-run-types/formats` — StringFormat/UUID/Date/Time/DateTime/IP/Domain/Email/URL/DefaultStringFormats; brand scanner + idempotent hashing |
+| Number/bigint type-formats          | ✅         | Go: `internal/compiled/typefns/formats/numeric/{numberformat.go,bigintformat.go}`; JS: `packages/ts-go-run-types/src/formats/{numberFormats.ts,bigintFormats.ts}` |
+| Binary serialization                | ✅         | Go: `internal/compiled/typefns/{binary_to.go,binary_from.go}`; JS: `packages/ts-go-run-types/src/{createBinary.ts,runtypes/dataView.ts}`; allOptional/paramsSlice router conveniences intentionally not ported (see "Binary serialization — function-params router conveniences") |
+| Decorators (general-purpose)        | ❌ pending | brand scanner landed for formats; general decorators (arbitrary brand objects beyond the format name+params shape) still pending |
 | `infer` kind                        | ❌ pending | reserved in the enum, only meaningful inside unresolved conditional types       |
 | Pre-process build mode              | ❌ pending | bundler-agnostic CLI that writes the cache without Vite                         |
 | Serializer circular-detection       | ❌ pending | typefns currently treats every compound as non-inlined as a safer default       |
@@ -55,9 +57,9 @@ These are real reflection features we intend to ship; each has a concrete approa
 
 | Feature                                      | Where it lives                                                     | Approach                                                                                                                                                    |
 | -------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| String type-formats (`FormatEmail`, `FormatUUIDv4`, …) | `@mionjs/ts-go-type-formats` (JS) + `internal/compiled/typefns/formats/` (Go) | **Done.** The `TypeFormat<Base, Name, Params, Brand>` brand lowers to a `Base & {__rtFormatName; __rtFormatParams}` intersection; the scanner in `internal/compiled/runtype/typeid/formats.go` lifts it into `RunType.FormatAnnotation` and folds the canonicalised params into the structural id (idempotent cache key). Per-format Go emitters splice the validator into the `isType` / `typeErrors` body. |
+| String type-formats (`FormatEmail`, `FormatUUIDv4`, …) | `@mionjs/ts-go-run-types/formats` (JS) + `internal/compiled/typefns/formats/` (Go) | **Done.** The `TypeFormat<Base, Name, Params, Brand>` brand lowers to a `Base & {__rtFormatName; __rtFormatParams}` intersection; the scanner in `internal/compiled/runtype/typeid/formats.go` lifts it into `RunType.FormatAnnotation` and folds the canonicalised params into the structural id (idempotent cache key). Per-format Go emitters splice the validator into the `isType` / `typeErrors` body. |
+| Number/bigint formats (`FormatInteger`, `FormatFloat`, …) | `@mionjs/ts-go-run-types/formats` (JS) + `internal/compiled/typefns/formats/numeric/` (Go) | **Done.** Reuses the same format pipeline as string formats. Go: `numberformat.go` / `bigintformat.go`; JS: `numberFormats.ts` / `bigintFormats.ts`. |
 | Decorators (`MinLength<5>`, `Email`, etc.)   | Comment-pragma or branded type aliases parsed by a TS transformer. | The format brand scanner is the first instance of this pattern. General-purpose decorators (arbitrary brand objects beyond the format name+params shape) still need their own recognition pass. |
-| `TypeNumberBrand` (integer / int32 / …)      | Decorator-driven; same path as the format scanner.                 | Number / BigInt format families reuse the format pipeline (a `FormatInteger`, `FormatFloat`, … under the same `FormatAnnotation` wire field) — deferred to a follow-up to the string-format port.                                                                                                                       |
 | `inlined: true` flag                         | Set when a type is inlined rather than referenced by name.         | Derive from "did we have an alias symbol?" — emit `inlined: true` for anonymous types. Field is already in the protocol, just not populated.                |
 | `originTypes: { typeName, typeArguments }[]` | Tracks each layer of type-alias unwrapping.                        | Walk the alias chain in tsgo (each alias has a target). Add when needed — not blocking for the runtypes RT.                                                |
 | `indexAccessOrigin`                          | Provenance for `T["key"]` resolved types.                          | tsgo's `IndexedAccessType` has the container + index types. Emit when we hit `TypeFlagsIndexedAccess`.                                                      |
@@ -118,7 +120,7 @@ unionDiscriminators?: (RunType | null | undefined)[];
 
 Everything else mion's `FlattenedProp` carries is reconstructible from the surrounding wire shape. Consumers call `flattenUnionDiscriminators` from `@mionjs/ts-go-run-types` to materialise the full per-member struct in one pass — it pairs each `safeUnionChildren[i]` with the parallel `unionDiscriminators[i]` and resolves the property's `typeID` via `prop.child.id`.
 
-Rationale: the wire format leans on dedup/minimality elsewhere; carrying `unionItem` / `unionIndex` / `typeID` directly would duplicate data already on the wire (`safeUnionChildren[i]`, the index itself, and the property's child ref id respectively). The detection passes (shared-name + unique-prop fallback) live on the Go side (`internal/serialize/union_safeorder.go`); both write into this single slot, scoped to the parent union — a property node shared between two unions is independently classified for each parent.
+Rationale: the wire format leans on dedup/minimality elsewhere; carrying `unionItem` / `unionIndex` / `typeID` directly would duplicate data already on the wire (`safeUnionChildren[i]`, the index itself, and the property's child ref id respectively). The detection passes (shared-name + unique-prop fallback) live on the Go side (`internal/compiled/runtype/union_safeorder.go`); both write into this single slot, scoped to the parent union — a property node shared between two unions is independently classified for each parent.
 
 `compiledName` in mion's struct is a codegen-time local variable name; it isn't wire data and is allocated by the consumer when emitting JS.
 
@@ -160,7 +162,7 @@ The corresponding 10 `13BinaryAllParamsOptional` tests + the `slice function par
 - **Source-map adjustments** when the rewriter injects site-id arguments. Negligible effect for human debugging at the current stage.
 - **Production-grade call-site scanner** — replace the regex in `rewrite.ts` with `es-module-lexer` or `ts.createSourceFile` for fewer false positives inside strings/comments.
 - **HMR-aware incremental resolver** — the daemon currently runs the full Program for the lifetime of the build; a real HMR story requires `updateSourceFile` and incremental rebinding.
-- **Concurrency**: `serialize.Cache` is single-threaded by design; the resolver holds one checker. Multi-checker fan-out (one per CPU, like tsgolint's linter) is a later concern.
+- **Concurrency**: the `runtype` serializer in `internal/compiled/runtype/serialize.go` is single-threaded by design; the resolver holds one checker. Multi-checker fan-out (one per CPU, like tsgolint's linter) is a later concern.
 
 ---
 

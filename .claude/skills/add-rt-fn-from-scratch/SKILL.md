@@ -205,7 +205,12 @@ value valid", rename:
 - Export `VALIDATION_SUITE` → `RT_SUITE`
 - Update imports in `test/adapters/*.test.ts`
 
-Subsequent fns just add new optional thunks to the existing `RTCase`
+**Note**: The rt-suite rename did not stick in the current tree. The
+active suites are `validation-suite.ts` (isType/getTypeErrors) +
+`serialization-suite.ts` (JSON families) + format suites. If the
+rename is desirable, confirm with the user first.
+
+Subsequent fns just add new optional thunks to the existing
 interface — no further renames.
 
 ## Step 9 — Per-case thunks in the suite
@@ -346,8 +351,8 @@ pnpm run pre-publish-test
 - `internal/resolver/render.go`
 
 **JS adapter templates:**
-- `packages/ts-go-run-types/src/createIsType.ts`
-- `packages/ts-go-run-types/src/createGetTypeErrors.ts`
+- `packages/ts-go-run-types/src/createRTFunctions.ts` (exports `createIsType`, `createGetTypeErrors`, `createJsonEncoder`, `createJsonDecoder`, and format helpers)
+- `packages/ts-go-run-types/src/createBinary.ts` (exports `createBinaryEncoder`, `createBinaryDecoder`)
 
 **Cache skeletons:**
 - `packages/ts-go-run-types/src/caches/isTypeCache.ts`
@@ -365,7 +370,7 @@ pnpm run pre-publish-test
 - `packages/vite-plugin-runtypes/src/protocol.ts`
 
 **Test suite + adapters:**
-- `packages/ts-go-run-types/test/suites/validation-suite.ts`
-  (or `rt-suite.ts` post-rename)
+- `packages/ts-go-run-types/test/suites/validation-suite.ts` (isType/getTypeErrors)
+- `packages/ts-go-run-types/test/suites/serialization-suite.ts` (JSON families)
 - `packages/ts-go-run-types/test/adapters/isType.test.ts`
 - `packages/ts-go-run-types/test/adapters/getTypeErrors.test.ts`

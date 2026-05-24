@@ -1,5 +1,7 @@
 # Mion RT Port — Status, Deviations, and Open Failures
 
+> **Note (2026-05-29):** Partly superseded by the family-by-family audit in [`docs/audit/`](audit/00-overview.md). Some sections below predate (a) the consolidation of the public JSON API into `createJsonEncoder` / `createJsonDecoder` (strategy + stripExtras options) and (b) the binary + type-format ports. Test counts here are historical.
+
 Status snapshot of every RT function family ported from
 [mion's `@mionjs/run-types`](https://github.com/mionkit/mion) into
 ts-go-run-types: what was ported, where our emit intentionally
@@ -38,28 +40,27 @@ Closed since the prior snapshot:
 ## JSON serialisation semantics — two paths
 
 mion ships two paths for `T → JSON-string` with intentionally-
-different extras semantics; we mirror both:
+different extras semantics; we mirror both. The current public API
+consolidates these under `createJsonEncoder<T>(val?, {strategy:'clone'|'direct'|'mutate', stripExtras?}, id?)`
+and `createJsonDecoder<T>(val?, {stripExtras?}, id?)`. Mapping from
+the older names: the unsafe path (`createUnsafeJsonStringify` /
+`createUnsafeJsonParse`) corresponds to `strategy:'mutate', stripExtras:false`;
+the safe single-pass path (`createSafeJsonStringify`) corresponds to
+`strategy:'direct'`. The sections below use the original path names
+for archeological clarity:
 
 - **Unsafe path** (`prepareForJson + JSON.stringify`):
   `prepareForJson` walks declared children, transforms them in
   place, and mutates `v`. Extras (properties not in the type) are
   never visited and pass through to `JSON.stringify`, which then
   includes JSON-compatible extras, throws on bigint extras, and
-  silently drops symbol-/function-valued extras. Public API:
-  `createUnsafeJsonStringify<T>()` + `createUnsafeJsonParse<T>()`.
+  silently drops symbol-/function-valued extras.
 - **Safe path** (single-pass `stringifyJson` RT — ported from mion's
   `rtCompilers/json/stringifyJson.ts`, see "Migrated RT function
   families" below). Extras are stripped by construction in the emit
   (walks declared members only, never `v`'s own enumerable keys),
   `v` is not mutated, and JSON-incompatible extras are silently
-  dropped before they can crash. Public API:
-  `createStringifyJson<T>()` direct, OR
-  `createSafeJsonStringify<T>()` wrapper (single RT call internally)
-  + `createSafeJsonParse<T>(undefined, {onUnknownKeys})`.
-  `createSafeJsonParse` accepts `{onUnknownKeys: 'strip' | 'error'}`
-  in its 2nd positional slot (default `'strip'`); `'error'` runs
-  `unknownKeyErrors` first and throws `SafeJsonParseError`
-  (carries the `RunTypeError[]`) when any unknown key is present.
+  dropped before they can crash.
 
 Test infrastructure:
 - `SerializationCase.getTestData` is the canonical source for the
