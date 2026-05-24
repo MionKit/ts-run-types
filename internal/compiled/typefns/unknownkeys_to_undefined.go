@@ -154,36 +154,12 @@ func emitObjectUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RT
 	if hasIndex {
 		publishSiblingNamedKeysForIndexSig(rt, ctx)
 	}
-	childrenCode := unknownKeysToUndefinedChildrenCode(rt, ctx)
+	childrenCode := unknownKeysChildrenCode(rt, ctx)
 	combined := joinSemicolons(parentCode, childrenCode)
 	if combined == "" {
 		return RTCode{Code: "", Type: CodeS}
 	}
 	return RTCode{Code: combined, Type: CodeS}
-}
-
-func unknownKeysToUndefinedChildrenCode(rt *protocol.RunType, ctx *EmitContext) string {
-	var parts []string
-	for _, child := range rt.Children {
-		resolved := ctx.ResolveRef(child)
-		if resolved == nil {
-			continue
-		}
-		if resolved.IsStatic {
-			continue
-		}
-		if isFunctionLikeKind(resolved.Kind) {
-			continue
-		}
-		childRT := ctx.CompileChild(child, CodeS)
-		if childRT.Type == CodeNS {
-			continue
-		}
-		if childRT.Code != "" {
-			parts = append(parts, childRT.Code)
-		}
-	}
-	return strings.Join(parts, ";")
 }
 
 func emitPropertyUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTCode {
