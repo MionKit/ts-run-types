@@ -1000,7 +1000,9 @@ func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCod
 
 // emitSetTypeErrors mirrors mion's nodes/native/set emitTypeErrors.
 // Same pattern as Map but with a single item type and `.values()`
-// iteration. Path segment for an item error: the item index.
+// iteration. Path segment for an item error: {key: safe(item), index}
+// — mion set.ts getStaticPathLiteral parity (no `failed` marker, unlike
+// Map's key/value split).
 func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	itemVar := ctx.NextLocalVar("item")
@@ -1014,8 +1016,12 @@ func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 	inner.WriteString(v)
 	inner.WriteString(".values()) {")
 	if itemType != nil {
+		safeKey := mapSafeKeyContextItem(ctx)
 		ctx.SetChildAccessor(itemVar)
-		ctx.SetChildPathLiteral(idxVar)
+		// {key: safe(item), index} — mirrors mion's set.ts so the failing
+		// item is locatable (the index alone is iteration-order noise for
+		// an unordered Set). Reuses the iterable safe-key pure-fn.
+		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + itemVar + "),index:" + idxVar + "}")
 		itemRT := ctx.CompileChild(itemType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
