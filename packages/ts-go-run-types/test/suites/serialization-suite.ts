@@ -199,11 +199,39 @@ export interface SerializationCase {
   deserializeRestoreFromJson?: () => RestoreFromJsonFn;
   deserializeRestoreFromJsonReflect?: () => RestoreFromJsonFn;
 
-  /** Sample values to round-trip. `deserializedValues` is set only when
-   *  the restored shape is asymmetric — e.g. class instances decode to
-   *  plain objects, functions in tuples decode to undefined, etc.
+  /** Sample values to round-trip via the **unsafe** path
+   *  (`prepareForJson + JSON.stringify` / `JSON.parse + restoreFromJson`).
+   *  Required for every case.
+   *
+   *  Returns valid inputs for `prepareForJson`: the unsafe path
+   *  mutates `v` in place, walks declared children only, and lets
+   *  `JSON.stringify` see any extras (which then pass through,
+   *  throw on bigint extras, or get silently dropped for
+   *  symbol/function-valued extras).
+   *
+   *  `deserializedValues` is set only when the restored shape is
+   *  asymmetric — class instances decode to plain objects,
+   *  functions in tuples decode to undefined, JSON.stringify drops
+   *  symbol-keyed extras, etc.
+   *
    *  Mirrors mion's `getTestData` shape. **/
   getTestData: () => {values: unknown[]; deserializedValues?: unknown[]};
+
+  /** Optional override consumed by the **safe** path adapter
+   *  (`stripUnknownKeys + prepareForJson + JSON.stringify` /
+   *  `JSON.parse + (stripUnknownKeys | unknownKeyErrors) + restoreFromJson`).
+   *
+   *  Provide only when the safe path produces a different observable
+   *  than the unsafe path — typically when an input carries extras
+   *  that are stripped pre-serialise (so `deserializedValues`
+   *  reflects the cleaned shape). For ~90% of cases (no extras,
+   *  identical behaviour between paths) leave this unset; the safe
+   *  adapter falls back to `getTestData`.
+   *
+   *  Mirrors the split between mion's jsonSpec (prepareForJson +
+   *  JSON.stringify) and stringifySpec (stringifyJson) test
+   *  helpers. **/
+  getTestDataForStringify?: () => {values: unknown[]; deserializedValues?: unknown[]};
 
   /** Broad types (any / unknown / object) where the round-trip is
    *  best-effort via JSON. The adapter weakens the assertion: succeed
@@ -622,8 +650,10 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => createRestoreFromJson<{a?: string; b?: string}>(),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
     },
-    strip_extra_params: {
-      title: 'strip extra params (mion semantic — extras pass through)',
+    extras_passthrough_unsafe: {
+      title: 'unsafe path preserves extras (mion semantic — JSON.stringify does not strip)',
+      description:
+        "Canonical baseline for the `prepareForJson + JSON.stringify` path: declared children get transformed, structural extras (both top-level and nested-in-declared-composites) pass through unchanged. Mirrors mion's `03JsonObjects.spec.ts` strip-extras case where the strip expectation is explicitly commented out (`// native JSON.stringify do not strip extra params`). The safe path (`stripUnknownKeys + prepareForJson + JSON.stringify`) strips the extras — that divergence is exercised in EXTRA_PARAMS.",
       prepareForJson: () =>
         createPrepareForJson<{
           startDate: Date;
@@ -652,6 +682,40 @@ export const SERIALIZATION_SPEC = {
         }>(),
       getTestData: () => {
         const startDate = new Date('2000-08-06T02:13:00.000Z');
+        const objectWithExtraParams = {
+          startDate,
+          quantity: 123,
+          name: 'hello',
+          nullValue: null,
+          stringArray: ['a', 'b', 'c'],
+          bigInt: BigInt(123),
+          "weird prop name \n?>'\\\t\r": 'hello2',
+          deep: {a: 'hello', b: 123, cExtra: true},
+          '?other weird p': {c: 'hello', d: 123, eExtra: true},
+          extraA: 'hello',
+          extraB: 123,
+          extraC: true,
+        };
+        // Unsafe path: extras preserved through round-trip — expected
+        // result equals the input (no `deserializedValues` override).
+        return {values: [objectWithExtraParams]};
+      },
+      getTestDataForStringify: () => {
+        const startDate = new Date('2000-08-06T02:13:00.000Z');
+        const objectWithExtraParams = {
+          startDate,
+          quantity: 123,
+          name: 'hello',
+          nullValue: null,
+          stringArray: ['a', 'b', 'c'],
+          bigInt: BigInt(123),
+          "weird prop name \n?>'\\\t\r": 'hello2',
+          deep: {a: 'hello', b: 123, cExtra: true},
+          '?other weird p': {c: 'hello', d: 123, eExtra: true},
+          extraA: 'hello',
+          extraB: 123,
+          extraC: true,
+        };
         const noExtraParams = {
           startDate,
           quantity: 123,
@@ -663,14 +727,8 @@ export const SERIALIZATION_SPEC = {
           deep: {a: 'hello', b: 123},
           '?other weird p': {c: 'hello', d: 123},
         };
-        const objectWithExtraParams = {
-          ...noExtraParams,
-          deep: {a: 'hello', b: 123, cExtra: true},
-          '?other weird p': {c: 'hello', d: 123, eExtra: true},
-          extraA: 'hello',
-          extraB: 123,
-          extraC: true,
-        };
+        // Safe path: extras are stripped before serialise, so the
+        // round-trip restores the declared-only shape.
         return {values: [objectWithExtraParams], deserializedValues: [noExtraParams]};
       },
     },
@@ -1344,10 +1402,10 @@ export const SERIALIZATION_SPEC = {
       getTestData: () => ({values: [{b: 123, c: 123n}]}),
     },
 
-    union_extra_symbol_prop_throws: {
-      title: 'union member with extra symbol prop throws at JSON.stringify',
+    union_extra_symbol_prop_drops: {
+      title: 'union member with extra symbol prop is dropped by JSON.stringify',
       description:
-        'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify drops symbols (returns `{"b":123}` — no throw) so this case actually round-trips, with the extra silently lost.',
+        'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
       prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
       restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
       // Symbol-valued props are silently dropped by JSON.stringify
@@ -1709,6 +1767,103 @@ export const SERIALIZATION_SPEC = {
       restoreFromJson: () => createRestoreFromJson<[Int8Array]>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────────
+  // Cases whose entire purpose is to document the divergence
+  // between the unsafe path (`prepareForJson + JSON.stringify`)
+  // and the safe path (`stripUnknownKeys + prepareForJson +
+  // JSON.stringify`). Both paths run against the SAME input; the
+  // expected output diverges per the contract:
+  //
+  //   - Unsafe: extras pass through to JSON.stringify, which
+  //     preserves JSON-compatible ones, throws on bigint extras,
+  //     and silently drops symbol-/function-valued extras.
+  //   - Safe: extras are stripped before serialise, so the output
+  //     contains only declared keys regardless of what was on `v`.
+  //
+  // Each case provides `getTestData` (unsafe-path expectations)
+  // and `getTestDataForStringify` when the safe path diverges
+  // (otherwise the safe adapter falls back to `getTestData`).
+  //
+  // Cross-references: `OBJECTS.extras_passthrough_unsafe` is the
+  // baseline case for prepareForJson preserves-extras; the union-
+  // member analogs are `UNIONS.union_extra_bigint_prop_throws`
+  // (unsafe throws) and `UNIONS.union_extra_symbol_prop_drops`
+  // (unsafe drops because of JSON.stringify spec).
+  EXTRA_PARAMS: {
+    extras_passthrough_compatible: {
+      title: 'JSON-compatible extra prop — unsafe preserves, safe strips',
+      description:
+        'Extra `extra: "hello"` is JSON-encodable (string). Unsafe path round-trips with the extra intact (prepareForJson never visits it, JSON.stringify keeps it). Safe path strips it before serialise — restored value contains only the declared key.',
+      prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      getTestData: () => ({
+        values: [{declared: 'x', extra: 'hello'}],
+        // Unsafe: extra preserved through round-trip.
+      }),
+      getTestDataForStringify: () => ({
+        values: [{declared: 'x', extra: 'hello'}],
+        deserializedValues: [{declared: 'x'}],
+      }),
+    },
+
+    extras_throws_bigint: {
+      title: 'bigint extra prop — unsafe throws at JSON.stringify, safe strips it',
+      description:
+        'Extra `extra: 123n` is not JSON-encodable. Unsafe path: prepareForJson never visits the extra, JSON.stringify throws on the bigint. Safe path: stripUnknownKeys removes the extra before prepareForJson runs, so the bigint never reaches JSON.stringify and the output is the clean declared-only shape.',
+      prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      jsonStringifyThrows: true,
+      getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
+      getTestDataForStringify: () => ({
+        values: [{declared: 'x', extra: 123n}],
+        deserializedValues: [{declared: 'x'}],
+      }),
+    },
+
+    extras_dropped_symbol: {
+      title: 'symbol-valued extra prop — both paths produce declared-only output',
+      description:
+        'Extra `sym: Symbol("x")` is silently dropped by JSON.stringify per ECMAScript spec (symbol-valued own props are non-enumerable for JSON purposes). Unsafe path: prepareForJson preserves it, JSON.stringify drops it. Safe path: strip removes it before stringify. Same observable, different mechanism — document the lossy round-trip in both paths.',
+      prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      getTestData: () => ({
+        values: [{declared: 'x', sym: Symbol('extra')}],
+        // JSON.stringify drops the symbol — restored shape has no `sym`.
+        deserializedValues: [{declared: 'x'}],
+      }),
+      // Safe path produces the same output; no override needed.
+    },
+
+    extras_dropped_function: {
+      title: 'function-valued extra prop — both paths produce declared-only output',
+      description:
+        'Extra `fn: () => 0` is silently dropped by JSON.stringify (function-valued props serialise to undefined and the key is omitted). Both paths produce declared-only output — strip removes the function on the safe path; JSON.stringify drops it on the unsafe path.',
+      prepareForJson: () => createPrepareForJson<{declared: string}>(),
+      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      getTestData: () => ({
+        values: [{declared: 'x', fn: () => 0}],
+        deserializedValues: [{declared: 'x'}],
+      }),
+      // Safe path produces the same output; no override needed.
+    },
+
+    nested_extras_in_declared_child: {
+      title: 'extras nested inside a declared composite child',
+      description:
+        'Extra `outer.extra` sits inside a declared `outer: {declared: string}` composite. Confirms the extras semantic recurses through declared composites: unsafe preserves the nested extra; safe strips it.',
+      prepareForJson: () => createPrepareForJson<{outer: {declared: string}}>(),
+      restoreFromJson: () => createRestoreFromJson<{outer: {declared: string}}>(),
+      getTestData: () => ({
+        values: [{outer: {declared: 'x', extra: 'y'}}],
+        // Unsafe: nested extra preserved.
+      }),
+      getTestDataForStringify: () => ({
+        values: [{outer: {declared: 'x', extra: 'y'}}],
+        deserializedValues: [{outer: {declared: 'x'}}],
+      }),
     },
   },
 } as const satisfies Record<string, Record<string, SerializationCase>>;
