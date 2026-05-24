@@ -9,9 +9,10 @@ gap) so follow-up work can be triaged.
 
 Current test counts (after the most recent push):
 
-- **`@mionjs/ts-go-run-types`**: 506 pass / 0 fail. All 9 original
+- **`@mionjs/ts-go-run-types`**: 524 pass / 0 fail. All 9 original
   open failures closed; 6 new EXTRA_PARAMS section tests added
-  (5 cases + 1 meta-counter).
+  (5 cases + 1 meta-counter); 18 new wrapper-factory tests added
+  (`test/safeUnsafeJsonWrappers.test.ts`).
 - **`vite-plugin-runtypes`**: 208 / 208
 - **Go (`internal/...`)**: all green
 
@@ -24,30 +25,40 @@ Closed since the prior snapshot:
 ## JSON serialisation semantics — two paths
 
 mion ships two paths for `T → JSON-string` with intentionally-
-different extras semantics; we mirror both in the test suite:
+different extras semantics; we mirror both:
 
 - **Unsafe path** (`prepareForJson + JSON.stringify`):
   `prepareForJson` walks declared children, transforms them in
   place, and mutates `v`. Extras (properties not in the type) are
   never visited and pass through to `JSON.stringify`, which then
   includes JSON-compatible extras, throws on bigint extras, and
-  silently drops symbol-/function-valued extras. This is the
-  baseline path exercised by `test/adapters/serializationRoundTrip.test.ts`.
+  silently drops symbol-/function-valued extras. Public API:
+  `createUnsafeJsonStringify<T>()` + `createUnsafeJsonParse<T>()`.
 - **Safe path** (`stripUnknownKeys + prepareForJson + JSON.stringify`,
   equivalent to mion's `stringifyJson` JIT family which we have not
-  yet ported): extras are stripped before serialise, so the output
-  contains only declared keys regardless of what was on `v`. A new
-  `test/adapters/serializationSafeRoundTrip.test.ts` runs against
-  the same suite in a follow-up phase.
+  yet ported as a single-pass JIT — composition is observably
+  equivalent for our supported kinds): extras are stripped before
+  serialise, so the output contains only declared keys regardless
+  of what was on `v`. Public API: `createSafeJsonStringify<T>()` +
+  `createSafeJsonParse<T>(undefined, {onUnknownKeys})`.
+  `createSafeJsonParse` accepts `{onUnknownKeys: 'strip' | 'error'}`
+  in its 2nd positional slot (default `'strip'`); `'error'` runs
+  `unknownKeyErrors` first and throws `SafeJsonParseError`
+  (carries the `RunTypeError[]`) when any unknown key is present.
 
-`SerializationCase.getTestData` is the canonical source for the
-unsafe-path expectations. `getTestDataForStringify` is an optional
-override consumed by the safe adapter when the expected output
-diverges (typically only for extras-bearing cases). The new
-`EXTRA_PARAMS` section in `test/suites/serialization-suite.ts`
-documents every divergence kind in executable form
-(JSON-compatible extras, bigint extras, symbol/function extras,
-nested extras).
+Test infrastructure:
+- `SerializationCase.getTestData` is the canonical source for the
+  unsafe-path expectations.
+- `getTestDataForStringify` is an optional override consumed by the
+  future safe-path adapter when the expected output diverges
+  (typically only for extras-bearing cases).
+- The `EXTRA_PARAMS` section in
+  `test/suites/serialization-suite.ts` documents every divergence
+  kind in executable form (JSON-compatible passthrough, bigint
+  throws, symbol/function drops, nested extras).
+- `test/safeUnsafeJsonWrappers.test.ts` covers all four wrappers
+  end-to-end via the full Vite-plugin pipeline (happy-path types,
+  EXTRA_PARAMS divergences, the `onUnknownKeys` option semantics).
 
 ## Migrated JIT function families
 
