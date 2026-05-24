@@ -88,13 +88,13 @@ describe('format mockType / NUMBER_FORMAT', () => {
     ranTests++;
   });
 
-  it.todo('FormatNumber<{max: 100}> — inclusive upper bound');
-  it.todo('FormatNumber<{min: 0}> — inclusive lower bound');
-  it.todo('FormatNumber<{lt: 10}> — exclusive upper bound');
-  it.todo('FormatNumber<{gt: 0}> — exclusive lower bound');
+  it('FormatNumber<{max: 100}> — inclusive upper bound', () => assertMockType(NUMBER.number_max));
+  it('FormatNumber<{min: 0}> — inclusive lower bound', () => assertMockType(NUMBER.number_min));
+  it('FormatNumber<{lt: 10}> — exclusive upper bound', () => assertMockType(NUMBER.number_lt));
+  it('FormatNumber<{gt: 0}> — exclusive lower bound', () => assertMockType(NUMBER.number_gt));
   it('FormatInteger — whole numbers only', () => assertMockType(NUMBER.number_integer));
-  it.todo('FormatFloat — non-integer only');
-  it.todo('FormatNumber<{multipleOf: 5}> — divisible by 5');
+  it('FormatFloat — non-integer only', () => assertMockType(NUMBER.number_float));
+  it('FormatNumber<{multipleOf: 5}> — divisible by 5', () => assertMockType(NUMBER.number_multipleOf));
   it('FormatNumber<{min:0; max:100; integer:true; multipleOf:5}> — all constraints', () =>
     assertMockType(NUMBER.number_combined));
   it('FormatInt8 — signed 8-bit range', () => assertMockType(NUMBER.number_int8));
@@ -111,11 +111,11 @@ describe('format mockType / BIGINT_FORMAT', () => {
     ranTests++;
   });
 
-  it.todo('FormatBigInt<{max: 100n}> — inclusive upper bound');
-  it.todo('FormatBigInt<{min: 0n}> — inclusive lower bound');
-  it.todo('FormatBigInt<{lt: 10n}> — exclusive upper bound');
-  it.todo('FormatBigInt<{gt: 0n}> — exclusive lower bound');
-  it.todo('FormatBigInt<{multipleOf: 5n}> — divisible by 5');
+  it('FormatBigInt<{max: 100n}> — inclusive upper bound', () => assertMockType(BIGINT.bigint_max));
+  it('FormatBigInt<{min: 0n}> — inclusive lower bound', () => assertMockType(BIGINT.bigint_min));
+  it('FormatBigInt<{lt: 10n}> — exclusive upper bound', () => assertMockType(BIGINT.bigint_lt));
+  it('FormatBigInt<{gt: 0n}> — exclusive lower bound', () => assertMockType(BIGINT.bigint_gt));
+  it('FormatBigInt<{multipleOf: 5n}> — divisible by 5', () => assertMockType(BIGINT.bigint_multipleOf));
   it('FormatBigInt<{min:0n; max:1000n; multipleOf:10n}> — all constraints', () => assertMockType(BIGINT.bigint_combined));
   it('FormatBigInt64 — full signed 64-bit range', () => assertMockType(BIGINT.bigint_int64));
   it('FormatBigUInt64 — full unsigned 64-bit range', () => assertMockType(BIGINT.bigint_uint64));

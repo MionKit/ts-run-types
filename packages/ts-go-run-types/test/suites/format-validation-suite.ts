@@ -117,7 +117,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatString<{minLength: 3}>>(),
       mockType: () => createMockType<FormatString<{minLength: 3}>>(),
       getSamples: () => ({valid: ['abc', 'abcd'], invalid: ['ab', '']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 3}, {name: 'stringFormat', val: 3}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 3},
+        {name: 'stringFormat', val: 3},
+      ],
     },
     string_length: {
       title: 'FormatString length — exact length only',
@@ -125,7 +128,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatString<{length: 4}>>(),
       mockType: () => createMockType<FormatString<{length: 4}>>(),
       getSamples: () => ({valid: ['abcd'], invalid: ['abc', 'abcde']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 4}, {name: 'stringFormat', val: 4}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 4},
+        {name: 'stringFormat', val: 4},
+      ],
     },
     string_range: {
       title: 'FormatString minLength + maxLength — bounds both ends',
@@ -133,7 +139,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatString<{minLength: 2; maxLength: 4}>>(),
       mockType: () => createMockType<FormatString<{minLength: 2; maxLength: 4}>>(),
       getSamples: () => ({valid: ['ab', 'abcd'], invalid: ['a', 'abcde']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 2}, {name: 'stringFormat', val: 4}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 2},
+        {name: 'stringFormat', val: 4},
+      ],
     },
     string_allowedChars: {
       title: 'FormatString allowedChars — only the allowed set passes',
@@ -165,7 +174,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
       mockType: () => createMockType<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
       getSamples: () => ({valid: ['hello'], invalid: ['hi!', 'a@b']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}, {name: 'stringFormat', val: 'Invalid characters'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid characters'},
+        {name: 'stringFormat', val: 'Invalid characters'},
+      ],
     },
     string_allowedValues: {
       title: 'FormatString allowedValues — enum-like exact match',
@@ -189,15 +201,22 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
       mockType: () => createMockType<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
       getSamples: () => ({valid: ['a.b', 'c+d'], invalid: ['axb', 'ccd']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, {name: 'stringFormat', val: 'Invalid value'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid value'},
+        {name: 'stringFormat', val: 'Invalid value'},
+      ],
     },
     string_disallowedValues: {
       title: 'FormatString disallowedValues — rejects the listed values',
       isType: () => createIsType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
-      getTypeErrors: () => createGetTypeErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+      getTypeErrors: () =>
+        createGetTypeErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
       mockType: () => createMockType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
       getSamples: () => ({valid: ['alice'], invalid: ['admin', 'root']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, {name: 'stringFormat', val: 'Invalid value'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid value'},
+        {name: 'stringFormat', val: 'Invalid value'},
+      ],
     },
     string_customErrorMessage: {
       title: 'FormatString allowedValues — custom errorMessage surfaces as format.val',
@@ -223,7 +242,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatAlphaNumeric>(),
       mockType: () => createMockType<FormatAlphaNumeric>(),
       getSamples: () => ({valid: ['abc123', 'ABC', '123'], invalid: ['a-b', 'a b']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, {name: 'stringFormat', val: 'Invalid pattern'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid pattern'},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+      ],
     },
     numeric: {
       title: 'FormatNumeric — digits only',
@@ -231,7 +253,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatNumeric>(),
       mockType: () => createMockType<FormatNumeric>(),
       getSamples: () => ({valid: ['12345', '007'], invalid: ['12.3', '12a']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, {name: 'stringFormat', val: 'Invalid pattern'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid pattern'},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+      ],
     },
     alpha_withLength: {
       title: 'FormatAlpha with maxLength — char class plus length bound',
@@ -239,7 +264,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatAlpha<{maxLength: 3}>>(),
       mockType: () => createMockType<FormatAlpha<{maxLength: 3}>>(),
       getSamples: () => ({valid: ['abc'], invalid: ['abcd', 'a1']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 3}, {name: 'stringFormat', val: 'Invalid pattern'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 3},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+      ],
     },
     lowercase_validate: {
       title: 'FormatLowercase — transformer-only, validates as a plain string',
@@ -286,7 +314,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
       mockType: () => createMockType<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
       getSamples: () => ({valid: ['29-02-2024'], invalid: ['2024-02-29', '31-04-2024']}),
-      expectedFormatErrors: () => [{name: 'date', val: 'DD-MM-YYYY'}, {name: 'date', val: 'DD-MM-YYYY'}],
+      expectedFormatErrors: () => [
+        {name: 'date', val: 'DD-MM-YYYY'},
+        {name: 'date', val: 'DD-MM-YYYY'},
+      ],
     },
     date_YM: {
       title: 'FormatStringDate — YYYY-MM layout (no day)',
@@ -294,7 +325,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'YYYY-MM'}>>(),
       mockType: () => createMockType<FormatStringDate<{format: 'YYYY-MM'}>>(),
       getSamples: () => ({valid: ['2024-02'], invalid: ['2024-13', '2024-02-29']}),
-      expectedFormatErrors: () => [{name: 'date', val: 'YYYY-MM'}, {name: 'date', val: 'YYYY-MM'}],
+      expectedFormatErrors: () => [
+        {name: 'date', val: 'YYYY-MM'},
+        {name: 'date', val: 'YYYY-MM'},
+      ],
     },
     date_MD: {
       title: 'FormatStringDate — MM-DD layout (no year)',
@@ -315,7 +349,11 @@ export const FORMAT_VALIDATION_SUITE: {
         valid: ['12:30:45Z', '12:30:45.123Z', '12:30:45+05:30', '00:00:00-08:00'],
         invalid: ['12:30:45', '24:00:00Z', '12:60:00Z'],
       }),
-      expectedFormatErrors: () => [{name: 'time', val: 'ISO'}, {name: 'time', val: 'ISO'}, {name: 'time', val: 'ISO'}],
+      expectedFormatErrors: () => [
+        {name: 'time', val: 'ISO'},
+        {name: 'time', val: 'ISO'},
+        {name: 'time', val: 'ISO'},
+      ],
     },
     time_HHmmss: {
       title: 'FormatStringTime — HH:mm:ss fixed layout',
@@ -351,7 +389,8 @@ export const FORMAT_VALIDATION_SUITE: {
       isType: () => createIsType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
       getTypeErrors: () =>
         createGetTypeErrors<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
-      mockType: () => createMockType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+      mockType: () =>
+        createMockType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
       getSamples: () => ({
         valid: ['29-02-2024 23:59'],
         invalid: ['2024-02-29 23:59', '29-02-2024T23:59', '29-02-2024 24:00'],
@@ -381,7 +420,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<FormatIPv6>(),
       mockType: () => createMockType<FormatIPv6>(),
       getSamples: () => ({valid: ['2001:db8:0:0:0:0:0:1', '::1', 'fe80::1'], invalid: ['192.168.0.1', '12345::1']}),
-      expectedFormatErrors: () => [{name: 'ip', val: 6}, {name: 'ip', val: 6}],
+      expectedFormatErrors: () => [
+        {name: 'ip', val: 6},
+        {name: 'ip', val: 6},
+      ],
     },
     ip_any: {
       title: 'FormatIP — accepts both v4 and v6',
@@ -516,7 +558,10 @@ export const FORMAT_VALIDATION_SUITE: {
       getTypeErrors: () => createGetTypeErrors<Hex>(),
       mockType: () => createMockType<Hex>(),
       getSamples: () => ({valid: ['0042', 'DEADbeef'], invalid: ['xyz', '']}),
-      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, {name: 'stringFormat', val: 'Invalid pattern'}],
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid pattern'},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+      ],
     },
   },
   NUMBER_FORMAT: {
@@ -524,6 +569,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatNumber<{max: 100}> — inclusive upper bound',
       isType: () => createIsType<FormatNumber<{max: 100}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatNumber<{max: 100}>>(),
+      mockType: () => createMockType<FormatNumber<{max: 100}>>(),
       getSamples: () => ({valid: [100, 0, -50], invalid: [101, '5']}),
       expectedFormatErrors: () => [{name: 'numberFormat', val: 100, formatPathTail: 'max'}, null],
     },
@@ -531,6 +577,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatNumber<{min: 0}> — inclusive lower bound',
       isType: () => createIsType<FormatNumber<{min: 0}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatNumber<{min: 0}>>(),
+      mockType: () => createMockType<FormatNumber<{min: 0}>>(),
       getSamples: () => ({valid: [0, 1, 9999], invalid: [-1]}),
       expectedFormatErrors: () => [{name: 'numberFormat', val: 0, formatPathTail: 'min'}],
     },
@@ -538,6 +585,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatNumber<{lt: 10}> — exclusive upper bound',
       isType: () => createIsType<FormatNumber<{lt: 10}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatNumber<{lt: 10}>>(),
+      mockType: () => createMockType<FormatNumber<{lt: 10}>>(),
       getSamples: () => ({valid: [9, 0, -100], invalid: [10, 11]}),
       expectedFormatErrors: () => [
         {name: 'numberFormat', val: 10, formatPathTail: 'lt'},
@@ -548,6 +596,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatNumber<{gt: 0}> — exclusive lower bound',
       isType: () => createIsType<FormatNumber<{gt: 0}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatNumber<{gt: 0}>>(),
+      mockType: () => createMockType<FormatNumber<{gt: 0}>>(),
       getSamples: () => ({valid: [1, 100], invalid: [0, -1]}),
       expectedFormatErrors: () => [
         {name: 'numberFormat', val: 0, formatPathTail: 'gt'},
@@ -569,6 +618,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatFloat — non-integer only',
       isType: () => createIsType<FormatFloat>(),
       getTypeErrors: () => createGetTypeErrors<FormatFloat>(),
+      mockType: () => createMockType<FormatFloat>(),
       getSamples: () => ({valid: [1.5, -0.5, 3.14], invalid: [1, 0, -2]}),
       expectedFormatErrors: () => [
         {name: 'numberFormat', val: true, formatPathTail: 'float'},
@@ -580,6 +630,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatNumber<{multipleOf: 5}> — divisible by 5',
       isType: () => createIsType<FormatNumber<{multipleOf: 5}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatNumber<{multipleOf: 5}>>(),
+      mockType: () => createMockType<FormatNumber<{multipleOf: 5}>>(),
       getSamples: () => ({valid: [0, 5, 10, -15], invalid: [3, 7]}),
       expectedFormatErrors: () => [
         {name: 'numberFormat', val: 5, formatPathTail: 'multipleOf'},
@@ -628,6 +679,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatBigInt<{max: 100n}> — inclusive upper bound',
       isType: () => createIsType<FormatBigInt<{max: 100n}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatBigInt<{max: 100n}>>(),
+      mockType: () => createMockType<FormatBigInt<{max: 100n}>>(),
       getSamples: () => ({valid: [100n, 0n, -50n], invalid: [101n, 5]}),
       expectedFormatErrors: () => [{name: 'bigintFormat', val: 100n, formatPathTail: 'max'}, null],
     },
@@ -635,6 +687,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatBigInt<{min: 0n}> — inclusive lower bound',
       isType: () => createIsType<FormatBigInt<{min: 0n}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatBigInt<{min: 0n}>>(),
+      mockType: () => createMockType<FormatBigInt<{min: 0n}>>(),
       getSamples: () => ({valid: [0n, 1n, 9999n], invalid: [-1n]}),
       expectedFormatErrors: () => [{name: 'bigintFormat', val: 0n, formatPathTail: 'min'}],
     },
@@ -642,6 +695,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatBigInt<{lt: 10n}> — exclusive upper bound',
       isType: () => createIsType<FormatBigInt<{lt: 10n}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatBigInt<{lt: 10n}>>(),
+      mockType: () => createMockType<FormatBigInt<{lt: 10n}>>(),
       getSamples: () => ({valid: [9n, -5n], invalid: [10n, 11n]}),
       expectedFormatErrors: () => [
         {name: 'bigintFormat', val: 10n, formatPathTail: 'lt'},
@@ -652,6 +706,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatBigInt<{gt: 0n}> — exclusive lower bound',
       isType: () => createIsType<FormatBigInt<{gt: 0n}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatBigInt<{gt: 0n}>>(),
+      mockType: () => createMockType<FormatBigInt<{gt: 0n}>>(),
       getSamples: () => ({valid: [1n, 100n], invalid: [0n, -1n]}),
       expectedFormatErrors: () => [
         {name: 'bigintFormat', val: 0n, formatPathTail: 'gt'},
@@ -662,6 +717,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatBigInt<{multipleOf: 5n}> — divisible by 5',
       isType: () => createIsType<FormatBigInt<{multipleOf: 5n}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatBigInt<{multipleOf: 5n}>>(),
+      mockType: () => createMockType<FormatBigInt<{multipleOf: 5n}>>(),
       getSamples: () => ({valid: [0n, 5n, -15n], invalid: [3n, 7n]}),
       expectedFormatErrors: () => [
         {name: 'bigintFormat', val: 5n, formatPathTail: 'multipleOf'},
