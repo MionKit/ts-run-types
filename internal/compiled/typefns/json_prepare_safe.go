@@ -215,20 +215,13 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 // bigint / symbol / regexp literals carry a Flags marker and use the
 // same transform as the bare kind. Primitive literals are noops.
 func emitLiteralPrepareForJsonSafe(rt *protocol.RunType, v string) RTCode {
-	flagSet := make(map[string]bool, len(rt.Flags))
-	for _, flag := range rt.Flags {
-		flagSet[flag] = true
-	}
-	if flagSet["bigint"] {
+	switch literalFlavour(rt) {
+	case litBigInt:
 		return RTCode{Code: v + ".toString()", Type: CodeE}
-	}
-	if flagSet["symbol"] {
+	case litSymbol:
 		return RTCode{Code: "'Symbol:' + (" + v + ".description || '')", Type: CodeE}
-	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return RTCode{Code: v + ".toString()", Type: CodeE}
-		}
+	case litRegExp:
+		return RTCode{Code: v + ".toString()", Type: CodeE}
 	}
 	return RTCode{Code: "", Type: CodeS}
 }
