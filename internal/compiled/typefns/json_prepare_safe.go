@@ -145,6 +145,11 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 		return RTCode{Code: "undefined", Type: CodeE}
 
 	case protocol.KindClass:
+		if protocol.IsTemporalSubKind(rt.SubKind) {
+			// Safe (non-mutating) projection: emit the canonical string via
+			// toJSON() — Temporal's analogue of Date's toISOString().
+			return RTCode{Code: v + ".toJSON()", Type: CodeE}
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			return RTCode{Code: v + ".toISOString()", Type: CodeE}

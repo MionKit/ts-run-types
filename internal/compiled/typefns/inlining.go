@@ -119,6 +119,12 @@ func DefaultIsRTInlined(ctx *InlineContext) bool {
 		if ctx.RT.SubKind == protocol.SubKindDate {
 			return true
 		}
+		// Temporal types are atomic leaf-emits too (single instanceof /
+		// `Temporal.X.from(v)` expression, no child recursion) — inline for
+		// the same reason Date does.
+		if protocol.IsTemporalSubKind(ctx.RT.SubKind) {
+			return true
+		}
 		return false
 	}
 	if ctx.RT.Kind == protocol.KindTuple {
