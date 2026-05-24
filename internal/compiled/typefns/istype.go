@@ -175,7 +175,7 @@ func (e IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCTyp
 	// format-specific regex / call.
 	if base.Type == CodeE && base.Code != "" && rt != nil && rt.FormatAnnotation != nil {
 		if emitter, ok := formats.LookupForRunType(rt); ok {
-			check := emitter.EmitIsTypeCheck(rt.FormatAnnotation, ctx.Vλl)
+			check := emitter.EmitIsTypeCheck(rt.FormatAnnotation, ctx.Vλl, ctx)
 			if check != "" {
 				base.Code = "(" + base.Code + " && (" + check + "))"
 			}
