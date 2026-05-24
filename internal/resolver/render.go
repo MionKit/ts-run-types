@@ -70,6 +70,15 @@ func renderRestoreFromJsonModule(dump protocol.Dump) (string, error) {
 	})
 }
 
+// renderStringifyJsonModule emits the stringifyJson cache module —
+// mion's single-pass JSON serialiser that walks the type and emits
+// the JSON string directly. Backed by jitfn.StringifyJsonEmitter.
+func renderStringifyJsonModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderStringifyJsonModule", func(w io.Writer) error {
+		return jitfn.StringifyJsonModule(w, dump)
+	})
+}
+
 // renderHasUnknownKeysModule emits the hasUnknownKeys cache module —
 // boolean predicate per mion's emitHasUnknownKeys (returns true when
 // the value has properties outside the schema). Backed by

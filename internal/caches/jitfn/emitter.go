@@ -116,6 +116,17 @@ func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeTyp
 	return ctx.walker.compileNode(rt, expectedCType)
 }
 
+// IsRoot reports whether the current Emit call is at the JIT
+// function's root (the outermost frame). Mirrors mion's
+// `comp.getNestLevel(runType) === 0`. Used by emitters whose output
+// shape depends on root-vs-nested context — e.g. stringifyJson's
+// atomic number/null emits return `String(v)` at root (so the JIT
+// fn returns a JSON-parseable string) but bare `v` at non-root
+// (the parent concatenates and the JS `+` coerces).
+func (ctx *EmitContext) IsRoot() bool {
+	return ctx.walker != nil && len(ctx.walker.Stack) == 1
+}
+
 // ResolveRef dereferences a KindRef sentinel via the walker's ref
 // table. Returns the input unchanged when it isn't a ref; nil when
 // the ref points at a missing entry. Useful for emit decisions that
