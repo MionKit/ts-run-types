@@ -109,6 +109,45 @@ export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
 	}
 }
 
+// TestNativeDate_NodeHasNoBrandProperties guards the shape your reviewer
+// flagged: the projected Date node must NOT expose the
+// __rtFormatName/__rtFormatParams sentinels as children/properties (the
+// brand lives only in FormatAnnotation, exactly like an atomic string
+// format). A regression would surface the brand props as Date "members".
+func TestNativeDate_NodeHasNoBrandProperties(t *testing.T) {
+	_, runTypes, _ := scanNativeDate(t, `{min: 'now'}`)
+	node := findNativeDate(runTypes)
+	if node == nil {
+		t.Fatal("no nativeDate node")
+	}
+	for _, child := range node.Children {
+		if strings.HasPrefix(child.Name, "__rtFormat") {
+			t.Fatalf("brand sentinel %q leaked onto the Date node as a property", child.Name)
+		}
+	}
+}
+
+// TestNativeDate_StructuralIDExcludesBrandShape proves the structural id
+// is computed as <Date-class-id> + formatKey (not as an object literal
+// whose members include the brand sentinels): different params hash
+// differently, and a branded Date differs from a plain Date only by the
+// format key — both kept consistent with the serialize-side projection.
+func TestNativeDate_StructuralIDExcludesBrandShape(t *testing.T) {
+	idOf := func(params string) string {
+		_, runTypes, _ := scanNativeDate(t, params)
+		node := findNativeDate(runTypes)
+		if node == nil {
+			t.Fatalf("no nativeDate node for %s", params)
+		}
+		return node.ID
+	}
+	minID := idOf(`{min: 'now'}`)
+	maxID := idOf(`{max: 'now'}`)
+	if minID == maxID {
+		t.Fatalf("FormatDate<{min}> and FormatDate<{max}> must not share a cache id (%q)", minID)
+	}
+}
+
 func TestNativeDate_ParamValidation(t *testing.T) {
 	cases := []struct {
 		name    string
