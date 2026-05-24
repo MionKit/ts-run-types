@@ -11,17 +11,19 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {FORMAT_VALIDATION_SUITE} from '../suites/format-validation-suite.ts';
 import {assertIsType} from '../util/validationAsserts.ts';
 
-describe('format isType / STRING_FORMAT', () => {
+describe('format isType', () => {
   let ranTests = 0;
   afterEach(() => {
     ranTests++;
   });
 
-  for (const c of Object.values(FORMAT_VALIDATION_SUITE.STRING_FORMAT)) {
+  for (const c of Object.values(FORMAT_VALIDATION_SUITE).flatMap((bucket) => Object.values(bucket))) {
     it(c.title, () => assertIsType(c));
   }
 
-  it('all STRING_FORMAT isType tests ran', () => {
-    expect(ranTests).toBe(Object.keys(FORMAT_VALIDATION_SUITE.STRING_FORMAT).length);
+  it('all isType tests ran', () => {
+    expect(ranTests).toBe(
+      Object.values(FORMAT_VALIDATION_SUITE).reduce((total, bucket) => total + Object.keys(bucket).length, 0)
+    );
   });
 });

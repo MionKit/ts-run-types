@@ -197,6 +197,7 @@ export function runBinaryRoundTripCase(c: SerializationCase): void {
   //     expectation.
   const testDataThunk = c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData;
   const {values, deserializedValues} = testDataThunk();
+  const byteSizes = c.getBinaryByteSizes?.();
 
   values.forEach((reference, i) => {
     const input = deepCloneForRoundTrip(reference);
@@ -208,6 +209,12 @@ export function runBinaryRoundTripCase(c: SerializationCase): void {
       throw e;
     }
     if (bestEffort) return;
+    // Byte-size assertion — locks in the format binary optimization (a
+    // FormatInt8 must encode to 1 byte, FormatBigInt64 to 8, …). Only
+    // asserted when the case declares an expected size for this index.
+    if (byteSizes && byteSizes[i] !== undefined) {
+      expect(buf.byteLength, `${c.title}: values[${i}] encoded byte length`).toBe(byteSizes[i]);
+    }
     const restored = decode(buf);
     const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
     const {actual, expected} = normalizeForComparison(restored, expectedReference);
