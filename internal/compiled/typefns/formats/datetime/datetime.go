@@ -1,4 +1,4 @@
-package string
+package datetime
 
 import (
 	"strconv"
@@ -8,18 +8,10 @@ import (
 )
 
 // dateTimeEmitter implements the format named "dateTime" —
-// FormatStringDateTime<P>. Composes the date + time validators: the
-// value is split on `splitChar` (default 'T'), the left part is
-// validated as a date and the right part as a time. Mirrors mion's
-// DateTimeRunTypeFormat (packages/type-formats/src/string/dateTime.runtype.ts),
-// which delegates to the same date/time pure fns rather than
-// re-implementing the parsing.
-//
-// isType emits an IIFE expression so it can splice into the host
-// emitter's CodeE chain; typeErrors emits a statement block guarded
-// by the base-kind check. Both reuse the already-registered
-// cpf_isDateString_* / cpf_isTimeString_* pure fns — no DateTime-
-// specific pure fn is needed.
+// FormatStringDateTime<P>. Composes the date + time validators (split on
+// `splitChar`, default 'T') and adds optional top-level min/max bounds
+// (a dateTime bound may use both date and time duration components).
+// Moved here from the string package.
 type dateTimeEmitter struct{}
 
 func init() {
@@ -29,9 +21,7 @@ func init() {
 func (dateTimeEmitter) Name() string                  { return "dateTime" }
 func (dateTimeEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-// dateTimeParts resolves the date pure-fn, time pure-fn, and split
-// char from a dateTime params object. Returns ok=false when either
-// nested format is unrecognised — the emitter then no-ops.
+// dateTimeParts resolves the date pure-fn, time pure-fn, and split char.
 func dateTimeParts(params map[string]any) (dateFn, timeFn, splitChar string, ok bool) {
 	splitChar = "T"
 	if raw, present := params["splitChar"]; present {
@@ -49,8 +39,7 @@ func dateTimeParts(params map[string]any) (dateFn, timeFn, splitChar string, ok 
 	return dateFn, timeFn, splitChar, true
 }
 
-// nestedFormat reads params[key].format, defaulting to `fallback`
-// when the nested object or its format field is absent.
+// nestedFormat reads params[key].format, defaulting to `fallback`.
 func nestedFormat(params map[string]any, key, fallback string) string {
 	raw, ok := params[key]
 	if !ok {
@@ -70,16 +59,19 @@ func nestedFormat(params map[string]any, key, fallback string) string {
 	return fallback
 }
 
-// ValidateParams checks the nested date/time `format` params resolve to
-// supported layouts (dateTimeParts returns ok=false otherwise).
+// ValidateParams checks the nested date/time layouts resolve and
+// validates the optional top-level min/max bounds (dateTimeKind: both
+// component groups allowed). The splitChar is the layout key for the
+// best-effort static bound parse.
 func (dateTimeEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
 	}
-	if _, _, _, ok := dateTimeParts(annotation.Params); !ok {
+	_, _, splitChar, ok := dateTimeParts(annotation.Params)
+	if !ok {
 		return []string{"FormatStringDateTime: unknown date or time `format`"}
 	}
-	return nil
+	return validateMinMax(annotation.Params, dateTimeKind, splitChar)
 }
 
 func (dateTimeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
@@ -94,11 +86,14 @@ func (dateTimeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, v�
 	timeAlias := pureFnAlias(ctx, timeFn)
 	split := strconv.Quote(splitChar)
 	// IIFE: bind the split position once, bail on -1, then AND the two
-	// sub-validators over the substrings. `dtp` is arrow-param scoped
-	// so it can't collide with surrounding factory locals.
-	return "((dtp) => dtp !== -1 && " +
+	// sub-validators over the substrings.
+	structural := "((dtp) => dtp !== -1 && " +
 		dateAlias + "(" + vλl + ".substring(0,dtp)) && " +
 		timeAlias + "(" + vλl + ".substring(dtp+1)))(" + vλl + ".indexOf(" + split + "))"
+	if bounds := boundIsTypeChecks(ctx, annotation.Params, vλl, dateTimeKind, splitChar); bounds != "" {
+		return "(" + structural + " && " + bounds + ")"
+	}
+	return structural
 }
 
 func (dateTimeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
@@ -113,14 +108,16 @@ func (dateTimeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation
 	timeAlias := pureFnAlias(ctx, timeFn)
 	split := strconv.Quote(splitChar)
 	errFor := func(paramName string) string {
-		return formatErrCall(ctx, pathExpr, errorsArr, "string", "dateTime", paramName, split)
+		return formatErrCall(pathExpr, errorsArr, "string", "dateTime", paramName, split)
 	}
-	// Statement block: locate the split, error on absence, else validate
-	// each half independently so a bad date AND a bad time both surface.
-	return "const dtSplit=" + vλl + ".indexOf(" + split + ");" +
+	stmt := "const dtSplit=" + vλl + ".indexOf(" + split + ");" +
 		"if (dtSplit===-1) " + errFor("splitChar") + ";" +
 		"else {" +
 		"if (!(" + dateAlias + "(" + vλl + ".substring(0,dtSplit)))) " + errFor("date") + ";" +
 		"if (!(" + timeAlias + "(" + vλl + ".substring(dtSplit+1)))) " + errFor("time") + ";" +
 		"}"
+	if bounds := boundTypeErrorChecks(ctx, annotation.Params, vλl, pathExpr, errorsArr, "dateTime", dateTimeKind, splitChar); bounds != "" {
+		stmt = stmt + ";" + bounds
+	}
+	return stmt
 }

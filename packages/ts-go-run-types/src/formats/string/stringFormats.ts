@@ -154,50 +154,13 @@ export interface FormatParams_UUID {
 export type FormatUUIDv4 = TypeFormat<string, 'uuid', {version: '4'}, 'uuid'>;
 export type FormatUUIDv7 = TypeFormat<string, 'uuid', {version: '7'}, 'uuid'>;
 
-// ─────────────────────────────── Date ───────────────────────────────
-
-export type DateFmt = 'ISO' | 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'MM-DD-YYYY' | 'YYYY-MM' | 'MM-DD' | 'DD-MM';
-export interface FormatParams_Date {
-  format: DateFmt;
-}
-export type DEFAULT_DATE_PARAMS = {format: 'ISO'};
-export type FormatStringDate<P extends Partial<FormatParams_Date> = DEFAULT_DATE_PARAMS> = TypeFormat<string, 'date', P, 'date'>;
-
-// ─────────────────────────────── Time ───────────────────────────────
-
-export type TimeFmt = 'ISO' | 'HH:mm:ss[.mmm]TZ' | 'HH:mm:ss[.mmm]' | 'HH:mm:ss' | 'HH:mm' | 'mm:ss' | 'HH' | 'mm' | 'ss';
-export interface FormatParams_Time {
-  format: TimeFmt;
-}
-export type DEFAULT_TIME_FORMAT_PARAMS = {format: 'ISO'};
-export type FormatStringTime<P extends Partial<FormatParams_Time> = DEFAULT_TIME_FORMAT_PARAMS> = TypeFormat<
-  string,
-  'time',
-  P,
-  'time'
->;
-
-// ───────────────────────────── DateTime ─────────────────────────────
-
-export interface FormatParams_DateTime {
-  date: FormatParams_Date;
-  time: FormatParams_Time;
-  splitChar: string;
-}
-export type DEFAULT_DATE_TIME_PARAMS = {
-  date: {format: 'ISO'};
-  time: {format: 'ISO'};
-  splitChar: 'T';
-};
-// P is passed through verbatim (NOT intersected with defaults — that
-// would collapse overridden `format` literals to `never`); the Go side
-// defaults missing nested formats / splitChar to ISO / 'T'.
-export type FormatStringDateTime<P extends Partial<FormatParams_DateTime> = DEFAULT_DATE_TIME_PARAMS> = TypeFormat<
-  string,
-  'dateTime',
-  P,
-  'dateTime'
->;
+// ──────────────────── Date / Time / DateTime ────────────────────────
+//
+// The string date/time/dateTime formats moved to
+// `../datetime/stringDateTimeFormats.ts` (they now share the min/max
+// bound params with the native `Date` family). They are re-exported from
+// the `@mionjs/ts-go-run-types/formats` subpath via `../index.ts`, so
+// public imports are unchanged.
 
 // ──────────────────────────────── IP ────────────────────────────────
 

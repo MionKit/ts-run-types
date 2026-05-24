@@ -338,6 +338,22 @@ export const FORMAT_VALIDATION_SUITE: {
       getSamples: () => ({valid: ['02-29'], invalid: ['13-01']}),
       expectedFormatErrors: () => [{name: 'date', val: 'MM-DD'}],
     },
+    date_minMax_absolute: {
+      title: 'FormatStringDate — absolute min/max bounds (inclusive)',
+      isType: () => createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+      // No mockType thunk: the mock generator has no min/max awareness yet
+      // and could emit an out-of-range date the bounded validator rejects.
+      // isType + getTypeErrors fully exercise the bound codegen.
+      getSamples: () => ({
+        valid: ['2020-01-01', '2020-06-15', '2020-12-31'],
+        invalid: ['2019-12-31', '2021-01-01'],
+      }),
+      expectedFormatErrors: () => [
+        {name: 'date', formatPathTail: 'min'},
+        {name: 'date', formatPathTail: 'max'},
+      ],
+    },
 
     // ─────────────────────────────── Time ───────────────────────────
     time_iso: {
@@ -371,6 +387,19 @@ export const FORMAT_VALIDATION_SUITE: {
       getSamples: () => ({valid: ['12:30:45', '12:30:45.999'], invalid: ['12:30:45.9999']}),
       expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss[.mmm]'}],
     },
+    time_minMax_absolute: {
+      title: 'FormatStringTime — absolute min/max bounds (business hours)',
+      isType: () => createIsType<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+      getSamples: () => ({
+        valid: ['09:00', '12:30', '17:00'],
+        invalid: ['08:59', '17:01'],
+      }),
+      expectedFormatErrors: () => [
+        {name: 'time', formatPathTail: 'min'},
+        {name: 'time', formatPathTail: 'max'},
+      ],
+    },
 
     // ───────────────────────────── DateTime ─────────────────────────
     dateTime_default: {
@@ -399,6 +428,37 @@ export const FORMAT_VALIDATION_SUITE: {
         {name: 'dateTime', formatPathTail: 'date'},
         {name: 'dateTime', formatPathTail: 'splitChar'},
         {name: 'dateTime', formatPathTail: 'time'},
+      ],
+    },
+    dateTime_minMax_absolute: {
+      title: 'FormatStringDateTime — absolute min/max bounds',
+      isType: () =>
+        createIsType<
+          FormatStringDateTime<{
+            date: {format: 'YYYY-MM-DD'};
+            time: {format: 'HH:mm:ss'};
+            splitChar: 'T';
+            min: '2020-01-01T00:00:00';
+            max: '2020-12-31T23:59:59';
+          }>
+        >(),
+      getTypeErrors: () =>
+        createGetTypeErrors<
+          FormatStringDateTime<{
+            date: {format: 'YYYY-MM-DD'};
+            time: {format: 'HH:mm:ss'};
+            splitChar: 'T';
+            min: '2020-01-01T00:00:00';
+            max: '2020-12-31T23:59:59';
+          }>
+        >(),
+      getSamples: () => ({
+        valid: ['2020-01-01T00:00:00', '2020-06-15T12:00:00'],
+        invalid: ['2019-12-31T23:59:59', '2021-01-01T00:00:00'],
+      }),
+      expectedFormatErrors: () => [
+        {name: 'dateTime', formatPathTail: 'min'},
+        {name: 'dateTime', formatPathTail: 'max'},
       ],
     },
 
