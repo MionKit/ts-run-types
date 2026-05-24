@@ -553,6 +553,20 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	return childJit
 }
 
+// peekEmitterTag returns the short cache-key tag for the JSON-round-trip
+// emitters used by union skip-encode decisions. Only PrepareForJsonEmitter
+// and RestoreFromJsonEmitter are ever passed here — callers outside that
+// set get an empty tag, which disables caching for that call.
+func peekEmitterTag(emitter Emitter) string {
+	switch emitter.(type) {
+	case PrepareForJsonEmitter:
+		return "pj"
+	case RestoreFromJsonEmitter:
+		return "rj"
+	}
+	return ""
+}
+
 // peekMemberIsNoop compiles `member` against `emitter` on a throwaway
 // walker and returns whether the result is a noop (or fully unsupported,
 // which is also "no transformation"). Used by the union emit to decide
@@ -568,22 +582,69 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 // useful here. The walker's pre-Finalize `Code` field is the source
 // of truth for "did the dispatch produce any transformation?"
 //
-// The throwaway walker keeps any side effects (context items, dep
-// records) local — the caller's walker state is untouched.
-func peekMemberIsNoop(member *protocol.RunType, emitter Emitter, refTable map[string]*protocol.RunType) bool {
+// Results are memoised on `ctx.walker.peekedNoops` keyed by
+// `<emitterTag>:<member.ID>` so the three JSON-round-trip union emitters
+// share the same per-member answer within a single Compile() pass. The
+// throwaway peek walker keeps its own ContextItems / JitDependencies, so
+// the caller's walker state stays untouched.
+func peekMemberIsNoop(member *protocol.RunType, emitter Emitter, ctx *EmitContext) bool {
+	tag := peekEmitterTag(emitter)
+	cacheKey := ""
+	if tag != "" && ctx != nil && ctx.walker != nil && ctx.walker.peekedNoops != nil {
+		cacheKey = tag + ":" + member.ID
+		if cached, ok := ctx.walker.peekedNoops[cacheKey]; ok {
+			return cached
+		}
+	}
+	var refTable map[string]*protocol.RunType
+	if ctx != nil && ctx.walker != nil {
+		refTable = ctx.walker.RefTable
+	}
 	walker := NewWalker(member, "_peek_"+member.ID, emitter)
 	walker.RefTable = refTable
 	walker.InnerPrefix = ""
 	walker.compileNode(walker.RootType, CodeE)
+	var result bool
 	if walker.IsUnsupported {
-		return true
+		// JitThrow leaves ThrowMessage set — the member actively emits
+		// a compile-time throw, which is NOT a noop transformation. The
+		// parent union MUST wrap it (needsTuple=true) so the rj decode
+		// arm calls CompileChild on the member and the CodeNS sentinel
+		// propagates to the parent walker, making the whole union
+		// compile to a throw-factory (matches the pj/sj behaviour, where
+		// CompileChild is always called and CodeNS propagation is
+		// automatic). Plain CodeNS without a message means the kind has
+		// no emit at all → safe to treat as noop (identity passes).
+		result = walker.ThrowMessage == ""
+	} else {
+		code := strings.TrimSpace(walker.Code)
+		// handleCodeInterpolation wraps the root CodeE/CodeS into the
+		// final body shape — for atomic noop emits the wrap is empty (no
+		// code was generated) and Code stays "". For non-noop emits the
+		// wrap leaves an actual transformation in Code.
+		result = code == "" || code == "return v"
 	}
-	code := strings.TrimSpace(walker.Code)
-	// handleCodeInterpolation wraps the root CodeE/CodeS into the
-	// final body shape — for atomic noop emits the wrap is empty (no
-	// code was generated) and Code stays "". For non-noop emits the
-	// wrap leaves an actual transformation in Code.
-	return code == "" || code == "return v"
+	if cacheKey != "" {
+		ctx.walker.peekedNoops[cacheKey] = result
+	}
+	return result
+}
+
+// unionMemberNeedsTuple is the single source of truth shared by all three
+// JSON-round-trip union emitters (prepareForJson, stringifyJson,
+// restoreFromJson) for the per-member `[memberIndex, value]` wrap decision.
+// Mirrors mion's `needsTupleEncoding = !!encJit?.code || !!decJit?.code`
+// (mion/jitCompilers/json/stringifyJson.ts:295-306) — a member skips the
+// wrap iff BOTH prepareForJson and restoreFromJson would compile to a
+// noop on it.
+//
+// Pure on (member, ctx.walker.RefTable). The active emitter on `ctx` is
+// intentionally ignored — all three callers route through here so the
+// wire shape stays identical between pj/sj encode and rj decode.
+func unionMemberNeedsTuple(member *protocol.RunType, ctx *EmitContext) bool {
+	pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, ctx)
+	rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, ctx)
+	return !(pjNoop && rjNoop)
 }
 
 // unionMemberIsTypeCheck returns a JS expression that checks whether
@@ -692,17 +753,22 @@ func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	// Every union member is wrapped with the `[memberIndex, value]`
-	// discriminator at encode time. Mion's semantic: union
-	// encoding/decoding is ALWAYS required, regardless of whether
-	// each member's own pj/rj would be a noop. This keeps the wire
-	// shape predictable for downstream protocols (binary, etc.) that
-	// can't disambiguate post-encode without the discriminator, and
-	// matches mion's `00JsonOnly.spec.ts` assertion that atomic
-	// unions are flagged isNoop=false.
+	// Per-member tuple-wrap decision — mirrors mion's
+	// `needsTupleEncoding = !!encJit?.code || !!decJit?.code`
+	// (jitCompilers/json/stringifyJson.ts:295-306). A member that's
+	// noop on BOTH prepareForJson AND restoreFromJson skips the
+	// `[memberIndex, value]` envelope; the decode-side shape gate
+	// (emitUnionRestoreFromJson) distinguishes wrapped vs raw at
+	// runtime. unionMemberNeedsTuple is the single source of truth
+	// shared by all three union emit families so the wire shape stays
+	// identical between pj/sj encode and rj decode.
 	needsTuple := make([]bool, len(children))
-	for i := range children {
-		needsTuple[i] = true
+	for i, childRef := range children {
+		member := ctx.ResolveRef(childRef)
+		if member == nil {
+			continue
+		}
+		needsTuple[i] = unionMemberNeedsTuple(member, ctx)
 	}
 
 	// Second pass: build the if/else chain.
