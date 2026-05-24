@@ -66,7 +66,42 @@ func (computer *Computer) stackIndex(tsType *checker.Type) int {
 func (computer *Computer) cycleRef(tsType *checker.Type, index int) string {
 	kind := KindOf(computer.typeChecker, tsType)
 	name := aliasName(tsType)
+	// Mion JIT-compiles per-call, so two distinct `interface Foo { …self… }`
+	// declarations in different files never collide — each invocation
+	// sees one Type instance. Our AOT cache is project-global, so an
+	// undifferentiated cycle token (`$<kind>_<index>`) makes the inner
+	// recursive shape structurally identical between distinct declarations,
+	// and the child of one outer entry silently shadows the other after
+	// dedup. Fall back to the symbol declaration position when no type
+	// alias is in play — two interface declarations have different
+	// position tokens even when their symbol name and structural shape
+	// match, so the cycle refs differ and the surrounding compounds
+	// (the tuple slot in `[bigint, Foo?]`, etc.) hash to distinct ids.
+	if name == "" {
+		name = declarationPosToken(tsType)
+	}
 	return "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(index) + name
+}
+
+// declarationPosToken returns a stable per-declaration string when the
+// type's symbol has at least one declaration in the program. Returns
+// "" when the symbol is anonymous (no declarations attached — usually
+// inline object literals like `{ a: string }` written in a function
+// argument position). For such anonymous types we keep the empty
+// suffix so unrelated callers with identical inline shapes continue
+// to share a cache entry — same dedup behavior as before.
+func declarationPosToken(tsType *checker.Type) string {
+	symbol := tsType.Symbol()
+	if symbol == nil {
+		return ""
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil {
+			continue
+		}
+		return ":@" + strconv.Itoa(int(declaration.Pos()))
+	}
+	return ""
 }
 
 func (computer *Computer) dispatch(tsType *checker.Type) string {
