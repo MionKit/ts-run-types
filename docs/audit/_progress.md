@@ -84,7 +84,11 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       cases ACTIVE (not todo — stale comment). Minor: arity guard omitted; symbol[] elem→return false
       (not alwaysThrow); redundant union obj guards; all compounds de-inlined; strictTypes not plumbed.
       Side-fix applied: UNSUPPORTED-KINDS.md now notes KindPromise is validation-supported.
-- [ ] 03 getTypeErrors                             → docs/audit/03-gettypeerrors.md
+- [x] 03 getTypeErrors → docs/audit/03-gettypeerrors.md ⚠️ ported-with-gaps. VERIFIED: port path
+      segment `failed:'mapValue'` vs mion `'mapVal'` (typeerrors.go:876 vs map.ts) — real wire mismatch
+      (suite blesses port name); object kind `expected:'objectLiteral'` vs mion `'object'` (typeerrors.go:285/640);
+      Set item bare index vs mion {key,index}; 29 it.todo in formatGetTypeErrors (headline). Core te well covered
+      (165 it, 0 todo); union one-error + accumulate-all semantics match. emitIsTypeErrors = FORMAT combined emit.
 - [ ] 04 unknown-keys family (huk/suk/uke/uku/ukuw)→ docs/audit/04-unknown-keys.md
 - [ ] 05 JSON serialization (pj/pjs/pjsp/sj/rj)    → docs/audit/05-json-serialization.md
 - [ ] 06 binary serialization (tb/fb)              → docs/audit/06-binary-serialization.md
