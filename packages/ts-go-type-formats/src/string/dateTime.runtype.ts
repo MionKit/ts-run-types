@@ -5,7 +5,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -108,4 +108,4 @@ function mockTime(format: TimeFmt): string {
   }
 }
 
-registerFormatter(new DateTimeRunTypeFormat());
+registerTypeFormat(new DateTimeRunTypeFormat());

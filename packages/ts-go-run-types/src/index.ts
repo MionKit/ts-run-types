@@ -32,8 +32,8 @@ export {type TypeFormat, type TypeFormatBase, type TypeFormatParams} from './run
 export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
 export {
   BaseRunTypeFormat,
-  registerFormatter,
-  getFormatterFromCache,
+  registerTypeFormat,
+  getTypeFormatFromCache,
   getRunTypeFormat,
 } from './runtypes/formatRegistry.ts';
 // Reflection-kind enum mirror. Re-exported so concrete formats in

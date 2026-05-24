@@ -6,7 +6,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -76,4 +76,4 @@ function template(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
 }
 
-registerFormatter(new UUIDRunTypeFormat());
+registerTypeFormat(new UUIDRunTypeFormat());

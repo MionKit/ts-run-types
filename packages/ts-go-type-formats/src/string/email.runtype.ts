@@ -3,7 +3,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -49,4 +49,4 @@ export class EmailRunTypeFormat extends BaseRunTypeFormat<FormatParams_Email> {
   validateParams(): void {}
 }
 
-registerFormatter(new EmailRunTypeFormat());
+registerTypeFormat(new EmailRunTypeFormat());

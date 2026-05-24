@@ -4,7 +4,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -100,4 +100,4 @@ function mockTimeZone(): string {
   return `${Math.random() > 0.5 ? '+' : '-'}${hours}:${minutes}`;
 }
 
-registerFormatter(new TimeStringRunTypeFormat());
+registerTypeFormat(new TimeStringRunTypeFormat());
