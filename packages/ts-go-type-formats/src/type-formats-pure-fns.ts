@@ -249,3 +249,91 @@ export const cpf_isTimeString_mmss = registerPureFnFactory('mionFormats', 'isTim
     return parts.length === 2 && isM(parts[0]) && isS(parts[1]);
   };
 });
+
+// ############### IP pure fns ###############
+//
+// isIPV4 / isIPV6 accept a params object carrying the version (for the
+// localhost check), allowLocalHost, and allowPort flags. Both delegate
+// the loopback test to isLocalHost.
+
+interface FormatParams_IP {
+  version: 4 | 6 | 'any';
+  allowLocalHost?: boolean;
+  allowPort?: boolean;
+}
+
+type IsIpFn = (ip: string, params: FormatParams_IP) => boolean;
+
+export const cpf_isLocalHost = registerPureFnFactory('mionFormats', 'isLocalHost', function () {
+  const lhr = /^localhost$/i;
+  return function _is_local_host(ip: string, params: FormatParams_IP): boolean {
+    if (params.version === 4) return lhr.test(ip) || ip === '127:0:0:1';
+    if (params.version === 6) return ip === '::1' || ip === '0:0:0:0:0:0:0:1';
+    return lhr.test(ip) || ip === '127:0:0:1' || ip === '::1' || ip === '0:0:0:0:0:0:0:1';
+  };
+});
+
+export const cpf_isIPV4 = registerPureFnFactory('mionFormats', 'isIPV4', function (utl: RTUtils) {
+  const isLocalHost = utl.getPureFn('mionFormats::isLocalHost') as IsIpFn;
+  function getAddress(ip: string, params: FormatParams_IP): false | string {
+    if (!params.allowPort) return ip;
+    const parts = ip.split(':');
+    if (parts.length > 2) return false;
+    const [address, portS] = parts;
+    if (!portS) return address;
+    const port = Number(portS);
+    if (isNaN(port) || port < 0 || port > 65535) return false;
+    return address;
+  }
+  return function _is_ip_v4(ip: string, params: FormatParams_IP): boolean {
+    const address = getAddress(ip, params);
+    if (address === false) return false;
+    const isLocal = isLocalHost(address, params);
+    if (params.allowLocalHost && isLocal) return true;
+    if (!params.allowLocalHost && isLocal) return false;
+    const sections = address.split('.');
+    if (sections.length !== 4) return false;
+    for (const section of sections) {
+      const num = Number(section);
+      if (isNaN(num) || num < 0 || num > 255) return false;
+    }
+    return true;
+  };
+});
+
+export const cpf_isIPV6 = registerPureFnFactory('mionFormats', 'isIPV6', function (utl: RTUtils) {
+  const isLocalHost = utl.getPureFn('mionFormats::isLocalHost') as IsIpFn;
+  const ipv6PortRegexp = /^\[([^\]]+)\](?::(\d+))?$/;
+  function getAddress(ip: string, params: FormatParams_IP): false | string {
+    if (!params.allowPort) return ip;
+    const match = ip.match(ipv6PortRegexp);
+    if (!match) return false;
+    const address = match[1];
+    const port = match[2];
+    if (!port) return address;
+    const num = Number(port);
+    if (isNaN(num) || num < 0 || num > 65535) return false;
+    return address;
+  }
+  return function _is_ip_v6(ip: string, params: FormatParams_IP): boolean {
+    const address = getAddress(ip, params);
+    if (address === false) return false;
+    const isLocal = isLocalHost(address, params);
+    if (params.allowLocalHost && isLocal) return true;
+    if (!params.allowLocalHost && isLocal) return false;
+    const sections = address.split(':');
+    if (sections.length < 3 || sections.length > 8) return false;
+    let doubleColon = 0;
+    for (const section of sections) {
+      if (section.length === 0) {
+        doubleColon++;
+        if (doubleColon > 1) return false;
+        continue;
+      }
+      if (section.length > 4) return false;
+      const num = parseInt(section, 16);
+      if (isNaN(num) || num < 0 || num > 0xffff) return false;
+    }
+    return true;
+  };
+});
