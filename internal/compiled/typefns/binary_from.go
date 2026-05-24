@@ -181,8 +181,13 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	case protocol.KindClass:
 		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
-			// Byte-symmetric with binary_to: read the canonical string and
-			// rebuild via Temporal.<T>.from(...).
+			// Byte-symmetric with binary_to: numeric-unpack the fixed-layout
+			// types, fall back to Temporal.<T>.from(string) for the rest
+			// (temporalFromBinary returns "" for ZonedDateTime, Duration,
+			// PlainMonthDay).
+			if unpacked := temporalFromBinary(rt.SubKind, ret, des); unpacked != "" {
+				return RTCode{Code: unpacked, Type: CodeS}
+			}
 			return RTCode{Code: ret + " = " + info.Builtin + ".from(" + des + ".desString())", Type: CodeS}
 		}
 		switch rt.SubKind {

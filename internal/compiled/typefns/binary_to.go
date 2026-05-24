@@ -272,11 +272,15 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 
 	case protocol.KindClass:
 		if protocol.IsTemporalSubKind(rt.SubKind) {
-			// Temporal types can't reuse Date's 8-byte float64 epoch:
-			// exact types are nanosecond BigInt (float64 ms loses
-			// precision) and plain types have no single epoch. Encode the
-			// canonical toJSON() string via the string primitive — lossless
-			// for all eight, byte-symmetric with the fromBinary arm.
+			// Numeric-pack the types with a fixed, ISO-representable layout
+			// (Instant, PlainDate/Time/DateTime, PlainYearMonth) — see
+			// temporal_binary.go. ZonedDateTime, Duration and PlainMonthDay
+			// have no compact numeric form and keep the canonical toJSON()
+			// string (temporalToBinary returns "" for them). Both forms are
+			// byte-symmetric with the fromBinary arm.
+			if packed := temporalToBinary(rt.SubKind, v, ser); packed != "" {
+				return RTCode{Code: packed, Type: CodeS}
+			}
 			return RTCode{Code: ser + ".serString(" + v + ".toJSON())", Type: CodeS}
 		}
 		switch rt.SubKind {

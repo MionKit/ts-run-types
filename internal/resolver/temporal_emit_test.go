@@ -60,13 +60,26 @@ func TestTemporal_EmitStringifyJson(t *testing.T) {
 }
 
 func TestTemporal_EmitBinaryRoundTripShape(t *testing.T) {
+	// Numeric-packed type: the emitter dispatches to the serializer's
+	// serTemporal*/desTemporal* methods — the byte layout lives in the runtime
+	// dataView.ts, asserted end-to-end in JS (test/adapters/temporal.test.ts).
 	to := emitSourcesFor(t, "PlainDateTime", protocol.CacheKindToBinary)
-	if !strings.Contains(to.ToBinaryCacheSource, ".serString(") || !strings.Contains(to.ToBinaryCacheSource, ".toJSON()") {
-		t.Fatalf("toBinary missing serString(toJSON()):\n%s", to.ToBinaryCacheSource)
+	if !strings.Contains(to.ToBinaryCacheSource, ".serTemporalPlainDateTime(") {
+		t.Fatalf("toBinary missing serTemporalPlainDateTime():\n%s", to.ToBinaryCacheSource)
 	}
 	from := emitSourcesFor(t, "PlainDateTime", protocol.CacheKindFromBinary)
-	if !strings.Contains(from.FromBinaryCacheSource, "Temporal.PlainDateTime.from(") || !strings.Contains(from.FromBinaryCacheSource, ".desString()") {
-		t.Fatalf("fromBinary missing from(desString()):\n%s", from.FromBinaryCacheSource)
+	if !strings.Contains(from.FromBinaryCacheSource, ".desTemporalPlainDateTime()") {
+		t.Fatalf("fromBinary missing desTemporalPlainDateTime():\n%s", from.FromBinaryCacheSource)
+	}
+
+	// String-fallback type (Duration): keeps serString(toJSON()) / from(desString()).
+	durTo := emitSourcesFor(t, "Duration", protocol.CacheKindToBinary)
+	if !strings.Contains(durTo.ToBinaryCacheSource, ".serString(") || !strings.Contains(durTo.ToBinaryCacheSource, ".toJSON()") {
+		t.Fatalf("Duration toBinary missing serString(toJSON()):\n%s", durTo.ToBinaryCacheSource)
+	}
+	durFrom := emitSourcesFor(t, "Duration", protocol.CacheKindFromBinary)
+	if !strings.Contains(durFrom.FromBinaryCacheSource, "Temporal.Duration.from(") || !strings.Contains(durFrom.FromBinaryCacheSource, ".desString()") {
+		t.Fatalf("Duration fromBinary missing from(desString()):\n%s", durFrom.FromBinaryCacheSource)
 	}
 }
 
