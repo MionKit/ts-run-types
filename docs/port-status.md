@@ -605,6 +605,66 @@ failure, deferred for a separate decision on the extras semantic.
    in executable form. See the "JSON serialisation semantics"
    section near the top of this doc for the contract.
 
+## Queued mion optimisations (not yet ported)
+
+These are mion optimisations whose absence on our side is observable
+in mion's own spec files (typically as code-introspection assertions
+that our generated source wouldn't pass), but where round-trip
+parsed-equality still holds with our current emit. Listed here so
+they're easy to find when revisiting wire-shape / payload-size
+work.
+
+### Union per-member skip-encode (`skipEncode + needsTupleEncoding`)
+
+**Reference**:
+- mion `jitCompilers/json/stringifyJson.ts:295-306` (per-arm
+  `needsTupleEncoding` check)
+- mion `nodes/collection/union.ts:114-152` (matching prepareForJson
+  shape via `comp.compilePrepareForJson` / `compileRestoreFromJson`
+  noop-detection)
+- Our impl: `internal/caches/jitfn/preparefjson.go`
+  `emitUnionPrepareForJson` and `internal/caches/jitfn/stringifyjson.go`
+  `emitUnionStringifyJson` — both always wrap.
+
+**What mion does**: for each union member, computes
+`needsTupleEncoding = !!encJit?.code || !!decJit?.code` —
+true when EITHER the member's `prepareForJson` or `restoreFromJson`
+is non-noop. When false (the member is a pure-atomic-noop on both
+halves), the encoded value is emitted DIRECTLY without the
+`[memberIndex, value]` envelope. The decode side
+(`emitRestoreFromJson` in `union.ts:161+`) has a shape-check
+(`v?.length === 2 && Array.isArray(v) && typeof v[0] === 'number'`)
+that distinguishes wrapped vs raw at runtime, so the round-trip
+stays correct even when only some members are wrapped.
+
+**What we do**: every union member always gets the `[memberIndex,
+value]` envelope, in both `prepareForJson` and `stringifyJson`.
+Less efficient (extra 2-element array per member ≈ 5+ bytes per
+union encode) but the dispatch is simpler. See deviation #5 for the
+full trade-off.
+
+**Why we left it**: porting requires coordinated changes across
+THREE emit families (prepareForJson + stringifyJson + restoreFromJson's
+shape-check) — the shape-check already exists on the restore side
+(mirrors mion), so the change is mostly emit-side. Estimated
+~40-60 lines of Go across `preparefjson.go` + `stringifyjson.go`
+adding the noop-check via the existing `peekMemberIsNoop` helper
+(`internal/caches/jitfn/preparefjson.go:573`).
+
+**Risk**: low. `restoreFromJson` already tolerates both wire shapes
+(verified — the existing shape-check has been there since the
+initial port). Wire-byte payload changes for callers comparing
+serialised output strings byte-for-byte; tests that assert parsed
+equality (the full safe-path adapter + all our existing suites)
+continue to pass.
+
+**Tests blocked by this**: mion's
+`stringifySpec/09StringifyUnions.spec.ts:51-77` lines (the
+`stringifyCode.not.toContain('[0,')` assertions) — we don't run
+those today because they'd fail under our always-wrap. Round-trip
+parts of the same spec pass via our `serializationStringifyJsonRoundTrip.test.ts`
+adapter.
+
 ## Reference
 
 - Mion source tree: `/home/user/mion/packages/run-types/src/`
