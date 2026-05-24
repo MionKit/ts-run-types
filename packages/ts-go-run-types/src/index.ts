@@ -36,6 +36,7 @@ export {
   getTypeFormatFromCache,
   getRunTypeFormat,
 } from './runtypes/formatRegistry.ts';
+export {registerFormatPattern, type FormatPattern, type FormatPatternArgs} from './runtypes/formatPattern.ts';
 // Reflection-kind enum mirror. Re-exported so concrete formats in
 // `@mionjs/ts-go-type-formats` can declare `readonly kind = RunTypeKind.string`
 // without importing the internal module path.

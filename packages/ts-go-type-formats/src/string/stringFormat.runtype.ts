@@ -15,19 +15,22 @@ import {
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
-import type {FormatAnnotation} from '@mionjs/ts-go-run-types';
+import type {FormatAnnotation, FormatPattern} from '@mionjs/ts-go-run-types';
 
-// PatternParam — the regex a string format validates against. Two
-// authoring shapes, both recovered to the same source+flags on the Go
-// side:
+// PatternParam — the regex a string format validates against. Three
+// authoring shapes, all recovered to the same {source, flags} on the
+// Go side:
+//   - typeof registerFormatPattern(...)  the recommended user form: a
+//                          FormatPattern whose samples are validated by
+//                          the real JS engine at registration.
 //   - {source, flags}      string literals — .d.ts-safe; what the
 //                          built-in formats (domain/email/url/alpha…)
 //                          use, since a published .d.ts can't carry a
 //                          regex VALUE.
-//   - {val: typeof REGEX}  a user's own regex const — recovered from
-//                          the declaration AST (works when the const's
-//                          source is visible to the compiler).
-export type PatternParam = {source: string; flags?: string} | {val: RegExp};
+//   - {val: typeof REGEX}  a user's own raw regex const — recovered
+//                          from the declaration AST (source/flags only,
+//                          no samples).
+export type PatternParam = FormatPattern | {source: string; flags?: string} | {val: RegExp};
 
 // StringParams — the wire-serialisable params shape for FormatString.
 export interface StringParams {
@@ -84,7 +87,10 @@ export class StringRunTypeFormat extends BaseRunTypeFormat<StringParams> {
   // under createMockType, never during validation.
   _mock(annotation: FormatAnnotation<StringParams>): string {
     const params = annotation.params ?? {};
-    const sample = pickSample(params.mockSamples);
+    // Samples may live top-level (string-source built-ins) or inside the
+    // pattern object (FormatPattern form).
+    const patternSamples = (params.pattern as {mockSamples?: readonly string[]} | undefined)?.mockSamples;
+    const sample = pickSample(params.mockSamples ?? patternSamples);
     if (sample !== undefined) return sample;
     return randomString(pickMockLength(params));
   }

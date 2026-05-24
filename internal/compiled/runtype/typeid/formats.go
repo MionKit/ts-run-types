@@ -74,7 +74,14 @@ func literalParamsFromType(typeChecker *checker.Checker, paramsType *checker.Typ
 	}
 	out := make(map[string]any, len(properties))
 	for _, symbol := range properties {
-		// A regex-typed param (`val: typeof SOME_REGEX`) erases to the
+		// `pattern: typeof p` where p = registerFormatPattern({...}) →
+		// recover the whole bundle {source, flags, mockSamples, message}
+		// as a resolved literal object (never AST) from the call site.
+		if pattern, ok := formatPatternFromSymbol(typeChecker, symbol); ok {
+			out[symbol.Name] = pattern
+			continue
+		}
+		// A raw regex-typed param (`val: typeof SOME_REGEX`) erases to the
 		// bare `RegExp` shape in the resolved type, so we first try to
 		// recover the literal source+flags from the param's DECLARATION
 		// AST. Only when that fails do we fall back to the resolved type.
@@ -85,6 +92,154 @@ func literalParamsFromType(typeChecker *checker.Checker, paramsType *checker.Typ
 		out[symbol.Name] = literalValueFromType(typeChecker, typeChecker.GetTypeOfSymbol(symbol))
 	}
 	return out
+}
+
+// formatPatternFromSymbol recovers a FormatPattern bundle from a param
+// declared as `typeof someConst`, where someConst is initialised by a
+// registerFormatPattern({regexp, mockSamples, message}) call. Returns
+// the RESOLVED literal object {source, flags, mockSamples?, message?} —
+// the AST is only the means of recovery, never stored (mion's
+// resolveFormatParams equivalent). Returns (nil, false) when the param
+// isn't a typeof pointing at such a call.
+func formatPatternFromSymbol(typeChecker *checker.Checker, symbol *ast.Symbol) (map[string]any, bool) {
+	if symbol == nil {
+		return nil, false
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil {
+			continue
+		}
+		typeNode := declaration.Type()
+		if typeNode == nil || typeNode.Kind != ast.KindTypeQuery {
+			continue
+		}
+		typeQuery := typeNode.AsTypeQueryNode()
+		if typeQuery == nil {
+			continue
+		}
+		initializer := constInitializerOf(typeChecker, typeQuery.ExprName)
+		if initializer == nil || initializer.Kind != ast.KindCallExpression {
+			continue
+		}
+		if pattern, ok := formatPatternFromCall(typeChecker, initializer); ok {
+			return pattern, true
+		}
+	}
+	return nil, false
+}
+
+// constInitializerOf resolves an identifier to the initializer of the
+// `const` it names. Returns nil for non-identifiers, non-const
+// bindings, or initializer-less declarations (a `declare const` in a
+// .d.ts).
+func constInitializerOf(typeChecker *checker.Checker, node *ast.Node) *ast.Node {
+	if node == nil || node.Kind != ast.KindIdentifier {
+		return nil
+	}
+	symbol := typeChecker.GetSymbolAtLocation(node)
+	if symbol == nil {
+		return nil
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
+			continue
+		}
+		parent := declaration.Parent
+		if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
+			continue
+		}
+		variableDeclaration := declaration.AsVariableDeclaration()
+		if variableDeclaration == nil {
+			continue
+		}
+		return variableDeclaration.Initializer
+	}
+	return nil
+}
+
+// formatPatternFromCall extracts the resolved literal fields from a
+// registerFormatPattern({regexp, mockSamples, message}) call's first
+// object-literal argument. Requires at least a recoverable `regexp`
+// source — otherwise it isn't a usable pattern.
+func formatPatternFromCall(typeChecker *checker.Checker, call *ast.Node) (map[string]any, bool) {
+	callExpression := call.AsCallExpression()
+	if callExpression == nil || callExpression.Arguments == nil || len(callExpression.Arguments.Nodes) == 0 {
+		return nil, false
+	}
+	argument := callExpression.Arguments.Nodes[0]
+	if argument == nil || argument.Kind != ast.KindObjectLiteralExpression {
+		return nil, false
+	}
+	objectLiteral := argument.AsObjectLiteralExpression()
+	if objectLiteral == nil || objectLiteral.Properties == nil {
+		return nil, false
+	}
+	out := map[string]any{}
+	for _, property := range objectLiteral.Properties.Nodes {
+		if property == nil || property.Kind != ast.KindPropertyAssignment {
+			continue
+		}
+		assignment := property.AsPropertyAssignment()
+		if assignment == nil || assignment.Name() == nil || assignment.Initializer == nil {
+			continue
+		}
+		switch assignment.Name().Text() {
+		case "regexp":
+			if source, flags, ok := traceRegexpExpr(typeChecker, assignment.Initializer, 0); ok {
+				out["source"] = source
+				out["flags"] = flags
+			}
+		case "mockSamples":
+			if samples := stringArrayLiteral(assignment.Initializer); len(samples) > 0 {
+				out["mockSamples"] = samples
+			}
+		case "message":
+			if message, ok := stringLiteralValue(assignment.Initializer); ok {
+				out["message"] = message
+			}
+		}
+	}
+	if _, ok := out["source"]; !ok {
+		return nil, false
+	}
+	return out, true
+}
+
+// stringArrayLiteral resolves an array-literal of string literals to a
+// []any of their values. Non-string elements are skipped.
+func stringArrayLiteral(node *ast.Node) []any {
+	if node == nil || node.Kind != ast.KindArrayLiteralExpression {
+		return nil
+	}
+	array := node.AsArrayLiteralExpression()
+	if array == nil || array.Elements == nil {
+		return nil
+	}
+	out := make([]any, 0, len(array.Elements.Nodes))
+	for _, element := range array.Elements.Nodes {
+		if value, ok := stringLiteralValue(element); ok {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+// stringLiteralValue returns the value of a string-literal expression
+// (unwrapping as/paren), or ("", false) for anything else.
+func stringLiteralValue(node *ast.Node) (string, bool) {
+	for node != nil {
+		switch node.Kind {
+		case ast.KindAsExpression:
+			node = node.AsAsExpression().Expression
+		case ast.KindParenthesizedExpression:
+			node = node.AsParenthesizedExpression().Expression
+		case ast.KindStringLiteral, ast.KindNoSubstitutionTemplateLiteral:
+			return node.Text(), true
+		default:
+			return "", false
+		}
+	}
+	return "", false
 }
 
 // RegexpParam is the recovered literal value of a regex-typed format

@@ -97,6 +97,43 @@ getRunTypeId<Branded>();
 	}
 }
 
+// TestFormatPattern_ResolvedLiteralObject pins the "resolved object, not
+// AST" guarantee: `pattern: typeof p` (p = registerFormatPattern(...))
+// must surface in FormatAnnotation.Params as a flat literal object
+// {source, flags, mockSamples, message} — plain values the runtime
+// reads without parsing, never the erased RegExp shape or AST nodes.
+func TestFormatPattern_ResolvedLiteralObject(t *testing.T) {
+	root := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+interface FormatPattern { readonly __fmtPatternBrand: true }
+declare function registerFormatPattern(args: {regexp: RegExp; mockSamples: readonly string[]; message?: string}): FormatPattern;
+const slug = registerFormatPattern({regexp: /^[a-z-]+$/, mockSamples: ['a-b', 'abc'], message: 'slug'});
+type Branded = TypeFormat<string, 'stringFormat', {pattern: typeof slug}>;
+getRunTypeId<Branded>();
+`)
+	if root.FormatAnnotation == nil {
+		t.Fatalf("expected FormatAnnotation, got nil")
+	}
+	pattern, ok := root.FormatAnnotation.Params["pattern"].(map[string]any)
+	if !ok {
+		t.Fatalf("pattern is not a resolved object: %#v", root.FormatAnnotation.Params["pattern"])
+	}
+	if pattern["source"] != "^[a-z-]+$" {
+		t.Errorf("source = %#v, want the literal regex source", pattern["source"])
+	}
+	if pattern["flags"] != "" {
+		t.Errorf("flags = %#v, want empty", pattern["flags"])
+	}
+	if pattern["message"] != "slug" {
+		t.Errorf("message = %#v, want \"slug\"", pattern["message"])
+	}
+	samples, ok := pattern["mockSamples"].([]any)
+	if !ok || len(samples) != 2 || samples[0] != "a-b" || samples[1] != "abc" {
+		t.Errorf("mockSamples = %#v, want [\"a-b\",\"abc\"]", pattern["mockSamples"])
+	}
+}
+
 func extractRegexp(t *testing.T, val any) (source, flags string) {
 	t.Helper()
 	switch typed := val.(type) {
