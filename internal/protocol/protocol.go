@@ -354,7 +354,7 @@ const (
 	CacheKindUnknownKeysToUndefinedWire CacheKind = "unknownKeysToUndefinedWire"
 	CacheKindToBinary                   CacheKind = "toBinary"
 	CacheKindFromBinary                 CacheKind = "fromBinary"
-	CacheKindFormat                     CacheKind = "format"
+	CacheKindFormatTransform            CacheKind = "formatTransform"
 	CacheKindPureFns                    CacheKind = "pureFns"
 	CacheKindAll                        CacheKind = "all"
 )
@@ -442,10 +442,10 @@ type Response struct {
 	// RunType has a supported emit arm in the corresponding emitter.
 	AddedToBinary   bool `json:"addedToBinary,omitempty"`
 	AddedFromBinary bool `json:"addedFromBinary,omitempty"`
-	// AddedFormat mirrors AddedIsType for the `format` transform emitter —
+	// AddedFormatTransform mirrors AddedIsType for the `format` transform emitter —
 	// true when a newly-interned RunType carries a value-transforming
 	// format (string transform / domain/ip/url lowercasing).
-	AddedFormat bool `json:"addedFormat,omitempty"`
+	AddedFormatTransform bool `json:"addedFormatTransform,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -504,10 +504,10 @@ type Response struct {
 	// projection semantics as PrepareForJsonCacheSource.
 	ToBinaryCacheSource   string `json:"toBinaryCacheSource,omitempty"`
 	FromBinaryCacheSource string `json:"fromBinaryCacheSource,omitempty"`
-	// FormatCacheSource is the rendered body of the `virtual:runtypes-format`
-	// module — the `format` transform RT family (createFormat<T>). Same
+	// FormatTransformCacheSource is the rendered body of the `virtual:runtypes-format`
+	// module — the `format` transform RT family (createFormatTransform<T>). Same
 	// factory shape and projection semantics as IsTypeCacheSource.
-	FormatCacheSource string `json:"formatCacheSource,omitempty"`
+	FormatTransformCacheSource string `json:"formatTransformCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -626,8 +626,8 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedFromBinary {
 		out["addedFromBinary"] = true
 	}
-	if response.AddedFormat {
-		out["addedFormat"] = true
+	if response.AddedFormatTransform {
+		out["addedFormatTransform"] = true
 	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
@@ -686,8 +686,8 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.FromBinaryCacheSource != "" {
 		out["fromBinaryCacheSource"] = response.FromBinaryCacheSource
 	}
-	if response.FormatCacheSource != "" {
-		out["formatCacheSource"] = response.FormatCacheSource
+	if response.FormatTransformCacheSource != "" {
+		out["formatTransformCacheSource"] = response.FormatTransformCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource

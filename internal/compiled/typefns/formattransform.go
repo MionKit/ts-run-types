@@ -7,8 +7,8 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// FormatEmitter implements the `format` rt function — the value-transform
-// family behind createFormat<T>. It walks the type and applies a
+// FormatTransformEmitter implements the `format` rt function — the value-transform
+// family behind createFormatTransform<T>. It walks the type and applies a
 // format's value mutation wherever a TypeFormat brand specifies one
 // (string transforms like trim / lowercase / uppercase / capitalize;
 // domain / ip / url lowercasing), rebuilding the surrounding value in
@@ -23,19 +23,19 @@ import (
 // MVP scope: string-format transforms at any position + object / array /
 // tuple recursion to reach them. Union / Map / Set / Date / etc. pass
 // through unchanged (transforms inside a union arm are a follow-up).
-type FormatEmitter struct{}
+type FormatTransformEmitter struct{}
 
 // Args mirrors isType / prepareForJson — single value arg, mutated and
 // returned.
-func (FormatEmitter) Args() []ArgSpec {
+func (FormatTransformEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}
 }
 
 // Supports is true for (almost) every kind: identity is always a valid
 // transform, so the renderer emits a — usually noop — entry per runtype.
-// That keeps createFormat<T> resolving to a real fn and parent dep-calls
+// That keeps createFormatTransform<T> resolving to a real fn and parent dep-calls
 // hitting a live factory, exactly like the JSON-transform families.
-func (FormatEmitter) Supports(rt *protocol.RunType) bool {
+func (FormatTransformEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {
 		return false
 	}
@@ -45,12 +45,12 @@ func (FormatEmitter) Supports(rt *protocol.RunType) bool {
 	return true
 }
 
-// AnyFormatSupported reports whether at least one runtype in the slice
+// AnyFormatTransformSupported reports whether at least one runtype in the slice
 // carries a VALUE-TRANSFORMING format. Unlike Supports (true for
 // everything, since identity is valid), this gates the resolver's
-// AddedFormat HMR signal so the format cache is only invalidated for
+// AddedFormatTransform HMR signal so the format cache is only invalidated for
 // schemas that actually use a transform.
-func AnyFormatSupported(runTypes []*protocol.RunType) bool {
+func AnyFormatTransformSupported(runTypes []*protocol.RunType) bool {
 	for _, rt := range runTypes {
 		if nodeFormatTransform(rt, "v") != "" {
 			return true
@@ -61,20 +61,20 @@ func AnyFormatSupported(runTypes []*protocol.RunType) bool {
 
 // IsRTInlined delegates to the shared heuristic — same as every other
 // rt fn.
-func (FormatEmitter) IsRTInlined(ctx *InlineContext) bool {
+func (FormatTransformEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
 // ReturnName is `v` — format mutates the input value (or rebinds via
 // `v = …` at a transforming leaf) and returns it.
-func (FormatEmitter) ReturnName() string {
+func (FormatTransformEmitter) ReturnName() string {
 	return "v"
 }
 
 // Emit dispatches the per-kind switch. Only format-branded strings
 // transform; collections recurse to reach them; everything else is
 // identity (empty CodeS, collapsed to `return v` by Finalize).
-func (FormatEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
+func (FormatTransformEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -133,7 +133,7 @@ func nodeFormatTransform(rt *protocol.RunType, v string) string {
 	}
 	// The string-format / domain / ip / url transformers don't read the
 	// EmitContext (their transform depends only on params), so a nil ctx
-	// is safe here and at the AnyFormatSupported scan site.
+	// is safe here and at the AnyFormatTransformSupported scan site.
 	return transformer.EmitFormatTransform(rt.FormatAnnotation, v, nil)
 }
 
@@ -248,7 +248,7 @@ func emitTupleMemberFormat(rt *protocol.RunType, ctx *EmitContext, v string) RTC
 // EmitDependencyCall mirrors PrepareForJsonEmitter — the inner factory
 // mutates / rebinds its local `v`, so the caller captures the return:
 // `<vλl> = <childHash>.fn(<vλl>)`. Self-recursive calls drop `.fn`.
-func (FormatEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
+func (FormatTransformEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	args := ctx.Vλl
 	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	var call string
@@ -266,7 +266,7 @@ func (FormatEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ct
 // Finalize collapses an empty / identity body to `return v` + isNoop —
 // the renderer then emits the short-form noop init line whose JS-side
 // identity fn is `(v) => v`.
-func (FormatEmitter) Finalize(raw string) (string, bool) {
+func (FormatTransformEmitter) Finalize(raw string) (string, bool) {
 	code := normaliseWhitespace(raw)
 	if code == "" || code == "return v" {
 		return "return v", true

@@ -123,7 +123,7 @@ export interface ScanFilesResult {
   unknownKeysToUndefinedWireCacheSource?: string;
   toBinaryCacheSource?: string;
   fromBinaryCacheSource?: string;
-  formatCacheSource?: string;
+  formatTransformCacheSource?: string;
   pureFnsCacheSource?: string;
   diagnostics?: import('./protocol.ts').Diagnostic[];
   // Per-cache HMR signals; see Response.addedRunTypes etc in protocol.ts.
@@ -142,7 +142,7 @@ export interface ScanFilesResult {
   addedUnknownKeysToUndefinedWire?: boolean;
   addedToBinary?: boolean;
   addedFromBinary?: boolean;
-  addedFormat?: boolean;
+  addedFormatTransform?: boolean;
   addedPureFns?: boolean;
 }
 
@@ -200,7 +200,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       unknownKeysToUndefinedWireCacheSource: resp.unknownKeysToUndefinedWireCacheSource,
       toBinaryCacheSource: resp.toBinaryCacheSource,
       fromBinaryCacheSource: resp.fromBinaryCacheSource,
-      formatCacheSource: resp.formatCacheSource,
+      formatTransformCacheSource: resp.formatTransformCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
       diagnostics: resp.diagnostics,
       addedRunTypes: resp.addedRunTypes,
@@ -218,7 +218,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedUnknownKeysToUndefinedWire: resp.addedUnknownKeysToUndefinedWire,
       addedToBinary: resp.addedToBinary,
       addedFromBinary: resp.addedFromBinary,
-      addedFormat: resp.addedFormat,
+      addedFormatTransform: resp.addedFormatTransform,
       addedPureFns: resp.addedPureFns,
     };
   }
