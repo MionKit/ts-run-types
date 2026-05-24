@@ -80,6 +80,35 @@ func TestNativeDate_IsTypeEmitsBoundCheck(t *testing.T) {
 	}
 }
 
+// TestNativeDate_RunTypeCacheCarriesFormatAnnotation locks in that the
+// reflection cache module (virtual:runtypes-cache, what reflectRunTypeId /
+// getRunTypeId consumers read) stores `formatAnnotation` on the
+// KindClass/Date node exactly as it does for atomic string formats — the
+// kind-agnostic writeFooter path in compiled/runtype/module.go plus the
+// brand lift in collapseIntersection. A regression here would silently
+// strip format metadata from native-Date runtypes.
+func TestNativeDate_RunTypeCacheCarriesFormatAnnotation(t *testing.T) {
+	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+` + typeFormatBrandDecl + `
+export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', {min: 'now'}>>();
+`
+	r := setupInline(t, map[string]string{"a.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"a.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindRunType},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	if !strings.Contains(resp.RunTypeCacheSource, ".formatAnnotation = ") {
+		t.Fatalf("branded Date runType cache missing formatAnnotation assignment:\n%s", resp.RunTypeCacheSource)
+	}
+	if !strings.Contains(resp.RunTypeCacheSource, `"name":"nativeDate"`) {
+		t.Fatalf("formatAnnotation present but missing nativeDate name:\n%s", resp.RunTypeCacheSource)
+	}
+}
+
 func TestNativeDate_ParamValidation(t *testing.T) {
 	cases := []struct {
 		name    string
