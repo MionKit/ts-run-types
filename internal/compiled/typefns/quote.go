@@ -75,3 +75,18 @@ func pureFnDepsJS(deps []protocol.PureFnDep) string {
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }
+
+// objectGuard wraps inner in the standard non-null-object guard shared
+// across the union/serialization emitters:
+//
+//	(typeof <value> === 'object' && <value> !== null && <inner>)
+//
+// When inner is empty the trailing clause is omitted, yielding the bare
+// null-safe object check `(typeof <value> === 'object' && <value> !== null)`.
+func objectGuard(value, inner string) string {
+	guard := "(typeof " + value + " === 'object' && " + value + " !== null"
+	if inner != "" {
+		guard += " && " + inner
+	}
+	return guard + ")"
+}

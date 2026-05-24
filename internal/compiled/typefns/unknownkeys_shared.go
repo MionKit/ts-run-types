@@ -218,7 +218,7 @@ func callCheckUnknownPropertiesForHas(rt *protocol.RunType, ctx *EmitContext, re
 	// Object guard around the pure-fn call: mion's emit prepends
 	// `typeof v === 'object' && v !== null` so non-object inputs don't
 	// reach the pure-fn (which expects an object). Match that.
-	return "(typeof " + v + " === 'object' && " + v + " !== null && " + fnVar + "(" + v + ", " + conditional + "))"
+	return objectGuard(v, fnVar+"("+v+", "+conditional+")")
 }
 
 // collectObjectHasUnknownKeysChildren is a helper that returns the

@@ -788,7 +788,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(v, isTypeExpr)
 		}
 		var resultExpr string
 		if layout.AtomicNeedsTuple {
@@ -816,7 +816,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 			})
 		}
 		objLit := buildSafeObjectLiteral(props, v, ctx.walker.PreserveExtras)
-		guard := "(typeof " + v + " === 'object' && " + v + " !== null)"
+		guard := objectGuard(v, "")
 		clauses = append(clauses, "if ("+guard+") return [-1, "+objLit+"];")
 	}
 
@@ -849,7 +849,7 @@ func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitCont
 		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
 		guard := isTypeExpr
 		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(accessor, isTypeExpr)
 		}
 		arms = append(arms, "if ("+guard+") return ["+strconv.Itoa(i)+", "+candExpr+"];")
 	}

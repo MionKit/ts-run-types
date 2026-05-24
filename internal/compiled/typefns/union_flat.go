@@ -88,7 +88,7 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(v, isTypeExpr)
 		}
 		body := strings.TrimSpace(prepareRT.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
@@ -181,7 +181,7 @@ func emitMergedPropPrepare(mp FlatMergedProp, accessor string, ctx *EmitContext)
 		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
 		guard := isTypeExpr
 		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(accessor, isTypeExpr)
 		}
 		body := strings.TrimSpace(jc.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
@@ -360,7 +360,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(v, isTypeExpr)
 		}
 		var emitted string
 		if layout.AtomicNeedsTuple {
@@ -550,7 +550,7 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 			isTypeExpr := unionMemberIsTypeCheck(cand.resolved, ctx, accessor)
 			guard := isTypeExpr
 			if isObjectLikeKind(cand.resolved.Kind) {
-				guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
+				guard = objectGuard(accessor, isTypeExpr)
 			}
 			arms = append(arms, "if ("+guard+") return "+cand.code+";")
 		}
@@ -578,7 +578,7 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 		isTypeExpr := unionMemberIsTypeCheck(cand.resolved, ctx, accessor)
 		guard := isTypeExpr
 		if isObjectLikeKind(cand.resolved.Kind) {
-			guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(accessor, isTypeExpr)
 		}
 		arm := "if (" + guard + ") return '[" + strconv.Itoa(i) + ",' + " + cand.code + " + ']';"
 		arms = append(arms, arm)
