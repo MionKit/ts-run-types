@@ -19,6 +19,7 @@ import (
 	"errors"
 
 	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/caches/runtype"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -42,6 +43,15 @@ type Options struct {
 	// SingleThreaded forces single-checker mode on Programs built by
 	// SetSources. Mirrors program.Options.SingleThreaded.
 	SingleThreaded bool
+	// CacheDir, when non-empty, points at a directory under which the
+	// resolver persists per-(typeID, fnTag) JIT artifacts. Typically
+	// <projectRoot>/node_modules/.cache/ts-go-run-types. The disk layer
+	// fingerprints non-version build options (hash lengths, marker
+	// settings) into a subdirectory so distinct configurations don't
+	// share cache entries; binary version is folded into the typeID
+	// hash so cross-version files never collide. Empty disables caching
+	// (the in-memory walker runs every time, matching test mode).
+	CacheDir string
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer
@@ -72,6 +82,37 @@ type Resolver struct {
 	// (which would duplicate site entries on resolver.sites). Cleared
 	// alongside the cache + sites on Rebind / Clear.
 	scannedFiles map[string]struct{}
+	// jitStore is the on-disk JIT artifact cache shared by every
+	// renderXxxModule call. nil when CacheDir was empty — the renderer
+	// treats nil as "no cache wired", so test paths that build a
+	// resolver without a CacheDir keep the original semantics.
+	jitStore *disk.Store
+}
+
+// newJITStore builds the on-disk store for opts, returning nil when
+// caching is disabled. Centralised so New / NewServer share the same
+// fingerprinting rules.
+func newJITStore(opts Options) *disk.Store {
+	if opts.CacheDir == "" {
+		return nil
+	}
+	fp := disk.Fingerprint(disk.FingerprintInputs{
+		HashLength:        opts.HashLength,
+		LiteralHashLength: opts.LiteralHashLength,
+		MarkerName:        opts.Marker.Name,
+		MarkerModule:      opts.Marker.Module,
+	})
+	return disk.New(opts.CacheDir, fp)
+}
+
+// JITStore returns the on-disk JIT artifact cache, or nil when
+// disabled. Render-side wrappers read this to build the RenderOpts
+// they pass into the jitfn module renderers.
+func (resolver *Resolver) JITStore() *disk.Store {
+	if resolver == nil {
+		return nil
+	}
+	return resolver.jitStore
 }
 
 // New builds a Resolver against prog. Defaults to hashid's default lengths when
@@ -97,6 +138,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
+		jitStore:     newJITStore(opts),
 	}, nil
 }
 
@@ -113,6 +155,7 @@ func NewServer(opts Options) *Resolver {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
+		jitStore:     newJITStore(opts),
 	}
 }
 

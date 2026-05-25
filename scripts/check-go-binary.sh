@@ -11,6 +11,16 @@ cd "$ROOT_DIR"
 
 BIN="bin/ts-go-run-types"
 PKG="./cmd/ts-go-run-types"
+# Embed the workspace version into the binary so the on-disk JIT cache
+# is automatically isolated across releases — see
+# internal/constants/version.go. Falls back to "dev" when node isn't
+# available (CI bootstrap scenarios) so the build still completes.
+if command -v node >/dev/null 2>&1; then
+  VERSION="$(node -p "require('./package.json').version" 2>/dev/null || echo dev)"
+else
+  VERSION="dev"
+fi
+LDFLAGS="-X github.com/mionkit/ts-run-types/internal/constants.Version=${VERSION}"
 
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
@@ -26,7 +36,7 @@ if ! command -v go >/dev/null 2>&1; then
   fail "Go toolchain not found on PATH (needed to build $BIN)."
 fi
 
-echo -e "${YELLOW}→ Checking ts-go-run-types staleness...${NC}"
+echo -e "${YELLOW}→ Checking ts-go-run-types staleness (version=$VERSION)...${NC}"
 
 # Build a reference binary into a temp path (cache-hot, sub-second) so we
 # can compare its embedded build ID against the on-disk binary. `go list
@@ -35,7 +45,7 @@ echo -e "${YELLOW}→ Checking ts-go-run-types staleness...${NC}"
 # available in build cache".
 TMP_BIN="$(mktemp)"
 trap 'rm -f "$TMP_BIN"' EXIT
-if ! go build -o "$TMP_BIN" "$PKG"; then
+if ! go build -ldflags "$LDFLAGS" -o "$TMP_BIN" "$PKG"; then
   fail "Reference build failed."
 fi
 
