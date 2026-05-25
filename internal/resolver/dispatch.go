@@ -104,84 +104,84 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				response.RunTypeCacheSource = rendered
 			}
 			if wantIsType {
-				isTypeRendered, isTypeErr := renderIsTypeModule(scoped)
+				isTypeRendered, isTypeErr := renderIsTypeModule(scoped, resolver.jitRenderOpts())
 				if isTypeErr != nil {
 					return protocol.Response{Error: isTypeErr.Error()}
 				}
 				response.IsTypeCacheSource = isTypeRendered
 			}
 			if wantTypeErrors {
-				typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(scoped)
+				typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(scoped, resolver.jitRenderOpts())
 				if typeErrorsErr != nil {
 					return protocol.Response{Error: typeErrorsErr.Error()}
 				}
 				response.TypeErrorsCacheSource = typeErrorsRendered
 			}
 			if wantPrepareForJson {
-				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped)
+				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped, resolver.jitRenderOpts())
 				if prepareErr != nil {
 					return protocol.Response{Error: prepareErr.Error()}
 				}
 				response.PrepareForJsonCacheSource = prepareRendered
 			}
 			if wantRestoreFromJson {
-				restoreRendered, restoreErr := renderRestoreFromJsonModule(scoped)
+				restoreRendered, restoreErr := renderRestoreFromJsonModule(scoped, resolver.jitRenderOpts())
 				if restoreErr != nil {
 					return protocol.Response{Error: restoreErr.Error()}
 				}
 				response.RestoreFromJsonCacheSource = restoreRendered
 			}
 			if wantStringifyJson {
-				stringifyRendered, stringifyErr := renderStringifyJsonModule(scoped)
+				stringifyRendered, stringifyErr := renderStringifyJsonModule(scoped, resolver.jitRenderOpts())
 				if stringifyErr != nil {
 					return protocol.Response{Error: stringifyErr.Error()}
 				}
 				response.StringifyJsonCacheSource = stringifyRendered
 			}
 			if wantPrepareForJsonSafe {
-				rendered, err := renderPrepareForJsonSafeModule(scoped)
+				rendered, err := renderPrepareForJsonSafeModule(scoped, resolver.jitRenderOpts())
 				if err != nil {
 					return protocol.Response{Error: err.Error()}
 				}
 				response.PrepareForJsonSafeCacheSource = rendered
 			}
 			if wantPrepareForJsonSafePreserve {
-				rendered, err := renderPrepareForJsonSafePreserveModule(scoped)
+				rendered, err := renderPrepareForJsonSafePreserveModule(scoped, resolver.jitRenderOpts())
 				if err != nil {
 					return protocol.Response{Error: err.Error()}
 				}
 				response.PrepareForJsonSafePreserveCacheSource = rendered
 			}
 			if wantHasUnknownKeys {
-				hukRendered, hukErr := renderHasUnknownKeysModule(scoped)
+				hukRendered, hukErr := renderHasUnknownKeysModule(scoped, resolver.jitRenderOpts())
 				if hukErr != nil {
 					return protocol.Response{Error: hukErr.Error()}
 				}
 				response.HasUnknownKeysCacheSource = hukRendered
 			}
 			if wantStripUnknownKeys {
-				sukRendered, sukErr := renderStripUnknownKeysModule(scoped)
+				sukRendered, sukErr := renderStripUnknownKeysModule(scoped, resolver.jitRenderOpts())
 				if sukErr != nil {
 					return protocol.Response{Error: sukErr.Error()}
 				}
 				response.StripUnknownKeysCacheSource = sukRendered
 			}
 			if wantUnknownKeyErrors {
-				ukeRendered, ukeErr := renderUnknownKeyErrorsModule(scoped)
+				ukeRendered, ukeErr := renderUnknownKeyErrorsModule(scoped, resolver.jitRenderOpts())
 				if ukeErr != nil {
 					return protocol.Response{Error: ukeErr.Error()}
 				}
 				response.UnknownKeyErrorsCacheSource = ukeRendered
 			}
 			if wantUnknownKeysToUndefined {
-				ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(scoped)
+				ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(scoped, resolver.jitRenderOpts())
 				if ukuErr != nil {
 					return protocol.Response{Error: ukuErr.Error()}
 				}
 				response.UnknownKeysToUndefinedCacheSource = ukuRendered
 			}
 			if wantUnknownKeysToUndefinedWire {
-				ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(scoped)
+				ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(scoped, resolver.jitRenderOpts())
 				if ukuwErr != nil {
 					return protocol.Response{Error: ukuwErr.Error()}
 				}
@@ -246,84 +246,84 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			response.RunTypeCacheSource = rendered
 		}
 		if wantIsType {
-			isTypeRendered, isTypeErr := renderIsTypeModule(fullDump)
+			isTypeRendered, isTypeErr := renderIsTypeModule(fullDump, resolver.jitRenderOpts())
 			if isTypeErr != nil {
 				return protocol.Response{Error: isTypeErr.Error()}
 			}
 			response.IsTypeCacheSource = isTypeRendered
 		}
 		if wantTypeErrors {
-			typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(fullDump)
+			typeErrorsRendered, typeErrorsErr := renderTypeErrorsModule(fullDump, resolver.jitRenderOpts())
 			if typeErrorsErr != nil {
 				return protocol.Response{Error: typeErrorsErr.Error()}
 			}
 			response.TypeErrorsCacheSource = typeErrorsRendered
 		}
 		if wantPrepareForJson {
-			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump)
+			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump, resolver.jitRenderOpts())
 			if prepareErr != nil {
 				return protocol.Response{Error: prepareErr.Error()}
 			}
 			response.PrepareForJsonCacheSource = prepareRendered
 		}
 		if wantRestoreFromJson {
-			restoreRendered, restoreErr := renderRestoreFromJsonModule(fullDump)
+			restoreRendered, restoreErr := renderRestoreFromJsonModule(fullDump, resolver.jitRenderOpts())
 			if restoreErr != nil {
 				return protocol.Response{Error: restoreErr.Error()}
 			}
 			response.RestoreFromJsonCacheSource = restoreRendered
 		}
 		if wantStringifyJson {
-			stringifyRendered, stringifyErr := renderStringifyJsonModule(fullDump)
+			stringifyRendered, stringifyErr := renderStringifyJsonModule(fullDump, resolver.jitRenderOpts())
 			if stringifyErr != nil {
 				return protocol.Response{Error: stringifyErr.Error()}
 			}
 			response.StringifyJsonCacheSource = stringifyRendered
 		}
 		if wantPrepareForJsonSafe {
-			rendered, err := renderPrepareForJsonSafeModule(fullDump)
+			rendered, err := renderPrepareForJsonSafeModule(fullDump, resolver.jitRenderOpts())
 			if err != nil {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.PrepareForJsonSafeCacheSource = rendered
 		}
 		if wantPrepareForJsonSafePreserve {
-			rendered, err := renderPrepareForJsonSafePreserveModule(fullDump)
+			rendered, err := renderPrepareForJsonSafePreserveModule(fullDump, resolver.jitRenderOpts())
 			if err != nil {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.PrepareForJsonSafePreserveCacheSource = rendered
 		}
 		if wantHasUnknownKeys {
-			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump)
+			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump, resolver.jitRenderOpts())
 			if hukErr != nil {
 				return protocol.Response{Error: hukErr.Error()}
 			}
 			response.HasUnknownKeysCacheSource = hukRendered
 		}
 		if wantStripUnknownKeys {
-			sukRendered, sukErr := renderStripUnknownKeysModule(fullDump)
+			sukRendered, sukErr := renderStripUnknownKeysModule(fullDump, resolver.jitRenderOpts())
 			if sukErr != nil {
 				return protocol.Response{Error: sukErr.Error()}
 			}
 			response.StripUnknownKeysCacheSource = sukRendered
 		}
 		if wantUnknownKeyErrors {
-			ukeRendered, ukeErr := renderUnknownKeyErrorsModule(fullDump)
+			ukeRendered, ukeErr := renderUnknownKeyErrorsModule(fullDump, resolver.jitRenderOpts())
 			if ukeErr != nil {
 				return protocol.Response{Error: ukeErr.Error()}
 			}
 			response.UnknownKeyErrorsCacheSource = ukeRendered
 		}
 		if wantUnknownKeysToUndefined {
-			ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(fullDump)
+			ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(fullDump, resolver.jitRenderOpts())
 			if ukuErr != nil {
 				return protocol.Response{Error: ukuErr.Error()}
 			}
 			response.UnknownKeysToUndefinedCacheSource = ukuRendered
 		}
 		if wantUnknownKeysToUndefinedWire {
-			ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(fullDump)
+			ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(fullDump, resolver.jitRenderOpts())
 			if ukuwErr != nil {
 				return protocol.Response{Error: ukuwErr.Error()}
 			}

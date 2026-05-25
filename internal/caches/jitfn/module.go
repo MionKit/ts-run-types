@@ -1,13 +1,31 @@
 package jitfn
 
 import (
+	"fmt"
 	"io"
+	"os"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/cachetpl"
 	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
+
+// RenderOpts threads the per-session disk cache into the renderer. Zero
+// value is a valid "no caching" configuration — every entry is computed
+// fresh and nothing is persisted, matching the pre-cache behaviour. The
+// renderer never panics on disk-layer errors: a read failure falls
+// through to a fresh compile, a write failure is logged once and
+// ignored so a read-only filesystem doesn't break builds.
+type RenderOpts struct {
+	// Store is the on-disk JIT cache. Nil disables caching.
+	Store *disk.Store
+	// Lookup resolves structural ids ↔ short hashes for the current
+	// session. Required when Store is non-nil. The resolver passes its
+	// runtype.Cache here (which satisfies disk.HashLookup).
+	Lookup disk.HashLookup
+}
 
 // innerPrefix derives the inner-fn name prefix from a cache-module's
 // short Tag (e.g. "te" → "te_"). The inner validator function inside
@@ -25,26 +43,26 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is one
 // line once the Emitter is implemented.
-func IsTypeModule(writer io.Writer, dump protocol.Dump) error {
+func IsTypeModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["isType"]
-	return RenderFnModule(writer, dump, settings, IsTypeEmitter{}, innerPrefix(settings), cachetpl.SkeletonIsType)
+	return RenderFnModule(writer, dump, settings, IsTypeEmitter{}, innerPrefix(settings), cachetpl.SkeletonIsType, opts)
 }
 
 // TypeErrorsModule writes the runtime artifact for the typeErrors
 // cache module — sibling of IsTypeModule, same structure (skeleton +
 // generated factories), different emitter and skeleton.
-func TypeErrorsModule(writer io.Writer, dump protocol.Dump) error {
+func TypeErrorsModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["typeErrors"]
-	return RenderFnModule(writer, dump, settings, TypeErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonTypeErrors)
+	return RenderFnModule(writer, dump, settings, TypeErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonTypeErrors, opts)
 }
 
 // PrepareForJsonModule writes the runtime artifact for the prepareForJson
 // cache module — the JSON encoder half of the round-trip pair. Unions
 // emit the flat wire shape (object members merge into a single
 // `[-1, mergedObject]` envelope; see union_flat.go).
-func PrepareForJsonModule(writer io.Writer, dump protocol.Dump) error {
+func PrepareForJsonModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["prepareForJson"]
-	return RenderFnModule(writer, dump, settings, PrepareForJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJson)
+	return RenderFnModule(writer, dump, settings, PrepareForJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJson, opts)
 }
 
 // RestoreFromJsonModule writes the runtime artifact for the
@@ -52,75 +70,75 @@ func PrepareForJsonModule(writer io.Writer, dump protocol.Dump) error {
 // PrepareForJsonModule. Round-trip
 // `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
 // must deep-equal v for every supported runtype.
-func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump) error {
+func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["restoreFromJson"]
-	return RenderFnModule(writer, dump, settings, RestoreFromJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJson)
+	return RenderFnModule(writer, dump, settings, RestoreFromJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJson, opts)
 }
 
 // StringifyJsonModule writes the runtime artifact for the stringifyJson
 // cache module — mion's single-pass JSON serialiser that builds the
 // output string directly from the type, without mutating `v` and
 // stripping extras by construction.
-func StringifyJsonModule(writer io.Writer, dump protocol.Dump) error {
+func StringifyJsonModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["stringifyJson"]
-	return RenderFnModule(writer, dump, settings, StringifyJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJson)
+	return RenderFnModule(writer, dump, settings, StringifyJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJson, opts)
 }
 
 // PrepareForJsonSafeModule writes the runtime artifact for the
 // prepareForJsonSafe cache module — non-mutating sibling of
 // prepareForJson that strips undeclared properties and returns
 // a new value.
-func PrepareForJsonSafeModule(writer io.Writer, dump protocol.Dump) error {
+func PrepareForJsonSafeModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["prepareForJsonSafe"]
-	return RenderFnModule(writer, dump, settings, PrepareForJsonSafeEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafe)
+	return RenderFnModule(writer, dump, settings, PrepareForJsonSafeEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafe, opts)
 }
 
 // PrepareForJsonSafePreserveModule writes the runtime artifact for the
 // clone+preserve variant family — same shape as PrepareForJsonSafe but
 // every cloned object literal spreads `...v` so undeclared keys
 // survive.
-func PrepareForJsonSafePreserveModule(writer io.Writer, dump protocol.Dump) error {
+func PrepareForJsonSafePreserveModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["prepareForJsonSafePreserve"]
-	return RenderFnModule(writer, dump, settings, PrepareForJsonSafePreserveEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafePreserve)
+	return RenderFnModule(writer, dump, settings, PrepareForJsonSafePreserveEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafePreserve, opts)
 }
 
 // HasUnknownKeysModule writes the runtime artifact for the
 // hasUnknownKeys cache module — boolean predicate per mion's
 // emitHasUnknownKeys.
-func HasUnknownKeysModule(writer io.Writer, dump protocol.Dump) error {
+func HasUnknownKeysModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["hasUnknownKeys"]
-	return RenderFnModule(writer, dump, settings, HasUnknownKeysEmitter{}, innerPrefix(settings), cachetpl.SkeletonHasUnknownKeys)
+	return RenderFnModule(writer, dump, settings, HasUnknownKeysEmitter{}, innerPrefix(settings), cachetpl.SkeletonHasUnknownKeys, opts)
 }
 
 // StripUnknownKeysModule writes the runtime artifact for the
 // stripUnknownKeys cache module — mutator that deletes unknown keys.
-func StripUnknownKeysModule(writer io.Writer, dump protocol.Dump) error {
+func StripUnknownKeysModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["stripUnknownKeys"]
-	return RenderFnModule(writer, dump, settings, StripUnknownKeysEmitter{}, innerPrefix(settings), cachetpl.SkeletonStripUnknownKeys)
+	return RenderFnModule(writer, dump, settings, StripUnknownKeysEmitter{}, innerPrefix(settings), cachetpl.SkeletonStripUnknownKeys, opts)
 }
 
 // UnknownKeyErrorsModule writes the runtime artifact for the
 // unknownKeyErrors cache module — error accumulator (same arg shape as
 // typeErrors) that records one 'never' error per unknown key.
-func UnknownKeyErrorsModule(writer io.Writer, dump protocol.Dump) error {
+func UnknownKeyErrorsModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["unknownKeyErrors"]
-	return RenderFnModule(writer, dump, settings, UnknownKeyErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeyErrors)
+	return RenderFnModule(writer, dump, settings, UnknownKeyErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeyErrors, opts)
 }
 
 // UnknownKeysToUndefinedModule writes the runtime artifact for the
 // unknownKeysToUndefined cache module — mutator that sets unknown keys
 // to undefined (instead of deleting them).
-func UnknownKeysToUndefinedModule(writer io.Writer, dump protocol.Dump) error {
+func UnknownKeysToUndefinedModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["unknownKeysToUndefined"]
-	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefined)
+	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefined, opts)
 }
 
 // UnknownKeysToUndefinedWireModule writes the runtime artifact for the
 // decoder-internal ukuWire family — sibling of uku that emits the
 // wire-format-aware merged-allowlist strip at union nodes.
-func UnknownKeysToUndefinedWireModule(writer io.Writer, dump protocol.Dump) error {
+func UnknownKeysToUndefinedWireModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["unknownKeysToUndefinedWire"]
-	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedWireEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefinedWire)
+	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedWireEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefinedWire, opts)
 }
 
 // RenderFnModule is the fn-agnostic module renderer. Emits one
@@ -153,7 +171,7 @@ func UnknownKeysToUndefinedWireModule(writer io.Writer, dump protocol.Dump) erro
 //   - innerPrefix: the prefix for the INNER validator function inside
 //     each createJitFn closure.
 //   - skeleton: the cachetpl skeleton name to splice into.
-func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, skeleton string) error {
+func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, skeleton string, opts RenderOpts) error {
 	var body strings.Builder
 	body.WriteString("const u = undefined;\n")
 
@@ -193,7 +211,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		// upward and the walker's IsUnsupported flag signals to skip
 		// the factory entirely. See codetype.go's CodeNS comment for
 		// the full contract.
-		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable)
+		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts)
 		if line == "" {
 			continue
 		}
@@ -277,9 +295,22 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 // consumers see the same identity in stack traces. Noop bodies return
 // an empty line so the renderer skips them; consumers default to a
 // trivial fallback on the JS side.
-func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType) (string, []string) {
+//
+// When opts.Store is non-nil and opts.Lookup is provided, the function
+// first checks the on-disk cache at <store>/<runType.ID>/<settings.Tag>.json.
+// A header structural-id mismatch, or any cached child-ref whose
+// structural id no longer maps to the same short hash, is treated as
+// a miss; we then fall through to the walker as usual and write the
+// fresh result back. Read/write errors are non-fatal — the renderer
+// always produces output even when the cache is broken.
+func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts) (string, []string) {
 	factoryName := settings.VarPrefix + runType.ID
 	innerName := innerPrefix + runType.ID
+
+	if cachedLine, cachedDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
+		return cachedLine, cachedDeps
+	}
+
 	walker := NewWalker(runType, innerName, emitter)
 	walker.RefTable = refTable
 	// InnerPrefix lets dispatch namespace child cache keys consistently
@@ -304,7 +335,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		//    miss is caught by the create*()-side
 		//    hasRunType-but-no-jit identity fallback.
 		if walker.ThrowMessage != "" {
-			return renderThrowEntry(runType, settings, innerPrefix, walker.ThrowMessage), nil
+			line := renderThrowEntry(runType, settings, innerPrefix, walker.ThrowMessage)
+			writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+			return line, nil
 		}
 		return "", nil
 	}
@@ -324,7 +357,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			"undefined", // code
 			"true",      // isNoop
 		}
-		return "init(" + joinArgs(args) + ");", nil
+		line := "init(" + joinArgs(args) + ");"
+		writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+		return line, nil
 	}
 	createJitFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	// The 3rd arg (`code`) carries the factory BODY — the contents
@@ -347,7 +382,104 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		createJitFn,
 	}
 	deps := append([]string(nil), walker.JitDependencies...)
-	return "init(" + joinArgs(args) + ");", deps
+	line := "init(" + joinArgs(args) + ");"
+	writeCachedEntry(runType, settings, innerPrefix, line, deps, opts)
+	return line, deps
+}
+
+// tryReadCachedEntry attempts to load a previously cached (line, deps)
+// pair from the disk store. Returns ok=false on miss for any reason:
+// no store wired, missing file, malformed file, header structural-id
+// mismatch (hash drift), or any child ref whose hash has changed since
+// write time.
+//
+// Cached deps are rebuilt from ChildRefs by translating each
+// (structural id, hash) back to the namespaced form
+// (innerPrefix + hash) the topo sort expects. Because the read-time
+// child-hash check guarantees structural id → hash agreement, this
+// translation is lossless.
+func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (string, []string, bool) {
+	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
+		return "", nil, false
+	}
+	expectedStructural := opts.Lookup.StructuralForHash(runType.ID)
+	if expectedStructural == "" {
+		// Not interned in the current build — should not happen because
+		// renderEntryWithDeps is called for entries that ARE in the
+		// current dump, but guard anyway: a missing reverse mapping
+		// means we cannot verify the file safely.
+		return "", nil, false
+	}
+	entry, ok, err := opts.Store.ReadJIT(runType.ID, settings.Tag)
+	if err != nil || !ok || entry == nil {
+		return "", nil, false
+	}
+	if entry.StructuralID != expectedStructural {
+		return "", nil, false
+	}
+	deps := make([]string, 0, len(entry.ChildRefs))
+	for _, ref := range entry.ChildRefs {
+		currentHash := opts.Lookup.HashForStructural(ref.StructuralID)
+		if currentHash == "" || currentHash != ref.Hash {
+			// Child's structural id has been re-hashed (collision
+			// extension) or removed entirely — cached body's baked
+			// hash is stale.
+			return "", nil, false
+		}
+		deps = append(deps, innerPrefix+currentHash)
+	}
+	return entry.Line, deps, true
+}
+
+// writeCachedEntry persists the freshly-rendered (line, deps) pair so
+// the next build can skip the walker for this (typeID, fnTag). Failures
+// are logged once to stderr and otherwise ignored — a read-only or
+// out-of-space FS shouldn't break the build, and the next run will
+// re-attempt the write.
+//
+// deps here are the namespaced jit-dependency hashes
+// (walker.JitDependencies, e.g. "it_<childHash>"). We strip the prefix
+// to recover the bare childHash and look up its structural id for the
+// ChildRefs record.
+func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, line string, deps []string, opts RenderOpts) {
+	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
+		return
+	}
+	structural := opts.Lookup.StructuralForHash(runType.ID)
+	if structural == "" {
+		return
+	}
+	childRefs := make([]disk.ChildRef, 0, len(deps))
+	for _, dep := range deps {
+		childHash := strings.TrimPrefix(dep, innerPrefix)
+		if childHash == dep {
+			// Defensive: a dep that doesn't start with innerPrefix
+			// breaks the read-time hash translation. Skip writing
+			// rather than persist a record we can't safely verify.
+			return
+		}
+		childStructural := opts.Lookup.StructuralForHash(childHash)
+		if childStructural == "" {
+			return
+		}
+		childRefs = append(childRefs, disk.ChildRef{
+			StructuralID: childStructural,
+			Hash:         childHash,
+		})
+	}
+	entry := disk.JITEntry{
+		Format:       disk.FormatVersion,
+		StructuralID: structural,
+		Line:         line,
+		ChildRefs:    childRefs,
+	}
+	if err := opts.Store.WriteJIT(runType.ID, settings.Tag, entry); err != nil {
+		// Best-effort: report once per session would be ideal, but
+		// keep it simple — fmt.Fprintln on the first failure is
+		// enough to surface FS-permission misconfigurations without
+		// spamming.
+		fmt.Fprintln(os.Stderr, "ts-go-run-types: disk-cache write failed:", err)
+	}
 }
 
 // renderThrowEntry emits the short-form init line for a runtype whose

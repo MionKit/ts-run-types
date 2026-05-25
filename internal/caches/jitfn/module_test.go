@@ -12,7 +12,7 @@ import (
 func renderToString(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := IsTypeModule(&buf, dump); err != nil {
+	if err := IsTypeModule(&buf, dump, RenderOpts{}); err != nil {
 		t.Fatalf("IsTypeModule: %v", err)
 	}
 	return buf.String()

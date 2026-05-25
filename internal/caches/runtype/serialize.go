@@ -20,6 +20,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/caches/runtype/typeid"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/hashid"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -57,6 +58,13 @@ type Cache struct {
 	// same wire id. This is where structural dedup happens.
 	byStructural map[string]string
 
+	// Reverse of byStructural: wire id → structural id. Exposed via
+	// StructuralForHash so the on-disk JIT cache can verify a cached
+	// entry's child refs across builds — given a hash baked into a
+	// cached factory body, the disk layer recovers the structural id
+	// and re-resolves it against the current dict to detect drift.
+	byID map[string]string
+
 	// Type table keyed by wire id. nodes[id] is the canonical entry.
 	nodes map[string]*protocol.RunType
 
@@ -84,6 +92,7 @@ func NewCache(typeChecker *checker.Checker, opts Options) *Cache {
 		opts:         opts,
 		byPtr:        make(map[*checker.Type]string),
 		byStructural: make(map[string]string),
+		byID:         make(map[string]string),
 		nodes:        make(map[string]*protocol.RunType),
 		fileTypeIDs:  make(map[string]map[string]struct{}),
 		dict:         hashid.New(),
@@ -103,6 +112,7 @@ func (cache *Cache) Size() int { return len(cache.nodes) }
 func (cache *Cache) Clear() {
 	cache.byPtr = make(map[*checker.Type]string)
 	cache.byStructural = make(map[string]string)
+	cache.byID = make(map[string]string)
 	cache.nodes = make(map[string]*protocol.RunType)
 	cache.insertOrder = cache.insertOrder[:0]
 	cache.fileTypeIDs = make(map[string]map[string]struct{})
@@ -198,11 +208,11 @@ func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 	if id, ok := cache.byStructural[structural]; ok {
 		return id
 	}
-	id, err := cache.literals.Unique(structural, cache.opts.literalHashLength())
+	id, err := cache.uniqueLiteralDict(structural, cache.opts.literalHashLength())
 	if err != nil {
 		id = "x_at_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
 	}
-	cache.byStructural[structural] = id
+	cache.intern(structural, id)
 	cache.nodes[id] = &protocol.RunType{ID: id, Kind: kind}
 	cache.insertOrder = append(cache.insertOrder, id)
 	return id
@@ -231,11 +241,11 @@ func (cache *Cache) SerializeArrayWithFlags(baseID string, flags []string) (stri
 	if id, ok := cache.byStructural[structural]; ok {
 		return id, true
 	}
-	id, err := cache.dict.Unique(structural, cache.opts.hashLength())
+	id, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
 		id = "x_ar_" + hashid.QuickHash(structural, cache.opts.hashLength(), "")
 	}
-	cache.byStructural[structural] = id
+	cache.intern(structural, id)
 	copyFlags := append([]string(nil), flags...)
 	cache.nodes[id] = &protocol.RunType{
 		ID:    id,
@@ -259,7 +269,7 @@ func (cache *Cache) SerializeRegexLiteral(source, flags string) string {
 	if id, ok := cache.byStructural[structural]; ok {
 		return id
 	}
-	id, err := cache.literals.Unique(structural, cache.opts.literalHashLength())
+	id, err := cache.uniqueLiteralDict(structural, cache.opts.literalHashLength())
 	if err != nil {
 		// Fallback id must stay identifier-safe (the JS emitter uses it
 		// verbatim as a `const` name). The structural form contains `:` and
@@ -267,7 +277,7 @@ func (cache *Cache) SerializeRegexLiteral(source, flags string) string {
 		// other synthetic ids (`x_tm_`, `x_pr_`, …).
 		id = "x_re_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
 	}
-	cache.byStructural[structural] = id
+	cache.intern(structural, id)
 	cache.nodes[id] = &protocol.RunType{
 		ID:   id,
 		Kind: protocol.KindLiteral,
@@ -344,6 +354,47 @@ func (cache *Cache) IDsForUnion(files []string) []string {
 	return out
 }
 
+// StructuralForHash returns the structural id for an interned wire id, or
+// "" when absent. The disk-side JIT cache uses this at write time to
+// record (structural id, hash) pairs for every child reference baked
+// into a cached factory body — at read time it re-resolves each
+// structural id against the current dict and treats any drift (id
+// missing, or different short hash) as a cache miss.
+func (cache *Cache) StructuralForHash(id string) string {
+	return cache.byID[id]
+}
+
+// HashForStructural returns the wire id for a structural id, or "" if the
+// structural id has not been interned in this build. Companion to
+// StructuralForHash used at disk-cache read time.
+func (cache *Cache) HashForStructural(structural string) string {
+	return cache.byStructural[structural]
+}
+
+// intern records the (structural ↔ id) pair in both directions. Every
+// site that mints a new wire id MUST go through this so byID stays in
+// lockstep with byStructural — callers reading byID expect the structural
+// id of any interned wire id to be recoverable.
+func (cache *Cache) intern(structural, id string) {
+	cache.byStructural[structural] = id
+	cache.byID[id] = structural
+}
+
+// uniqueDict assigns a short hash for structural via the main dict,
+// embedding constants.Version in the hashing input so the same
+// structural id maps to different short hashes across binary versions.
+// The Dict's own reverse map stays keyed by the salted form (internal
+// detail); callers needing the raw structural use byStructural / byID.
+func (cache *Cache) uniqueDict(structural string, length int) (string, error) {
+	return cache.dict.Unique(constants.Version+"|"+structural, length)
+}
+
+// uniqueLiteralDict is uniqueDict for the literal-budget dict — same
+// version-embedding, separate hash table for literal-typed ids.
+func (cache *Cache) uniqueLiteralDict(structural string, length int) (string, error) {
+	return cache.literals.Unique(constants.Version+"|"+structural, length)
+}
+
 // NodesForIDs returns the canonical *RunType entries for the given ids, in
 // the order supplied. Ids missing from the table are skipped. Used by the
 // resolver to materialise a "scanned files" scoped slice into a Dump.
@@ -380,9 +431,9 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 	var id string
 	var err error
 	if isLiteralStructural(structural) {
-		id, err = cache.literals.Unique(structural, cache.opts.literalHashLength())
+		id, err = cache.uniqueLiteralDict(structural, cache.opts.literalHashLength())
 	} else {
-		id, err = cache.dict.Unique(structural, cache.opts.hashLength())
+		id, err = cache.uniqueDict(structural, cache.opts.hashLength())
 	}
 	if err != nil {
 		// Unrecoverable hash exhaustion — fall back to a hash of the
@@ -392,7 +443,7 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 	}
 
 	cache.byPtr[tsType] = id
-	cache.byStructural[structural] = id
+	cache.intern(structural, id)
 
 	// Reserve the slot before projecting so cycles see the id.
 	cache.nodes[id] = &protocol.RunType{ID: id, Kind: typeid.KindOf(cache.typeChecker, tsType)}
@@ -410,11 +461,11 @@ func (cache *Cache) internEmpty(kind protocol.ReflectionKind, markerName string)
 	if id, ok := cache.byStructural[structural]; ok {
 		return id
 	}
-	id, err := cache.dict.Unique(structural, cache.opts.hashLength())
+	id, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
 		id = "x_" + markerName
 	}
-	cache.byStructural[structural] = id
+	cache.intern(structural, id)
 	cache.nodes[id] = &protocol.RunType{ID: id, Kind: kind, Flags: []string{markerName}}
 	cache.insertOrder = append(cache.insertOrder, id)
 	return id
@@ -766,12 +817,12 @@ func (cache *Cache) projectTuple(tsType *checker.Type, node *protocol.RunType) {
 		// index since two members with same payload at different positions
 		// must not dedup.
 		structural := fmt.Sprintf("_tm_%s_%d", node.ID, i)
-		memberID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+		memberID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 		if err != nil {
 			memberID = "x_tm_" + structural
 		}
 		member.ID = memberID
-		cache.byStructural[structural] = memberID
+		cache.intern(structural, memberID)
 		cache.nodes[memberID] = member
 		cache.insertOrder = append(cache.insertOrder, memberID)
 		node.Children = append(node.Children, protocol.NewRef(memberID))
@@ -920,12 +971,12 @@ func (cache *Cache) newNativeParameter(parentID string, index int, name string, 
 		Child:    cache.Serialize(childType),
 	}
 	structural := fmt.Sprintf("_pa_%s_%s_%d", parentID, name, index)
-	wrapperID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+	wrapperID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
 		wrapperID = "x_pa_" + structural
 	}
 	wrapper.ID = wrapperID
-	cache.byStructural[structural] = wrapperID
+	cache.intern(structural, wrapperID)
 	cache.nodes[wrapperID] = wrapper
 	cache.insertOrder = append(cache.insertOrder, wrapperID)
 	return protocol.NewRef(wrapperID)
@@ -988,12 +1039,12 @@ func (cache *Cache) projectMembersInto(
 			indexNode.Readonly = true
 		}
 		structural := fmt.Sprintf("_idx_%s_%d", node.ID, i)
-		indexID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+		indexID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 		if err != nil {
 			indexID = "x_idx_" + structural
 		}
 		indexNode.ID = indexID
-		cache.byStructural[structural] = indexID
+		cache.intern(structural, indexID)
 		cache.nodes[indexID] = indexNode
 		cache.insertOrder = append(cache.insertOrder, indexID)
 		node.Children = append(node.Children, protocol.NewRef(indexID))
@@ -1002,12 +1053,12 @@ func (cache *Cache) projectMembersInto(
 		callNode := &protocol.RunType{Kind: protocol.KindCallSignature}
 		cache.projectSignatureInto(signature, callNode)
 		structural := fmt.Sprintf("_cs_%s_%d", node.ID, i)
-		callID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+		callID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 		if err != nil {
 			callID = "x_cs_" + structural
 		}
 		callNode.ID = callID
-		cache.byStructural[structural] = callID
+		cache.intern(structural, callID)
 		cache.nodes[callID] = callNode
 		cache.insertOrder = append(cache.insertOrder, callID)
 		node.Children = append(node.Children, protocol.NewRef(callID))
@@ -1062,12 +1113,12 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 	}
 
 	structural := fmt.Sprintf("_pr_%s_%s_%d", parent.ID, symbol.Name, index)
-	memberID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+	memberID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
 		memberID = "x_pr_" + structural
 	}
 	member.ID = memberID
-	cache.byStructural[structural] = memberID
+	cache.intern(structural, memberID)
 	cache.nodes[memberID] = member
 	cache.insertOrder = append(cache.insertOrder, memberID)
 	parent.Children = append(parent.Children, protocol.NewRef(memberID))
@@ -1099,12 +1150,12 @@ func (cache *Cache) projectSignatureInto(signature *checker.Signature, node *pro
 		parameter.Child = cache.Serialize(childType)
 		applyParameterDefault(parameter, paramSymbol)
 		structural := fmt.Sprintf("_pa_%s_%s_%d", node.ID, paramSymbol.Name, i)
-		paramID, err := cache.dict.Unique(structural, cache.opts.hashLength())
+		paramID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 		if err != nil {
 			paramID = "x_pa_" + structural
 		}
 		parameter.ID = paramID
-		cache.byStructural[structural] = paramID
+		cache.intern(structural, paramID)
 		cache.nodes[paramID] = parameter
 		cache.insertOrder = append(cache.insertOrder, paramID)
 		node.Parameters = append(node.Parameters, protocol.NewRef(paramID))

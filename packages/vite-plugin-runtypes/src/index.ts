@@ -67,9 +67,16 @@ export default function runtypes(options: PluginOptions) {
 
     configResolved(this: any, cfg: {root: string}) {
       cwdAbs = path.resolve(options.cwd ?? cfg.root);
+      // node_modules/.cache is the canonical location for tooling
+      // artifacts that a project's standard `clean` workflow already
+      // knows to wipe (npm / pnpm both nuke it under common cleanup
+      // recipes). Per-fingerprint subdirs live underneath so distinct
+      // build configurations stay isolated.
+      const cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         markerName: options.markerName,
         markerModule: options.markerModule,
+        cacheDir,
       });
     },
 
