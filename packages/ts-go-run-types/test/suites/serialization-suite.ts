@@ -37,12 +37,20 @@ export interface SerializationCase {
   title: string;
   description?: string;
 
-  /** Encoder thunks. `safeEncoder` builds `createJsonEncoder<T>()`
-   *  (default mode `'safe'`, single-pass stringifyJson — no mutation,
-   *  undeclared keys stripped). `unsafeEncoder` builds
-   *  `createJsonEncoder<T>(undefined, {mode: 'unsafe'})` (composes
-   *  prepareForJson + JSON.stringify — mutates v, lets extras leak). **/
+  /** Encoder thunks — one per mode of `createJsonEncoder`.
+   *  - `safeEncoder` builds `createJsonEncoder<T>()` (default mode
+   *    `'safe'`, prepareForJsonSafe + JSON.stringify — clones declared
+   *    keys, strips extras, no input mutation, native stringify perf).
+   *  - `safeDirectEncoder` builds `createJsonEncoder<T>(undefined,
+   *    {mode: 'safeDirect'})` (single-pass stringifyJson — no
+   *    intermediate object, no input mutation, slower than native).
+   *  - `unsafeEncoder` builds `createJsonEncoder<T>(undefined, {mode:
+   *    'unsafe'})` (prepareForJson + JSON.stringify — mutates v, lets
+   *    extras leak through).
+   *  The adapter pairs each encoder mode with its same-mode decoder
+   *  (`safeEncoder`/`safeDirectEncoder` both pair with `safeDecoder`). **/
   safeEncoder: () => JsonEncoderFn;
+  safeDirectEncoder: () => JsonEncoderFn;
   unsafeEncoder: () => JsonEncoderFn;
 
   /** Safe-mode only: when set, the case's input produces a JSON string
@@ -133,6 +141,7 @@ export const SERIALIZATION_SPEC = {
       title: 'string',
       unsafeEncoder: () => createJsonEncoder<string>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<string>(),
+      safeDirectEncoder: () => createJsonEncoder<string>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<string>(),
       unsafeDecoder: () => createJsonDecoder<string>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
@@ -141,6 +150,7 @@ export const SERIALIZATION_SPEC = {
       title: 'number',
       unsafeEncoder: () => createJsonEncoder<number>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<number>(),
+      safeDirectEncoder: () => createJsonEncoder<number>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<number>(),
       unsafeDecoder: () => createJsonDecoder<number>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -165,6 +175,7 @@ export const SERIALIZATION_SPEC = {
       description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
       unsafeEncoder: () => createJsonEncoder<number>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<number>(),
+      safeDirectEncoder: () => createJsonEncoder<number>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<number>(),
       unsafeDecoder: () => createJsonDecoder<number>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -183,6 +194,7 @@ export const SERIALIZATION_SPEC = {
       title: 'regexp',
       unsafeEncoder: () => createJsonEncoder<RegExp>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<RegExp>(),
+      safeDirectEncoder: () => createJsonEncoder<RegExp>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<RegExp>(),
       unsafeDecoder: () => createJsonDecoder<RegExp>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [/abc/, /xyz/i, /\d+/g, /^[a-z]+$/]}),
@@ -191,6 +203,7 @@ export const SERIALIZATION_SPEC = {
       title: 'bigint',
       unsafeEncoder: () => createJsonEncoder<bigint>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<bigint>(),
+      safeDirectEncoder: () => createJsonEncoder<bigint>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<bigint>(),
       unsafeDecoder: () => createJsonDecoder<bigint>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [1n]}),
@@ -199,6 +212,7 @@ export const SERIALIZATION_SPEC = {
       title: 'boolean',
       unsafeEncoder: () => createJsonEncoder<boolean>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<boolean>(),
+      safeDirectEncoder: () => createJsonEncoder<boolean>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<boolean>(),
       unsafeDecoder: () => createJsonDecoder<boolean>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [true]}),
@@ -207,6 +221,7 @@ export const SERIALIZATION_SPEC = {
       title: 'any',
       unsafeEncoder: () => createJsonEncoder<any>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<any>(),
+      safeDirectEncoder: () => createJsonEncoder<any>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<any>(),
       unsafeDecoder: () => createJsonDecoder<any>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
@@ -218,6 +233,7 @@ export const SERIALIZATION_SPEC = {
         'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
       unsafeEncoder: () => createJsonEncoder<any>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<any>(),
+      safeDirectEncoder: () => createJsonEncoder<any>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<any>(),
       unsafeDecoder: () => createJsonDecoder<any>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
@@ -227,6 +243,7 @@ export const SERIALIZATION_SPEC = {
       title: 'null',
       unsafeEncoder: () => createJsonEncoder<null>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<null>(),
+      safeDirectEncoder: () => createJsonEncoder<null>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<null>(),
       unsafeDecoder: () => createJsonDecoder<null>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [null]}),
@@ -235,6 +252,7 @@ export const SERIALIZATION_SPEC = {
       title: 'undefined',
       unsafeEncoder: () => createJsonEncoder<undefined>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<undefined>(),
+      safeDirectEncoder: () => createJsonEncoder<undefined>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<undefined>(),
       unsafeDecoder: () => createJsonDecoder<undefined>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [undefined]}),
@@ -243,6 +261,7 @@ export const SERIALIZATION_SPEC = {
       title: 'date',
       unsafeEncoder: () => createJsonEncoder<Date>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Date>(),
+      safeDirectEncoder: () => createJsonEncoder<Date>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Date>(),
       unsafeDecoder: () => createJsonDecoder<Date>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
@@ -264,6 +283,14 @@ export const SERIALIZATION_SPEC = {
           Blue = 'blue',
         }
         return createJsonEncoder<Color>();
+      },
+      safeDirectEncoder: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createJsonEncoder<Color>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         enum Color {
@@ -294,6 +321,7 @@ export const SERIALIZATION_SPEC = {
       title: 'symbol',
       unsafeEncoder: () => createJsonEncoder<symbol>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<symbol>(),
+      safeDirectEncoder: () => createJsonEncoder<symbol>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<symbol>(),
       unsafeDecoder: () => createJsonDecoder<symbol>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [Symbol('foo'), Symbol()]}),
@@ -302,6 +330,7 @@ export const SERIALIZATION_SPEC = {
       title: 'object',
       unsafeEncoder: () => createJsonEncoder<object>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<object>(),
+      safeDirectEncoder: () => createJsonEncoder<object>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<object>(),
       unsafeDecoder: () => createJsonDecoder<object>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
@@ -311,6 +340,7 @@ export const SERIALIZATION_SPEC = {
       title: 'void',
       unsafeEncoder: () => createJsonEncoder<void>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<void>(),
+      safeDirectEncoder: () => createJsonEncoder<void>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<void>(),
       unsafeDecoder: () => createJsonDecoder<void>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [undefined]}),
@@ -320,6 +350,7 @@ export const SERIALIZATION_SPEC = {
       description: 'never type cannot be JSON-encoded or decoded — invoking the factory throws.',
       unsafeEncoder: () => createJsonEncoder<never>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<never>(),
+      safeDirectEncoder: () => createJsonEncoder<never>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<never>(),
       unsafeDecoder: () => createJsonDecoder<never>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -329,6 +360,7 @@ export const SERIALIZATION_SPEC = {
       title: 'string literal',
       unsafeEncoder: () => createJsonEncoder<'hello'>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<'hello'>(),
+      safeDirectEncoder: () => createJsonEncoder<'hello'>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<'hello'>(),
       unsafeDecoder: () => createJsonDecoder<'hello'>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['hello']}),
@@ -337,6 +369,7 @@ export const SERIALIZATION_SPEC = {
       title: 'number literal',
       unsafeEncoder: () => createJsonEncoder<42>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<42>(),
+      safeDirectEncoder: () => createJsonEncoder<42>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<42>(),
       unsafeDecoder: () => createJsonDecoder<42>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [42]}),
@@ -345,6 +378,7 @@ export const SERIALIZATION_SPEC = {
       title: 'boolean literal',
       unsafeEncoder: () => createJsonEncoder<true>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<true>(),
+      safeDirectEncoder: () => createJsonEncoder<true>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<true>(),
       unsafeDecoder: () => createJsonDecoder<true>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [true]}),
@@ -358,6 +392,10 @@ export const SERIALIZATION_SPEC = {
       safeEncoder: () => {
         const reg = /abc/;
         return createJsonEncoder<typeof reg>();
+      },
+      safeDirectEncoder: () => {
+        const reg = /abc/;
+        return createJsonEncoder<typeof reg>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         const reg = /abc/;
@@ -376,6 +414,7 @@ export const SERIALIZATION_SPEC = {
       title: 'array',
       unsafeEncoder: () => createJsonEncoder<string[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<string[]>(),
+      safeDirectEncoder: () => createJsonEncoder<string[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<string[]>(),
       unsafeDecoder: () => createJsonDecoder<string[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [['hello', 'world'], []]}),
@@ -384,6 +423,7 @@ export const SERIALIZATION_SPEC = {
       title: 'array of dates',
       unsafeEncoder: () => createJsonEncoder<Date[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Date[]>(),
+      safeDirectEncoder: () => createJsonEncoder<Date[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Date[]>(),
       unsafeDecoder: () => createJsonDecoder<Date[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -394,6 +434,7 @@ export const SERIALIZATION_SPEC = {
       title: 'undefined is serialized as null in array',
       unsafeEncoder: () => createJsonEncoder<undefined[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<undefined[]>(),
+      safeDirectEncoder: () => createJsonEncoder<undefined[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<undefined[]>(),
       unsafeDecoder: () => createJsonDecoder<undefined[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[undefined, undefined]]}),
@@ -402,6 +443,7 @@ export const SERIALIZATION_SPEC = {
       title: 'multi dimensional array',
       unsafeEncoder: () => createJsonEncoder<string[][]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<string[][]>(),
+      safeDirectEncoder: () => createJsonEncoder<string[][]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<string[][]>(),
       unsafeDecoder: () => createJsonDecoder<string[][]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
@@ -411,6 +453,7 @@ export const SERIALIZATION_SPEC = {
       description: 'symbol[] should throw at JIT-compile time per mion semantic.',
       unsafeEncoder: () => createJsonEncoder<symbol[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<symbol[]>(),
+      safeDirectEncoder: () => createJsonEncoder<symbol[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<symbol[]>(),
       unsafeDecoder: () => createJsonDecoder<symbol[]>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -425,6 +468,10 @@ export const SERIALIZATION_SPEC = {
       safeEncoder: () => {
         type CircularArray = CircularArray[];
         return createJsonEncoder<CircularArray>();
+      },
+      safeDirectEncoder: () => {
+        type CircularArray = CircularArray[];
+        return createJsonEncoder<CircularArray>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type CircularArray = CircularArray[];
@@ -470,6 +517,17 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<{
           startDate: Date;
@@ -529,6 +587,17 @@ export const SERIALIZATION_SPEC = {
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
         return createJsonEncoder<ManyOptional>();
+      },
+      safeDirectEncoder: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createJsonEncoder<ManyOptional>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type N = number;
@@ -593,6 +662,24 @@ export const SERIALIZATION_SPEC = {
           }
         }
         return createJsonEncoder<MySerializableClass>();
+      },
+      safeDirectEncoder: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonEncoder<MySerializableClass>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         class MySerializableClass {
@@ -671,6 +758,15 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ExtendedClass>();
       },
+      safeDirectEncoder: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createJsonEncoder<ExtendedClass>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         class BaseClass {
           baseProp: string = 'base';
@@ -731,6 +827,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<NonSerializableClass>();
       },
+      safeDirectEncoder: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonEncoder<NonSerializableClass>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         class NonSerializableClass {
           constructor(
@@ -780,6 +890,7 @@ export const SERIALIZATION_SPEC = {
       title: 'undefined is omitted in object prop',
       unsafeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -791,6 +902,7 @@ export const SERIALIZATION_SPEC = {
       title: 'optional properties order',
       unsafeEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; b?: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
@@ -799,6 +911,7 @@ export const SERIALIZATION_SPEC = {
       title: 'all optional fields',
       unsafeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
@@ -833,6 +946,19 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<{
           startDate: Date;
@@ -927,6 +1053,13 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ICircular>();
       },
+      safeDirectEncoder: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createJsonEncoder<ICircular>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface ICircular {
           name: string;
@@ -958,6 +1091,13 @@ export const SERIALIZATION_SPEC = {
           children?: ICircularArray[];
         }
         return createJsonEncoder<ICircularArray>();
+      },
+      safeDirectEncoder: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createJsonEncoder<ICircularArray>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface ICircularArray {
@@ -1003,6 +1143,17 @@ export const SERIALIZATION_SPEC = {
           };
         }
         return createJsonEncoder<ICircularDeep>();
+      },
+      safeDirectEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createJsonEncoder<ICircularDeep>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface ICircularDeep {
@@ -1062,6 +1213,18 @@ export const SERIALIZATION_SPEC = {
           ciChild: ICircularDeep;
         }
         return createJsonEncoder<RootNotCircular>();
+      },
+      safeDirectEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createJsonEncoder<RootNotCircular>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface ICircularDeep {
@@ -1144,6 +1307,27 @@ export const SERIALIZATION_SPEC = {
           ciDate: ICircularDate;
         }
         return createJsonEncoder<RootCircular>();
+      },
+      safeDirectEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createJsonEncoder<RootCircular>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface ICircularDeep {
@@ -1233,6 +1417,13 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ObjectWithMethods>();
       },
+      safeDirectEncoder: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createJsonEncoder<ObjectWithMethods>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface ObjectWithMethods {
           name: string;
@@ -1268,6 +1459,7 @@ export const SERIALIZATION_SPEC = {
       title: 'index property',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: string]: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: string}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
@@ -1276,6 +1468,7 @@ export const SERIALIZATION_SPEC = {
       title: 'interface with a single property and index property',
       unsafeEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
@@ -1284,6 +1477,7 @@ export const SERIALIZATION_SPEC = {
       title: 'index property with extra props and unions',
       unsafeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
@@ -1292,6 +1486,7 @@ export const SERIALIZATION_SPEC = {
       title: 'multiple index properties (symbol keys skipped)',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      safeDirectEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
@@ -1314,6 +1509,7 @@ export const SERIALIZATION_SPEC = {
       title: 'index property nested',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(),
+      safeDirectEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
@@ -1322,6 +1518,7 @@ export const SERIALIZATION_SPEC = {
       title: 'index property nested with Date values',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(),
+      safeDirectEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -1339,6 +1536,7 @@ export const SERIALIZATION_SPEC = {
       title: 'index property with bigint values',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: string]: bigint}>(),
+      safeDirectEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -1352,6 +1550,7 @@ export const SERIALIZATION_SPEC = {
       title: 'index property non-root',
       unsafeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
+      safeDirectEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
       unsafeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
@@ -1363,6 +1562,7 @@ export const SERIALIZATION_SPEC = {
       title: 'tuple',
       unsafeEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(),
+      safeDirectEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
       unsafeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -1373,6 +1573,7 @@ export const SERIALIZATION_SPEC = {
       title: 'tuple with optional params',
       unsafeEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(),
+      safeDirectEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
       unsafeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -1386,6 +1587,7 @@ export const SERIALIZATION_SPEC = {
       title: 'tuple rest parameter',
       unsafeEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<[number, ...bigint[]]>(),
+      safeDirectEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
       unsafeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
@@ -1394,6 +1596,7 @@ export const SERIALIZATION_SPEC = {
       title: 'tuple with non serializable types are transformed to undefined',
       unsafeEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<[number, () => any]>(),
+      safeDirectEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<[number, () => any]>(),
       unsafeDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
@@ -1407,6 +1610,10 @@ export const SERIALIZATION_SPEC = {
       safeEncoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createJsonEncoder<TupleCircular>();
+      },
+      safeDirectEncoder: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createJsonEncoder<TupleCircular>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -1455,6 +1662,13 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ICircularTuple>();
       },
+      safeDirectEncoder: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createJsonEncoder<ICircularTuple>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface ICircularTuple {
           name: string;
@@ -1500,6 +1714,12 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Parameters<typeof fnNoOptional>>();
       },
+      safeDirectEncoder: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         function fnNoOptional(a: number, b: boolean, c: string): Date {
           return new Date(a);
@@ -1536,6 +1756,14 @@ export const SERIALIZATION_SPEC = {
           return 1n;
         }
         return createJsonEncoder<Parameters<typeof fnOptionalParams>>();
+      },
+      safeDirectEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -1578,6 +1806,15 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnOptionalParam>>();
       },
+      safeDirectEncoder: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         function fnOptionalParam(a: number, b: boolean, c?: string): Date {
           void a;
@@ -1617,6 +1854,15 @@ export const SERIALIZATION_SPEC = {
           return new Date(0);
         }
         return createJsonEncoder<Parameters<typeof fnRestParams>>();
+      },
+      safeDirectEncoder: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -1661,6 +1907,14 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Parameters<typeof fnOptionalParams>>();
       },
+      safeDirectEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
@@ -1700,6 +1954,14 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnOptionalParams>>();
       },
+      safeDirectEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
@@ -1733,6 +1995,13 @@ export const SERIALIZATION_SPEC = {
           return new Date(0);
         }
         return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>();
+      },
+      safeDirectEncoder: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         function fnOnlyRestParams(...rest: number[]): Date {
@@ -1769,6 +2038,15 @@ export const SERIALIZATION_SPEC = {
           return new Date(0);
         }
         return createJsonEncoder<Parameters<typeof fnWithCallback>>();
+      },
+      safeDirectEncoder: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -1820,6 +2098,15 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>();
       },
+      safeDirectEncoder: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
           void a;
@@ -1862,6 +2149,15 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>();
       },
+      safeDirectEncoder: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
           void a;
@@ -1887,6 +2183,7 @@ export const SERIALIZATION_SPEC = {
       title: 'call signature params',
       unsafeEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(),
+      safeDirectEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
       unsafeDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[3, true]]}),
@@ -1895,6 +2192,7 @@ export const SERIALIZATION_SPEC = {
       title: 'call signature return',
       unsafeEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
+      safeDirectEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
       unsafeDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['result']}),
@@ -1906,6 +2204,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Awaited<Promise<T>>',
       unsafeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      safeDirectEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       unsafeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
@@ -1914,6 +2213,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Exclude on atomic union',
       unsafeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
+      safeDirectEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
       unsafeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['name', 3, 4]}),
@@ -1933,6 +2233,13 @@ export const SERIALIZATION_SPEC = {
         type Triangle = {kind: 'triangle'; x: number; y: number};
         type Shape = Circle | Square | Triangle;
         return createJsonEncoder<Exclude<Shape, Circle>>();
+      },
+      safeDirectEncoder: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type Circle = {kind: 'circle'; radius: number};
@@ -1959,6 +2266,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Required<T>',
       unsafeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      safeDirectEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       unsafeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -1969,6 +2277,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Extract on atomic union',
       unsafeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      safeDirectEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       unsafeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['name']}),
@@ -1984,6 +2293,11 @@ export const SERIALIZATION_SPEC = {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createJsonEncoder<Extract<Shape, ToExtract>>();
+      },
+      safeDirectEncoder: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
@@ -2001,6 +2315,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Partial<T>',
       unsafeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
+      safeDirectEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
       unsafeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
@@ -2014,6 +2329,8 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () =>
         createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       unsafeDecoder: () =>
@@ -2024,6 +2341,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Omit<T, K>',
       unsafeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      safeDirectEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       unsafeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
@@ -2032,6 +2350,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Record<string, Date>',
       unsafeEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Record<string, Date>>(),
+      safeDirectEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Record<string, Date>>(),
       unsafeDecoder: () => createJsonDecoder<Record<string, Date>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -2051,6 +2370,7 @@ export const SERIALIZATION_SPEC = {
       title: 'atomic union',
       unsafeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(),
+      safeDirectEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(),
       unsafeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
@@ -2059,6 +2379,7 @@ export const SERIALIZATION_SPEC = {
       title: 'union of arrays',
       unsafeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(),
+      safeDirectEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(),
       unsafeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -2075,6 +2396,7 @@ export const SERIALIZATION_SPEC = {
       title: 'array of union with discriminator',
       unsafeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(),
+      safeDirectEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(),
       unsafeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
@@ -2093,6 +2415,7 @@ export const SERIALIZATION_SPEC = {
       title: 'union of object shapes',
       unsafeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
@@ -2113,6 +2436,13 @@ export const SERIALIZATION_SPEC = {
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           | {type: 'a'; otherProp: boolean}
@@ -2146,6 +2476,10 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
@@ -2174,6 +2508,14 @@ export const SERIALIZATION_SPEC = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           | string[]
@@ -2201,6 +2543,10 @@ export const SERIALIZATION_SPEC = {
       safeEncoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createJsonEncoder<UnionC>();
+      },
+      safeDirectEncoder: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createJsonEncoder<UnionC>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -2238,6 +2584,10 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
@@ -2275,6 +2625,7 @@ export const SERIALIZATION_SPEC = {
       title: 'union with any — checked last as fallback',
       unsafeEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<number | {name: string} | any>(),
+      safeDirectEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<number | {name: string} | any>(),
       unsafeDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
@@ -2285,6 +2636,7 @@ export const SERIALIZATION_SPEC = {
       description: 'function in union — mion throws at JIT-compile time.',
       unsafeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
+      safeDirectEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
       unsafeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -2311,6 +2663,7 @@ export const SERIALIZATION_SPEC = {
         'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
       unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
       jsonStringifyThrows: true,
@@ -2327,6 +2680,7 @@ export const SERIALIZATION_SPEC = {
         'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
       unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
       // Symbol-valued props are silently dropped by JSON.stringify
@@ -2362,6 +2716,10 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<
           {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
@@ -2390,6 +2748,10 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<
           {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
@@ -2418,6 +2780,10 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<
           {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
         >(),
+      safeDirectEncoder: () =>
+        createJsonEncoder<
+          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
+        >(undefined, {mode: 'safeDirect'}),
       safeDecoder: () =>
         createJsonDecoder<
           {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
@@ -2441,6 +2807,7 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () =>
         createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
       unsafeDecoder: () =>
         createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
@@ -2458,6 +2825,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Set<string>',
       unsafeEncoder: () => createJsonEncoder<Set<string>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Set<string>>(),
+      safeDirectEncoder: () => createJsonEncoder<Set<string>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Set<string>>(),
       unsafeDecoder: () => createJsonDecoder<Set<string>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
@@ -2483,6 +2851,16 @@ export const SERIALIZATION_SPEC = {
           prop5?: bigint;
         }
         return createJsonEncoder<Set<SmallObject>>();
+      },
+      safeDirectEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Set<SmallObject>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface SmallObject {
@@ -2543,6 +2921,15 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<DeepWithSet>();
       },
+      safeDirectEncoder: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createJsonEncoder<DeepWithSet>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         type Set1 = Set<{s: string; arr: number[]}>;
         interface DeepWithSet {
@@ -2577,6 +2964,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Map<string, number>',
       unsafeEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Map<string, number>>(),
+      safeDirectEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Map<string, number>>(),
       unsafeDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -2610,6 +2998,16 @@ export const SERIALIZATION_SPEC = {
           prop5?: bigint;
         }
         return createJsonEncoder<Map<string, SmallObject>>();
+      },
+      safeDirectEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Map<string, SmallObject>>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface SmallObject {
@@ -2672,6 +3070,16 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Map<SmallObject, number>>();
       },
+      safeDirectEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Map<SmallObject, number>>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface SmallObject {
           prop1: string;
@@ -2727,6 +3135,13 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<DeepWithMap>();
       },
+      safeDirectEncoder: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createJsonEncoder<DeepWithMap>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface DeepWithMap {
           a: string;
@@ -2757,6 +3172,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Map with bigint keys',
       unsafeEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Map<bigint, number>>(),
+      safeDirectEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Map<bigint, number>>(),
       unsafeDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -2773,6 +3189,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Map with Date values',
       unsafeEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Map<string, Date>>(),
+      safeDirectEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Map<string, Date>>(),
       unsafeDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -2797,6 +3214,10 @@ export const SERIALIZATION_SPEC = {
         type CircularObject = {name: string; child?: CircularObject};
         return createJsonEncoder<CircularObject>();
       },
+      safeDirectEncoder: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createJsonEncoder<CircularObject>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         type CircularObject = {name: string; child?: CircularObject};
         return createJsonDecoder<CircularObject>();
@@ -2816,6 +3237,10 @@ export const SERIALIZATION_SPEC = {
       safeEncoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createJsonEncoder<CuArray>();
+      },
+      safeDirectEncoder: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createJsonEncoder<CuArray>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
@@ -2850,6 +3275,12 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<CircularTuple>();
       },
+      safeDirectEncoder: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createJsonEncoder<CircularTuple>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface CircularTuple {
           list: [bigint, CircularTuple?];
@@ -2879,6 +3310,12 @@ export const SERIALIZATION_SPEC = {
           index: {[key: string]: CircularIndex};
         }
         return createJsonEncoder<CircularIndex>();
+      },
+      safeDirectEncoder: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createJsonEncoder<CircularIndex>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface CircularIndex {
@@ -2910,6 +3347,12 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<CircularDeep>();
       },
+      safeDirectEncoder: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createJsonEncoder<CircularDeep>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
@@ -2935,6 +3378,10 @@ export const SERIALIZATION_SPEC = {
       safeEncoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createJsonEncoder<CircularTupleComplex>();
+      },
+      safeDirectEncoder: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createJsonEncoder<CircularTupleComplex>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
@@ -2963,6 +3410,14 @@ export const SERIALIZATION_SPEC = {
           d?: ObjCircularArr[];
         };
         return createJsonEncoder<ObjCircularArr>();
+      },
+      safeDirectEncoder: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createJsonEncoder<ObjCircularArr>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         type ObjCircularArr = {
@@ -2997,6 +3452,7 @@ export const SERIALIZATION_SPEC = {
       title: 'template literal as string type',
       unsafeEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<`api/users/${number}`>(),
+      safeDirectEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<`api/users/${number}`>(),
       unsafeDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3014,6 +3470,7 @@ export const SERIALIZATION_SPEC = {
       title: 'template literal as object property type',
       unsafeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
       unsafeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3028,6 +3485,7 @@ export const SERIALIZATION_SPEC = {
       title: 'template literal as index signature key',
       unsafeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
+      safeDirectEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
       unsafeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
@@ -3036,6 +3494,7 @@ export const SERIALIZATION_SPEC = {
       title: 'template literal index key + sibling named property',
       unsafeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+      safeDirectEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
       unsafeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3049,6 +3508,7 @@ export const SERIALIZATION_SPEC = {
       title: 'Promise top-level throws',
       unsafeEncoder: () => createJsonEncoder<Promise<string>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Promise<string>>(),
+      safeDirectEncoder: () => createJsonEncoder<Promise<string>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Promise<string>>(),
       unsafeDecoder: () => createJsonDecoder<Promise<string>>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -3058,6 +3518,7 @@ export const SERIALIZATION_SPEC = {
       title: 'non-serializable type throws (Int8Array)',
       unsafeEncoder: () => createJsonEncoder<Int8Array>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Int8Array>(),
+      safeDirectEncoder: () => createJsonEncoder<Int8Array>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Int8Array>(),
       unsafeDecoder: () => createJsonDecoder<Int8Array>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -3067,6 +3528,7 @@ export const SERIALIZATION_SPEC = {
       title: 'non-serializable inside interface throws',
       unsafeEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: Int8Array}>(),
+      safeDirectEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: Int8Array}>(),
       unsafeDecoder: () => createJsonDecoder<{a: Int8Array}>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -3076,6 +3538,7 @@ export const SERIALIZATION_SPEC = {
       title: 'non-serializable inside array throws',
       unsafeEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Int8Array[]>(),
+      safeDirectEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Int8Array[]>(),
       unsafeDecoder: () => createJsonDecoder<Int8Array[]>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -3085,6 +3548,7 @@ export const SERIALIZATION_SPEC = {
       title: 'non-serializable inside tuple throws',
       unsafeEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<[Int8Array]>(),
+      safeDirectEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<[Int8Array]>(),
       unsafeDecoder: () => createJsonDecoder<[Int8Array]>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
@@ -3121,6 +3585,7 @@ export const SERIALIZATION_SPEC = {
         'Extra `extra: "hello"` is JSON-encodable (string). Unsafe path round-trips with the extra intact (prepareForJson never visits it, JSON.stringify keeps it). Safe path strips it before serialise — restored value contains only the declared key.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3139,6 +3604,7 @@ export const SERIALIZATION_SPEC = {
         'Extra `extra: 123n` is not JSON-encodable. Unsafe path: prepareForJson never visits the extra, JSON.stringify throws on the bigint. Safe path: stripUnknownKeys removes the extra before prepareForJson runs, so the bigint never reaches JSON.stringify and the output is the clean declared-only shape.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       jsonStringifyThrows: true,
@@ -3155,6 +3621,7 @@ export const SERIALIZATION_SPEC = {
         'Extra `sym: Symbol("x")` is silently dropped by JSON.stringify per ECMAScript spec (symbol-valued own props are non-enumerable for JSON purposes). Unsafe path: prepareForJson preserves it, JSON.stringify drops it. Safe path: strip removes it before stringify. Same observable, different mechanism — document the lossy round-trip in both paths.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3171,6 +3638,7 @@ export const SERIALIZATION_SPEC = {
         'Extra `fn: () => 0` is silently dropped by JSON.stringify (function-valued props serialise to undefined and the key is omitted). Both paths produce declared-only output — strip removes the function on the safe path; JSON.stringify drops it on the unsafe path.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
       unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3186,6 +3654,7 @@ export const SERIALIZATION_SPEC = {
         'Extra `outer.extra` sits inside a declared `outer: {declared: string}` composite. Confirms the extras semantic recurses through declared composites: unsafe preserves the nested extra; safe strips it.',
       unsafeEncoder: () => createJsonEncoder<{outer: {declared: string}}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{outer: {declared: string}}>(),
+      safeDirectEncoder: () => createJsonEncoder<{outer: {declared: string}}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(),
       unsafeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
@@ -3279,6 +3748,41 @@ export const SERIALIZATION_SPEC = {
           meta: {category: string; priority: number; lastSeen: Date};
         }
         return createJsonEncoder<WideRecord>();
+      },
+      safeDirectEncoder: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createJsonEncoder<WideRecord>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface WideRecord {
@@ -3441,6 +3945,15 @@ export const SERIALIZATION_SPEC = {
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonEncoder<LargeObjectUnion>();
       },
+      safeDirectEncoder: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createJsonEncoder<LargeObjectUnion>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
@@ -3492,6 +4005,12 @@ export const SERIALIZATION_SPEC = {
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonEncoder<MixedLargeUnion>();
       },
+      safeDirectEncoder: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createJsonEncoder<MixedLargeUnion>(undefined, {mode: 'safeDirect'});
+      },
       safeDecoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
@@ -3541,6 +4060,15 @@ export const SERIALIZATION_SPEC = {
         interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
         interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
         return createJsonEncoder<DeepNestedLevel1>();
+      },
+      safeDirectEncoder: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createJsonEncoder<DeepNestedLevel1>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         interface DeepNestedLeaf {id: number; value: string; when: Date;}
@@ -3641,6 +4169,37 @@ export const SERIALIZATION_SPEC = {
         }
         type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
         return createJsonEncoder<LargeClassUnion>();
+      },
+      safeDirectEncoder: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createJsonEncoder<LargeClassUnion>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
         class LargeClassA {
