@@ -27,12 +27,8 @@ import {initCache as initStripUnknownKeysCache} from './caches/stripUnknownKeysC
 import {initCache as initUnknownKeyErrorsCache} from './caches/unknownKeyErrorsCache.ts';
 import {initCache as initUnknownKeysToUndefinedCache} from './caches/unknownKeysToUndefinedCache.ts';
 import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache.ts';
-import {initCache as initPrepareForJsonFlatCache} from './caches/prepareForJsonFlatCache.ts';
-import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
-import {initCache as initRestoreFromJsonFlatCache} from './caches/restoreFromJsonFlatCache.ts';
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
-import {initCache as initStringifyJsonFlatCache} from './caches/stringifyJsonFlatCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
 import type {AnyFn, JitCompiledFn} from './jit/types.ts';
 import type {RuntypeId} from './index.ts';
@@ -114,34 +110,21 @@ export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
 /** Transformer function returned by `createPrepareForJson<T>()`. Takes
  *  a runtime value and returns a JSON-serializable form (BigInts →
  *  decimal strings, Symbols → "Symbol:<desc>" strings, RegExps →
- *  "/source/flags" strings, etc.). Pair with `restoreFromJson`. **/
+ *  "/source/flags" strings, etc.). Unions encode via the flat wire
+ *  shape — object members merge into `[-1, mergedObject]`; atomic
+ *  members keep `[memberIndex, value]` under an all-or-nothing wrap.
+ *  Pair with `restoreFromJson`. **/
 export type PrepareForJsonFn = (value: unknown) => unknown;
-
-/** Sibling of PrepareForJsonFn. Same input/output contract; the on-the-
- *  wire union encoding collapses object members into a
- *  `[-1, mergedObject]` envelope so encode skips the per-object isType
- *  walk. Decode via `createRestoreFromJsonFlat`. **/
-export type PrepareForJsonFlatFn = PrepareForJsonFn;
-
-/** Non-mutating sibling of PrepareForJsonFn — returns a NEW value
- *  containing only the declared keys and transformed leaves. **/
-export type PrepareForJsonSafeFn = PrepareForJsonFn;
 
 /** Restorer function returned by `createRestoreFromJson<T>()`. Takes a
  *  JSON-parsed value and reconstructs the original runtime shape. **/
 export type RestoreFromJsonFn = (value: unknown) => unknown;
-
-/** Sibling of RestoreFromJsonFn — decodes the flat-union wire shape. **/
-export type RestoreFromJsonFlatFn = RestoreFromJsonFn;
 
 /** Stringifier returned by `createStringifyJson<T>()`. Mion's single-
  *  pass serialiser that walks the TYPE rather than `v`, so extras are
  *  stripped by construction and `v` is never mutated. Returns
  *  `undefined` for top-level `undefined` inputs. **/
 export type StringifyJsonFn = (value: unknown) => string | undefined;
-
-/** Sibling of StringifyJsonFn — emits the flat-union wire shape. **/
-export type StringifyJsonFlatFn = StringifyJsonFn;
 
 /** Stringifier returned by `createUnsafeJsonStringify<T>()`. Composes
  *  `prepareForJson + JSON.stringify`. Mutates `v` in place and lets
@@ -201,12 +184,8 @@ initStripUnknownKeysCache(_utils);
 initUnknownKeyErrorsCache(_utils);
 initUnknownKeysToUndefinedCache(_utils);
 initPrepareForJsonCache(_utils);
-initPrepareForJsonFlatCache(_utils);
-initPrepareForJsonSafeCache(_utils);
 initRestoreFromJsonCache(_utils);
-initRestoreFromJsonFlatCache(_utils);
 initStringifyJsonCache(_utils);
-initStringifyJsonFlatCache(_utils);
 
 // =============================================================================
 // Private generic factories
@@ -308,41 +287,17 @@ export const createPrepareForJson = createJitFunction<PrepareForJsonFn>(
   identityValueFn
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFn;
 
-export const createPrepareForJsonFlat = createJitFunction<PrepareForJsonFlatFn>(
-  'createPrepareForJsonFlat',
-  'pjf',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFlatFn;
-
-export const createPrepareForJsonSafe = createJitFunction<PrepareForJsonSafeFn>(
-  'createPrepareForJsonSafe',
-  'pjs',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonSafeFn;
-
 export const createRestoreFromJson = createJitFunction<RestoreFromJsonFn>(
   'createRestoreFromJson',
   'rj',
   identityValueFn
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFn;
 
-export const createRestoreFromJsonFlat = createJitFunction<RestoreFromJsonFlatFn>(
-  'createRestoreFromJsonFlat',
-  'rjf',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFlatFn;
-
 export const createStringifyJson = createJitFunction<StringifyJsonFn>('createStringifyJson', 'sj', stringifyJsonIdentity) as unknown as <T>(
   val?: T,
   options?: RunTypeOptions,
   id?: RuntypeId<T>
 ) => StringifyJsonFn;
-
-export const createStringifyJsonFlat = createJitFunction<StringifyJsonFlatFn>(
-  'createStringifyJsonFlat',
-  'sjf',
-  stringifyJsonIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => StringifyJsonFlatFn;
 
 // =============================================================================
 // Composite wrappers — compose multiple JIT primitives.
@@ -433,10 +388,6 @@ if (hot) {
   hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/unknownKeysToUndefinedCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/prepareForJsonFlatCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/restoreFromJsonFlatCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/stringifyJsonFlatCache.ts', (m) => m?.initCache?.(getJitUtils()));
 }

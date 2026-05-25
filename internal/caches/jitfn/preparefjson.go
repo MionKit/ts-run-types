@@ -262,11 +262,14 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return JitThrow("Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
-		// mion:nodes/collection/union.ts:emitPrepareForJson — type-check
-		// each member in safe-union order, transform via the member's
-		// own prepareForJson, then wrap as `[memberIndex, value]` if
-		// either half of the round-trip needs it.
-		return emitUnionPrepareForJson(rt, ctx, v)
+		// Unions encode via the flat-union wire shape (see union_flat.go) —
+		// object members merge into a `[-1, mergedObject]` envelope so
+		// encode skips the per-member isType walk; atomic members keep
+		// the `[memberIndex, value]` shape under an all-or-nothing wrap
+		// rule. The non-flat per-member envelope was retired after
+		// benchmarks showed flat wins on every union with object
+		// members and ties everywhere else.
+		return emitUnionPrepareForJsonFlat(rt, ctx, v)
 
 	case protocol.KindIntersection:
 		// Defensive noop — intersections should be pre-resolved by the
@@ -553,42 +556,6 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	return childJit
 }
 
-// unionNeedsTuple is the all-or-nothing wrap decision for the non-flat
-// union family. Either every member's encoded form gets the
-// `[memberIndex, value]` envelope or none of them do — there is no
-// per-member shortcut.
-//
-// The previous per-member rule (skip wrap iff member is noop on both
-// halves) was fragile: the decoder used a runtime heuristic
-// (`Array.isArray + length === 2 + typeof v[0] === 'number'`) to
-// distinguish wrapped from raw values, which silently corrupted union
-// members whose raw form happened to look like the envelope —
-// `number[] | Date` with `[5, 7]`, `[number, string] | Date` with
-// `[5, "hi"]`, and so on. The all-or-nothing rule lets the decoder
-// always know at compile time whether the union round-trips raw
-// (every member is JSON-compatible) or always unwraps the envelope
-// (any member is non-compatible).
-//
-// Routes through `isJsonCompatible` so the wrap decision is a pure
-// property of the member types, not of the emitter's compiled output.
-// Trade-off: arrays/tuples whose elements are JSON-compatible
-// (string[], number[], …) now always get wrapped when their union has
-// any non-compatible sibling. Encode does one extra allocation per
-// call for those values; decode loses its shape-gate cost.
-// Correctness wins over the small encode perf.
-func unionNeedsTuple(children []*protocol.RunType, ctx *EmitContext) bool {
-	for _, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		if !isJsonCompatible(member, ctx) {
-			return true
-		}
-	}
-	return false
-}
-
 // unionMemberIsTypeCheck returns a JS expression that checks whether
 // the current value (`v`) satisfies `member`'s type. Mirrors mion's
 // `getChildIsTypeWithLooseCheck` (union.ts:56) — the union's dispatch
@@ -668,86 +635,6 @@ func looseCheckGate(member *protocol.RunType, ctx *EmitContext, v string) string
 	}
 	parts = append(parts, "Object.keys("+v+").length === 0")
 	return "(" + strings.Join(parts, " || ") + ")"
-}
-
-// emitUnionPrepareForJson mirrors mion's
-// nodes/collection/union.ts:emitPrepareForJson. For each member (in
-// safe-union order when available, otherwise declaration order):
-//
-//   - Get the isType check expression — object-like kinds get an extra
-//     `typeof v === 'object' && v !== null &&` null guard
-//   - Compile the member's prepareForJson code via the walker (inline
-//     or dep-call, depending on inlining)
-//   - Wrap the result with `v = [memberIndex, v]` IFF either half of
-//     the round-trip is non-noop. Members that are noop on both
-//     halves pass through unwrapped; the decode's tuple-shape check
-//     distinguishes them
-//
-// Final clause throws on unmatched value — same as mion. Returns empty
-// CodeS when every member is noop on both halves (the whole union is
-// identity).
-func emitUnionPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	children := rt.SafeUnionChildren
-	if len(children) == 0 {
-		children = rt.Children
-	}
-	if len(children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-
-	// All-or-nothing tuple-wrap decision. See unionNeedsTuple's comment
-	// for the rationale — the per-member rule is fragile because the
-	// decoder needs a runtime heuristic to distinguish wrapped from raw,
-	// and that heuristic mis-fires on legitimate values whose raw form
-	// matches the envelope shape.
-	needsTuple := unionNeedsTuple(children, ctx)
-
-	// Build the if/else chain.
-	var clauses []string
-	for i, childRef := range children {
-		member := ctx.ResolveRef(childRef)
-		if member == nil {
-			continue
-		}
-		// Compile the member's prepare code (inline or dep-call).
-		prepareJit := ctx.CompileChild(childRef, CodeS)
-		// The isType discriminator.
-		isTypeExpr := unionMemberIsTypeCheck(member, ctx, v)
-		guard := isTypeExpr
-		if isObjectLikeKind(member.Kind) {
-			// Object-shape members need a null guard before the deeper
-			// isType walk so a `null` input doesn't crash on property
-			// access (mirrors mion's split between simpleItems and
-			// objectTypes in getUnionChildren).
-			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
-		}
-
-		body := prepareJit.Code
-		if body != "" {
-			body = strings.TrimSpace(body)
-			if !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
-				body += ";"
-			}
-		}
-		if needsTuple {
-			body += v + " = [" + strconv.Itoa(i) + ", " + v + "]"
-		}
-
-		clause := "if (" + guard + ") {" + body + "}"
-		if len(clauses) > 0 {
-			clause = " else " + clause
-		}
-		clauses = append(clauses, clause)
-	}
-
-	// Trailing throw for an unmatched input — every union sample MUST
-	// satisfy at least one member, otherwise it's a contract violation.
-	errVar := ctx.NextLocalVar("uErr")
-	if !ctx.HasContextItem(errVar) {
-		ctx.SetContextItem(errVar, "const "+errVar+" = 'Can not json encode union: item does not belong to the union'")
-	}
-	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return JitCode{Code: strings.Join(clauses, ""), Type: CodeS}
 }
 
 // emitNativeIterablePrepareForJson handles Map / Set — mirrors mion's

@@ -30,12 +30,8 @@ import {
   type UnknownKeyErrorsFn,
   type UnknownKeysToUndefinedFn,
   type PrepareForJsonFn,
-  type PrepareForJsonFlatFn,
-  type PrepareForJsonSafeFn,
   type RestoreFromJsonFn,
-  type RestoreFromJsonFlatFn,
   type StringifyJsonFn,
-  type StringifyJsonFlatFn,
 } from '@mionjs/ts-go-run-types';
 import {buildFactoryFromCode} from '../../src/jit/restoreJitFns.ts';
 import type {AnyFn, JitCompiledFn} from '../../src/jit/types.ts';
@@ -121,38 +117,14 @@ export const deserializePrepareForJson = deserializeJitFunction<PrepareForJsonFn
   identityValueFn
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFn;
 
-export const deserializePrepareForJsonFlat = deserializeJitFunction<PrepareForJsonFlatFn>(
-  'deserializePrepareForJsonFlat',
-  'pjf',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFlatFn;
-
-export const deserializePrepareForJsonSafe = deserializeJitFunction<PrepareForJsonSafeFn>(
-  'deserializePrepareForJsonSafe',
-  'pjs',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonSafeFn;
-
 export const deserializeRestoreFromJson = deserializeJitFunction<RestoreFromJsonFn>(
   'deserializeRestoreFromJson',
   'rj',
   identityValueFn
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFn;
 
-export const deserializeRestoreFromJsonFlat = deserializeJitFunction<RestoreFromJsonFlatFn>(
-  'deserializeRestoreFromJsonFlat',
-  'rjf',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFlatFn;
-
 export const deserializeStringifyJson = deserializeJitFunction<StringifyJsonFn>(
   'deserializeStringifyJson',
   'sj',
   stringifyJsonIdentity
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => StringifyJsonFn;
-
-export const deserializeStringifyJsonFlat = deserializeJitFunction<StringifyJsonFlatFn>(
-  'deserializeStringifyJsonFlat',
-  'sjf',
-  stringifyJsonIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => StringifyJsonFlatFn;

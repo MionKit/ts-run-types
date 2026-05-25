@@ -5,16 +5,16 @@
 // mirrors it line-for-line where the structure lines up), benching the
 // six JSON serialiser APIs the suite exposes:
 //
-//   unsafe / unsafe_flat — prepareForJson + JSON.stringify
-//   safe   / safe_flat   — stringifyJson
-//   decode / decode_flat — JSON.parse + restoreFromJson
+//   unsafe — prepareForJson + JSON.stringify
+//   safe   — stringifyJson
+//   decode — JSON.parse + restoreFromJson
 //
 // For each (case, api):
 //   - Runtime phase: pre-allocate a pool of fresh sample values by
 //     calling case.getTestData() outside the timed loop, then time
 //     `cycles * iters` calls into the api fn over the pool. Decode APIs
 //     additionally pre-encode each pool entry once (non-flat decode uses
-//     the non-flat stringify, decode_flat uses stringifyJsonFlat) so the
+//     the canonical stringifyJson) so the
 //     timed loop measures pure parse + restore.
 //   - Compile phase: spawn a dedicated serverMode ResolverClient,
 //     synthesise a .ts file wrapping the case body around the right
@@ -42,29 +42,16 @@ const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/serialization-suite.md');
 const IDENTIFIER = 'SERIALIZATION_SPEC';
-const FN_FIELDS = [
-  'prepareForJson',
-  'stringifyJson',
-  'restoreFromJson',
-  'prepareForJsonFlat',
-  'stringifyJsonFlat',
-  'restoreFromJsonFlat',
-  'prepareForJsonSafe',
-];
+const FN_FIELDS = ['prepareForJson', 'stringifyJson', 'restoreFromJson'];
 
-// One API descriptor per measured surface. `family` keys ops/sec back to
-// non-flat vs flat so the markdown rendering can compute speedups.
+// One API descriptor per measured surface. After the non-flat / safe
+// removal there's a single JSON encode/stringify/decode family; the
+// `family` field is retained for the markdown renderer but always
+// `'baseline'` now.
 const APIS = [
   {key: 'unsafe', family: 'baseline', kind: 'encode', factory: 'prepareForJson', cacheKind: 'prepareForJson'},
   {key: 'safe', family: 'baseline', kind: 'stringify', factory: 'stringifyJson', cacheKind: 'stringifyJson'},
   {key: 'decode', family: 'baseline', kind: 'decode', factory: 'restoreFromJson', cacheKind: 'restoreFromJson'},
-  {key: 'unsafe_flat', family: 'flat', kind: 'encode', factory: 'prepareForJsonFlat', cacheKind: 'prepareForJsonFlat'},
-  {key: 'safe_flat', family: 'flat', kind: 'stringify', factory: 'stringifyJsonFlat', cacheKind: 'stringifyJsonFlat'},
-  {key: 'decode_flat', family: 'flat', kind: 'decode', factory: 'restoreFromJsonFlat', cacheKind: 'restoreFromJsonFlat'},
-  // Safe-encode family — non-mutating sibling of `unsafe` (prepareForJson),
-  // strips extras. Measured as `prepareForJsonSafe(v) + JSON.stringify`
-  // so it competes head-to-head with the unsafe encode pipeline.
-  {key: 'safe_clone', family: 'safe', kind: 'encode', factory: 'prepareForJsonSafe', cacheKind: 'prepareForJsonSafe'},
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
@@ -88,17 +75,9 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type PrepareForJsonFn = (v: unknown) => unknown;
   export type RestoreFromJsonFn = (v: unknown) => unknown;
   export type StringifyJsonFn = (v: unknown) => string | undefined;
-  export type PrepareForJsonFlatFn = PrepareForJsonFn;
-  export type RestoreFromJsonFlatFn = RestoreFromJsonFn;
-  export type StringifyJsonFlatFn = StringifyJsonFn;
   export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn;
   export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn;
   export function createStringifyJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): StringifyJsonFn;
-  export function createPrepareForJsonFlat<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFlatFn;
-  export function createRestoreFromJsonFlat<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFlatFn;
-  export function createStringifyJsonFlat<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): StringifyJsonFlatFn;
-  export type PrepareForJsonSafeFn = PrepareForJsonFn;
-  export function createPrepareForJsonSafe<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonSafeFn;
   export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn;
   export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn;
 }
@@ -378,8 +357,7 @@ function benchOneApi(caseObj, api) {
   if (caseObj.safeAdapterStringifyJsonNotParseable) return null;
   let encodedPool;
   try {
-    const stringifyFactory = api.key === 'decode_flat' ? caseObj.stringifyJsonFlat : caseObj.stringifyJson;
-    const stringify = stringifyFactory();
+    const stringify = caseObj.stringifyJson();
     // Build a fresh encode pool so stringify sees clean values (some
     // safe-path inputs mutate after JSON.stringify in the unsafe family;
     // belt-and-braces).
@@ -490,7 +468,7 @@ async function runCompilePhase(metrics, bodies) {
 // Wraps the extracted factory body in an arrow probe + the matching
 // create* import. Mirrors validation-suite.mjs's buildSynthetic shape.
 function buildSynthetic(body, factory) {
-  return `import {${factory.replace(/^create/, 'create')}, createPrepareForJson, createPrepareForJsonFlat, createStringifyJson, createStringifyJsonFlat, createRestoreFromJson, createRestoreFromJsonFlat} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
+  return `import {${factory.replace(/^create/, 'create')}, createPrepareForJson, createStringifyJson, createRestoreFromJson} from '@mionjs/ts-go-run-types';\nconst _probe = () => {\n${body}\n};\n`;
 }
 
 function safe(s) {
@@ -517,35 +495,21 @@ function renderMarkdown(out) {
     lines.push('<thead><tr>');
     lines.push('<th>title</th>');
     lines.push('<th align="right">unsafe ops/sec</th>');
-    lines.push('<th align="right">unsafe_flat</th>');
-    lines.push('<th align="right">×</th>');
-    lines.push('<th align="right">safe_clone</th>');
-    lines.push('<th align="right">×/unsafe</th>');
     lines.push('<th align="right">safe ops/sec</th>');
     lines.push('<th align="right">×/unsafe</th>');
     lines.push('<th align="right">decode ops/sec</th>');
-    lines.push('<th align="right">decode_flat</th>');
-    lines.push('<th align="right">×</th>');
     lines.push('</tr></thead>');
     lines.push('<tbody>');
     for (const [caseKey, record] of Object.entries(cases)) {
       const title = record.title ?? caseKey;
       const m = record.metrics ?? {};
       const cells = [];
-      // Group 1: unsafe vs unsafe_flat.
       const unsafe = m.unsafe?.opsPerSec?.mean ?? null;
-      const unsafeFlat = m.unsafe_flat?.opsPerSec?.mean ?? null;
-      cells.push(fmtNum(unsafe), fmtNum(unsafeFlat), fmtRatio(unsafe && unsafeFlat ? unsafeFlat / unsafe : null));
-      // Group 2: safe_clone (new) vs unsafe.
-      const safeClone = m.safe_clone?.opsPerSec?.mean ?? null;
-      cells.push(fmtNum(safeClone), fmtRatio(unsafe && safeClone ? safeClone / unsafe : null));
-      // Group 3: safe (stringifyJson) vs unsafe.
+      cells.push(fmtNum(unsafe));
       const safe = m.safe?.opsPerSec?.mean ?? null;
       cells.push(fmtNum(safe), fmtRatio(unsafe && safe ? safe / unsafe : null));
-      // Group 4: decode vs decode_flat.
       const decode = m.decode?.opsPerSec?.mean ?? null;
-      const decodeFlat = m.decode_flat?.opsPerSec?.mean ?? null;
-      cells.push(fmtNum(decode), fmtNum(decodeFlat), fmtRatio(decode && decodeFlat ? decodeFlat / decode : null));
+      cells.push(fmtNum(decode));
       lines.push('<tr>');
       lines.push(`<td>${htmlEscape(title)}</td>`);
       for (const c of cells) lines.push(`<td align="right">${c}</td>`);

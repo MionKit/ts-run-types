@@ -66,19 +66,19 @@ func renderModule(t *testing.T, dump protocol.Dump, fn func(*bytes.Buffer, proto
 	return buf.String()
 }
 
-// TestPrepareForJsonFlatModule_ObjectUnionMergesProps — the rendered
+// TestPrepareForJsonModule_ObjectUnionMergesProps — the rendered
 // flat-prepare factory for `{a:bigint;b:Date} | {c:number;d:string}` MUST
 // emit a single object branch that walks every merged property and
 // wraps with `[-1, v]`. The factory MUST NOT emit per-member isType
 // dispatch for the object members (the whole point of the optimisation).
-func TestPrepareForJsonFlatModule_ObjectUnionMergesProps(t *testing.T) {
+func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonFlatModule(w, d)
+		return PrepareForJsonModule(w, d)
 	})
 
-	if !strings.Contains(out, "g_pjf_uni") {
-		t.Fatalf("expected the flat-union factory g_pjf_uni in rendered module:\n%s", out)
+	if !strings.Contains(out, "g_pj_uni") {
+		t.Fatalf("expected the prepareForJson union factory g_pj_uni in rendered module:\n%s", out)
 	}
 	if !strings.Contains(out, "[-1, v]") {
 		t.Errorf("expected `[-1, v]` envelope in object branch; got:\n%s", out)
@@ -98,16 +98,16 @@ func TestPrepareForJsonFlatModule_ObjectUnionMergesProps(t *testing.T) {
 	}
 }
 
-// TestRestoreFromJsonFlatModule_ObjectUnionDecodesFlat — the rendered
+// TestRestoreFromJsonModule_ObjectUnionDecodesFlat — the rendered
 // flat-restore factory unconditionally unwraps the `[idx, value]`
 // envelope (no runtime shape gate) and dispatches via `idx === -1` for
 // the merged-object branch. Under the all-or-nothing wrap rule the
 // decoder knows the wire shape at compile time so the fragile
 // length-2 + typeof-number heuristic is gone.
-func TestRestoreFromJsonFlatModule_ObjectUnionDecodesFlat(t *testing.T) {
+func TestRestoreFromJsonModule_ObjectUnionDecodesFlat(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return RestoreFromJsonFlatModule(w, d)
+		return RestoreFromJsonModule(w, d)
 	})
 
 	if strings.Contains(out, "Array.isArray(v) && v.length === 2 && typeof v[0] === 'number'") {
@@ -127,17 +127,17 @@ func TestRestoreFromJsonFlatModule_ObjectUnionDecodesFlat(t *testing.T) {
 	}
 }
 
-// TestStringifyJsonFlatModule_ObjectUnionEmitsFlatEnvelope — the
+// TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope — the
 // rendered flat-stringify factory MUST emit the `'[-1,'+…+']'` envelope
 // for the object branch. The fixture has two disjoint members
 // `{a:bigint; b:Date} | {c:number; d:string}` — no shared properties,
 // so every merged prop is optional from the union's perspective. The
 // emit uses the slice(1) trick to strip the leading comma after
 // conditional concat (one comma is prepended per populated branch).
-func TestStringifyJsonFlatModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
+func TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return StringifyJsonFlatModule(w, d)
+		return StringifyJsonModule(w, d)
 	})
 
 	if !strings.Contains(out, "'[-1,'") {
@@ -151,14 +151,14 @@ func TestStringifyJsonFlatModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	}
 }
 
-// TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard — when
+// TestStringifyJsonModule_RequiredPropsSkipUndefinedGuard — when
 // every union member declares the same set of non-optional properties,
 // the merged emit must omit the per-property `=== undefined` guard. The
 // fixture is a 3-member union `{discriminator:'a';name:string;date:Date}
 // | …'b' | …'c'` where every prop is shared and required; the emit
 // should collapse to flat string concat matching the non-flat
 // per-member factory shape.
-func TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
+func TestStringifyJsonModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	date := &protocol.RunType{ID: "dat", Kind: protocol.KindClass, SubKind: protocol.SubKindDate}
 	litA := &protocol.RunType{ID: "litA", Kind: protocol.KindLiteral, Literal: "a"}
@@ -188,7 +188,7 @@ func TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
 		obA, obB, obC, union,
 	}}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return StringifyJsonFlatModule(w, d)
+		return StringifyJsonModule(w, d)
 	})
 
 	// No per-property undefined guard in the union root's emit — every
@@ -210,14 +210,14 @@ func TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
 	}
 }
 
-// TestPrepareForJsonFlatModule_MixedUnionWrapsEveryMember — for
+// TestPrepareForJsonModule_MixedUnionWrapsEveryMember — for
 // `string | {a:bigint}` the all-or-nothing wrap rule kicks in: an
 // object branch is present, so the decoder must unconditionally
 // unwrap, which forces the atomic string member to wrap too even
 // though it's noop on both halves. Previously the per-member rule
 // skipped the string wrap, but that left the decoder relying on a
 // fragile shape gate to distinguish wrapped from raw values.
-func TestPrepareForJsonFlatModule_MixedUnionWrapsEveryMember(t *testing.T) {
+func TestPrepareForJsonModule_MixedUnionWrapsEveryMember(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	bigint := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
 	propA := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("big")}
@@ -232,7 +232,7 @@ func TestPrepareForJsonFlatModule_MixedUnionWrapsEveryMember(t *testing.T) {
 	}
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{str, bigint, propA, obj, union}}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonFlatModule(w, d)
+		return PrepareForJsonModule(w, d)
 	})
 
 	// Object branch exists so string member MUST wrap too — every
@@ -250,12 +250,12 @@ func TestPrepareForJsonFlatModule_MixedUnionWrapsEveryMember(t *testing.T) {
 	}
 }
 
-// TestPrepareForJsonFlatModule_ConflictingPropSynthesizesSubUnion — when
+// TestPrepareForJsonModule_ConflictingPropSynthesizesSubUnion — when
 // two object members share a property name with different JSON
 // transforms ({a: bigint} | {a: Date}), the merged-prop encoder MUST
 // emit an inline isType dispatch + `[subIdx, value]` wrap on `v.a` so
 // the decoder can distinguish them.
-func TestPrepareForJsonFlatModule_ConflictingPropSynthesizesSubUnion(t *testing.T) {
+func TestPrepareForJsonModule_ConflictingPropSynthesizesSubUnion(t *testing.T) {
 	bigint := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
 	date := &protocol.RunType{ID: "dat", Kind: protocol.KindClass, SubKind: protocol.SubKindDate}
 	propABig := &protocol.RunType{ID: "pab", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("big")}
@@ -269,7 +269,7 @@ func TestPrepareForJsonFlatModule_ConflictingPropSynthesizesSubUnion(t *testing.
 	}
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{bigint, date, propABig, propADat, obj1, obj2, union}}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonFlatModule(w, d)
+		return PrepareForJsonModule(w, d)
 	})
 
 	if !strings.Contains(out, "v.a = [0, v.a]") {
