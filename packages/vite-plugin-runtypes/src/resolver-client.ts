@@ -104,10 +104,6 @@ export interface ScanFilesResult {
   prepareForJsonCacheSource?: string;
   restoreFromJsonCacheSource?: string;
   stringifyJsonCacheSource?: string;
-  prepareForJsonFlatCacheSource?: string;
-  restoreFromJsonFlatCacheSource?: string;
-  stringifyJsonFlatCacheSource?: string;
-  prepareForJsonSafeCacheSource?: string;
   hasUnknownKeysCacheSource?: string;
   stripUnknownKeysCacheSource?: string;
   unknownKeyErrorsCacheSource?: string;
@@ -122,10 +118,6 @@ export interface ScanFilesResult {
   addedPrepareForJson?: boolean;
   addedRestoreFromJson?: boolean;
   addedStringifyJson?: boolean;
-  addedPrepareForJsonFlat?: boolean;
-  addedRestoreFromJsonFlat?: boolean;
-  addedStringifyJsonFlat?: boolean;
-  addedPrepareForJsonSafe?: boolean;
   addedHasUnknownKeys?: boolean;
   addedStripUnknownKeys?: boolean;
   addedUnknownKeyErrors?: boolean;
@@ -177,10 +169,6 @@ abstract class ResolverClientBase implements ResolverConnection {
       prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
       restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
       stringifyJsonCacheSource: resp.stringifyJsonCacheSource,
-      prepareForJsonFlatCacheSource: resp.prepareForJsonFlatCacheSource,
-      restoreFromJsonFlatCacheSource: resp.restoreFromJsonFlatCacheSource,
-      stringifyJsonFlatCacheSource: resp.stringifyJsonFlatCacheSource,
-      prepareForJsonSafeCacheSource: resp.prepareForJsonSafeCacheSource,
       hasUnknownKeysCacheSource: resp.hasUnknownKeysCacheSource,
       stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
       unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,
@@ -194,10 +182,6 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedPrepareForJson: resp.addedPrepareForJson,
       addedRestoreFromJson: resp.addedRestoreFromJson,
       addedStringifyJson: resp.addedStringifyJson,
-      addedPrepareForJsonFlat: resp.addedPrepareForJsonFlat,
-      addedRestoreFromJsonFlat: resp.addedRestoreFromJsonFlat,
-      addedStringifyJsonFlat: resp.addedStringifyJsonFlat,
-      addedPrepareForJsonSafe: resp.addedPrepareForJsonSafe,
       addedHasUnknownKeys: resp.addedHasUnknownKeys,
       addedStripUnknownKeys: resp.addedStripUnknownKeys,
       addedUnknownKeyErrors: resp.addedUnknownKeyErrors,

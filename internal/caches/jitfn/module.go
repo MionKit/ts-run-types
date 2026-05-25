@@ -39,17 +39,17 @@ func TypeErrorsModule(writer io.Writer, dump protocol.Dump) error {
 }
 
 // PrepareForJsonModule writes the runtime artifact for the prepareForJson
-// cache module — half of the JSON serializer/deserializer pair. Same
-// structure as IsTypeModule with the PrepareForJsonEmitter and its
-// dedicated skeleton.
+// cache module — the JSON encoder half of the round-trip pair. Unions
+// emit the flat wire shape (object members merge into a single
+// `[-1, mergedObject]` envelope; see union_flat.go).
 func PrepareForJsonModule(writer io.Writer, dump protocol.Dump) error {
 	settings := constants.CacheModules["prepareForJson"]
 	return RenderFnModule(writer, dump, settings, PrepareForJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJson)
 }
 
 // RestoreFromJsonModule writes the runtime artifact for the
-// restoreFromJson cache module — paired with PrepareForJsonModule.
-// The round-trip
+// restoreFromJson cache module — the decode-side counterpart to
+// PrepareForJsonModule. Round-trip
 // `restoreFromJson(JSON.parse(JSON.stringify(prepareForJson(v))))`
 // must deep-equal v for every supported runtype.
 func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump) error {
@@ -57,49 +57,13 @@ func RestoreFromJsonModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, RestoreFromJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJson)
 }
 
-// StringifyJsonModule writes the runtime artifact for the
-// stringifyJson cache module — mion's single-pass JSON serialiser
-// that builds the output string directly from the type. Output is
-// observably equivalent to JSON.stringify(prepareForJson(v))
-// modulo property order and the no-mutation contract on `v`.
+// StringifyJsonModule writes the runtime artifact for the stringifyJson
+// cache module — mion's single-pass JSON serialiser that builds the
+// output string directly from the type, without mutating `v` and
+// stripping extras by construction.
 func StringifyJsonModule(writer io.Writer, dump protocol.Dump) error {
 	settings := constants.CacheModules["stringifyJson"]
 	return RenderFnModule(writer, dump, settings, StringifyJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJson)
-}
-
-// PrepareForJsonFlatModule writes the runtime artifact for the
-// prepareForJsonFlat cache module — the optimised sibling of
-// PrepareForJsonModule. Same per-kind dispatch except for KindUnion,
-// which encodes object members into a merged `[-1, mergedObject]`
-// envelope (see union_flat.go).
-func PrepareForJsonFlatModule(writer io.Writer, dump protocol.Dump) error {
-	settings := constants.CacheModules["prepareForJsonFlat"]
-	return RenderFnModule(writer, dump, settings, PrepareForJsonFlatEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonFlat)
-}
-
-// RestoreFromJsonFlatModule — sibling of RestoreFromJsonModule;
-// decodes the wire shape produced by PrepareForJsonFlatModule /
-// StringifyJsonFlatModule.
-func RestoreFromJsonFlatModule(writer io.Writer, dump protocol.Dump) error {
-	settings := constants.CacheModules["restoreFromJsonFlat"]
-	return RenderFnModule(writer, dump, settings, RestoreFromJsonFlatEmitter{}, innerPrefix(settings), cachetpl.SkeletonRestoreFromJsonFlat)
-}
-
-// StringifyJsonFlatModule — sibling of StringifyJsonModule; emits the
-// JSON for the flat-union wire shape directly.
-func StringifyJsonFlatModule(writer io.Writer, dump protocol.Dump) error {
-	settings := constants.CacheModules["stringifyJsonFlat"]
-	return RenderFnModule(writer, dump, settings, StringifyJsonFlatEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJsonFlat)
-}
-
-// PrepareForJsonSafeModule writes the runtime artifact for the
-// prepareForJsonSafe cache module — non-mutating sibling of
-// PrepareForJsonModule. Returns a new value containing only declared
-// keys + transformed leaves; pairs with the existing
-// RestoreFromJsonModule on the decode side.
-func PrepareForJsonSafeModule(writer io.Writer, dump protocol.Dump) error {
-	settings := constants.CacheModules["prepareForJsonSafe"]
-	return RenderFnModule(writer, dump, settings, PrepareForJsonSafeEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafe)
 }
 
 // HasUnknownKeysModule writes the runtime artifact for the

@@ -12,14 +12,10 @@ export const CACHE_MODULES = {
   hasUnknownKeys: {name: "hasUnknownKeysModule", varPrefix: "g_huk_", tag: "huk"},
   isType: {name: "isTypeModule", varPrefix: "g_it_", tag: "it"},
   prepareForJson: {name: "prepareForJsonModule", varPrefix: "g_pj_", tag: "pj"},
-  prepareForJsonFlat: {name: "prepareForJsonFlatModule", varPrefix: "g_pjf_", tag: "pjf"},
-  prepareForJsonSafe: {name: "prepareForJsonSafeModule", varPrefix: "g_pjs_", tag: "pjs"},
   pureFns: {name: "pureFnsModule", varPrefix: "", tag: ""},
   restoreFromJson: {name: "restoreFromJsonModule", varPrefix: "g_rj_", tag: "rj"},
-  restoreFromJsonFlat: {name: "restoreFromJsonFlatModule", varPrefix: "g_rjf_", tag: "rjf"},
   runTypes: {name: "runTypesModule", varPrefix: "t_", tag: "t"},
   stringifyJson: {name: "stringifyJsonModule", varPrefix: "g_sj_", tag: "sj"},
-  stringifyJsonFlat: {name: "stringifyJsonFlatModule", varPrefix: "g_sjf_", tag: "sjf"},
   stripUnknownKeys: {name: "stripUnknownKeysModule", varPrefix: "g_suk_", tag: "suk"},
   typeErrors: {name: "typeErrorsModule", varPrefix: "g_te_", tag: "te"},
   unknownKeyErrors: {name: "unknownKeyErrorsModule", varPrefix: "g_uke_", tag: "uke"},
@@ -35,30 +31,18 @@ export const ISTYPE_TAG = "it";
 export const PREPAREFORJSON_VAR_PREFIX = "g_pj_";
 export const PREPAREFORJSON_MODULE_NAME = "prepareForJsonModule";
 export const PREPAREFORJSON_TAG = "pj";
-export const PREPAREFORJSONFLAT_VAR_PREFIX = "g_pjf_";
-export const PREPAREFORJSONFLAT_MODULE_NAME = "prepareForJsonFlatModule";
-export const PREPAREFORJSONFLAT_TAG = "pjf";
-export const PREPAREFORJSONSAFE_VAR_PREFIX = "g_pjs_";
-export const PREPAREFORJSONSAFE_MODULE_NAME = "prepareForJsonSafeModule";
-export const PREPAREFORJSONSAFE_TAG = "pjs";
 export const PUREFNS_VAR_PREFIX = "";
 export const PUREFNS_MODULE_NAME = "pureFnsModule";
 export const PUREFNS_TAG = "";
 export const RESTOREFROMJSON_VAR_PREFIX = "g_rj_";
 export const RESTOREFROMJSON_MODULE_NAME = "restoreFromJsonModule";
 export const RESTOREFROMJSON_TAG = "rj";
-export const RESTOREFROMJSONFLAT_VAR_PREFIX = "g_rjf_";
-export const RESTOREFROMJSONFLAT_MODULE_NAME = "restoreFromJsonFlatModule";
-export const RESTOREFROMJSONFLAT_TAG = "rjf";
 export const RUNTYPES_VAR_PREFIX = "t_";
 export const RUNTYPES_MODULE_NAME = "runTypesModule";
 export const RUNTYPES_TAG = "t";
 export const STRINGIFYJSON_VAR_PREFIX = "g_sj_";
 export const STRINGIFYJSON_MODULE_NAME = "stringifyJsonModule";
 export const STRINGIFYJSON_TAG = "sj";
-export const STRINGIFYJSONFLAT_VAR_PREFIX = "g_sjf_";
-export const STRINGIFYJSONFLAT_MODULE_NAME = "stringifyJsonFlatModule";
-export const STRINGIFYJSONFLAT_TAG = "sjf";
 export const STRIPUNKNOWNKEYS_VAR_PREFIX = "g_suk_";
 export const STRIPUNKNOWNKEYS_MODULE_NAME = "stripUnknownKeysModule";
 export const STRIPUNKNOWNKEYS_TAG = "suk";

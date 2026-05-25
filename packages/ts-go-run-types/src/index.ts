@@ -125,18 +125,6 @@ export {
   type RestoreFromJsonFn,
   createStringifyJson,
   type StringifyJsonFn,
-  // Optimised flat-union family — wire shape diverges from the non-flat
-  // siblings ONLY at union boundaries (object members merged into a
-  // `[-1, mergedObject]` envelope). Pair Prepare/Restore/Stringify Flat.
-  createPrepareForJsonFlat,
-  type PrepareForJsonFlatFn,
-  createRestoreFromJsonFlat,
-  type RestoreFromJsonFlatFn,
-  createStringifyJsonFlat,
-  type StringifyJsonFlatFn,
-  // Non-mutating sibling of createPrepareForJson.
-  createPrepareForJsonSafe,
-  type PrepareForJsonSafeFn,
   createHasUnknownKeys,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,

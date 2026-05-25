@@ -79,37 +79,6 @@ func renderStringifyJsonModule(dump protocol.Dump) (string, error) {
 	})
 }
 
-// renderPrepareForJsonFlatModule emits the prepareForJsonFlat cache
-// module — optimised sibling of renderPrepareForJsonModule. Backed by
-// jitfn.PrepareForJsonFlatEmitter.
-func renderPrepareForJsonFlatModule(dump protocol.Dump) (string, error) {
-	return renderToString("renderPrepareForJsonFlatModule", func(w io.Writer) error {
-		return jitfn.PrepareForJsonFlatModule(w, dump)
-	})
-}
-
-// renderRestoreFromJsonFlatModule — sibling of renderRestoreFromJsonModule.
-func renderRestoreFromJsonFlatModule(dump protocol.Dump) (string, error) {
-	return renderToString("renderRestoreFromJsonFlatModule", func(w io.Writer) error {
-		return jitfn.RestoreFromJsonFlatModule(w, dump)
-	})
-}
-
-// renderStringifyJsonFlatModule — sibling of renderStringifyJsonModule.
-func renderStringifyJsonFlatModule(dump protocol.Dump) (string, error) {
-	return renderToString("renderStringifyJsonFlatModule", func(w io.Writer) error {
-		return jitfn.StringifyJsonFlatModule(w, dump)
-	})
-}
-
-// renderPrepareForJsonSafeModule emits the prepareForJsonSafe cache
-// module — non-mutating sibling of renderPrepareForJsonModule.
-func renderPrepareForJsonSafeModule(dump protocol.Dump) (string, error) {
-	return renderToString("renderPrepareForJsonSafeModule", func(w io.Writer) error {
-		return jitfn.PrepareForJsonSafeModule(w, dump)
-	})
-}
-
 // renderHasUnknownKeysModule emits the hasUnknownKeys cache module —
 // boolean predicate per mion's emitHasUnknownKeys (returns true when
 // the value has properties outside the schema). Backed by
