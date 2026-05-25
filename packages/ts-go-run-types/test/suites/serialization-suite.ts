@@ -20,15 +20,7 @@
 // Parameters<typeof fn> and ReturnType<typeof fn> utilities — same
 // type-level slicing, no extra factories required.
 
-import {
-  createPrepareForJson,
-  createRestoreFromJson,
-  createStringifyJson,
-  type PrepareForJsonFn,
-  type RestoreFromJsonFn,
-  type StringifyJsonFn,
-} from '@mionjs/ts-go-run-types';
-import {deserializePrepareForJson, deserializeRestoreFromJson} from '../util/deserializeJitFunctions.ts';
+import {createJsonDecoder, createJsonEncoder, type JsonDecoderFn, type JsonEncoderFn} from '@mionjs/ts-go-run-types';
 
 // ========================================================================
 // SERIALIZATION_SPEC — single source of truth for the round-trip cases.
@@ -45,30 +37,35 @@ export interface SerializationCase {
   title: string;
   description?: string;
 
-  // Round-trip thunks. Static is required; the deserialize/restore
-  // variant is optional. Reflect-marker resolution is exercised by the
-  // validation-suite adapters (isType / getTypeErrors), so the
-  // serialization suite covers only the static (and deserialize) form.
-  prepareForJson: () => PrepareForJsonFn;
-  deserializePrepareForJson?: () => PrepareForJsonFn;
-  /** stringifyJson factory — single-pass serialiser ported from
-   *  mion's stringifyJson JIT family. Same T as `prepareForJson`;
-   *  the merged adapter drives the safe-mode loop with this. **/
-  stringifyJson: () => StringifyJsonFn;
+  /** Encoder thunks. `safeEncoder` builds `createJsonEncoder<T>()`
+   *  (default mode `'safe'`, single-pass stringifyJson — no mutation,
+   *  undeclared keys stripped). `unsafeEncoder` builds
+   *  `createJsonEncoder<T>(undefined, {mode: 'unsafe'})` (composes
+   *  prepareForJson + JSON.stringify — mutates v, lets extras leak). **/
+  safeEncoder: () => JsonEncoderFn;
+  unsafeEncoder: () => JsonEncoderFn;
 
   /** Safe-mode only: when set, the case's input produces a JSON string
-   *  that is not parseable by `JSON.parse` — e.g. number-at-root
-   *  with `Infinity` (mion's `String(Infinity)` = `"Infinity"`).
-   *  Mirrors mion's number-not-supported spec, which accepts either
-   *  a throw OR a non-matching round-trip as a "value not supported
-   *  by JSON" signal. The safe loop asserts the parse-throws instead
-   *  of a deep-equal round-trip. The unsafe loop ignores this flag —
-   *  on that path `JSON.stringify(Infinity)` returns `"null"` (not a
+   *  that is not parseable by `JSON.parse` — e.g. number-at-root with
+   *  `Infinity` (mion's `String(Infinity)` = `"Infinity"`). Mirrors
+   *  mion's number-not-supported spec, which accepts either a throw OR
+   *  a non-matching round-trip as a "value not supported by JSON"
+   *  signal. The safe loop asserts the parse-throws instead of a
+   *  deep-equal round-trip. The unsafe loop ignores this flag — on
+   *  that path `JSON.stringify(Infinity)` returns `"null"` (not a
    *  throw) and the case's own `deserializedValues` already handles
    *  the round-trip. **/
   safeAdapterStringifyJsonNotParseable?: boolean;
-  restoreFromJson: () => RestoreFromJsonFn;
-  deserializeRestoreFromJson?: () => RestoreFromJsonFn;
+
+  /** Decoder thunks. `safeDecoder` builds `createJsonDecoder<T>()`
+   *  (default mode `'safe'`: undeclared keys become `undefined` via
+   *  unknownKeysToUndefined before restoreFromJson). `unsafeDecoder`
+   *  builds `createJsonDecoder<T>(undefined, {mode: 'unsafe'})` —
+   *  undeclared keys on the parsed value pass through to the restored
+   *  result untouched. The round-trip adapter pairs each encoder mode
+   *  with its same-mode decoder. **/
+  safeDecoder: () => JsonDecoderFn;
+  unsafeDecoder: () => JsonDecoderFn;
 
   /** Sample values to round-trip via the **unsafe** path
    *  (`prepareForJson + JSON.stringify` / `JSON.parse + restoreFromJson`).
@@ -134,20 +131,18 @@ export const SERIALIZATION_SPEC = {
   ATOMIC: {
     string: {
       title: 'string',
-      prepareForJson: () => createPrepareForJson<string>(),
-      stringifyJson: () => createStringifyJson<string>(),
-      restoreFromJson: () => createRestoreFromJson<string>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string>(),
+      unsafeEncoder: () => createJsonEncoder<string>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<string>(),
+      safeDecoder: () => createJsonDecoder<string>(),
+      unsafeDecoder: () => createJsonDecoder<string>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
     },
     number: {
       title: 'number',
-      prepareForJson: () => createPrepareForJson<number>(),
-      stringifyJson: () => createStringifyJson<number>(),
-      restoreFromJson: () => createRestoreFromJson<number>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<number>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<number>(),
+      unsafeEncoder: () => createJsonEncoder<number>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<number>(),
+      safeDecoder: () => createJsonDecoder<number>(),
+      unsafeDecoder: () => createJsonDecoder<number>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           0,
@@ -168,9 +163,10 @@ export const SERIALIZATION_SPEC = {
     number_not_supported: {
       title: 'number values not supported by all protocols',
       description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
-      prepareForJson: () => createPrepareForJson<number>(),
-      stringifyJson: () => createStringifyJson<number>(),
-      restoreFromJson: () => createRestoreFromJson<number>(),
+      unsafeEncoder: () => createJsonEncoder<number>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<number>(),
+      safeDecoder: () => createJsonDecoder<number>(),
+      unsafeDecoder: () => createJsonDecoder<number>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN],
         // After JSON.stringify(Infinity) === 'null', restore yields null.
@@ -185,38 +181,34 @@ export const SERIALIZATION_SPEC = {
     },
     regexp: {
       title: 'regexp',
-      prepareForJson: () => createPrepareForJson<RegExp>(),
-      stringifyJson: () => createStringifyJson<RegExp>(),
-      restoreFromJson: () => createRestoreFromJson<RegExp>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<RegExp>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<RegExp>(),
+      unsafeEncoder: () => createJsonEncoder<RegExp>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<RegExp>(),
+      safeDecoder: () => createJsonDecoder<RegExp>(),
+      unsafeDecoder: () => createJsonDecoder<RegExp>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [/abc/, /xyz/i, /\d+/g, /^[a-z]+$/]}),
     },
     bigint: {
       title: 'bigint',
-      prepareForJson: () => createPrepareForJson<bigint>(),
-      stringifyJson: () => createStringifyJson<bigint>(),
-      restoreFromJson: () => createRestoreFromJson<bigint>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<bigint>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<bigint>(),
+      unsafeEncoder: () => createJsonEncoder<bigint>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<bigint>(),
+      safeDecoder: () => createJsonDecoder<bigint>(),
+      unsafeDecoder: () => createJsonDecoder<bigint>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [1n]}),
     },
     boolean: {
       title: 'boolean',
-      prepareForJson: () => createPrepareForJson<boolean>(),
-      stringifyJson: () => createStringifyJson<boolean>(),
-      restoreFromJson: () => createRestoreFromJson<boolean>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<boolean>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<boolean>(),
+      unsafeEncoder: () => createJsonEncoder<boolean>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<boolean>(),
+      safeDecoder: () => createJsonDecoder<boolean>(),
+      unsafeDecoder: () => createJsonDecoder<boolean>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [true]}),
     },
     any: {
       title: 'any',
-      prepareForJson: () => createPrepareForJson<any>(),
-      stringifyJson: () => createStringifyJson<any>(),
-      restoreFromJson: () => createRestoreFromJson<any>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<any>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<any>(),
+      unsafeEncoder: () => createJsonEncoder<any>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<any>(),
+      safeDecoder: () => createJsonDecoder<any>(),
+      unsafeDecoder: () => createJsonDecoder<any>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
       getTestData: () => ({values: [42, 'hello', true, null, 0, -1, 1.1, {a: 1, b: 2}, [1, 2, 3, null]]}),
     },
@@ -224,80 +216,70 @@ export const SERIALIZATION_SPEC = {
       title: 'not supported in JSON stringify when any type is used',
       description:
         'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
-      prepareForJson: () => createPrepareForJson<any>(),
-      stringifyJson: () => createStringifyJson<any>(),
-      restoreFromJson: () => createRestoreFromJson<any>(),
+      unsafeEncoder: () => createJsonEncoder<any>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<any>(),
+      safeDecoder: () => createJsonDecoder<any>(),
+      unsafeDecoder: () => createJsonDecoder<any>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
       getTestData: () => ({values: [undefined, [undefined, 123, null], new Date('2000-08-06T02:13:00.000Z'), BigInt(1)]}),
     },
     null: {
       title: 'null',
-      prepareForJson: () => createPrepareForJson<null>(),
-      stringifyJson: () => createStringifyJson<null>(),
-      restoreFromJson: () => createRestoreFromJson<null>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<null>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<null>(),
+      unsafeEncoder: () => createJsonEncoder<null>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<null>(),
+      safeDecoder: () => createJsonDecoder<null>(),
+      unsafeDecoder: () => createJsonDecoder<null>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [null]}),
     },
     undefined: {
       title: 'undefined',
-      prepareForJson: () => createPrepareForJson<undefined>(),
-      stringifyJson: () => createStringifyJson<undefined>(),
-      restoreFromJson: () => createRestoreFromJson<undefined>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<undefined>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<undefined>(),
+      unsafeEncoder: () => createJsonEncoder<undefined>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<undefined>(),
+      safeDecoder: () => createJsonDecoder<undefined>(),
+      unsafeDecoder: () => createJsonDecoder<undefined>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [undefined]}),
     },
     date: {
       title: 'date',
-      prepareForJson: () => createPrepareForJson<Date>(),
-      stringifyJson: () => createStringifyJson<Date>(),
-      restoreFromJson: () => createRestoreFromJson<Date>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Date>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date>(),
+      unsafeEncoder: () => createJsonEncoder<Date>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Date>(),
+      safeDecoder: () => createJsonDecoder<Date>(),
+      unsafeDecoder: () => createJsonDecoder<Date>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     enum_color: {
       title: 'enum',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         enum Color {
           Red = 'red',
           Green = 'green',
           Blue = 'blue',
         }
-        return createPrepareForJson<Color>();
+        return createJsonEncoder<Color>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         enum Color {
           Red = 'red',
           Green = 'green',
           Blue = 'blue',
         }
-        return createStringifyJson<Color>();
+        return createJsonEncoder<Color>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         enum Color {
           Red = 'red',
           Green = 'green',
           Blue = 'blue',
         }
-        return createRestoreFromJson<Color>();
+        return createJsonDecoder<Color>();
       },
-      deserializePrepareForJson: () => {
+      unsafeDecoder: () => {
         enum Color {
           Red = 'red',
           Green = 'green',
           Blue = 'blue',
         }
-        return deserializePrepareForJson<Color>();
-      },
-      deserializeRestoreFromJson: () => {
-        enum Color {
-          Red = 'red',
-          Green = 'green',
-          Blue = 'blue',
-        }
-        return deserializeRestoreFromJson<Color>();
+        return createJsonDecoder<Color>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         enum Color {
@@ -310,81 +292,80 @@ export const SERIALIZATION_SPEC = {
     },
     symbol: {
       title: 'symbol',
-      prepareForJson: () => createPrepareForJson<symbol>(),
-      stringifyJson: () => createStringifyJson<symbol>(),
-      restoreFromJson: () => createRestoreFromJson<symbol>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<symbol>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<symbol>(),
+      unsafeEncoder: () => createJsonEncoder<symbol>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<symbol>(),
+      safeDecoder: () => createJsonDecoder<symbol>(),
+      unsafeDecoder: () => createJsonDecoder<symbol>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [Symbol('foo'), Symbol()]}),
     },
     object: {
       title: 'object',
-      prepareForJson: () => createPrepareForJson<object>(),
-      stringifyJson: () => createStringifyJson<object>(),
-      restoreFromJson: () => createRestoreFromJson<object>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<object>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<object>(),
+      unsafeEncoder: () => createJsonEncoder<object>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<object>(),
+      safeDecoder: () => createJsonDecoder<object>(),
+      unsafeDecoder: () => createJsonDecoder<object>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
       getTestData: () => ({values: [{a: 42, b: 'hello'}, null]}),
     },
     void: {
       title: 'void',
-      prepareForJson: () => createPrepareForJson<void>(),
-      stringifyJson: () => createStringifyJson<void>(),
-      restoreFromJson: () => createRestoreFromJson<void>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<void>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<void>(),
+      unsafeEncoder: () => createJsonEncoder<void>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<void>(),
+      safeDecoder: () => createJsonDecoder<void>(),
+      unsafeDecoder: () => createJsonDecoder<void>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [undefined]}),
     },
     never: {
       title: 'never',
       description: 'never type cannot be JSON-encoded or decoded — invoking the factory throws.',
-      prepareForJson: () => createPrepareForJson<never>(),
-      stringifyJson: () => createStringifyJson<never>(),
-      restoreFromJson: () => createRestoreFromJson<never>(),
+      unsafeEncoder: () => createJsonEncoder<never>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<never>(),
+      safeDecoder: () => createJsonDecoder<never>(),
+      unsafeDecoder: () => createJsonDecoder<never>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     literal_string: {
       title: 'string literal',
-      prepareForJson: () => createPrepareForJson<'hello'>(),
-      stringifyJson: () => createStringifyJson<'hello'>(),
-      restoreFromJson: () => createRestoreFromJson<'hello'>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<'hello'>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<'hello'>(),
+      unsafeEncoder: () => createJsonEncoder<'hello'>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<'hello'>(),
+      safeDecoder: () => createJsonDecoder<'hello'>(),
+      unsafeDecoder: () => createJsonDecoder<'hello'>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['hello']}),
     },
     literal_number: {
       title: 'number literal',
-      prepareForJson: () => createPrepareForJson<42>(),
-      stringifyJson: () => createStringifyJson<42>(),
-      restoreFromJson: () => createRestoreFromJson<42>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<42>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<42>(),
+      unsafeEncoder: () => createJsonEncoder<42>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<42>(),
+      safeDecoder: () => createJsonDecoder<42>(),
+      unsafeDecoder: () => createJsonDecoder<42>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [42]}),
     },
     literal_boolean: {
       title: 'boolean literal',
-      prepareForJson: () => createPrepareForJson<true>(),
-      stringifyJson: () => createStringifyJson<true>(),
-      restoreFromJson: () => createRestoreFromJson<true>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<true>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<true>(),
+      unsafeEncoder: () => createJsonEncoder<true>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<true>(),
+      safeDecoder: () => createJsonDecoder<true>(),
+      unsafeDecoder: () => createJsonDecoder<true>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [true]}),
     },
     literal_regexp: {
       title: 'regexp literal',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         const reg = /abc/;
-        return createPrepareForJson<typeof reg>();
+        return createJsonEncoder<typeof reg>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         const reg = /abc/;
-        return createStringifyJson<typeof reg>();
+        return createJsonEncoder<typeof reg>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         const reg = /abc/;
-        return createRestoreFromJson<typeof reg>();
+        return createJsonDecoder<typeof reg>();
+      },
+      unsafeDecoder: () => {
+        const reg = /abc/;
+        return createJsonDecoder<typeof reg>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [/abc/]}),
     },
@@ -393,62 +374,65 @@ export const SERIALIZATION_SPEC = {
   ARRAYS: {
     array: {
       title: 'array',
-      prepareForJson: () => createPrepareForJson<string[]>(),
-      stringifyJson: () => createStringifyJson<string[]>(),
-      restoreFromJson: () => createRestoreFromJson<string[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[]>(),
+      unsafeEncoder: () => createJsonEncoder<string[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<string[]>(),
+      safeDecoder: () => createJsonDecoder<string[]>(),
+      unsafeDecoder: () => createJsonDecoder<string[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [['hello', 'world'], []]}),
     },
     array_date: {
       title: 'array of dates',
-      prepareForJson: () => createPrepareForJson<Date[]>(),
-      stringifyJson: () => createStringifyJson<Date[]>(),
-      restoreFromJson: () => createRestoreFromJson<Date[]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Date[]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Date[]>(),
+      unsafeEncoder: () => createJsonEncoder<Date[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Date[]>(),
+      safeDecoder: () => createJsonDecoder<Date[]>(),
+      unsafeDecoder: () => createJsonDecoder<Date[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [[new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')], []],
       }),
     },
     undefined_in_array: {
       title: 'undefined is serialized as null in array',
-      prepareForJson: () => createPrepareForJson<undefined[]>(),
-      stringifyJson: () => createStringifyJson<undefined[]>(),
-      restoreFromJson: () => createRestoreFromJson<undefined[]>(),
+      unsafeEncoder: () => createJsonEncoder<undefined[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<undefined[]>(),
+      safeDecoder: () => createJsonDecoder<undefined[]>(),
+      unsafeDecoder: () => createJsonDecoder<undefined[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[undefined, undefined]]}),
     },
     multi_dimensional: {
       title: 'multi dimensional array',
-      prepareForJson: () => createPrepareForJson<string[][]>(),
-      stringifyJson: () => createStringifyJson<string[][]>(),
-      restoreFromJson: () => createRestoreFromJson<string[][]>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<string[][]>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<string[][]>(),
+      unsafeEncoder: () => createJsonEncoder<string[][]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<string[][]>(),
+      safeDecoder: () => createJsonDecoder<string[][]>(),
+      unsafeDecoder: () => createJsonDecoder<string[][]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
     },
     non_serializable_in_array: {
       title: 'non serializable items throws an error',
       description: 'symbol[] should throw at JIT-compile time per mion semantic.',
-      prepareForJson: () => createPrepareForJson<symbol[]>(),
-      stringifyJson: () => createStringifyJson<symbol[]>(),
-      restoreFromJson: () => createRestoreFromJson<symbol[]>(),
+      unsafeEncoder: () => createJsonEncoder<symbol[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<symbol[]>(),
+      safeDecoder: () => createJsonDecoder<symbol[]>(),
+      unsafeDecoder: () => createJsonDecoder<symbol[]>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     array_circular: {
       title: 'array circular',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type CircularArray = CircularArray[];
-        return createPrepareForJson<CircularArray>();
+        return createJsonEncoder<CircularArray>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type CircularArray = CircularArray[];
-        return createStringifyJson<CircularArray>();
+        return createJsonEncoder<CircularArray>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type CircularArray = CircularArray[];
-        return createRestoreFromJson<CircularArray>();
+        return createJsonDecoder<CircularArray>();
+      },
+      unsafeDecoder: () => {
+        type CircularArray = CircularArray[];
+        return createJsonDecoder<CircularArray>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         type CircularArray = CircularArray[];
@@ -464,8 +448,19 @@ export const SERIALIZATION_SPEC = {
   OBJECTS: {
     interface: {
       title: 'interface',
-      prepareForJson: () =>
-        createPrepareForJson<{
+      unsafeEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -475,8 +470,8 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(),
-      stringifyJson: () =>
-        createStringifyJson<{
+      safeDecoder: () =>
+        createJsonDecoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -486,8 +481,8 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(),
-      restoreFromJson: () =>
-        createRestoreFromJson<{
+      unsafeDecoder: () =>
+        createJsonDecoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -513,7 +508,7 @@ export const SERIALIZATION_SPEC = {
     },
     many_optional_props: {
       title: 'many optional properties',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type N = number;
         // prettier-ignore
         type ManyOptional = {
@@ -522,9 +517,9 @@ export const SERIALIZATION_SPEC = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-        return createPrepareForJson<ManyOptional>();
+        return createJsonEncoder<ManyOptional>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type N = number;
         // prettier-ignore
         type ManyOptional = {
@@ -533,9 +528,9 @@ export const SERIALIZATION_SPEC = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-        return createStringifyJson<ManyOptional>();
+        return createJsonEncoder<ManyOptional>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type N = number;
         // prettier-ignore
         type ManyOptional = {
@@ -544,7 +539,18 @@ export const SERIALIZATION_SPEC = {
           b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
-        return createRestoreFromJson<ManyOptional>();
+        return createJsonDecoder<ManyOptional>();
+      },
+      unsafeDecoder: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createJsonDecoder<ManyOptional>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [{a0: 0, a1: 1, b0: 16, a8: 8, b7: 23, b15: 31}, {a0: 0, b8: 24}, {}],
@@ -552,7 +558,7 @@ export const SERIALIZATION_SPEC = {
     },
     class: {
       title: 'class',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         class MySerializableClass {
           name: string;
           surname: string;
@@ -568,9 +574,9 @@ export const SERIALIZATION_SPEC = {
             return `${this.name} ${this.surname}`;
           }
         }
-        return createPrepareForJson<MySerializableClass>();
+        return createJsonEncoder<MySerializableClass>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         class MySerializableClass {
           name: string;
           surname: string;
@@ -586,9 +592,9 @@ export const SERIALIZATION_SPEC = {
             return `${this.name} ${this.surname}`;
           }
         }
-        return createStringifyJson<MySerializableClass>();
+        return createJsonEncoder<MySerializableClass>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         class MySerializableClass {
           name: string;
           surname: string;
@@ -604,7 +610,25 @@ export const SERIALIZATION_SPEC = {
             return `${this.name} ${this.surname}`;
           }
         }
-        return createRestoreFromJson<MySerializableClass>();
+        return createJsonDecoder<MySerializableClass>();
+      },
+      unsafeDecoder: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonDecoder<MySerializableClass>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         class MySerializableClass {
@@ -629,32 +653,41 @@ export const SERIALIZATION_SPEC = {
     },
     extended_class: {
       title: 'extended class',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         class BaseClass {
           baseProp: string = 'base';
         }
         class ExtendedClass extends BaseClass {
           extendedProp: string = 'extended';
         }
-        return createPrepareForJson<ExtendedClass>();
+        return createJsonEncoder<ExtendedClass>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         class BaseClass {
           baseProp: string = 'base';
         }
         class ExtendedClass extends BaseClass {
           extendedProp: string = 'extended';
         }
-        return createStringifyJson<ExtendedClass>();
+        return createJsonEncoder<ExtendedClass>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         class BaseClass {
           baseProp: string = 'base';
         }
         class ExtendedClass extends BaseClass {
           extendedProp: string = 'extended';
         }
-        return createRestoreFromJson<ExtendedClass>();
+        return createJsonDecoder<ExtendedClass>();
+      },
+      unsafeDecoder: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createJsonDecoder<ExtendedClass>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         class BaseClass {
@@ -670,7 +703,7 @@ export const SERIALIZATION_SPEC = {
       title: 'non-serializable class via deserialize function',
       description:
         'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         class NonSerializableClass {
           constructor(
             public name: string,
@@ -682,9 +715,9 @@ export const SERIALIZATION_SPEC = {
             return `${this.name} ${this.surname}`;
           }
         }
-        return createPrepareForJson<NonSerializableClass>();
+        return createJsonEncoder<NonSerializableClass>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         class NonSerializableClass {
           constructor(
             public name: string,
@@ -696,9 +729,9 @@ export const SERIALIZATION_SPEC = {
             return `${this.name} ${this.surname}`;
           }
         }
-        return createStringifyJson<NonSerializableClass>();
+        return createJsonEncoder<NonSerializableClass>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         class NonSerializableClass {
           constructor(
             public name: string,
@@ -710,7 +743,21 @@ export const SERIALIZATION_SPEC = {
             return `${this.name} ${this.surname}`;
           }
         }
-        return createRestoreFromJson<NonSerializableClass>();
+        return createJsonDecoder<NonSerializableClass>();
+      },
+      unsafeDecoder: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonDecoder<NonSerializableClass>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         class NonSerializableClass {
@@ -731,9 +778,10 @@ export const SERIALIZATION_SPEC = {
     },
     undefined_in_object: {
       title: 'undefined is omitted in object prop',
-      prepareForJson: () => createPrepareForJson<{a: string; b: number; c: undefined}>(),
-      stringifyJson: () => createStringifyJson<{a: string; b: number; c: undefined}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string; b: number; c: undefined}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(),
+      safeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{a: 'hello', b: 42, c: undefined}],
         deserializedValues: [{a: 'hello', b: 42}],
@@ -741,24 +789,39 @@ export const SERIALIZATION_SPEC = {
     },
     optional_properties_order: {
       title: 'optional properties order',
-      prepareForJson: () => createPrepareForJson<{a: string; b?: string}>(),
-      stringifyJson: () => createStringifyJson<{a: string; b?: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string; b?: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string; b?: string}>(),
+      safeDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
     },
     all_optional_fields: {
       title: 'all optional fields',
-      prepareForJson: () => createPrepareForJson<{a?: string; b?: string}>(),
-      stringifyJson: () => createStringifyJson<{a?: string; b?: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{a?: string; b?: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(),
+      safeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
     },
     extras_passthrough_unsafe: {
       title: 'unsafe path preserves extras (mion semantic — JSON.stringify does not strip)',
       description:
         "Canonical baseline for the `prepareForJson + JSON.stringify` path: declared children get transformed, structural extras (both top-level and nested-in-declared-composites) pass through unchanged. Mirrors mion's `03JsonObjects.spec.ts` strip-extras case where the strip expectation is explicitly commented out (`// native JSON.stringify do not strip extra params`). The safe path (`stripUnknownKeys + prepareForJson + JSON.stringify`) strips the extras — that divergence is exercised in EXTRA_PARAMS.",
-      prepareForJson: () =>
-        createPrepareForJson<{
+      unsafeEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -770,8 +833,8 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(),
-      stringifyJson: () =>
-        createStringifyJson<{
+      safeDecoder: () =>
+        createJsonDecoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -783,8 +846,8 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(),
-      restoreFromJson: () =>
-        createRestoreFromJson<{
+      unsafeDecoder: () =>
+        createJsonDecoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -850,51 +913,65 @@ export const SERIALIZATION_SPEC = {
     },
     interface_circular: {
       title: 'interface circular',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ICircular {
           name: string;
           child?: ICircular;
         }
-        return createPrepareForJson<ICircular>();
+        return createJsonEncoder<ICircular>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ICircular {
           name: string;
           child?: ICircular;
         }
-        return createStringifyJson<ICircular>();
+        return createJsonEncoder<ICircular>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ICircular {
           name: string;
           child?: ICircular;
         }
-        return createRestoreFromJson<ICircular>();
+        return createJsonDecoder<ICircular>();
+      },
+      unsafeDecoder: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createJsonDecoder<ICircular>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
     },
     interface_circular_array: {
       title: 'interface circular array',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ICircularArray {
           name: string;
           children?: ICircularArray[];
         }
-        return createPrepareForJson<ICircularArray>();
+        return createJsonEncoder<ICircularArray>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ICircularArray {
           name: string;
           children?: ICircularArray[];
         }
-        return createStringifyJson<ICircularArray>();
+        return createJsonEncoder<ICircularArray>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ICircularArray {
           name: string;
           children?: ICircularArray[];
         }
-        return createRestoreFromJson<ICircularArray>();
+        return createJsonDecoder<ICircularArray>();
+      },
+      unsafeDecoder: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createJsonDecoder<ICircularArray>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -905,7 +982,7 @@ export const SERIALIZATION_SPEC = {
     },
     interface_circular_deep: {
       title: 'interface circular deep',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -914,9 +991,9 @@ export const SERIALIZATION_SPEC = {
             child?: ICircularDeep;
           };
         }
-        return createPrepareForJson<ICircularDeep>();
+        return createJsonEncoder<ICircularDeep>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -925,9 +1002,9 @@ export const SERIALIZATION_SPEC = {
             child?: ICircularDeep;
           };
         }
-        return createStringifyJson<ICircularDeep>();
+        return createJsonEncoder<ICircularDeep>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -936,7 +1013,18 @@ export const SERIALIZATION_SPEC = {
             child?: ICircularDeep;
           };
         }
-        return createRestoreFromJson<ICircularDeep>();
+        return createJsonDecoder<ICircularDeep>();
+      },
+      unsafeDecoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createJsonDecoder<ICircularDeep>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -951,7 +1039,7 @@ export const SERIALIZATION_SPEC = {
     },
     interface_root_not_circular: {
       title: 'interface root not circular',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -961,9 +1049,9 @@ export const SERIALIZATION_SPEC = {
           isRoot: true;
           ciChild: ICircularDeep;
         }
-        return createPrepareForJson<RootNotCircular>();
+        return createJsonEncoder<RootNotCircular>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -973,9 +1061,9 @@ export const SERIALIZATION_SPEC = {
           isRoot: true;
           ciChild: ICircularDeep;
         }
-        return createStringifyJson<RootNotCircular>();
+        return createJsonEncoder<RootNotCircular>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -985,7 +1073,19 @@ export const SERIALIZATION_SPEC = {
           isRoot: true;
           ciChild: ICircularDeep;
         }
-        return createRestoreFromJson<RootNotCircular>();
+        return createJsonDecoder<RootNotCircular>();
+      },
+      unsafeDecoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createJsonDecoder<RootNotCircular>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -1003,7 +1103,7 @@ export const SERIALIZATION_SPEC = {
     },
     interface_multiple_circular: {
       title: 'interface multiple circular',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -1022,9 +1122,9 @@ export const SERIALIZATION_SPEC = {
           ciRoort?: RootCircular;
           ciDate: ICircularDate;
         }
-        return createPrepareForJson<RootCircular>();
+        return createJsonEncoder<RootCircular>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -1043,9 +1143,9 @@ export const SERIALIZATION_SPEC = {
           ciRoort?: RootCircular;
           ciDate: ICircularDate;
         }
-        return createStringifyJson<RootCircular>();
+        return createJsonEncoder<RootCircular>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ICircularDeep {
           name: string;
           big: bigint;
@@ -1064,7 +1164,28 @@ export const SERIALIZATION_SPEC = {
           ciRoort?: RootCircular;
           ciDate: ICircularDate;
         }
-        return createRestoreFromJson<RootCircular>();
+        return createJsonDecoder<RootCircular>();
+      },
+      unsafeDecoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createJsonDecoder<RootCircular>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface ICircularDeep {
@@ -1098,26 +1219,33 @@ export const SERIALIZATION_SPEC = {
     },
     interface_with_methods: {
       title: 'methods should be excluded from interface when serializing',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ObjectWithMethods {
           name: string;
           methodProp: () => any;
         }
-        return createPrepareForJson<ObjectWithMethods>();
+        return createJsonEncoder<ObjectWithMethods>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ObjectWithMethods {
           name: string;
           methodProp: () => any;
         }
-        return createStringifyJson<ObjectWithMethods>();
+        return createJsonEncoder<ObjectWithMethods>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ObjectWithMethods {
           name: string;
           methodProp: () => any;
         }
-        return createRestoreFromJson<ObjectWithMethods>();
+        return createJsonDecoder<ObjectWithMethods>();
+      },
+      unsafeDecoder: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createJsonDecoder<ObjectWithMethods>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface ObjectWithMethods {
@@ -1138,30 +1266,34 @@ export const SERIALIZATION_SPEC = {
   RECORDS: {
     index_property: {
       title: 'index property',
-      prepareForJson: () => createPrepareForJson<{[key: string]: string}>(),
-      stringifyJson: () => createStringifyJson<{[key: string]: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{[key: string]: string}>(),
+      safeDecoder: () => createJsonDecoder<{[key: string]: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{[key: string]: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2'}, {}]}),
     },
     index_property_and_prop: {
       title: 'interface with a single property and index property',
-      prepareForJson: () => createPrepareForJson<{a: string; [key: string]: string}>(),
-      stringifyJson: () => createStringifyJson<{a: string; [key: string]: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string; [key: string]: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(),
+      safeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'helloA'}, {a: 'helloA', b: 'helloB'}]}),
     },
     index_property_extra: {
       title: 'index property with extra props and unions',
-      prepareForJson: () => createPrepareForJson<{a: string; b: number; [key: string]: string | number}>(),
-      stringifyJson: () => createStringifyJson<{a: string; b: number; [key: string]: string | number}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string; b: number; [key: string]: string | number}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(),
+      safeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
     },
     multiple_index_props: {
       title: 'multiple index properties (symbol keys skipped)',
-      prepareForJson: () => createPrepareForJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
-      stringifyJson: () => createStringifyJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      unsafeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      safeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
+      unsafeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const objWithSymbolKeys = {
           key1: 'value1',
@@ -1180,16 +1312,18 @@ export const SERIALIZATION_SPEC = {
     },
     index_property_nested: {
       title: 'index property nested',
-      prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: number}}>(),
-      stringifyJson: () => createStringifyJson<{[key: string]: {[key: string]: number}}>(),
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: number}}>(),
+      unsafeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(),
+      safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(),
+      unsafeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: {nestedKey1: 1, nestedKey2: 2}}]}),
     },
     index_property_nested_date: {
       title: 'index property nested with Date values',
-      prepareForJson: () => createPrepareForJson<{[key: string]: {[key: string]: Date}}>(),
-      stringifyJson: () => createStringifyJson<{[key: string]: {[key: string]: Date}}>(),
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: {[key: string]: Date}}>(),
+      unsafeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(),
+      safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(),
+      unsafeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           {
@@ -1203,9 +1337,10 @@ export const SERIALIZATION_SPEC = {
     },
     index_property_bigint: {
       title: 'index property with bigint values',
-      prepareForJson: () => createPrepareForJson<{[key: string]: bigint}>(),
-      stringifyJson: () => createStringifyJson<{[key: string]: bigint}>(),
-      restoreFromJson: () => createRestoreFromJson<{[key: string]: bigint}>(),
+      unsafeEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{[key: string]: bigint}>(),
+      safeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(),
+      unsafeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           {key1: 1n, key2: 2n},
@@ -1215,9 +1350,10 @@ export const SERIALIZATION_SPEC = {
     },
     index_property_non_root: {
       title: 'index property non-root',
-      prepareForJson: () => createPrepareForJson<{b: string; c: {a: string; [key: string]: string}}>(),
-      stringifyJson: () => createStringifyJson<{b: string; c: {a: string; [key: string]: string}}>(),
-      restoreFromJson: () => createRestoreFromJson<{b: string; c: {a: string; [key: string]: string}}>(),
+      unsafeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
+      safeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
+      unsafeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
     },
   },
@@ -1225,18 +1361,20 @@ export const SERIALIZATION_SPEC = {
   TUPLES: {
     tuple: {
       title: 'tuple',
-      prepareForJson: () => createPrepareForJson<[Date, number, string, null, string[], bigint]>(),
-      stringifyJson: () => createStringifyJson<[Date, number, string, null, string[], bigint]>(),
-      restoreFromJson: () => createRestoreFromJson<[Date, number, string, null, string[], bigint]>(),
+      unsafeEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(),
+      safeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
+      unsafeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [[new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
       }),
     },
     tuple_with_optional: {
       title: 'tuple with optional params',
-      prepareForJson: () => createPrepareForJson<[number, bigint?, boolean?, number?]>(),
-      stringifyJson: () => createStringifyJson<[number, bigint?, boolean?, number?]>(),
-      restoreFromJson: () => createRestoreFromJson<[number, bigint?, boolean?, number?]>(),
+      unsafeEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(),
+      safeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
+      unsafeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           [3, undefined, true, 4],
@@ -1246,31 +1384,37 @@ export const SERIALIZATION_SPEC = {
     },
     tuple_rest_parameter: {
       title: 'tuple rest parameter',
-      prepareForJson: () => createPrepareForJson<[number, ...bigint[]]>(),
-      stringifyJson: () => createStringifyJson<[number, ...bigint[]]>(),
-      restoreFromJson: () => createRestoreFromJson<[number, ...bigint[]]>(),
+      unsafeEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<[number, ...bigint[]]>(),
+      safeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
+      unsafeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
     },
     tuple_with_non_serializable: {
       title: 'tuple with non serializable types are transformed to undefined',
-      prepareForJson: () => createPrepareForJson<[number, () => any]>(),
-      stringifyJson: () => createStringifyJson<[number, () => any]>(),
-      restoreFromJson: () => createRestoreFromJson<[number, () => any]>(),
+      unsafeEncoder: () => createJsonEncoder<[number, () => any]>(),
+      safeEncoder: () => createJsonEncoder<[number, () => any]>(),
+      safeDecoder: () => createJsonDecoder<[number, () => any]>(),
+      unsafeDecoder: () => createJsonDecoder<[number, () => any]>(),
       getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
     },
     tuple_circular: {
       title: 'tuple circular',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return createPrepareForJson<TupleCircular>();
+        return createJsonEncoder<TupleCircular>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return createStringifyJson<TupleCircular>();
+        return createJsonEncoder<TupleCircular>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-        return createRestoreFromJson<TupleCircular>();
+        return createJsonDecoder<TupleCircular>();
+      },
+      unsafeDecoder: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createJsonDecoder<TupleCircular>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -1297,26 +1441,33 @@ export const SERIALIZATION_SPEC = {
     },
     interface_circular_tuple: {
       title: 'interface circular tuple',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ICircularTuple {
           name: string;
           parent?: [string, ICircularTuple];
         }
-        return createPrepareForJson<ICircularTuple>();
+        return createJsonEncoder<ICircularTuple>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ICircularTuple {
           name: string;
           parent?: [string, ICircularTuple];
         }
-        return createStringifyJson<ICircularTuple>();
+        return createJsonEncoder<ICircularTuple>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ICircularTuple {
           name: string;
           parent?: [string, ICircularTuple];
         }
-        return createRestoreFromJson<ICircularTuple>();
+        return createJsonDecoder<ICircularTuple>();
+      },
+      unsafeDecoder: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createJsonDecoder<ICircularTuple>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface ICircularTuple {
@@ -1337,23 +1488,29 @@ export const SERIALIZATION_SPEC = {
     // helpers. Same type-level slicing, no extra factories.
     parameters: {
       title: 'function parameters',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnNoOptional(a: number, b: boolean, c: string): Date {
           return new Date(a);
         }
-        return createPrepareForJson<Parameters<typeof fnNoOptional>>();
+        return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnNoOptional(a: number, b: boolean, c: string): Date {
           return new Date(a);
         }
-        return createStringifyJson<Parameters<typeof fnNoOptional>>();
+        return createJsonEncoder<Parameters<typeof fnNoOptional>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnNoOptional(a: number, b: boolean, c: string): Date {
           return new Date(a);
         }
-        return createRestoreFromJson<Parameters<typeof fnNoOptional>>();
+        return createJsonDecoder<Parameters<typeof fnNoOptional>>();
+      },
+      unsafeDecoder: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createJsonDecoder<Parameters<typeof fnNoOptional>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -1364,29 +1521,37 @@ export const SERIALIZATION_SPEC = {
     },
     optional_params: {
       title: 'optional parameters',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createPrepareForJson<Parameters<typeof fnOptionalParams>>();
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createStringifyJson<Parameters<typeof fnOptionalParams>>();
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createRestoreFromJson<Parameters<typeof fnOptionalParams>>();
+        return createJsonDecoder<Parameters<typeof fnOptionalParams>>();
+      },
+      unsafeDecoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
@@ -1395,63 +1560,81 @@ export const SERIALIZATION_SPEC = {
     },
     function_return: {
       title: 'function return',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnOptionalParam(a: number, b: boolean, c?: string): Date {
           void a;
           void b;
           void c;
           return new Date(0);
         }
-        return createPrepareForJson<ReturnType<typeof fnOptionalParam>>();
+        return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnOptionalParam(a: number, b: boolean, c?: string): Date {
           void a;
           void b;
           void c;
           return new Date(0);
         }
-        return createStringifyJson<ReturnType<typeof fnOptionalParam>>();
+        return createJsonEncoder<ReturnType<typeof fnOptionalParam>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnOptionalParam(a: number, b: boolean, c?: string): Date {
           void a;
           void b;
           void c;
           return new Date(0);
         }
-        return createRestoreFromJson<ReturnType<typeof fnOptionalParam>>();
+        return createJsonDecoder<ReturnType<typeof fnOptionalParam>>();
+      },
+      unsafeDecoder: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonDecoder<ReturnType<typeof fnOptionalParam>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     function_with_rest_parameters: {
       title: 'function with rest parameters',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
           void rest;
           void a;
           void b;
           return new Date(0);
         }
-        return createPrepareForJson<Parameters<typeof fnRestParams>>();
+        return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
           void rest;
           void a;
           void b;
           return new Date(0);
         }
-        return createStringifyJson<Parameters<typeof fnRestParams>>();
+        return createJsonEncoder<Parameters<typeof fnRestParams>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
           void rest;
           void a;
           void b;
           return new Date(0);
         }
-        return createRestoreFromJson<Parameters<typeof fnRestParams>>();
+        return createJsonDecoder<Parameters<typeof fnRestParams>>();
+      },
+      unsafeDecoder: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createJsonDecoder<Parameters<typeof fnRestParams>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -1462,29 +1645,37 @@ export const SERIALIZATION_SPEC = {
     },
     function_with_date_parameters: {
       title: 'function with Date parameters',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createPrepareForJson<Parameters<typeof fnOptionalParams>>();
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createStringifyJson<Parameters<typeof fnOptionalParams>>();
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createRestoreFromJson<Parameters<typeof fnOptionalParams>>();
+        return createJsonDecoder<Parameters<typeof fnOptionalParams>>();
+      },
+      unsafeDecoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonDecoder<Parameters<typeof fnOptionalParams>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
@@ -1493,85 +1684,109 @@ export const SERIALIZATION_SPEC = {
     },
     required_function_return: {
       title: 'required function return',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createPrepareForJson<ReturnType<typeof fnOptionalParams>>();
+        return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createStringifyJson<ReturnType<typeof fnOptionalParams>>();
+        return createJsonEncoder<ReturnType<typeof fnOptionalParams>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
           void b;
           return 1n;
         }
-        return createRestoreFromJson<ReturnType<typeof fnOptionalParams>>();
+        return createJsonDecoder<ReturnType<typeof fnOptionalParams>>();
+      },
+      unsafeDecoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonDecoder<ReturnType<typeof fnOptionalParams>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [1n]}),
     },
     function_with_only_rest_parameters: {
       title: 'function with only rest parameters',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnOnlyRestParams(...rest: number[]): Date {
           void rest;
           return new Date(0);
         }
-        return createPrepareForJson<Parameters<typeof fnOnlyRestParams>>();
+        return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnOnlyRestParams(...rest: number[]): Date {
           void rest;
           return new Date(0);
         }
-        return createStringifyJson<Parameters<typeof fnOnlyRestParams>>();
+        return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnOnlyRestParams(...rest: number[]): Date {
           void rest;
           return new Date(0);
         }
-        return createRestoreFromJson<Parameters<typeof fnOnlyRestParams>>();
+        return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>();
+      },
+      unsafeDecoder: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createJsonDecoder<Parameters<typeof fnOnlyRestParams>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [[3, 2, 1], []]}),
     },
     non_serializable_params: {
       title: 'non serializable params',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
           void a;
           void b;
           void c;
           return new Date(0);
         }
-        return createPrepareForJson<Parameters<typeof fnWithCallback>>();
+        return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
           void a;
           void b;
           void c;
           return new Date(0);
         }
-        return createStringifyJson<Parameters<typeof fnWithCallback>>();
+        return createJsonEncoder<Parameters<typeof fnWithCallback>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
           void a;
           void b;
           void c;
           return new Date(0);
         }
-        return createRestoreFromJson<Parameters<typeof fnWithCallback>>();
+        return createJsonDecoder<Parameters<typeof fnWithCallback>>();
+      },
+      unsafeDecoder: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonDecoder<Parameters<typeof fnWithCallback>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -1587,32 +1802,41 @@ export const SERIALIZATION_SPEC = {
     function_promise_return_type: {
       title: 'function returns a promise',
       description: 'Promise<T> as a return type — Promises are non-serializable in mion.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
           void a;
           void b;
           void c;
           return Promise.resolve(new Date(0));
         }
-        return createPrepareForJson<ReturnType<typeof fnReturnsPromise>>();
+        return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
           void a;
           void b;
           void c;
           return Promise.resolve(new Date(0));
         }
-        return createStringifyJson<ReturnType<typeof fnReturnsPromise>>();
+        return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
           void a;
           void b;
           void c;
           return Promise.resolve(new Date(0));
         }
-        return createRestoreFromJson<ReturnType<typeof fnReturnsPromise>>();
+        return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>();
+      },
+      unsafeDecoder: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createJsonDecoder<ReturnType<typeof fnReturnsPromise>>(undefined, {mode: 'unsafe'});
       },
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
@@ -1620,48 +1844,59 @@ export const SERIALIZATION_SPEC = {
     function_return_type_is_function: {
       title: 'return type of a closure',
       description: 'fn returns another fn — non-serializable.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
           void a;
           void b;
           void c;
           return () => new Date(0);
         }
-        return createPrepareForJson<ReturnType<typeof fnReturnsFunction>>();
+        return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
           void a;
           void b;
           void c;
           return () => new Date(0);
         }
-        return createStringifyJson<ReturnType<typeof fnReturnsFunction>>();
+        return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
           void a;
           void b;
           void c;
           return () => new Date(0);
         }
-        return createRestoreFromJson<ReturnType<typeof fnReturnsFunction>>();
+        return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>();
+      },
+      unsafeDecoder: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createJsonDecoder<ReturnType<typeof fnReturnsFunction>>(undefined, {mode: 'unsafe'});
       },
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     call_signature_params: {
       title: 'call signature params',
-      prepareForJson: () => createPrepareForJson<Parameters<{(a: number, b: boolean): string}>>(),
-      stringifyJson: () => createStringifyJson<Parameters<{(a: number, b: boolean): string}>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<{(a: number, b: boolean): string}>>(),
+      unsafeEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(),
+      safeDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
+      unsafeDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[3, true]]}),
     },
     call_signature_return: {
       title: 'call signature return',
-      prepareForJson: () => createPrepareForJson<ReturnType<{(a: number, b: boolean): string}>>(),
-      stringifyJson: () => createStringifyJson<ReturnType<{(a: number, b: boolean): string}>>(),
-      restoreFromJson: () => createRestoreFromJson<ReturnType<{(a: number, b: boolean): string}>>(),
+      unsafeEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
+      safeDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
+      unsafeDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['result']}),
     },
   },
@@ -1669,40 +1904,49 @@ export const SERIALIZATION_SPEC = {
   UTILITY_TYPES: {
     awaited: {
       title: 'Awaited<Promise<T>>',
-      prepareForJson: () => createPrepareForJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
-      stringifyJson: () => createStringifyJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
-      restoreFromJson: () => createRestoreFromJson<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      unsafeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      safeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      unsafeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     exclude_atomic: {
       title: 'Exclude on atomic union',
-      prepareForJson: () => createPrepareForJson<Exclude<'name' | 'age' | number, 'age'>>(),
-      stringifyJson: () => createStringifyJson<Exclude<'name' | 'age' | number, 'age'>>(),
-      restoreFromJson: () => createRestoreFromJson<Exclude<'name' | 'age' | number, 'age'>>(),
+      unsafeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
+      safeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
+      unsafeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['name', 3, 4]}),
     },
     exclude_objects: {
       title: 'Exclude on object union',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type Circle = {kind: 'circle'; radius: number};
         type Square = {kind: 'square'; x: number};
         type Triangle = {kind: 'triangle'; x: number; y: number};
         type Shape = Circle | Square | Triangle;
-        return createPrepareForJson<Exclude<Shape, Circle>>();
+        return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type Circle = {kind: 'circle'; radius: number};
         type Square = {kind: 'square'; x: number};
         type Triangle = {kind: 'triangle'; x: number; y: number};
         type Shape = Circle | Square | Triangle;
-        return createStringifyJson<Exclude<Shape, Circle>>();
+        return createJsonEncoder<Exclude<Shape, Circle>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type Circle = {kind: 'circle'; radius: number};
         type Square = {kind: 'square'; x: number};
         type Triangle = {kind: 'triangle'; x: number; y: number};
         type Shape = Circle | Square | Triangle;
-        return createRestoreFromJson<Exclude<Shape, Circle>>();
+        return createJsonDecoder<Exclude<Shape, Circle>>();
+      },
+      unsafeDecoder: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createJsonDecoder<Exclude<Shape, Circle>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -1713,44 +1957,52 @@ export const SERIALIZATION_SPEC = {
     },
     required_properties: {
       title: 'Required<T>',
-      prepareForJson: () => createPrepareForJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
-      stringifyJson: () => createStringifyJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
-      restoreFromJson: () => createRestoreFromJson<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      unsafeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      safeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
+      unsafeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
       }),
     },
     extract_atomic: {
       title: 'Extract on atomic union',
-      prepareForJson: () => createPrepareForJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      stringifyJson: () => createStringifyJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      restoreFromJson: () => createRestoreFromJson<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      unsafeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      safeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      unsafeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['name']}),
     },
     extract_objects: {
       title: 'Extract on object union',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-        return createPrepareForJson<Extract<Shape, ToExtract>>();
+        return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-        return createStringifyJson<Extract<Shape, ToExtract>>();
+        return createJsonEncoder<Extract<Shape, ToExtract>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-        return createRestoreFromJson<Extract<Shape, ToExtract>>();
+        return createJsonDecoder<Extract<Shape, ToExtract>>();
+      },
+      unsafeDecoder: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createJsonDecoder<Extract<Shape, ToExtract>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [{kind: 'square', x: 5}]}),
     },
     partial_properties: {
       title: 'Partial<T>',
-      prepareForJson: () => createPrepareForJson<Partial<{name: string; age: number; createdAt: Date}>>(),
-      stringifyJson: () => createStringifyJson<Partial<{name: string; age: number; createdAt: Date}>>(),
-      restoreFromJson: () => createRestoreFromJson<Partial<{name: string; age: number; createdAt: Date}>>(),
+      unsafeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
+      safeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
+      unsafeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const createdAt = new Date('2000-08-06T02:13:00.000Z');
         return {values: [{name: 'John'}, {age: 30}, {createdAt}, {}]};
@@ -1758,26 +2010,30 @@ export const SERIALIZATION_SPEC = {
     },
     pick_properties: {
       title: 'Pick<T, K>',
-      prepareForJson: () =>
-        createPrepareForJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
-      stringifyJson: () =>
-        createStringifyJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
-      restoreFromJson: () =>
-        createRestoreFromJson<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      unsafeEncoder: () =>
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      safeDecoder: () =>
+        createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      unsafeDecoder: () =>
+        createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     omit_properties: {
       title: 'Omit<T, K>',
-      prepareForJson: () => createPrepareForJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
-      stringifyJson: () => createStringifyJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
-      restoreFromJson: () => createRestoreFromJson<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      unsafeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      safeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
+      unsafeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     record_type: {
       title: 'Record<string, Date>',
-      prepareForJson: () => createPrepareForJson<Record<string, Date>>(),
-      stringifyJson: () => createStringifyJson<Record<string, Date>>(),
-      restoreFromJson: () => createRestoreFromJson<Record<string, Date>>(),
+      unsafeEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Record<string, Date>>(),
+      safeDecoder: () => createJsonDecoder<Record<string, Date>>(),
+      unsafeDecoder: () => createJsonDecoder<Record<string, Date>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           {
@@ -1793,16 +2049,18 @@ export const SERIALIZATION_SPEC = {
   UNIONS: {
     union: {
       title: 'atomic union',
-      prepareForJson: () => createPrepareForJson<Date | number | string | null | bigint>(),
-      stringifyJson: () => createStringifyJson<Date | number | string | null | bigint>(),
-      restoreFromJson: () => createRestoreFromJson<Date | number | string | null | bigint>(),
+      unsafeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(),
+      safeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(),
+      unsafeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
     },
     union_array: {
       title: 'union of arrays',
-      prepareForJson: () => createPrepareForJson<string[] | number[] | boolean[] | Date[]>(),
-      stringifyJson: () => createStringifyJson<string[] | number[] | boolean[] | Date[]>(),
-      restoreFromJson: () => createRestoreFromJson<string[] | number[] | boolean[] | Date[]>(),
+      unsafeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(),
+      safeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(),
+      unsafeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           ['a', 'b', 'c'],
@@ -1815,9 +2073,10 @@ export const SERIALIZATION_SPEC = {
     },
     with_discriminator: {
       title: 'array of union with discriminator',
-      prepareForJson: () => createPrepareForJson<(string | bigint | boolean | Date)[]>(),
-      stringifyJson: () => createStringifyJson<(string | bigint | boolean | Date)[]>(),
-      restoreFromJson: () => createRestoreFromJson<(string | bigint | boolean | Date)[]>(),
+      unsafeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(),
+      safeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(),
+      unsafeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
         return {
@@ -1832,29 +2091,37 @@ export const SERIALIZATION_SPEC = {
     },
     union_object_with_discriminator: {
       title: 'union of object shapes',
-      prepareForJson: () => createPrepareForJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
-      stringifyJson: () => createStringifyJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      safeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
     },
     union_with_discriminator_property: {
       title: 'union with discriminator property',
-      prepareForJson: () =>
-        createPrepareForJson<
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(),
-      stringifyJson: () =>
-        createStringifyJson<
+      safeDecoder: () =>
+        createJsonDecoder<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(),
-      restoreFromJson: () =>
-        createRestoreFromJson<
+      unsafeDecoder: () =>
+        createJsonDecoder<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
@@ -1871,40 +2138,52 @@ export const SERIALIZATION_SPEC = {
     },
     union_mixed_with_discriminator: {
       title: 'union mixed arrays and objects',
-      prepareForJson: () =>
-        createPrepareForJson<
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
-      stringifyJson: () =>
-        createStringifyJson<
+      safeDecoder: () =>
+        createJsonDecoder<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
-      restoreFromJson: () =>
-        createRestoreFromJson<
+      unsafeDecoder: () =>
+        createJsonDecoder<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
     },
     union_index_property_with_discriminator: {
       title: 'union with index property and discriminator',
-      prepareForJson: () =>
-        createPrepareForJson<
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
-      stringifyJson: () =>
-        createStringifyJson<
+      safeDecoder: () =>
+        createJsonDecoder<
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
-      restoreFromJson: () =>
-        createRestoreFromJson<
+      unsafeDecoder: () =>
+        createJsonDecoder<
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
@@ -1915,17 +2194,21 @@ export const SERIALIZATION_SPEC = {
     },
     circular_union_with_discriminator: {
       title: 'Circular union with discriminator',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return createPrepareForJson<UnionC>();
+        return createJsonEncoder<UnionC>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return createStringifyJson<UnionC>();
+        return createJsonEncoder<UnionC>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-        return createRestoreFromJson<UnionC>();
+        return createJsonDecoder<UnionC>();
+      },
+      unsafeDecoder: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createJsonDecoder<UnionC>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -1947,16 +2230,20 @@ export const SERIALIZATION_SPEC = {
     },
     union_with_methods: {
       title: 'union with methods — methods should be excluded',
-      prepareForJson: () =>
-        createPrepareForJson<
+      unsafeEncoder: () =>
+        createJsonEncoder<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(undefined, {mode: 'unsafe'}),
+      safeEncoder: () =>
+        createJsonEncoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
-      stringifyJson: () =>
-        createStringifyJson<
+      safeDecoder: () =>
+        createJsonDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
-      restoreFromJson: () =>
-        createRestoreFromJson<
+      unsafeDecoder: () =>
+        createJsonDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
       getTestData: () => {
@@ -1986,18 +2273,20 @@ export const SERIALIZATION_SPEC = {
     },
     union_with_any: {
       title: 'union with any — checked last as fallback',
-      prepareForJson: () => createPrepareForJson<number | {name: string} | any>(),
-      stringifyJson: () => createStringifyJson<number | {name: string} | any>(),
-      restoreFromJson: () => createRestoreFromJson<number | {name: string} | any>(),
+      unsafeEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<number | {name: string} | any>(),
+      safeDecoder: () => createJsonDecoder<number | {name: string} | any>(),
+      unsafeDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {mode: 'unsafe'}),
       roundTripBestEffort: true,
       getTestData: () => ({values: [42, {name: 'test'}, 'fallback to any', true, null]}),
     },
     union_with_non_serializable: {
       title: 'union with non-serializable type throws',
       description: 'function in union — mion throws at JIT-compile time.',
-      prepareForJson: () => createPrepareForJson<Date | number | string | (() => any)>(),
-      stringifyJson: () => createStringifyJson<Date | number | string | (() => any)>(),
-      restoreFromJson: () => createRestoreFromJson<Date | number | string | (() => any)>(),
+      unsafeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
+      safeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
+      safeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
+      unsafeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2020,9 +2309,10 @@ export const SERIALIZATION_SPEC = {
       title: 'union member with extra bigint prop throws at JSON.stringify',
       description:
         'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
-      prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
-      stringifyJson: () => createStringifyJson<{a: string} | {b: number}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
+      safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{b: 123, c: 123n}]}),
       // Safe-path adapter: stringifyJson strips the extra `c: 123n` in
@@ -2035,9 +2325,10 @@ export const SERIALIZATION_SPEC = {
       title: 'union member with extra symbol prop is dropped by JSON.stringify',
       description:
         'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
-      prepareForJson: () => createPrepareForJson<{a: string} | {b: number}>(),
-      stringifyJson: () => createStringifyJson<{a: string} | {b: number}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: string} | {b: number}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
+      safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {mode: 'unsafe'}),
       // Symbol-valued props are silently dropped by JSON.stringify
       // (per ECMAScript spec) — no throw, no round-trip mismatch
       // because the symbol was never reachable post-stringify
@@ -2053,14 +2344,15 @@ export const SERIALIZATION_SPEC = {
   ITERABLES: {
     set_string: {
       title: 'Set<string>',
-      prepareForJson: () => createPrepareForJson<Set<string>>(),
-      stringifyJson: () => createStringifyJson<Set<string>>(),
-      restoreFromJson: () => createRestoreFromJson<Set<string>>(),
+      unsafeEncoder: () => createJsonEncoder<Set<string>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Set<string>>(),
+      safeDecoder: () => createJsonDecoder<Set<string>>(),
+      unsafeDecoder: () => createJsonDecoder<Set<string>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
     },
     set_small_object: {
       title: 'Set<SmallObject>',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2068,9 +2360,9 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createPrepareForJson<Set<SmallObject>>();
+        return createJsonEncoder<Set<SmallObject>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2078,9 +2370,9 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createStringifyJson<Set<SmallObject>>();
+        return createJsonEncoder<Set<SmallObject>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2088,7 +2380,17 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createRestoreFromJson<Set<SmallObject>>();
+        return createJsonDecoder<Set<SmallObject>>();
+      },
+      unsafeDecoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonDecoder<Set<SmallObject>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface SmallObject {
@@ -2111,32 +2413,41 @@ export const SERIALIZATION_SPEC = {
     },
     objects_with_nested_sets: {
       title: 'objects with nested sets',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type Set1 = Set<{s: string; arr: number[]}>;
         interface DeepWithSet {
           a: string;
           b: Set1;
           c: Set1;
         }
-        return createPrepareForJson<DeepWithSet>();
+        return createJsonEncoder<DeepWithSet>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type Set1 = Set<{s: string; arr: number[]}>;
         interface DeepWithSet {
           a: string;
           b: Set1;
           c: Set1;
         }
-        return createStringifyJson<DeepWithSet>();
+        return createJsonEncoder<DeepWithSet>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type Set1 = Set<{s: string; arr: number[]}>;
         interface DeepWithSet {
           a: string;
           b: Set1;
           c: Set1;
         }
-        return createRestoreFromJson<DeepWithSet>();
+        return createJsonDecoder<DeepWithSet>();
+      },
+      unsafeDecoder: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createJsonDecoder<DeepWithSet>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         const setB = new Set([
@@ -2152,9 +2463,10 @@ export const SERIALIZATION_SPEC = {
     },
     map_string_number: {
       title: 'Map<string, number>',
-      prepareForJson: () => createPrepareForJson<Map<string, number>>(),
-      stringifyJson: () => createStringifyJson<Map<string, number>>(),
-      restoreFromJson: () => createRestoreFromJson<Map<string, number>>(),
+      unsafeEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Map<string, number>>(),
+      safeDecoder: () => createJsonDecoder<Map<string, number>>(),
+      unsafeDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           new Map<string, number>([
@@ -2167,7 +2479,7 @@ export const SERIALIZATION_SPEC = {
     },
     map_string_small_object: {
       title: 'Map<string, SmallObject>',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2175,9 +2487,9 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createPrepareForJson<Map<string, SmallObject>>();
+        return createJsonEncoder<Map<string, SmallObject>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2185,9 +2497,9 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createStringifyJson<Map<string, SmallObject>>();
+        return createJsonEncoder<Map<string, SmallObject>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2195,7 +2507,17 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createRestoreFromJson<Map<string, SmallObject>>();
+        return createJsonDecoder<Map<string, SmallObject>>();
+      },
+      unsafeDecoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonDecoder<Map<string, SmallObject>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface SmallObject {
@@ -2218,7 +2540,7 @@ export const SERIALIZATION_SPEC = {
     },
     map_small_object_number: {
       title: 'Map<SmallObject, number>',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2226,9 +2548,9 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createPrepareForJson<Map<SmallObject, number>>();
+        return createJsonEncoder<Map<SmallObject, number>>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2236,9 +2558,9 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createStringifyJson<Map<SmallObject, number>>();
+        return createJsonEncoder<Map<SmallObject, number>>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface SmallObject {
           prop1: string;
           prop2: number;
@@ -2246,7 +2568,17 @@ export const SERIALIZATION_SPEC = {
           prop4?: Date;
           prop5?: bigint;
         }
-        return createRestoreFromJson<Map<SmallObject, number>>();
+        return createJsonDecoder<Map<SmallObject, number>>();
+      },
+      unsafeDecoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonDecoder<Map<SmallObject, number>>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface SmallObject {
@@ -2269,26 +2601,33 @@ export const SERIALIZATION_SPEC = {
     },
     objects_with_nested_maps: {
       title: 'objects with nested maps',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface DeepWithMap {
           a: string;
           b: Map<string, {sm: {s: string; arr: number[]}}>;
         }
-        return createPrepareForJson<DeepWithMap>();
+        return createJsonEncoder<DeepWithMap>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface DeepWithMap {
           a: string;
           b: Map<string, {sm: {s: string; arr: number[]}}>;
         }
-        return createStringifyJson<DeepWithMap>();
+        return createJsonEncoder<DeepWithMap>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface DeepWithMap {
           a: string;
           b: Map<string, {sm: {s: string; arr: number[]}}>;
         }
-        return createRestoreFromJson<DeepWithMap>();
+        return createJsonDecoder<DeepWithMap>();
+      },
+      unsafeDecoder: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createJsonDecoder<DeepWithMap>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -2304,9 +2643,10 @@ export const SERIALIZATION_SPEC = {
     },
     map_with_bigint_keys: {
       title: 'Map with bigint keys',
-      prepareForJson: () => createPrepareForJson<Map<bigint, number>>(),
-      stringifyJson: () => createStringifyJson<Map<bigint, number>>(),
-      restoreFromJson: () => createRestoreFromJson<Map<bigint, number>>(),
+      unsafeEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Map<bigint, number>>(),
+      safeDecoder: () => createJsonDecoder<Map<bigint, number>>(),
+      unsafeDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           new Map<bigint, number>([
@@ -2319,9 +2659,10 @@ export const SERIALIZATION_SPEC = {
     },
     map_with_date_values: {
       title: 'Map with Date values',
-      prepareForJson: () => createPrepareForJson<Map<string, Date>>(),
-      stringifyJson: () => createStringifyJson<Map<string, Date>>(),
-      restoreFromJson: () => createRestoreFromJson<Map<string, Date>>(),
+      unsafeEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Map<string, Date>>(),
+      safeDecoder: () => createJsonDecoder<Map<string, Date>>(),
+      unsafeDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           new Map<string, Date>([
@@ -2336,33 +2677,41 @@ export const SERIALIZATION_SPEC = {
   CIRCULAR_REFS: {
     circular_types: {
       title: 'circular objects',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type CircularObject = {name: string; child?: CircularObject};
-        return createPrepareForJson<CircularObject>();
+        return createJsonEncoder<CircularObject>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type CircularObject = {name: string; child?: CircularObject};
-        return createStringifyJson<CircularObject>();
+        return createJsonEncoder<CircularObject>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type CircularObject = {name: string; child?: CircularObject};
-        return createRestoreFromJson<CircularObject>();
+        return createJsonDecoder<CircularObject>();
+      },
+      unsafeDecoder: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createJsonDecoder<CircularObject>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
     },
     circular_union_array: {
       title: 'CircularUnion array with discriminator',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
-        return createPrepareForJson<CuArray>();
+        return createJsonEncoder<CuArray>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
-        return createStringifyJson<CuArray>();
+        return createJsonEncoder<CuArray>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
-        return createRestoreFromJson<CuArray>();
+        return createJsonDecoder<CuArray>();
+      },
+      unsafeDecoder: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createJsonDecoder<CuArray>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         const date = new Date('2000-08-06T02:13:00.000Z');
@@ -2377,23 +2726,29 @@ export const SERIALIZATION_SPEC = {
     },
     circular_tuple: {
       title: 'CircularTuple object with discriminator',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface CircularTuple {
           list: [bigint, CircularTuple?];
         }
-        return createPrepareForJson<CircularTuple>();
+        return createJsonEncoder<CircularTuple>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface CircularTuple {
           list: [bigint, CircularTuple?];
         }
-        return createStringifyJson<CircularTuple>();
+        return createJsonEncoder<CircularTuple>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface CircularTuple {
           list: [bigint, CircularTuple?];
         }
-        return createRestoreFromJson<CircularTuple>();
+        return createJsonDecoder<CircularTuple>();
+      },
+      unsafeDecoder: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createJsonDecoder<CircularTuple>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [{list: [1n, {list: [2n, {list: [3n, {list: [4n]}]}]}]}, {list: [1n, {list: [2n]}]}, {list: [1n]}],
@@ -2401,23 +2756,29 @@ export const SERIALIZATION_SPEC = {
     },
     circular_index: {
       title: 'CircularIndex object with discriminator',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface CircularIndex {
           index: {[key: string]: CircularIndex};
         }
-        return createPrepareForJson<CircularIndex>();
+        return createJsonEncoder<CircularIndex>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface CircularIndex {
           index: {[key: string]: CircularIndex};
         }
-        return createStringifyJson<CircularIndex>();
+        return createJsonEncoder<CircularIndex>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface CircularIndex {
           index: {[key: string]: CircularIndex};
         }
-        return createRestoreFromJson<CircularIndex>();
+        return createJsonDecoder<CircularIndex>();
+      },
+      unsafeDecoder: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createJsonDecoder<CircularIndex>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
@@ -2425,23 +2786,29 @@ export const SERIALIZATION_SPEC = {
     },
     circular_deep: {
       title: 'CircularDeep object with discriminator',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
         }
-        return createPrepareForJson<CircularDeep>();
+        return createJsonEncoder<CircularDeep>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
         }
-        return createStringifyJson<CircularDeep>();
+        return createJsonEncoder<CircularDeep>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
         }
-        return createRestoreFromJson<CircularDeep>();
+        return createJsonDecoder<CircularDeep>();
+      },
+      unsafeDecoder: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createJsonDecoder<CircularDeep>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
@@ -2449,45 +2816,57 @@ export const SERIALIZATION_SPEC = {
     },
     circular_tuple_complex: {
       title: 'Circular tuple with complex structure',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
-        return createPrepareForJson<CircularTupleComplex>();
+        return createJsonEncoder<CircularTupleComplex>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
-        return createStringifyJson<CircularTupleComplex>();
+        return createJsonEncoder<CircularTupleComplex>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
-        return createRestoreFromJson<CircularTupleComplex>();
+        return createJsonDecoder<CircularTupleComplex>();
+      },
+      unsafeDecoder: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createJsonDecoder<CircularTupleComplex>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({values: [[1n, [2n, [3n, [4n]]]], [1n, [2n]], [1n]]}),
     },
     object_with_circular_array: {
       title: 'object with circular array',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         type ObjCircularArr = {
           a: string;
           deep?: {b: string; c: number};
           d?: ObjCircularArr[];
         };
-        return createPrepareForJson<ObjCircularArr>();
+        return createJsonEncoder<ObjCircularArr>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         type ObjCircularArr = {
           a: string;
           deep?: {b: string; c: number};
           d?: ObjCircularArr[];
         };
-        return createStringifyJson<ObjCircularArr>();
+        return createJsonEncoder<ObjCircularArr>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         type ObjCircularArr = {
           a: string;
           deep?: {b: string; c: number};
           d?: ObjCircularArr[];
         };
-        return createRestoreFromJson<ObjCircularArr>();
+        return createJsonDecoder<ObjCircularArr>();
+      },
+      unsafeDecoder: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createJsonDecoder<ObjCircularArr>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => ({
         values: [
@@ -2504,9 +2883,10 @@ export const SERIALIZATION_SPEC = {
   TEMPLATE_LITERALS: {
     url_string: {
       title: 'template literal as string type',
-      prepareForJson: () => createPrepareForJson<`api/users/${number}`>(),
-      stringifyJson: () => createStringifyJson<`api/users/${number}`>(),
-      restoreFromJson: () => createRestoreFromJson<`api/users/${number}`>(),
+      unsafeEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<`api/users/${number}`>(),
+      safeDecoder: () => createJsonDecoder<`api/users/${number}`>(),
+      unsafeDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           'api/users/0',
@@ -2520,9 +2900,10 @@ export const SERIALIZATION_SPEC = {
     },
     url_in_object: {
       title: 'template literal as object property type',
-      prepareForJson: () => createPrepareForJson<{url: `api/user/${number}`; method: string}>(),
-      stringifyJson: () => createStringifyJson<{url: `api/user/${number}`; method: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{url: `api/user/${number}`; method: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
+      safeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           {url: 'api/user/1', method: 'GET'},
@@ -2533,16 +2914,18 @@ export const SERIALIZATION_SPEC = {
     },
     url_index_key: {
       title: 'template literal as index signature key',
-      prepareForJson: () => createPrepareForJson<{[key: `api/${string}`]: number}>(),
-      stringifyJson: () => createStringifyJson<{[key: `api/${string}`]: number}>(),
-      restoreFromJson: () => createRestoreFromJson<{[key: `api/${string}`]: number}>(),
+      unsafeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
+      safeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
+      unsafeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
     },
     url_index_key_with_named: {
       title: 'template literal index key + sibling named property',
-      prepareForJson: () => createPrepareForJson<{meta: string; [key: `api/${string}`]: string | number}>(),
-      stringifyJson: () => createStringifyJson<{meta: string; [key: `api/${string}`]: string | number}>(),
-      restoreFromJson: () => createRestoreFromJson<{meta: string; [key: `api/${string}`]: string | number}>(),
+      unsafeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+      safeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+      unsafeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{meta: 'a'}, {meta: 'b', 'api/users': 1}, {meta: 'c', 'api/users': 1, 'api/posts': 2}],
       }),
@@ -2552,41 +2935,46 @@ export const SERIALIZATION_SPEC = {
   OTHERS: {
     promise_jsonStringify_error: {
       title: 'Promise top-level throws',
-      prepareForJson: () => createPrepareForJson<Promise<string>>(),
-      stringifyJson: () => createStringifyJson<Promise<string>>(),
-      restoreFromJson: () => createRestoreFromJson<Promise<string>>(),
+      unsafeEncoder: () => createJsonEncoder<Promise<string>>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Promise<string>>(),
+      safeDecoder: () => createJsonDecoder<Promise<string>>(),
+      unsafeDecoder: () => createJsonDecoder<Promise<string>>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     non_serializable: {
       title: 'non-serializable type throws (Int8Array)',
-      prepareForJson: () => createPrepareForJson<Int8Array>(),
-      stringifyJson: () => createStringifyJson<Int8Array>(),
-      restoreFromJson: () => createRestoreFromJson<Int8Array>(),
+      unsafeEncoder: () => createJsonEncoder<Int8Array>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Int8Array>(),
+      safeDecoder: () => createJsonDecoder<Int8Array>(),
+      unsafeDecoder: () => createJsonDecoder<Int8Array>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     non_serializable_interface: {
       title: 'non-serializable inside interface throws',
-      prepareForJson: () => createPrepareForJson<{a: Int8Array}>(),
-      stringifyJson: () => createStringifyJson<{a: Int8Array}>(),
-      restoreFromJson: () => createRestoreFromJson<{a: Int8Array}>(),
+      unsafeEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{a: Int8Array}>(),
+      safeDecoder: () => createJsonDecoder<{a: Int8Array}>(),
+      unsafeDecoder: () => createJsonDecoder<{a: Int8Array}>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     non_serializable_array: {
       title: 'non-serializable inside array throws',
-      prepareForJson: () => createPrepareForJson<Int8Array[]>(),
-      stringifyJson: () => createStringifyJson<Int8Array[]>(),
-      restoreFromJson: () => createRestoreFromJson<Int8Array[]>(),
+      unsafeEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<Int8Array[]>(),
+      safeDecoder: () => createJsonDecoder<Int8Array[]>(),
+      unsafeDecoder: () => createJsonDecoder<Int8Array[]>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     non_serializable_tuple: {
       title: 'non-serializable inside tuple throws',
-      prepareForJson: () => createPrepareForJson<[Int8Array]>(),
-      stringifyJson: () => createStringifyJson<[Int8Array]>(),
-      restoreFromJson: () => createRestoreFromJson<[Int8Array]>(),
+      unsafeEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<[Int8Array]>(),
+      safeDecoder: () => createJsonDecoder<[Int8Array]>(),
+      unsafeDecoder: () => createJsonDecoder<[Int8Array]>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2619,9 +3007,10 @@ export const SERIALIZATION_SPEC = {
       title: 'JSON-compatible extra prop — unsafe preserves, safe strips',
       description:
         'Extra `extra: "hello"` is JSON-encodable (string). Unsafe path round-trips with the extra intact (prepareForJson never visits it, JSON.stringify keeps it). Safe path strips it before serialise — restored value contains only the declared key.',
-      prepareForJson: () => createPrepareForJson<{declared: string}>(),
-      stringifyJson: () => createStringifyJson<{declared: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDecoder: () => createJsonDecoder<{declared: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{declared: 'x', extra: 'hello'}],
         // Unsafe: extra preserved through round-trip.
@@ -2636,9 +3025,10 @@ export const SERIALIZATION_SPEC = {
       title: 'bigint extra prop — unsafe throws at JSON.stringify, safe strips it',
       description:
         'Extra `extra: 123n` is not JSON-encodable. Unsafe path: prepareForJson never visits the extra, JSON.stringify throws on the bigint. Safe path: stripUnknownKeys removes the extra before prepareForJson runs, so the bigint never reaches JSON.stringify and the output is the clean declared-only shape.',
-      prepareForJson: () => createPrepareForJson<{declared: string}>(),
-      stringifyJson: () => createStringifyJson<{declared: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDecoder: () => createJsonDecoder<{declared: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       jsonStringifyThrows: true,
       getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
       getTestDataForStringify: () => ({
@@ -2651,9 +3041,10 @@ export const SERIALIZATION_SPEC = {
       title: 'symbol-valued extra prop — both paths produce declared-only output',
       description:
         'Extra `sym: Symbol("x")` is silently dropped by JSON.stringify per ECMAScript spec (symbol-valued own props are non-enumerable for JSON purposes). Unsafe path: prepareForJson preserves it, JSON.stringify drops it. Safe path: strip removes it before stringify. Same observable, different mechanism — document the lossy round-trip in both paths.',
-      prepareForJson: () => createPrepareForJson<{declared: string}>(),
-      stringifyJson: () => createStringifyJson<{declared: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDecoder: () => createJsonDecoder<{declared: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{declared: 'x', sym: Symbol('extra')}],
         // JSON.stringify drops the symbol — restored shape has no `sym`.
@@ -2666,9 +3057,10 @@ export const SERIALIZATION_SPEC = {
       title: 'function-valued extra prop — both paths produce declared-only output',
       description:
         'Extra `fn: () => 0` is silently dropped by JSON.stringify (function-valued props serialise to undefined and the key is omitted). Both paths produce declared-only output — strip removes the function on the safe path; JSON.stringify drops it on the unsafe path.',
-      prepareForJson: () => createPrepareForJson<{declared: string}>(),
-      stringifyJson: () => createStringifyJson<{declared: string}>(),
-      restoreFromJson: () => createRestoreFromJson<{declared: string}>(),
+      unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{declared: string}>(),
+      safeDecoder: () => createJsonDecoder<{declared: string}>(),
+      unsafeDecoder: () => createJsonDecoder<{declared: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{declared: 'x', fn: () => 0}],
         deserializedValues: [{declared: 'x'}],
@@ -2680,9 +3072,10 @@ export const SERIALIZATION_SPEC = {
       title: 'extras nested inside a declared composite child',
       description:
         'Extra `outer.extra` sits inside a declared `outer: {declared: string}` composite. Confirms the extras semantic recurses through declared composites: unsafe preserves the nested extra; safe strips it.',
-      prepareForJson: () => createPrepareForJson<{outer: {declared: string}}>(),
-      stringifyJson: () => createStringifyJson<{outer: {declared: string}}>(),
-      restoreFromJson: () => createRestoreFromJson<{outer: {declared: string}}>(),
+      unsafeEncoder: () => createJsonEncoder<{outer: {declared: string}}>(undefined, {mode: 'unsafe'}),
+      safeEncoder: () => createJsonEncoder<{outer: {declared: string}}>(),
+      safeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(),
+      unsafeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{outer: {declared: 'x', extra: 'y'}}],
         // Unsafe: nested extra preserved.
@@ -2705,7 +3098,7 @@ export const SERIALIZATION_SPEC = {
       title: 'wide interface — 30 mixed-type properties',
       description:
         'Single interface with 30+ properties spanning scalars, Date, bigint, nested object — exercises the per-field walk cost without any union dispatch.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface WideRecord {
           id: number;
           name: string;
@@ -2738,9 +3131,9 @@ export const SERIALIZATION_SPEC = {
           weight: number;
           meta: {category: string; priority: number; lastSeen: Date};
         }
-        return createPrepareForJson<WideRecord>();
+        return createJsonEncoder<WideRecord>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface WideRecord {
           id: number;
           name: string;
@@ -2773,9 +3166,9 @@ export const SERIALIZATION_SPEC = {
           weight: number;
           meta: {category: string; priority: number; lastSeen: Date};
         }
-        return createStringifyJson<WideRecord>();
+        return createJsonEncoder<WideRecord>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface WideRecord {
           id: number;
           name: string;
@@ -2808,7 +3201,42 @@ export const SERIALIZATION_SPEC = {
           weight: number;
           meta: {category: string; priority: number; lastSeen: Date};
         }
-        return createRestoreFromJson<WideRecord>();
+        return createJsonDecoder<WideRecord>();
+      },
+      unsafeDecoder: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createJsonDecoder<WideRecord>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface WideRecord {
@@ -2883,32 +3311,41 @@ export const SERIALIZATION_SPEC = {
       title: 'discriminated union of 5 large object members',
       description:
         'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an isType walk per candidate member.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
         interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
         interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
         interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-        return createPrepareForJson<LargeObjectUnion>();
+        return createJsonEncoder<LargeObjectUnion>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
         interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
         interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
         interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-        return createStringifyJson<LargeObjectUnion>();
+        return createJsonEncoder<LargeObjectUnion>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
         interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
         interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
         interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-        return createRestoreFromJson<LargeObjectUnion>();
+        return createJsonDecoder<LargeObjectUnion>();
+      },
+      unsafeDecoder: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createJsonDecoder<LargeObjectUnion>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
@@ -2931,23 +3368,29 @@ export const SERIALIZATION_SPEC = {
       title: 'mixed union — atomic + large object members',
       description:
         'string | number | ProductEvent | UserEvent — exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-        return createPrepareForJson<MixedLargeUnion>();
+        return createJsonEncoder<MixedLargeUnion>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-        return createStringifyJson<MixedLargeUnion>();
+        return createJsonEncoder<MixedLargeUnion>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
         interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-        return createRestoreFromJson<MixedLargeUnion>();
+        return createJsonDecoder<MixedLargeUnion>();
+      },
+      unsafeDecoder: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createJsonDecoder<MixedLargeUnion>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
@@ -2969,32 +3412,41 @@ export const SERIALIZATION_SPEC = {
     deep_nested: {
       title: 'five-level deeply nested object with arrays of objects',
       description: 'Walks five levels of nested arrays of objects to amplify per-property overhead.',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         interface DeepNestedLeaf {id: number; value: string; when: Date;}
         interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
         interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
         interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
         interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
         interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
-        return createPrepareForJson<DeepNestedLevel1>();
+        return createJsonEncoder<DeepNestedLevel1>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         interface DeepNestedLeaf {id: number; value: string; when: Date;}
         interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
         interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
         interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
         interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
         interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
-        return createStringifyJson<DeepNestedLevel1>();
+        return createJsonEncoder<DeepNestedLevel1>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         interface DeepNestedLeaf {id: number; value: string; when: Date;}
         interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
         interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
         interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
         interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
         interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
-        return createRestoreFromJson<DeepNestedLevel1>();
+        return createJsonDecoder<DeepNestedLevel1>();
+      },
+      unsafeDecoder: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createJsonDecoder<DeepNestedLevel1>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         interface DeepNestedLeaf {id: number; value: string; when: Date;}
@@ -3016,7 +3468,7 @@ export const SERIALIZATION_SPEC = {
       title: 'discriminated union of three large class instances',
       description:
         'Three-member class union — restore decodes to plain objects (class instances do not survive JSON round-trip).',
-      prepareForJson: () => {
+      unsafeEncoder: () => {
         class LargeClassA {
           kind!: 'classA';
           alpha!: string;
@@ -3045,9 +3497,9 @@ export const SERIALIZATION_SPEC = {
           steps!: number[];
         }
         type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-        return createPrepareForJson<LargeClassUnion>();
+        return createJsonEncoder<LargeClassUnion>(undefined, {mode: 'unsafe'});
       },
-      stringifyJson: () => {
+      safeEncoder: () => {
         class LargeClassA {
           kind!: 'classA';
           alpha!: string;
@@ -3076,9 +3528,9 @@ export const SERIALIZATION_SPEC = {
           steps!: number[];
         }
         type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-        return createStringifyJson<LargeClassUnion>();
+        return createJsonEncoder<LargeClassUnion>();
       },
-      restoreFromJson: () => {
+      safeDecoder: () => {
         class LargeClassA {
           kind!: 'classA';
           alpha!: string;
@@ -3107,7 +3559,38 @@ export const SERIALIZATION_SPEC = {
           steps!: number[];
         }
         type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-        return createRestoreFromJson<LargeClassUnion>();
+        return createJsonDecoder<LargeClassUnion>();
+      },
+      unsafeDecoder: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createJsonDecoder<LargeClassUnion>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
         class LargeClassA {
