@@ -749,52 +749,49 @@ func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 // emitUnionPrepareForJsonSafe — cloning, non-mutating variant of
 // emitUnionPrepareForJsonFlat. Produces the flat-union wire shape
 // (object branch wraps as `[-1, mergedObject]`; atomic branch wraps
-// as `[memberIndex, value]` when atomicBranchNeedsTuple, raw
+// as `[memberIndex, value]` when layout.AtomicNeedsTuple, raw
 // otherwise) so the result decodes through the existing flat
 // restoreFromJson. Each clause returns a NEW value built from
 // safeChildExpr / buildSafeObjectLiteral; the input is never touched.
 func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
-	split := splitUnionMembersFlat(rt, ctx)
-	if len(split.atomic) == 0 && len(split.object) == 0 {
+	layout := buildFlatLayout(rt, ctx)
+	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	needsTuple := atomicBranchNeedsTuple(split, ctx)
-
 	var clauses []string
 
-	for _, m := range split.atomic {
-		memberExpr, ok := safeChildExpr(m.ref, v, ctx)
+	for _, m := range layout.AtomicMembers {
+		memberExpr, ok := safeChildExpr(m.Ref, v, ctx)
 		if !ok {
 			return JitCode{Code: "", Type: CodeNS}
 		}
-		isTypeExpr := unionMemberIsTypeCheck(m.resolved, ctx, v)
+		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
-		if isObjectLikeKind(m.resolved.Kind) {
+		if isObjectLikeKind(m.Resolved.Kind) {
 			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
 		}
 		var resultExpr string
-		if needsTuple {
-			resultExpr = "[" + strconv.Itoa(m.originalIndex) + "," + memberExpr + "]"
+		if layout.AtomicNeedsTuple {
+			resultExpr = "[" + strconv.Itoa(m.OriginalIndex) + "," + memberExpr + "]"
 		} else {
 			resultExpr = memberExpr
 		}
 		clauses = append(clauses, "if ("+guard+") return "+resultExpr+";")
 	}
 
-	if len(split.object) > 0 {
-		merged := buildMergedProps(split.object, ctx)
+	if len(layout.ObjectMembers) > 0 {
 		var props []safePropEmit
-		for _, mp := range merged {
-			accessor := propertyAccessor(v, mp.name, mp.isSafeName)
+		for _, mp := range layout.MergedProps {
+			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 			propExpr, ok := emitMergedPropPrepareSafe(mp, accessor, ctx)
 			if !ok {
 				return JitCode{Code: "", Type: CodeNS}
 			}
 			props = append(props, safePropEmit{
-				name:       mp.name,
-				isSafeName: mp.isSafeName,
-				optional:   !mp.required,
+				name:       mp.Name,
+				isSafeName: mp.IsSafeName,
+				optional:   !mp.Required,
 				accessor:   accessor,
 				expr:       propExpr,
 			})
@@ -814,26 +811,25 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 // Single-candidate → safeChildExpr. Multi-candidate no-sub-wrap →
 // identity (accessor). Multi-candidate with sub-wrap → IIFE that
 // dispatches per candidate and returns `[subIdx, safeExpr]`.
-func emitMergedPropPrepareSafe(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
-	if len(mp.candidates) == 1 {
-		return safeChildExpr(mp.candidates[0].childRef, accessor, ctx)
+func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitContext) (string, bool) {
+	if len(mp.Candidates) == 1 {
+		return safeChildExpr(mp.Candidates[0].ChildRef, accessor, ctx)
 	}
-	if !mp.mergedPropNeedsSubWrap(ctx) {
+	if !mp.NeedsSubWrap {
 		return accessor, true
 	}
 	var arms []string
-	for i, cand := range mp.candidates {
-		resolved := ctx.ResolveRef(cand.childRef)
-		if resolved == nil {
+	for i, cand := range mp.Candidates {
+		if cand.Resolved == nil {
 			continue
 		}
-		candExpr, ok := safeChildExpr(cand.childRef, accessor, ctx)
+		candExpr, ok := safeChildExpr(cand.ChildRef, accessor, ctx)
 		if !ok {
 			return "", false
 		}
-		isTypeExpr := unionMemberIsTypeCheck(resolved, ctx, accessor)
+		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
 		guard := isTypeExpr
-		if isObjectLikeKind(resolved.Kind) {
+		if isObjectLikeKind(cand.Resolved.Kind) {
 			guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
 		}
 		arms = append(arms, "if ("+guard+") return ["+strconv.Itoa(i)+", "+candExpr+"];")
