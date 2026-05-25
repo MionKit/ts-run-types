@@ -101,59 +101,50 @@ export {
 // run-types-pure-fns.ts), not lazily.
 export {registerPureFnFactory} from './jit/pureFn.ts';
 
-// Every createXxx / deserializeXxx factory and its companion type now lives
-// in createJitFunctions.ts. The wrappers all share one private generic
+// Every createXxx factory and its companion type lives in
+// createJitFunctions.ts. The wrappers all share one private generic
 // (`createJitFunction`) that reads its per-id closure straight off the
 // jitUtils singleton — no per-family local Maps, no duplicated bootstrap or
 // HMR blocks. Composite wrappers (createSafeJsonParse, createUnsafeJson*)
 // reuse the same lookup helper to compose multiple primitives.
+//
+// The deserialize-from-code test twins (`deserializeXxx`) are NOT part of
+// the public API — they live under `test/util/deserializeJitFunctions.ts`
+// and are only consumed by the validation/serialization test suites.
 export {
   createIsType,
-  deserializeIsType,
   type IsTypeFn,
   type RunTypeOptions,
   createGetTypeErrors,
-  deserializeGetTypeErrors,
   type GetTypeErrorsFn,
   type RunTypeError,
   type RunTypeErrorPathSegment,
   createPrepareForJson,
-  deserializePrepareForJson,
   type PrepareForJsonFn,
   createRestoreFromJson,
-  deserializeRestoreFromJson,
   type RestoreFromJsonFn,
   createStringifyJson,
-  deserializeStringifyJson,
   type StringifyJsonFn,
   // Optimised flat-union family — wire shape diverges from the non-flat
   // siblings ONLY at union boundaries (object members merged into a
   // `[-1, mergedObject]` envelope). Pair Prepare/Restore/Stringify Flat.
   createPrepareForJsonFlat,
-  deserializePrepareForJsonFlat,
   type PrepareForJsonFlatFn,
   createRestoreFromJsonFlat,
-  deserializeRestoreFromJsonFlat,
   type RestoreFromJsonFlatFn,
   createStringifyJsonFlat,
-  deserializeStringifyJsonFlat,
   type StringifyJsonFlatFn,
   // Non-mutating sibling of createPrepareForJson.
   createPrepareForJsonSafe,
-  deserializePrepareForJsonSafe,
   type PrepareForJsonSafeFn,
   createHasUnknownKeys,
-  deserializeHasUnknownKeys,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,
   createStripUnknownKeys,
-  deserializeStripUnknownKeys,
   type StripUnknownKeysFn,
   createUnknownKeyErrors,
-  deserializeUnknownKeyErrors,
   type UnknownKeyErrorsFn,
   createUnknownKeysToUndefined,
-  deserializeUnknownKeysToUndefined,
   type UnknownKeysToUndefinedFn,
   // JSON serialise/parse wrappers — compose primitives into one-call APIs
   // that mirror mion's two serialise paths (jsonSpec = unsafe, stringifySpec

@@ -24,10 +24,8 @@ import {
   createPrepareForJson,
   createPrepareForJsonFlat,
   createPrepareForJsonSafe,
-  deserializePrepareForJson,
   createRestoreFromJson,
   createRestoreFromJsonFlat,
-  deserializeRestoreFromJson,
   createStringifyJson,
   createStringifyJsonFlat,
   type PrepareForJsonFn,
@@ -38,6 +36,7 @@ import {
   type StringifyJsonFn,
   type StringifyJsonFlatFn,
 } from '@mionjs/ts-go-run-types';
+import {deserializePrepareForJson, deserializeRestoreFromJson} from '../util/deserializeJitFunctions.ts';
 
 // ========================================================================
 // Shared test types

@@ -1,0 +1,158 @@
+// Test-only twins of the `createXxx` factories. Each `deserializeXxx<T>()`
+// rebuilds its per-id closure from the serialized `JitCompiledFnData.code`
+// string via `new Function('utl', code)(jitUtils)` on every call — the same
+// reconstruction path `restoreCompiledJitFns` (in src/jit/restoreJitFns.ts)
+// runs once at startup when production callers ingest a serialized cache
+// over the wire.
+//
+// Lives under test/util/ rather than src/ because production code has no
+// reason to call these directly: `addSerializedJitCaches` already writes
+// the rebuilt fn back onto `entry.fn` on the jitUtils singleton, so the
+// regular `createXxx` factories return the deserialized closure
+// transparently. The wrappers exist purely so the test suites can assert
+// that each `entry.code` round-trips to an equivalent fn.
+//
+// Marker scanning works the same as for the production factories — the
+// Vite plugin walks every call site whose resolved signature has a
+// trailing `id?: RuntypeId<T>` slot, regardless of where the function is
+// declared. The vitest config's `tsconfig.test.json` puts `test/**` in the
+// plugin's scan scope, so calls to `deserializeXxx<T>()` from test files
+// get the same compile-time id injection that `createXxx<T>()` calls do.
+
+import {
+  getJitUtils,
+  type RuntypeId,
+  type RunTypeOptions,
+  type IsTypeFn,
+  type GetTypeErrorsFn,
+  type HasUnknownKeysFn,
+  type StripUnknownKeysFn,
+  type UnknownKeyErrorsFn,
+  type UnknownKeysToUndefinedFn,
+  type PrepareForJsonFn,
+  type PrepareForJsonFlatFn,
+  type PrepareForJsonSafeFn,
+  type RestoreFromJsonFn,
+  type RestoreFromJsonFlatFn,
+  type StringifyJsonFn,
+  type StringifyJsonFlatFn,
+} from '@mionjs/ts-go-run-types';
+import {buildFactoryFromCode} from '../../src/jit/restoreJitFns.ts';
+import type {AnyFn, JitCompiledFn} from '../../src/jit/types.ts';
+
+/** Test-side mirror of the production `createJitFunction` generic. Rebuilds
+ *  the per-id closure from `entry.code` on every call instead of reading
+ *  the materialized `entry.fn` straight off jitUtils. Noop entries carry
+ *  no code; they reuse the cache module's pre-populated `entry.fn`. **/
+function deserializeJitFunction<F extends AnyFn>(
+  fnName: string,
+  prefix: string,
+  identityFn: F
+): (val?: unknown, options?: unknown, id?: string) => F {
+  return (val, options, id) => {
+    void val;
+    void options;
+    if (id === undefined) {
+      throw new Error(
+        `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
+      );
+    }
+    const utils = getJitUtils();
+    const entry = utils.getJIT(prefix + '_' + id) as JitCompiledFn | undefined;
+    if (!entry) {
+      if (utils.hasRunType(id)) return identityFn;
+      throw new Error(
+        `${fnName}(): no JitCompiledFn entry for "${id}" in jitUtils. The build pipeline didn't emit a factory for that runtype.`
+      );
+    }
+    if (entry.isNoop) return entry.fn as F;
+    return buildFactoryFromCode(entry.code)(utils) as F;
+  };
+}
+
+const identityValueFn = (v: unknown) => v;
+const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
+const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
+const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
+
+// The trailing `as unknown as <T>(...) => Fn` cast restores the generic <T>
+// signature the Go-side marker scanner reads to identify call sites. The
+// runtime function is a non-generic JS closure; <T> is type-checker-only.
+
+export const deserializeIsType = deserializeJitFunction<IsTypeFn>(
+  'deserializeIsType',
+  'it',
+  () => true
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => IsTypeFn;
+
+export const deserializeGetTypeErrors = deserializeJitFunction<GetTypeErrorsFn>(
+  'deserializeGetTypeErrors',
+  'te',
+  getTypeErrorsIdentity
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => GetTypeErrorsFn;
+
+export const deserializeHasUnknownKeys = deserializeJitFunction<HasUnknownKeysFn>(
+  'deserializeHasUnknownKeys',
+  'huk',
+  () => false
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => HasUnknownKeysFn;
+
+export const deserializeStripUnknownKeys = deserializeJitFunction<StripUnknownKeysFn>(
+  'deserializeStripUnknownKeys',
+  'suk',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => StripUnknownKeysFn;
+
+export const deserializeUnknownKeyErrors = deserializeJitFunction<UnknownKeyErrorsFn>(
+  'deserializeUnknownKeyErrors',
+  'uke',
+  unknownKeyErrorsIdentity
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => UnknownKeyErrorsFn;
+
+export const deserializeUnknownKeysToUndefined = deserializeJitFunction<UnknownKeysToUndefinedFn>(
+  'deserializeUnknownKeysToUndefined',
+  'uku',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => UnknownKeysToUndefinedFn;
+
+export const deserializePrepareForJson = deserializeJitFunction<PrepareForJsonFn>(
+  'deserializePrepareForJson',
+  'pj',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFn;
+
+export const deserializePrepareForJsonFlat = deserializeJitFunction<PrepareForJsonFlatFn>(
+  'deserializePrepareForJsonFlat',
+  'pjf',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFlatFn;
+
+export const deserializePrepareForJsonSafe = deserializeJitFunction<PrepareForJsonSafeFn>(
+  'deserializePrepareForJsonSafe',
+  'pjs',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonSafeFn;
+
+export const deserializeRestoreFromJson = deserializeJitFunction<RestoreFromJsonFn>(
+  'deserializeRestoreFromJson',
+  'rj',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFn;
+
+export const deserializeRestoreFromJsonFlat = deserializeJitFunction<RestoreFromJsonFlatFn>(
+  'deserializeRestoreFromJsonFlat',
+  'rjf',
+  identityValueFn
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFlatFn;
+
+export const deserializeStringifyJson = deserializeJitFunction<StringifyJsonFn>(
+  'deserializeStringifyJson',
+  'sj',
+  stringifyJsonIdentity
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => StringifyJsonFn;
+
+export const deserializeStringifyJsonFlat = deserializeJitFunction<StringifyJsonFlatFn>(
+  'deserializeStringifyJsonFlat',
+  'sjf',
+  stringifyJsonIdentity
+) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => StringifyJsonFlatFn;
