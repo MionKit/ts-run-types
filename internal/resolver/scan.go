@@ -194,10 +194,32 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		}
 	}
 	// Extract any literal RunTypeOptions object passed at a slot before
-	// the id slot. Today only `noLiterals: true` is honored; other
-	// fields are reserved (see createIsType.ts RunTypeOptions). Options
-	// are folded into the id hash by swapping the resolved type below,
-	// so `(T, {})` and `(T, {noLiterals: true})` resolve distinct ids.
+	// the id slot. Today `noLiterals: true`, `noIsArrayCheck: true`,
+	// and `mode: '<value>'` are honored; other fields are reserved
+	// (see createIsType.ts RunTypeOptions). Options are folded into the
+	// id hash by swapping the resolved type below, so `(T, {})` and
+	// `(T, {noLiterals: true})` resolve distinct ids.
+	//
+	// When the options slot is filled with something that is NOT a
+	// plain object literal (e.g. an identifier, a spread, a function
+	// call result), the resolver can't read its values at build time.
+	// Emit a diagnostic — the call will still scan with zero options,
+	// which is likely not what the user wanted.
+	//
+	// Only fire when the signature actually carries an options
+	// parameter at the slot before id — i.e. its declared name
+	// matches a `*options*` or `*opts*` pattern. This excludes
+	// marker functions without an options param (reflectRuntypeId's
+	// slot 0 is the inference value, not options) so they don't get
+	// false diagnostics on call-expression arguments.
+	if lastIndex > 0 && signatureHasOptionsParam(parameters, lastIndex-1) {
+		if candidate := extractRunTypeOptionsCandidate(call, lastIndex, argsCount); candidate != nil &&
+			candidate.Kind != ast.KindObjectLiteralExpression {
+			if diag, ok := resolver.markerDiagNonLiteralOptions(file, candidate); ok {
+				diagnostics = append(diagnostics, diag)
+			}
+		}
+	}
 	options := extractRunTypeOptions(call, lastIndex, argsCount)
 	// noLiterals semantics (literal.ts:28-54): the literal node swaps to
 	// its base-kind runtype for validation purposes. We mirror this at
@@ -246,6 +268,17 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		if wrapped, ok := resolver.cache.SerializeArrayWithFlags(id, []string{"noIsArrayCheck"}); ok {
 			id = wrapped
 		}
+	}
+	// `mode` on the JSON encoder / decoder options is folded into the
+	// id the same way: distinct mode literal → distinct id → distinct
+	// JIT cache entry. The wrapped runtype is structurally identical
+	// to the base (no per-mode emit branching is needed today; modes
+	// are dispatched at runtime in createJsonEncoder / createJsonDecoder).
+	// Folding the mode at id-resolution time keeps the cache keys
+	// unique per call site so two thunks against the same `T` but
+	// different `mode` don't collapse to the same entry.
+	if options.Mode != "" {
+		id = resolver.cache.SerializeWithModeWrap(id, options.Mode)
 	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
@@ -310,6 +343,11 @@ func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, 
 type runTypeOptions struct {
 	NoLiterals     bool
 	NoIsArrayCheck bool
+	// Mode carries the value of the `mode` field on JSON encoder /
+	// decoder options. Empty when the call doesn't pass options or
+	// the options literal didn't set `mode`. Folded into the runtype
+	// id so distinct modes resolve to distinct JIT cache entries.
+	Mode string
 }
 
 // extractRunTypeOptions reads literal options from the argument slot
@@ -382,9 +420,53 @@ func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOpti
 			if initializer.Kind == ast.KindTrueKeyword {
 				opts.NoIsArrayCheck = true
 			}
+		case "mode":
+			if initializer.Kind == ast.KindStringLiteral {
+				opts.Mode = initializer.Text()
+			}
 		}
 	}
 	return opts
+}
+
+// signatureHasOptionsParam reports whether the signature's
+// parameter at `optionsIndex` is an options-style parameter
+// (its declared name contains "options" or "opts"). Functions
+// like reflectRuntypeId(value, id?) have lastIndex==1 and slot 0
+// is the inference value, not options; this helper distinguishes
+// them from createIsType(val?, options?, id?) and friends.
+func signatureHasOptionsParam(parameters []*ast.Symbol, optionsIndex int) bool {
+	if optionsIndex < 0 || optionsIndex >= len(parameters) {
+		return false
+	}
+	parameter := parameters[optionsIndex]
+	if parameter == nil {
+		return false
+	}
+	name := parameter.Name
+	return strings.Contains(name, "ptions") || strings.Contains(name, "pts")
+}
+
+// extractRunTypeOptionsCandidate returns the AST node at the options
+// slot (slot immediately before id), or nil. Used by the marker
+// diagnostic that flags non-literal options arguments — see
+// markerDiagNonLiteralOptions.
+func extractRunTypeOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
+	if lastIndex == 0 {
+		return nil
+	}
+	optionsIndex := lastIndex - 1
+	if argsCount <= optionsIndex {
+		return nil
+	}
+	callExpression := call.AsCallExpression()
+	if callExpression == nil || callExpression.Arguments == nil {
+		return nil
+	}
+	if len(callExpression.Arguments.Nodes) <= optionsIndex {
+		return nil
+	}
+	return callExpression.Arguments.Nodes[optionsIndex]
 }
 
 // traceRegexLiteral walks through AST wrappers, typeof references, and const
@@ -495,6 +577,36 @@ func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.No
 	)
 	return protocol.MarkerDiagnostic{
 		Code:     "marker/function-call-arg",
+		Category: "warning",
+		Message:  message,
+		Site: protocol.PureFnDiagSite{
+			FilePath:  file,
+			StartLine: startLine,
+			StartCol:  startCol,
+			EndLine:   endLine,
+			EndCol:    endCol,
+		},
+	}, true
+}
+
+// markerDiagNonLiteralOptions flags a marker call whose options slot
+// is filled with a non-literal expression (identifier, spread,
+// function call, etc.). The resolver runs at build time and cannot
+// evaluate arbitrary expressions, so non-literal options are silently
+// treated as zero options — which usually isn't what the user
+// wanted. The recommended pattern is to pass a literal object
+// directly at the call site so the option values are visible to the
+// resolver and folded into the JIT cache id.
+func (resolver *Resolver) markerDiagNonLiteralOptions(file string, optionsNode *ast.Node) (protocol.MarkerDiagnostic, bool) {
+	sourceFile := ast.GetSourceFileOfNode(optionsNode)
+	if sourceFile == nil {
+		return protocol.MarkerDiagnostic{}, false
+	}
+	startLine, startCol := scanLineCol(sourceFile, optionsNode.Pos())
+	endLine, endCol := scanLineCol(sourceFile, optionsNode.End())
+	message := "Marker options must be a plain object literal at the call site (e.g. `{mode: 'unsafe'}`). The resolver evaluates options at build time and folds their values into the JIT cache id — identifiers, spreads, and function-call results can't be read at build time and are silently treated as zero options."
+	return protocol.MarkerDiagnostic{
+		Code:     "marker/non-literal-options",
 		Category: "warning",
 		Message:  message,
 		Site: protocol.PureFnDiagSite{

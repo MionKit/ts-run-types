@@ -112,9 +112,15 @@ describe('createStringifyJson — compound shapes', () => {
 
   test('Map<string, number>', () => {
     const sjs = createJsonEncoder<Map<string, number>>();
-    const m = new Map<string, number>([['a', 1], ['b', 2]]);
+    const m = new Map<string, number>([
+      ['a', 1],
+      ['b', 2],
+    ]);
     const out = sjs(m);
-    expect(JSON.parse(out!)).toEqual([['a', 1], ['b', 2]]);
+    expect(JSON.parse(out!)).toEqual([
+      ['a', 1],
+      ['b', 2],
+    ]);
   });
 
   test('Set<string>', () => {
@@ -331,7 +337,10 @@ describe('createStringifyJson vs JSON.stringify(prepareForJson(v)) — parsed-eq
     const sjs = createJsonEncoder<T>();
     const prep = createJsonEncoder<T>(undefined, {mode: 'unsafe'});
     const d = new Date('2000-08-06T02:13:00.000Z');
-    const input: T = [{at: d, n: 1n}, {at: d, n: 2n}];
+    const input: T = [
+      {at: d, n: 1n},
+      {at: d, n: 2n},
+    ];
     const fromSjs = JSON.parse(sjs(structuredClone(input))!);
     const fromPrep = JSON.parse(prep(structuredClone(input))!);
     expect(fromSjs).toEqual(fromPrep);
@@ -340,7 +349,10 @@ describe('createStringifyJson vs JSON.stringify(prepareForJson(v)) — parsed-eq
   test('parsed equality: Map<string, bigint>', () => {
     const safeEnc = createJsonEncoder<Map<string, bigint>>();
     const unsafeEnc = createJsonEncoder<Map<string, bigint>>(undefined, {mode: 'unsafe'});
-    const m = new Map<string, bigint>([['a', 1n], ['b', 2n]]);
+    const m = new Map<string, bigint>([
+      ['a', 1n],
+      ['b', 2n],
+    ]);
     const fromSafe = JSON.parse(safeEnc(new Map(m))!);
     const fromUnsafe = JSON.parse(unsafeEnc(new Map(m))!);
     expect(fromSafe).toEqual(fromUnsafe);

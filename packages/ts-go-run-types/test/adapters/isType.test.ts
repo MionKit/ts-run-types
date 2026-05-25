@@ -89,7 +89,8 @@ describe('isType / ATOMIC', () => {
   it('Numeric literal type (strict equality)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_2));
   it('String literal type (case-sensitive)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_a));
   it('RegExp literal type (matched by source plus flags)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_regexp_simple));
-  it('RegExp literal with regex-metacharacters in the source', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_regexp_escaped));
+  it('RegExp literal with regex-metacharacters in the source', () =>
+    assertIsType(VALIDATION_SUITE.ATOMIC.literal_regexp_escaped));
   it('Boolean literal type (only true)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_true));
   it('BigInt literal type (only 1n)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_1n));
   it('Symbol literal type (matched by description)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_symbol));
@@ -108,10 +109,13 @@ describe('isType / ATOMIC', () => {
   // noLiterals variants — literal types degrade to their base kind.
   it('Numeric literal with noLiterals (degrades to number)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_2_noLiterals));
   it('String literal with noLiterals (degrades to string)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_a_noLiterals));
-  it('RegExp literal with noLiterals (degrades to RegExp)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_regexp_noLiterals));
-  it('Boolean literal with noLiterals (degrades to boolean)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_true_noLiterals));
+  it('RegExp literal with noLiterals (degrades to RegExp)', () =>
+    assertIsType(VALIDATION_SUITE.ATOMIC.literal_regexp_noLiterals));
+  it('Boolean literal with noLiterals (degrades to boolean)', () =>
+    assertIsType(VALIDATION_SUITE.ATOMIC.literal_true_noLiterals));
   it('BigInt literal with noLiterals (degrades to bigint)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_1n_noLiterals));
-  it('Symbol literal with noLiterals (degrades to symbol)', () => assertIsType(VALIDATION_SUITE.ATOMIC.literal_symbol_noLiterals));
+  it('Symbol literal with noLiterals (degrades to symbol)', () =>
+    assertIsType(VALIDATION_SUITE.ATOMIC.literal_symbol_noLiterals));
 
   // Coverage guard. Mirrors 01JsonAtomic.spec.ts's final `it('all test
   // ran', …)`. Fails if the suite gains a new atomic case without a
@@ -140,14 +144,16 @@ describe('isType / ARRAY', () => {
   it('Generic Array<T> form (same emit as T[])', () => assertIsType(VALIDATION_SUITE.ARRAY.array_generic));
   it('Two-dimensional string array (multi-level dependency call)', () => assertIsType(VALIDATION_SUITE.ARRAY.string_array_2d));
   it('Three-dimensional string array (depth stress)', () => assertIsType(VALIDATION_SUITE.ARRAY.string_array_3d));
-  it('Array with noIsArrayCheck (Array.isArray guard stripped)', () => assertIsType(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
+  it('Array with noIsArrayCheck (Array.isArray guard stripped)', () =>
+    assertIsType(VALIDATION_SUITE.ARRAY.string_array_noIsArrayCheck));
 
   it('Array of object literals', () => assertIsType(VALIDATION_SUITE.ARRAY.object_array));
   it('Array of unions (OR-chain per element)', () => assertIsType(VALIDATION_SUITE.ARRAY.union_array));
   it('Array of tuples', () => assertIsType(VALIDATION_SUITE.ARRAY.tuple_array));
 
   it('Self-referential array (CircularArray = CircularArray[])', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_array));
-  it('Recursive object whose cycle closes via an array property', () => assertIsType(VALIDATION_SUITE.ARRAY.circular_object_with_array));
+  it('Recursive object whose cycle closes via an array property', () =>
+    assertIsType(VALIDATION_SUITE.ARRAY.circular_object_with_array));
   it('Array of symbols (non-serializable — always rejected)', () => assertIsType(VALIDATION_SUITE.ARRAY.symbol_array));
   it('Readonly array (ReadonlyArray<T> / readonly T[])', () => assertIsType(VALIDATION_SUITE.ARRAY.readonly_string_array));
 
@@ -163,13 +169,17 @@ describe('isType / OBJECT', () => {
   });
 
   it('Simple interface with string and number props', () => assertIsType(VALIDATION_SUITE.OBJECT.simple_interface));
-  it('Object pinned with `as const` (readonly literal props)', () => assertIsType(VALIDATION_SUITE.OBJECT.object_as_const_literals));
-  it('Object inferred via ReturnType<typeof factory>', () => assertIsType(VALIDATION_SUITE.OBJECT.object_via_return_type_utility));
-  it('Object inferred via property access on a parent shape', () => assertIsType(VALIDATION_SUITE.OBJECT.object_via_property_access));
+  it('Object pinned with `as const` (readonly literal props)', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.object_as_const_literals));
+  it('Object inferred via ReturnType<typeof factory>', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.object_via_return_type_utility));
+  it('Object inferred via property access on a parent shape', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.object_via_property_access));
   it('Object inferred via array element access', () => assertIsType(VALIDATION_SUITE.OBJECT.object_via_array_access));
   it('Interface with one optional property', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_with_optional));
   it('Interface with a Date property', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_with_date));
-  it('Interface with a method (function prop skipped from check)', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_with_method));
+  it('Interface with a method (function prop skipped from check)', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.interface_with_method));
   it('Interface with a nested object property', () => assertIsType(VALIDATION_SUITE.OBJECT.nested_object));
   it('Interface with a string-array property', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_string_array_prop));
   it('Self-referential interface (linked-list shape)', () => assertIsType(VALIDATION_SUITE.OBJECT.circular_interface));
@@ -181,7 +191,8 @@ describe('isType / OBJECT', () => {
   it('Index signature combined with named properties', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_named_props));
   it('Nested index signatures (number leaf values)', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_nested));
   it('Nested index signatures with Date leaf values', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_date_value));
-  it('Index signature on a nested (non-root) object property', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_non_root));
+  it('Index signature on a nested (non-root) object property', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.index_signature_non_root));
   it('Function type at top level (any function passes)', () => assertIsType(VALIDATION_SUITE.OBJECT.function_top_level));
 
   it('Record<UnionKey, V> — resolves to a fixed-property shape', () => assertIsType(VALIDATION_SUITE.OBJECT.record_union_keys));
@@ -191,7 +202,8 @@ describe('isType / OBJECT', () => {
   it('Class that extends a parent class', () => assertIsType(VALIDATION_SUITE.OBJECT.class_inheritance));
   it('Index signature with a number key', () => assertIsType(VALIDATION_SUITE.OBJECT.index_signature_number_key));
 
-  it('Interface with every property optional (plain-object guard)', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_all_optional));
+  it('Interface with every property optional (plain-object guard)', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.interface_all_optional));
 
   it('Callable interface (function plus data properties)', () => assertIsType(VALIDATION_SUITE.OBJECT.interface_callable));
 
@@ -200,7 +212,8 @@ describe('isType / OBJECT', () => {
   it('Function parameters extracted via Parameters<F>', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params));
   it('Parameters<F> tuple with a trailing optional argument', () =>
     assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params_with_optional));
-  it('Parameters<F> tuple with a trailing rest segment', () => assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
+  it('Parameters<F> tuple with a trailing rest segment', () =>
+    assertIsType(VALIDATION_SUITE.OBJECT.call_signature_params_with_rest));
 
   it('all object isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.OBJECT).length);
@@ -216,7 +229,8 @@ describe('isType / TUPLE', () => {
   it('Two-element tuple (string plus number)', () => assertIsType(VALIDATION_SUITE.TUPLE.string_number_pair));
   it('Six-element heterogeneous tuple (mion fixture)', () => assertIsType(VALIDATION_SUITE.TUPLE.full_mion_tuple));
   it('Tuple with trailing optional elements', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_with_optional));
-  it('Tuple as array element (tuple inside array dependency call)', () => assertIsType(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
+  it('Tuple as array element (tuple inside array dependency call)', () =>
+    assertIsType(VALIDATION_SUITE.TUPLE.nested_tuple_in_array));
 
   it('Self-referential tuple via trailing optional self-ref', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_circular));
   it('Tuple with a function slot (must be undefined)', () => assertIsType(VALIDATION_SUITE.TUPLE.tuple_with_non_serializable));
@@ -245,25 +259,31 @@ describe('isType / UNION', () => {
   it('Array whose element type is a union', () => assertIsType(VALIDATION_SUITE.UNION.array_of_union));
 
   it('Union of disjoint object shapes', () => assertIsType(VALIDATION_SUITE.UNION.union_of_object_shapes));
-  it('Discriminated union (shared kind literal, different payloads)', () => assertIsType(VALIDATION_SUITE.UNION.discriminated_union));
+  it('Discriminated union (shared kind literal, different payloads)', () =>
+    assertIsType(VALIDATION_SUITE.UNION.discriminated_union));
   it('Union of object arms each carrying a method', () => assertIsType(VALIDATION_SUITE.UNION.union_with_methods));
 
   it('Self-referential union via object and array arms', () => assertIsType(VALIDATION_SUITE.UNION.circular_union));
-  it('Intersection of object shapes (resolved to one merged shape)', () => assertIsType(VALIDATION_SUITE.UNION.intersection_to_object));
+  it('Intersection of object shapes (resolved to one merged shape)', () =>
+    assertIsType(VALIDATION_SUITE.UNION.intersection_to_object));
 
   // mion union.spec.ts ports — additional arms / shapes
   it('Union where one arm carries an index signature', () => assertIsType(VALIDATION_SUITE.UNION.union_with_index_arm));
   it('Discriminated union sharing one prop with arm-dependent type', () =>
     assertIsType(VALIDATION_SUITE.UNION.union_same_prop_different_types));
   it('Union mixing array types and object shapes', () => assertIsType(VALIDATION_SUITE.UNION.union_mixed_arrays_and_objects));
-  it('Union of shapes sharing a prop with different value types', () => assertIsType(VALIDATION_SUITE.UNION.union_merged_property));
+  it('Union of shapes sharing a prop with different value types', () =>
+    assertIsType(VALIDATION_SUITE.UNION.union_merged_property));
   it('Union mixing arrays, plain objects, and index-signature shapes', () =>
     assertIsType(VALIDATION_SUITE.UNION.union_mixed_with_index));
   it('Union with an `any` arm (collapses to any)', () => assertIsType(VALIDATION_SUITE.UNION.union_with_any_fallback));
-  it('Union with an `unknown` arm (collapses to unknown)', () => assertIsType(VALIDATION_SUITE.UNION.union_with_unknown_fallback));
-  it('Union with the smaller arm declared before its superset', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_small_first));
+  it('Union with an `unknown` arm (collapses to unknown)', () =>
+    assertIsType(VALIDATION_SUITE.UNION.union_with_unknown_fallback));
+  it('Union with the smaller arm declared before its superset', () =>
+    assertIsType(VALIDATION_SUITE.UNION.union_subset_small_first));
   it('Union with a three-level subset chain', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_nested_levels));
-  it('Union mixing a subset pair with a disjoint arm', () => assertIsType(VALIDATION_SUITE.UNION.union_subset_mixed_related_unrelated));
+  it('Union mixing a subset pair with a disjoint arm', () =>
+    assertIsType(VALIDATION_SUITE.UNION.union_subset_mixed_related_unrelated));
 
   it('all union isType tests ran', () => {
     expect(ranTests).toBe(Object.keys(VALIDATION_SUITE.UNION).length);
@@ -384,7 +404,8 @@ describe('isType / UTILITY', () => {
   it('keyof T — resolves to a union of string-literal keys', () => assertIsType(VALIDATION_SUITE.UTILITY.keyof_to_literal_union));
   it('typeof variable — type query on a runtime value', () => assertIsType(VALIDATION_SUITE.UTILITY.typeof_variable_query));
   it('Indexed access type — Person["name"] resolves to string', () => assertIsType(VALIDATION_SUITE.UTILITY.indexed_access_type));
-  it('Conditional type — T extends string ? boolean : number', () => assertIsType(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
+  it('Conditional type — T extends string ? boolean : number', () =>
+    assertIsType(VALIDATION_SUITE.UTILITY.conditional_type_resolved));
   it('Custom mapped type — {[K in keyof T]: T[K] | null}', () => assertIsType(VALIDATION_SUITE.UTILITY.mapped_type_custom));
   it('Mapped type whose value is a conditional — per-prop shape diverges', () =>
     assertIsType(VALIDATION_SUITE.UTILITY.mapped_type_with_conditional_value));
@@ -404,8 +425,10 @@ describe('isType / TYPE_MAPPINGS', () => {
     ranTests++;
   });
 
-  it('Key prefix via template literal — `prefix_${K}` rename', () => assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_prefix_rename));
-  it('Conditional key rename — swap one key, leave the rest', () => assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_conditional_rename));
+  it('Key prefix via template literal — `prefix_${K}` rename', () =>
+    assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_prefix_rename));
+  it('Conditional key rename — swap one key, leave the rest', () =>
+    assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_conditional_rename));
   it('Filter keys via `never` — drop sensitive props', () => assertIsType(VALIDATION_SUITE.TYPE_MAPPINGS.key_filter_via_never));
 
   it('all type-mappings isType tests ran', () => {
