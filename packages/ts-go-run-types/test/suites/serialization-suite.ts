@@ -39,372 +39,12 @@ import {
 import {deserializePrepareForJson, deserializeRestoreFromJson} from '../util/deserializeJitFunctions.ts';
 
 // ========================================================================
-// Shared test types
-// Mion defines these at module scope because TypeScript reflection needs
-// stable type declarations (declaring classes inside getTestData() would
-// produce different anonymous-class identities per call).
-// ========================================================================
-
-enum Color {
-  Red = 'red',
-  Green = 'green',
-  Blue = 'blue',
-}
-
-interface SmallObject {
-  prop1: string;
-  prop2: number;
-  prop3: boolean;
-  prop4?: Date;
-  prop5?: bigint;
-}
-
-class MySerializableClass {
-  name: string;
-  surname: string;
-  id: number;
-  startDate: Date;
-  constructor() {
-    this.name = 'John';
-    this.surname = 'Doe';
-    this.id = 0;
-    this.startDate = new Date('2000-08-06T02:13:00.000Z');
-  }
-  getFullName() {
-    return `${this.name} ${this.surname}`;
-  }
-}
-
-class NonSerializableClass {
-  constructor(
-    public name: string,
-    public surname: string,
-    public id: number,
-    public startDate: Date
-  ) {}
-  getFullName() {
-    return `${this.name} ${this.surname}`;
-  }
-}
-
-// circular ref types (must be declared at module scope for reflection)
-
-type ObjCircularArr = {
-  a: string;
-  deep?: {
-    b: string;
-    c: number;
-  };
-  d?: ObjCircularArr[];
-};
-
-interface ICircularDeep {
-  name: string;
-  big: bigint;
-  embedded: {
-    hello: string;
-    child?: ICircularDeep;
-  };
-}
-interface ICircularDate {
-  date: Date;
-  month: number;
-  year: number;
-  embedded?: ICircularDate;
-  deep?: ICircularDeep;
-}
-interface RootCircular {
-  isRoot: true;
-  ciChild: ICircularDeep;
-  ciRoort?: RootCircular;
-  ciDate: ICircularDate;
-}
-
-interface RootNotCircular {
-  isRoot: true;
-  ciChild: ICircularDeep;
-}
-
-interface ICircularArray {
-  name: string;
-  children?: ICircularArray[];
-}
-
-interface ICircularTuple {
-  name: string;
-  parent?: [string, ICircularTuple];
-}
-
-interface ObjectWithMethods {
-  name: string;
-  methodProp: () => any;
-}
-
-// Reused for FUNCTIONS bucket — TS Parameters<typeof fn> / ReturnType<typeof fn>
-// utilities extract the relevant slices. These named functions must
-// live at module scope so the marker scanner can resolve them.
-
-function fnNoOptional(a: number, b: boolean, c: string): Date {
-  return new Date(a);
-}
-function fnOptionalParams(a: Date, b?: boolean): bigint {
-  void a;
-  void b;
-  return 1n;
-}
-function fnOptionalParam(a: number, b: boolean, c?: string): Date {
-  void a;
-  void b;
-  void c;
-  return new Date(0);
-}
-function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
-  void rest;
-  void a;
-  void b;
-  return new Date(0);
-}
-function fnOnlyRestParams(...rest: number[]): Date {
-  void rest;
-  return new Date(0);
-}
-function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
-  void a;
-  void b;
-  void c;
-  return new Date(0);
-}
-function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
-  void a;
-  void b;
-  void c;
-  return Promise.resolve(new Date(0));
-}
-function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
-  void a;
-  void b;
-  void c;
-  return () => new Date(0);
-}
-
-// ========================================================================
-// LARGE_OBJECTS support types — module-scoped so reflection resolves
-// the same identity per call. These shapes drive the
-// LARGE_OBJECTS bucket and exist to expose runtime cost
-// differences between the flat and non-flat JSON families on
-// the kinds of shapes that show up in real applications.
-// ========================================================================
-
-interface WideRecord {
-  id: number;
-  name: string;
-  description: string;
-  createdAt: Date;
-  updatedAt: Date;
-  isActive: boolean;
-  score: number;
-  rank: number;
-  tag1: string;
-  tag2: string;
-  tag3: string;
-  tag4: string;
-  tag5: string;
-  count1: number;
-  count2: number;
-  count3: number;
-  flag1: boolean;
-  flag2: boolean;
-  flag3: boolean;
-  big1: bigint;
-  big2: bigint;
-  alias: string;
-  email: string;
-  city: string;
-  country: string;
-  postal: string;
-  width: number;
-  height: number;
-  weight: number;
-  meta: {category: string; priority: number; lastSeen: Date};
-}
-
-interface ProductEvent {
-  kind: 'product';
-  id: string;
-  sku: string;
-  price: number;
-  available: boolean;
-  releasedAt: Date;
-  stock: number;
-}
-interface UserEvent {
-  kind: 'user';
-  id: string;
-  username: string;
-  email: string;
-  signedUpAt: Date;
-  loginCount: number;
-  isPremium: boolean;
-}
-interface OrderEvent {
-  kind: 'order';
-  id: string;
-  total: number;
-  itemCount: number;
-  placedAt: Date;
-  shipped: boolean;
-  customerId: string;
-}
-interface PaymentEvent {
-  kind: 'payment';
-  id: string;
-  amount: number;
-  currency: string;
-  processedAt: Date;
-  refunded: boolean;
-  txId: string;
-}
-interface SessionEvent {
-  kind: 'session';
-  id: string;
-  userId: string;
-  startedAt: Date;
-  durationMs: number;
-  ipHash: string;
-  device: string;
-}
-
-type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-
-type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-
-interface DeepNestedLeaf {
-  id: number;
-  value: string;
-  when: Date;
-}
-interface DeepNestedLevel5 {
-  name: string;
-  leaves: DeepNestedLeaf[];
-}
-interface DeepNestedLevel4 {
-  label: string;
-  children: DeepNestedLevel5[];
-}
-interface DeepNestedLevel3 {
-  group: string;
-  branches: DeepNestedLevel4[];
-}
-interface DeepNestedLevel2 {
-  category: string;
-  groups: DeepNestedLevel3[];
-}
-interface DeepNestedLevel1 {
-  root: string;
-  categories: DeepNestedLevel2[];
-}
-
-class LargeClassA {
-  kind!: 'classA';
-  alpha!: string;
-  count!: number;
-  flag!: boolean;
-  when!: Date;
-  total!: bigint;
-  tags!: string[];
-}
-class LargeClassB {
-  kind!: 'classB';
-  beta!: string;
-  ratio!: number;
-  enabled!: boolean;
-  releasedAt!: Date;
-  score!: bigint;
-  metadata!: {label: string; weight: number};
-}
-class LargeClassC {
-  kind!: 'classC';
-  gamma!: string;
-  amount!: number;
-  paid!: boolean;
-  processedAt!: Date;
-  txId!: string;
-  steps!: number[];
-}
-
-type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-
-function buildWideRecord(seed: number): WideRecord {
-  return {
-    id: seed,
-    name: `record-${seed}`,
-    description: `Description for record ${seed} with extra body text`,
-    createdAt: new Date('2024-01-15T12:00:00.000Z'),
-    updatedAt: new Date('2024-06-15T12:00:00.000Z'),
-    isActive: true,
-    score: seed * 1.5,
-    rank: seed % 100,
-    tag1: `tag-a-${seed}`,
-    tag2: `tag-b-${seed}`,
-    tag3: `tag-c-${seed}`,
-    tag4: `tag-d-${seed}`,
-    tag5: `tag-e-${seed}`,
-    count1: seed * 2,
-    count2: seed * 3,
-    count3: seed * 4,
-    flag1: seed % 2 === 0,
-    flag2: seed % 3 === 0,
-    flag3: seed % 5 === 0,
-    big1: BigInt(seed) * 1_000_000n,
-    big2: BigInt(seed) * 9_999_999n,
-    alias: `alias-${seed}`,
-    email: `user${seed}@example.com`,
-    city: 'Springfield',
-    country: 'XX',
-    postal: '00000',
-    width: 1024,
-    height: 768,
-    weight: 12.5,
-    meta: {category: 'default', priority: seed % 10, lastSeen: new Date('2024-12-01T00:00:00.000Z')},
-  };
-}
-
-function buildLargeClassA(): LargeClassA {
-  const inst = new LargeClassA();
-  inst.kind = 'classA';
-  inst.alpha = 'alpha-value';
-  inst.count = 42;
-  inst.flag = true;
-  inst.when = new Date('2024-03-15T08:30:00.000Z');
-  inst.total = 10_000n;
-  inst.tags = ['x', 'y', 'z'];
-  return inst;
-}
-function buildLargeClassB(): LargeClassB {
-  const inst = new LargeClassB();
-  inst.kind = 'classB';
-  inst.beta = 'beta-value';
-  inst.ratio = 3.14159;
-  inst.enabled = false;
-  inst.releasedAt = new Date('2024-05-01T00:00:00.000Z');
-  inst.score = 99_999n;
-  inst.metadata = {label: 'meta', weight: 1.5};
-  return inst;
-}
-function buildLargeClassC(): LargeClassC {
-  const inst = new LargeClassC();
-  inst.kind = 'classC';
-  inst.gamma = 'gamma-value';
-  inst.amount = 250.5;
-  inst.paid = true;
-  inst.processedAt = new Date('2024-07-20T18:45:00.000Z');
-  inst.txId = 'tx-abc-123';
-  inst.steps = [1, 2, 3, 4, 5];
-  return inst;
-}
-
-// ========================================================================
-// SERIALIZATION_SPEC — single source of truth for the round-trip cases
+// SERIALIZATION_SPEC — single source of truth for the round-trip cases.
+// Every test type / class / enum / helper used by a case lives inside that
+// case's factory thunks (mirrors validation-suite). The doc-gen pipeline
+// (cmd/extract-fn-bodies) pulls each thunk body as a self-contained
+// snippet, so consumers see the shape being serialised right next to the
+// call that serialises it.
 // ========================================================================
 
 /** One case in the JSON serialization suite. Mirrors mion's `SingleTest`
@@ -687,16 +327,86 @@ export const SERIALIZATION_SPEC = {
     },
     enum_color: {
       title: 'enum',
-      prepareForJson: () => createPrepareForJson<Color>(),
-      stringifyJson: () => createStringifyJson<Color>(),
-      restoreFromJson: () => createRestoreFromJson<Color>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Color>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Color>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Color>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Color>(),
-      deserializePrepareForJson: () => deserializePrepareForJson<Color>(),
-      deserializeRestoreFromJson: () => deserializeRestoreFromJson<Color>(),
-      getTestData: () => ({values: [Color.Red, Color.Green]}),
+      prepareForJson: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createPrepareForJson<Color>();
+      },
+      stringifyJson: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createStringifyJson<Color>();
+      },
+      restoreFromJson: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createRestoreFromJson<Color>();
+      },
+      prepareForJsonFlat: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createPrepareForJsonFlat<Color>();
+      },
+      stringifyJsonFlat: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createStringifyJsonFlat<Color>();
+      },
+      restoreFromJsonFlat: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createRestoreFromJsonFlat<Color>();
+      },
+      prepareForJsonSafe: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createPrepareForJsonSafe<Color>();
+      },
+      deserializePrepareForJson: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return deserializePrepareForJson<Color>();
+      },
+      deserializeRestoreFromJson: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return deserializeRestoreFromJson<Color>();
+      },
+      getTestData: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return {values: [Color.Red, Color.Green]};
+      },
     },
     symbol: {
       title: 'symbol',
@@ -1110,14 +820,148 @@ export const SERIALIZATION_SPEC = {
     },
     class: {
       title: 'class',
-      prepareForJson: () => createPrepareForJson<MySerializableClass>(),
-      stringifyJson: () => createStringifyJson<MySerializableClass>(),
-      restoreFromJson: () => createRestoreFromJson<MySerializableClass>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<MySerializableClass>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<MySerializableClass>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<MySerializableClass>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<MySerializableClass>(),
+      prepareForJson: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createPrepareForJson<MySerializableClass>();
+      },
+      stringifyJson: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createStringifyJson<MySerializableClass>();
+      },
+      restoreFromJson: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createRestoreFromJson<MySerializableClass>();
+      },
+      prepareForJsonFlat: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createPrepareForJsonFlat<MySerializableClass>();
+      },
+      stringifyJsonFlat: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createStringifyJsonFlat<MySerializableClass>();
+      },
+      restoreFromJsonFlat: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createRestoreFromJsonFlat<MySerializableClass>();
+      },
+      prepareForJsonSafe: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createPrepareForJsonSafe<MySerializableClass>();
+      },
       getTestData: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
         const item = new MySerializableClass();
         const restored = {name: item.name, surname: item.surname, id: item.id, startDate: item.startDate};
         return {values: [new MySerializableClass()], deserializedValues: [restored]};
@@ -1202,14 +1046,116 @@ export const SERIALIZATION_SPEC = {
       title: 'non-serializable class via deserialize function',
       description:
         'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
-      prepareForJson: () => createPrepareForJson<NonSerializableClass>(),
-      stringifyJson: () => createStringifyJson<NonSerializableClass>(),
-      restoreFromJson: () => createRestoreFromJson<NonSerializableClass>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<NonSerializableClass>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<NonSerializableClass>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<NonSerializableClass>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<NonSerializableClass>(),
+      prepareForJson: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createPrepareForJson<NonSerializableClass>();
+      },
+      stringifyJson: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createStringifyJson<NonSerializableClass>();
+      },
+      restoreFromJson: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createRestoreFromJson<NonSerializableClass>();
+      },
+      prepareForJsonFlat: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createPrepareForJsonFlat<NonSerializableClass>();
+      },
+      stringifyJsonFlat: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createStringifyJsonFlat<NonSerializableClass>();
+      },
+      restoreFromJsonFlat: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createRestoreFromJsonFlat<NonSerializableClass>();
+      },
+      prepareForJsonSafe: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createPrepareForJsonSafe<NonSerializableClass>();
+      },
       getTestData: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
         const item = new NonSerializableClass('John', 'Doe', 0, new Date('2000-08-06T02:13:00.000Z'));
         const restored = {name: item.name, surname: item.surname, id: item.id, startDate: item.startDate};
         return {values: [item], deserializedValues: [restored]};
@@ -1453,13 +1399,55 @@ export const SERIALIZATION_SPEC = {
     },
     interface_circular_array: {
       title: 'interface circular array',
-      prepareForJson: () => createPrepareForJson<ICircularArray>(),
-      stringifyJson: () => createStringifyJson<ICircularArray>(),
-      restoreFromJson: () => createRestoreFromJson<ICircularArray>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ICircularArray>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ICircularArray>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ICircularArray>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ICircularArray>(),
+      prepareForJson: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createPrepareForJson<ICircularArray>();
+      },
+      stringifyJson: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createStringifyJson<ICircularArray>();
+      },
+      restoreFromJson: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createRestoreFromJson<ICircularArray>();
+      },
+      prepareForJsonFlat: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createPrepareForJsonFlat<ICircularArray>();
+      },
+      stringifyJsonFlat: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createStringifyJsonFlat<ICircularArray>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createRestoreFromJsonFlat<ICircularArray>();
+      },
+      prepareForJsonSafe: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createPrepareForJsonSafe<ICircularArray>();
+      },
       getTestData: () => ({
         values: [
           {name: 'hello', children: []},
@@ -1469,13 +1457,83 @@ export const SERIALIZATION_SPEC = {
     },
     interface_circular_deep: {
       title: 'interface circular deep',
-      prepareForJson: () => createPrepareForJson<ICircularDeep>(),
-      stringifyJson: () => createStringifyJson<ICircularDeep>(),
-      restoreFromJson: () => createRestoreFromJson<ICircularDeep>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ICircularDeep>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ICircularDeep>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ICircularDeep>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ICircularDeep>(),
+      prepareForJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createPrepareForJson<ICircularDeep>();
+      },
+      stringifyJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createStringifyJson<ICircularDeep>();
+      },
+      restoreFromJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createRestoreFromJson<ICircularDeep>();
+      },
+      prepareForJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createPrepareForJsonFlat<ICircularDeep>();
+      },
+      stringifyJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createStringifyJsonFlat<ICircularDeep>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createRestoreFromJsonFlat<ICircularDeep>();
+      },
+      prepareForJsonSafe: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createPrepareForJsonSafe<ICircularDeep>();
+      },
       getTestData: () => ({
         values: [
           {name: 'hello', big: 1n, embedded: {hello: 'world'}},
@@ -1489,13 +1547,90 @@ export const SERIALIZATION_SPEC = {
     },
     interface_root_not_circular: {
       title: 'interface root not circular',
-      prepareForJson: () => createPrepareForJson<RootNotCircular>(),
-      stringifyJson: () => createStringifyJson<RootNotCircular>(),
-      restoreFromJson: () => createRestoreFromJson<RootNotCircular>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<RootNotCircular>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<RootNotCircular>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<RootNotCircular>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<RootNotCircular>(),
+      prepareForJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createPrepareForJson<RootNotCircular>();
+      },
+      stringifyJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createStringifyJson<RootNotCircular>();
+      },
+      restoreFromJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createRestoreFromJson<RootNotCircular>();
+      },
+      prepareForJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createPrepareForJsonFlat<RootNotCircular>();
+      },
+      stringifyJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createStringifyJsonFlat<RootNotCircular>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createRestoreFromJsonFlat<RootNotCircular>();
+      },
+      prepareForJsonSafe: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createPrepareForJsonSafe<RootNotCircular>();
+      },
       getTestData: () => ({
         values: [
           {isRoot: true, ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}}},
@@ -1512,14 +1647,166 @@ export const SERIALIZATION_SPEC = {
     },
     interface_multiple_circular: {
       title: 'interface multiple circular',
-      prepareForJson: () => createPrepareForJson<RootCircular>(),
-      stringifyJson: () => createStringifyJson<RootCircular>(),
-      restoreFromJson: () => createRestoreFromJson<RootCircular>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<RootCircular>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<RootCircular>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<RootCircular>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<RootCircular>(),
+      prepareForJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createPrepareForJson<RootCircular>();
+      },
+      stringifyJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createStringifyJson<RootCircular>();
+      },
+      restoreFromJson: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createRestoreFromJson<RootCircular>();
+      },
+      prepareForJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createPrepareForJsonFlat<RootCircular>();
+      },
+      stringifyJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createStringifyJsonFlat<RootCircular>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createRestoreFromJsonFlat<RootCircular>();
+      },
+      prepareForJsonSafe: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createPrepareForJsonSafe<RootCircular>();
+      },
       getTestData: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
         const ciDate: ICircularDate = {date: new Date('2000-08-06T02:13:00.000Z'), month: 1, year: 2021};
         return {
           values: [
@@ -1539,14 +1826,60 @@ export const SERIALIZATION_SPEC = {
     },
     interface_with_methods: {
       title: 'methods should be excluded from interface when serializing',
-      prepareForJson: () => createPrepareForJson<ObjectWithMethods>(),
-      stringifyJson: () => createStringifyJson<ObjectWithMethods>(),
-      restoreFromJson: () => createRestoreFromJson<ObjectWithMethods>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ObjectWithMethods>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ObjectWithMethods>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ObjectWithMethods>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ObjectWithMethods>(),
+      prepareForJson: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createPrepareForJson<ObjectWithMethods>();
+      },
+      stringifyJson: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createStringifyJson<ObjectWithMethods>();
+      },
+      restoreFromJson: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createRestoreFromJson<ObjectWithMethods>();
+      },
+      prepareForJsonFlat: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createPrepareForJsonFlat<ObjectWithMethods>();
+      },
+      stringifyJsonFlat: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createStringifyJsonFlat<ObjectWithMethods>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createRestoreFromJsonFlat<ObjectWithMethods>();
+      },
+      prepareForJsonSafe: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createPrepareForJsonSafe<ObjectWithMethods>();
+      },
       getTestData: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
         const objWithMethod = {
           name: 'John',
           methodProp() {
@@ -1784,14 +2117,60 @@ export const SERIALIZATION_SPEC = {
     },
     interface_circular_tuple: {
       title: 'interface circular tuple',
-      prepareForJson: () => createPrepareForJson<ICircularTuple>(),
-      stringifyJson: () => createStringifyJson<ICircularTuple>(),
-      restoreFromJson: () => createRestoreFromJson<ICircularTuple>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ICircularTuple>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ICircularTuple>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ICircularTuple>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ICircularTuple>(),
+      prepareForJson: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createPrepareForJson<ICircularTuple>();
+      },
+      stringifyJson: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createStringifyJson<ICircularTuple>();
+      },
+      restoreFromJson: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createRestoreFromJson<ICircularTuple>();
+      },
+      prepareForJsonFlat: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createPrepareForJsonFlat<ICircularTuple>();
+      },
+      stringifyJsonFlat: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createStringifyJsonFlat<ICircularTuple>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createRestoreFromJsonFlat<ICircularTuple>();
+      },
+      prepareForJsonSafe: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createPrepareForJsonSafe<ICircularTuple>();
+      },
       getTestData: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
         const obj1: ICircularTuple = {name: 'hello', parent: ['world', {name: 'world'}]};
         const obj2: ICircularTuple = {name: 'hello', parent: ['world', {name: 'world', parent: ['hello', obj1]}]};
         return {values: [obj1, obj2]};
@@ -1806,13 +2185,48 @@ export const SERIALIZATION_SPEC = {
     // helpers. Same type-level slicing, no extra factories.
     parameters: {
       title: 'function parameters',
-      prepareForJson: () => createPrepareForJson<Parameters<typeof fnNoOptional>>(),
-      stringifyJson: () => createStringifyJson<Parameters<typeof fnNoOptional>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnNoOptional>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnNoOptional>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnNoOptional>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnNoOptional>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Parameters<typeof fnNoOptional>>(),
+      prepareForJson: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createPrepareForJson<Parameters<typeof fnNoOptional>>();
+      },
+      stringifyJson: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createStringifyJson<Parameters<typeof fnNoOptional>>();
+      },
+      restoreFromJson: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createRestoreFromJson<Parameters<typeof fnNoOptional>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createPrepareForJsonFlat<Parameters<typeof fnNoOptional>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createStringifyJsonFlat<Parameters<typeof fnNoOptional>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createRestoreFromJsonFlat<Parameters<typeof fnNoOptional>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createPrepareForJsonSafe<Parameters<typeof fnNoOptional>>();
+      },
       getTestData: () => ({
         values: [
           [3, true, 'hello'],
@@ -1822,13 +2236,62 @@ export const SERIALIZATION_SPEC = {
     },
     optional_params: {
       title: 'optional parameters',
-      prepareForJson: () => createPrepareForJson<Parameters<typeof fnOptionalParams>>(),
-      stringifyJson: () => createStringifyJson<Parameters<typeof fnOptionalParams>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOptionalParams>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnOptionalParams>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnOptionalParams>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnOptionalParams>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Parameters<typeof fnOptionalParams>>(),
+      prepareForJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJson<Parameters<typeof fnOptionalParams>>();
+      },
+      stringifyJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createStringifyJson<Parameters<typeof fnOptionalParams>>();
+      },
+      restoreFromJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createRestoreFromJson<Parameters<typeof fnOptionalParams>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJsonFlat<Parameters<typeof fnOptionalParams>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createStringifyJsonFlat<Parameters<typeof fnOptionalParams>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createRestoreFromJsonFlat<Parameters<typeof fnOptionalParams>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJsonSafe<Parameters<typeof fnOptionalParams>>();
+      },
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
         return {values: [[d, true], [d]]};
@@ -1836,24 +2299,136 @@ export const SERIALIZATION_SPEC = {
     },
     function_return: {
       title: 'function return',
-      prepareForJson: () => createPrepareForJson<ReturnType<typeof fnOptionalParam>>(),
-      stringifyJson: () => createStringifyJson<ReturnType<typeof fnOptionalParam>>(),
-      restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnOptionalParam>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnOptionalParam>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnOptionalParam>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnOptionalParam>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ReturnType<typeof fnOptionalParam>>(),
+      prepareForJson: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createPrepareForJson<ReturnType<typeof fnOptionalParam>>();
+      },
+      stringifyJson: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createStringifyJson<ReturnType<typeof fnOptionalParam>>();
+      },
+      restoreFromJson: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createRestoreFromJson<ReturnType<typeof fnOptionalParam>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createPrepareForJsonFlat<ReturnType<typeof fnOptionalParam>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createStringifyJsonFlat<ReturnType<typeof fnOptionalParam>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createRestoreFromJsonFlat<ReturnType<typeof fnOptionalParam>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createPrepareForJsonSafe<ReturnType<typeof fnOptionalParam>>();
+      },
       getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
     },
     function_with_rest_parameters: {
       title: 'function with rest parameters',
-      prepareForJson: () => createPrepareForJson<Parameters<typeof fnRestParams>>(),
-      stringifyJson: () => createStringifyJson<Parameters<typeof fnRestParams>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnRestParams>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnRestParams>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnRestParams>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnRestParams>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Parameters<typeof fnRestParams>>(),
+      prepareForJson: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createPrepareForJson<Parameters<typeof fnRestParams>>();
+      },
+      stringifyJson: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createStringifyJson<Parameters<typeof fnRestParams>>();
+      },
+      restoreFromJson: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createRestoreFromJson<Parameters<typeof fnRestParams>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createPrepareForJsonFlat<Parameters<typeof fnRestParams>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createStringifyJsonFlat<Parameters<typeof fnRestParams>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createRestoreFromJsonFlat<Parameters<typeof fnRestParams>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createPrepareForJsonSafe<Parameters<typeof fnRestParams>>();
+      },
       getTestData: () => ({
         values: [
           [3, true, new Date('2000-08-06T02:13:00.000Z'), new Date('2000-08-06T02:13:00.000Z')],
@@ -1863,13 +2438,62 @@ export const SERIALIZATION_SPEC = {
     },
     function_with_date_parameters: {
       title: 'function with Date parameters',
-      prepareForJson: () => createPrepareForJson<Parameters<typeof fnOptionalParams>>(),
-      stringifyJson: () => createStringifyJson<Parameters<typeof fnOptionalParams>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOptionalParams>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnOptionalParams>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnOptionalParams>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnOptionalParams>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Parameters<typeof fnOptionalParams>>(),
+      prepareForJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJson<Parameters<typeof fnOptionalParams>>();
+      },
+      stringifyJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createStringifyJson<Parameters<typeof fnOptionalParams>>();
+      },
+      restoreFromJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createRestoreFromJson<Parameters<typeof fnOptionalParams>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJsonFlat<Parameters<typeof fnOptionalParams>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createStringifyJsonFlat<Parameters<typeof fnOptionalParams>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createRestoreFromJsonFlat<Parameters<typeof fnOptionalParams>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJsonSafe<Parameters<typeof fnOptionalParams>>();
+      },
       getTestData: () => {
         const d = new Date('2000-08-06T02:13:00.000Z');
         return {values: [[d, true], [d]]};
@@ -1877,35 +2501,182 @@ export const SERIALIZATION_SPEC = {
     },
     required_function_return: {
       title: 'required function return',
-      prepareForJson: () => createPrepareForJson<ReturnType<typeof fnOptionalParams>>(),
-      stringifyJson: () => createStringifyJson<ReturnType<typeof fnOptionalParams>>(),
-      restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnOptionalParams>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnOptionalParams>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnOptionalParams>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnOptionalParams>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ReturnType<typeof fnOptionalParams>>(),
+      prepareForJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJson<ReturnType<typeof fnOptionalParams>>();
+      },
+      stringifyJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createStringifyJson<ReturnType<typeof fnOptionalParams>>();
+      },
+      restoreFromJson: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createRestoreFromJson<ReturnType<typeof fnOptionalParams>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJsonFlat<ReturnType<typeof fnOptionalParams>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createStringifyJsonFlat<ReturnType<typeof fnOptionalParams>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createRestoreFromJsonFlat<ReturnType<typeof fnOptionalParams>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createPrepareForJsonSafe<ReturnType<typeof fnOptionalParams>>();
+      },
       getTestData: () => ({values: [1n]}),
     },
     function_with_only_rest_parameters: {
       title: 'function with only rest parameters',
-      prepareForJson: () => createPrepareForJson<Parameters<typeof fnOnlyRestParams>>(),
-      stringifyJson: () => createStringifyJson<Parameters<typeof fnOnlyRestParams>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnOnlyRestParams>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnOnlyRestParams>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnOnlyRestParams>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnOnlyRestParams>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Parameters<typeof fnOnlyRestParams>>(),
+      prepareForJson: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createPrepareForJson<Parameters<typeof fnOnlyRestParams>>();
+      },
+      stringifyJson: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createStringifyJson<Parameters<typeof fnOnlyRestParams>>();
+      },
+      restoreFromJson: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createRestoreFromJson<Parameters<typeof fnOnlyRestParams>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createPrepareForJsonFlat<Parameters<typeof fnOnlyRestParams>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createStringifyJsonFlat<Parameters<typeof fnOnlyRestParams>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createRestoreFromJsonFlat<Parameters<typeof fnOnlyRestParams>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createPrepareForJsonSafe<Parameters<typeof fnOnlyRestParams>>();
+      },
       getTestData: () => ({values: [[3, 2, 1], []]}),
     },
     non_serializable_params: {
       title: 'non serializable params',
-      prepareForJson: () => createPrepareForJson<Parameters<typeof fnWithCallback>>(),
-      stringifyJson: () => createStringifyJson<Parameters<typeof fnWithCallback>>(),
-      restoreFromJson: () => createRestoreFromJson<Parameters<typeof fnWithCallback>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Parameters<typeof fnWithCallback>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Parameters<typeof fnWithCallback>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Parameters<typeof fnWithCallback>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Parameters<typeof fnWithCallback>>(),
+      prepareForJson: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createPrepareForJson<Parameters<typeof fnWithCallback>>();
+      },
+      stringifyJson: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createStringifyJson<Parameters<typeof fnWithCallback>>();
+      },
+      restoreFromJson: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createRestoreFromJson<Parameters<typeof fnWithCallback>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createPrepareForJsonFlat<Parameters<typeof fnWithCallback>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createStringifyJsonFlat<Parameters<typeof fnWithCallback>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createRestoreFromJsonFlat<Parameters<typeof fnWithCallback>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createPrepareForJsonSafe<Parameters<typeof fnWithCallback>>();
+      },
       getTestData: () => ({
         values: [
           [3, true, () => null],
@@ -1920,26 +2691,138 @@ export const SERIALIZATION_SPEC = {
     function_promise_return_type: {
       title: 'function returns a promise',
       description: 'Promise<T> as a return type — Promises are non-serializable in mion.',
-      prepareForJson: () => createPrepareForJson<ReturnType<typeof fnReturnsPromise>>(),
-      stringifyJson: () => createStringifyJson<ReturnType<typeof fnReturnsPromise>>(),
-      restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnReturnsPromise>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnReturnsPromise>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnReturnsPromise>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnReturnsPromise>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ReturnType<typeof fnReturnsPromise>>(),
+      prepareForJson: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createPrepareForJson<ReturnType<typeof fnReturnsPromise>>();
+      },
+      stringifyJson: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createStringifyJson<ReturnType<typeof fnReturnsPromise>>();
+      },
+      restoreFromJson: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createRestoreFromJson<ReturnType<typeof fnReturnsPromise>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createPrepareForJsonFlat<ReturnType<typeof fnReturnsPromise>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createStringifyJsonFlat<ReturnType<typeof fnReturnsPromise>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createRestoreFromJsonFlat<ReturnType<typeof fnReturnsPromise>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createPrepareForJsonSafe<ReturnType<typeof fnReturnsPromise>>();
+      },
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
     function_return_type_is_function: {
       title: 'return type of a closure',
       description: 'fn returns another fn — non-serializable.',
-      prepareForJson: () => createPrepareForJson<ReturnType<typeof fnReturnsFunction>>(),
-      stringifyJson: () => createStringifyJson<ReturnType<typeof fnReturnsFunction>>(),
-      restoreFromJson: () => createRestoreFromJson<ReturnType<typeof fnReturnsFunction>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ReturnType<typeof fnReturnsFunction>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ReturnType<typeof fnReturnsFunction>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ReturnType<typeof fnReturnsFunction>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ReturnType<typeof fnReturnsFunction>>(),
+      prepareForJson: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createPrepareForJson<ReturnType<typeof fnReturnsFunction>>();
+      },
+      stringifyJson: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createStringifyJson<ReturnType<typeof fnReturnsFunction>>();
+      },
+      restoreFromJson: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createRestoreFromJson<ReturnType<typeof fnReturnsFunction>>();
+      },
+      prepareForJsonFlat: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createPrepareForJsonFlat<ReturnType<typeof fnReturnsFunction>>();
+      },
+      stringifyJsonFlat: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createStringifyJsonFlat<ReturnType<typeof fnReturnsFunction>>();
+      },
+      restoreFromJsonFlat: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createRestoreFromJsonFlat<ReturnType<typeof fnReturnsFunction>>();
+      },
+      prepareForJsonSafe: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createPrepareForJsonSafe<ReturnType<typeof fnReturnsFunction>>();
+      },
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },
@@ -2593,22 +3476,94 @@ export const SERIALIZATION_SPEC = {
     },
     set_small_object: {
       title: 'Set<SmallObject>',
-      prepareForJson: () => createPrepareForJson<Set<SmallObject>>(),
-      stringifyJson: () => createStringifyJson<Set<SmallObject>>(),
-      restoreFromJson: () => createRestoreFromJson<Set<SmallObject>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Set<SmallObject>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Set<SmallObject>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Set<SmallObject>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Set<SmallObject>>(),
-      getTestData: () => ({
-        values: [
-          new Set<SmallObject>([
-            {prop1: 'value1', prop2: 1, prop3: true},
-            {prop1: 'value2', prop2: 2, prop3: false, prop4: new Date('2000-08-06T02:13:00.000Z')},
-            {prop1: 'value3', prop2: 3, prop3: true, prop5: BigInt(100)},
-          ]),
-        ],
-      }),
+      prepareForJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJson<Set<SmallObject>>();
+      },
+      stringifyJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createStringifyJson<Set<SmallObject>>();
+      },
+      restoreFromJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createRestoreFromJson<Set<SmallObject>>();
+      },
+      prepareForJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJsonFlat<Set<SmallObject>>();
+      },
+      stringifyJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createStringifyJsonFlat<Set<SmallObject>>();
+      },
+      restoreFromJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createRestoreFromJsonFlat<Set<SmallObject>>();
+      },
+      prepareForJsonSafe: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJsonSafe<Set<SmallObject>>();
+      },
+      getTestData: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return {
+          values: [
+            new Set<SmallObject>([
+              {prop1: 'value1', prop2: 1, prop3: true},
+              {prop1: 'value2', prop2: 2, prop3: false, prop4: new Date('2000-08-06T02:13:00.000Z')},
+              {prop1: 'value3', prop2: 3, prop3: true, prop5: BigInt(100)},
+            ]),
+          ],
+        };
+      },
     },
     objects_with_nested_sets: {
       title: 'objects with nested sets',
@@ -2708,41 +3663,185 @@ export const SERIALIZATION_SPEC = {
     },
     map_string_small_object: {
       title: 'Map<string, SmallObject>',
-      prepareForJson: () => createPrepareForJson<Map<string, SmallObject>>(),
-      stringifyJson: () => createStringifyJson<Map<string, SmallObject>>(),
-      restoreFromJson: () => createRestoreFromJson<Map<string, SmallObject>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<string, SmallObject>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Map<string, SmallObject>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<string, SmallObject>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Map<string, SmallObject>>(),
-      getTestData: () => ({
-        values: [
-          new Map<string, SmallObject>([
-            ['key1', {prop1: 'value1', prop2: 1, prop3: true}],
-            ['key2', {prop1: 'value2', prop2: 2, prop3: false, prop4: new Date('2000-08-06T02:13:00.000Z')}],
-            ['key3', {prop1: 'value3', prop2: 3, prop3: true, prop5: BigInt(100)}],
-          ]),
-        ],
-      }),
+      prepareForJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJson<Map<string, SmallObject>>();
+      },
+      stringifyJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createStringifyJson<Map<string, SmallObject>>();
+      },
+      restoreFromJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createRestoreFromJson<Map<string, SmallObject>>();
+      },
+      prepareForJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJsonFlat<Map<string, SmallObject>>();
+      },
+      stringifyJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createStringifyJsonFlat<Map<string, SmallObject>>();
+      },
+      restoreFromJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createRestoreFromJsonFlat<Map<string, SmallObject>>();
+      },
+      prepareForJsonSafe: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJsonSafe<Map<string, SmallObject>>();
+      },
+      getTestData: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return {
+          values: [
+            new Map<string, SmallObject>([
+              ['key1', {prop1: 'value1', prop2: 1, prop3: true}],
+              ['key2', {prop1: 'value2', prop2: 2, prop3: false, prop4: new Date('2000-08-06T02:13:00.000Z')}],
+              ['key3', {prop1: 'value3', prop2: 3, prop3: true, prop5: BigInt(100)}],
+            ]),
+          ],
+        };
+      },
     },
     map_small_object_number: {
       title: 'Map<SmallObject, number>',
-      prepareForJson: () => createPrepareForJson<Map<SmallObject, number>>(),
-      stringifyJson: () => createStringifyJson<Map<SmallObject, number>>(),
-      restoreFromJson: () => createRestoreFromJson<Map<SmallObject, number>>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<Map<SmallObject, number>>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<Map<SmallObject, number>>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<Map<SmallObject, number>>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<Map<SmallObject, number>>(),
-      getTestData: () => ({
-        values: [
-          new Map<SmallObject, number>([
-            [{prop1: 'value1', prop2: 1, prop3: true}, 1],
-            [{prop1: 'value2', prop2: 2, prop3: false, prop4: new Date('2000-08-06T02:13:00.000Z')}, 2],
-            [{prop1: 'value3', prop2: 3, prop3: true, prop5: BigInt(100)}, 3],
-          ]),
-        ],
-      }),
+      prepareForJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJson<Map<SmallObject, number>>();
+      },
+      stringifyJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createStringifyJson<Map<SmallObject, number>>();
+      },
+      restoreFromJson: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createRestoreFromJson<Map<SmallObject, number>>();
+      },
+      prepareForJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJsonFlat<Map<SmallObject, number>>();
+      },
+      stringifyJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createStringifyJsonFlat<Map<SmallObject, number>>();
+      },
+      restoreFromJsonFlat: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createRestoreFromJsonFlat<Map<SmallObject, number>>();
+      },
+      prepareForJsonSafe: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createPrepareForJsonSafe<Map<SmallObject, number>>();
+      },
+      getTestData: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return {
+          values: [
+            new Map<SmallObject, number>([
+              [{prop1: 'value1', prop2: 1, prop3: true}, 1],
+              [{prop1: 'value2', prop2: 2, prop3: false, prop4: new Date('2000-08-06T02:13:00.000Z')}, 2],
+              [{prop1: 'value3', prop2: 3, prop3: true, prop5: BigInt(100)}, 3],
+            ]),
+          ],
+        };
+      },
     },
     objects_with_nested_maps: {
       title: 'objects with nested maps',
@@ -3098,13 +4197,62 @@ export const SERIALIZATION_SPEC = {
     },
     object_with_circular_array: {
       title: 'object with circular array',
-      prepareForJson: () => createPrepareForJson<ObjCircularArr>(),
-      stringifyJson: () => createStringifyJson<ObjCircularArr>(),
-      restoreFromJson: () => createRestoreFromJson<ObjCircularArr>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<ObjCircularArr>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<ObjCircularArr>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<ObjCircularArr>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<ObjCircularArr>(),
+      prepareForJson: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createPrepareForJson<ObjCircularArr>();
+      },
+      stringifyJson: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createStringifyJson<ObjCircularArr>();
+      },
+      restoreFromJson: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createRestoreFromJson<ObjCircularArr>();
+      },
+      prepareForJsonFlat: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createPrepareForJsonFlat<ObjCircularArr>();
+      },
+      stringifyJsonFlat: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createStringifyJsonFlat<ObjCircularArr>();
+      },
+      restoreFromJsonFlat: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createRestoreFromJsonFlat<ObjCircularArr>();
+      },
+      prepareForJsonSafe: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createPrepareForJsonSafe<ObjCircularArr>();
+      },
       getTestData: () => ({
         values: [
           {
@@ -3377,76 +4525,540 @@ export const SERIALIZATION_SPEC = {
       title: 'wide interface — 30 mixed-type properties',
       description:
         'Single interface with 30+ properties spanning scalars, Date, bigint, nested object — exercises the per-field walk cost without any union dispatch.',
-      prepareForJson: () => createPrepareForJson<WideRecord>(),
-      stringifyJson: () => createStringifyJson<WideRecord>(),
-      restoreFromJson: () => createRestoreFromJson<WideRecord>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<WideRecord>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<WideRecord>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<WideRecord>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<WideRecord>(),
-      getTestData: () => ({values: [buildWideRecord(1)]}),
+      prepareForJson: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createPrepareForJson<WideRecord>();
+      },
+      stringifyJson: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createStringifyJson<WideRecord>();
+      },
+      restoreFromJson: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createRestoreFromJson<WideRecord>();
+      },
+      prepareForJsonFlat: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createPrepareForJsonFlat<WideRecord>();
+      },
+      stringifyJsonFlat: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createStringifyJsonFlat<WideRecord>();
+      },
+      restoreFromJsonFlat: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createRestoreFromJsonFlat<WideRecord>();
+      },
+      prepareForJsonSafe: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createPrepareForJsonSafe<WideRecord>();
+      },
+      getTestData: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        const seed = 1;
+        const record: WideRecord = {
+          id: seed,
+          name: `record-${seed}`,
+          description: `Description for record ${seed} with extra body text`,
+          createdAt: new Date('2024-01-15T12:00:00.000Z'),
+          updatedAt: new Date('2024-06-15T12:00:00.000Z'),
+          isActive: true,
+          score: seed * 1.5,
+          rank: seed % 100,
+          tag1: `tag-a-${seed}`,
+          tag2: `tag-b-${seed}`,
+          tag3: `tag-c-${seed}`,
+          tag4: `tag-d-${seed}`,
+          tag5: `tag-e-${seed}`,
+          count1: seed * 2,
+          count2: seed * 3,
+          count3: seed * 4,
+          flag1: seed % 2 === 0,
+          flag2: seed % 3 === 0,
+          flag3: seed % 5 === 0,
+          big1: BigInt(seed) * 1_000_000n,
+          big2: BigInt(seed) * 9_999_999n,
+          alias: `alias-${seed}`,
+          email: `user${seed}@example.com`,
+          city: 'Springfield',
+          country: 'XX',
+          postal: '00000',
+          width: 1024,
+          height: 768,
+          weight: 12.5,
+          meta: {category: 'default', priority: seed % 10, lastSeen: new Date('2024-12-01T00:00:00.000Z')},
+        };
+        return {values: [record]};
+      },
     },
     object_union_5: {
       title: 'discriminated union of 5 large object members',
       description:
         'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an isType walk per candidate member.',
-      prepareForJson: () => createPrepareForJson<LargeObjectUnion>(),
-      stringifyJson: () => createStringifyJson<LargeObjectUnion>(),
-      restoreFromJson: () => createRestoreFromJson<LargeObjectUnion>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<LargeObjectUnion>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<LargeObjectUnion>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<LargeObjectUnion>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<LargeObjectUnion>(),
-      getTestData: () => ({
-        values: [
-          {
-            kind: 'product',
-            id: 'p-1',
-            sku: 'SKU-001',
-            price: 19.99,
-            available: true,
-            releasedAt: new Date('2024-02-01T00:00:00.000Z'),
-            stock: 42,
-          } satisfies ProductEvent,
-        ],
-      }),
+      prepareForJson: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createPrepareForJson<LargeObjectUnion>();
+      },
+      stringifyJson: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createStringifyJson<LargeObjectUnion>();
+      },
+      restoreFromJson: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createRestoreFromJson<LargeObjectUnion>();
+      },
+      prepareForJsonFlat: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createPrepareForJsonFlat<LargeObjectUnion>();
+      },
+      stringifyJsonFlat: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createStringifyJsonFlat<LargeObjectUnion>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createRestoreFromJsonFlat<LargeObjectUnion>();
+      },
+      prepareForJsonSafe: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
+        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
+        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createPrepareForJsonSafe<LargeObjectUnion>();
+      },
+      getTestData: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        return {
+          values: [
+            {
+              kind: 'product',
+              id: 'p-1',
+              sku: 'SKU-001',
+              price: 19.99,
+              available: true,
+              releasedAt: new Date('2024-02-01T00:00:00.000Z'),
+              stock: 42,
+            } satisfies ProductEvent,
+          ],
+        };
+      },
     },
     mixed_union_atomic_and_large_objects: {
       title: 'mixed union — atomic + large object members',
       description:
         'string | number | ProductEvent | UserEvent — exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
-      prepareForJson: () => createPrepareForJson<MixedLargeUnion>(),
-      stringifyJson: () => createStringifyJson<MixedLargeUnion>(),
-      restoreFromJson: () => createRestoreFromJson<MixedLargeUnion>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<MixedLargeUnion>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<MixedLargeUnion>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<MixedLargeUnion>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<MixedLargeUnion>(),
-      getTestData: () => ({
-        values: [
-          {
-            kind: 'product',
-            id: 'p-9',
-            sku: 'SKU-999',
-            price: 49.5,
-            available: false,
-            releasedAt: new Date('2024-04-10T00:00:00.000Z'),
-            stock: 0,
-          } satisfies ProductEvent,
-        ],
-      }),
+      prepareForJson: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createPrepareForJson<MixedLargeUnion>();
+      },
+      stringifyJson: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createStringifyJson<MixedLargeUnion>();
+      },
+      restoreFromJson: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createRestoreFromJson<MixedLargeUnion>();
+      },
+      prepareForJsonFlat: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createPrepareForJsonFlat<MixedLargeUnion>();
+      },
+      stringifyJsonFlat: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createStringifyJsonFlat<MixedLargeUnion>();
+      },
+      restoreFromJsonFlat: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createRestoreFromJsonFlat<MixedLargeUnion>();
+      },
+      prepareForJsonSafe: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createPrepareForJsonSafe<MixedLargeUnion>();
+      },
+      getTestData: () => {
+        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        return {
+          values: [
+            {
+              kind: 'product',
+              id: 'p-9',
+              sku: 'SKU-999',
+              price: 49.5,
+              available: false,
+              releasedAt: new Date('2024-04-10T00:00:00.000Z'),
+              stock: 0,
+            } satisfies ProductEvent,
+          ],
+        };
+      },
     },
     deep_nested: {
       title: 'five-level deeply nested object with arrays of objects',
       description: 'Walks five levels of nested arrays of objects to amplify per-property overhead.',
-      prepareForJson: () => createPrepareForJson<DeepNestedLevel1>(),
-      stringifyJson: () => createStringifyJson<DeepNestedLevel1>(),
-      restoreFromJson: () => createRestoreFromJson<DeepNestedLevel1>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<DeepNestedLevel1>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<DeepNestedLevel1>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<DeepNestedLevel1>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<DeepNestedLevel1>(),
+      prepareForJson: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createPrepareForJson<DeepNestedLevel1>();
+      },
+      stringifyJson: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createStringifyJson<DeepNestedLevel1>();
+      },
+      restoreFromJson: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createRestoreFromJson<DeepNestedLevel1>();
+      },
+      prepareForJsonFlat: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createPrepareForJsonFlat<DeepNestedLevel1>();
+      },
+      stringifyJsonFlat: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createStringifyJsonFlat<DeepNestedLevel1>();
+      },
+      restoreFromJsonFlat: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createRestoreFromJsonFlat<DeepNestedLevel1>();
+      },
+      prepareForJsonSafe: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        return createPrepareForJsonSafe<DeepNestedLevel1>();
+      },
       getTestData: () => {
+        interface DeepNestedLeaf {id: number; value: string; when: Date;}
+        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
+        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
+        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
+        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
+        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
         const leaf: DeepNestedLeaf = {id: 1, value: 'leaf', when: new Date('2024-01-01T00:00:00.000Z')};
         const level5: DeepNestedLevel5 = {name: 'l5', leaves: [leaf, leaf, leaf]};
         const level4: DeepNestedLevel4 = {label: 'l4', children: [level5, level5]};
@@ -3460,15 +5072,241 @@ export const SERIALIZATION_SPEC = {
       title: 'discriminated union of three large class instances',
       description:
         'Three-member class union — restore decodes to plain objects (class instances do not survive JSON round-trip).',
-      prepareForJson: () => createPrepareForJson<LargeClassUnion>(),
-      stringifyJson: () => createStringifyJson<LargeClassUnion>(),
-      restoreFromJson: () => createRestoreFromJson<LargeClassUnion>(),
-      prepareForJsonFlat: () => createPrepareForJsonFlat<LargeClassUnion>(),
-      stringifyJsonFlat: () => createStringifyJsonFlat<LargeClassUnion>(),
-      restoreFromJsonFlat: () => createRestoreFromJsonFlat<LargeClassUnion>(),
-      prepareForJsonSafe: () => createPrepareForJsonSafe<LargeClassUnion>(),
+      prepareForJson: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createPrepareForJson<LargeClassUnion>();
+      },
+      stringifyJson: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createStringifyJson<LargeClassUnion>();
+      },
+      restoreFromJson: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createRestoreFromJson<LargeClassUnion>();
+      },
+      prepareForJsonFlat: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createPrepareForJsonFlat<LargeClassUnion>();
+      },
+      stringifyJsonFlat: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createStringifyJsonFlat<LargeClassUnion>();
+      },
+      restoreFromJsonFlat: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createRestoreFromJsonFlat<LargeClassUnion>();
+      },
+      prepareForJsonSafe: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createPrepareForJsonSafe<LargeClassUnion>();
+      },
       getTestData: () => {
-        const a = buildLargeClassA();
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        const a = new LargeClassA();
+        a.kind = 'classA';
+        a.alpha = 'alpha-value';
+        a.count = 42;
+        a.flag = true;
+        a.when = new Date('2024-03-15T08:30:00.000Z');
+        a.total = 10_000n;
+        a.tags = ['x', 'y', 'z'];
         return {
           values: [a],
           deserializedValues: [{...a}],
