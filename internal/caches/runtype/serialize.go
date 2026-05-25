@@ -9,6 +9,13 @@
 // The Cache is stateful across calls: multiple resolver queries share
 // one deduplicated type table and one hash dictionary. NOT safe for
 // concurrent use.
+//
+// Projection is rooted ONLY at types passed to AssignID — which the
+// resolver invokes exclusively for marker call arguments
+// (see the BOUNDED-SCOPE INVARIANT block in internal/resolver/scan.go).
+// Children are walked transitively from those roots; the serializer
+// never reaches into the source file's top-level declarations on its
+// own initiative.
 package runtype
 
 import (
