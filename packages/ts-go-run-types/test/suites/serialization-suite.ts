@@ -491,7 +491,7 @@ export const SERIALIZATION_SPEC = {
           stringArray: string[];
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
-        }>(),
+        }>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const value = {
           startDate: new Date('2000-08-06T02:13:00.000Z'),
@@ -858,7 +858,7 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
-        }>(),
+        }>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const startDate = new Date('2000-08-06T02:13:00.000Z');
         const objectWithExtraParams = {
@@ -1392,10 +1392,10 @@ export const SERIALIZATION_SPEC = {
     },
     tuple_with_non_serializable: {
       title: 'tuple with non serializable types are transformed to undefined',
-      unsafeEncoder: () => createJsonEncoder<[number, () => any]>(),
+      unsafeEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<[number, () => any]>(),
       safeDecoder: () => createJsonDecoder<[number, () => any]>(),
-      unsafeDecoder: () => createJsonDecoder<[number, () => any]>(),
+      unsafeDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
     },
     tuple_circular: {
@@ -1907,7 +1907,7 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       safeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
-      unsafeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
+      unsafeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     exclude_atomic: {
@@ -2126,7 +2126,7 @@ export const SERIALIZATION_SPEC = {
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
-        >(),
+        >(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           {type: 'a', otherProp: true},
@@ -2153,7 +2153,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () =>
         createJsonDecoder<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
+        >(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
     },
     union_index_property_with_discriminator: {
@@ -2189,7 +2189,7 @@ export const SERIALIZATION_SPEC = {
           | {b: number}
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
-        >(),
+        >(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}, {b: 1n, c: 2n}]}),
     },
     circular_union_with_discriminator: {
@@ -2245,7 +2245,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () =>
         createJsonDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
-        >(),
+        >(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const objWithName = {
           name: 'John',
@@ -2283,10 +2283,10 @@ export const SERIALIZATION_SPEC = {
     union_with_non_serializable: {
       title: 'union with non-serializable type throws',
       description: 'function in union — mion throws at JIT-compile time.',
-      unsafeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
+      unsafeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
       safeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
-      unsafeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
+      unsafeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(undefined, {mode: 'unsafe'}),
       throwsAtCompile: true,
       getTestData: () => ({values: []}),
     },

@@ -148,13 +148,12 @@ function assertSafeRoundTrip(c: SerializationCase): void {
     if (serialized === undefined) return;
     if (bestEffort) return;
 
-    if (c.safeAdapterStringifyJsonNotParseable) {
-      // mion's number-not-supported semantic: `String(Infinity)` is
-      // `"Infinity"` — not a valid JSON document. Assert the decoder
-      // throws (its internal JSON.parse) instead of round-tripping.
-      expect(() => decode(serialized), `${label}: values[${i}] expected decoder to throw (not valid JSON)`).toThrow();
-      return;
-    }
+    // `safeAdapterStringifyJsonNotParseable` is for the safeDirect
+    // path (single-pass `stringifyJson`) where `String(Infinity)` is
+    // `"Infinity"` (unparseable). The new `safe` mode goes through
+    // native `JSON.stringify` which renders Infinity / NaN as
+    // `"null"` (parseable) — so this path falls through to the
+    // normal round-trip check using `deserializedValues`.
 
     const restored = decode(serialized);
     const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;

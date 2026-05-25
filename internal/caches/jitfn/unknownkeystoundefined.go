@@ -148,12 +148,57 @@ func emitObjectUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) Ji
 				"if (" + unknownVar + ") {for (const " + keyVar + " of " + unknownVar + ") {" + v + "[" + keyVar + "] = undefined}}"
 		}
 	}
+	// When the object has both named props AND an index signature,
+	// publish the sibling-named-prop name list against each index
+	// signature child's ID so the index-sig emit can keep those keys
+	// out of the regex-undefine sweep. The context key is derived from
+	// the index sig's own ID — it's the only canonical handle the
+	// index-sig emit has on itself. (We can't store parent-relative
+	// state on the index-sig RunType itself; see CLAUDE.md.)
+	if hasIndex {
+		publishSiblingNamedKeysForIndexSig(rt, ctx)
+	}
 	childrenCode := unknownKeysToUndefinedChildrenCode(rt, ctx)
 	combined := joinSemicolons(parentCode, childrenCode)
 	if combined == "" {
 		return JitCode{Code: "", Type: CodeS}
 	}
 	return JitCode{Code: combined, Type: CodeS}
+}
+
+// publishSiblingNamedKeysForIndexSig walks the object's children;
+// for each IndexSignature child, registers a closure-prologue
+// `const skip_<idxSigID> = new Set(['name1', 'name2'])` so the
+// index-sig emit can guard `if (skip_X.has(prop) || regex.test(prop))`.
+func publishSiblingNamedKeysForIndexSig(rt *protocol.RunType, ctx *EmitContext) {
+	var siblingNames []string
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil || resolved.Kind == protocol.KindIndexSignature {
+			continue
+		}
+		if resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		if resolved.Name != "" {
+			siblingNames = append(siblingNames, resolved.Name)
+		}
+	}
+	if len(siblingNames) == 0 {
+		return
+	}
+	siblingNames = dedupSortStrings(siblingNames)
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil || resolved.Kind != protocol.KindIndexSignature {
+			continue
+		}
+		ctxKey := "siblingNamed_" + resolved.ID
+		if ctx.HasContextItem(ctxKey) {
+			continue
+		}
+		ctx.SetContextItem(ctxKey, "const "+ctxKey+" = new Set("+arrayToJSLiteral(siblingNames)+")")
+	}
 }
 
 func unknownKeysToUndefinedChildrenCode(rt *protocol.RunType, ctx *EmitContext) string {
@@ -238,23 +283,18 @@ func emitArrayUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) Jit
 }
 
 func emitTupleUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	var parts []string
-	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			continue
-		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
-		}
-	}
-	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	// uku at a tuple node is a no-op. The per-position concat pattern
+	// blindly recurses into every child slot, which breaks on circular
+	// tuples (optional self-referential slot → unguarded `v[i].x` reads
+	// against `undefined`/`null`) and is semantically suspect even
+	// without recursion — for a tuple, "unknown key" would be an
+	// element past the declared length, which the per-position emit
+	// cannot detect. The safe encoder strips extras at encode time
+	// (prepareForJsonSafe clones the declared shape only) so the safe
+	// decode pipeline doesn't actually need this step to converge.
+	_ = rt
+	_ = ctx
+	return JitCode{Code: "", Type: CodeS}
 }
 
 func emitTupleMemberUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) JitCode {
@@ -341,7 +381,16 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 	}
 	patternUndef := ""
 	if keyRegexVar != "" {
-		patternUndef = "if (!" + keyRegexVar + ".test(" + prop + ")) {" + v + "[" + prop + "] = undefined; continue;}"
+		// When the index sig's parent published a sibling-named-prop
+		// set (see publishSiblingNamedKeysForIndexSig in
+		// emitObjectUnknownKeysToUndefined), exempt those keys from
+		// the regex-undefine sweep.
+		siblingSet := "siblingNamed_" + rt.ID
+		guard := "!" + keyRegexVar + ".test(" + prop + ")"
+		if ctx.HasContextItem(siblingSet) {
+			guard = "!" + siblingSet + ".has(" + prop + ") && " + guard
+		}
+		patternUndef = "if (" + guard + ") {" + v + "[" + prop + "] = undefined; continue;}"
 	}
 	if patternUndef == "" && childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeS}
