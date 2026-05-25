@@ -1126,3 +1126,104 @@ reflectRuntypeId(user);
 		t.Fatalf("expected 0 marker diagnostics for identifier arg, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
 	}
 }
+
+// TestResolver_ModeInTypeID pins the marker scanner's behavior of
+// folding the `mode` option into the JIT cache id. Two calls against
+// the same T but different `mode` literals must resolve to distinct
+// runtype ids — otherwise the JIT cache would collapse their entries
+// and the per-mode dispatch in createJsonEncoder would land on the
+// wrong factory.
+func TestResolver_ModeInTypeID(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
+  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
+}
+`
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+createJsonEncoder<string>();
+createJsonEncoder<string>(undefined, {mode: 'unsafe'});
+createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.Sites) != 3 {
+		t.Fatalf("expected 3 sites, got %d", len(resp.Sites))
+	}
+	ids := map[string]int{}
+	for i, site := range resp.Sites {
+		if site.ID == "" {
+			t.Fatalf("site %d has empty id", i)
+		}
+		ids[site.ID]++
+	}
+	if len(ids) != 3 {
+		t.Fatalf("expected 3 distinct ids (one per mode), got %d (%+v)", len(ids), ids)
+	}
+}
+
+// TestResolver_NonLiteralOptionsDiagnostic pins the marker scanner's
+// warning when a marker call's options slot is filled with anything
+// other than a plain object literal. The resolver can't read values
+// off identifiers / spreads / function-call results at build time, so
+// folding them into the cache id silently drops the option — usually
+// not what the user wanted. The diagnostic nudges the user toward a
+// literal at the call site.
+func TestResolver_NonLiteralOptionsDiagnostic(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
+  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
+}
+`
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+const opts = {mode: 'unsafe' as const};
+createJsonEncoder<string>(undefined, opts);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.MarkerDiagnostics) != 1 {
+		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	}
+	diag := resp.MarkerDiagnostics[0]
+	if diag.Code != "marker/non-literal-options" {
+		t.Fatalf("expected code marker/non-literal-options, got %q", diag.Code)
+	}
+	if diag.Category != "warning" {
+		t.Fatalf("expected category warning, got %q", diag.Category)
+	}
+	if !strings.Contains(diag.Message, "plain object literal") {
+		t.Fatalf("expected message to mention `plain object literal`, got %q", diag.Message)
+	}
+}
+
+// TestResolver_LiteralOptionsNoDiagnostic pins the negative case for
+// the non-literal-options diagnostic: an object literal at the
+// options slot must NOT trigger a warning, even when the literal is
+// empty.
+func TestResolver_LiteralOptionsNoDiagnostic(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
+  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
+}
+`
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
+createJsonEncoder<string>(undefined, {});
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.MarkerDiagnostics) != 0 {
+		t.Fatalf("expected 0 marker diagnostics for literal options, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	}
+}

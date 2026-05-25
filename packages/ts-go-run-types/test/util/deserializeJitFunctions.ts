@@ -79,11 +79,11 @@ const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 // signature the Go-side marker scanner reads to identify call sites. The
 // runtime function is a non-generic JS closure; <T> is type-checker-only.
 
-export const deserializeIsType = deserializeJitFunction<IsTypeFn>(
-  'deserializeIsType',
-  'it',
-  () => true
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => IsTypeFn;
+export const deserializeIsType = deserializeJitFunction<IsTypeFn>('deserializeIsType', 'it', () => true) as unknown as <T>(
+  val?: T,
+  options?: RunTypeOptions,
+  id?: RuntypeId<T>
+) => IsTypeFn;
 
 export const deserializeGetTypeErrors = deserializeJitFunction<GetTypeErrorsFn>(
   'deserializeGetTypeErrors',

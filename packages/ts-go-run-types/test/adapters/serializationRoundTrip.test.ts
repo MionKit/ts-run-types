@@ -204,10 +204,7 @@ function assertSafeDirectRoundTrip(c: SerializationCase): void {
       // safeDirect uses single-pass stringifyJson which at root for
       // Infinity / NaN emits `String(Infinity)` = `"Infinity"` —
       // unparseable by JSON.parse. Assert the decoder throws.
-      expect(
-        () => decode(serialized as string),
-        `${label}: values[${i}] expected decoder to throw (not valid JSON)`,
-      ).toThrow();
+      expect(() => decode(serialized as string), `${label}: values[${i}] expected decoder to throw (not valid JSON)`).toThrow();
       return;
     }
 
@@ -284,8 +281,7 @@ describe('serialization / OBJECTS', () => {
   it('undefined is omitted in object prop', () => runCase(SERIALIZATION_SPEC.OBJECTS.undefined_in_object));
   it('optional properties order', () => runCase(SERIALIZATION_SPEC.OBJECTS.optional_properties_order));
   it('all optional fields', () => runCase(SERIALIZATION_SPEC.OBJECTS.all_optional_fields));
-  it('extras passthrough — unsafe preserves, safe strips', () =>
-    runCase(SERIALIZATION_SPEC.OBJECTS.extras_passthrough_unsafe));
+  it('extras passthrough — unsafe preserves, safe strips', () => runCase(SERIALIZATION_SPEC.OBJECTS.extras_passthrough_unsafe));
   it('interface circular', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular));
   it('interface circular array', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_array));
   it('interface circular deep', () => runCase(SERIALIZATION_SPEC.OBJECTS.interface_circular_deep));

@@ -1477,18 +1477,22 @@ export const SERIALIZATION_SPEC = {
       title: 'index property with extra props and unions',
       unsafeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(),
-      safeDirectEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(),
       unsafeDecoder: () => createJsonDecoder<{a: string; b: number; [key: string]: string | number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{key1: 'value1', key2: 'value2', a: 'extra1', b: 123}]}),
     },
     multiple_index_props: {
       title: 'multiple index properties (symbol keys skipped)',
-      unsafeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () =>
+        createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
-      safeDirectEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
-      unsafeDecoder: () => createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () =>
+        createJsonDecoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
         const objWithSymbolKeys = {
           key1: 'value1',
@@ -1550,7 +1554,8 @@ export const SERIALIZATION_SPEC = {
       title: 'index property non-root',
       unsafeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
-      safeDirectEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(),
       unsafeDecoder: () => createJsonDecoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{b: 'hello', c: {a: 'world', c: 'world'}}]}),
@@ -2204,7 +2209,8 @@ export const SERIALIZATION_SPEC = {
       title: 'Awaited<Promise<T>>',
       unsafeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
-      safeDirectEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       unsafeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
@@ -2264,22 +2270,28 @@ export const SERIALIZATION_SPEC = {
     },
     required_properties: {
       title: 'Required<T>',
-      unsafeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () =>
+        createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
-      safeDirectEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
-      unsafeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () =>
+        createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}],
       }),
     },
     extract_atomic: {
       title: 'Extract on atomic union',
-      unsafeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () =>
+        createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      safeDirectEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
-      unsafeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () =>
+        createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: ['name']}),
     },
     extract_objects: {
@@ -2315,7 +2327,8 @@ export const SERIALIZATION_SPEC = {
       title: 'Partial<T>',
       unsafeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
-      safeDirectEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
       unsafeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {mode: 'unsafe'}),
       getTestData: () => {
@@ -2326,24 +2339,39 @@ export const SERIALIZATION_SPEC = {
     pick_properties: {
       title: 'Pick<T, K>',
       unsafeEncoder: () =>
-        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
+          mode: 'unsafe',
+        }),
       safeEncoder: () =>
         createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       safeDirectEncoder: () =>
-        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'safeDirect'}),
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
+          mode: 'safeDirect',
+        }),
       safeDecoder: () =>
         createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       unsafeDecoder: () =>
-        createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {mode: 'unsafe'}),
+        createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
+          mode: 'unsafe',
+        }),
       getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     omit_properties: {
       title: 'Omit<T, K>',
-      unsafeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () =>
+        createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
+          mode: 'unsafe',
+        }),
       safeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
-      safeDirectEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
+          mode: 'safeDirect',
+        }),
       safeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
-      unsafeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () =>
+        createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
+          mode: 'unsafe',
+        }),
       getTestData: () => ({values: [{name: 'John', age: 30, createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     record_type: {
@@ -2413,11 +2441,14 @@ export const SERIALIZATION_SPEC = {
     },
     union_object_with_discriminator: {
       title: 'union of object shapes',
-      unsafeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () =>
+        createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
-      safeDirectEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
-      unsafeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () =>
+        createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
     },
     union_with_discriminator_property: {
@@ -2469,25 +2500,24 @@ export const SERIALIZATION_SPEC = {
     union_mixed_with_discriminator: {
       title: 'union mixed arrays and objects',
       unsafeEncoder: () =>
-        createJsonEncoder<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+          undefined,
+          {mode: 'unsafe'}
+        ),
       safeEncoder: () =>
-        createJsonEncoder<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
+        createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
       safeDirectEncoder: () =>
-        createJsonEncoder<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(undefined, {mode: 'safeDirect'}),
+        createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+          undefined,
+          {mode: 'safeDirect'}
+        ),
       safeDecoder: () =>
-        createJsonDecoder<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(),
+        createJsonDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
       unsafeDecoder: () =>
-        createJsonDecoder<
-          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+          undefined,
+          {mode: 'unsafe'}
+        ),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
     },
     union_index_property_with_discriminator: {
@@ -2709,25 +2739,21 @@ export const SERIALIZATION_SPEC = {
       description:
         'Discriminator `kind` selects the member; shared prop `at: Date` has the identical transform on both branches, so the round-trip only needs to prove that the dispatch does not lose the prop or double-transform it.',
       unsafeEncoder: () =>
-        createJsonEncoder<
-          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+          mode: 'unsafe',
+        }),
       safeEncoder: () =>
-        createJsonEncoder<
-          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
-        >(),
+        createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
       safeDirectEncoder: () =>
-        createJsonEncoder<
-          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
-        >(undefined, {mode: 'safeDirect'}),
+        createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+          mode: 'safeDirect',
+        }),
       safeDecoder: () =>
-        createJsonDecoder<
-          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
-        >(),
+        createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
       unsafeDecoder: () =>
-        createJsonDecoder<
-          {kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+          mode: 'unsafe',
+        }),
       getTestData: () => ({
         values: [
           {kind: 'created', at: new Date('2000-08-06T02:13:00.000Z'), by: 'alice'},
@@ -2741,25 +2767,21 @@ export const SERIALIZATION_SPEC = {
       description:
         'Discriminator `kind` resolves which member matched. Shared prop `when: Date | string` MUST take the matched-member transform: `kind:event` → Date↔ISO; `kind:note` → raw string passthrough. Composing both transforms would corrupt either branch (a `Date.toISOString()` reapplied to a plain string, or a string parsed as Date when it should not be).',
       unsafeEncoder: () =>
-        createJsonEncoder<
-          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+          mode: 'unsafe',
+        }),
       safeEncoder: () =>
-        createJsonEncoder<
-          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
-        >(),
+        createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
       safeDirectEncoder: () =>
-        createJsonEncoder<
-          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
-        >(undefined, {mode: 'safeDirect'}),
+        createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+          mode: 'safeDirect',
+        }),
       safeDecoder: () =>
-        createJsonDecoder<
-          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
-        >(),
+        createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
       unsafeDecoder: () =>
-        createJsonDecoder<
-          {kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+          mode: 'unsafe',
+        }),
       getTestData: () => ({
         values: [
           {kind: 'event', when: new Date('2000-08-06T02:13:00.000Z'), label: 'kickoff'},
@@ -2773,25 +2795,21 @@ export const SERIALIZATION_SPEC = {
       description:
         'Discriminator `form` resolves the member. Shared prop `id: bigint | number` must follow the matched-member transform: `form:big` → bigint↔string; `form:small` → raw number. Other shared prop `label: string` is identical on both branches and must survive either dispatch.',
       unsafeEncoder: () =>
-        createJsonEncoder<
-          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+          mode: 'unsafe',
+        }),
       safeEncoder: () =>
-        createJsonEncoder<
-          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
-        >(),
+        createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
       safeDirectEncoder: () =>
-        createJsonEncoder<
-          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
-        >(undefined, {mode: 'safeDirect'}),
+        createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+          mode: 'safeDirect',
+        }),
       safeDecoder: () =>
-        createJsonDecoder<
-          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
-        >(),
+        createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
       unsafeDecoder: () =>
-        createJsonDecoder<
-          {form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}
-        >(undefined, {mode: 'unsafe'}),
+        createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+          mode: 'unsafe',
+        }),
       getTestData: () => ({
         values: [
           {form: 'big', id: 9007199254740993n, label: 'beyond Number.MAX_SAFE_INTEGER'},
@@ -2804,13 +2822,11 @@ export const SERIALIZATION_SPEC = {
       title: 'shared prop — no literal discriminator, member resolved structurally',
       description:
         'No tag-like literal field. Members differentiated by (a) shared prop `a` having divergent type (string vs boolean — a sub-union) and (b) unique companion props (`b: number` vs `c: Date`). The encoder/decoder dispatch must work purely on shape: which member’s required props match the input. Verifies the dispatch is not silently relying on a literal-discriminator fast path.',
-      unsafeEncoder: () =>
-        createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
-      unsafeDecoder: () =>
-        createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [
           {a: 'hello', b: 7},
@@ -3492,11 +3508,14 @@ export const SERIALIZATION_SPEC = {
     },
     url_index_key_with_named: {
       title: 'template literal index key + sibling named property',
-      unsafeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
+      unsafeEncoder: () =>
+        createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
       safeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
-      safeDirectEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'safeDirect'}),
+      safeDirectEncoder: () =>
+        createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'safeDirect'}),
       safeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
-      unsafeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
+      unsafeDecoder: () =>
+        createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {mode: 'unsafe'}),
       getTestData: () => ({
         values: [{meta: 'a'}, {meta: 'b', 'api/users': 1}, {meta: 'c', 'api/users': 1, 'api/posts': 2}],
       }),
@@ -3928,52 +3947,260 @@ export const SERIALIZATION_SPEC = {
       description:
         'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an isType walk per candidate member.',
       unsafeEncoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
-        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
-        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
-        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonEncoder<LargeObjectUnion>(undefined, {mode: 'unsafe'});
       },
       safeEncoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
-        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
-        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
-        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonEncoder<LargeObjectUnion>();
       },
       safeDirectEncoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
-        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
-        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
-        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonEncoder<LargeObjectUnion>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
-        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
-        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
-        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonDecoder<LargeObjectUnion>();
       },
       unsafeDecoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
-        interface OrderEvent {kind: 'order'; id: string; total: number; itemCount: number; placedAt: Date; shipped: boolean; customerId: string;}
-        interface PaymentEvent {kind: 'payment'; id: string; amount: number; currency: string; processedAt: Date; refunded: boolean; txId: string;}
-        interface SessionEvent {kind: 'session'; id: string; userId: string; startedAt: Date; durationMs: number; ipHash: string; device: string;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonDecoder<LargeObjectUnion>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
         return {
           values: [
             {
@@ -3994,37 +4221,125 @@ export const SERIALIZATION_SPEC = {
       description:
         'string | number | ProductEvent | UserEvent — exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
       unsafeEncoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonEncoder<MixedLargeUnion>(undefined, {mode: 'unsafe'});
       },
       safeEncoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonEncoder<MixedLargeUnion>();
       },
       safeDirectEncoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonEncoder<MixedLargeUnion>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonDecoder<MixedLargeUnion>();
       },
       unsafeDecoder: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
-        interface UserEvent {kind: 'user'; id: string; username: string; email: string; signedUpAt: Date; loginCount: number; isPremium: boolean;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonDecoder<MixedLargeUnion>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
-        interface ProductEvent {kind: 'product'; id: string; sku: string; price: number; available: boolean; releasedAt: Date; stock: number;}
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
         return {
           values: [
             {
@@ -4044,57 +4359,171 @@ export const SERIALIZATION_SPEC = {
       title: 'five-level deeply nested object with arrays of objects',
       description: 'Walks five levels of nested arrays of objects to amplify per-property overhead.',
       unsafeEncoder: () => {
-        interface DeepNestedLeaf {id: number; value: string; when: Date;}
-        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
-        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
-        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
-        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
-        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
         return createJsonEncoder<DeepNestedLevel1>(undefined, {mode: 'unsafe'});
       },
       safeEncoder: () => {
-        interface DeepNestedLeaf {id: number; value: string; when: Date;}
-        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
-        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
-        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
-        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
-        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
         return createJsonEncoder<DeepNestedLevel1>();
       },
       safeDirectEncoder: () => {
-        interface DeepNestedLeaf {id: number; value: string; when: Date;}
-        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
-        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
-        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
-        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
-        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
         return createJsonEncoder<DeepNestedLevel1>(undefined, {mode: 'safeDirect'});
       },
       safeDecoder: () => {
-        interface DeepNestedLeaf {id: number; value: string; when: Date;}
-        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
-        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
-        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
-        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
-        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
         return createJsonDecoder<DeepNestedLevel1>();
       },
       unsafeDecoder: () => {
-        interface DeepNestedLeaf {id: number; value: string; when: Date;}
-        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
-        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
-        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
-        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
-        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
         return createJsonDecoder<DeepNestedLevel1>(undefined, {mode: 'unsafe'});
       },
       getTestData: () => {
-        interface DeepNestedLeaf {id: number; value: string; when: Date;}
-        interface DeepNestedLevel5 {name: string; leaves: DeepNestedLeaf[];}
-        interface DeepNestedLevel4 {label: string; children: DeepNestedLevel5[];}
-        interface DeepNestedLevel3 {group: string; branches: DeepNestedLevel4[];}
-        interface DeepNestedLevel2 {category: string; groups: DeepNestedLevel3[];}
-        interface DeepNestedLevel1 {root: string; categories: DeepNestedLevel2[];}
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
         const leaf: DeepNestedLeaf = {id: 1, value: 'leaf', when: new Date('2024-01-01T00:00:00.000Z')};
         const level5: DeepNestedLevel5 = {name: 'l5', leaves: [leaf, leaf, leaf]};
         const level4: DeepNestedLevel4 = {label: 'l4', children: [level5, level5]};
