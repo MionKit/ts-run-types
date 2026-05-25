@@ -435,11 +435,18 @@ function deepClone(value) {
 }
 
 // Phase 4 — compile-time scan + pure-TS compile per (case, api).
-// Skips throwsAtCompile. Each cycle:
-//   - reset + setSources once
-//   - tsCompile()  → tsCompileMs (pure tsgo bind + typecheck + emit)
-//   - scanFiles()  → compileMs   (ts-go-run-types marker scan + cache emit)
-// Both timings recorded per (case, api).
+// Skips throwsAtCompile. Each cycle measures BOTH timings against a
+// fresh Program (no shared checker warmth):
+//
+//   - reset + setSources  → Program allocated, tsgo bind runs
+//   - tsCompile           → tsgo Emit() (full typecheck + emit)
+//   - reset + setSources  → fresh Program (drops tsCompile's warm checker)
+//   - scanFiles           → marker scan + cache emit on a cold Program
+//
+// Without the second reset+setSources, scanFiles would inherit the
+// warm checker tsCompile populated and compileMs would be artificially
+// low. In production tsgo and our binary run as separate processes, so
+// scanFiles ALWAYS starts cold — the bench mirrors that.
 async function runCompilePhase(metrics, bodies) {
   const client = new ResolverClient(BIN, REPO_ROOT, '', {serverMode: true});
   const overlayDts = {__bench__: 'runtypes.d.ts', body: RUNTYPES_DTS};
@@ -465,12 +472,14 @@ async function runCompilePhase(metrics, bodies) {
       const compileTimes = [];
       const tsCompileTimes = [];
       for (let c = 0; c < COMPILE_CYCLES; c++) {
+        // tsCompile cycle on a fresh Program.
         await client.reset();
         await client.setSources(sourcesMap);
-        // Pure-TS first: tsgo bind + typecheck + Emit() on this source set.
-        // Doesn't touch the marker scanner.
         tsCompileTimes.push(await client.tsCompile());
-        // Then ts-go-run-types' own work: marker scan + cache emit.
+        // Fresh Program again so scanFiles doesn't inherit tsCompile's
+        // warm checker — this drops the tsgo Program and its bound state.
+        await client.reset();
+        await client.setSources(sourcesMap);
         const scanStart = performance.now();
         await client.scanFiles([relpath], {includeCacheSources: [api.cacheKind]});
         compileTimes.push(performance.now() - scanStart);

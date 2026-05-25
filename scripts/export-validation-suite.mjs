@@ -253,13 +253,15 @@ async function runCompilePhase(metrics, bodies) {
       const tsCompileTimes = [];
       let captured = null;
       for (let c = 0; c < COMPILE_CYCLES; c++) {
+        // tsCompile cycle — fresh tsgo Program, full bind + typecheck + emit.
         await client.reset();
         await client.setSources(sourcesMap);
-        // Pure-TS first: tsgo bind + typecheck + Emit() on this source set.
-        // Does NOT walk markers — the baseline for the side-by-side
-        // ts-compile column in the markdown.
         tsCompileTimes.push(await client.tsCompile());
-        // Then ts-go-run-types' own work: marker scan + cache emit.
+        // Reset between measurements so scanFiles doesn't inherit
+        // tsCompile's warm checker (production runs tsc and our binary
+        // as separate processes, so scanFiles always starts cold).
+        await client.reset();
+        await client.setSources(sourcesMap);
         const scanStart = performance.now();
         // `['all']` so the first-cycle response carries runTypes / isType /
         // pureFns cache modules — we dump them to disk below. The flag
