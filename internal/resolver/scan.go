@@ -269,15 +269,17 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			id = wrapped
 		}
 	}
-	// NOTE on `mode` (createJsonEncoder / createJsonDecoder options):
-	// The mode is NOT folded into the runtype id. Doing so would make
-	// `getRuntypeId<T>()` and `createJsonEncoder<T>({mode: 'unsafe'})`
-	// resolve to DIFFERENT ids for the same `T` — breaking the
-	// invariant that one type has one canonical typeid. Instead, the
-	// runtime dispatches modes via the JIT-family PREFIX:
-	//   - mode 'safe'       → lookup `pjs_<id>` (prepareForJsonSafe)
-	//   - mode 'safeDirect' → lookup `sj_<id>`  (stringifyJson)
-	//   - mode 'unsafe'     → lookup `pj_<id>`  (prepareForJson)
+	// NOTE on encoder/decoder options (strategy / stripExtras):
+	// These are NOT folded into the runtype id. Doing so would make
+	// `getRuntypeId<T>()` and `createJsonEncoder<T>({strategy:
+	// 'mutate'})` resolve to DIFFERENT ids for the same `T` — breaking
+	// the invariant that one type has one canonical typeid. Instead,
+	// the runtime dispatches options via the JIT-family PREFIX:
+	//   - clone+strip    → lookup `pjs_<id>`  (prepareForJsonSafe)
+	//   - clone+preserve → lookup `pjsp_<id>` (prepareForJsonSafePreserve)
+	//   - mutate+strip   → compose `uku_<id>` + `pj_<id>`
+	//   - mutate+preserve→ lookup `pj_<id>`   (prepareForJson)
+	//   - direct         → lookup `sj_<id>`   (stringifyJson)
 	// Each prefix gives the call site a distinct function id while
 	// keeping the type's id canonical. See createJitFunctions.ts's
 	// createJsonEncoder dispatch.

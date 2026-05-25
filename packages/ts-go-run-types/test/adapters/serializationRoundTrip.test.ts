@@ -3,8 +3,8 @@
 //
 // The two paths:
 //
-//   - unsafe: createJsonEncoder<T>({mode: 'unsafe'}) +
-//             createJsonDecoder<T>({mode: 'unsafe'}). Encoder composes
+//   - unsafe: createJsonEncoder<T>({strategy: 'mutate', stripExtras: false}) +
+//             createJsonDecoder<T>({stripExtras: false}). Encoder composes
 //             prepareForJson + JSON.stringify (mutates v in place,
 //             preserves undeclared keys). Decoder composes JSON.parse +
 //             restoreFromJson (undeclared keys pass through untouched).
@@ -167,7 +167,7 @@ function assertSafeRoundTrip(c: SerializationCase): void {
 // ---------- SAFE-DIRECT encode path (single-pass stringifyJson) ---
 //
 // Same shape as assertSafeRoundTrip but builds the encoder via
-// `createJsonEncoder<T>(undefined, {mode: 'safeDirect'})` — the
+// `createJsonEncoder<T>(undefined, {strategy: 'direct'})` — the
 // single-pass `stringifyJson` JIT family. Pairs with `c.safeDecoder()`
 // (decoder is two-mode, both safe variants use the same decoder).
 // The no-mutation invariant still applies (single-pass stringify

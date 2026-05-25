@@ -52,7 +52,7 @@ describe('safe decoder — ukuWire strips undeclared keys at union nodes', () =>
   it('unsafe encoder → safe decoder strips extras', () => {
     // Unsafe encoder lets extras through; safe decoder must nuke
     // them at union arms. Without ukuWire, the extras would survive.
-    const unsafeEncode = createJsonEncoder<Disjoint>(undefined, {mode: 'unsafe'});
+    const unsafeEncode = createJsonEncoder<Disjoint>(undefined, {strategy: 'mutate', stripExtras: false});
     const decode = createJsonDecoder<Disjoint>();
     const dirty = {a: 'hello', stranger: 'bad'} as Disjoint;
     const wire = unsafeEncode(dirty)!;

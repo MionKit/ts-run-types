@@ -12,10 +12,12 @@
 //
 // JSON I/O lives behind exactly two public entry functions:
 // `createJsonEncoder` and `createJsonDecoder`. Each takes an `options`
-// object whose `mode` field picks between two compiled variants. The
+// object with orthogonal axes (encoder: strategy + stripExtras;
+// decoder: stripExtras only) that pick between compiled variants. The
 // underlying JIT primitives (prepareForJson / restoreFromJson /
-// stringifyJson / unknownKeysToUndefined) are emitted by the Go side
-// and looked up internally; consumers never call them directly.
+// stringifyJson / prepareForJsonSafe / prepareForJsonSafePreserve /
+// unknownKeysToUndefined / ukuWire) are emitted by the Go side and
+// looked up internally; consumers never call them directly.
 //
 // The deserialize-from-code test twins live under
 // `test/util/deserializeJitFunctions.ts` — production callers never need
@@ -34,6 +36,7 @@ import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache
 import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
+import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
 import type {AnyFn, JitCompiledFn} from './jit/types.ts';
 import type {RuntypeId} from './index.ts';
@@ -130,34 +133,48 @@ export type JsonEncoderFn = (value: unknown) => string | undefined;
 /** Parse function returned by `createJsonDecoder<T>()`. **/
 export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
 
-/** Caller-controlled options for `createJsonEncoder<T>()`. The Go-side
- *  marker scanner reads `mode` at build time from the literal options
- *  object and folds it into the injected runtype id, so two calls with
- *  different modes resolve to distinct JIT cache entries. **/
-export interface JsonEncoderOptions {
-  /** `'safe'` (default) composes `prepareForJsonSafe + JSON.stringify`:
-   *  clones declared keys + transforms leaves into a NEW object then
-   *  hands the result to native `JSON.stringify`. Non-mutating, strips
-   *  undeclared properties, fast (native stringify path).
-   *
-   *  `'safeDirect'` routes through the single-pass `stringifyJson` JIT:
-   *  walks the type, not the value — never mutates `v` and strips every
-   *  undeclared property at emit time. No intermediate object allocation
-   *  but slower than the native stringify path on non-trivial shapes.
-   *
-   *  `'unsafe'` composes `prepareForJson + JSON.stringify`: mutates `v`
-   *  in place, preserves undeclared properties (and may throw on bigint
-   *  extras at `JSON.stringify`). **/
-  mode?: 'safe' | 'safeDirect' | 'unsafe';
-}
+/** Caller-controlled options for `createJsonEncoder<T>()`. Two
+ *  orthogonal axes:
+ *
+ *  - `strategy`: how the encoder produces the output.
+ *    - `'clone'` (default): walk the type, build a NEW value, hand to
+ *      native `JSON.stringify`. Non-mutating. Allocates per nested
+ *      object literal.
+ *    - `'mutate'`: walk `v`, transform leaves in place, hand to
+ *      native `JSON.stringify`. Mutates the input. No clone allocation.
+ *    - `'direct'`: single-pass `stringifyJson` JIT — walks the type
+ *      and builds the JSON string directly. Never mutates, no clone
+ *      allocation, but slower than the native stringify path on
+ *      non-trivial shapes. Always strips extras (the JIT walks the
+ *      type, so it can't see undeclared keys).
+ *
+ *  - `stripExtras`: whether undeclared keys are removed from the
+ *    output (defaults to `true`). For `strategy: 'direct'` this is
+ *    pinned to `true` at the type level — passing `false` is a
+ *    compile error.
+ *
+ *  Combinations:
+ *
+ *  | strategy | stripExtras | behaviour                                |
+ *  |----------|-------------|-------------------------------------------|
+ *  | clone    | true (def)  | clone + transform + strip (default)       |
+ *  | clone    | false       | clone + transform + preserve extras       |
+ *  | mutate   | true        | mutate + strip extras + transform         |
+ *  | mutate   | false       | mutate + preserve extras + transform      |
+ *  | direct   | true (only) | single-pass stringify, strips by walking  |
+ */
+export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
 
-/** Caller-controlled options for `createJsonDecoder<T>()`. **/
+/** Caller-controlled options for `createJsonDecoder<T>()`. The decoder
+ *  always allocates fresh via `JSON.parse`, so there's no
+ *  clone-vs-mutate axis — only the strip knob applies.
+ *
+ *  `stripExtras` (default `true`): undeclared properties on the parsed
+ *  wire value are set to `undefined` (closing the safety hole when the
+ *  encoder didn't strip them — e.g. an unsafe-encoded payload). `false`:
+ *  undeclared properties pass through untouched. **/
 export interface JsonDecoderOptions {
-  /** `'safe'` (default) composes `JSON.parse + unknownKeysToUndefined +
-   *  restoreFromJson`: undeclared properties become `undefined` on the
-   *  restored value. `'unsafe'` composes `JSON.parse + restoreFromJson`:
-   *  undeclared properties pass through untouched. **/
-  mode?: 'safe' | 'unsafe';
+  stripExtras?: boolean;
 }
 
 // =============================================================================
@@ -181,6 +198,7 @@ initPrepareForJsonCache(_utils);
 initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
 initPrepareForJsonSafeCache(_utils);
+initPrepareForJsonSafePreserveCache(_utils);
 
 // =============================================================================
 // Private generic factories
@@ -279,23 +297,23 @@ export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndef
 // JSON encode / decode — the only two public JSON entry functions.
 //
 // Each composes one or two underlying JIT primitives based on the
-// runtime `options.mode`. The Go-side marker scanner reads the literal
-// `mode` value at build time and folds it into the injected runtype id,
-// so two calls with different modes resolve to distinct ids (and the
-// composed closures don't collide on the call-site cache).
+// runtime `options` shape. The Go-side marker scanner injects a
+// canonical runtype id for `T` — option fields (strategy / stripExtras)
+// are NOT folded into the typeid, so every encoder shape against the
+// same `T` shares one type id; the runtime picks the right family
+// (`sj` / `pj` / `pjs` / `pjsp` + optional `uku` compose) based on the
+// caller's options.
 //
 // No closure cache here — composition is one allocation per call. The
-// underlying JIT primitives (`sj`, `pj`, `rj`, `uku`) ARE cached on the
-// jitUtils singleton, so the heavy code runs once per type.
+// underlying JIT primitives ARE cached on the jitUtils singleton, so
+// the heavy code runs once per type.
 // =============================================================================
 
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
-/** Returns a JSON encoder for `T`. Default mode is `'safe'`
- *  (`prepareForJsonSafe + JSON.stringify` — clones, strips extras, fast
- *  native stringify). `'safeDirect'` uses the single-pass `stringifyJson`
- *  JIT (no allocation, slower). `'unsafe'` mutates `v` (preserves extras,
- *  fast). **/
+/** Returns a JSON encoder for `T`. See `JsonEncoderOptions` for the
+ *  full 5-combination matrix. Defaults: `strategy: 'clone',
+ *  stripExtras: true`. **/
 export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): JsonEncoderFn {
   void val;
   if (id === undefined) {
@@ -303,28 +321,55 @@ export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?:
       'createJsonEncoder(): no id injected. vite-plugin-runtypes must be active for createJsonEncoder to dispatch to a precompiled factory.'
     );
   }
-  const mode = options?.mode ?? 'safe';
-  if (mode === 'unsafe') {
-    const prepareFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
-    return (value) => JSON.stringify(prepareFn(value));
-  }
-  if (mode === 'safeDirect') {
+  const strategy = options?.strategy ?? 'clone';
+  // direct strategy is type-pinned to stripExtras: true (the JIT walks
+  // the type, can't see undeclared keys). For other strategies the
+  // default is true.
+  const stripExtras = strategy === 'direct' ? true : ((options as {stripExtras?: boolean})?.stripExtras ?? true);
+
+  if (strategy === 'direct') {
     // Single-pass stringifyJson — returns `string | undefined`; callers
     // handle the undefined for top-level-undefined inputs the same way
     // they would for `JSON.stringify`.
     return lookupJitFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
   }
-  // 'safe' default — prepareForJsonSafe + JSON.stringify. Non-mutating
-  // clone path, strips undeclared properties, native stringify perf.
-  const prepareSafeFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
-  return (value) => JSON.stringify(prepareSafeFn(value));
+
+  if (strategy === 'clone') {
+    if (stripExtras) {
+      // clone + strip — pjs (prepareForJsonSafe). Default path.
+      const prepareSafeFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
+      return (value) => JSON.stringify(prepareSafeFn(value));
+    }
+    // clone + preserve — pjsp (prepareForJsonSafePreserve). Same clone
+    // codegen as pjs but every object literal spreads `...v` so
+    // undeclared keys survive.
+    const prepareSafePreserveFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', id, identityValueFn);
+    return (value) => JSON.stringify(prepareSafePreserveFn(value));
+  }
+
+  // strategy === 'mutate'
+  const prepareFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
+  if (!stripExtras) {
+    // mutate + preserve — pj (prepareForJson) directly.
+    return (value) => JSON.stringify(prepareFn(value));
+  }
+  // mutate + strip — composition: uku sets undeclared keys to undefined,
+  // then pj transforms declared leaves, then JSON.stringify skips
+  // undefined-valued keys naturally. Same wire output as the clone+strip
+  // path but no clone allocation.
+  const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', id, identityValueFn);
+  return (value) => {
+    ukuFn(value);
+    return JSON.stringify(prepareFn(value));
+  };
 }
 
-/** Returns a JSON decoder for `T`. Default mode is `'safe'` (composes
- *  `JSON.parse + unknownKeysToUndefined + restoreFromJson`, so any
- *  undeclared property on the parsed value becomes `undefined`). The
- *  `'unsafe'` mode skips the unknown-keys pass — undeclared properties
- *  pass through to the restored value untouched. **/
+/** Returns a JSON decoder for `T`. Default `stripExtras: true` —
+ *  undeclared properties on the parsed wire value become `undefined`
+ *  before restore walks the declared shape (closing the safety hole
+ *  when the encoder didn't strip them). `stripExtras: false` skips the
+ *  unknown-keys pass and passes undeclared properties through to the
+ *  restored value untouched. **/
 export function createJsonDecoder<T>(val?: T, options?: JsonDecoderOptions, id?: RuntypeId<T>): JsonDecoderFn<T> {
   void val;
   if (id === undefined) {
@@ -332,16 +377,14 @@ export function createJsonDecoder<T>(val?: T, options?: JsonDecoderOptions, id?:
       'createJsonDecoder(): no id injected. vite-plugin-runtypes must be active for createJsonDecoder to dispatch to a precompiled factory.'
     );
   }
-  const mode = options?.mode ?? 'safe';
+  const stripExtras = options?.stripExtras ?? true;
   const restoreFn = lookupJitFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', id, identityValueFn);
-  if (mode === 'unsafe') {
+  if (!stripExtras) {
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
-  // 'safe' default — overwrite undeclared keys with undefined before
-  // restoreFromJson walks the declared shape. Uses the ukuWire family
-  // (not the public uku) so the union-arm emit reaches into the
-  // flat-union wire wrapper `[-1, mergedObject]` instead of corrupting
-  // its `0`/`1` indices.
+  // Use ukuWire (not the public uku) so the union-arm emit reaches
+  // into the flat-union wire wrapper `[-1, mergedObject]` instead of
+  // corrupting its `0`/`1` indices.
   const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
   return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }
@@ -365,4 +408,5 @@ if (hot) {
   hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/prepareForJsonSafePreserveCache.ts', (m) => m?.initCache?.(getJitUtils()));
 }
