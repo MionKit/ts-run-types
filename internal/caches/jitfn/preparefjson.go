@@ -154,7 +154,7 @@ func (PrepareForJsonEmitter) ReturnName() string {
 // Most atomic kinds are noops (return CodeS with empty code). The
 // non-noop atomics:
 //   - bigint:  `v = v.toString()` (BigInt is not JSON-encodable; serialize as decimal string)
-//   - symbol:  `v = 'Symbol:' + (v.description || '')` (preserve description tag)
+//   - symbol:  `v = 'Symbol:' + (v.description || ”)` (preserve description tag)
 //   - regexp:  `v = v.toString()` (serialize as /source/flags string)
 //   - void:    `v = undefined` (force the output to undefined)
 //
@@ -553,100 +553,6 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 	return childJit
 }
 
-// peekEmitterTag returns the short cache-key tag for the JSON-round-trip
-// emitters used by union skip-encode decisions. Only PrepareForJsonEmitter
-// and RestoreFromJsonEmitter are ever passed here — callers outside that
-// set get an empty tag, which disables caching for that call.
-func peekEmitterTag(emitter Emitter) string {
-	switch emitter.(type) {
-	case PrepareForJsonEmitter:
-		return "pj"
-	case RestoreFromJsonEmitter:
-		return "rj"
-	case PrepareForJsonFlatEmitter:
-		return "pjf"
-	case RestoreFromJsonFlatEmitter:
-		return "rjf"
-	}
-	return ""
-}
-
-// peekMemberIsNoop compiles `member` against `emitter` on a throwaway
-// walker and returns whether the result is a noop (or fully unsupported,
-// which is also "no transformation"). Used by the union emit to decide
-// per-member tuple-encoding: a member that's noop on BOTH halves
-// (prepareForJson and restoreFromJson) doesn't need the `[index, value]`
-// wrap — the decode's tuple-shape check distinguishes encoded from raw
-// values, so noop members pass through identically.
-//
-// We inspect the raw body BEFORE Finalize runs — Finalize for the
-// serializer pair rewrites `""` to `"return v"` and emits a real
-// identity factory (so cross-fn dep calls don't reference missing
-// factories), which would make the post-Finalize isNoop flag less
-// useful here. The walker's pre-Finalize `Code` field is the source
-// of truth for "did the dispatch produce any transformation?"
-//
-// Results are memoised on `ctx.walker.peekedNoops` keyed by
-// `<emitterTag>:<member.ID>` so the three JSON-round-trip union emitters
-// share the same per-member answer within a single Compile() pass. The
-// throwaway peek walker keeps its own ContextItems / JitDependencies, so
-// the caller's walker state stays untouched.
-func peekMemberIsNoop(member *protocol.RunType, emitter Emitter, ctx *EmitContext) bool {
-	tag := peekEmitterTag(emitter)
-	cacheKey := ""
-	if tag != "" && ctx != nil && ctx.walker != nil && ctx.walker.peekedNoops != nil {
-		cacheKey = tag + ":" + member.ID
-		if cached, ok := ctx.walker.peekedNoops[cacheKey]; ok {
-			return cached
-		}
-	}
-	var refTable map[string]*protocol.RunType
-	if ctx != nil && ctx.walker != nil {
-		refTable = ctx.walker.RefTable
-	}
-	walker := NewWalker(member, "_peek_"+member.ID, emitter)
-	walker.RefTable = refTable
-	walker.InnerPrefix = ""
-	walker.compileNode(walker.RootType, CodeE)
-	var result bool
-	if walker.IsUnsupported {
-		// JitThrow leaves ThrowMessage set — the member actively emits
-		// a compile-time throw, which is NOT a noop transformation. The
-		// parent union MUST wrap it (needsTuple=true) so the rj decode
-		// arm calls CompileChild on the member and the CodeNS sentinel
-		// propagates to the parent walker, making the whole union
-		// compile to a throw-factory (matches the pj/sj behaviour, where
-		// CompileChild is always called and CodeNS propagation is
-		// automatic). Plain CodeNS without a message means the kind has
-		// no emit at all → safe to treat as noop (identity passes).
-		result = walker.ThrowMessage == ""
-	} else {
-		code := strings.TrimSpace(walker.Code)
-		// handleCodeInterpolation wraps the root CodeE/CodeS into the
-		// final body shape — for atomic noop emits the wrap is empty (no
-		// code was generated) and Code stays "". For non-noop emits the
-		// wrap leaves an actual transformation in Code.
-		result = code == "" || code == "return v"
-	}
-	if cacheKey != "" {
-		ctx.walker.peekedNoops[cacheKey] = result
-	}
-	return result
-}
-
-// unionMemberNeedsTuple reports whether a single union member is
-// non-noop on either half of the round-trip. Kept for callers that
-// still ask the per-member question; the union-wide wrap decision now
-// flows through unionNeedsTuple, which is all-or-nothing.
-//
-// Pure on (member, ctx.walker.RefTable). The active emitter on `ctx` is
-// intentionally ignored.
-func unionMemberNeedsTuple(member *protocol.RunType, ctx *EmitContext) bool {
-	pjNoop := peekMemberIsNoop(member, PrepareForJsonEmitter{}, ctx)
-	rjNoop := peekMemberIsNoop(member, RestoreFromJsonEmitter{}, ctx)
-	return !(pjNoop && rjNoop)
-}
-
 // unionNeedsTuple is the all-or-nothing wrap decision for the non-flat
 // union family. Either every member's encoded form gets the
 // `[memberIndex, value]` envelope or none of them do — there is no
@@ -660,21 +566,23 @@ func unionMemberNeedsTuple(member *protocol.RunType, ctx *EmitContext) bool {
 // `number[] | Date` with `[5, 7]`, `[number, string] | Date` with
 // `[5, "hi"]`, and so on. The all-or-nothing rule lets the decoder
 // always know at compile time whether the union round-trips raw
-// (every member noop on both halves) or always unwraps the envelope
-// (any member non-noop).
+// (every member is JSON-compatible) or always unwraps the envelope
+// (any member is non-compatible).
 //
-// Trade-off: arrays/tuples whose elements are JSON-noop (string[],
-// number[], …) now always get wrapped when their union has any
-// non-noop sibling. Encode does one extra allocation per call for
-// those values; decode loses its shape-gate cost. Correctness wins
-// over the small encode perf.
+// Routes through `isJsonCompatible` so the wrap decision is a pure
+// property of the member types, not of the emitter's compiled output.
+// Trade-off: arrays/tuples whose elements are JSON-compatible
+// (string[], number[], …) now always get wrapped when their union has
+// any non-compatible sibling. Encode does one extra allocation per
+// call for those values; decode loses its shape-gate cost.
+// Correctness wins over the small encode perf.
 func unionNeedsTuple(children []*protocol.RunType, ctx *EmitContext) bool {
 	for _, childRef := range children {
 		member := ctx.ResolveRef(childRef)
 		if member == nil {
 			continue
 		}
-		if unionMemberNeedsTuple(member, ctx) {
+		if !isJsonCompatible(member, ctx) {
 			return true
 		}
 	}

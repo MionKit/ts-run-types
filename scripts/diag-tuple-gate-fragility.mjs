@@ -68,18 +68,25 @@ try {
   const mod = await server.ssrLoadModule(TEST_PATH);
 
   function trip(label, encode, decode, value) {
-    console.log(`\n  ${label}: input = ${JSON.stringify(value, (k, v) => typeof v === 'bigint' ? v.toString() : v)}`);
+    console.log(`\n  ${label}: input = ${JSON.stringify(value, (k, v) => (typeof v === 'bigint' ? v.toString() : v))}`);
     let json;
     try {
       json = encode(value);
       console.log(`    encoded JSON: ${json}`);
-    } catch (e) { console.log(`    encode threw: ${e.message}`); return; }
+    } catch (e) {
+      console.log(`    encode threw: ${e.message}`);
+      return;
+    }
     let restored;
     try {
       restored = decode(JSON.parse(json));
-      const same = JSON.stringify(restored, (k, v) => typeof v === 'bigint' ? v.toString() : v) === JSON.stringify(value, (k, v) => typeof v === 'bigint' ? v.toString() : v);
+      const same =
+        JSON.stringify(restored, (k, v) => (typeof v === 'bigint' ? v.toString() : v)) ===
+        JSON.stringify(value, (k, v) => (typeof v === 'bigint' ? v.toString() : v));
       console.log(`    restored: ${JSON.stringify(restored)} ${same ? '✓ ROUND-TRIP OK' : '✗ MISMATCH'}`);
-    } catch (e) { console.log(`    decode threw: ${e.message}  ← BUG`); }
+    } catch (e) {
+      console.log(`    decode threw: ${e.message}  ← BUG`);
+    }
   }
 
   console.log('=========================================================');
@@ -88,27 +95,27 @@ try {
   console.log('\n NON-FLAT:');
   trip('  numeric array len 2', mod.sjA, mod.rjA, [5, 7]);
   trip('  numeric array len 3', mod.sjA, mod.rjA, [5, 7, 9]);
-  trip('  Date',                mod.sjA, mod.rjA, new Date('2024-01-01'));
+  trip('  Date', mod.sjA, mod.rjA, new Date('2024-01-01'));
   console.log('\n FLAT:');
   trip('  numeric array len 2', mod.sjfA, mod.rjfA, [5, 7]);
   trip('  numeric array len 3', mod.sjfA, mod.rjfA, [5, 7, 9]);
-  trip('  Date',                mod.sjfA, mod.rjfA, new Date('2024-01-01'));
+  trip('  Date', mod.sjfA, mod.rjfA, new Date('2024-01-01'));
 
   console.log('\n=========================================================');
   console.log('Case B: [number, string] tuple | Date');
   console.log('=========================================================');
   console.log('\n NON-FLAT:');
   trip('  tuple [5, "hi"]', mod.sjB, mod.rjB, [5, 'hi']);
-  trip('  Date',            mod.sjB, mod.rjB, new Date('2024-01-01'));
+  trip('  Date', mod.sjB, mod.rjB, new Date('2024-01-01'));
   console.log('\n FLAT:');
   trip('  tuple [5, "hi"]', mod.sjfB, mod.rjfB, [5, 'hi']);
-  trip('  Date',            mod.sjfB, mod.rjfB, new Date('2024-01-01'));
+  trip('  Date', mod.sjfB, mod.rjfB, new Date('2024-01-01'));
 
   console.log('\n=========================================================');
   console.log('Case C: number[][] | Date (control — outer typeof v[0] is "object", not "number")');
   console.log('=========================================================');
-  trip('  [[5, 7]]',     mod.sjC, mod.rjC, [[5, 7]]);
-  trip('  [[5], [7]]',   mod.sjC, mod.rjC, [[5], [7]]);
+  trip('  [[5, 7]]', mod.sjC, mod.rjC, [[5, 7]]);
+  trip('  [[5], [7]]', mod.sjC, mod.rjC, [[5], [7]]);
 } finally {
   fs.unlinkSync(TEST_PATH);
   await server.close();
