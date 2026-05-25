@@ -101,68 +101,71 @@ export {
 // run-types-pure-fns.ts), not lazily.
 export {registerPureFnFactory} from './jit/pureFn.ts';
 
-export {createIsType, deserializeIsType, type IsTypeFn, type RunTypeOptions} from './createIsType.ts';
-
+// Every createXxx / deserializeXxx factory and its companion type now lives
+// in createJitFunctions.ts. The wrappers all share one private generic
+// (`createJitFunction`) that reads its per-id closure straight off the
+// jitUtils singleton — no per-family local Maps, no duplicated bootstrap or
+// HMR blocks. Composite wrappers (createSafeJsonParse, createUnsafeJson*)
+// reuse the same lookup helper to compose multiple primitives.
 export {
+  createIsType,
+  deserializeIsType,
+  type IsTypeFn,
+  type RunTypeOptions,
   createGetTypeErrors,
   deserializeGetTypeErrors,
   type GetTypeErrorsFn,
   type RunTypeError,
   type RunTypeErrorPathSegment,
-} from './createGetTypeErrors.ts';
-
-export {createPrepareForJson, deserializePrepareForJson, type PrepareForJsonFn} from './createPrepareForJson.ts';
-
-export {createRestoreFromJson, deserializeRestoreFromJson, type RestoreFromJsonFn} from './createRestoreFromJson.ts';
-
-export {createStringifyJson, deserializeStringifyJson, type StringifyJsonFn} from './createStringifyJson.ts';
-
-// Optimised JSON serialiser family — wire shape diverges from the
-// non-flat siblings ONLY at union boundaries: object members are
-// merged into a `[-1, mergedObject]` envelope so encode bypasses the
-// per-member isType walk. Atomic members keep the `[memberIndex,value]`
-// shape. Round-trip the same way: pair createPrepareForJsonFlat with
-// createRestoreFromJsonFlat (or createStringifyJsonFlat for single-pass).
-export {createPrepareForJsonFlat, deserializePrepareForJsonFlat, type PrepareForJsonFlatFn} from './createPrepareForJsonFlat.ts';
-export {
+  createPrepareForJson,
+  deserializePrepareForJson,
+  type PrepareForJsonFn,
+  createRestoreFromJson,
+  deserializeRestoreFromJson,
+  type RestoreFromJsonFn,
+  createStringifyJson,
+  deserializeStringifyJson,
+  type StringifyJsonFn,
+  // Optimised flat-union family — wire shape diverges from the non-flat
+  // siblings ONLY at union boundaries (object members merged into a
+  // `[-1, mergedObject]` envelope). Pair Prepare/Restore/Stringify Flat.
+  createPrepareForJsonFlat,
+  deserializePrepareForJsonFlat,
+  type PrepareForJsonFlatFn,
   createRestoreFromJsonFlat,
   deserializeRestoreFromJsonFlat,
   type RestoreFromJsonFlatFn,
-} from './createRestoreFromJsonFlat.ts';
-export {createStringifyJsonFlat, deserializeStringifyJsonFlat, type StringifyJsonFlatFn} from './createStringifyJsonFlat.ts';
-
-// Non-mutating sibling of createPrepareForJson — returns a NEW value
-// containing only the declared keys and transformed leaves; the input
-// is untouched. Same wire format as `prepareForJson + JSON.stringify`
-// so pairs with the existing `createRestoreFromJson` decoder.
-export {createPrepareForJsonSafe, deserializePrepareForJsonSafe, type PrepareForJsonSafeFn} from './createPrepareForJsonSafe.ts';
-
-export {
+  createStringifyJsonFlat,
+  deserializeStringifyJsonFlat,
+  type StringifyJsonFlatFn,
+  // Non-mutating sibling of createPrepareForJson.
+  createPrepareForJsonSafe,
+  deserializePrepareForJsonSafe,
+  type PrepareForJsonSafeFn,
   createHasUnknownKeys,
   deserializeHasUnknownKeys,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,
-} from './createHasUnknownKeys.ts';
-
-export {createStripUnknownKeys, deserializeStripUnknownKeys, type StripUnknownKeysFn} from './createStripUnknownKeys.ts';
-
-export {createUnknownKeyErrors, deserializeUnknownKeyErrors, type UnknownKeyErrorsFn} from './createUnknownKeyErrors.ts';
-
-export {
+  createStripUnknownKeys,
+  deserializeStripUnknownKeys,
+  type StripUnknownKeysFn,
+  createUnknownKeyErrors,
+  deserializeUnknownKeyErrors,
+  type UnknownKeyErrorsFn,
   createUnknownKeysToUndefined,
   deserializeUnknownKeysToUndefined,
   type UnknownKeysToUndefinedFn,
-} from './createUnknownKeysToUndefined.ts';
-
-// JSON serialise/parse wrappers — compose existing primitives into
-// one-call APIs that mirror mion's two serialise paths (jsonSpec
-// = unsafe, stringifySpec = safe). The safe variants strip extras
-// before serialise; the unsafe variants preserve extras (may throw
-// on bigint extras at JSON.stringify). See
-// docs/port-status.md "JSON serialisation semantics" for the
-// contract and the EXTRA_PARAMS section of serialization-suite.ts
-// for the executable spec.
-export {createUnsafeJsonStringify, type UnsafeJsonStringifyFn} from './createUnsafeJsonStringify.ts';
-export {createSafeJsonStringify, type SafeJsonStringifyFn} from './createSafeJsonStringify.ts';
-export {createUnsafeJsonParse, type UnsafeJsonParseFn} from './createUnsafeJsonParse.ts';
-export {createSafeJsonParse, type SafeJsonParseFn, type SafeJsonParseOptions, SafeJsonParseError} from './createSafeJsonParse.ts';
+  // JSON serialise/parse wrappers — compose primitives into one-call APIs
+  // that mirror mion's two serialise paths (jsonSpec = unsafe, stringifySpec
+  // = safe). Safe variants strip extras; unsafe variants preserve them.
+  createUnsafeJsonStringify,
+  type UnsafeJsonStringifyFn,
+  createSafeJsonStringify,
+  type SafeJsonStringifyFn,
+  createUnsafeJsonParse,
+  type UnsafeJsonParseFn,
+  createSafeJsonParse,
+  type SafeJsonParseFn,
+  type SafeJsonParseOptions,
+  SafeJsonParseError,
+} from './createJitFunctions.ts';
