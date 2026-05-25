@@ -12,8 +12,9 @@ import (
 // non-flat family only at unions:
 //
 //   - Atomic union members keep the original `[memberIndex, value]`
-//     envelope (skipping the wrap when both halves of the round-trip
-//     are noop on the member — same `unionMemberNeedsTuple` rule).
+//     envelope. Wrap-or-not is all-or-nothing across the atomic branch
+//     (see atomicBranchNeedsTuple) so the decoder always knows the
+//     wire shape at compile time.
 //   - Object/class union members are MERGED into one envelope:
 //     `[-1, mergedObject]`. The merged object carries the union of every
 //     object member's properties; each property is encoded if its key is
@@ -212,16 +213,6 @@ func buildMergedProps(objectMembers []memberRef, ctx *EmitContext) []mergedProp 
 	return merged
 }
 
-// unionMemberNeedsTupleFlat is the flat-family analogue of
-// unionMemberNeedsTuple — peeks PrepareForJsonFlatEmitter +
-// RestoreFromJsonFlatEmitter so the noop cache keys don't collide with
-// the non-flat family's.
-func unionMemberNeedsTupleFlat(member *protocol.RunType, ctx *EmitContext) bool {
-	pjNoop := peekMemberIsNoop(member, PrepareForJsonFlatEmitter{}, ctx)
-	rjNoop := peekMemberIsNoop(member, RestoreFromJsonFlatEmitter{}, ctx)
-	return !(pjNoop && rjNoop)
-}
-
 // atomicBranchNeedsTuple returns the all-or-nothing wrap decision for
 // the atomic side of a flat union (mirrors unionNeedsTuple in
 // preparefjson.go). Either every atomic member is `[memberIndex, value]`
@@ -230,12 +221,17 @@ func unionMemberNeedsTupleFlat(member *protocol.RunType, ctx *EmitContext) bool 
 // a fragile runtime gate. Object-branch presence forces wrapping too:
 // the [-1, mergedObject] envelope coexists with the atomic envelope,
 // so the decoder must unconditionally unwrap.
+//
+// Routes through `isJsonCompatible` so the wrap decision is a pure
+// property of the member types — see the helper's comment in
+// jsoncompat.go for why this is preferable to the previous
+// noop-on-both-halves emitter introspection.
 func atomicBranchNeedsTuple(split unionSplit, ctx *EmitContext) bool {
 	if len(split.object) > 0 {
 		return true
 	}
 	for _, m := range split.atomic {
-		if unionMemberNeedsTupleFlat(m.resolved, ctx) {
+		if !isJsonCompatible(m.resolved, ctx) {
 			return true
 		}
 	}
@@ -255,10 +251,7 @@ func (mp mergedProp) mergedPropNeedsSubWrap(ctx *EmitContext) bool {
 		if resolved == nil {
 			continue
 		}
-		if !peekMemberIsNoop(resolved, PrepareForJsonFlatEmitter{}, ctx) {
-			return true
-		}
-		if !peekMemberIsNoop(resolved, RestoreFromJsonFlatEmitter{}, ctx) {
+		if !isJsonCompatible(resolved, ctx) {
 			return true
 		}
 	}

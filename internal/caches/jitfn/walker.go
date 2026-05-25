@@ -171,15 +171,6 @@ type Walker struct {
 	// NonSerializableRunType, the array.ts symbol[]/function[] check).
 	// First message wins; subsequent CodeNS leaves don't overwrite.
 	ThrowMessage string
-	// peekedNoops memoises peekMemberIsNoop results within a single
-	// Compile() pass. Key is "<emitterTag>:<memberID>" (eg
-	// "pj:abc123" / "rj:abc123"). Lets the three JSON-round-trip union
-	// emitters (prepareForJson, stringifyJson, restoreFromJson) share
-	// the same per-member needsTuple decision without re-compiling each
-	// member's subtree once per emit family. Lifetime is one Walker
-	// instance — the renderer creates one Walker per cache entry, so
-	// the cache is naturally scoped and never needs invalidation.
-	peekedNoops map[string]bool
 }
 
 // NewWalker primes a Walker for the given RunType + Emitter pair.
@@ -209,7 +200,6 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 		JitDependencies:    []string{},
 		PureFnDependencies: []protocol.PureFnDep{},
 		localVarCounters:   map[string]int{},
-		peekedNoops:        map[string]bool{},
 	}
 }
 
