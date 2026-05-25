@@ -269,17 +269,18 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			id = wrapped
 		}
 	}
-	// `mode` on the JSON encoder / decoder options is folded into the
-	// id the same way: distinct mode literal → distinct id → distinct
-	// JIT cache entry. The wrapped runtype is structurally identical
-	// to the base (no per-mode emit branching is needed today; modes
-	// are dispatched at runtime in createJsonEncoder / createJsonDecoder).
-	// Folding the mode at id-resolution time keeps the cache keys
-	// unique per call site so two thunks against the same `T` but
-	// different `mode` don't collapse to the same entry.
-	if options.Mode != "" {
-		id = resolver.cache.SerializeWithModeWrap(id, options.Mode)
-	}
+	// NOTE on `mode` (createJsonEncoder / createJsonDecoder options):
+	// The mode is NOT folded into the runtype id. Doing so would make
+	// `getRuntypeId<T>()` and `createJsonEncoder<T>({mode: 'unsafe'})`
+	// resolve to DIFFERENT ids for the same `T` — breaking the
+	// invariant that one type has one canonical typeid. Instead, the
+	// runtime dispatches modes via the JIT-family PREFIX:
+	//   - mode 'safe'       → lookup `pjs_<id>` (prepareForJsonSafe)
+	//   - mode 'safeDirect' → lookup `sj_<id>`  (stringifyJson)
+	//   - mode 'unsafe'     → lookup `pj_<id>`  (prepareForJson)
+	// Each prefix gives the call site a distinct function id while
+	// keeping the type's id canonical. See createJitFunctions.ts's
+	// createJsonEncoder dispatch.
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -343,11 +344,6 @@ func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, 
 type runTypeOptions struct {
 	NoLiterals     bool
 	NoIsArrayCheck bool
-	// Mode carries the value of the `mode` field on JSON encoder /
-	// decoder options. Empty when the call doesn't pass options or
-	// the options literal didn't set `mode`. Folded into the runtype
-	// id so distinct modes resolve to distinct JIT cache entries.
-	Mode string
 }
 
 // extractRunTypeOptions reads literal options from the argument slot
@@ -419,10 +415,6 @@ func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOpti
 		case "noIsArrayCheck":
 			if initializer.Kind == ast.KindTrueKeyword {
 				opts.NoIsArrayCheck = true
-			}
-		case "mode":
-			if initializer.Kind == ast.KindStringLiteral {
-				opts.Mode = initializer.Text()
 			}
 		}
 	}
