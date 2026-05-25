@@ -9,10 +9,13 @@
 // No local Maps live here. The jitUtils singleton is the only cache —
 // `getJIT(hash)` returns the entry, `materializeJitFn` populates
 // `entry.fn` once, and every subsequent lookup reads the same slot.
-// Composite wrappers (createSafeJsonParse, createUnsafeJsonStringify,
-// createUnsafeJsonParse) rebuild their composed closure per call; the
-// cost is one allocation + a handful of Map.gets, and callers memoize
-// the returned fn anyway.
+//
+// JSON I/O lives behind exactly two public entry functions:
+// `createJsonEncoder` and `createJsonDecoder`. Each takes an `options`
+// object whose `mode` field picks between two compiled variants. The
+// underlying JIT primitives (prepareForJson / restoreFromJson /
+// stringifyJson / unknownKeysToUndefined) are emitted by the Go side
+// and looked up internally; consumers never call them directly.
 //
 // The deserialize-from-code test twins live under
 // `test/util/deserializeJitFunctions.ts` — production callers never need
@@ -107,64 +110,45 @@ export type UnknownKeyErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment
  *  unknown property to `undefined` (instead of removing it). **/
 export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
 
-/** Transformer function returned by `createPrepareForJson<T>()`. Takes
- *  a runtime value and returns a JSON-serializable form (BigInts →
- *  decimal strings, Symbols → "Symbol:<desc>" strings, RegExps →
- *  "/source/flags" strings, etc.). Unions encode via the flat wire
- *  shape — object members merge into `[-1, mergedObject]`; atomic
- *  members keep `[memberIndex, value]` under an all-or-nothing wrap.
- *  Pair with `restoreFromJson`. **/
+// Internal type aliases describing the underlying JIT-primitive
+// signatures. These are referenced by createJsonEncoder /
+// createJsonDecoder when composing closures, and by the test util's
+// deserialize twins; they are NOT re-exported from `index.ts`.
 export type PrepareForJsonFn = (value: unknown) => unknown;
-
-/** Restorer function returned by `createRestoreFromJson<T>()`. Takes a
- *  JSON-parsed value and reconstructs the original runtime shape. **/
 export type RestoreFromJsonFn = (value: unknown) => unknown;
-
-/** Stringifier returned by `createStringifyJson<T>()`. Mion's single-
- *  pass serialiser that walks the TYPE rather than `v`, so extras are
- *  stripped by construction and `v` is never mutated. Returns
- *  `undefined` for top-level `undefined` inputs. **/
 export type StringifyJsonFn = (value: unknown) => string | undefined;
 
-/** Stringifier returned by `createUnsafeJsonStringify<T>()`. Composes
- *  `prepareForJson + JSON.stringify`. Mutates `v` in place and lets
- *  extras leak into the output. **/
-export type UnsafeJsonStringifyFn = (value: unknown) => string;
+/** Stringifier returned by `createJsonEncoder<T>()`. Returns the JSON
+ *  string for `value`, OR `undefined` for top-level `undefined` inputs
+ *  (matches `JSON.stringify` and the underlying `stringifyJson`
+ *  primitive). Callers should handle the `undefined` return when the
+ *  input type admits `undefined`. **/
+export type JsonEncoderFn = (value: unknown) => string | undefined;
 
-/** Stringifier returned by `createSafeJsonStringify<T>()`. Single
- *  stringifyJson JIT call — no mutation, extras stripped at emit. **/
-export type SafeJsonStringifyFn = (value: unknown) => string | undefined;
+/** Parse function returned by `createJsonDecoder<T>()`. **/
+export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
 
-/** Parse function returned by `createUnsafeJsonParse<T>()`. Composes
- *  `JSON.parse + restoreFromJson`. Extras present in the JSON string
- *  pass through unchanged. **/
-export type UnsafeJsonParseFn<T = unknown> = (serialized: string) => T;
-
-/** Parse function returned by `createSafeJsonParse<T>()`. Composes
- *  `JSON.parse + (stripUnknownKeys | unknownKeyErrors) +
- *  restoreFromJson` based on the `onUnknownKeys` option. **/
-export type SafeJsonParseFn<T = unknown> = (serialized: string) => T;
-
-/** Caller-controlled runtime behavior for `createSafeJsonParse`. Not
- *  folded into the runtype hash — the Vite plugin's marker scanner
- *  ignores it. **/
-export interface SafeJsonParseOptions {
-  /** `'strip'` (default) silently removes unknown keys before
-   *  restoreFromJson runs. `'error'` runs `unknownKeyErrors` first and
-   *  throws a `SafeJsonParseError` when any unknown key is present. **/
-  onUnknownKeys?: 'strip' | 'error';
+/** Caller-controlled options for `createJsonEncoder<T>()`. The Go-side
+ *  marker scanner reads `mode` at build time from the literal options
+ *  object and folds it into the injected runtype id, so two calls with
+ *  different modes resolve to distinct JIT cache entries. **/
+export interface JsonEncoderOptions {
+  /** `'safe'` (default) routes through the single-pass `stringifyJson`
+   *  JIT: walks the type, not the value — never mutates `v` and strips
+   *  every undeclared property at emit time. `'unsafe'` composes
+   *  `prepareForJson + JSON.stringify`: mutates `v` in place, preserves
+   *  undeclared properties (and may throw on bigint extras at
+   *  `JSON.stringify`). **/
+  mode?: 'safe' | 'unsafe';
 }
 
-/** Error thrown by `createSafeJsonParse` when `onUnknownKeys: 'error'`
- *  is set and the parsed value carries one or more unknown keys. The
- *  `.errors` field exposes the underlying `RunTypeError[]`. **/
-export class SafeJsonParseError extends Error {
-  readonly errors: RunTypeError[];
-  constructor(errors: RunTypeError[]) {
-    super(`createSafeJsonParse(): parsed value carries ${errors.length} unknown key(s)`);
-    this.name = 'SafeJsonParseError';
-    this.errors = errors;
-  }
+/** Caller-controlled options for `createJsonDecoder<T>()`. **/
+export interface JsonDecoderOptions {
+  /** `'safe'` (default) composes `JSON.parse + unknownKeysToUndefined +
+   *  restoreFromJson`: undeclared properties become `undefined` on the
+   *  restored value. `'unsafe'` composes `JSON.parse + restoreFromJson`:
+   *  undeclared properties pass through untouched. **/
+  mode?: 'safe' | 'unsafe';
 }
 
 // =============================================================================
@@ -281,96 +265,66 @@ export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndef
   identityValueFn
 ) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => UnknownKeysToUndefinedFn;
 
-export const createPrepareForJson = createJitFunction<PrepareForJsonFn>(
-  'createPrepareForJson',
-  'pj',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => PrepareForJsonFn;
-
-export const createRestoreFromJson = createJitFunction<RestoreFromJsonFn>(
-  'createRestoreFromJson',
-  'rj',
-  identityValueFn
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => RestoreFromJsonFn;
-
-export const createStringifyJson = createJitFunction<StringifyJsonFn>('createStringifyJson', 'sj', stringifyJsonIdentity) as unknown as <T>(
-  val?: T,
-  options?: RunTypeOptions,
-  id?: RuntypeId<T>
-) => StringifyJsonFn;
-
 // =============================================================================
-// Composite wrappers — compose multiple JIT primitives.
+// JSON encode / decode — the only two public JSON entry functions.
 //
-// No local cache. Each call rebuilds the composed closure (one closure
-// allocation + 1-3 Map.gets); the underlying primitive fns themselves are
-// still cached on the jitUtils singleton, so the cost is just the
-// composition.
+// Each composes one or two underlying JIT primitives based on the
+// runtime `options.mode`. The Go-side marker scanner reads the literal
+// `mode` value at build time and folds it into the injected runtype id,
+// so two calls with different modes resolve to distinct ids (and the
+// composed closures don't collide on the call-site cache).
+//
+// No closure cache here — composition is one allocation per call. The
+// underlying JIT primitives (`sj`, `pj`, `rj`, `uku`) ARE cached on the
+// jitUtils singleton, so the heavy code runs once per type.
 // =============================================================================
 
-/** Safe single-pass JSON serialiser — backed directly by the
- *  stringifyJson JIT family. Equivalent to createStringifyJson except
- *  for the public name (`createSafeJsonStringify` reads better when
- *  paired with `createSafeJsonParse`). **/
-export const createSafeJsonStringify = createJitFunction<SafeJsonStringifyFn>(
-  'createSafeJsonStringify',
-  'sj',
-  stringifyJsonIdentity
-) as unknown as <T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>) => SafeJsonStringifyFn;
+const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
-/** Unsafe JSON-stringify — `prepareForJson + JSON.stringify`. Mutates
- *  `v` in place via prepareForJson and lets undeclared extras leak into
- *  the output (may throw on bigint extras). **/
-export function createUnsafeJsonStringify<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): UnsafeJsonStringifyFn {
+/** Returns a JSON encoder for `T`. Default mode is `'safe'` (single-pass
+ *  stringifyJson, no mutation, undeclared keys stripped at emit). The
+ *  `'unsafe'` mode composes `prepareForJson + JSON.stringify` — faster
+ *  but mutates `v` and lets undeclared keys leak through (may throw on
+ *  bigint extras). **/
+export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): JsonEncoderFn {
   void val;
-  void options;
   if (id === undefined) {
     throw new Error(
-      'createUnsafeJsonStringify(): no id injected. vite-plugin-runtypes must be active for createUnsafeJsonStringify to dispatch to a precompiled factory.'
+      'createJsonEncoder(): no id injected. vite-plugin-runtypes must be active for createJsonEncoder to dispatch to a precompiled factory.'
     );
   }
-  const prepareFn = lookupJitFn<PrepareForJsonFn>('createUnsafeJsonStringify', 'pj', id, identityValueFn);
-  return (value) => JSON.stringify(prepareFn(value));
+  const mode = options?.mode ?? 'safe';
+  if (mode === 'unsafe') {
+    const prepareFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
+    return (value) => JSON.stringify(prepareFn(value));
+  }
+  // 'safe' default — single-pass stringifyJson. Returns `string |
+  // undefined`; callers handle the undefined for top-level-undefined
+  // inputs the same way they would for `JSON.stringify`.
+  return lookupJitFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
 }
 
-/** Unsafe JSON-parse — `JSON.parse + restoreFromJson`. Extras present
- *  in the parsed value pass through unchanged. **/
-export function createUnsafeJsonParse<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): UnsafeJsonParseFn<T> {
-  void val;
-  void options;
-  if (id === undefined) {
-    throw new Error(
-      'createUnsafeJsonParse(): no id injected. vite-plugin-runtypes must be active for createUnsafeJsonParse to dispatch to a precompiled factory.'
-    );
-  }
-  const restoreFn = lookupJitFn<RestoreFromJsonFn>('createUnsafeJsonParse', 'rj', id, identityValueFn);
-  return (serialized) => restoreFn(JSON.parse(serialized)) as T;
-}
-
-/** Safe JSON-parse — composes `JSON.parse + (stripUnknownKeys |
- *  unknownKeyErrors) + restoreFromJson` based on `onUnknownKeys`. When
- *  `'error'` (default `'strip'`), runs unknownKeyErrors first and
- *  throws `SafeJsonParseError` when any unknown key is present. **/
-export function createSafeJsonParse<T>(val?: T, options?: SafeJsonParseOptions, id?: RuntypeId<T>): SafeJsonParseFn<T> {
+/** Returns a JSON decoder for `T`. Default mode is `'safe'` (composes
+ *  `JSON.parse + unknownKeysToUndefined + restoreFromJson`, so any
+ *  undeclared property on the parsed value becomes `undefined`). The
+ *  `'unsafe'` mode skips the unknown-keys pass — undeclared properties
+ *  pass through to the restored value untouched. **/
+export function createJsonDecoder<T>(val?: T, options?: JsonDecoderOptions, id?: RuntypeId<T>): JsonDecoderFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(
-      'createSafeJsonParse(): no id injected. vite-plugin-runtypes must be active for createSafeJsonParse to dispatch to a precompiled factory.'
+      'createJsonDecoder(): no id injected. vite-plugin-runtypes must be active for createJsonDecoder to dispatch to a precompiled factory.'
     );
   }
-  const onUnknownKeys = options?.onUnknownKeys ?? 'strip';
-  const restoreFn = lookupJitFn<RestoreFromJsonFn>('createSafeJsonParse', 'rj', id, identityValueFn);
-  if (onUnknownKeys === 'error') {
-    const errorsFn = lookupJitFn<UnknownKeyErrorsFn>('createSafeJsonParse', 'uke', id, unknownKeyErrorsIdentity);
-    return (serialized) => {
-      const parsed = JSON.parse(serialized);
-      const errors = errorsFn(parsed, [], []);
-      if (errors.length > 0) throw new SafeJsonParseError(errors);
-      return restoreFn(parsed) as T;
-    };
+  const mode = options?.mode ?? 'safe';
+  const restoreFn = lookupJitFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', id, identityValueFn);
+  if (mode === 'unsafe') {
+    return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
-  const stripFn = lookupJitFn<StripUnknownKeysFn>('createSafeJsonParse', 'suk', id, identityValueFn);
-  return (serialized) => restoreFn(stripFn(JSON.parse(serialized))) as T;
+  // 'safe' default — overwrite undeclared keys with undefined before
+  // restoreFromJson walks the declared shape.
+  const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'uku', id, identityValueFn);
+  return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }
 
 // =============================================================================

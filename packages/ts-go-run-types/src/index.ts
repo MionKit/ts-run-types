@@ -101,12 +101,12 @@ export {
 // run-types-pure-fns.ts), not lazily.
 export {registerPureFnFactory} from './jit/pureFn.ts';
 
-// Every createXxx factory and its companion type lives in
-// createJitFunctions.ts. The wrappers all share one private generic
-// (`createJitFunction`) that reads its per-id closure straight off the
-// jitUtils singleton — no per-family local Maps, no duplicated bootstrap or
-// HMR blocks. Composite wrappers (createSafeJsonParse, createUnsafeJson*)
-// reuse the same lookup helper to compose multiple primitives.
+// Public createXxx surface. JSON I/O collapses to exactly two entry
+// functions — createJsonEncoder + createJsonDecoder. Each dispatches to
+// one or two underlying JIT primitives based on the `mode` option
+// (`'safe'` default vs `'unsafe'` fast path). The lower-level
+// prepareForJson / restoreFromJson / stringifyJson primitives remain
+// internal — the encoder/decoder pair is the only public JSON API.
 //
 // The deserialize-from-code test twins (`deserializeXxx`) are NOT part of
 // the public API — they live under `test/util/deserializeJitFunctions.ts`
@@ -119,12 +119,6 @@ export {
   type GetTypeErrorsFn,
   type RunTypeError,
   type RunTypeErrorPathSegment,
-  createPrepareForJson,
-  type PrepareForJsonFn,
-  createRestoreFromJson,
-  type RestoreFromJsonFn,
-  createStringifyJson,
-  type StringifyJsonFn,
   createHasUnknownKeys,
   type HasUnknownKeysFn,
   type HasUnknownKeysOptions,
@@ -134,17 +128,11 @@ export {
   type UnknownKeyErrorsFn,
   createUnknownKeysToUndefined,
   type UnknownKeysToUndefinedFn,
-  // JSON serialise/parse wrappers — compose primitives into one-call APIs
-  // that mirror mion's two serialise paths (jsonSpec = unsafe, stringifySpec
-  // = safe). Safe variants strip extras; unsafe variants preserve them.
-  createUnsafeJsonStringify,
-  type UnsafeJsonStringifyFn,
-  createSafeJsonStringify,
-  type SafeJsonStringifyFn,
-  createUnsafeJsonParse,
-  type UnsafeJsonParseFn,
-  createSafeJsonParse,
-  type SafeJsonParseFn,
-  type SafeJsonParseOptions,
-  SafeJsonParseError,
+  // JSON I/O.
+  createJsonEncoder,
+  type JsonEncoderFn,
+  type JsonEncoderOptions,
+  createJsonDecoder,
+  type JsonDecoderFn,
+  type JsonDecoderOptions,
 } from './createJitFunctions.ts';

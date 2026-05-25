@@ -29,10 +29,14 @@ import {
   type StripUnknownKeysFn,
   type UnknownKeyErrorsFn,
   type UnknownKeysToUndefinedFn,
-  type PrepareForJsonFn,
-  type RestoreFromJsonFn,
-  type StringifyJsonFn,
 } from '@mionjs/ts-go-run-types';
+// PrepareForJsonFn / RestoreFromJsonFn / StringifyJsonFn live in
+// createJitFunctions.ts but are no longer re-exported from index.ts
+// (the underlying primitives are internal to the createJsonEncoder /
+// createJsonDecoder pair). Test helpers still need them to type the
+// deserialize twins that exercise the per-primitive `entry.code`
+// round-trip.
+import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createJitFunctions.ts';
 import {buildFactoryFromCode} from '../../src/jit/restoreJitFns.ts';
 import type {AnyFn, JitCompiledFn} from '../../src/jit/types.ts';
 
