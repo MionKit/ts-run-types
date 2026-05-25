@@ -99,17 +99,22 @@ func TestPrepareForJsonFlatModule_ObjectUnionMergesProps(t *testing.T) {
 }
 
 // TestRestoreFromJsonFlatModule_ObjectUnionDecodesFlat — the rendered
-// flat-restore factory MUST detect the `[idx, value]` envelope, route
-// idx === -1 to the merged-object walk, and emit per-merged-prop
-// restore.
+// flat-restore factory unconditionally unwraps the `[idx, value]`
+// envelope (no runtime shape gate) and dispatches via `idx === -1` for
+// the merged-object branch. Under the all-or-nothing wrap rule the
+// decoder knows the wire shape at compile time so the fragile
+// length-2 + typeof-number heuristic is gone.
 func TestRestoreFromJsonFlatModule_ObjectUnionDecodesFlat(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
 		return RestoreFromJsonFlatModule(w, d)
 	})
 
-	if !strings.Contains(out, "Array.isArray(v) && v.length === 2 && typeof v[0] === 'number'") {
-		t.Errorf("expected tuple-shape gate; got:\n%s", out)
+	if strings.Contains(out, "Array.isArray(v) && v.length === 2 && typeof v[0] === 'number'") {
+		t.Errorf("optimised emit must NOT use the length-2 + typeof[0]==='number' shape gate — it false-positives on legitimate raw values; got:\n%s", out)
+	}
+	if !strings.Contains(out, "const dec0 = v[0]") {
+		t.Errorf("expected unconditional unwrap `const dec0 = v[0]`; got:\n%s", out)
 	}
 	if !strings.Contains(out, "=== -1") {
 		t.Errorf("expected `=== -1` dispatch for the merged-object branch; got:\n%s", out)
@@ -205,11 +210,14 @@ func TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
 	}
 }
 
-// TestPrepareForJsonFlatModule_MixedUnionKeepsAtomicTuple — for
-// `string | {a:bigint}`, the string member keeps its `[memberIndex,v]`
-// dispatch (with per-member isType) while the object member goes
-// through the merged-flat path.
-func TestPrepareForJsonFlatModule_MixedUnionKeepsAtomicTuple(t *testing.T) {
+// TestPrepareForJsonFlatModule_MixedUnionWrapsEveryMember — for
+// `string | {a:bigint}` the all-or-nothing wrap rule kicks in: an
+// object branch is present, so the decoder must unconditionally
+// unwrap, which forces the atomic string member to wrap too even
+// though it's noop on both halves. Previously the per-member rule
+// skipped the string wrap, but that left the decoder relying on a
+// fragile shape gate to distinguish wrapped from raw values.
+func TestPrepareForJsonFlatModule_MixedUnionWrapsEveryMember(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	bigint := &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}
 	propA := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("big")}
@@ -227,9 +235,10 @@ func TestPrepareForJsonFlatModule_MixedUnionKeepsAtomicTuple(t *testing.T) {
 		return PrepareForJsonFlatModule(w, d)
 	})
 
-	// String is noop-on-both-halves so it should NOT wrap with [0, v].
-	if strings.Contains(out, "[0, v]") {
-		t.Errorf("noop string member should skip tuple wrap; got:\n%s", out)
+	// Object branch exists so string member MUST wrap too — every
+	// encoded value must be unambiguously [idx, value] on the wire.
+	if !strings.Contains(out, "v = [0, v]") {
+		t.Errorf("string member must wrap as [0, v] when object branch coexists; got:\n%s", out)
 	}
 	// Object branch still uses the flat envelope.
 	if !strings.Contains(out, "[-1, v]") {

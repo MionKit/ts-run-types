@@ -112,13 +112,19 @@ describe('serialization-flat / MIXED UNION (atomic + object)', () => {
     expect(safeRoundTrip(deepClone(alpha), stringifyObj, restore)).toEqual(alpha);
   });
 
-  it('wire shape — atomic string member passes through unwrapped, object member uses [-1, …]', () => {
+  it('wire shape — all-or-nothing wrap: atomic string member also wraps when object branch coexists', () => {
     const stringify = createStringifyJsonFlat<MixedUnion>();
     const strOut = stringify('hello') ?? '';
     const objOut = stringify(alpha) ?? '';
-    // String is noop on both halves — the flat encoder skips the tuple.
-    expect(strOut).toBe('"hello"');
-    // Object member uses the flat envelope.
+    // Object branch is present, so every encoded value must be a
+    // [idx, value] envelope — the decoder unconditionally unwraps.
+    // The previous per-member rule left the decoder relying on a
+    // fragile runtime shape gate; the all-or-nothing rule guarantees
+    // correct round-trip for any union member value, including
+    // legitimate arrays like `[5, 7]` that would otherwise be
+    // mis-detected as wrapped tuples.
+    expect(strOut).toBe('[0,"hello"]');
+    // Object member uses the merged-flat envelope (idx === -1).
     expect(objOut.startsWith('[-1,')).toBe(true);
   });
 });

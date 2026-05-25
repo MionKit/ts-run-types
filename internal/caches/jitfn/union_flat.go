@@ -215,12 +215,54 @@ func buildMergedProps(objectMembers []memberRef, ctx *EmitContext) []mergedProp 
 // unionMemberNeedsTupleFlat is the flat-family analogue of
 // unionMemberNeedsTuple — peeks PrepareForJsonFlatEmitter +
 // RestoreFromJsonFlatEmitter so the noop cache keys don't collide with
-// the non-flat family's. Atomic members that are noop on both halves
-// skip the `[memberIndex, value]` wrap exactly like the non-flat path.
+// the non-flat family's.
 func unionMemberNeedsTupleFlat(member *protocol.RunType, ctx *EmitContext) bool {
 	pjNoop := peekMemberIsNoop(member, PrepareForJsonFlatEmitter{}, ctx)
 	rjNoop := peekMemberIsNoop(member, RestoreFromJsonFlatEmitter{}, ctx)
 	return !(pjNoop && rjNoop)
+}
+
+// atomicBranchNeedsTuple returns the all-or-nothing wrap decision for
+// the atomic side of a flat union (mirrors unionNeedsTuple in
+// preparefjson.go). Either every atomic member is `[memberIndex, value]`
+// wrapped or every member round-trips raw — the per-member decision
+// would leave the decoder unable to distinguish the two cases without
+// a fragile runtime gate. Object-branch presence forces wrapping too:
+// the [-1, mergedObject] envelope coexists with the atomic envelope,
+// so the decoder must unconditionally unwrap.
+func atomicBranchNeedsTuple(split unionSplit, ctx *EmitContext) bool {
+	if len(split.object) > 0 {
+		return true
+	}
+	for _, m := range split.atomic {
+		if unionMemberNeedsTupleFlat(m.resolved, ctx) {
+			return true
+		}
+	}
+	return false
+}
+
+// mergedPropNeedsSubWrap is the all-or-nothing wrap decision for a
+// merged property's multi-candidate sub-dispatch — same shape and
+// rationale as unionNeedsTuple but scoped to one prop's candidates.
+// Single-candidate or no-candidate props never need a sub-wrap.
+func (mp mergedProp) mergedPropNeedsSubWrap(ctx *EmitContext) bool {
+	if len(mp.candidates) < 2 {
+		return false
+	}
+	for _, cand := range mp.candidates {
+		resolved := ctx.ResolveRef(cand.childRef)
+		if resolved == nil {
+			continue
+		}
+		if !peekMemberIsNoop(resolved, PrepareForJsonFlatEmitter{}, ctx) {
+			return true
+		}
+		if !peekMemberIsNoop(resolved, RestoreFromJsonFlatEmitter{}, ctx) {
+			return true
+		}
+	}
+	return false
 }
 
 // flatUnionErrorVar registers the canonical encode-error context item
@@ -247,18 +289,22 @@ func flatUnionDecodeErrorVar(ctx *EmitContext) string {
 // emitUnionPrepareForJsonFlat — the encode-side of the flat-union wire
 // shape. Mutates v: object members get every defined property
 // transformed and then v = [-1, v]; atomic members run their original
-// prepare and (when needed) wrap as [memberIndex, v].
+// prepare and (when atomicBranchNeedsTuple) wrap as [memberIndex, v].
+// Wrap is all-or-nothing across atomic members AND mandatory when an
+// object branch exists (the [-1, …] envelope coexists with the atomic
+// envelope, so the decoder must unconditionally unwrap).
 func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	split := splitUnionMembersFlat(rt, ctx)
 	if len(split.atomic) == 0 && len(split.object) == 0 {
 		return JitCode{Code: "", Type: CodeS}
 	}
 
+	needsTuple := atomicBranchNeedsTuple(split, ctx)
+
 	var clauses []string
 
 	// Atomic clauses — same shape as the non-flat union encode.
 	for _, m := range split.atomic {
-		needsTuple := unionMemberNeedsTupleFlat(m.resolved, ctx)
 		prepareJit := ctx.CompileChild(m.ref, CodeS)
 		if prepareJit.Type == CodeNS {
 			return JitCode{Code: "", Type: CodeNS}
@@ -323,14 +369,14 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 
 // emitMergedPropPrepare returns the inline JS body that transforms a
 // single merged property's value. Single-candidate props delegate to
-// the candidate's prepareForJson; multi-candidate that are all
-// noop-on-both-halves (e.g. literal `'a' | 'b' | 'c'` discriminators
-// where both prepare and restore are identity) collapse to no transform
-// — the `[subIdx, value]` envelope adds no information the decoder
-// needs since the value round-trips identity-style. Multi-candidate
-// with genuine transforms (e.g. `bigint | Date` where prepare emits
-// different code per candidate) keeps the dispatch + envelope.
-// Returns ("", true) when the prop is a noop on every candidate.
+// the candidate's prepareForJson; multi-candidate props use the
+// all-or-nothing wrap rule (mergedPropNeedsSubWrap) — either every
+// candidate is noop on both halves (collapse to no transform; the
+// value round-trips identity-style via JSON's natural typing) or
+// every candidate emits its transform + `[subIdx, value]` wrap so the
+// decoder can unconditionally unwrap. Mirrors the rationale for
+// unionNeedsTuple in preparefjson.go scoped to one merged property.
+// Returns ("", true) when no transform is required.
 func emitMergedPropPrepare(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -341,15 +387,12 @@ func emitMergedPropPrepare(mp mergedProp, accessor string, ctx *EmitContext) (st
 		}
 		return strings.TrimSpace(jc.Code), true
 	}
-	// Collapse multi-candidate when every candidate is a noop on both
-	// prepare AND restore. The literal discriminator case (`'a' | 'b' | 'c'`)
-	// is the headline shape this catches: all three literals are
-	// prepare-noop AND restore-noop, so the dispatch + `[subIdx, value]`
-	// wrap is pure overhead. JSON's natural typing recovers the value.
-	if mp.allCandidatesNoop(ctx) {
+	if !mp.mergedPropNeedsSubWrap(ctx) {
+		// Every candidate is noop on both halves — JSON round-trips the
+		// value identity-style, no per-property dispatch or wrap needed.
 		return "", true
 	}
-	// Multi-candidate — inline union dispatch over the accessor.
+	// Multi-candidate with at least one non-noop — wrap every candidate.
 	var arms []string
 	for i, cand := range mp.candidates {
 		ctx.SetChildAccessor(accessor)
@@ -384,57 +427,24 @@ func emitMergedPropPrepare(mp mergedProp, accessor string, ctx *EmitContext) (st
 	return strings.Join(arms, ""), true
 }
 
-// allCandidatesNoop reports whether every candidate ref points at a
-// type that is noop on BOTH the flat-prepare and flat-restore halves.
-// When true, the per-property dispatch + `[subIdx, value]` wrap is pure
-// overhead — JSON's natural typing recovers the value on the decode
-// side without needing the subIdx.
-func (mp mergedProp) allCandidatesNoop(ctx *EmitContext) bool {
-	if len(mp.candidates) == 0 {
-		return true
-	}
-	for _, cand := range mp.candidates {
-		resolved := ctx.ResolveRef(cand.childRef)
-		if resolved == nil {
-			return false
-		}
-		if !peekMemberIsNoop(resolved, PrepareForJsonFlatEmitter{}, ctx) {
-			return false
-		}
-		if !peekMemberIsNoop(resolved, RestoreFromJsonFlatEmitter{}, ctx) {
-			return false
-		}
-	}
-	return true
-}
-
 // --- restoreFromJson decode --------------------------------------------------
 
 // emitUnionRestoreFromJsonFlat — the decode-side of the flat-union wire
-// shape. Detects the `[idx, value]` envelope; idx === -1 routes to the
-// merged-object decode, numeric idx >= 0 routes to the matching atomic
-// member's restore, and a raw value (noop atomic that skipped the
-// wrap) passes through unchanged.
+// shape. Under the all-or-nothing wrap rule (see atomicBranchNeedsTuple
+// and unionNeedsTuple): either every encoded value is wrapped (`[-1, …]`
+// for object branch, `[idx, …]` for atomic) or the whole union
+// round-trips raw and the decoder is identity. No shape gate — the
+// compile-time decision tells the decoder exactly which shape to expect.
 func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	split := splitUnionMembersFlat(rt, ctx)
 	if len(split.atomic) == 0 && len(split.object) == 0 {
 		return JitCode{Code: "", Type: CodeS}
 	}
 
-	// Per-atomic-member tuple-wrap decision (mirrors encode side).
-	atomicNeedsTuple := make(map[int]bool)
-	anyWrapped := false
-	for _, m := range split.atomic {
-		needsTuple := unionMemberNeedsTupleFlat(m.resolved, ctx)
-		atomicNeedsTuple[m.originalIndex] = needsTuple
-		if needsTuple {
-			anyWrapped = true
-		}
-	}
 	hasObjectBranch := len(split.object) > 0
-	if !anyWrapped && !hasObjectBranch {
-		// Every atomic member is noop on both halves, and there are no
-		// object members — decoder is identity.
+	if !atomicBranchNeedsTuple(split, ctx) {
+		// Whole union round-trips raw — every atomic member is noop on
+		// both halves AND there's no object branch.
 		return JitCode{Code: "", Type: CodeS}
 	}
 
@@ -468,11 +478,9 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 		arms = append(arms, arm)
 	}
 
-	// Atomic arms — same shape as the non-flat decode.
+	// Atomic arms — every atomic member gets a decode clause because
+	// every encoded value is wrapped under the all-or-nothing rule.
 	for _, m := range split.atomic {
-		if !atomicNeedsTuple[m.originalIndex] {
-			continue
-		}
 		restoreJit := ctx.CompileChild(m.ref, CodeS)
 		if restoreJit.Type == CodeNS {
 			return JitCode{Code: "", Type: CodeNS}
@@ -495,18 +503,17 @@ func emitUnionRestoreFromJsonFlat(rt *protocol.RunType, ctx *EmitContext, v stri
 	errVar := flatUnionDecodeErrorVar(ctx)
 	inner := strings.Join(arms, "") + " else { throw new Error(" + errVar + ") }"
 
-	body := "if (Array.isArray(" + v + ") && " + v + ".length === 2 && typeof " + v + "[0] === 'number') {" +
-		"const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" +
-		inner + "}"
+	// Unconditional unwrap — every encoded value is a [idx, value]
+	// envelope under the all-or-nothing wrap rule.
+	body := "const " + decVar + " = " + v + "[0]; " + v + " = " + v + "[1];" + inner
 	return JitCode{Code: body, Type: CodeS}
 }
 
 // emitMergedPropRestore — decode-side mirror of emitMergedPropPrepare.
-// Single-candidate props delegate to the candidate's restoreFromJson;
-// multi-candidate that are all noop-on-both-halves collapse to no
-// transform (the encoder skipped the wrap so there's nothing to undo).
-// Multi-candidate with genuine transforms decodes the per-prop
-// `[subIdx, value]` envelope.
+// Same all-or-nothing rule via mergedPropNeedsSubWrap: either every
+// candidate is noop (no transform on decode, the value round-trips
+// identity) or every candidate emits the `[subIdx, value]` decode
+// dispatch. Single-candidate props delegate directly.
 func emitMergedPropRestore(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -517,10 +524,9 @@ func emitMergedPropRestore(mp mergedProp, accessor string, ctx *EmitContext) (st
 		}
 		return strings.TrimSpace(jc.Code), true
 	}
-	// Collapse multi-candidate when every candidate is a noop on both
-	// halves. Symmetric with emitMergedPropPrepare — the encoder didn't
-	// emit a wrap, so the decoder has nothing to unwrap.
-	if mp.allCandidatesNoop(ctx) {
+	if !mp.mergedPropNeedsSubWrap(ctx) {
+		// Encoder didn't emit a wrap (all candidates noop) — nothing to
+		// undo on decode.
 		return "", true
 	}
 	// Multi-candidate — decode the per-prop `[subIdx, value]` envelope.
@@ -559,12 +565,16 @@ func emitMergedPropRestore(mp mergedProp, accessor string, ctx *EmitContext) (st
 // emitUnionStringifyJsonFlat — single-pass stringification of the
 // flat-union wire shape. Mirrors emitUnionPrepareForJsonFlat structurally,
 // but each branch BUILDS the JSON string for the envelope rather than
-// mutating `v`.
+// mutating `v`. The wrap-or-not decision is all-or-nothing across the
+// atomic branch (see atomicBranchNeedsTuple) so the decoder always knows
+// whether to unwrap.
 func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	split := splitUnionMembersFlat(rt, ctx)
 	if len(split.atomic) == 0 && len(split.object) == 0 {
 		return JitCode{Code: "", Type: CodeS}
 	}
+
+	needsTuple := atomicBranchNeedsTuple(split, ctx)
 
 	var clauses []string
 
@@ -582,7 +592,7 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
 		}
 		var emitted string
-		if unionMemberNeedsTupleFlat(m.resolved, ctx) {
+		if needsTuple {
 			emitted = "'[" + strconv.Itoa(m.originalIndex) + ",' + " + childJit.Code + " + ']'"
 		} else {
 			emitted = childJit.Code
@@ -710,13 +720,16 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 
 // emitMergedPropStringify returns a JS expression that evaluates to the
 // JSON fragment for the merged prop's value. Single-candidate uses the
-// candidate's stringifyJson directly; multi-candidate that all produce
-// IDENTICAL child code (e.g. `'a' | 'b' | 'c'` literal discriminators,
-// where every candidate emits `JSON.stringify(accessor)`) collapses to
-// the shared code — the `[subIdx, value]` envelope adds no information
-// the decoder needs since JSON.parse recovers the value via its
-// natural typing. Truly divergent candidates fall back to the IIFE
-// dispatch + `[subIdx, value]` envelope.
+// candidate's stringifyJson directly. Multi-candidate follows the same
+// all-or-nothing rule as the outer union (mergedPropNeedsSubWrap):
+//
+//   - If every candidate is noop on both halves of the round-trip, the
+//     decoder's matching emitMergedPropRestore emits no transform, so
+//     this side emits the shared candidate code directly — no
+//     `[subIdx, value]` wrap. JSON's natural typing recovers the value.
+//   - If any candidate is non-noop, every candidate emits its transform
+//     wrapped with `[subIdx, value]` so the decoder can unconditionally
+//     unwrap.
 func emitMergedPropStringify(mp mergedProp, accessor string, ctx *EmitContext) (string, bool) {
 	if len(mp.candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -730,8 +743,7 @@ func emitMergedPropStringify(mp mergedProp, accessor string, ctx *EmitContext) (
 		}
 		return jc.Code, true
 	}
-	// Compile every candidate up front so the collapse-on-identical check
-	// can inspect the resulting code strings.
+	// Compile every candidate up front.
 	type compiled struct {
 		code     string
 		resolved *protocol.RunType
@@ -757,19 +769,40 @@ func emitMergedPropStringify(mp mergedProp, accessor string, ctx *EmitContext) (
 	if len(candidates) == 0 {
 		return "", true
 	}
-	// Collapse: if every candidate produces the same code, the dispatch
-	// is pure overhead — emit the shared code directly.
-	allSame := true
-	for i := 1; i < len(candidates); i++ {
-		if candidates[i].code != candidates[0].code {
-			allSame = false
-			break
+	if !mp.mergedPropNeedsSubWrap(ctx) {
+		// Decoder won't emit any sub-dispatch (all candidates noop on
+		// both halves) — emit a single dispatch that returns one of the
+		// candidate codes without the [subIdx, value] wrap. Multiple
+		// candidates means multiple isType arms still, but they all
+		// resolve to JSON.parse-recoverable forms.
+		errVar := flatUnionEncodeErrorVar(ctx)
+		arms := make([]string, 0, len(candidates))
+		for _, cand := range candidates {
+			isTypeExpr := unionMemberIsTypeCheck(cand.resolved, ctx, accessor)
+			guard := isTypeExpr
+			if isObjectLikeKind(cand.resolved.Kind) {
+				guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
+			}
+			arms = append(arms, "if ("+guard+") return "+cand.code+";")
 		}
+		// Optimisation: when every candidate emits the SAME childCode
+		// (e.g. literal `'a' | 'b' | 'c'` where every candidate is
+		// `JSON.stringify(accessor)`) the dispatch arms all return the
+		// same thing — collapse to that shared code.
+		allSame := true
+		for i := 1; i < len(candidates); i++ {
+			if candidates[i].code != candidates[0].code {
+				allSame = false
+				break
+			}
+		}
+		if allSame {
+			return candidates[0].code, true
+		}
+		iife := "(function(){" + strings.Join(arms, " ") + " throw new Error(" + errVar + ");})()"
+		return iife, true
 	}
-	if allSame {
-		return candidates[0].code, true
-	}
-	// Multi-candidate — IIFE with per-candidate dispatch.
+	// Multi-candidate with at least one non-noop — wrap every arm.
 	errVar := flatUnionEncodeErrorVar(ctx)
 	arms := make([]string, 0, len(candidates))
 	for i, cand := range candidates {
