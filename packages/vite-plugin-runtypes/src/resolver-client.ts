@@ -103,6 +103,10 @@ export interface ScanFilesResult {
   typeErrorsCacheSource?: string;
   prepareForJsonCacheSource?: string;
   restoreFromJsonCacheSource?: string;
+  stringifyJsonCacheSource?: string;
+  prepareForJsonFlatCacheSource?: string;
+  restoreFromJsonFlatCacheSource?: string;
+  stringifyJsonFlatCacheSource?: string;
   hasUnknownKeysCacheSource?: string;
   stripUnknownKeysCacheSource?: string;
   unknownKeyErrorsCacheSource?: string;
@@ -170,6 +174,10 @@ abstract class ResolverClientBase implements ResolverConnection {
       typeErrorsCacheSource: resp.typeErrorsCacheSource,
       prepareForJsonCacheSource: resp.prepareForJsonCacheSource,
       restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
+      stringifyJsonCacheSource: resp.stringifyJsonCacheSource,
+      prepareForJsonFlatCacheSource: resp.prepareForJsonFlatCacheSource,
+      restoreFromJsonFlatCacheSource: resp.restoreFromJsonFlatCacheSource,
+      stringifyJsonFlatCacheSource: resp.stringifyJsonFlatCacheSource,
       hasUnknownKeysCacheSource: resp.hasUnknownKeysCacheSource,
       stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
       unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,

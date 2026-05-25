@@ -69,13 +69,7 @@ void sj; void sjf; void pj; void pjf;
   },
 ];
 
-const KINDS = [
-  'runType',
-  'stringifyJson',
-  'stringifyJsonFlat',
-  'prepareForJson',
-  'prepareForJsonFlat',
-];
+const KINDS = ['runType', 'stringifyJson', 'stringifyJsonFlat', 'prepareForJson', 'prepareForJsonFlat'];
 
 fs.rmSync(OUT_DIR, {recursive: true, force: true});
 fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -88,23 +82,27 @@ try {
     await client.reset();
     await client.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...c.sources});
     const files = Object.keys(c.sources);
-    // Drive scanFiles first to populate the resolver cache, then drive a
-    // separate `dump` request — that's the same path the vite plugin's
-    // transform() hook uses, and it returns the FULL session-wide cache
-    // (no per-request scoped projection).
-    await client.scanFiles(files);
-    const resp = await client.dump({includeCacheSources: ['all']});
+    // Drive scanFiles WITH includeCacheSources to test the (buggy) scoped
+    // projection path, then drive a separate `dump` request — that's the
+    // same path the vite plugin's transform() hook uses and returns the
+    // FULL session-wide cache (no per-request scoped projection).
+    const scanResp = await client.scanFiles(files, {includeCacheSources: ['all']});
+    const dumpResp = await client.dump({includeCacheSources: ['all']});
     process.stdout.write(`\n# ${c.name}\n`);
-    process.stdout.write(`  sites: ${resp.sites?.length ?? 0}\n`);
+    process.stdout.write(`  sites: ${scanResp.sites?.length ?? 0}\n`);
+    process.stdout.write(`  kind:                  scanFiles    dump\n`);
     for (const kind of [...KINDS, 'isType', 'restoreFromJson', 'restoreFromJsonFlat', 'pureFns']) {
-      const body = resp[kind + 'CacheSource'];
-      const len = typeof body === 'string' ? body.length : 0;
-      process.stdout.write(`  ${kind}: ${len} bytes${len === 0 ? '  ⚠️ empty' : ''}\n`);
-      if (len > 0) fs.writeFileSync(path.join(caseDir, `${kind}.js`), body);
+      const scanBody = scanResp[kind + 'CacheSource'];
+      const dumpBody = dumpResp[kind + 'CacheSource'];
+      const scanLen = typeof scanBody === 'string' ? scanBody.length : 0;
+      const dumpLen = typeof dumpBody === 'string' ? dumpBody.length : 0;
+      const warn = scanLen === 0 && dumpLen > 0 ? '  ⚠️ SCAN MISSING' : '';
+      process.stdout.write(`  ${kind.padEnd(22)} ${String(scanLen).padStart(8)} ${String(dumpLen).padStart(8)}${warn}\n`);
+      if (dumpLen > 0) fs.writeFileSync(path.join(caseDir, `${kind}.js`), dumpBody);
     }
     // Also dump the raw response shape (sans cache sources) for inspection.
     const stripped = {};
-    for (const [k, v] of Object.entries(resp)) {
+    for (const [k, v] of Object.entries(dumpResp)) {
       if (k.endsWith('CacheSource')) continue;
       stripped[k] = v;
     }
@@ -113,4 +111,3 @@ try {
 } finally {
   client.close();
 }
-
