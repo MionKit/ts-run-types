@@ -49,6 +49,7 @@ const FN_FIELDS = [
   'prepareForJsonFlat',
   'stringifyJsonFlat',
   'restoreFromJsonFlat',
+  'prepareForJsonSafe',
 ];
 
 // One API descriptor per measured surface. `family` keys ops/sec back to
@@ -60,6 +61,10 @@ const APIS = [
   {key: 'unsafe_flat', family: 'flat', kind: 'encode', factory: 'prepareForJsonFlat', cacheKind: 'prepareForJsonFlat'},
   {key: 'safe_flat', family: 'flat', kind: 'stringify', factory: 'stringifyJsonFlat', cacheKind: 'stringifyJsonFlat'},
   {key: 'decode_flat', family: 'flat', kind: 'decode', factory: 'restoreFromJsonFlat', cacheKind: 'restoreFromJsonFlat'},
+  // Safe-encode family — non-mutating sibling of `unsafe` (prepareForJson),
+  // strips extras. Measured as `prepareForJsonSafe(v) + JSON.stringify`
+  // so it competes head-to-head with the unsafe encode pipeline.
+  {key: 'safe_clone', family: 'safe', kind: 'encode', factory: 'prepareForJsonSafe', cacheKind: 'prepareForJsonSafe'},
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
@@ -92,6 +97,8 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export function createPrepareForJsonFlat<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFlatFn;
   export function createRestoreFromJsonFlat<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFlatFn;
   export function createStringifyJsonFlat<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): StringifyJsonFlatFn;
+  export type PrepareForJsonSafeFn = PrepareForJsonFn;
+  export function createPrepareForJsonSafe<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonSafeFn;
   export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn;
   export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn;
 }
@@ -512,9 +519,10 @@ function renderMarkdown(out) {
     lines.push('<th align="right">unsafe ops/sec</th>');
     lines.push('<th align="right">unsafe_flat</th>');
     lines.push('<th align="right">×</th>');
+    lines.push('<th align="right">safe_clone</th>');
+    lines.push('<th align="right">×/unsafe</th>');
     lines.push('<th align="right">safe ops/sec</th>');
-    lines.push('<th align="right">safe_flat</th>');
-    lines.push('<th align="right">×</th>');
+    lines.push('<th align="right">×/unsafe</th>');
     lines.push('<th align="right">decode ops/sec</th>');
     lines.push('<th align="right">decode_flat</th>');
     lines.push('<th align="right">×</th>');
@@ -524,16 +532,20 @@ function renderMarkdown(out) {
       const title = record.title ?? caseKey;
       const m = record.metrics ?? {};
       const cells = [];
-      for (const [base, flat] of [
-        ['unsafe', 'unsafe_flat'],
-        ['safe', 'safe_flat'],
-        ['decode', 'decode_flat'],
-      ]) {
-        const baseOps = m[base]?.opsPerSec?.mean ?? null;
-        const flatOps = m[flat]?.opsPerSec?.mean ?? null;
-        const ratio = baseOps && flatOps ? flatOps / baseOps : null;
-        cells.push(fmtNum(baseOps), fmtNum(flatOps), fmtRatio(ratio));
-      }
+      // Group 1: unsafe vs unsafe_flat.
+      const unsafe = m.unsafe?.opsPerSec?.mean ?? null;
+      const unsafeFlat = m.unsafe_flat?.opsPerSec?.mean ?? null;
+      cells.push(fmtNum(unsafe), fmtNum(unsafeFlat), fmtRatio(unsafe && unsafeFlat ? unsafeFlat / unsafe : null));
+      // Group 2: safe_clone (new) vs unsafe.
+      const safeClone = m.safe_clone?.opsPerSec?.mean ?? null;
+      cells.push(fmtNum(safeClone), fmtRatio(unsafe && safeClone ? safeClone / unsafe : null));
+      // Group 3: safe (stringifyJson) vs unsafe.
+      const safe = m.safe?.opsPerSec?.mean ?? null;
+      cells.push(fmtNum(safe), fmtRatio(unsafe && safe ? safe / unsafe : null));
+      // Group 4: decode vs decode_flat.
+      const decode = m.decode?.opsPerSec?.mean ?? null;
+      const decodeFlat = m.decode_flat?.opsPerSec?.mean ?? null;
+      cells.push(fmtNum(decode), fmtNum(decodeFlat), fmtRatio(decode && decodeFlat ? decodeFlat / decode : null));
       lines.push('<tr>');
       lines.push(`<td>${htmlEscape(title)}</td>`);
       for (const c of cells) lines.push(`<td align="right">${c}</td>`);

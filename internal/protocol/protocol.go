@@ -309,6 +309,7 @@ const (
 	CacheKindPrepareForJsonFlat     CacheKind = "prepareForJsonFlat"
 	CacheKindRestoreFromJsonFlat    CacheKind = "restoreFromJsonFlat"
 	CacheKindStringifyJsonFlat      CacheKind = "stringifyJsonFlat"
+	CacheKindPrepareForJsonSafe     CacheKind = "prepareForJsonSafe"
 	CacheKindHasUnknownKeys         CacheKind = "hasUnknownKeys"
 	CacheKindStripUnknownKeys       CacheKind = "stripUnknownKeys"
 	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
@@ -379,6 +380,11 @@ type Response struct {
 	AddedPrepareForJsonFlat  bool `json:"addedPrepareForJsonFlat,omitempty"`
 	AddedRestoreFromJsonFlat bool `json:"addedRestoreFromJsonFlat,omitempty"`
 	AddedStringifyJsonFlat   bool `json:"addedStringifyJsonFlat,omitempty"`
+	// AddedPrepareForJsonSafe mirrors AddedPrepareForJson for the safe-encode
+	// family — non-mutating sibling that strips undeclared properties and
+	// returns a new value. Pairs with the existing RestoreFromJson decoder
+	// (wire format identical to prepareForJson + JSON.stringify).
+	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
 	// / AddedUnknownKeysToUndefined mirror AddedIsType for the
 	// unknown-keys family ported from mion's
@@ -432,6 +438,9 @@ type Response struct {
 	PrepareForJsonFlatCacheSource  string `json:"prepareForJsonFlatCacheSource,omitempty"`
 	RestoreFromJsonFlatCacheSource string `json:"restoreFromJsonFlatCacheSource,omitempty"`
 	StringifyJsonFlatCacheSource   string `json:"stringifyJsonFlatCacheSource,omitempty"`
+	// PrepareForJsonSafeCacheSource carries the rendered body of the
+	// safe-encode family — non-mutating sibling of PrepareForJsonCacheSource.
+	PrepareForJsonSafeCacheSource string `json:"prepareForJsonSafeCacheSource,omitempty"`
 	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
@@ -578,6 +587,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedStringifyJsonFlat {
 		out["addedStringifyJsonFlat"] = true
 	}
+	if response.AddedPrepareForJsonSafe {
+		out["addedPrepareForJsonSafe"] = true
+	}
 	if response.AddedHasUnknownKeys {
 		out["addedHasUnknownKeys"] = true
 	}
@@ -628,6 +640,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.StringifyJsonFlatCacheSource != "" {
 		out["stringifyJsonFlatCacheSource"] = response.StringifyJsonFlatCacheSource
+	}
+	if response.PrepareForJsonSafeCacheSource != "" {
+		out["prepareForJsonSafeCacheSource"] = response.PrepareForJsonSafeCacheSource
 	}
 	if response.HasUnknownKeysCacheSource != "" {
 		out["hasUnknownKeysCacheSource"] = response.HasUnknownKeysCacheSource

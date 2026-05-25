@@ -131,6 +131,12 @@ export {
 } from './createRestoreFromJsonFlat.ts';
 export {createStringifyJsonFlat, deserializeStringifyJsonFlat, type StringifyJsonFlatFn} from './createStringifyJsonFlat.ts';
 
+// Non-mutating sibling of createPrepareForJson — returns a NEW value
+// containing only the declared keys and transformed leaves; the input
+// is untouched. Same wire format as `prepareForJson + JSON.stringify`
+// so pairs with the existing `createRestoreFromJson` decoder.
+export {createPrepareForJsonSafe, deserializePrepareForJsonSafe, type PrepareForJsonSafeFn} from './createPrepareForJsonSafe.ts';
+
 export {
   createHasUnknownKeys,
   deserializeHasUnknownKeys,
