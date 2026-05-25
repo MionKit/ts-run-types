@@ -263,3 +263,138 @@ func containsID(runTypes []*protocol.RunType, id string) bool {
 	}
 	return false
 }
+
+// TestScope_UnreferencedTypesAreNotProjected pins the bounded-scope
+// invariant at the FILE level: a file containing both marker call sites
+// AND unreferenced type aliases must produce a cache containing ONLY
+// the marker-referenced type's projection. Aliases that no marker call
+// touches must never end up in the cache.
+//
+// The invariant is enforced by scanFiles walking CallExpression nodes
+// only (via walker.ForEachCallExpression) and triggering type
+// projection (cache.AssignID) only for marker call arguments. This
+// test makes the contract observable so a future refactor that
+// accidentally extended the scan to "every type the file declares"
+// breaks loudly.
+func TestScope_UnreferencedTypesAreNotProjected(t *testing.T) {
+	const src = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+
+// Referenced — has a marker call; should be projected.
+type Referenced = {a: string; b: number};
+
+// Unreferenced — each declares a UNIQUE kind that Referenced doesn't
+// touch, so if any of these leaked into the cache the assertions below
+// catch it loudly.
+type UnusedA = {x: bigint};                  // KindBigInt
+type UnusedB = {y: Date};                    // KindClass with SubKindDate
+export type UnusedC = string[];              // KindArray
+
+getRuntypeId<Referenced>();
+`
+	r := setupInline(t, map[string]string{"call.ts": src})
+	resp := r.Dispatch(protocol.Request{
+		Op:              protocol.OpScanFiles,
+		Files:           []string{"call.ts"},
+		IncludeRunTypes: true,
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.Sites) != 1 {
+		t.Fatalf("expected 1 site (the getRuntypeId<Referenced> call), got %d", len(resp.Sites))
+	}
+	// The Referenced type must appear in the projection.
+	if !containsID(resp.RunTypes, resp.Sites[0].ID) {
+		t.Fatalf("expected Referenced's id %q in projection", resp.Sites[0].ID)
+	}
+	// Tell-tale kinds — none of these appear in Referenced's structure
+	// ({a: string; b: number}), so finding any of them means an
+	// unreferenced alias leaked into the cache.
+	for _, runType := range resp.RunTypes {
+		if runType == nil {
+			continue
+		}
+		switch runType.Kind {
+		case protocol.KindBigInt:
+			t.Errorf("UnusedA leaked: found KindBigInt node id=%q", runType.ID)
+		case protocol.KindArray:
+			t.Errorf("UnusedC leaked: found KindArray node id=%q", runType.ID)
+		case protocol.KindClass:
+			if runType.SubKind == protocol.SubKindDate {
+				t.Errorf("UnusedB leaked: found KindClass+SubKindDate node id=%q", runType.ID)
+			}
+		}
+	}
+}
+
+// TestDump_OnlyMarkerReachableTypes pins the bounded-scope invariant
+// at the DUMP level: across multiple files, including one with NO
+// marker calls, OpDump returns only types reachable from accumulated
+// marker sites. scanAllProgramFiles will eagerly scan every Program
+// file before the dump — this test confirms the eager scan finds no
+// markers in unrelated files and therefore projects nothing from them.
+func TestDump_OnlyMarkerReachableTypes(t *testing.T) {
+	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+type Junk = {trash: bigint};
+getRuntypeId<{a: string}>();
+`
+	const bSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+interface Garbage { rubbish: Date }
+getRuntypeId<{b: number}>();
+`
+	// c.ts has NO marker imports and NO marker calls — scanAllProgramFiles
+	// will reach it but find nothing to project.
+	const cSrc = `export type OnlyAlias = boolean[];
+`
+	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc, "c.ts": cSrc})
+
+	// Scan a + b explicitly. c.ts is NOT scanned here.
+	respA := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
+	if respA.Error != "" {
+		t.Fatalf("scanFiles a.ts: %s", respA.Error)
+	}
+	respB := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"b.ts"}})
+	if respB.Error != "" {
+		t.Fatalf("scanFiles b.ts: %s", respB.Error)
+	}
+
+	// Dump triggers scanAllProgramFiles which will visit c.ts.
+	dumpResp := r.Dispatch(protocol.Request{Op: protocol.OpDump})
+	if dumpResp.Error != "" {
+		t.Fatalf("dump: %s", dumpResp.Error)
+	}
+
+	// The two marker-referenced object types must appear.
+	if !containsID(dumpResp.RunTypes, respA.Sites[0].ID) {
+		t.Fatalf("dump missing a.ts's marker-referenced id %q", respA.Sites[0].ID)
+	}
+	if !containsID(dumpResp.RunTypes, respB.Sites[0].ID) {
+		t.Fatalf("dump missing b.ts's marker-referenced id %q", respB.Sites[0].ID)
+	}
+
+	// Unreferenced aliases — each carries a unique kind not used by any
+	// marker-referenced type. Finding any of them in the dump means a
+	// non-marker-driven projection leaked.
+	for _, runType := range dumpResp.RunTypes {
+		if runType == nil {
+			continue
+		}
+		switch runType.Kind {
+		case protocol.KindBigInt:
+			t.Errorf("Junk leaked from a.ts: found KindBigInt node id=%q", runType.ID)
+		case protocol.KindClass:
+			if runType.SubKind == protocol.SubKindDate {
+				t.Errorf("Garbage leaked from b.ts: found KindClass+SubKindDate node id=%q", runType.ID)
+			}
+		case protocol.KindBoolean:
+			// OnlyAlias is `boolean[]`; KindBoolean here would mean either
+			// the array's element leaked (with the boolean element) — none of
+			// a.ts/b.ts use booleans, so finding KindBoolean is conclusive.
+			t.Errorf("OnlyAlias leaked from c.ts: found KindBoolean node id=%q", runType.ID)
+		case protocol.KindArray:
+			// Belt-and-braces — OnlyAlias = boolean[] is the only array
+			// in the test set.
+			t.Errorf("OnlyAlias leaked from c.ts: found KindArray node id=%q", runType.ID)
+		}
+	}
+}

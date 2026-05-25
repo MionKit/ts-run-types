@@ -72,6 +72,28 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // and notes the reached wire ids against that file in the cache's per-file
 // scope map. The map drives the per-request projection that
 // scopedDump uses for IncludeRunTypes / IncludeCacheSources.
+//
+// BOUNDED-SCOPE INVARIANT
+//
+// The scanner walks CallExpression AST nodes ONLY and assigns typeids
+// ONLY for marker call arguments (cache.AssignID is invoked exclusively
+// from scanCall when marker.Detect succeeds). Type projection
+// (cache.AssignID → cache.Serialize) is rooted at marker-referenced
+// types and follows children transitively from there — it never
+// reaches into the file's top-level declarations, exported type
+// aliases, or any type unrelated to a marker call site.
+//
+// Concretely: a source file that declares `type Junk = {x: bigint}`
+// but never passes Junk to a marker function leaves NO trace in the
+// cache. Pinned by:
+//   - internal/resolver/perfile_test.go:TestScope_UnreferencedTypesAreNotProjected
+//   - internal/resolver/perfile_test.go:TestDump_OnlyMarkerReachableTypes
+//   - packages/vite-plugin-runtypes/test/scope-bounded.test.ts
+//
+// The bench's compile-time measurements
+// (scripts/export-{serialization,validation}-suite.mjs) depend on this
+// invariant — they assume scanFiles' work scales with marker-reachable
+// type complexity, NOT with the file's total declaration count.
 func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []protocol.MarkerDiagnostic, error) {
 	var sites []protocol.Site
 	var diagnostics []protocol.MarkerDiagnostic
