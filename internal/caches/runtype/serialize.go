@@ -247,38 +247,6 @@ func (cache *Cache) SerializeArrayWithFlags(baseID string, flags []string) (stri
 	return id, true
 }
 
-// SerializeWithModeWrap registers a synthetic RunType entry that
-// mirrors `baseID` structurally but carries the JSON encoder/decoder
-// `mode` literal in its structural hash. Used by the marker scanner
-// to fold the `mode` option on createJsonEncoder / createJsonDecoder
-// into the runtype id so distinct modes resolve to distinct JIT
-// cache entries (`pj_<modeID>`, `pjs_<modeID>`, `sj_<modeID>`).
-//
-// Unlike SerializeArrayWithFlags, the wrapped node copies the base's
-// Kind / Child / Children directly — no per-mode emit branching is
-// needed; modes are interpreted at runtime by createJsonEncoder.
-// The wrapper exists only to make the cache key unique.
-func (cache *Cache) SerializeWithModeWrap(baseID string, mode string) string {
-	base := cache.nodes[baseID]
-	if base == nil {
-		return baseID
-	}
-	structural := "opts:mode=" + mode + ":" + baseID
-	if id, ok := cache.byStructural[structural]; ok {
-		return id
-	}
-	id, err := cache.dict.Unique(structural, cache.opts.hashLength())
-	if err != nil {
-		id = "x_m_" + hashid.QuickHash(structural, cache.opts.hashLength(), "")
-	}
-	cache.byStructural[structural] = id
-	wrapped := *base
-	wrapped.ID = id
-	cache.nodes[id] = &wrapped
-	cache.insertOrder = append(cache.insertOrder, id)
-	return id
-}
-
 // SerializeRegexLiteral registers a synthetic regex-literal RunType entry and
 // returns its hash id. Two calls with the same (source, flags) deduplicate.
 //
