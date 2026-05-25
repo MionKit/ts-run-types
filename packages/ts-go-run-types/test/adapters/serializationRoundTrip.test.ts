@@ -351,6 +351,14 @@ describe('serialization / UNIONS', () => {
     runCase(SERIALIZATION_SPEC.UNIONS.union_extra_bigint_prop_throws));
   it('union member with extra symbol prop — declared-only output on both paths', () =>
     runCase(SERIALIZATION_SPEC.UNIONS.union_extra_symbol_prop_drops));
+  it('flattened union — shared prop same Date type on both members', () =>
+    runCase(SERIALIZATION_SPEC.UNIONS.shared_prop_same_type));
+  it('flattened union — shared prop divergent Date / string per member', () =>
+    runCase(SERIALIZATION_SPEC.UNIONS.shared_prop_divergent_date_string));
+  it('flattened union — shared prop divergent bigint / number per member', () =>
+    runCase(SERIALIZATION_SPEC.UNIONS.shared_prop_divergent_bigint_number));
+  it('flattened union — shared prop, member resolved structurally (no discriminator)', () =>
+    runCase(SERIALIZATION_SPEC.UNIONS.shared_prop_no_discriminator_structural));
 
   it('all UNIONS serialization tests ran', () => {
     expect(ranTests).toBe(Object.keys(SERIALIZATION_SPEC.UNIONS).length);
