@@ -38,7 +38,8 @@ const (
 	SkeletonHasUnknownKeys         = "hasUnknownKeysCache.ts"
 	SkeletonStripUnknownKeys       = "stripUnknownKeysCache.ts"
 	SkeletonUnknownKeyErrors       = "unknownKeyErrorsCache.ts"
-	SkeletonUnknownKeysToUndefined = "unknownKeysToUndefinedCache.ts"
+	SkeletonUnknownKeysToUndefined     = "unknownKeysToUndefinedCache.ts"
+	SkeletonUnknownKeysToUndefinedWire = "unknownKeysToUndefinedWireCache.ts"
 	SkeletonPureFns                = "pureFnsCache.ts"
 )
 

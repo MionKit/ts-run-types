@@ -310,8 +310,9 @@ const (
 	CacheKindHasUnknownKeys         CacheKind = "hasUnknownKeys"
 	CacheKindStripUnknownKeys       CacheKind = "stripUnknownKeys"
 	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
-	CacheKindUnknownKeysToUndefined CacheKind = "unknownKeysToUndefined"
-	CacheKindPureFns                CacheKind = "pureFns"
+	CacheKindUnknownKeysToUndefined     CacheKind = "unknownKeysToUndefined"
+	CacheKindUnknownKeysToUndefinedWire CacheKind = "unknownKeysToUndefinedWire"
+	CacheKindPureFns                    CacheKind = "pureFns"
 	CacheKindAll                    CacheKind = "all"
 )
 
@@ -386,6 +387,10 @@ type Response struct {
 	AddedStripUnknownKeys       bool `json:"addedStripUnknownKeys,omitempty"`
 	AddedUnknownKeyErrors       bool `json:"addedUnknownKeyErrors,omitempty"`
 	AddedUnknownKeysToUndefined bool `json:"addedUnknownKeysToUndefined,omitempty"`
+	// AddedUnknownKeysToUndefinedWire — sibling of AddedUnknownKeysToUndefined
+	// for the decoder-internal ukuWire family. Same Supports surface as
+	// uku (every supported runtype yields a ukuw entry too).
+	AddedUnknownKeysToUndefinedWire bool `json:"addedUnknownKeysToUndefinedWire,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -431,6 +436,11 @@ type Response struct {
 	StripUnknownKeysCacheSource       string `json:"stripUnknownKeysCacheSource,omitempty"`
 	UnknownKeyErrorsCacheSource       string `json:"unknownKeyErrorsCacheSource,omitempty"`
 	UnknownKeysToUndefinedCacheSource string `json:"unknownKeysToUndefinedCacheSource,omitempty"`
+	// UnknownKeysToUndefinedWireCacheSource — rendered body of the
+	// decoder-internal ukuWire family. Carries the wire-format-aware
+	// emit (wrapper-peel + reach-into-v[1] for union nodes); identical
+	// to UnknownKeysToUndefinedCacheSource for non-union runtypes.
+	UnknownKeysToUndefinedWireCacheSource string `json:"unknownKeysToUndefinedWireCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -574,6 +584,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedUnknownKeysToUndefined {
 		out["addedUnknownKeysToUndefined"] = true
 	}
+	if response.AddedUnknownKeysToUndefinedWire {
+		out["addedUnknownKeysToUndefinedWire"] = true
+	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
 	}
@@ -618,6 +631,9 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.UnknownKeysToUndefinedCacheSource != "" {
 		out["unknownKeysToUndefinedCacheSource"] = response.UnknownKeysToUndefinedCacheSource
+	}
+	if response.UnknownKeysToUndefinedWireCacheSource != "" {
+		out["unknownKeysToUndefinedWireCacheSource"] = response.UnknownKeysToUndefinedWireCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource

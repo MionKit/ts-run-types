@@ -365,23 +365,12 @@ func emitIndexSignatureStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) 
 }
 
 func emitUnionStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	var parts []string
-	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			continue
-		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
-		}
-	}
-	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
+		Snippet: func(_ *EmitContext, accessor, keyVar string) string {
+			return "delete " + accessor + "[" + keyVar + "]"
+		},
+		CodeShape: CodeS,
+	})
 }
 
 // joinSemicolons joins non-empty strings with `;`. Empty entries are

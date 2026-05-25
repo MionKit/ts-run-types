@@ -29,6 +29,7 @@ import {initCache as initHasUnknownKeysCache} from './caches/hasUnknownKeysCache
 import {initCache as initStripUnknownKeysCache} from './caches/stripUnknownKeysCache.ts';
 import {initCache as initUnknownKeyErrorsCache} from './caches/unknownKeyErrorsCache.ts';
 import {initCache as initUnknownKeysToUndefinedCache} from './caches/unknownKeysToUndefinedCache.ts';
+import {initCache as initUnknownKeysToUndefinedWireCache} from './caches/unknownKeysToUndefinedWireCache.ts';
 import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache.ts';
 import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
@@ -175,6 +176,7 @@ initHasUnknownKeysCache(_utils);
 initStripUnknownKeysCache(_utils);
 initUnknownKeyErrorsCache(_utils);
 initUnknownKeysToUndefinedCache(_utils);
+initUnknownKeysToUndefinedWireCache(_utils);
 initPrepareForJsonCache(_utils);
 initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
@@ -336,8 +338,11 @@ export function createJsonDecoder<T>(val?: T, options?: JsonDecoderOptions, id?:
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
   // 'safe' default — overwrite undeclared keys with undefined before
-  // restoreFromJson walks the declared shape.
-  const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'uku', id, identityValueFn);
+  // restoreFromJson walks the declared shape. Uses the ukuWire family
+  // (not the public uku) so the union-arm emit reaches into the
+  // flat-union wire wrapper `[-1, mergedObject]` instead of corrupting
+  // its `0`/`1` indices.
+  const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
   return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }
 
@@ -355,6 +360,7 @@ if (hot) {
   hot.accept('./caches/stripUnknownKeysCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/unknownKeysToUndefinedCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/unknownKeysToUndefinedWireCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));

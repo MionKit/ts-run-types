@@ -399,19 +399,17 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 	return JitCode{Code: body, Type: CodeS}
 }
 
+// emitUnionUnknownKeysToUndefined — uku at a union node is a no-op for
+// the SHARED factory. uku is composed by the safe decoder
+// (createJitFunctions.ts:341) as `restore(uku(JSON.parse(s)))`, where
+// the input is wire-shape `[-1, mergedObject]` or `[idx, value]` — a
+// 2-element array, not a raw object. Running a merged-allowlist strip
+// on the wrapper would clear the `0`/`1` indices and break restore.
+// The decoder-internal ukuWire family handles the wire shape via its
+// own wireFormat=true emit; the public createUnknownKeysToUndefined
+// API also routes here, accepting that union-shape inputs are a no-op
+// at runtime (matches the legacy behaviour pre-refactor).
 func emitUnionUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	// uku at a union node is structurally a no-op under the flat-union
-	// wire format: by the time the decoder's safe pipeline reaches uku,
-	// the parsed value is `[-1, mergedObject]` (object branch) or
-	// `[memberIndex, value]` (atomic branch with tuple wrap) — NOT a
-	// raw object whose keys could be classified as declared/undeclared.
-	// Walking the union's children and concatenating each member's uku
-	// statements would (1) corrupt declared keys when applied across
-	// non-matching members and (2) clear the wire-format wrapper's
-	// `0`/`1` indices, breaking restoreFromJson. Extras inside the
-	// merged object branch are stripped by the safe encoder
-	// (prepareForJsonSafe + JSON.stringify) before they ever reach the
-	// decoder; this is the contract documented on JsonEncoderOptions.
 	_ = rt
 	_ = ctx
 	return JitCode{Code: "", Type: CodeS}

@@ -82,6 +82,11 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_uku_",
 		Tag:       "uku",
 	},
+	"unknownKeysToUndefinedWire": {
+		Name:      "unknownKeysToUndefinedWireModule",
+		VarPrefix: "g_ukuw_",
+		Tag:       "ukuw",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",
