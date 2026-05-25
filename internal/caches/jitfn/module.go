@@ -66,6 +66,15 @@ func StringifyJsonModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, StringifyJsonEmitter{}, innerPrefix(settings), cachetpl.SkeletonStringifyJson)
 }
 
+// PrepareForJsonSafeModule writes the runtime artifact for the
+// prepareForJsonSafe cache module — non-mutating sibling of
+// prepareForJson that strips undeclared properties and returns
+// a new value.
+func PrepareForJsonSafeModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["prepareForJsonSafe"]
+	return RenderFnModule(writer, dump, settings, PrepareForJsonSafeEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafe)
+}
+
 // HasUnknownKeysModule writes the runtime artifact for the
 // hasUnknownKeys cache module — boolean predicate per mion's
 // emitHasUnknownKeys.

@@ -12,6 +12,7 @@ export const CACHE_MODULES = {
   hasUnknownKeys: {name: "hasUnknownKeysModule", varPrefix: "g_huk_", tag: "huk"},
   isType: {name: "isTypeModule", varPrefix: "g_it_", tag: "it"},
   prepareForJson: {name: "prepareForJsonModule", varPrefix: "g_pj_", tag: "pj"},
+  prepareForJsonSafe: {name: "prepareForJsonSafeModule", varPrefix: "g_pjs_", tag: "pjs"},
   pureFns: {name: "pureFnsModule", varPrefix: "", tag: ""},
   restoreFromJson: {name: "restoreFromJsonModule", varPrefix: "g_rj_", tag: "rj"},
   runTypes: {name: "runTypesModule", varPrefix: "t_", tag: "t"},
@@ -31,6 +32,9 @@ export const ISTYPE_TAG = "it";
 export const PREPAREFORJSON_VAR_PREFIX = "g_pj_";
 export const PREPAREFORJSON_MODULE_NAME = "prepareForJsonModule";
 export const PREPAREFORJSON_TAG = "pj";
+export const PREPAREFORJSONSAFE_VAR_PREFIX = "g_pjs_";
+export const PREPAREFORJSONSAFE_MODULE_NAME = "prepareForJsonSafeModule";
+export const PREPAREFORJSONSAFE_TAG = "pjs";
 export const PUREFNS_VAR_PREFIX = "";
 export const PUREFNS_MODULE_NAME = "pureFnsModule";
 export const PUREFNS_TAG = "";
