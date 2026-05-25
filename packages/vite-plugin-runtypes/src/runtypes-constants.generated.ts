@@ -21,6 +21,7 @@ export const CACHE_MODULES = {
   typeErrors: {name: 'typeErrorsModule', varPrefix: 'g_te_', tag: 'te'},
   unknownKeyErrors: {name: 'unknownKeyErrorsModule', varPrefix: 'g_uke_', tag: 'uke'},
   unknownKeysToUndefined: {name: 'unknownKeysToUndefinedModule', varPrefix: 'g_uku_', tag: 'uku'},
+  unknownKeysToUndefinedWire: {name: 'unknownKeysToUndefinedWireModule', varPrefix: 'g_ukuw_', tag: 'ukuw'},
 } as const satisfies Record<string, CacheModuleSettings>;
 
 export const HASUNKNOWNKEYS_VAR_PREFIX = 'g_huk_';
@@ -59,6 +60,9 @@ export const UNKNOWNKEYERRORS_TAG = 'uke';
 export const UNKNOWNKEYSTOUNDEFINED_VAR_PREFIX = 'g_uku_';
 export const UNKNOWNKEYSTOUNDEFINED_MODULE_NAME = 'unknownKeysToUndefinedModule';
 export const UNKNOWNKEYSTOUNDEFINED_TAG = 'uku';
+export const UNKNOWNKEYSTOUNDEFINEDWIRE_VAR_PREFIX = 'g_ukuw_';
+export const UNKNOWNKEYSTOUNDEFINEDWIRE_MODULE_NAME = 'unknownKeysToUndefinedWireModule';
+export const UNKNOWNKEYSTOUNDEFINEDWIRE_TAG = 'ukuw';
 
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,

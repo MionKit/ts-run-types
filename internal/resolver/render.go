@@ -123,6 +123,15 @@ func renderUnknownKeysToUndefinedModule(dump protocol.Dump) (string, error) {
 	})
 }
 
+// renderUnknownKeysToUndefinedWireModule emits the decoder-internal
+// ukuWire cache module — sibling of uku that emits the wire-format
+// reach-into-v[1] strip at union nodes.
+func renderUnknownKeysToUndefinedWireModule(dump protocol.Dump) (string, error) {
+	return renderToString("renderUnknownKeysToUndefinedWireModule", func(w io.Writer) error {
+		return jitfn.UnknownKeysToUndefinedWireModule(w, dump)
+	})
+}
+
 // renderPureFnsModule renders the pureFns cache-module body for the
 // program. When `entries` is non-nil it's used directly (the
 // OpScanFiles caller already ran extractPureFnsForScan and passes its

@@ -109,6 +109,7 @@ export interface ScanFilesResult {
   stripUnknownKeysCacheSource?: string;
   unknownKeyErrorsCacheSource?: string;
   unknownKeysToUndefinedCacheSource?: string;
+  unknownKeysToUndefinedWireCacheSource?: string;
   pureFnsCacheSource?: string;
   pureFnsDiagnostics?: import('./protocol.ts').PureFnDiagnostic[];
   markerDiagnostics?: import('./protocol.ts').MarkerDiagnostic[];
@@ -124,6 +125,7 @@ export interface ScanFilesResult {
   addedStripUnknownKeys?: boolean;
   addedUnknownKeyErrors?: boolean;
   addedUnknownKeysToUndefined?: boolean;
+  addedUnknownKeysToUndefinedWire?: boolean;
   addedPureFns?: boolean;
 }
 
@@ -176,6 +178,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
       unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,
       unknownKeysToUndefinedCacheSource: resp.unknownKeysToUndefinedCacheSource,
+      unknownKeysToUndefinedWireCacheSource: resp.unknownKeysToUndefinedWireCacheSource,
       pureFnsCacheSource: resp.pureFnsCacheSource,
       pureFnsDiagnostics: resp.pureFnsDiagnostics,
       markerDiagnostics: resp.markerDiagnostics,
@@ -190,6 +193,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedStripUnknownKeys: resp.addedStripUnknownKeys,
       addedUnknownKeyErrors: resp.addedUnknownKeyErrors,
       addedUnknownKeysToUndefined: resp.addedUnknownKeysToUndefined,
+      addedUnknownKeysToUndefinedWire: resp.addedUnknownKeysToUndefinedWire,
       addedPureFns: resp.addedPureFns,
     };
   }

@@ -415,26 +415,17 @@ func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) Ji
 	return JitCode{Code: body, Type: CodeRB}
 }
 
-// emitUnionHasUnknownKeys — for unions, every member's own emit must
-// run; OR-join the results. This is a defensive fallback: mion routes
-// union hasUnknownKeys through the standard CollectionRunType chain
-// (each member's emit joined with `||` for `E` shape).
+// emitUnionHasUnknownKeys — walks the merged-allowlist via the shared
+// helper. Returns CodeRB wrapping the loop in an IIFE that yields
+// `true` on the first undeclared key, `false` otherwise. The legacy
+// per-member dispatch (CompileChild + joinOr) silently mis-reported
+// hits because each member's own emit ran against the entire value
+// regardless of which union arm matched at runtime.
 func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeE}
-	}
-	var parts []string
-	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeE)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
-		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
-		}
-	}
-	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeE}
-	}
-	return JitCode{Code: joinOr(parts), Type: CodeE}
+	return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
+		Snippet: func(_ *EmitContext, _, _ string) string {
+			return "return true"
+		},
+		CodeShape: CodeE,
+	})
 }

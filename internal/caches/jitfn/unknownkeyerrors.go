@@ -392,21 +392,10 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 }
 
 func emitUnionUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
-	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	var parts []string
-	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			continue
-		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
-		}
-	}
-	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
-	}
-	return JitCode{Code: strings.Join(parts, ";"), Type: CodeS}
+	return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
+		Snippet: func(emitCtx *EmitContext, _ string, keyVar string) string {
+			return callUnknownKeyErr(emitCtx, keyVar)
+		},
+		CodeShape: CodeS,
+	})
 }
