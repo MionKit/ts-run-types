@@ -37,6 +37,7 @@ const (
 	SkeletonPrepareForJsonFlat     = "prepareForJsonFlatCache.ts"
 	SkeletonRestoreFromJsonFlat    = "restoreFromJsonFlatCache.ts"
 	SkeletonStringifyJsonFlat      = "stringifyJsonFlatCache.ts"
+	SkeletonPrepareForJsonSafe     = "prepareForJsonSafeCache.ts"
 	SkeletonHasUnknownKeys         = "hasUnknownKeysCache.ts"
 	SkeletonStripUnknownKeys       = "stripUnknownKeysCache.ts"
 	SkeletonUnknownKeyErrors       = "unknownKeyErrorsCache.ts"
