@@ -38,20 +38,19 @@ export interface SerializationCase {
   description?: string;
 
   /** Encoder thunks — one per encoder shape exercised by the suite.
-   *  - `safeEncoder` builds `createJsonEncoder<T>()` (defaults:
-   *    strategy='clone', stripExtras=true — prepareForJsonSafe +
-   *    JSON.stringify; clones declared keys, strips extras, no input
-   *    mutation, native stringify perf).
-   *  - `safeDirectEncoder` builds `createJsonEncoder<T>(undefined,
-   *    {strategy: 'direct'})` (single-pass stringifyJson — no
-   *    intermediate object, no input mutation, slower than native).
-   *  - `unsafeEncoder` builds `createJsonEncoder<T>(undefined,
-   *    {strategy: 'mutate', stripExtras: false})` (prepareForJson +
-   *    JSON.stringify — mutates v, lets extras leak through).
-   *  The adapter pairs each encoder shape with its corresponding
-   *  decoder (`safeEncoder`/`safeDirectEncoder` both pair with
-   *  `safeDecoder`). **/
+   *  All five combinations of (strategy, stripExtras) are benched:
+   *  - `safeEncoder` — strategy='clone', stripExtras=true (default).
+   *  - `clonePreserveEncoder` — strategy='clone', stripExtras=false.
+   *  - `mutateStripEncoder` — strategy='mutate', stripExtras=true.
+   *  - `unsafeEncoder` — strategy='mutate', stripExtras=false.
+   *  - `safeDirectEncoder` — strategy='direct' (stripExtras pinned true).
+   *  Decoder pairing: `safeEncoder` / `clonePreserveEncoder` /
+   *  `mutateStripEncoder` / `safeDirectEncoder` pair with `safeDecoder`;
+   *  `unsafeEncoder` pairs with `unsafeDecoder` (the only path that
+   *  preserves extras through the round-trip). **/
   safeEncoder: () => JsonEncoderFn;
+  clonePreserveEncoder: () => JsonEncoderFn;
+  mutateStripEncoder: () => JsonEncoderFn;
   safeDirectEncoder: () => JsonEncoderFn;
   unsafeEncoder: () => JsonEncoderFn;
 
@@ -142,6 +141,8 @@ export const SERIALIZATION_SPEC = {
     string: {
       title: 'string',
       unsafeEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<string>(),
       safeDirectEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string>(),
@@ -151,6 +152,8 @@ export const SERIALIZATION_SPEC = {
     number: {
       title: 'number',
       unsafeEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<number>(),
       safeDirectEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<number>(),
@@ -176,6 +179,8 @@ export const SERIALIZATION_SPEC = {
       title: 'number values not supported by all protocols',
       description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
       unsafeEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<number>(),
       safeDirectEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<number>(),
@@ -195,6 +200,8 @@ export const SERIALIZATION_SPEC = {
     regexp: {
       title: 'regexp',
       unsafeEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<RegExp>(),
       safeDirectEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<RegExp>(),
@@ -204,6 +211,8 @@ export const SERIALIZATION_SPEC = {
     bigint: {
       title: 'bigint',
       unsafeEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<bigint>(),
       safeDirectEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<bigint>(),
@@ -213,6 +222,8 @@ export const SERIALIZATION_SPEC = {
     boolean: {
       title: 'boolean',
       unsafeEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<boolean>(),
       safeDirectEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<boolean>(),
@@ -222,6 +233,8 @@ export const SERIALIZATION_SPEC = {
     any: {
       title: 'any',
       unsafeEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<any>(),
       safeDirectEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<any>(),
@@ -234,6 +247,8 @@ export const SERIALIZATION_SPEC = {
       description:
         'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
       unsafeEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<any>(),
       safeDirectEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<any>(),
@@ -244,6 +259,8 @@ export const SERIALIZATION_SPEC = {
     null: {
       title: 'null',
       unsafeEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<null>(),
       safeDirectEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<null>(),
@@ -253,6 +270,8 @@ export const SERIALIZATION_SPEC = {
     undefined: {
       title: 'undefined',
       unsafeEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<undefined>(),
       safeDirectEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<undefined>(),
@@ -262,6 +281,8 @@ export const SERIALIZATION_SPEC = {
     date: {
       title: 'date',
       unsafeEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Date>(),
       safeDirectEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date>(),
@@ -277,6 +298,22 @@ export const SERIALIZATION_SPEC = {
           Blue = 'blue',
         }
         return createJsonEncoder<Color>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createJsonEncoder<Color>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        enum Color {
+          Red = 'red',
+          Green = 'green',
+          Blue = 'blue',
+        }
+        return createJsonEncoder<Color>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         enum Color {
@@ -322,6 +359,8 @@ export const SERIALIZATION_SPEC = {
     symbol: {
       title: 'symbol',
       unsafeEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<symbol>(),
       safeDirectEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<symbol>(),
@@ -331,6 +370,8 @@ export const SERIALIZATION_SPEC = {
     object: {
       title: 'object',
       unsafeEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<object>(),
       safeDirectEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<object>(),
@@ -341,6 +382,8 @@ export const SERIALIZATION_SPEC = {
     void: {
       title: 'void',
       unsafeEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<void>(),
       safeDirectEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<void>(),
@@ -351,6 +394,8 @@ export const SERIALIZATION_SPEC = {
       title: 'never',
       description: 'never type cannot be JSON-encoded or decoded — invoking the factory throws.',
       unsafeEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<never>(),
       safeDirectEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<never>(),
@@ -361,6 +406,8 @@ export const SERIALIZATION_SPEC = {
     literal_string: {
       title: 'string literal',
       unsafeEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<'hello'>(),
       safeDirectEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<'hello'>(),
@@ -370,6 +417,8 @@ export const SERIALIZATION_SPEC = {
     literal_number: {
       title: 'number literal',
       unsafeEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<42>(),
       safeDirectEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<42>(),
@@ -379,6 +428,8 @@ export const SERIALIZATION_SPEC = {
     literal_boolean: {
       title: 'boolean literal',
       unsafeEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<true>(),
       safeDirectEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<true>(),
@@ -390,6 +441,14 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => {
         const reg = /abc/;
         return createJsonEncoder<typeof reg>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        const reg = /abc/;
+        return createJsonEncoder<typeof reg>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        const reg = /abc/;
+        return createJsonEncoder<typeof reg>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         const reg = /abc/;
@@ -415,6 +474,8 @@ export const SERIALIZATION_SPEC = {
     array: {
       title: 'array',
       unsafeEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<string[]>(),
       safeDirectEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string[]>(),
@@ -424,6 +485,8 @@ export const SERIALIZATION_SPEC = {
     array_date: {
       title: 'array of dates',
       unsafeEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Date[]>(),
       safeDirectEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date[]>(),
@@ -435,6 +498,8 @@ export const SERIALIZATION_SPEC = {
     undefined_in_array: {
       title: 'undefined is serialized as null in array',
       unsafeEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<undefined[]>(),
       safeDirectEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<undefined[]>(),
@@ -444,6 +509,8 @@ export const SERIALIZATION_SPEC = {
     multi_dimensional: {
       title: 'multi dimensional array',
       unsafeEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<string[][]>(),
       safeDirectEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string[][]>(),
@@ -454,6 +521,8 @@ export const SERIALIZATION_SPEC = {
       title: 'non serializable items throws an error',
       description: 'symbol[] should throw at JIT-compile time per mion semantic.',
       unsafeEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<symbol[]>(),
       safeDirectEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<symbol[]>(),
@@ -466,6 +535,14 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => {
         type CircularArray = CircularArray[];
         return createJsonEncoder<CircularArray>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type CircularArray = CircularArray[];
+        return createJsonEncoder<CircularArray>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type CircularArray = CircularArray[];
+        return createJsonEncoder<CircularArray>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type CircularArray = CircularArray[];
@@ -508,6 +585,28 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          big: bigint;
+          stringArray: string[];
+          "weird prop name \n?>'\\\t\r": string;
+          optionalString?: string;
+        }>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () =>
         createJsonEncoder<{
           startDate: Date;
@@ -579,6 +678,28 @@ export const SERIALIZATION_SPEC = {
         };
         return createJsonEncoder<ManyOptional>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createJsonEncoder<ManyOptional>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type N = number;
+        // prettier-ignore
+        type ManyOptional = {
+          a0?: N; a1?: N; a2?: N; a3?: N; a4?: N; a5?: N; a6?: N; a7?: N;
+          a8?: N; a9?: N; a10?: N; a11?: N; a12?: N; a13?: N; a14?: N; a15?: N;
+          b0?: N; b1?: N; b2?: N; b3?: N; b4?: N; b5?: N; b6?: N; b7?: N;
+          b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
+        };
+        return createJsonEncoder<ManyOptional>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         type N = number;
         // prettier-ignore
@@ -646,6 +767,42 @@ export const SERIALIZATION_SPEC = {
           }
         }
         return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        class MySerializableClass {
+          name: string;
+          surname: string;
+          id: number;
+          startDate: Date;
+          constructor() {
+            this.name = 'John';
+            this.surname = 'Doe';
+            this.id = 0;
+            this.startDate = new Date('2000-08-06T02:13:00.000Z');
+          }
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         class MySerializableClass {
@@ -751,6 +908,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        class BaseClass {
+          baseProp: string = 'base';
+        }
+        class ExtendedClass extends BaseClass {
+          extendedProp: string = 'extended';
+        }
+        return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         class BaseClass {
           baseProp: string = 'base';
@@ -814,6 +989,34 @@ export const SERIALIZATION_SPEC = {
           }
         }
         return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        class NonSerializableClass {
+          constructor(
+            public name: string,
+            public surname: string,
+            public id: number,
+            public startDate: Date
+          ) {}
+          getFullName() {
+            return `${this.name} ${this.surname}`;
+          }
+        }
+        return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         class NonSerializableClass {
@@ -892,6 +1095,10 @@ export const SERIALIZATION_SPEC = {
       title: 'undefined is omitted in object prop',
       unsafeEncoder: () =>
         createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
@@ -904,6 +1111,8 @@ export const SERIALIZATION_SPEC = {
     optional_properties_order: {
       title: 'optional properties order',
       unsafeEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: string; b?: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
@@ -913,6 +1122,8 @@ export const SERIALIZATION_SPEC = {
     all_optional_fields: {
       title: 'all optional fields',
       unsafeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
@@ -936,6 +1147,32 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{
+          startDate: Date;
+          quantity: number;
+          name: string;
+          nullValue: null;
+          stringArray: string[];
+          bigInt: bigint;
+          optionalString?: string;
+          "weird prop name \n?>'\\\t\r": string;
+          deep: {a: string; b: number};
+          '?other weird p': {c: string; d: number};
+        }>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () =>
         createJsonEncoder<{
           startDate: Date;
@@ -1049,6 +1286,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ICircular>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createJsonEncoder<ICircular>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ICircular {
+          name: string;
+          child?: ICircular;
+        }
+        return createJsonEncoder<ICircular>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface ICircular {
           name: string;
@@ -1087,6 +1338,20 @@ export const SERIALIZATION_SPEC = {
           children?: ICircularArray[];
         }
         return createJsonEncoder<ICircularArray>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createJsonEncoder<ICircularArray>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ICircularArray {
+          name: string;
+          children?: ICircularArray[];
+        }
+        return createJsonEncoder<ICircularArray>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface ICircularArray {
@@ -1135,6 +1400,28 @@ export const SERIALIZATION_SPEC = {
           };
         }
         return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {
+            hello: string;
+            child?: ICircularDeep;
+          };
+        }
+        return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface ICircularDeep {
@@ -1204,6 +1491,30 @@ export const SERIALIZATION_SPEC = {
           ciChild: ICircularDeep;
         }
         return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface ICircularDeep {
@@ -1289,6 +1600,48 @@ export const SERIALIZATION_SPEC = {
           ciDate: ICircularDate;
         }
         return createJsonEncoder<RootCircular>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createJsonEncoder<RootCircular>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createJsonEncoder<RootCircular>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface ICircularDeep {
@@ -1413,6 +1766,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ObjectWithMethods {
+          name: string;
+          methodProp: () => any;
+        }
+        return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface ObjectWithMethods {
           name: string;
@@ -1461,6 +1828,8 @@ export const SERIALIZATION_SPEC = {
     index_property: {
       title: 'index property',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{[key: string]: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: string}>(),
@@ -1471,6 +1840,10 @@ export const SERIALIZATION_SPEC = {
       title: 'interface with a single property and index property',
       unsafeEncoder: () =>
         createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string; [key: string]: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; [key: string]: string}>(),
@@ -1483,6 +1856,16 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {
           strategy: 'mutate',
           stripExtras: false,
+        }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
         }),
       safeEncoder: () => createJsonEncoder<{a: string; b: number; [key: string]: string | number}>(),
       safeDirectEncoder: () =>
@@ -1498,6 +1881,16 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {
           strategy: 'mutate',
           stripExtras: false,
+        }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
         }),
       safeEncoder: () => createJsonEncoder<{[key: string]: string; [key: number]: string; [abc: symbol]: Date}>(),
       safeDirectEncoder: () =>
@@ -1525,6 +1918,10 @@ export const SERIALIZATION_SPEC = {
       title: 'index property nested',
       unsafeEncoder: () =>
         createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(),
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: number}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: number}}>(),
@@ -1535,6 +1932,10 @@ export const SERIALIZATION_SPEC = {
       title: 'index property nested with Date values',
       unsafeEncoder: () =>
         createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(),
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: {[key: string]: Date}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: {[key: string]: Date}}>(),
@@ -1553,6 +1954,8 @@ export const SERIALIZATION_SPEC = {
     index_property_bigint: {
       title: 'index property with bigint values',
       unsafeEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{[key: string]: bigint}>(),
       safeDirectEncoder: () => createJsonEncoder<{[key: string]: bigint}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: string]: bigint}>(),
@@ -1571,6 +1974,10 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(),
       safeDirectEncoder: () =>
         createJsonEncoder<{b: string; c: {a: string; [key: string]: string}}>(undefined, {strategy: 'direct'}),
@@ -1585,6 +1992,10 @@ export const SERIALIZATION_SPEC = {
       title: 'tuple',
       unsafeEncoder: () =>
         createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(),
       safeDirectEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
@@ -1597,6 +2008,10 @@ export const SERIALIZATION_SPEC = {
       title: 'tuple with optional params',
       unsafeEncoder: () =>
         createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(),
       safeDirectEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
@@ -1611,6 +2026,8 @@ export const SERIALIZATION_SPEC = {
     tuple_rest_parameter: {
       title: 'tuple rest parameter',
       unsafeEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<[number, ...bigint[]]>(),
       safeDirectEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
@@ -1620,6 +2037,8 @@ export const SERIALIZATION_SPEC = {
     tuple_with_non_serializable: {
       title: 'tuple with non serializable types are transformed to undefined',
       unsafeEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<[number, () => any]>(),
       safeDirectEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[number, () => any]>(),
@@ -1631,6 +2050,14 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createJsonEncoder<TupleCircular>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createJsonEncoder<TupleCircular>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createJsonEncoder<TupleCircular>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -1679,6 +2106,20 @@ export const SERIALIZATION_SPEC = {
           parent?: [string, ICircularTuple];
         }
         return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ICircularTuple {
+          name: string;
+          parent?: [string, ICircularTuple];
+        }
+        return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface ICircularTuple {
@@ -1733,6 +2174,18 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnNoOptional(a: number, b: boolean, c: string): Date {
+          return new Date(a);
+        }
+        return createJsonEncoder<Parameters<typeof fnNoOptional>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnNoOptional(a: number, b: boolean, c: string): Date {
           return new Date(a);
@@ -1773,6 +2226,22 @@ export const SERIALIZATION_SPEC = {
           return 1n;
         }
         return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
@@ -1822,6 +2291,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnOptionalParam(a: number, b: boolean, c?: string): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonEncoder<ReturnType<typeof fnOptionalParam>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnOptionalParam(a: number, b: boolean, c?: string): Date {
           void a;
@@ -1870,6 +2357,24 @@ export const SERIALIZATION_SPEC = {
           return new Date(0);
         }
         return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
+          void rest;
+          void a;
+          void b;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnRestParams>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         function fnRestParams(a: number, b: boolean, ...rest: Date[]): Date {
@@ -1924,6 +2429,22 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<Parameters<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
@@ -1971,6 +2492,22 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnOptionalParams(a: Date, b?: boolean): bigint {
+          void a;
+          void b;
+          return 1n;
+        }
+        return createJsonEncoder<ReturnType<typeof fnOptionalParams>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnOptionalParams(a: Date, b?: boolean): bigint {
           void a;
@@ -2014,6 +2551,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnOnlyRestParams(...rest: number[]): Date {
+          void rest;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnOnlyRestParams>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnOnlyRestParams(...rest: number[]): Date {
           void rest;
@@ -2054,6 +2605,24 @@ export const SERIALIZATION_SPEC = {
           return new Date(0);
         }
         return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
+          void a;
+          void b;
+          void c;
+          return new Date(0);
+        }
+        return createJsonEncoder<Parameters<typeof fnWithCallback>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         function fnWithCallback(a: number, b: boolean, c?: () => null): Date {
@@ -2114,6 +2683,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
+          void a;
+          void b;
+          void c;
+          return Promise.resolve(new Date(0));
+        }
+        return createJsonEncoder<ReturnType<typeof fnReturnsPromise>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnReturnsPromise(a: number, b: boolean, c?: string): Promise<Date> {
           void a;
@@ -2165,6 +2752,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
+          void a;
+          void b;
+          void c;
+          return () => new Date(0);
+        }
+        return createJsonEncoder<ReturnType<typeof fnReturnsFunction>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         function fnReturnsFunction(a: number, b: boolean, c?: string): () => Date {
           void a;
@@ -2208,6 +2813,10 @@ export const SERIALIZATION_SPEC = {
       title: 'call signature params',
       unsafeEncoder: () =>
         createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(),
       safeDirectEncoder: () => createJsonEncoder<Parameters<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Parameters<{(a: number, b: boolean): string}>>(),
@@ -2219,6 +2828,10 @@ export const SERIALIZATION_SPEC = {
       title: 'call signature return',
       unsafeEncoder: () =>
         createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(),
       safeDirectEncoder: () => createJsonEncoder<ReturnType<{(a: number, b: boolean): string}>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<ReturnType<{(a: number, b: boolean): string}>>(),
@@ -2233,6 +2846,10 @@ export const SERIALIZATION_SPEC = {
       title: 'Awaited<Promise<T>>',
       unsafeEncoder: () =>
         createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
       safeDirectEncoder: () =>
         createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'direct'}),
@@ -2245,6 +2862,10 @@ export const SERIALIZATION_SPEC = {
       title: 'Exclude on atomic union',
       unsafeEncoder: () =>
         createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
       safeDirectEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
@@ -2260,6 +2881,20 @@ export const SERIALIZATION_SPEC = {
         type Triangle = {kind: 'triangle'; x: number; y: number};
         type Shape = Circle | Square | Triangle;
         return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type Circle = {kind: 'circle'; radius: number};
+        type Square = {kind: 'square'; x: number};
+        type Triangle = {kind: 'triangle'; x: number; y: number};
+        type Shape = Circle | Square | Triangle;
+        return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type Circle = {kind: 'circle'; radius: number};
@@ -2303,6 +2938,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
       safeDirectEncoder: () =>
         createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'direct'}),
@@ -2323,6 +2968,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       safeDirectEncoder: () =>
         createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'direct'}),
@@ -2340,6 +2995,16 @@ export const SERIALIZATION_SPEC = {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
         return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
+        return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
@@ -2370,6 +3035,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
       safeDirectEncoder: () =>
         createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'direct'}),
@@ -2390,6 +3065,16 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
           strategy: 'mutate',
           stripExtras: false,
+        }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
         }),
       safeEncoder: () =>
         createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
@@ -2412,6 +3097,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
       safeDirectEncoder: () =>
         createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
@@ -2427,6 +3122,8 @@ export const SERIALIZATION_SPEC = {
     record_type: {
       title: 'Record<string, Date>',
       unsafeEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Record<string, Date>>(),
       safeDirectEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Record<string, Date>>(),
@@ -2448,6 +3145,10 @@ export const SERIALIZATION_SPEC = {
       title: 'atomic union',
       unsafeEncoder: () =>
         createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(),
       safeDirectEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(),
@@ -2458,6 +3159,10 @@ export const SERIALIZATION_SPEC = {
       title: 'union of arrays',
       unsafeEncoder: () =>
         createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(),
       safeDirectEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(),
@@ -2476,6 +3181,10 @@ export const SERIALIZATION_SPEC = {
       title: 'array of union with discriminator',
       unsafeEncoder: () =>
         createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(),
       safeDirectEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(),
@@ -2499,6 +3208,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
       safeDirectEncoder: () =>
         createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'direct'}),
@@ -2516,6 +3235,20 @@ export const SERIALIZATION_SPEC = {
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<
+          | {type: 'a'; otherProp: boolean}
+          | {type: 'b'; otherProp: number}
+          | {type: 'c'; otherProp: string; time: Date}
+          | {type: boolean; otherProp: string}
+        >(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () =>
         createJsonEncoder<
           | {type: 'a'; otherProp: boolean}
@@ -2560,6 +3293,16 @@ export const SERIALIZATION_SPEC = {
           undefined,
           {strategy: 'mutate', stripExtras: false}
         ),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+          undefined,
+          {strategy: 'clone', stripExtras: false}
+        ),
+      mutateStripEncoder: () =>
+        createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
+          undefined,
+          {strategy: 'mutate', stripExtras: true}
+        ),
       safeEncoder: () =>
         createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
       safeDirectEncoder: () =>
@@ -2586,6 +3329,22 @@ export const SERIALIZATION_SPEC = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () =>
         createJsonEncoder<
           | string[]
@@ -2625,6 +3384,14 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createJsonEncoder<UnionC>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createJsonEncoder<UnionC>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createJsonEncoder<UnionC>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -2666,6 +3433,14 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<
+          {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
+        >(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () =>
         createJsonEncoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
@@ -2710,6 +3485,10 @@ export const SERIALIZATION_SPEC = {
     union_with_any: {
       title: 'union with any — checked last as fallback',
       unsafeEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<number | {name: string} | any>(),
       safeDirectEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<number | {name: string} | any>(),
@@ -2722,6 +3501,10 @@ export const SERIALIZATION_SPEC = {
       description: 'function in union — mion throws at JIT-compile time.',
       unsafeEncoder: () =>
         createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
       safeDirectEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
@@ -2750,6 +3533,9 @@ export const SERIALIZATION_SPEC = {
       description:
         'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
       unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
@@ -2767,6 +3553,9 @@ export const SERIALIZATION_SPEC = {
       description:
         'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
       unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
@@ -2801,6 +3590,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () =>
         createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
       safeDirectEncoder: () =>
@@ -2829,6 +3628,16 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
           strategy: 'mutate',
           stripExtras: false,
+        }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
         }),
       safeEncoder: () =>
         createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
@@ -2859,6 +3668,16 @@ export const SERIALIZATION_SPEC = {
           strategy: 'mutate',
           stripExtras: false,
         }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
+        }),
       safeEncoder: () =>
         createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
       safeDirectEncoder: () =>
@@ -2885,6 +3704,10 @@ export const SERIALIZATION_SPEC = {
         'No tag-like literal field. Members differentiated by (a) shared prop `a` having divergent type (string vs boolean — a sub-union) and (b) unique companion props (`b: number` vs `c: Date`). The encoder/decoder dispatch must work purely on shape: which member’s required props match the input. Verifies the dispatch is not silently relying on a literal-discriminator fast path.',
       unsafeEncoder: () =>
         createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
@@ -2902,6 +3725,8 @@ export const SERIALIZATION_SPEC = {
     set_string: {
       title: 'Set<string>',
       unsafeEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Set<string>>(),
       safeDirectEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Set<string>>(),
@@ -2919,6 +3744,26 @@ export const SERIALIZATION_SPEC = {
           prop5?: bigint;
         }
         return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface SmallObject {
@@ -2990,6 +3835,24 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type Set1 = Set<{s: string; arr: number[]}>;
+        interface DeepWithSet {
+          a: string;
+          b: Set1;
+          c: Set1;
+        }
+        return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         type Set1 = Set<{s: string; arr: number[]}>;
         interface DeepWithSet {
@@ -3041,6 +3904,8 @@ export const SERIALIZATION_SPEC = {
     map_string_number: {
       title: 'Map<string, number>',
       unsafeEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Map<string, number>>(),
       safeDirectEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Map<string, number>>(),
@@ -3066,6 +3931,26 @@ export const SERIALIZATION_SPEC = {
           prop5?: bigint;
         }
         return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface SmallObject {
@@ -3138,6 +4023,26 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface SmallObject {
+          prop1: string;
+          prop2: number;
+          prop3: boolean;
+          prop4?: Date;
+          prop5?: bigint;
+        }
+        return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface SmallObject {
           prop1: string;
@@ -3206,6 +4111,20 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface DeepWithMap {
+          a: string;
+          b: Map<string, {sm: {s: string; arr: number[]}}>;
+        }
+        return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface DeepWithMap {
           a: string;
@@ -3249,6 +4168,8 @@ export const SERIALIZATION_SPEC = {
     map_with_bigint_keys: {
       title: 'Map with bigint keys',
       unsafeEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Map<bigint, number>>(),
       safeDirectEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Map<bigint, number>>(),
@@ -3266,6 +4187,8 @@ export const SERIALIZATION_SPEC = {
     map_with_date_values: {
       title: 'Map with Date values',
       unsafeEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Map<string, Date>>(),
       safeDirectEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Map<string, Date>>(),
@@ -3287,6 +4210,14 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => {
         type CircularObject = {name: string; child?: CircularObject};
         return createJsonEncoder<CircularObject>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createJsonEncoder<CircularObject>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type CircularObject = {name: string; child?: CircularObject};
+        return createJsonEncoder<CircularObject>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type CircularObject = {name: string; child?: CircularObject};
@@ -3311,6 +4242,14 @@ export const SERIALIZATION_SPEC = {
       unsafeEncoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createJsonEncoder<CuArray>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createJsonEncoder<CuArray>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createJsonEncoder<CuArray>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type CuArray = (CuArray | Date | number | string)[];
@@ -3346,6 +4285,18 @@ export const SERIALIZATION_SPEC = {
           list: [bigint, CircularTuple?];
         }
         return createJsonEncoder<CircularTuple>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createJsonEncoder<CircularTuple>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface CircularTuple {
+          list: [bigint, CircularTuple?];
+        }
+        return createJsonEncoder<CircularTuple>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface CircularTuple {
@@ -3383,6 +4334,18 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<CircularIndex>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createJsonEncoder<CircularIndex>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createJsonEncoder<CircularIndex>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface CircularIndex {
           index: {[key: string]: CircularIndex};
@@ -3419,6 +4382,18 @@ export const SERIALIZATION_SPEC = {
         }
         return createJsonEncoder<CircularDeep>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createJsonEncoder<CircularDeep>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createJsonEncoder<CircularDeep>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface CircularDeep {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
@@ -3453,6 +4428,14 @@ export const SERIALIZATION_SPEC = {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type CircularTupleComplex = [bigint, CircularTupleComplex?];
+        return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         type CircularTupleComplex = [bigint, CircularTupleComplex?];
         return createJsonEncoder<CircularTupleComplex>();
@@ -3480,6 +4463,22 @@ export const SERIALIZATION_SPEC = {
           d?: ObjCircularArr[];
         };
         return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        type ObjCircularArr = {
+          a: string;
+          deep?: {b: string; c: number};
+          d?: ObjCircularArr[];
+        };
+        return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         type ObjCircularArr = {
@@ -3529,6 +4528,8 @@ export const SERIALIZATION_SPEC = {
     url_string: {
       title: 'template literal as string type',
       unsafeEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<`api/users/${number}`>(),
       safeDirectEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<`api/users/${number}`>(),
@@ -3548,6 +4549,10 @@ export const SERIALIZATION_SPEC = {
       title: 'template literal as object property type',
       unsafeEncoder: () =>
         createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
@@ -3564,6 +4569,10 @@ export const SERIALIZATION_SPEC = {
       title: 'template literal as index signature key',
       unsafeEncoder: () =>
         createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
       safeDirectEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
@@ -3576,6 +4585,16 @@ export const SERIALIZATION_SPEC = {
         createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {
           strategy: 'mutate',
           stripExtras: false,
+        }),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {
+          strategy: 'clone',
+          stripExtras: false,
+        }),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {
+          strategy: 'mutate',
+          stripExtras: true,
         }),
       safeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
       safeDirectEncoder: () =>
@@ -3593,6 +4612,8 @@ export const SERIALIZATION_SPEC = {
     promise_jsonStringify_error: {
       title: 'Promise top-level throws',
       unsafeEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Promise<string>>(),
       safeDirectEncoder: () => createJsonEncoder<Promise<string>>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Promise<string>>(),
@@ -3603,6 +4624,8 @@ export const SERIALIZATION_SPEC = {
     non_serializable: {
       title: 'non-serializable type throws (Int8Array)',
       unsafeEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Int8Array>(),
       safeDirectEncoder: () => createJsonEncoder<Int8Array>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Int8Array>(),
@@ -3613,6 +4636,8 @@ export const SERIALIZATION_SPEC = {
     non_serializable_interface: {
       title: 'non-serializable inside interface throws',
       unsafeEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{a: Int8Array}>(),
       safeDirectEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{a: Int8Array}>(),
@@ -3623,6 +4648,8 @@ export const SERIALIZATION_SPEC = {
     non_serializable_array: {
       title: 'non-serializable inside array throws',
       unsafeEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<Int8Array[]>(),
       safeDirectEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<Int8Array[]>(),
@@ -3633,6 +4660,8 @@ export const SERIALIZATION_SPEC = {
     non_serializable_tuple: {
       title: 'non-serializable inside tuple throws',
       unsafeEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<[Int8Array]>(),
       safeDirectEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<[Int8Array]>(),
@@ -3670,6 +4699,8 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `extra: "hello"` is JSON-encodable (string). Unsafe path round-trips with the extra intact (prepareForJson never visits it, JSON.stringify keeps it). Safe path strips it before serialise — restored value contains only the declared key.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
@@ -3689,6 +4720,8 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `extra: 123n` is not JSON-encodable. Unsafe path: prepareForJson never visits the extra, JSON.stringify throws on the bigint. Safe path: stripUnknownKeys removes the extra before prepareForJson runs, so the bigint never reaches JSON.stringify and the output is the clean declared-only shape.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
@@ -3706,6 +4739,8 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `sym: Symbol("x")` is silently dropped by JSON.stringify per ECMAScript spec (symbol-valued own props are non-enumerable for JSON purposes). Unsafe path: prepareForJson preserves it, JSON.stringify drops it. Safe path: strip removes it before stringify. Same observable, different mechanism — document the lossy round-trip in both paths.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
@@ -3723,6 +4758,8 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `fn: () => 0` is silently dropped by JSON.stringify (function-valued props serialise to undefined and the key is omitted). Both paths produce declared-only output — strip removes the function on the safe path; JSON.stringify drops it on the unsafe path.',
       unsafeEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{declared: string}>(),
       safeDirectEncoder: () => createJsonEncoder<{declared: string}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{declared: string}>(),
@@ -3739,6 +4776,10 @@ export const SERIALIZATION_SPEC = {
       description:
         'Extra `outer.extra` sits inside a declared `outer: {declared: string}` composite. Confirms the extras semantic recurses through declared composites: unsafe preserves the nested extra; safe strips it.',
       unsafeEncoder: () => createJsonEncoder<{outer: {declared: string}}>(undefined, {strategy: 'mutate', stripExtras: false}),
+      clonePreserveEncoder: () =>
+        createJsonEncoder<{outer: {declared: string}}>(undefined, {strategy: 'clone', stripExtras: false}),
+      mutateStripEncoder: () =>
+        createJsonEncoder<{outer: {declared: string}}>(undefined, {strategy: 'mutate', stripExtras: true}),
       safeEncoder: () => createJsonEncoder<{outer: {declared: string}}>(),
       safeDirectEncoder: () => createJsonEncoder<{outer: {declared: string}}>(undefined, {strategy: 'direct'}),
       safeDecoder: () => createJsonDecoder<{outer: {declared: string}}>(),
@@ -3799,6 +4840,76 @@ export const SERIALIZATION_SPEC = {
           meta: {category: string; priority: number; lastSeen: Date};
         }
         return createJsonEncoder<WideRecord>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createJsonEncoder<WideRecord>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface WideRecord {
+          id: number;
+          name: string;
+          description: string;
+          createdAt: Date;
+          updatedAt: Date;
+          isActive: boolean;
+          score: number;
+          rank: number;
+          tag1: string;
+          tag2: string;
+          tag3: string;
+          tag4: string;
+          tag5: string;
+          count1: number;
+          count2: number;
+          count3: number;
+          flag1: boolean;
+          flag2: boolean;
+          flag3: boolean;
+          big1: bigint;
+          big2: bigint;
+          alias: string;
+          email: string;
+          city: string;
+          country: string;
+          postal: string;
+          width: number;
+          height: number;
+          weight: number;
+          meta: {category: string; priority: number; lastSeen: Date};
+        }
+        return createJsonEncoder<WideRecord>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface WideRecord {
@@ -4062,6 +5173,104 @@ export const SERIALIZATION_SPEC = {
         type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
         return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        interface OrderEvent {
+          kind: 'order';
+          id: string;
+          total: number;
+          itemCount: number;
+          placedAt: Date;
+          shipped: boolean;
+          customerId: string;
+        }
+        interface PaymentEvent {
+          kind: 'payment';
+          id: string;
+          amount: number;
+          currency: string;
+          processedAt: Date;
+          refunded: boolean;
+          txId: string;
+        }
+        interface SessionEvent {
+          kind: 'session';
+          id: string;
+          userId: string;
+          startedAt: Date;
+          durationMs: number;
+          ipHash: string;
+          device: string;
+        }
+        type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
+        return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface ProductEvent {
           kind: 'product';
@@ -4309,6 +5518,50 @@ export const SERIALIZATION_SPEC = {
         type MixedLargeUnion = string | number | ProductEvent | UserEvent;
         return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'mutate', stripExtras: false});
       },
+      clonePreserveEncoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface ProductEvent {
+          kind: 'product';
+          id: string;
+          sku: string;
+          price: number;
+          available: boolean;
+          releasedAt: Date;
+          stock: number;
+        }
+        interface UserEvent {
+          kind: 'user';
+          id: string;
+          username: string;
+          email: string;
+          signedUpAt: Date;
+          loginCount: number;
+          isPremium: boolean;
+        }
+        type MixedLargeUnion = string | number | ProductEvent | UserEvent;
+        return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'mutate', stripExtras: true});
+      },
       safeEncoder: () => {
         interface ProductEvent {
           kind: 'product';
@@ -4452,6 +5705,62 @@ export const SERIALIZATION_SPEC = {
           categories: DeepNestedLevel2[];
         }
         return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
+        return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        interface DeepNestedLeaf {
+          id: number;
+          value: string;
+          when: Date;
+        }
+        interface DeepNestedLevel5 {
+          name: string;
+          leaves: DeepNestedLeaf[];
+        }
+        interface DeepNestedLevel4 {
+          label: string;
+          children: DeepNestedLevel5[];
+        }
+        interface DeepNestedLevel3 {
+          group: string;
+          branches: DeepNestedLevel4[];
+        }
+        interface DeepNestedLevel2 {
+          category: string;
+          groups: DeepNestedLevel3[];
+        }
+        interface DeepNestedLevel1 {
+          root: string;
+          categories: DeepNestedLevel2[];
+        }
+        return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         interface DeepNestedLeaf {
@@ -4634,6 +5943,68 @@ export const SERIALIZATION_SPEC = {
         }
         type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
         return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'mutate', stripExtras: false});
+      },
+      clonePreserveEncoder: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'clone', stripExtras: false});
+      },
+      mutateStripEncoder: () => {
+        class LargeClassA {
+          kind!: 'classA';
+          alpha!: string;
+          count!: number;
+          flag!: boolean;
+          when!: Date;
+          total!: bigint;
+          tags!: string[];
+        }
+        class LargeClassB {
+          kind!: 'classB';
+          beta!: string;
+          ratio!: number;
+          enabled!: boolean;
+          releasedAt!: Date;
+          score!: bigint;
+          metadata!: {label: string; weight: number};
+        }
+        class LargeClassC {
+          kind!: 'classC';
+          gamma!: string;
+          amount!: number;
+          paid!: boolean;
+          processedAt!: Date;
+          txId!: string;
+          steps!: number[];
+        }
+        type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
+        return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'mutate', stripExtras: true});
       },
       safeEncoder: () => {
         class LargeClassA {

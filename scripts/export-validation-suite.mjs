@@ -94,7 +94,10 @@ async function loadSuiteWithPlugin() {
   const server = await createServer({
     root: REPO_ROOT,
     configFile: false,
-    server: {middlewareMode: true},
+    // watch: null disables chokidar. Without this, vite walks `third_party/`
+    // (tsgo + TypeScript test baseline trees) and exhausts the OS file-
+    // watcher quota. Mirrors the same fix in export-serialization-suite.mjs.
+    server: {middlewareMode: true, watch: null},
     appType: 'custom',
     resolve: {conditions: ['source']},
     ssr: {resolve: {conditions: ['source']}},
@@ -246,24 +249,31 @@ async function runCompilePhase(metrics, bodies) {
       const relpath = `__bench__/${safe(category)}__${safe(caseKey)}__${api}.ts`;
       const synth = buildSynthetic(body);
       const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [relpath]: synth};
-      const times = [];
+      const compileTimes = [];
+      const tsCompileTimes = [];
       let captured = null;
       for (let c = 0; c < COMPILE_CYCLES; c++) {
         await client.reset();
         await client.setSources(sourcesMap);
-        const start = performance.now();
+        // Pure-TS first: tsgo bind + typecheck + Emit() on this source set.
+        // Does NOT walk markers — the baseline for the side-by-side
+        // ts-compile column in the markdown.
+        tsCompileTimes.push(await client.tsCompile());
+        // Then ts-go-run-types' own work: marker scan + cache emit.
+        const scanStart = performance.now();
         // `['all']` so the first-cycle response carries runTypes / isType /
         // pureFns cache modules — we dump them to disk below. The flag
         // doesn't materially change compile time vs `['isType']` since the
         // daemon has to do the same parse + resolve either way.
         const resp = await client.scanFiles([relpath], {includeCacheSources: ['all']});
-        times.push(performance.now() - start);
+        compileTimes.push(performance.now() - scanStart);
         if (c === 0) captured = resp;
-        totalRpcs += 1;
+        totalRpcs += 2;
       }
       metrics[category][caseKey] ??= {};
       metrics[category][caseKey][api] ??= {};
-      metrics[category][caseKey][api].compileMs = statsOf(times);
+      metrics[category][caseKey][api].compileMs = statsOf(compileTimes);
+      metrics[category][caseKey][api].tsCompileMs = statsOf(tsCompileTimes);
       if (captured) modulesWritten += writeCaseDump(casesDir, category, caseKey, api, captured);
     }
   } finally {
@@ -316,7 +326,10 @@ function renderMarkdown(out) {
   lines.push(
     'Generated from `VALIDATION_SUITE` in `packages/ts-go-run-types/test/suites/validation-suite.ts`. ' +
       'Full per-case metrics (including `isTypeReflect`) live in `validation-suite.json`; ' +
-      'per-case rendered cache modules live under `cases/`.'
+      'per-case rendered cache modules live under `cases/`. ' +
+      '`ts-compile` measures pure tsgo (bind + typecheck + emit) on the synthetic case file; ' +
+      '`compile` measures the ts-go-run-types marker scan + cache emit. ' +
+      'The two phases run sequentially in a real build pipeline (TypeScript 7 has no transforms API yet), not nested.'
   );
   lines.push('');
   for (const [category, cases] of Object.entries(out)) {
@@ -325,7 +338,8 @@ function renderMarkdown(out) {
     lines.push('<table>');
     lines.push('<thead><tr>');
     lines.push('<th>title</th>');
-    lines.push('<th align="right">compile ops/sec</th>');
+    lines.push('<th align="right">ts-compile (ms)</th>');
+    lines.push('<th align="right">compile (ms)</th>');
     lines.push('<th align="right">valid ops/sec</th>');
     lines.push('<th align="right">invalid ops/sec</th>');
     lines.push('<th>isType</th>');
@@ -334,12 +348,14 @@ function renderMarkdown(out) {
     for (const [caseKey, record] of Object.entries(cases)) {
       const title = record.title ?? caseKey;
       const m = record.metrics?.isType;
-      const compileOps = m?.compileMs?.mean ? Math.round(1000 / m.compileMs.mean) : null;
+      const tsCompileMs = m?.tsCompileMs?.mean ?? null;
+      const compileMs = m?.compileMs?.mean ?? null;
       const validOps = m?.validOpsPerSec?.mean ?? null;
       const invalidOps = m?.invalidOpsPerSec?.mean ?? null;
       lines.push('<tr>');
       lines.push(`<td>${htmlEscape(title)}</td>`);
-      lines.push(`<td align="right">${fmtNum(compileOps)}</td>`);
+      lines.push(`<td align="right">${fmtNum(tsCompileMs)}</td>`);
+      lines.push(`<td align="right">${fmtNum(compileMs)}</td>`);
       lines.push(`<td align="right">${fmtNum(validOps)}</td>`);
       lines.push(`<td align="right">${fmtNum(invalidOps)}</td>`);
       // Blank lines + fenced block re-enter markdown parsing inside this <td>.

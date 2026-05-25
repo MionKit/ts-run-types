@@ -226,7 +226,7 @@ export type CacheKind =
   | 'all';
 
 export interface Request {
-  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId';
+  op: 'scanFiles' | 'dump' | 'setSources' | 'reset' | 'resolveId' | 'tsCompile';
   // scanFiles only — the files to scan in this request. The response's
   // sites cover every listed file (each tagged with .file); when the
   // include* flags are set, runTypes / runTypeCacheSource are projected
@@ -349,6 +349,11 @@ export interface Response {
   // only "marker/function-call-arg"). Same surface as
   // `pureFnsDiagnostics` — the plugin re-emits each via `this.warn`.
   markerDiagnostics?: MarkerDiagnostic[];
+  // tsCompile only — wall-time (ms) of the embedded tsgo's bind +
+  // typecheck + emit pass on the current source overlay. Bench
+  // orchestrators record this alongside scanFiles latency to show the
+  // pure-TypeScript compile cost next to ts-go-run-types' own work.
+  tsCompileMs?: number;
   error?: string;
 }
 
