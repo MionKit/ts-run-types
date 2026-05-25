@@ -17,5 +17,5 @@ package skeletons
 
 import "embed"
 
-//go:embed runTypesCache.ts isTypeCache.ts getTypeErrorsCache.ts prepareForJsonCache.ts restoreFromJsonCache.ts stringifyJsonCache.ts hasUnknownKeysCache.ts stripUnknownKeysCache.ts unknownKeyErrorsCache.ts unknownKeysToUndefinedCache.ts pureFnsCache.ts
+//go:embed runTypesCache.ts isTypeCache.ts getTypeErrorsCache.ts prepareForJsonCache.ts restoreFromJsonCache.ts stringifyJsonCache.ts prepareForJsonSafeCache.ts hasUnknownKeysCache.ts stripUnknownKeysCache.ts unknownKeyErrorsCache.ts unknownKeysToUndefinedCache.ts pureFnsCache.ts
 var FS embed.FS

@@ -35,6 +35,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		addedPrepareForJson := addedRunTypes && jitfn.AnyPrepareForJsonSupported(added)
 		addedRestoreFromJson := addedRunTypes && jitfn.AnyRestoreFromJsonSupported(added)
 		addedStringifyJson := addedRunTypes && jitfn.AnyStringifyJsonSupported(added)
+		addedPrepareForJsonSafe := addedRunTypes && jitfn.AnyPrepareForJsonSafeSupported(added)
 		addedHasUnknownKeys := addedRunTypes && jitfn.AnyHasUnknownKeysSupported(added)
 		addedStripUnknownKeys := addedRunTypes && jitfn.AnyStripUnknownKeysSupported(added)
 		addedUnknownKeyErrors := addedRunTypes && jitfn.AnyUnknownKeyErrorsSupported(added)
@@ -56,6 +57,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			AddedPrepareForJson:         addedPrepareForJson,
 			AddedRestoreFromJson:        addedRestoreFromJson,
 			AddedStringifyJson:          addedStringifyJson,
+			AddedPrepareForJsonSafe:     addedPrepareForJsonSafe,
 			AddedHasUnknownKeys:         addedHasUnknownKeys,
 			AddedStripUnknownKeys:       addedStripUnknownKeys,
 			AddedUnknownKeyErrors:       addedUnknownKeyErrors,
@@ -70,13 +72,14 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantPrepareForJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
 		wantRestoreFromJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantStringifyJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
+		wantPrepareForJsonSafe := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafe)
 		wantHasUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
 		wantStripUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
 		wantUnknownKeyErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
 		wantUnknownKeysToUndefined := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson ||
-			wantStringifyJson ||
+			wantStringifyJson || wantPrepareForJsonSafe ||
 			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors ||
 			wantUnknownKeysToUndefined || wantPureFns
 		if request.IncludeRunTypes || anyCache {
@@ -125,6 +128,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 					return protocol.Response{Error: stringifyErr.Error()}
 				}
 				response.StringifyJsonCacheSource = stringifyRendered
+			}
+			if wantPrepareForJsonSafe {
+				rendered, err := renderPrepareForJsonSafeModule(scoped)
+				if err != nil {
+					return protocol.Response{Error: err.Error()}
+				}
+				response.PrepareForJsonSafeCacheSource = rendered
 			}
 			if wantHasUnknownKeys {
 				hukRendered, hukErr := renderHasUnknownKeysModule(scoped)
@@ -197,6 +207,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantPrepareForJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
 		wantRestoreFromJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
 		wantStringifyJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
+		wantPrepareForJsonSafe := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafe)
 		wantHasUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
 		wantStripUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
 		wantUnknownKeyErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
@@ -243,6 +254,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: stringifyErr.Error()}
 			}
 			response.StringifyJsonCacheSource = stringifyRendered
+		}
+		if wantPrepareForJsonSafe {
+			rendered, err := renderPrepareForJsonSafeModule(fullDump)
+			if err != nil {
+				return protocol.Response{Error: err.Error()}
+			}
+			response.PrepareForJsonSafeCacheSource = rendered
 		}
 		if wantHasUnknownKeys {
 			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump)
