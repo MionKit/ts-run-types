@@ -105,6 +105,7 @@ export interface ScanFilesResult {
   restoreFromJsonCacheSource?: string;
   stringifyJsonCacheSource?: string;
   prepareForJsonSafeCacheSource?: string;
+  prepareForJsonSafePreserveCacheSource?: string;
   hasUnknownKeysCacheSource?: string;
   stripUnknownKeysCacheSource?: string;
   unknownKeyErrorsCacheSource?: string;
@@ -121,6 +122,7 @@ export interface ScanFilesResult {
   addedRestoreFromJson?: boolean;
   addedStringifyJson?: boolean;
   addedPrepareForJsonSafe?: boolean;
+  addedPrepareForJsonSafePreserve?: boolean;
   addedHasUnknownKeys?: boolean;
   addedStripUnknownKeys?: boolean;
   addedUnknownKeyErrors?: boolean;
@@ -174,6 +176,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       restoreFromJsonCacheSource: resp.restoreFromJsonCacheSource,
       stringifyJsonCacheSource: resp.stringifyJsonCacheSource,
       prepareForJsonSafeCacheSource: resp.prepareForJsonSafeCacheSource,
+      prepareForJsonSafePreserveCacheSource: resp.prepareForJsonSafePreserveCacheSource,
       hasUnknownKeysCacheSource: resp.hasUnknownKeysCacheSource,
       stripUnknownKeysCacheSource: resp.stripUnknownKeysCacheSource,
       unknownKeyErrorsCacheSource: resp.unknownKeyErrorsCacheSource,
@@ -189,6 +192,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedRestoreFromJson: resp.addedRestoreFromJson,
       addedStringifyJson: resp.addedStringifyJson,
       addedPrepareForJsonSafe: resp.addedPrepareForJsonSafe,
+      addedPrepareForJsonSafePreserve: resp.addedPrepareForJsonSafePreserve,
       addedHasUnknownKeys: resp.addedHasUnknownKeys,
       addedStripUnknownKeys: resp.addedStripUnknownKeys,
       addedUnknownKeyErrors: resp.addedUnknownKeyErrors,

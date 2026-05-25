@@ -75,6 +75,15 @@ func PrepareForJsonSafeModule(writer io.Writer, dump protocol.Dump) error {
 	return RenderFnModule(writer, dump, settings, PrepareForJsonSafeEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafe)
 }
 
+// PrepareForJsonSafePreserveModule writes the runtime artifact for the
+// clone+preserve variant family — same shape as PrepareForJsonSafe but
+// every cloned object literal spreads `...v` so undeclared keys
+// survive.
+func PrepareForJsonSafePreserveModule(writer io.Writer, dump protocol.Dump) error {
+	settings := constants.CacheModules["prepareForJsonSafePreserve"]
+	return RenderFnModule(writer, dump, settings, PrepareForJsonSafePreserveEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafePreserve)
+}
+
 // HasUnknownKeysModule writes the runtime artifact for the
 // hasUnknownKeys cache module — boolean predicate per mion's
 // emitHasUnknownKeys.

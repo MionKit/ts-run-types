@@ -1127,25 +1127,26 @@ reflectRuntypeId(user);
 	}
 }
 
-// TestResolver_ModeOptionsShareTypeID pins the design contract: the
-// `mode` option on JSON encoder / decoder calls is NOT folded into
-// the runtype id. All three modes against the same `T` must resolve
-// to the SAME id — different modes share one canonical typeid, the
-// runtime dispatches modes via the JIT-family prefix (`pj_` /
-// `pjs_` / `sj_`). Folding mode into the id would break the
-// invariant that `getRuntypeId<T>()` and `createJsonEncoder<T>({mode:
-// 'unsafe'})` return the same id for the same `T`.
-func TestResolver_ModeOptionsShareTypeID(t *testing.T) {
+// TestResolver_EncoderOptionsShareTypeID pins the design contract:
+// encoder option fields (strategy / stripExtras) are NOT folded into
+// the runtype id. All option-combination call sites against the same
+// `T` must resolve to the SAME id — different encoder shapes share
+// one canonical typeid, the runtime dispatches shapes via the
+// JIT-family prefix (`pj_` / `pjs_` / `pjsp_` / `sj_`). Folding the
+// options into the id would break the invariant that
+// `getRuntypeId<T>()` and `createJsonEncoder<T>({strategy: 'mutate'})`
+// return the same id for the same `T`.
+func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
   export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
 createJsonEncoder<string>();
-createJsonEncoder<string>(undefined, {mode: 'unsafe'});
-createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
+createJsonEncoder<string>(undefined, {strategy: 'mutate', stripExtras: false});
+createJsonEncoder<string>(undefined, {strategy: 'direct'});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1163,7 +1164,7 @@ createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
 		ids[site.ID]++
 	}
 	if len(ids) != 1 {
-		t.Fatalf("expected 1 shared id across the three modes, got %d distinct ids (%+v)", len(ids), ids)
+		t.Fatalf("expected 1 shared id across the three encoder shapes, got %d distinct ids (%+v)", len(ids), ids)
 	}
 }
 
@@ -1177,12 +1178,12 @@ createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
 func TestResolver_NonLiteralOptionsDiagnostic(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
   export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
-const opts = {mode: 'unsafe' as const};
+const opts = {strategy: 'mutate' as const};
 createJsonEncoder<string>(undefined, opts);
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
@@ -1212,12 +1213,12 @@ createJsonEncoder<string>(undefined, opts);
 func TestResolver_LiteralOptionsNoDiagnostic(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export interface JsonEncoderOptions {mode?: 'safe' | 'safeDirect' | 'unsafe'}
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
   export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
-createJsonEncoder<string>(undefined, {mode: 'safeDirect'});
+createJsonEncoder<string>(undefined, {strategy: 'direct'});
 createJsonEncoder<string>(undefined, {});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})

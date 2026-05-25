@@ -352,7 +352,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	// clone equals `v` whenever `Object.keys(v).length === N`, so we
 	// skip the allocation on clean inputs.
 	fastpath := allExtraProof && allRequired
-	cloneExpr := buildSafeObjectLiteral(props)
+	cloneExpr := buildSafeObjectLiteral(props, v, ctx.walker.PreserveExtras)
 	if fastpath {
 		body := "if (Object.keys(" + v + ").length === " + strconv.Itoa(len(props)) + ") return " + v + ";" +
 			"return " + cloneExpr
@@ -483,7 +483,7 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*
 //
 // Note: this helper assumes len(props) > 0; the parent emit gates
 // the empty case separately.
-func buildSafeObjectLiteral(props []safePropEmit) string {
+func buildSafeObjectLiteral(props []safePropEmit, sourceV string, preserveExtras bool) string {
 	hasOptional := false
 	for _, p := range props {
 		if p.optional {
@@ -494,6 +494,13 @@ func buildSafeObjectLiteral(props []safePropEmit) string {
 	if !hasOptional {
 		var b strings.Builder
 		b.WriteString("{")
+		if preserveExtras {
+			b.WriteString("...")
+			b.WriteString(sourceV)
+			if len(props) > 0 {
+				b.WriteString(",")
+			}
+		}
 		for i, p := range props {
 			if i > 0 {
 				b.WriteString(",")
@@ -508,7 +515,11 @@ func buildSafeObjectLiteral(props []safePropEmit) string {
 	// Mixed-optionality — accumulator IIFE.
 	var b strings.Builder
 	b.WriteString("(function(){const _r={")
-	first := true
+	if preserveExtras {
+		b.WriteString("...")
+		b.WriteString(sourceV)
+	}
+	first := !preserveExtras
 	for _, p := range props {
 		if p.optional {
 			continue
@@ -796,7 +807,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 				expr:       propExpr,
 			})
 		}
-		objLit := buildSafeObjectLiteral(props)
+		objLit := buildSafeObjectLiteral(props, v, ctx.walker.PreserveExtras)
 		guard := "(typeof " + v + " === 'object' && " + v + " !== null)"
 		clauses = append(clauses, "if ("+guard+") return [-1, "+objLit+"];")
 	}
