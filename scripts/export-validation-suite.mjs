@@ -40,6 +40,19 @@ const IDENTIFIER = 'VALIDATION_SUITE';
 const FN_FIELDS = ['isType', 'isTypeReflect', 'getSamples'];
 const APIS = ['isType', 'isTypeReflect'];
 
+// Cache module the validation bench actually needs rendered per
+// compile cycle. Both API forms (static `isType` + reflection
+// `isTypeReflect`) share the same isType cache — the runtime distinction
+// is the call-site shape, not the JIT factory. Asking the resolver for
+// just this cache (instead of `['all']`) keeps compileMs measuring the
+// work the validation suite is actually about — not the cost of
+// rendering 12 unrelated cache modules.
+const COMPILE_CACHE_KINDS = ['isType'];
+
+// Cache modules the dump artifact under gendocs/cases/ needs. Captured
+// once per case in an extra untimed scan after the COMPILE_CYCLES loop.
+const DUMP_CACHE_KINDS = ['runType', 'isType', 'pureFns'];
+
 // Workload knobs. Tune at the top — no CLI flags for now.
 const OPS_CYCLES = 10;
 const OPS_ITERS = 1_000;
@@ -251,7 +264,6 @@ async function runCompilePhase(metrics, bodies) {
       const sourcesMap = {[overlayDts.__bench__]: overlayDts.body, [relpath]: synth};
       const compileTimes = [];
       const tsCompileTimes = [];
-      let captured = null;
       for (let c = 0; c < COMPILE_CYCLES; c++) {
         // tsCompile cycle — fresh tsgo Program, full bind + typecheck + emit.
         await client.reset();
@@ -263,20 +275,29 @@ async function runCompilePhase(metrics, bodies) {
         await client.reset();
         await client.setSources(sourcesMap);
         const scanStart = performance.now();
-        // `['all']` so the first-cycle response carries runTypes / isType /
-        // pureFns cache modules — we dump them to disk below. The flag
-        // doesn't materially change compile time vs `['isType']` since the
-        // daemon has to do the same parse + resolve either way.
-        const resp = await client.scanFiles([relpath], {includeCacheSources: ['all']});
+        // Only the isType cache — that's the work the validation suite
+        // is actually about. `['all']` would conflate the per-case
+        // isType cost with rendering 12 unrelated cache modules.
+        await client.scanFiles([relpath], {includeCacheSources: COMPILE_CACHE_KINDS});
         compileTimes.push(performance.now() - scanStart);
-        if (c === 0) captured = resp;
         totalRpcs += 2;
       }
       metrics[category][caseKey] ??= {};
       metrics[category][caseKey][api] ??= {};
       metrics[category][caseKey][api].compileMs = statsOf(compileTimes);
       metrics[category][caseKey][api].tsCompileMs = statsOf(tsCompileTimes);
-      if (captured) modulesWritten += writeCaseDump(casesDir, category, caseKey, api, captured);
+      // Untimed extra scan to capture the dump artifacts. Asks for the
+      // runType + isType + pureFns cache modules writeCaseDump consumes.
+      // Skipped after the first API — the synth file is the same
+      // regardless of which call shape the API uses, so the cache
+      // modules are identical and one dump per case is enough.
+      if (api === APIS[0]) {
+        await client.reset();
+        await client.setSources(sourcesMap);
+        const dumpResp = await client.scanFiles([relpath], {includeCacheSources: DUMP_CACHE_KINDS});
+        totalRpcs += 1;
+        modulesWritten += writeCaseDump(casesDir, category, caseKey, api, dumpResp);
+      }
     }
   } finally {
     client.close();
