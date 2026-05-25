@@ -44,7 +44,7 @@ func buildBigIntDateUnionFixture() []*protocol.RunType {
 	}
 
 	union := &protocol.RunType{
-		ID:                "uni", Kind: protocol.KindUnion,
+		ID: "uni", Kind: protocol.KindUnion,
 		Children:          []*protocol.RunType{makeRef("ob1"), makeRef("ob2")},
 		SafeUnionChildren: []*protocol.RunType{makeRef("ob1"), makeRef("ob2")},
 	}
@@ -124,7 +124,11 @@ func TestRestoreFromJsonFlatModule_ObjectUnionDecodesFlat(t *testing.T) {
 
 // TestStringifyJsonFlatModule_ObjectUnionEmitsFlatEnvelope — the
 // rendered flat-stringify factory MUST emit the `'[-1,'+…+']'` envelope
-// for the object branch.
+// for the object branch. The fixture has two disjoint members
+// `{a:bigint; b:Date} | {c:number; d:string}` — no shared properties,
+// so every merged prop is optional from the union's perspective. The
+// emit uses the slice(1) trick to strip the leading comma after
+// conditional concat (one comma is prepended per populated branch).
 func TestStringifyJsonFlatModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
@@ -134,8 +138,70 @@ func TestStringifyJsonFlatModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	if !strings.Contains(out, "'[-1,'") {
 		t.Errorf("expected `'[-1,'` envelope prefix; got:\n%s", out)
 	}
-	if !strings.Contains(out, "filter(Boolean)") {
-		t.Errorf("expected `filter(Boolean)` join for optional merged props; got:\n%s", out)
+	if !strings.Contains(out, ".slice(1)") {
+		t.Errorf("expected `.slice(1)` leading-comma strip for all-optional merged props; got:\n%s", out)
+	}
+	if strings.Contains(out, "filter(Boolean)") {
+		t.Errorf("optimised emit must NOT use filter(Boolean) — that pattern allocates two arrays per call; got:\n%s", out)
+	}
+}
+
+// TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard — when
+// every union member declares the same set of non-optional properties,
+// the merged emit must omit the per-property `=== undefined` guard. The
+// fixture is a 3-member union `{discriminator:'a';name:string;date:Date}
+// | …'b' | …'c'` where every prop is shared and required; the emit
+// should collapse to flat string concat matching the non-flat
+// per-member factory shape.
+func TestStringifyJsonFlatModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
+	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	date := &protocol.RunType{ID: "dat", Kind: protocol.KindClass, SubKind: protocol.SubKindDate}
+	litA := &protocol.RunType{ID: "litA", Kind: protocol.KindLiteral, Literal: "a"}
+	litB := &protocol.RunType{ID: "litB", Kind: protocol.KindLiteral, Literal: "b"}
+	litC := &protocol.RunType{ID: "litC", Kind: protocol.KindLiteral, Literal: "c"}
+	pdA := &protocol.RunType{ID: "pdA", Kind: protocol.KindProperty, Name: "discriminator", IsSafeName: true, Child: makeRef("litA")}
+	pdB := &protocol.RunType{ID: "pdB", Kind: protocol.KindProperty, Name: "discriminator", IsSafeName: true, Child: makeRef("litB")}
+	pdC := &protocol.RunType{ID: "pdC", Kind: protocol.KindProperty, Name: "discriminator", IsSafeName: true, Child: makeRef("litC")}
+	pnA := &protocol.RunType{ID: "pnA", Kind: protocol.KindProperty, Name: "name", IsSafeName: true, Child: makeRef("str")}
+	pnB := &protocol.RunType{ID: "pnB", Kind: protocol.KindProperty, Name: "name", IsSafeName: true, Child: makeRef("str")}
+	pnC := &protocol.RunType{ID: "pnC", Kind: protocol.KindProperty, Name: "name", IsSafeName: true, Child: makeRef("str")}
+	pdaA := &protocol.RunType{ID: "pdaA", Kind: protocol.KindProperty, Name: "date", IsSafeName: true, Child: makeRef("dat")}
+	pdaB := &protocol.RunType{ID: "pdaB", Kind: protocol.KindProperty, Name: "date", IsSafeName: true, Child: makeRef("dat")}
+	pdaC := &protocol.RunType{ID: "pdaC", Kind: protocol.KindProperty, Name: "date", IsSafeName: true, Child: makeRef("dat")}
+	obA := &protocol.RunType{ID: "obA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pdA"), makeRef("pnA"), makeRef("pdaA")}}
+	obB := &protocol.RunType{ID: "obB", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pdB"), makeRef("pnB"), makeRef("pdaB")}}
+	obC := &protocol.RunType{ID: "obC", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pdC"), makeRef("pnC"), makeRef("pdaC")}}
+	union := &protocol.RunType{
+		ID:                "uni",
+		Kind:              protocol.KindUnion,
+		Children:          []*protocol.RunType{makeRef("obA"), makeRef("obB"), makeRef("obC")},
+		SafeUnionChildren: []*protocol.RunType{makeRef("obA"), makeRef("obB"), makeRef("obC")},
+	}
+	dump := protocol.Dump{RunTypes: []*protocol.RunType{
+		str, date, litA, litB, litC,
+		pdA, pdB, pdC, pnA, pnB, pnC, pdaA, pdaB, pdaC,
+		obA, obB, obC, union,
+	}}
+	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
+		return StringifyJsonFlatModule(w, d)
+	})
+
+	// No per-property undefined guard in the union root's emit — every
+	// prop is required across all members.
+	if strings.Contains(out, "v.name === undefined") || strings.Contains(out, "v.date === undefined") {
+		t.Errorf("required props must skip `=== undefined` guard; got:\n%s", out)
+	}
+	// No IIFE per-property dispatch for the literal discriminator — all
+	// three literal candidates produce identical childCode, so the
+	// dispatch collapses to the shared `JSON.stringify(v.discriminator)`.
+	if strings.Contains(out, "function(){if (") {
+		t.Errorf("multi-candidate literal discriminator must collapse to single shared childCode; got:\n%s", out)
+	}
+	// Pure-concat shape — the slice(1) trick is for all-optional cases;
+	// when at least one required prop exists, the emit must use direct
+	// concat with no slice() call.
+	if strings.Contains(out, ".slice(1)") {
+		t.Errorf("required-anchored emit must use direct concat (no slice); got:\n%s", out)
 	}
 }
 
