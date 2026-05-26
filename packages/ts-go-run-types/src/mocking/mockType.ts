@@ -23,46 +23,7 @@
 
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../jit/types.ts';
-import {
-  KIND_NEVER,
-  KIND_ANY,
-  KIND_UNKNOWN,
-  KIND_VOID,
-  KIND_OBJECT,
-  KIND_STRING,
-  KIND_NUMBER,
-  KIND_BOOLEAN,
-  KIND_SYMBOL,
-  KIND_BIGINT,
-  KIND_NULL,
-  KIND_UNDEFINED,
-  KIND_REGEXP,
-  KIND_LITERAL,
-  KIND_TEMPLATE_LITERAL,
-  KIND_PROPERTY,
-  KIND_METHOD,
-  KIND_FUNCTION,
-  KIND_PARAMETER,
-  KIND_PROMISE,
-  KIND_CLASS,
-  KIND_ENUM,
-  KIND_UNION,
-  KIND_INTERSECTION,
-  KIND_ARRAY,
-  KIND_TUPLE,
-  KIND_TUPLE_MEMBER,
-  KIND_ENUM_MEMBER,
-  KIND_REST,
-  KIND_OBJECT_LITERAL,
-  KIND_INDEX_SIGNATURE,
-  KIND_PROPERTY_SIGNATURE,
-  KIND_METHOD_SIGNATURE,
-  KIND_CALL_SIGNATURE,
-  SUB_KIND_DATE,
-  SUB_KIND_MAP,
-  SUB_KIND_SET,
-  SUB_KIND_NON_SERIALIZABLE,
-} from './reflectionKind.ts';
+import {RunTypeKind, RunTypeSubKind} from '../reflectionKind.ts';
 import {
   mockAny,
   mockBigInt,
@@ -160,37 +121,37 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
   const kind = runType.kind as number;
 
   switch (kind) {
-    case KIND_NEVER:
+    case RunTypeKind.never:
       throw new Error('Cannot mock never type.');
-    case KIND_ANY:
-    case KIND_UNKNOWN:
+    case RunTypeKind.any:
+    case RunTypeKind.unknown:
       return mockAny(mOps.anyValuesList);
-    case KIND_STRING:
+    case RunTypeKind.string:
       return mockString(
         mOps.stringLength ?? random(1, mOps.maxRandomStringLength),
         mOps.stringCharSet || stringCharSet
       );
-    case KIND_NUMBER:
+    case RunTypeKind.number:
       return mockNumber(mOps.minNumber, mOps.maxNumber);
-    case KIND_BOOLEAN:
+    case RunTypeKind.boolean:
       return mockBoolean();
-    case KIND_BIGINT:
+    case RunTypeKind.bigint:
       return mockBigInt(mOps.minNumber, mOps.maxNumber);
-    case KIND_NULL:
+    case RunTypeKind.null:
       return null;
-    case KIND_UNDEFINED:
+    case RunTypeKind.undefined:
       return undefined;
-    case KIND_VOID:
+    case RunTypeKind.void:
       return undefined;
-    case KIND_REGEXP:
+    case RunTypeKind.regexp:
       return mockRegExp(mOps.regexpList);
-    case KIND_SYMBOL:
+    case RunTypeKind.symbol:
       return mockSymbol(mOps.symbolName, mOps.symbolLength, mOps.symbolCharSet);
-    case KIND_LITERAL:
+    case RunTypeKind.literal:
       return runType.literal;
-    case KIND_OBJECT:
+    case RunTypeKind.object:
       return randomItem(mOps.objectList);
-    case KIND_ENUM: {
+    case RunTypeKind.enum: {
       const values = runType.values as unknown[];
       if (!Array.isArray(values) || values.length === 0) {
         throw new Error('Cannot mock enum without values.');
@@ -198,19 +159,19 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       const index = mOps.enumIndex ?? random(0, values.length - 1);
       return values[index];
     }
-    case KIND_ENUM_MEMBER:
+    case RunTypeKind.enumMember:
       throw new Error('Mock enum member is not supported.');
-    case KIND_CLASS: {
+    case RunTypeKind.class: {
       // Class-shaped runtypes disambiguate via `subKind`: Date / Map /
       // Set / non-serializable / user-defined. Date / Map / Set get
       // their own builders; non-serializable bails. User-defined
       // classes (SubKindNone) walk like objectLiteral — istype.go
       // does the same fallthrough via emitObjectIsType.
       const subKind = runType.subKind as number | undefined;
-      if (subKind === SUB_KIND_DATE) return mockDate(mOps.minDate, mOps.maxDate);
-      if (subKind === SUB_KIND_MAP) return mockMap(runType, options, stack);
-      if (subKind === SUB_KIND_SET) return mockSet(runType, options, stack);
-      if (subKind === SUB_KIND_NON_SERIALIZABLE) {
+      if (subKind === RunTypeSubKind.date) return mockDate(mOps.minDate, mOps.maxDate);
+      if (subKind === RunTypeSubKind.map) return mockMap(runType, options, stack);
+      if (subKind === RunTypeSubKind.set) return mockSet(runType, options, stack);
+      if (subKind === RunTypeSubKind.nonSerializable) {
         throw new Error('Mock is disabled for non-serializable types.');
       }
       // User-defined class — fall through to the objectLiteral builder
@@ -218,7 +179,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       // accepts structural matches; instanceof is not checked).
       return buildObjectLiteral(runType, options, stack, mOps);
     }
-    case KIND_ARRAY: {
+    case RunTypeKind.array: {
       // Cyclic types reach termination via the per-recursion length
       // decay applied in `decayOptionsForNesting` — by the time the
       // walker has re-entered the same array node a few times the
@@ -232,7 +193,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       for (let i = 0; i < length; i++) items.push(mockRunType(child, options, stack));
       return items;
     }
-    case KIND_TUPLE: {
+    case RunTypeKind.tuple: {
       const children = (runType.children ?? []) as RunType[];
       const perElemOptions = mOps.tupleOptions;
       const params = children.map((member, index) => {
@@ -247,12 +208,12 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       }
       return params;
     }
-    case KIND_TUPLE_MEMBER:
-    case KIND_PARAMETER: {
+    case RunTypeKind.tupleMember:
+    case RunTypeKind.parameter: {
       // Tuple members and function parameters share the
       // optional-probability flow — both check the case's `optional`
       // flag before recursing on `child`. Rest members are flagged
-      // via the child's KIND_REST kind.
+      // via the child's RunTypeKind.rest kind.
       const child = runType.child as RunType | undefined;
       if (!child) return undefined;
       if (runType.optional && !isRestTupleMember(runType)) {
@@ -260,7 +221,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       }
       return mockRunType(child, options, stack);
     }
-    case KIND_REST: {
+    case RunTypeKind.rest: {
       const child = runType.child as RunType | undefined;
       if (!child) return [];
       const length = random(0, mOps.maxRandomItemsLength);
@@ -268,11 +229,11 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       for (let i = 0; i < length; i++) items.push(mockRunType(child, options, stack));
       return items;
     }
-    case KIND_OBJECT_LITERAL:
-    case KIND_INTERSECTION:
+    case RunTypeKind.objectLiteral:
+    case RunTypeKind.intersection:
       return buildObjectLiteral(runType, options, stack, mOps);
-    case KIND_PROPERTY:
-    case KIND_PROPERTY_SIGNATURE: {
+    case RunTypeKind.property:
+    case RunTypeKind.propertySignature: {
       const child = runType.child as RunType | undefined;
       if (!child) return undefined;
       const name = runType.name as string | number | undefined;
@@ -286,7 +247,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (runType.optional && Math.random() > probability) return undefined;
       return mockRunType(child, options, stack);
     }
-    case KIND_INDEX_SIGNATURE: {
+    case RunTypeKind.indexSignature: {
       const child = runType.child as RunType | undefined;
       const keyType = runType.index as RunType | undefined;
       if (!child || !keyType) return {};
@@ -296,16 +257,16 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       for (let i = 0; i < length; i++) {
         let propName: string | number | symbol;
         switch (keyKind) {
-          case KIND_NUMBER:
+          case RunTypeKind.number:
             propName = i;
             break;
-          case KIND_STRING:
+          case RunTypeKind.string:
             propName = `key${i}`;
             break;
-          case KIND_SYMBOL:
+          case RunTypeKind.symbol:
             propName = Symbol.for(`key${i}`);
             break;
-          case KIND_TEMPLATE_LITERAL: {
+          case RunTypeKind.templateLiteral: {
             // Walk the template literal envelope to produce a key
             // matching the pattern. Mirrors mion — retry on collision
             // (narrow patterns like `id-${number}` can repeat).
@@ -324,7 +285,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       }
       return parent;
     }
-    case KIND_UNION: {
+    case RunTypeKind.union: {
       const children = (runType.children ?? []) as RunType[];
       if (children.length === 0) throw new Error('Cannot mock union with no branches.');
       if (mOps.unionIndex !== undefined && (mOps.unionIndex < 0 || mOps.unionIndex >= children.length)) {
@@ -333,9 +294,9 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       const index = mOps.unionIndex ?? random(0, children.length - 1);
       return mockRunType(children[index], options, stack);
     }
-    case KIND_TEMPLATE_LITERAL:
+    case RunTypeKind.templateLiteral:
       return buildTemplateLiteralString(runType, mOps);
-    case KIND_PROMISE: {
+    case RunTypeKind.promise: {
       const child = runType.child as RunType | undefined;
       const timeOut = mOps.promiseTimeOut || 0;
       const resolveInner = () => (child ? mockRunType(child, options, stack) : undefined);
@@ -348,10 +309,10 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
         else finish();
       });
     }
-    case KIND_FUNCTION:
-    case KIND_CALL_SIGNATURE:
-    case KIND_METHOD:
-    case KIND_METHOD_SIGNATURE:
+    case RunTypeKind.function:
+    case RunTypeKind.callSignature:
+    case RunTypeKind.method:
+    case RunTypeKind.methodSignature:
       // Mion returns `undefined` for top-level method / methodSignature
       // mocks (and throws on function/callSignature without the
       // synthetic `params` subKind wrapper, which we don't emit). The
@@ -378,8 +339,8 @@ function buildObjectLiteral(
   const parent: Record<string | number, unknown> = mOps.parentObj ?? {};
   for (const member of children) {
     const memberKind = member.kind as number;
-    if (memberKind === KIND_METHOD || memberKind === KIND_METHOD_SIGNATURE) continue;
-    if (memberKind === KIND_INDEX_SIGNATURE) {
+    if (memberKind === RunTypeKind.method || memberKind === RunTypeKind.methodSignature) continue;
+    if (memberKind === RunTypeKind.indexSignature) {
       const indexed = mockRunType(member, options, stack);
       if (indexed && typeof indexed === 'object') Object.assign(parent, indexed);
       continue;
@@ -392,13 +353,13 @@ function buildObjectLiteral(
   return parent;
 }
 
-/** True iff `member` is a tuple/parameter wrapper around a KIND_REST
+/** True iff `member` is a tuple/parameter wrapper around a RunTypeKind.rest
  *  element. Helps the tuple flattening + optional-roll paths
  *  short-circuit correctly. **/
 function isRestTupleMember(member: RunType): boolean {
-  if (member.kind === KIND_REST) return true;
+  if (member.kind === RunTypeKind.rest) return true;
   const child = member.child as RunType | undefined;
-  return child !== undefined && child.kind === KIND_REST;
+  return child !== undefined && child.kind === RunTypeKind.rest;
 }
 
 /** Wraps a per-element `MockOptions` from `tupleOptions` /
@@ -482,15 +443,15 @@ function renderTemplateLiteralPlaceholder(span: TemplateLiteralPlaceholder, mOps
   if (!span) return '';
   const kind = typeof span.kind === 'number' ? span.kind : -1;
   switch (kind) {
-    case KIND_LITERAL:
+    case RunTypeKind.literal:
       return span.literal === undefined ? '' : String(span.literal);
-    case KIND_NUMBER:
+    case RunTypeKind.number:
       return String(mockNumber(mOps.minNumber, mOps.maxNumber));
-    case KIND_BIGINT:
+    case RunTypeKind.bigint:
       return String(mockBigInt(mOps.minNumber, mOps.maxNumber));
-    case KIND_STRING:
-    case KIND_ANY:
-    case KIND_UNKNOWN:
+    case RunTypeKind.string:
+    case RunTypeKind.any:
+    case RunTypeKind.unknown:
       return mockString(mOps.stringLength ?? random(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
     default:
       // Unknown placeholder kind — return an empty string so the
