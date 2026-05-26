@@ -60,6 +60,21 @@ func (UnknownKeysToUndefinedWireEmitter) Finalize(raw string) (string, bool) {
 // kinds the wire-format wrapper isn't present (the wrapper exists
 // ONLY at union nodes per the flat-encoder design), so the base
 // emitter's per-kind helpers are correct.
+//
+// EXCEPTION: KindClass+SubKindMap/SubKindSet. The public uku family's
+// iterable arm checks `v instanceof Map/Set` before iterating — correct
+// for the user-facing entrypoint where `v` is already a constructed
+// instance, but wrong for the safe decoder's pipeline which composes
+// `restore(ukuWire(JSON.parse(s)))` — at the ukuWire stage `v` is still
+// the JSON.parse-output array, so the `instanceof` check fails and the
+// body falls through with no return (mion's bare `return;` returns
+// undefined), which would crash the downstream restore on `v.length`.
+//
+// The safe encoder (`prepareForJsonSafe`) already strips extras at
+// encode time before the wire shape is produced, so the wire pipeline
+// has no inner-object extras left to strip post-parse — keeping the
+// Map/Set arm noop on the wire side mirrors the pre-fix behaviour
+// (before iterable unknown-keys support landed on the public uku).
 func (UnknownKeysToUndefinedWireEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ct CodeType) JitCode {
 	if rt != nil && rt.Kind == protocol.KindUnion {
 		return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
@@ -69,6 +84,12 @@ func (UnknownKeysToUndefinedWireEmitter) Emit(rt *protocol.RunType, ctx *EmitCon
 			CodeShape:      CodeS,
 			JsonWireFormat: true,
 		})
+	}
+	if rt != nil && rt.Kind == protocol.KindClass {
+		switch rt.SubKind {
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return JitCode{Code: "", Type: CodeS}
+		}
 	}
 	return UnknownKeysToUndefinedEmitter{}.Emit(rt, ctx, ct)
 }

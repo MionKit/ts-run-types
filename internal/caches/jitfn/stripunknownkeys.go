@@ -1,6 +1,7 @@
 package jitfn
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -91,8 +92,11 @@ func (StripUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 	case protocol.KindObjectLiteral:
 		return emitObjectStripUnknownKeys(rt, ctx)
 	case protocol.KindClass:
-		if rt.SubKind == protocol.SubKindNone {
+		switch rt.SubKind {
+		case protocol.SubKindNone:
 			return emitObjectStripUnknownKeys(rt, ctx)
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return emitNativeIterableStripUnknownKeys(rt, ctx, ctx.Vλl)
 		}
 		return JitCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
@@ -371,6 +375,60 @@ func emitUnionStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
 		},
 		CodeShape: CodeS,
 	})
+}
+
+// emitNativeIterableStripUnknownKeys mirrors mion's
+// IterableRunType.emitStripUnknownKeys (nodes/native/Iterable.ts:122-136).
+// For each entry in the Map/Set, runs the wrapped child's
+// stripUnknownKeys statements; the child mutates its accessor in place.
+// When every wrapped child compiles to a noop, the entire iteration is
+// elided (atomic-noop element types — Set<string>, Map<string, number>
+// — don't carry extras to strip).
+func emitNativeIterableStripUnknownKeys(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isMap := rt.SubKind == protocol.SubKindMap
+	ctorName := "Map"
+	if !isMap {
+		ctorName = "Set"
+	}
+
+	var innerTypes []*protocol.RunType
+	if isMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		innerTypes = []*protocol.RunType{keyType, valueType}
+	} else {
+		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
+	}
+
+	entryVar := ctx.NextLocalVar("e")
+	var childCodes []string
+	for i, innerType := range innerTypes {
+		if innerType == nil {
+			continue
+		}
+		accessor := entryVar
+		if isMap {
+			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
+		}
+		ctx.SetChildAccessor(accessor)
+		childJit := ctx.CompileChild(innerType, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			childCodes = append(childCodes, childJit.Code)
+		}
+	}
+
+	if len(childCodes) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+
+	body := "if (!(" + v + " instanceof " + ctorName + ")) return;" +
+		"for (const " + entryVar + " of " + v + ") {" +
+		strings.Join(childCodes, ";") +
+		"}"
+	return JitCode{Code: body, Type: CodeS}
 }
 
 // joinSemicolons joins non-empty strings with `;`. Empty entries are

@@ -1,6 +1,7 @@
 package jitfn
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -90,8 +91,11 @@ func (UnknownKeysToUndefinedEmitter) Emit(rt *protocol.RunType, ctx *EmitContext
 	case protocol.KindObjectLiteral:
 		return emitObjectUnknownKeysToUndefined(rt, ctx)
 	case protocol.KindClass:
-		if rt.SubKind == protocol.SubKindNone {
+		switch rt.SubKind {
+		case protocol.SubKindNone:
 			return emitObjectUnknownKeysToUndefined(rt, ctx)
+		case protocol.SubKindMap, protocol.SubKindSet:
+			return emitNativeIterableUnknownKeysToUndefined(rt, ctx, ctx.Vλl)
 		}
 		return JitCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
@@ -396,6 +400,58 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 		return JitCode{Code: "", Type: CodeS}
 	}
 	body := "for (const " + prop + " in " + v + ") {" + patternUndef + childJit.Code + "}"
+	return JitCode{Code: body, Type: CodeS}
+}
+
+// emitNativeIterableUnknownKeysToUndefined mirrors mion's
+// IterableRunType.emitUnknownKeysToUndefined (nodes/native/Iterable.ts:138-152).
+// Identical shape to the strip variant; the difference is the child's
+// per-key snippet (`v[k] = undefined` instead of `delete v[k]`), which
+// the recursing child emits itself.
+func emitNativeIterableUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	isMap := rt.SubKind == protocol.SubKindMap
+	ctorName := "Map"
+	if !isMap {
+		ctorName = "Set"
+	}
+
+	var innerTypes []*protocol.RunType
+	if isMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		innerTypes = []*protocol.RunType{keyType, valueType}
+	} else {
+		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
+	}
+
+	entryVar := ctx.NextLocalVar("e")
+	var childCodes []string
+	for i, innerType := range innerTypes {
+		if innerType == nil {
+			continue
+		}
+		accessor := entryVar
+		if isMap {
+			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
+		}
+		ctx.SetChildAccessor(accessor)
+		childJit := ctx.CompileChild(innerType, CodeS)
+		ctx.SetChildAccessor("")
+		if childJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if childJit.Code != "" {
+			childCodes = append(childCodes, childJit.Code)
+		}
+	}
+
+	if len(childCodes) == 0 {
+		return JitCode{Code: "", Type: CodeS}
+	}
+
+	body := "if (!(" + v + " instanceof " + ctorName + ")) return;" +
+		"for (const " + entryVar + " of " + v + ") {" +
+		strings.Join(childCodes, ";") +
+		"}"
 	return JitCode{Code: body, Type: CodeS}
 }
 
