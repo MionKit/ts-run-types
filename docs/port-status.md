@@ -9,15 +9,13 @@ gap) so follow-up work can be triaged.
 
 Current test counts (after the most recent push):
 
-- **`@mionjs/ts-go-run-types`**: 549 pass / 0 fail. All 9 original
-  open failures closed; 6 new EXTRA_PARAMS section tests added
-  (5 cases + 1 meta-counter); 18 new wrapper-factory tests added
-  (`test/safeUnsafeJsonWrappers.test.ts`); 25 new tests for the
-  ported `stringifyJson` JIT family (`test/createStringifyJson.test.ts`)
-  covering per-kind raw output, no-mutation invariant, extras
-  stripped in the emit, and parsed-equality contrast with
-  `JSON.stringify(prepareForJson(v))`.
-- **`vite-plugin-runtypes`**: 208 / 208
+- **`@mionjs/ts-go-run-types`**: 867 pass / 0 fail. All 9 original
+  open failures closed; 6 EXTRA_PARAMS section tests; 18 wrapper-factory
+  tests (`test/safeUnsafeJsonWrappers.test.ts`); 25 stringifyJson tests
+  (`test/createStringifyJson.test.ts`); 12 new tests for Map/Set in the
+  unknown-keys family (`test/adapters/unknownKeys.test.ts` "iterables"
+  describes — see "Map/Set in unknown-keys" below).
+- **`vite-plugin-runtypes`**: 212 / 212
 - **Go (`internal/...`)**: all green
 
 Closed since the prior snapshot:
@@ -25,6 +23,17 @@ Closed since the prior snapshot:
 - Failures 1–9 in the "Open failures — analysis" section below.
   Resolutions summarised at the top of each entry, full breakdown
   follows. Net: -9 deterministic failures, no remaining flakes.
+- **Map/Set in the unknown-keys family** (`hasUnknownKeys`,
+  `unknownKeyErrors`, `stripUnknownKeys`, `unknownKeysToUndefined`):
+  emit ported from mion's `IterableRunType` (Iterable.ts:86-152).
+  Previously every Map/Set ran a `KindClass+SubKindMap/SubKindSet`
+  arm that returned an empty body, so `hasUnknownKeys(Map<string,
+  ObjWithExtras>)` always reported false and the strip/error/undefine
+  variants silently no-op'd. The wire-sibling `ukuw` keeps Map/Set
+  as a noop on purpose — its input is the post-`JSON.parse` array
+  shape (not yet a Map/Set instance), so the wire pipeline relies on
+  the encoder side (`prepareForJsonSafe`) already having stripped
+  inner extras before the array is produced.
 
 ## JSON serialisation semantics — two paths
 

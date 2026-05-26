@@ -17,6 +17,10 @@ export function initCache(jitUtils) {
   // cache (here) instead of once per factory call.
   const k_nRT = 'mion::newRunTypeErr';
   const k_getUnknownKeysFromArray = 'mion::getUnknownKeysFromArray';
+  // Used by the Map/Set emit to wrap the runtime entry key into a
+  // JSON-safe path segment (mion::safeIterableKey). Mirrors the
+  // declaration in getTypeErrorsCache.ts.
+  const k_sIK = 'mion::safeIterableKey';
 
   function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
     const fn = isNoop ? noopUnknownKeyErrors : undefined;
@@ -37,6 +41,7 @@ export function initCache(jitUtils) {
   void init;
   void k_nRT;
   void k_getUnknownKeysFromArray;
+  void k_sIK;
   function noopUnknownKeyErrors(_v, _pth, er) {
     return er || [];
   }

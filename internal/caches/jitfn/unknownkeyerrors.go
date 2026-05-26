@@ -95,8 +95,13 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 	case protocol.KindObjectLiteral:
 		return emitObjectUnknownKeyErrors(rt, ctx)
 	case protocol.KindClass:
-		if rt.SubKind == protocol.SubKindNone {
+		switch rt.SubKind {
+		case protocol.SubKindNone:
 			return emitObjectUnknownKeyErrors(rt, ctx)
+		case protocol.SubKindMap:
+			return emitMapUnknownKeyErrors(rt, ctx, ctx.Vλl)
+		case protocol.SubKindSet:
+			return emitSetUnknownKeyErrors(rt, ctx, ctx.Vλl)
 		}
 		return JitCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
@@ -388,6 +393,107 @@ func emitIndexSignatureUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) 
 		return JitCode{Code: "", Type: CodeS}
 	}
 	body := "for (const " + prop + " in " + v + ") {" + patternErr + childJit.Code + "}"
+	return JitCode{Code: body, Type: CodeS}
+}
+
+// emitMapUnknownKeyErrors mirrors mion's
+// IterableRunType.emitUnknownKeyErrors (nodes/native/Iterable.ts:105-120).
+// For each entry, sets the key/value accessor and a `{key, index,
+// failed: 'mapKey' | 'mapValue'}` path segment (matching mion's
+// MapKeyRunType.getStaticPathLiteral / MapValueRunType.getStaticPathLiteral)
+// before recursing into the wrapped child's unknownKeyErrors emit. The
+// child's emit (object/property/etc) emits its own per-error
+// `cpf_newRunTypeErr(pth, er, 'never', [...static path..., extra])`.
+//
+// When every wrapped child compiles to a noop (atomic Map<string,
+// number>), the loop body is empty so we elide the iteration entirely.
+func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	keyType, valueType := mapKeyValueTypes(rt, ctx)
+	entryVar := ctx.NextLocalVar("entry")
+	idxVar := ctx.NextLocalVar("i")
+	safeKey := mapSafeKeyContextItem(ctx)
+	var inner strings.Builder
+	inner.WriteString("let ")
+	inner.WriteString(idxVar)
+	inner.WriteString(" = 0; for (const ")
+	inner.WriteString(entryVar)
+	inner.WriteString(" of ")
+	inner.WriteString(v)
+	inner.WriteString(") {")
+	bodyHasContent := false
+	if keyType != nil {
+		ctx.SetChildAccessor(entryVar + "[0]")
+		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapKey'}")
+		keyJit := ctx.CompileChild(keyType, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if keyJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if keyJit.Code != "" {
+			inner.WriteString(keyJit.Code)
+			if last := keyJit.Code[len(keyJit.Code)-1]; last != ';' && last != '}' {
+				inner.WriteString(";")
+			}
+			bodyHasContent = true
+		}
+	}
+	if valueType != nil {
+		ctx.SetChildAccessor(entryVar + "[1]")
+		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapValue'}")
+		valJit := ctx.CompileChild(valueType, CodeS)
+		ctx.SetChildAccessor("")
+		ctx.SetChildPathLiteral("")
+		if valJit.Type == CodeNS {
+			return JitCode{Code: "", Type: CodeNS}
+		}
+		if valJit.Code != "" {
+			inner.WriteString(valJit.Code)
+			if last := valJit.Code[len(valJit.Code)-1]; last != ';' && last != '}' {
+				inner.WriteString(";")
+			}
+			bodyHasContent = true
+		}
+	}
+	if !bodyHasContent {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	inner.WriteString(idxVar)
+	inner.WriteString("++;}")
+	body := "if (!(" + v + " instanceof Map)) return;" + inner.String()
+	return JitCode{Code: body, Type: CodeS}
+}
+
+// emitSetUnknownKeyErrors mirrors the same Iterable.ts emit on the Set
+// side. Path segment shape mirrors mion's SetKeyRunType — a plain
+// index for now (mion's set.ts doesn't override getStaticPathLiteral
+// like Map does, so the path falls back to the bare index from the
+// loop counter).
+func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+	itemType := setItemType(rt, ctx)
+	if itemType == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	itemVar := ctx.NextLocalVar("item")
+	idxVar := ctx.NextLocalVar("i")
+	ctx.SetChildAccessor(itemVar)
+	ctx.SetChildPathLiteral(idxVar)
+	itemJit := ctx.CompileChild(itemType, CodeS)
+	ctx.SetChildAccessor("")
+	ctx.SetChildPathLiteral("")
+	if itemJit.Type == CodeNS {
+		return JitCode{Code: "", Type: CodeNS}
+	}
+	if itemJit.Code == "" {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	sep := ""
+	if last := itemJit.Code[len(itemJit.Code)-1]; last != ';' && last != '}' {
+		sep = ";"
+	}
+	body := "if (!(" + v + " instanceof Set)) return;" +
+		"let " + idxVar + " = 0; for (const " + itemVar + " of " + v + ") {" +
+		itemJit.Code + sep + idxVar + "++;}"
 	return JitCode{Code: body, Type: CodeS}
 }
 
