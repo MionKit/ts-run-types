@@ -322,6 +322,8 @@ const (
 	CacheKindUnknownKeyErrors       CacheKind = "unknownKeyErrors"
 	CacheKindUnknownKeysToUndefined     CacheKind = "unknownKeysToUndefined"
 	CacheKindUnknownKeysToUndefinedWire CacheKind = "unknownKeysToUndefinedWire"
+	CacheKindToBinary                   CacheKind = "toBinary"
+	CacheKindFromBinary                 CacheKind = "fromBinary"
 	CacheKindPureFns                    CacheKind = "pureFns"
 	CacheKindAll                    CacheKind = "all"
 )
@@ -404,6 +406,11 @@ type Response struct {
 	// for the decoder-internal ukuWire family. Same Supports surface as
 	// uku (every supported runtype yields a ukuw entry too).
 	AddedUnknownKeysToUndefinedWire bool `json:"addedUnknownKeysToUndefinedWire,omitempty"`
+	// AddedToBinary / AddedFromBinary mirror AddedPrepareForJson for the
+	// binary serializer pair. True when at least one newly-interned
+	// RunType has a supported emit arm in the corresponding emitter.
+	AddedToBinary   bool `json:"addedToBinary,omitempty"`
+	AddedFromBinary bool `json:"addedFromBinary,omitempty"`
 	// AddedPureFns is true when the scan introduced (or modified) at
 	// least one pure-fn entry across the request's files — checked
 	// against the resolver's session-wide bodyHash index.
@@ -457,6 +464,11 @@ type Response struct {
 	// emit (wrapper-peel + reach-into-v[1] for union nodes); identical
 	// to UnknownKeysToUndefinedCacheSource for non-union runtypes.
 	UnknownKeysToUndefinedWireCacheSource string `json:"unknownKeysToUndefinedWireCacheSource,omitempty"`
+	// ToBinaryCacheSource / FromBinaryCacheSource — rendered bodies of
+	// the binary serializer/deserializer pair. Same factory shape and
+	// projection semantics as PrepareForJsonCacheSource.
+	ToBinaryCacheSource   string `json:"toBinaryCacheSource,omitempty"`
+	FromBinaryCacheSource string `json:"fromBinaryCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
 	// `factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn)`
@@ -610,6 +622,12 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedUnknownKeysToUndefinedWire {
 		out["addedUnknownKeysToUndefinedWire"] = true
 	}
+	if response.AddedToBinary {
+		out["addedToBinary"] = true
+	}
+	if response.AddedFromBinary {
+		out["addedFromBinary"] = true
+	}
 	if response.AddedPureFns {
 		out["addedPureFns"] = true
 	}
@@ -660,6 +678,12 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.UnknownKeysToUndefinedWireCacheSource != "" {
 		out["unknownKeysToUndefinedWireCacheSource"] = response.UnknownKeysToUndefinedWireCacheSource
+	}
+	if response.ToBinaryCacheSource != "" {
+		out["toBinaryCacheSource"] = response.ToBinaryCacheSource
+	}
+	if response.FromBinaryCacheSource != "" {
+		out["fromBinaryCacheSource"] = response.FromBinaryCacheSource
 	}
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource

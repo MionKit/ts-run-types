@@ -37,7 +37,17 @@ import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCac
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
+import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
+import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
+import {
+  createDataViewSerializer,
+  createDataViewDeserializer,
+  type DataViewSerializer,
+  type DataViewDeserializer,
+  type StrictArrayBuffer,
+  type BinaryInput,
+} from './jit/dataView.ts';
 import type {AnyFn, JitCompiledFn} from './jit/types.ts';
 import type {RuntypeId} from './index.ts';
 
@@ -165,6 +175,48 @@ export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
  */
 export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
 
+// =============================================================================
+// Binary I/O — types
+// =============================================================================
+
+/** Internal type alias for the toBinary JIT primitive. Writes bytes for
+ *  `value` into `Ser`'s underlying buffer (mutates `Ser.index`) and
+ *  returns the serializer instance so callers can chain `.getBuffer()`. **/
+export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSerializer;
+
+/** Internal type alias for the fromBinary JIT primitive. Reads bytes
+ *  from `Des` (advancing `Des.index`) and returns the reconstructed
+ *  value. The first arg is the value slot — passed as `undefined` by
+ *  the caller; the inner body assigns + returns it. **/
+export type FromBinaryFn<T = unknown> = (ret: unknown, Des: DataViewDeserializer) => T;
+
+/** Encoder returned by `createBinaryEncoder<T>()`. Writes the value's
+ *  bytes into the supplied serializer and returns the trimmed
+ *  ArrayBuffer ready to ship over the wire / persist to disk. **/
+export type BinaryEncoderFn = (value: unknown, serializer?: DataViewSerializer) => StrictArrayBuffer;
+
+/** Decoder returned by `createBinaryDecoder<T>()`. Reads bytes from the
+ *  supplied buffer / deserializer and returns the reconstructed value.
+ *  Accepts either a raw `StrictArrayBuffer` (the encoder's output) or
+ *  a pre-built `DataViewDeserializer`. **/
+export type BinaryDecoderFn<T = unknown> = (input: BinaryInput | DataViewDeserializer) => T;
+
+/** Caller-controlled options for `createBinaryEncoder<T>()`. Reserved
+ *  for future extension (e.g. routeId, buffer-size hints). **/
+export interface BinaryEncoderOptions {
+  /** Identifier for the encoder's auto-allocated buffer. Defaults to
+   *  `'binary'`. Surfaces in error messages and is preserved on the
+   *  serializer instance. **/
+  routeId?: string;
+}
+
+/** Caller-controlled options for `createBinaryDecoder<T>()`. Reserved
+ *  for future extension. **/
+export interface BinaryDecoderOptions {
+  /** Identifier for the decoder. Defaults to `'binary'`. **/
+  routeId?: string;
+}
+
 /** Caller-controlled options for `createJsonDecoder<T>()`. The decoder
  *  always allocates fresh via `JSON.parse`, so there's no
  *  clone-vs-mutate axis — only the strip knob applies.
@@ -199,6 +251,8 @@ initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
 initPrepareForJsonSafeCache(_utils);
 initPrepareForJsonSafePreserveCache(_utils);
+initToBinaryCache(_utils);
+initFromBinaryCache(_utils);
 
 // =============================================================================
 // Private generic factories
@@ -390,6 +444,79 @@ export function createJsonDecoder<T>(val?: T, options?: JsonDecoderOptions, id?:
 }
 
 // =============================================================================
+// Binary encode / decode — the only two public binary entry functions.
+//
+// Each looks up the matching JIT primitive (`tb_<id>` for encode,
+// `fb_<id>` for decode) and wraps it with the boilerplate of allocating
+// a serializer / deserializer instance and trimming the buffer at the
+// end. The underlying JIT primitives mutate a passed-in
+// DataViewSerializer / DataViewDeserializer; the wrapper takes care of
+// the framing.
+//
+// The first arg `val` exists purely for the marker's reflection-form
+// inference (`reflectRuntypeId(value)`); it's ignored at runtime.
+// =============================================================================
+
+const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
+const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
+
+/** Returns a binary encoder for `T`. The compiled encoder walks `T`
+ *  and writes bytes to a `DataViewSerializer`; the returned wrapper
+ *  allocates one if the caller doesn't supply it, runs the encoder,
+ *  and returns the trimmed `ArrayBuffer`. **/
+export function createBinaryEncoder<T>(
+  val?: T,
+  options?: BinaryEncoderOptions,
+  id?: RuntypeId<T>
+): BinaryEncoderFn {
+  void val;
+  if (id === undefined) {
+    throw new Error(
+      'createBinaryEncoder(): no id injected. vite-plugin-runtypes must be active for createBinaryEncoder to dispatch to a precompiled factory.'
+    );
+  }
+  const routeId = options?.routeId ?? 'binary';
+  const encodeFn = lookupJitFn<ToBinaryFn>('createBinaryEncoder', 'tb', id, noopToBinaryFn);
+  return (value, serializer) => {
+    const ser = serializer ?? createDataViewSerializer(routeId);
+    encodeFn(value, ser);
+    return ser.getBuffer();
+  };
+}
+
+/** Returns a binary decoder for `T`. Accepts either a raw
+ *  `StrictArrayBuffer` (the encoder's output), any typed-array view, or
+ *  a pre-built `DataViewDeserializer`. **/
+export function createBinaryDecoder<T>(
+  val?: T,
+  options?: BinaryDecoderOptions,
+  id?: RuntypeId<T>
+): BinaryDecoderFn<T> {
+  void val;
+  if (id === undefined) {
+    throw new Error(
+      'createBinaryDecoder(): no id injected. vite-plugin-runtypes must be active for createBinaryDecoder to dispatch to a precompiled factory.'
+    );
+  }
+  const routeId = options?.routeId ?? 'binary';
+  const decodeFn = lookupJitFn<FromBinaryFn<T>>('createBinaryDecoder', 'fb', id, noopFromBinaryFn as FromBinaryFn<T>);
+  return (input) => {
+    // Distinguish DataViewDeserializer from raw buffer by checking for
+    // the `desString` method — the public interface guarantees it.
+    let des: DataViewDeserializer;
+    if (
+      input &&
+      typeof (input as DataViewDeserializer).desString === 'function'
+    ) {
+      des = input as DataViewDeserializer;
+    } else {
+      des = createDataViewDeserializer(routeId, input as BinaryInput);
+    }
+    return decodeFn(undefined, des);
+  };
+}
+
+// =============================================================================
 // HMR — refresh the JIT registry whenever any cache module re-evaluates.
 // Production builds tree-shake the entire `if (hot)` block at bundle time.
 // =============================================================================
@@ -409,4 +536,6 @@ if (hot) {
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getJitUtils()));
   hot.accept('./caches/prepareForJsonSafePreserveCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/toBinaryCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/fromBinaryCache.ts', (m) => m?.initCache?.(getJitUtils()));
 }

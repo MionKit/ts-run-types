@@ -156,6 +156,23 @@ func renderUnknownKeysToUndefinedWireModule(dump protocol.Dump, opts jitfn.Rende
 	})
 }
 
+// renderToBinaryModule emits the toBinary cache module — binary
+// serializer half of the round-trip pair. Backed by jitfn.ToBinaryEmitter.
+func renderToBinaryModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
+	return renderToString("renderToBinaryModule", func(w io.Writer) error {
+		return jitfn.ToBinaryModule(w, dump, opts)
+	})
+}
+
+// renderFromBinaryModule emits the fromBinary cache module — binary
+// deserializer half of the round-trip pair. Backed by
+// jitfn.FromBinaryEmitter.
+func renderFromBinaryModule(dump protocol.Dump, opts jitfn.RenderOpts) (string, error) {
+	return renderToString("renderFromBinaryModule", func(w io.Writer) error {
+		return jitfn.FromBinaryModule(w, dump, opts)
+	})
+}
+
 // renderPureFnsModule renders the pureFns cache-module body for the
 // program. When `entries` is non-nil it's used directly (the
 // OpScanFiles caller already ran extractPureFnsForScan and passes its

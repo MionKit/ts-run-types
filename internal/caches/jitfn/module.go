@@ -141,6 +141,25 @@ func UnknownKeysToUndefinedWireModule(writer io.Writer, dump protocol.Dump, opts
 	return RenderFnModule(writer, dump, settings, UnknownKeysToUndefinedWireEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeysToUndefinedWire, opts)
 }
 
+// ToBinaryModule writes the runtime artifact for the toBinary cache
+// module — binary serializer half of the round-trip pair. Wire format
+// uses DataViewSerializer (little-endian byte stream). Unions emit the
+// flat-prop wire shape (object members merge under a sentinel
+// discriminator; see union_flat_binary.go).
+func ToBinaryModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
+	settings := constants.CacheModules["toBinary"]
+	return RenderFnModule(writer, dump, settings, ToBinaryEmitter{}, innerPrefix(settings), cachetpl.SkeletonToBinary, opts)
+}
+
+// FromBinaryModule writes the runtime artifact for the fromBinary cache
+// module — decode-side counterpart to ToBinaryModule. Round-trip
+// `fromBinary(toBinary(v, ser).getBuffer(), des)` must deep-equal v for
+// every supported runtype.
+func FromBinaryModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
+	settings := constants.CacheModules["fromBinary"]
+	return RenderFnModule(writer, dump, settings, FromBinaryEmitter{}, innerPrefix(settings), cachetpl.SkeletonFromBinary, opts)
+}
+
 // RenderFnModule is the fn-agnostic module renderer. Emits one
 // `init('hash', …);` line per supported RunType then splices the
 // result into the named skeleton. The skeleton's `init` closes over
