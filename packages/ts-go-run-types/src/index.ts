@@ -135,7 +135,15 @@ export {
   createJsonDecoder,
   type JsonDecoderFn,
   type JsonDecoderOptions,
-  // Binary I/O.
+} from './createJitFunctions.ts';
+
+// Binary I/O — re-exported from a dedicated module so bundlers can
+// drop the binary subtree (the two binary cache modules, the encoder /
+// decoder closures, the DataView helper classes' binary use) when the
+// consumer's code never references either factory. Binary is a niche
+// feature (typed-array RPC, router-driven binary transport); JSON /
+// validation users shouldn't pay for it.
+export {
   createBinaryEncoder,
   type BinaryEncoderFn,
   type BinaryEncoderOptions,
@@ -144,7 +152,7 @@ export {
   type BinaryDecoderOptions,
   type ToBinaryFn,
   type FromBinaryFn,
-} from './createJitFunctions.ts';
+} from './createBinary.ts';
 
 // DataView helpers — exposed so consumers can pre-build a serializer /
 // deserializer instance and pass it to the encoder / decoder. Useful
