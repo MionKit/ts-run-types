@@ -135,4 +135,26 @@ export {
   createJsonDecoder,
   type JsonDecoderFn,
   type JsonDecoderOptions,
+  // Binary I/O.
+  createBinaryEncoder,
+  type BinaryEncoderFn,
+  type BinaryEncoderOptions,
+  createBinaryDecoder,
+  type BinaryDecoderFn,
+  type BinaryDecoderOptions,
+  type ToBinaryFn,
+  type FromBinaryFn,
 } from './createJitFunctions.ts';
+
+// DataView helpers — exposed so consumers can pre-build a serializer /
+// deserializer instance and pass it to the encoder / decoder. Useful
+// when reusing buffers across many encodes (avoids the per-call
+// allocation).
+export {
+  createDataViewSerializer,
+  createDataViewDeserializer,
+  type DataViewSerializer,
+  type DataViewDeserializer,
+  type StrictArrayBuffer,
+  type BinaryInput,
+} from './jit/dataView.ts';
