@@ -26,7 +26,7 @@ import (
 // serialise it.
 //
 // Approach 3 fastpath: when the whole subtree is JSON-compatible
-// (`isJsonCompatible` in jsoncompat.go) AND every property is required
+// (`isJsonCompatible` in json_compat.go) AND every property is required
 // (no `?:` declarations), the object emit gates a runtime
 // `Object.keys(v).length === N` check that returns `v` unchanged when
 // the input has exactly the declared key count. Mixed-optionality

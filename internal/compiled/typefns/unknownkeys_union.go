@@ -6,7 +6,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// union_unknownkeys.go owns the union-arm emit for every member of the
+// unknownkeys_union.go owns the union-arm emit for every member of the
 // unknown-keys JIT family — stripUnknownKeys, unknownKeysToUndefined,
 // hasUnknownKeys, unknownKeyErrors. The legacy per-family code each
 // re-derived "what counts as a declared key on a union" inline; this

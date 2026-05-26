@@ -61,10 +61,10 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindUnion:
 		// Decodes the `[memberIndex, encodedValue]` envelope produced
-		// by prepareForJson — see preparefjson.go union case.
+		// by prepareForJson — see json_prepare.go union case.
 		return len(rt.Children) > 0
 	case protocol.KindIntersection:
-		// Defensive noop — see preparefjson.go intersection case.
+		// Defensive noop — see json_prepare.go intersection case.
 		return true
 	case protocol.KindTemplateLiteral:
 		// String-flavoured at runtime — noop.
@@ -290,7 +290,7 @@ func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) JitCode {
 }
 
 // emitObjectRestoreFromJson — sibling of emitObjectPrepareForJson
-// (preparefjson.go). Mirrors mion's
+// (json_prepare.go). Mirrors mion's
 // nodes/collection/interface.ts:emitRestoreFromJson.
 func emitObjectRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	var parts []string

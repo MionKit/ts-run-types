@@ -690,7 +690,7 @@ func positionStr(rt *protocol.RunType) string {
 // shape.
 //
 // All-optional object members get the property-presence gate via
-// looseCheckGate (see preparefjson.go) — mirrors mion's
+// looseCheckGate (see json_prepare.go) — mirrors mion's
 // getChildIsTypeWithLooseCheck (union.ts:56-78). Without this, an
 // input like `{c: 'foo'}` would match `{a?: string; b?: string}`
 // (no required props to fail on), which is mion-incorrect per TS's

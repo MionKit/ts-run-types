@@ -8,7 +8,7 @@
 //
 // CROSS-CUTTING NOTE — divergence from mion:
 //
-// Our `PrepareForJsonEmitter.Finalize` (preparefjson.go:716) always
+// Our `PrepareForJsonEmitter.Finalize` (json_prepare.go:716) always
 // returns `isNoop: false` regardless of whether the body collapses to
 // `return v`. Reason: the Go renderer skips emitting the factory line
 // entirely when isNoop=true (module.go:229), so any parent calling
