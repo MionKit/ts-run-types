@@ -290,9 +290,7 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 			bitmapVar := ctx.NextLocalVar("bmI")
 			var bitmapInit string
 			if bitmapLength > 1 {
-				zeroVar := ctx.NextLocalVar("iBm")
-				bitmapInit = "const " + bitmapVar + " = " + des + ".index;" + des + ".index += " + strconv.Itoa(bitmapLength) +
-					"; void " + zeroVar
+				bitmapInit = "const " + bitmapVar + " = " + des + ".index;" + des + ".index += " + strconv.Itoa(bitmapLength)
 			} else {
 				bitmapInit = "const " + bitmapVar + " = " + des + ".index++"
 			}
