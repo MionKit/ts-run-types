@@ -143,7 +143,7 @@ createBinaryEncoder<T>(val?, options?: {allOptional?: boolean; sliceStart?: numb
 createBinaryDecoder<T>(val?, options?: {allOptional?: boolean; sliceStart?: number}, id?)
 ```
 
-The Go-side wiring already supports the `allOptional` half — `emitTupleToBinary` in `internal/compiled/typefns/tobinary.go` reads an `isFnParams` flag and uses `isFnParams || resolved.Optional` to decide the bitmap slot for each member. The flag is currently hardcoded to `false`; lifting it to a per-request option that the encoder factory threads through is the cleanest path. `sliceStart` is similar — start the bitmap loop at the supplied offset and skip the leading children at compile time.
+The Go-side wiring already supports the `allOptional` half — `emitTupleToBinary` in `internal/compiled/typefns/binary_to.go` reads an `isFnParams` flag and uses `isFnParams || resolved.Optional` to decide the bitmap slot for each member. The flag is currently hardcoded to `false`; lifting it to a per-request option that the encoder factory threads through is the cleanest path. `sliceStart` is similar — start the bitmap loop at the supplied offset and skip the leading children at compile time.
 
 The corresponding 10 `13BinaryAllParamsOptional` tests + the `slice function params` test become a new `test/adapters/binaryParams.test.ts` file (small enough to hand-write — they're all variations on the same idea, no shared suite needed) once the API is in place.
 
