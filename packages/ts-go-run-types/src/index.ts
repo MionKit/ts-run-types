@@ -154,6 +154,14 @@ export {
   type FromBinaryFn,
 } from './createBinary.ts';
 
+// Mock-value generator — re-exported from `./mocking/createMockType.ts`
+// so bundlers can drop the entire mock subtree (the walker, atomic
+// generators, constant pools) when consumers don't reference
+// `createMockType`. Mock is a dev/test feature; production code
+// shouldn't pay for it.
+export {createMockType} from './mocking/createMockType.ts';
+export type {MockOptions, MockTypeFn, RunTypeMockOptions} from './mocking/mockTypes.ts';
+
 // DataView helpers — exposed so consumers can pre-build a serializer /
 // deserializer instance and pass it to the encoder / decoder. Useful
 // when reusing buffers across many encodes (avoids the per-call

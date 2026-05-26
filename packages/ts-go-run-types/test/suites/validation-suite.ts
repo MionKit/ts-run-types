@@ -45,7 +45,15 @@
 // variants are sibling `<key>_noLiterals` entries — the
 // createIsType option threading is in place end-to-end.
 
-import {createIsType, createGetTypeErrors, type IsTypeFn, type GetTypeErrorsFn, type RunTypeError} from '@mionjs/ts-go-run-types';
+import {
+  createIsType,
+  createGetTypeErrors,
+  createMockType,
+  type IsTypeFn,
+  type GetTypeErrorsFn,
+  type RunTypeError,
+  type MockTypeFn,
+} from '@mionjs/ts-go-run-types';
 import {deserializeIsType, deserializeGetTypeErrors} from '../util/deserializeJitFunctions.ts';
 
 /** One atomic-type case in the shared suite. */
@@ -103,6 +111,20 @@ export interface ValidationCase {
    *  Omit on cases that don't declare `getTypeErrors`. */
   getExpectedErrors?: () => RunTypeError[][];
 
+  /** Plugin-rewritten thunk returning the mock generator — STATIC
+   *  form. Caller supplies `T` explicitly. The adapter generates N
+   *  values (default 20) and asserts each passes `isType<T>()`. */
+  mockType?: () => MockTypeFn<unknown>;
+  /** Plugin-rewritten thunk returning the mock generator — REFLECT
+   *  form. `T` inferred from a runtime value's declared type. */
+  mockTypeReflect?: () => MockTypeFn<unknown>;
+  /** Adapter expectation for the mock case:
+   *  - `'value'` (default) — every generated value must pass `isType<T>()`.
+   *  - `'throw'` — calling the mock fn must throw (e.g. `never`).
+   *  - `'skip'` — the mock fn runs but its output is not isType-checked
+   *    (e.g. function kinds where mion returns `undefined`). **/
+  mockTypeExpect?: 'value' | 'throw' | 'skip';
+
   /** Pure sample data — same for every adapter. */
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
@@ -131,6 +153,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: any = null;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<any>(),
+      mockTypeReflect: () => {
+        const v: any = null;
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello'],
@@ -161,6 +188,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: bigint = 1n;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<bigint>(),
+      mockTypeReflect: () => {
+        const v: bigint = 1n;
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [1n, BigInt(42)],
@@ -200,6 +232,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: boolean = true;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<boolean>(),
+      mockTypeReflect: () => {
+        const v: boolean = true;
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [true, false],
@@ -241,6 +278,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Date = new Date();
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<Date>(),
+      mockTypeReflect: () => {
+        const v: Date = new Date();
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -324,6 +366,23 @@ export const VALIDATION_SUITE = {
         const v: Color = Color.Red;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        enum Color {
+          Red,
+          Green = 'green',
+          Blue = 2,
+        }
+        return createMockType<Color>();
+      },
+      mockTypeReflect: () => {
+        enum Color {
+          Red,
+          Green = 'green',
+          Blue = 2,
+        }
+        const v: Color = Color.Red;
+        return createMockType(v);
+      },
       getSamples: () => {
         enum Color {
           Red,
@@ -371,6 +430,11 @@ export const VALIDATION_SUITE = {
         const v = 2 as const;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<2>(),
+      mockTypeReflect: () => {
+        const v = 2 as const;
+        return createMockType(v);
+      },
       getSamples: () => ({valid: [2], invalid: [4, '2', null, undefined]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'literal'}],
@@ -402,6 +466,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 'a' as const;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<'a'>(),
+      mockTypeReflect: () => {
+        const v = 'a' as const;
+        return createMockType(v);
       },
       getSamples: () => ({valid: ['a'], invalid: ['b', 'A', '', null, undefined]}),
       getExpectedErrors: () => [
@@ -453,6 +522,15 @@ export const VALIDATION_SUITE = {
         const v: typeof reg = reg;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        const reg = /abc/i;
+        return createMockType<typeof reg>();
+      },
+      mockTypeReflect: () => {
+        const reg = /abc/i;
+        const v: typeof reg = reg;
+        return createMockType(v);
+      },
       getSamples: () => ({valid: [/abc/i], invalid: [/asdf/i, /abc/, /abc/g, 'abc']}),
       getExpectedErrors: () => [
         [{path: [], expected: 'literal'}],
@@ -501,6 +579,15 @@ export const VALIDATION_SUITE = {
         const v: typeof reg2 = reg2;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        const reg2 = /['"]\/ \\ \//;
+        return createMockType<typeof reg2>();
+      },
+      mockTypeReflect: () => {
+        const reg2 = /['"]\/ \\ \//;
+        const v: typeof reg2 = reg2;
+        return createMockType(v);
+      },
       getSamples: () => {
         const reg2 = /['"]\/ \\ \//;
         return {
@@ -540,6 +627,11 @@ export const VALIDATION_SUITE = {
         const v = true as const;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<true>(),
+      mockTypeReflect: () => {
+        const v = true as const;
+        return createMockType(v);
+      },
       getSamples: () => ({valid: [true], invalid: [false, 1, 'true', null]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'literal'}],
@@ -571,6 +663,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 1n as const;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<1n>(),
+      mockTypeReflect: () => {
+        const v = 1n as const;
+        return createMockType(v);
       },
       getSamples: () => ({valid: [1n], invalid: [2n, 1, '1n', 0n, null]}),
       getExpectedErrors: () => [
@@ -623,6 +720,15 @@ export const VALIDATION_SUITE = {
         const v: typeof sym = sym;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        const sym = Symbol('hello');
+        return createMockType<typeof sym>();
+      },
+      mockTypeReflect: () => {
+        const sym = Symbol('hello');
+        const v: typeof sym = sym;
+        return createMockType(v);
+      },
       getSamples: () => {
         const sym = Symbol('hello');
         return {
@@ -663,6 +769,12 @@ export const VALIDATION_SUITE = {
         const v: never = null as never;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<never>(),
+      mockTypeReflect: () => {
+        const v: never = null as never;
+        return createMockType(v);
+      },
+      mockTypeExpect: 'throw',
       getSamples: () => ({
         valid: [],
         invalid: [true, false, 1, '3', {}, 'hello', null, undefined, NaN, []],
@@ -705,6 +817,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: null = null;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<null>(),
+      mockTypeReflect: () => {
+        const v: null = null;
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [null],
@@ -750,6 +867,11 @@ export const VALIDATION_SUITE = {
         const v: number = 42;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<number>(),
+      mockTypeReflect: () => {
+        const v: number = 42;
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [42],
         invalid: [Infinity, -Infinity, NaN, 'hello', null, undefined],
@@ -793,6 +915,11 @@ export const VALIDATION_SUITE = {
         const v: object = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<object>(),
+      mockTypeReflect: () => {
+        const v: object = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 42, b: 'hello'}, [], new Date(), /abc/],
         invalid: [null, undefined, 42, 'hello', true, Symbol()],
@@ -832,6 +959,9 @@ export const VALIDATION_SUITE = {
       // Reflect thunks omitted for the same narrowing reason as getTypeErrors
       // above — `const v: RegExp = /abc/` narrows to the literal-regex type
       // and would dispatch to the regexp-literal arm instead.
+      mockType: () => createMockType<RegExp>(),
+      // mockTypeReflect omitted for the same narrowing reason — would
+      // resolve to a regexp-literal runtype.
       getSamples: () => ({
         valid: [/abc/, new RegExp('abc')],
         invalid: [undefined, 42, 'hello', null, '/abc/', {}],
@@ -869,6 +999,11 @@ export const VALIDATION_SUITE = {
         const v: string = 'hello';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<string>(),
+      mockTypeReflect: () => {
+        const v: string = 'hello';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [2, null, undefined, true],
@@ -904,6 +1039,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: symbol = Symbol();
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<symbol>(),
+      mockTypeReflect: () => {
+        const v: symbol = Symbol();
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [Symbol(), Symbol('foo')],
@@ -944,6 +1084,11 @@ export const VALIDATION_SUITE = {
         const v: undefined = undefined;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<undefined>(),
+      mockTypeReflect: () => {
+        const v: undefined = undefined;
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [undefined],
         invalid: [null, 42, 'hello', 0, '', false, {}, []],
@@ -982,6 +1127,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: void = undefined;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<void>(),
+      mockTypeReflect: () => {
+        const v: void = undefined;
+        return createMockType(v);
       },
       getSamples: () => {
         function vd(): void {}
@@ -1026,6 +1176,11 @@ export const VALIDATION_SUITE = {
         const v = 2 as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
       },
+      mockType: () => createMockType<2>(undefined, undefined),
+      mockTypeReflect: () => {
+        const v = 2 as const;
+        return createMockType(v);
+      },
       getSamples: () => ({valid: [4, 0, -1], invalid: ['4', Infinity, NaN, null]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'number'}],
@@ -1059,6 +1214,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 'a' as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
+      },
+      mockType: () => createMockType<'a'>(undefined, undefined),
+      mockTypeReflect: () => {
+        const v = 'a' as const;
+        return createMockType(v);
       },
       getSamples: () => ({valid: ['c', ''], invalid: [1, null, undefined, true]}),
       getExpectedErrors: () => [
@@ -1110,6 +1270,15 @@ export const VALIDATION_SUITE = {
         const v: typeof reg = reg;
         return deserializeGetTypeErrors(v, {noLiterals: true});
       },
+      mockType: () => {
+        const reg = /abc/i;
+        return createMockType<typeof reg>(undefined, undefined);
+      },
+      mockTypeReflect: () => {
+        const reg = /abc/i;
+        const v: typeof reg = reg;
+        return createMockType(v);
+      },
       getSamples: () => ({valid: [/otherReg/, new RegExp('foo')], invalid: ['otherReg', null, undefined, {}]}),
       getExpectedErrors: () => [
         [{path: [], expected: 'regexp'}],
@@ -1143,6 +1312,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = true as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
+      },
+      mockType: () => createMockType<true>(undefined, undefined),
+      mockTypeReflect: () => {
+        const v = true as const;
+        return createMockType(v);
       },
       getSamples: () => ({valid: [false, true], invalid: [1, 0, 'true', null, undefined]}),
       getExpectedErrors: () => [
@@ -1178,6 +1352,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v = 1n as const;
         return deserializeGetTypeErrors(v, {noLiterals: true});
+      },
+      mockType: () => createMockType<1n>(undefined, undefined),
+      mockTypeReflect: () => {
+        const v = 1n as const;
+        return createMockType(v);
       },
       getSamples: () => ({valid: [3n, 0n, 1n], invalid: [3, null, undefined, 1, '1n']}),
       getExpectedErrors: () => [
@@ -1230,6 +1409,15 @@ export const VALIDATION_SUITE = {
         const v: typeof sym = sym;
         return deserializeGetTypeErrors(v, {noLiterals: true});
       },
+      mockType: () => {
+        const sym = Symbol('hello');
+        return createMockType<typeof sym>(undefined, undefined);
+      },
+      mockTypeReflect: () => {
+        const sym = Symbol('hello');
+        const v: typeof sym = sym;
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [Symbol('world'), Symbol(), Symbol.iterator],
         invalid: ['world', null, undefined, 'symbol'],
@@ -1269,6 +1457,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: unknown = null;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<unknown>(),
+      mockTypeReflect: () => {
+        const v: unknown = null;
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [null, undefined, 42, 'hello', true, {}, [], Symbol(), () => null, new Date()],
@@ -1322,6 +1515,11 @@ export const VALIDATION_SUITE = {
         const v: string[] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<string[]>(),
+      mockTypeReflect: () => {
+        const v: string[] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello', 'world']],
         // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
@@ -1364,6 +1562,11 @@ export const VALIDATION_SUITE = {
         const v: number[] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<number[]>(),
+      mockTypeReflect: () => {
+        const v: number[] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], [1, 2, 3], [42]],
         invalid: [[1, '2'], 'not-array', [Infinity], [-Infinity], [NaN], null, undefined, [null], [BigInt(1)]],
@@ -1403,6 +1606,11 @@ export const VALIDATION_SUITE = {
         const v: boolean[] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<boolean[]>(),
+      mockTypeReflect: () => {
+        const v: boolean[] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], [true, false]],
         invalid: [[true, 42], 'nope', null, undefined, [0], [1], [null]],
@@ -1439,6 +1647,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: bigint[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<bigint[]>(),
+      mockTypeReflect: () => {
+        const v: bigint[] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[], [1n, 2n]],
@@ -1478,6 +1691,11 @@ export const VALIDATION_SUITE = {
         const v: Date[] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<Date[]>(),
+      mockTypeReflect: () => {
+        const v: Date[] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], [new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')]],
         invalid: [['2024'], [42], [new Date('invalid')], null, undefined],
@@ -1512,6 +1730,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: RegExp[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<RegExp[]>(),
+      mockTypeReflect: () => {
+        const v: RegExp[] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[], [/abc/, new RegExp('abc')]],
@@ -1551,6 +1774,11 @@ export const VALIDATION_SUITE = {
         const v: undefined[] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<undefined[]>(),
+      mockTypeReflect: () => {
+        const v: undefined[] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], [undefined, undefined]],
         invalid: [[null], [42], null, undefined, [0], [''], [false]],
@@ -1588,6 +1816,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: null[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<null[]>(),
+      mockTypeReflect: () => {
+        const v: null[] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[], [null]],
@@ -1627,6 +1860,11 @@ export const VALIDATION_SUITE = {
         const v: Array<string> = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<Array<string>>(),
+      mockTypeReflect: () => {
+        const v: Array<string> = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         invalid: ['hello', [42], null, undefined],
@@ -1662,6 +1900,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string[][] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<string[][]>(),
+      mockTypeReflect: () => {
+        const v: string[][] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1720,6 +1963,11 @@ export const VALIDATION_SUITE = {
         const v: string[][][] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<string[][][]>(),
+      mockTypeReflect: () => {
+        const v: string[][][] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], [[[]]], [[['a', 'b'], ['c']]]],
         invalid: [[[['a', 2]]], [['a']], ['a'], null, undefined, [[[null]]], [[[42]]]],
@@ -1766,6 +2014,11 @@ export const VALIDATION_SUITE = {
         const v: string[] = [];
         return deserializeGetTypeErrors(v, {noIsArrayCheck: true});
       },
+      mockType: () => createMockType<string[]>(undefined, undefined),
+      mockTypeReflect: () => {
+        const v: string[] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[], ['hello']],
         // Without the guard, non-array inputs may not be rejected by
@@ -1802,6 +2055,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string}[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: string}[]>(),
+      mockTypeReflect: () => {
+        const v: {a: string}[] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[], [{a: 'hello'}, {a: 'world'}], [{a: 'hello', extraA: 'extraA'}, {a: 'world'}]],
@@ -1841,6 +2099,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: (string | number)[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<(string | number)[]>(),
+      mockTypeReflect: () => {
+        const v: (string | number)[] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[], ['a', 1, 'b', 2], [1], ['a']],
@@ -1887,6 +2150,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number][] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<[string, number][]>(),
+      mockTypeReflect: () => {
+        const v: [string, number][] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -1958,6 +2226,15 @@ export const VALIDATION_SUITE = {
         const v: CircularArray = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type CircularArray = CircularArray[];
+        return createMockType<CircularArray>();
+      },
+      mockTypeReflect: () => {
+        type CircularArray = CircularArray[];
+        const v: CircularArray = [];
+        return createMockType(v);
+      },
       getSamples: () => {
         // type CircularArray = CircularArray[]; const arr: CircularArray = [[[[]]], [[]], []];
         const arrA: any = [];
@@ -2023,6 +2300,15 @@ export const VALIDATION_SUITE = {
         const v: ObjectType = {a: 'hello'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        return createMockType<ObjectType>();
+      },
+      mockTypeReflect: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const v: ObjectType = {a: 'hello'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 'hello'},
@@ -2079,6 +2365,15 @@ export const VALIDATION_SUITE = {
         const v: symbol[] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<symbol[]>(),
+      mockTypeReflect: () => {
+        const v: symbol[] = [];
+        return createMockType(v);
+      },
+      // isType for symbol[] emits `return false` — non-serializable
+      // element type. The mock can still construct an array of
+      // symbols, but it'll never satisfy the always-false validator.
+      mockTypeExpect: 'skip',
       getSamples: () => ({
         valid: [],
         invalid: [[Symbol('a')], [], 'not array', null, [42]],
@@ -2120,6 +2415,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: ReadonlyArray<string> = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<ReadonlyArray<string>>(),
+      mockTypeReflect: () => {
+        const v: ReadonlyArray<string> = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[], ['hello'], ['a', 'b', 'c']],
@@ -2182,6 +2482,11 @@ export const VALIDATION_SUITE = {
         const v: {a: string; b: number} = {a: 'hello', b: 1};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{a: string; b: number}>(),
+      mockTypeReflect: () => {
+        const v: {a: string; b: number} = {a: 'hello', b: 1};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 'hello', b: 1},
@@ -2240,6 +2545,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const Usr = {name: 'john', age: 30} as const;
         return deserializeGetTypeErrors(Usr);
+      },
+      mockType: () => createMockType<{readonly name: 'john'; readonly age: 30}>(),
+      mockTypeReflect: () => {
+        const Usr = {name: 'john', age: 30} as const;
+        return createMockType(Usr);
       },
       getSamples: () => ({
         valid: [{name: 'john', age: 30}],
@@ -2300,6 +2610,12 @@ export const VALIDATION_SUITE = {
         }
         return deserializeGetTypeErrors<ReturnType<typeof makeUser>>();
       },
+      mockType: () => {
+        function makeUser(): {id: number; name: string} {
+          return {id: 1, name: 'john'};
+        }
+        return createMockType<ReturnType<typeof makeUser>>();
+      },
       getSamples: () => ({
         valid: [
           {id: 1, name: 'john'},
@@ -2341,6 +2657,11 @@ export const VALIDATION_SUITE = {
         const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
         return deserializeGetTypeErrors(outer.user);
       },
+      mockType: () => createMockType<{id: number; name: string}>(),
+      mockTypeReflect: () => {
+        const outer: {user: {id: number; name: string}} = {user: {id: 1, name: 'john'}};
+        return createMockType(outer.user);
+      },
       getSamples: () => ({
         valid: [
           {id: 1, name: 'john'},
@@ -2378,6 +2699,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
         return deserializeGetTypeErrors(items[0]);
+      },
+      mockType: () => createMockType<{id: number; name: string}>(),
+      mockTypeReflect: () => {
+        const items: {id: number; name: string}[] = [{id: 1, name: 'john'}];
+        return createMockType(items[0]);
       },
       getSamples: () => ({
         valid: [
@@ -2417,6 +2743,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; b?: number} = {a: 'x'};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: string; b?: number}>(),
+      mockTypeReflect: () => {
+        const v: {a: string; b?: number} = {a: 'x'};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{a: 'x'}, {a: 'x', b: 0}, {a: 'x', b: undefined}],
@@ -2459,6 +2790,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{date: Date; name: string}>(),
+      mockTypeReflect: () => {
+        const v: {date: Date; name: string} = {date: new Date(), name: 'x'};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{date: new Date(), name: 'x'}],
@@ -2513,6 +2849,11 @@ export const VALIDATION_SUITE = {
         const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{name: string; cb: () => any}>(),
+      mockTypeReflect: () => {
+        const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'x'},
@@ -2554,6 +2895,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: string; deep: {b: string; c: number}}>(),
+      mockTypeReflect: () => {
+        const v: {a: string; deep: {b: string; c: number}} = {a: 'x', deep: {b: 'y', c: 1}};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{a: 'x', deep: {b: 'y', c: 1}}],
@@ -2602,6 +2948,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {tags: string[]} = {tags: []};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{tags: string[]}>(),
+      mockTypeReflect: () => {
+        const v: {tags: string[]} = {tags: []};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{tags: []}, {tags: ['a', 'b']}],
@@ -2660,6 +3011,15 @@ export const VALIDATION_SUITE = {
         type ICircular = {name: string; child?: ICircular};
         const v: ICircular = {name: 'root'};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        type ICircular = {name: string; child?: ICircular};
+        return createMockType<ICircular>();
+      },
+      mockTypeReflect: () => {
+        type ICircular = {name: string; child?: ICircular};
+        const v: ICircular = {name: 'root'};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{name: 'root'}, {name: 'root', child: {name: 'a'}}, {name: 'root', child: {name: 'a', child: {name: 'b'}}}],
@@ -2724,6 +3084,15 @@ export const VALIDATION_SUITE = {
         const v: ICircularArray = {name: 'r'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        return createMockType<ICircularArray>();
+      },
+      mockTypeReflect: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        const v: ICircularArray = {name: 'r'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'r'},
@@ -2779,6 +3148,15 @@ export const VALIDATION_SUITE = {
         const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        return createMockType<ICircularDeep>();
+      },
+      mockTypeReflect: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        const v: ICircularDeep = {name: 'r', embedded: {hello: 'h'}};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'r', embedded: {hello: 'h'}},
@@ -2821,6 +3199,11 @@ export const VALIDATION_SUITE = {
         const v: {[key: string]: string} = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{[key: string]: string}>(),
+      mockTypeReflect: () => {
+        const v: {[key: string]: string} = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 'y'}],
         invalid: [{a: 1}, {a: 'x', b: 2}, null, 'not object', undefined, {a: null}, {a: undefined}],
@@ -2859,6 +3242,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: string; b: number; [key: string]: string | number}>(),
+      mockTypeReflect: () => {
+        const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -2910,6 +3298,11 @@ export const VALIDATION_SUITE = {
         const v: {[key: string]: {[key: string]: number}} = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{[key: string]: {[key: string]: number}}>(),
+      mockTypeReflect: () => {
+        const v: {[key: string]: {[key: string]: number}} = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: {x: 1, y: 2}}, {a: {}, b: {n: 0}}],
         invalid: [{a: 1}, {a: {x: 'not number'}}, null, undefined, {a: {x: NaN}}, {a: {x: null}}],
@@ -2946,6 +3339,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {[key: string]: {[key: string]: Date}} = {};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{[key: string]: {[key: string]: Date}}>(),
+      mockTypeReflect: () => {
+        const v: {[key: string]: {[key: string]: Date}} = {};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: {x: new Date()}}],
@@ -3056,6 +3454,29 @@ export const VALIDATION_SUITE = {
         const v: Obj2 = {b: 'hello', c: {a: 'world'}};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Obj1 {
+          a: string;
+          [key: string]: string;
+        }
+        interface Obj2 {
+          b: string;
+          c: Obj1;
+        }
+        return createMockType<Obj2>();
+      },
+      mockTypeReflect: () => {
+        interface Obj1 {
+          a: string;
+          [key: string]: string;
+        }
+        interface Obj2 {
+          b: string;
+          c: Obj1;
+        }
+        const v: Obj2 = {b: 'hello', c: {a: 'world'}};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {b: 'hello', c: {a: 'world', c: 'world'}},
@@ -3100,6 +3521,15 @@ export const VALIDATION_SUITE = {
         const v: () => void = () => {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<() => void>(),
+      mockTypeReflect: () => {
+        const v: () => void = () => {};
+        return createMockType(v);
+      },
+      // Function kinds return `undefined` from the walker (mion's
+      // behaviour); the result can't satisfy `isType<() => void>` which
+      // checks `typeof === 'function'`. Mock still runs without error.
+      mockTypeExpect: 'skip',
       getSamples: () => ({
         valid: [() => {}, function () {}, async () => {}, class {}],
         invalid: [null, undefined, 42, 'function', {}, [], true],
@@ -3163,6 +3593,22 @@ export const VALIDATION_SUITE = {
         );
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{(a: number, b: boolean): string; extra: string}>(),
+      mockTypeReflect: () => {
+        const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
+          function (_a: number, _b: boolean) {
+            return 'x';
+          },
+          {extra: 'x'}
+        );
+        return createMockType(v);
+      },
+      // Callable interface — the runtype is a plain object literal
+      // with a CallSignature child, which the walker treats as a
+      // skipped method. The mock generates the data properties only,
+      // not the function-ness, so `isType` (which checks `typeof ===
+      // 'function'`) rejects the result.
+      mockTypeExpect: 'skip',
       getSamples: () => ({
         valid: [
           Object.assign(
@@ -3223,6 +3669,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a?: string; b?: number} = {};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a?: string; b?: number}>(),
+      mockTypeReflect: () => {
+        const v: {a?: string; b?: number} = {};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: undefined, b: undefined}],
@@ -3368,6 +3819,35 @@ export const VALIDATION_SUITE = {
         }
         const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        return createMockType<MySerializableClass>();
+      },
+      mockTypeReflect: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        const v: MySerializableClass = new MySerializableClass(new Date(), 'x');
+        return createMockType(v);
       },
       getSamples: () => {
         class Match {
@@ -3543,6 +4023,43 @@ export const VALIDATION_SUITE = {
         const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        // Mirrors @mionjs/core's RpcError public shape:
+        //   - `mion@isΣrrθr: true` brand (literal true)
+        //   - `type: ErrType` generic discriminator
+        //   - `publicMessage: string`
+        //   - `id?: string`
+        // `message` / `name` / `stack` are intentionally NOT declared
+        // as TS properties (they exist at runtime via Error) so isType
+        // doesn't validate them.
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        return createMockType<RpcError<'test-error'>>();
+      },
+      mockTypeReflect: () => {
+        class RpcError<ErrType extends string> {
+          public readonly 'mion@isΣrrθr': true = true;
+          public readonly type: ErrType;
+          public readonly publicMessage: string;
+          public readonly id?: string;
+          constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+            this.type = args.type;
+            this.publicMessage = args.publicMessage;
+            this.id = args.id;
+          }
+        }
+        const v: RpcError<'test-error'> = new RpcError({type: 'test-error', publicMessage: 'error'});
+        return createMockType(v);
+      },
       getSamples: () => {
         const validInstance = {
           'mion@isΣrrθr': true,
@@ -3635,6 +4152,15 @@ export const VALIDATION_SUITE = {
         const v: Parameters<CallSig> = [1, true];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        return createMockType<Parameters<CallSig>>();
+      },
+      mockTypeReflect: () => {
+        type CallSig = (a: number, b: boolean) => string;
+        const v: Parameters<CallSig> = [1, true];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           [1, true],
@@ -3712,6 +4238,15 @@ export const VALIDATION_SUITE = {
         const v: Parameters<CallSig> = [3, true, 'hello'];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        return createMockType<Parameters<CallSig>>();
+      },
+      mockTypeReflect: () => {
+        type CallSig = (a: number, b: boolean, c?: string) => Date;
+        const v: Parameters<CallSig> = [3, true, 'hello'];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           [3, true, 'hello'],
@@ -3782,6 +4317,15 @@ export const VALIDATION_SUITE = {
         const v: Parameters<CallSig> = [3, true];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        return createMockType<Parameters<CallSig>>();
+      },
+      mockTypeReflect: () => {
+        type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
+        const v: Parameters<CallSig> = [3, true];
+        return createMockType(v);
+      },
       getSamples: () => {
         const date1 = new Date();
         const date2 = new Date();
@@ -3847,6 +4391,11 @@ export const VALIDATION_SUITE = {
         const v: Record<'a' | 'b', number> = {a: 1, b: 2};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<Record<'a' | 'b', number>>(),
+      mockTypeReflect: () => {
+        const v: Record<'a' | 'b', number> = {a: 1, b: 2};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 1, b: 2},
@@ -3906,6 +4455,11 @@ export const VALIDATION_SUITE = {
         const v: {[key: string]: string | number} = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{[key: string]: string | number}>(),
+      mockTypeReflect: () => {
+        const v: {[key: string]: string | number} = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {a: 'x'}, {a: 'x', b: 1}, {a: 1, b: 'x'}],
         invalid: [{a: true}, {a: 'x', b: null}, 'not object', null, undefined, {a: BigInt(1)}, {a: NaN}],
@@ -3944,6 +4498,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{kind: 'a' | 'b'; n: number}>(),
+      mockTypeReflect: () => {
+        const v: {kind: 'a' | 'b'; n: number} = {kind: 'a', n: 1};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -4044,6 +4603,25 @@ export const VALIDATION_SUITE = {
         }
         const v: Child = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        return createMockType<Child>();
+      },
+      mockTypeReflect: () => {
+        interface Base {
+          a: string;
+        }
+        interface Child extends Base {
+          b: number;
+        }
+        const v: Child = {a: 'x', b: 1};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -4147,6 +4725,25 @@ export const VALIDATION_SUITE = {
         const v: Sub = new Sub();
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return createMockType<Sub>();
+      },
+      mockTypeReflect: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        const v: Sub = new Sub();
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {a: 'x', b: 1},
@@ -4195,6 +4792,11 @@ export const VALIDATION_SUITE = {
         const v: {[k: number]: string} = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{[k: number]: string}>(),
+      mockTypeReflect: () => {
+        const v: {[k: number]: string} = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {0: 'x'}, {1: 'x', 2: 'y'}],
         invalid: [{0: 1}, null, 'not object', undefined, {0: null}],
@@ -4237,6 +4839,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number] = ['hello', 1];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<[string, number]>(),
+      mockTypeReflect: () => {
+        const v: [string, number] = ['hello', 1];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -4304,6 +4911,11 @@ export const VALIDATION_SUITE = {
         const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<[Date, number, string, null, string[], bigint]>(),
+      mockTypeReflect: () => {
+        const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[new Date(), 123, 'hello', null, ['a', 'b', 'c'], BigInt(123)]],
         invalid: [
@@ -4354,6 +4966,11 @@ export const VALIDATION_SUITE = {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<[number, bigint?, boolean?, number?]>(),
+      mockTypeReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[3, undefined, true, 4], [3], [3, 1n], [3, 1n, false]],
         invalid: [[], [3, 'not bigint'], [3, 1n, false, 4, 'extra'], 'not array', null, undefined, [NaN], ['not number']],
@@ -4395,6 +5012,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string, number][] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<[string, number][]>(),
+      mockTypeReflect: () => {
+        const v: [string, number][] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -4450,6 +5072,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [number, ...string[]] = [3];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<[number, ...string[]]>(),
+      mockTypeReflect: () => {
+        const v: [number, ...string[]] = [3];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[3], [3, 'a'], [3, 'a', 'b', 'c']],
@@ -4514,6 +5141,15 @@ export const VALIDATION_SUITE = {
         const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        return createMockType<TupleCircular>();
+      },
+      mockTypeReflect: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const v: TupleCircular = [new Date(), 1, 'a', null, [], 1n];
+        return createMockType(v);
+      },
       getSamples: () => {
         const tc: any = [new Date(), 1, 'a', null, [], 1n];
         const tcRec: any = [new Date(), 1, 'a', null, [], 1n, [new Date(), 1, 'a', null, [], 1n]];
@@ -4572,6 +5208,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<[number, bigint?, boolean?, number?]>(),
+      mockTypeReflect: () => {
+        const v: [number, bigint?, boolean?, number?] = [3];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -4634,6 +5275,11 @@ export const VALIDATION_SUITE = {
         const v: [name: string, age: number] = ['Alice', 30];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<[name: string, age: number]>(),
+      mockTypeReflect: () => {
+        const v: [name: string, age: number] = ['Alice', 30];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           ['Alice', 30],
@@ -4688,6 +5334,11 @@ export const VALIDATION_SUITE = {
         const v: [number, () => any] = [3, () => null];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<[number, () => any]>(),
+      mockTypeReflect: () => {
+        const v: [number, () => any] = [3, () => null];
+        return createMockType(v);
+      },
       getSamples: () => ({
         // `[3]` is valid — v[1] is undefined which satisfies the
         // `v[1] === undefined` check the function slot emits.
@@ -4739,6 +5390,11 @@ export const VALIDATION_SUITE = {
         const v: [] = [];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<[]>(),
+      mockTypeReflect: () => {
+        const v: [] = [];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [[]],
         invalid: [['extra'], [1], null, undefined, {}, 'not array', [null]],
@@ -4777,6 +5433,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: [string] = ['x'];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<[string]>(),
+      mockTypeReflect: () => {
+        const v: [string] = ['x'];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [['hello'], ['']],
@@ -4819,6 +5480,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: readonly [string, number] = ['x', 1];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<readonly [string, number]>(),
+      mockTypeReflect: () => {
+        const v: readonly [string, number] = ['x', 1];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -4880,6 +5546,11 @@ export const VALIDATION_SUITE = {
         const v: Date | number | string | null | bigint = 123;
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<Date | number | string | null | bigint>(),
+      mockTypeReflect: () => {
+        const v: Date | number | string | null | bigint = 123;
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', null, 1n],
         invalid: [{}, [], true, undefined, new Date('invalid'), Infinity, Symbol(), () => null],
@@ -4920,6 +5591,11 @@ export const VALIDATION_SUITE = {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<'UNO' | 'DOS' | 'TRES'>(),
+      mockTypeReflect: () => {
+        const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['UNO', 'DOS', 'TRES'],
         invalid: ['INVALID', 'uno', '', 42, null, undefined, true, 'Uno', {}],
@@ -4958,6 +5634,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string | number = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<string | number>(),
+      mockTypeReflect: () => {
+        const v: string | number = 'hello';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0, ''],
@@ -5000,6 +5681,11 @@ export const VALIDATION_SUITE = {
         const v: string[] | number[] | boolean[] = ['a'];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<string[] | number[] | boolean[]>(),
+      mockTypeReflect: () => {
+        const v: string[] | number[] | boolean[] = ['a'];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [['a'], [1], [true, false], [], ['a', 'b']],
         invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [Infinity], [null], [BigInt(1)]],
@@ -5040,6 +5726,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: (string | bigint | boolean | Date)[] = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<(string | bigint | boolean | Date)[]>(),
+      mockTypeReflect: () => {
+        const v: (string | bigint | boolean | Date)[] = [];
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [[1n, 'b', new Date(), true]],
@@ -5089,6 +5780,11 @@ export const VALIDATION_SUITE = {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      mockTypeReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
+        return createMockType(v);
+      },
       getSamples: () => ({
         // mion union.spec.ts uses loose matching — `{a, b, c}` passes
         // because `{b: number}` is satisfied. Our emit accepts any
@@ -5134,6 +5830,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      mockTypeReflect: () => {
+        const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -5206,6 +5907,15 @@ export const VALIDATION_SUITE = {
         const v: UnionC = 'hello';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        return createMockType<UnionC>();
+      },
+      mockTypeReflect: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const v: UnionC = 'hello';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [new Date(), 123, 'hello', {}, {a: {a: {}}}, {b: 'hello'}, [], [{a: {}}, [123, 'hello']]],
         invalid: [true, null, undefined, {a: true}, [true], new Date('invalid'), Infinity, Symbol()],
@@ -5259,6 +5969,14 @@ export const VALIDATION_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      mockTypeReflect: () => {
+        const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
+          name: 'x',
+          getName: () => 'x',
+        };
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{name: 'x', getName: () => 'x'}, {age: 1, getAge: () => 1}, {name: 'x'}, {age: 1}],
         invalid: [{}, null, 'not object', [], undefined, true, 42, {name: 1}, {age: 'x'}],
@@ -5299,6 +6017,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string} & {b: number} = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: string} & {b: number}>(),
+      mockTypeReflect: () => {
+        const v: {a: string} & {b: number} = {a: 'x', b: 1};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -5350,6 +6073,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      mockTypeReflect: () => {
+        const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello', aa: true}, {b: 123}, {c: 1n, d: 2n}],
@@ -5414,6 +6142,14 @@ export const VALIDATION_SUITE = {
           prop: true,
         };
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      mockTypeReflect: () => {
+        const v: {type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string} = {
+          type: 'a',
+          prop: true,
+        };
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -5492,6 +6228,16 @@ export const VALIDATION_SUITE = {
         ];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () =>
+        createMockType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      mockTypeReflect: () => {
+        const v: string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'} = [
+          'a',
+          'b',
+          'c',
+        ];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -5544,6 +6290,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {a: boolean} | {a: number} = {a: true};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{a: boolean} | {a: number}>(),
+      mockTypeReflect: () => {
+        const v: {a: boolean} | {a: number} = {a: true};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{a: true}, {a: false}, {a: 123}, {a: 0}],
@@ -5632,6 +6383,23 @@ export const VALIDATION_SUITE = {
           | {[key: string]: bigint; b: bigint} = ['a'];
         return deserializeGetTypeErrors(v);
       },
+      mockType: () =>
+        createMockType<
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint}
+        >(),
+      mockTypeReflect: () => {
+        const v:
+          | string[]
+          | {a: string; aa: boolean}
+          | {b: number}
+          | {a: string; [key: string]: string}
+          | {[key: string]: bigint; b: bigint} = ['a'];
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           ['a', 'b', 'c'],
@@ -5678,6 +6446,11 @@ export const VALIDATION_SUITE = {
         const v: string | any = 'hello';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<string | any>(),
+      mockTypeReflect: () => {
+        const v: string | any = 'hello';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
         invalid: [],
@@ -5709,6 +6482,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: string | unknown = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<string | unknown>(),
+      mockTypeReflect: () => {
+        const v: string | unknown = 'hello';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['hello', 123, {foo: 'bar'}, null, undefined, true, []],
@@ -5806,6 +6584,27 @@ export const VALIDATION_SUITE = {
         }
         const v: SmallObj | LargeObj = {a: 'hello'};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        return createMockType<SmallObj | LargeObj>();
+      },
+      mockTypeReflect: () => {
+        interface SmallObj {
+          a: string;
+        }
+        interface LargeObj {
+          a: string;
+          b: number;
+        }
+        const v: SmallObj | LargeObj = {a: 'hello'};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{a: 'hello'}, {a: 'hello', b: 123}],
@@ -5951,6 +6750,37 @@ export const VALIDATION_SUITE = {
         const v: Tiny | Medium | Large = {x: 'hello'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        return createMockType<Tiny | Medium | Large>();
+      },
+      mockTypeReflect: () => {
+        interface Tiny {
+          x: string;
+        }
+        interface Medium {
+          x: string;
+          y: number;
+        }
+        interface Large {
+          x: string;
+          y: number;
+          z: boolean;
+        }
+        const v: Tiny | Medium | Large = {x: 'hello'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{x: 'hello'}, {x: 'hello', y: 123}, {x: 'hello', y: 123, z: true}],
         // Note: `{x: 'hello', ...}` passes the Tiny arm regardless of
@@ -6080,6 +6910,33 @@ export const VALIDATION_SUITE = {
         const v: Base | Extended | Unrelated = {id: '123'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        return createMockType<Base | Extended | Unrelated>();
+      },
+      mockTypeReflect: () => {
+        interface Base {
+          id: string;
+        }
+        interface Extended {
+          id: string;
+          name: string;
+        }
+        interface Unrelated {
+          value: number;
+        }
+        const v: Base | Extended | Unrelated = {id: '123'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{id: '123'}, {id: '123', name: 'test'}, {value: 42}],
         invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}, null, undefined, {value: NaN}],
@@ -6136,6 +6993,11 @@ export const VALIDATION_SUITE = {
         const v: `api/user/${number}` = 'api/user/42';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<`api/user/${number}`>(),
+      mockTypeReflect: () => {
+        const v: `api/user/${number}` = 'api/user/42';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['api/user/42', 'api/user/0', 'api/user/3.14', 'api/user/-7'],
         invalid: [
@@ -6188,6 +7050,11 @@ export const VALIDATION_SUITE = {
         const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<`/api/v${number}/user/${string}/posts/${number}`>(),
+      mockTypeReflect: () => {
+        const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['/api/v1/user/jane/posts/7', '/api/v2/user/joe/posts/0'],
         invalid: [
@@ -6237,6 +7104,11 @@ export const VALIDATION_SUITE = {
         const v: `${string}/${number}` = '/42';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<`${string}/${number}`>(),
+      mockTypeReflect: () => {
+        const v: `${string}/${number}` = '/42';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['/42', 'users/42'],
         invalid: ['users', '/abc', null, undefined, '', 42, 'abc/abc'],
@@ -6275,6 +7147,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: `(${number})` = '(42)';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<`(${number})`>(),
+      mockTypeReflect: () => {
+        const v: `(${number})` = '(42)';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['(42)', '(0)', '(-3.14)'],
@@ -6316,6 +7193,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<{url: `api/user/${number}`; method: string}>(),
+      mockTypeReflect: () => {
+        const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{url: 'api/user/42', method: 'GET'}],
@@ -6366,6 +7248,11 @@ export const VALIDATION_SUITE = {
         const v: {[key: `api/${string}`]: number} = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<{[key: `api/${string}`]: number}>(),
+      mockTypeReflect: () => {
+        const v: {[key: `api/${string}`]: number} = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {'api/users': 1}, {'api/users': 1, 'api/admin': 2}],
         invalid: [{foo: 1}, {'api/users': 'not number'}, {'api/users': 1, foo: 2}, null, undefined, {'api/users': NaN}],
@@ -6408,6 +7295,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: `${'a' | 'b'}-${number}` = 'a-42';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<`${'a' | 'b'}-${number}`>(),
+      mockTypeReflect: () => {
+        const v: `${'a' | 'b'}-${number}` = 'a-42';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['a-42', 'b-0', 'a--3.14'],
@@ -6466,6 +7358,11 @@ export const VALIDATION_SUITE = {
         const v: Map<string, number> = new Map();
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<Map<string, number>>(),
+      mockTypeReflect: () => {
+        const v: Map<string, number> = new Map();
+        return createMockType(v);
+      },
       getSamples: () => {
         const empty = new Map();
         const one = new Map([['a', 1]]);
@@ -6520,6 +7417,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Set<string> = new Set();
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<Set<string>>(),
+      mockTypeReflect: () => {
+        const v: Set<string> = new Set();
+        return createMockType(v);
       },
       getSamples: () => {
         const empty = new Set<string>();
@@ -6576,6 +7478,11 @@ export const VALIDATION_SUITE = {
         const v: Promise<string> = Promise.resolve('x');
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => createMockType<Promise<string>>(),
+      mockTypeReflect: () => {
+        const v: Promise<string> = Promise.resolve('x');
+        return createMockType(v);
+      },
       getSamples: () => {
         const realPromise = Promise.resolve('x');
         const thenable = {then: () => null};
@@ -6623,6 +7530,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Awaited<Promise<string>> = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<Awaited<Promise<string>>>(),
+      mockTypeReflect: () => {
+        const v: Awaited<Promise<string>> = 'hello';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['hello', ''],
@@ -6737,6 +7649,25 @@ export const VALIDATION_SUITE = {
         const v: Circular = {n: 1, s: 'hello'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        return createMockType<Circular>();
+      },
+      mockTypeReflect: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        const v: Circular = {n: 1, s: 'hello'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {n: 1, s: 'hello', c: {n: 2, s: 'world'}},
@@ -6808,6 +7739,15 @@ export const VALIDATION_SUITE = {
         type CuArray = (CuArray | Date | number | string)[];
         const v: CuArray = [];
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        return createMockType<CuArray>();
+      },
+      mockTypeReflect: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        const v: CuArray = [];
+        return createMockType(v);
       },
       getSamples: () => {
         const date = new Date();
@@ -6901,6 +7841,19 @@ export const VALIDATION_SUITE = {
         const v: CircularTuple = {tuple: [1n]};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        return createMockType<CircularTuple>();
+      },
+      mockTypeReflect: () => {
+        interface CircularTuple {
+          tuple: [bigint, CircularTuple?];
+        }
+        const v: CircularTuple = {tuple: [1n]};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{tuple: [1n, {tuple: [2n, {tuple: [3n, {tuple: [4n]}]}]}]}, {tuple: [1n, {tuple: [2n]}]}, {tuple: [1n]}],
         invalid: [
@@ -6990,6 +7943,19 @@ export const VALIDATION_SUITE = {
         const v: CircularIndex = {index: {}};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        return createMockType<CircularIndex>();
+      },
+      mockTypeReflect: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        const v: CircularIndex = {index: {}};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{index: {a: {index: {b: {index: {}}}}}}, {index: {a: {index: {}}}}, {index: {}}],
         invalid: [
@@ -7075,6 +8041,19 @@ export const VALIDATION_SUITE = {
         }
         const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        return createMockType<CircularDeep>();
+      },
+      mockTypeReflect: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        const v: CircularDeep = {deep1: {deep2: {deep3: {}}}};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{deep1: {deep2: {deep3: {deep4: {deep1: {deep2: {deep3: {}}}}}}}}, {deep1: {deep2: {deep3: {}}}}],
@@ -7227,6 +8206,34 @@ export const VALIDATION_SUITE = {
           ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
         };
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        return createMockType<RootNotCircular>();
+      },
+      mockTypeReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        const v: RootNotCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+        };
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -7478,6 +8485,53 @@ export const VALIDATION_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        return createMockType<RootCircular>();
+      },
+      mockTypeReflect: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        const v: RootCircular = {
+          isRoot: true,
+          ciChild: {name: 'hello', big: 1n, embedded: {hello: 'world'}},
+          ciDate: {date: new Date(), month: 1, year: 2021},
+        };
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {
@@ -7661,6 +8715,23 @@ export const VALIDATION_SUITE = {
         const v: Partial<Person> = {};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createMockType<Partial<Person>>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> = {};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{}, {name: 'John'}, {createdAt: new Date()}, {name: 'John', age: 30, createdAt: new Date()}],
         invalid: [
@@ -7765,6 +8836,23 @@ export const VALIDATION_SUITE = {
         }
         const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        return createMockType<Required<MaybePerson>>();
+      },
+      mockTypeReflect: () => {
+        interface MaybePerson {
+          name?: string;
+          age?: number;
+          createdAt?: Date;
+        }
+        const v: Required<MaybePerson> = {name: 'John', age: 30, createdAt: new Date()};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{name: 'John', age: 30, createdAt: new Date()}],
@@ -7872,6 +8960,23 @@ export const VALIDATION_SUITE = {
         const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createMockType<Pick<Person, 'name' | 'createdAt'>>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Pick<Person, 'name' | 'createdAt'> = {name: 'John', createdAt: new Date()};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -7970,6 +9075,23 @@ export const VALIDATION_SUITE = {
         const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createMockType<Omit<Person, 'age'>>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Omit<Person, 'age'> = {name: 'John', createdAt: new Date()};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John', createdAt: new Date()},
@@ -8008,6 +9130,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      mockTypeReflect: () => {
+        const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
@@ -8048,6 +9175,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      mockTypeReflect: () => {
+        const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['name', 'createdAt'],
@@ -8128,6 +9260,21 @@ export const VALIDATION_SUITE = {
         const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        return createMockType<Exclude<Shape, {kind: 'circle'}>>();
+      },
+      mockTypeReflect: () => {
+        type Shape =
+          | {kind: 'circle'; radius: number}
+          | {kind: 'square'; x: number}
+          | {kind: 'triangle'; base: number; height: number};
+        const v: Exclude<Shape, {kind: 'circle'}> = {kind: 'square', x: 5};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {kind: 'square', x: 5},
@@ -8176,6 +9323,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: NonNullable<string | number | null | undefined> = 'hello';
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<NonNullable<string | number | null | undefined>>(),
+      mockTypeReflect: () => {
+        const v: NonNullable<string | number | null | undefined> = 'hello';
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: ['hello', 42, 0],
@@ -8230,6 +9382,15 @@ export const VALIDATION_SUITE = {
         type Fn = (a: number, b: boolean) => Date;
         const v: ReturnType<Fn> = new Date();
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        return createMockType<ReturnType<Fn>>();
+      },
+      mockTypeReflect: () => {
+        type Fn = (a: number, b: boolean) => Date;
+        const v: ReturnType<Fn> = new Date();
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [new Date()],
@@ -8310,6 +9471,21 @@ export const VALIDATION_SUITE = {
         }
         const v: Readonly<Person> = {name: 'John', age: 30};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return createMockType<Readonly<Person>>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Readonly<Person> = {name: 'John', age: 30};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -8413,6 +9589,23 @@ export const VALIDATION_SUITE = {
         const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createMockType<Partial<Person> & Required<Pick<Person, 'name'>>>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: Partial<Person> & Required<Pick<Person, 'name'>> = {name: 'John'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {name: 'John'},
@@ -8465,6 +9658,11 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => createMockType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      mockTypeReflect: () => {
+        const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [{c: true}, {b: 1, c: false}, {c: true, b: undefined}],
@@ -8559,6 +9757,23 @@ export const VALIDATION_SUITE = {
         const v: keyof Person = 'name';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        return createMockType<keyof Person>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+          createdAt: Date;
+        }
+        const v: keyof Person = 'name';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['name', 'age', 'createdAt'],
         invalid: ['other', '', 42, null, undefined, true, 'Name'],
@@ -8611,6 +9826,14 @@ export const VALIDATION_SUITE = {
       deserializeGetTypeErrorsReflect: () => {
         const config = {url: 'http://example.com', port: 8080};
         return deserializeGetTypeErrors(config);
+      },
+      mockType: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return createMockType<typeof config>();
+      },
+      mockTypeReflect: () => {
+        const config = {url: 'http://example.com', port: 8080};
+        return createMockType(config);
       },
       getSamples: () => ({
         valid: [
@@ -8698,6 +9921,21 @@ export const VALIDATION_SUITE = {
         const v: Person['name'] = 'x';
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        return createMockType<Person['name']>();
+      },
+      mockTypeReflect: () => {
+        interface Person {
+          name: string;
+          age: number;
+        }
+        const v: Person['name'] = 'x';
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: ['hello', ''],
         invalid: [42, null, undefined, true],
@@ -8749,6 +9987,15 @@ export const VALIDATION_SUITE = {
         type IsString<T> = T extends string ? boolean : number;
         const v: IsString<'hello'> = true;
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        return createMockType<IsString<'hello'>>();
+      },
+      mockTypeReflect: () => {
+        type IsString<T> = T extends string ? boolean : number;
+        const v: IsString<'hello'> = true;
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [true, false],
@@ -8835,6 +10082,23 @@ export const VALIDATION_SUITE = {
         type Nullable<T> = {[K in keyof T]: T[K] | null};
         const v: Nullable<Source> = {a: 'x', b: 1};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        return createMockType<Nullable<Source>>();
+      },
+      mockTypeReflect: () => {
+        interface Source {
+          a: string;
+          b: number;
+        }
+        type Nullable<T> = {[K in keyof T]: T[K] | null};
+        const v: Nullable<Source> = {a: 'x', b: 1};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -9016,6 +10280,43 @@ export const VALIDATION_SUITE = {
         };
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        return createMockType<UserForm>();
+      },
+      mockTypeReflect: () => {
+        type FieldFor<T> = T extends string
+          ? {kind: 'text'; value: string}
+          : T extends number
+            ? {kind: 'number'; value: number; min?: number}
+            : T extends boolean
+              ? {kind: 'checkbox'; value: boolean}
+              : never;
+        interface User {
+          name: string;
+          age: number;
+          admin: boolean;
+        }
+        type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+        const v: UserForm = {
+          name: {kind: 'text', value: 'x'},
+          age: {kind: 'number', value: 1},
+          admin: {kind: 'checkbox', value: true},
+        };
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {
@@ -9105,6 +10406,15 @@ export const VALIDATION_SUITE = {
         const v: Wrap<string | number> = {w: 'x'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        return createMockType<Wrap<string | number>>();
+      },
+      mockTypeReflect: () => {
+        type Wrap<T> = T extends any ? {w: T} : never;
+        const v: Wrap<string | number> = {w: 'x'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{w: 'hello'}, {w: 42}],
         invalid: [{w: true}, {w: null}, {}, null, undefined, {w: NaN}],
@@ -9192,6 +10502,23 @@ export const VALIDATION_SUITE = {
         type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
         const v: DeepPartial<Settings> = {};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        return createMockType<DeepPartial<Settings>>();
+      },
+      mockTypeReflect: () => {
+        interface Settings {
+          display: {theme: 'light' | 'dark'; brightness: number};
+          audio: {volume: number; muted: boolean};
+        }
+        type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+        const v: DeepPartial<Settings> = {};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
@@ -9311,6 +10638,23 @@ export const VALIDATION_SUITE = {
         const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Source {
+          id: number;
+          name: string;
+        }
+        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
+        return createMockType<Prefixed<Source>>();
+      },
+      mockTypeReflect: () => {
+        interface Source {
+          id: number;
+          name: string;
+        }
+        type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
+        const v: Prefixed<Source> = {user_id: 1, user_name: 'x'};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [
           {user_id: 1, user_name: 'x'},
@@ -9416,6 +10760,25 @@ export const VALIDATION_SUITE = {
         const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
         return deserializeGetTypeErrors(v);
       },
+      mockType: () => {
+        interface Source {
+          id: number;
+          name: string;
+          createdAt: Date;
+        }
+        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
+        return createMockType<MongoForm<Source>>();
+      },
+      mockTypeReflect: () => {
+        interface Source {
+          id: number;
+          name: string;
+          createdAt: Date;
+        }
+        type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
+        const v: MongoForm<Source> = {_id: 1, name: 'x', createdAt: new Date()};
+        return createMockType(v);
+      },
       getSamples: () => ({
         valid: [{_id: 1, name: 'x', createdAt: new Date()}],
         invalid: [
@@ -9519,6 +10882,25 @@ export const VALIDATION_SUITE = {
         type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
         const v: Public<Source> = {id: 1, name: 'x'};
         return deserializeGetTypeErrors(v);
+      },
+      mockType: () => {
+        interface Source {
+          id: number;
+          name: string;
+          secret: string;
+        }
+        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
+        return createMockType<Public<Source>>();
+      },
+      mockTypeReflect: () => {
+        interface Source {
+          id: number;
+          name: string;
+          secret: string;
+        }
+        type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
+        const v: Public<Source> = {id: 1, name: 'x'};
+        return createMockType(v);
       },
       getSamples: () => ({
         valid: [
