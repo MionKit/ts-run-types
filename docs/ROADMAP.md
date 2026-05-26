@@ -119,6 +119,34 @@ Rationale: the wire format leans on dedup/minimality elsewhere; carrying `unionI
 
 `compiledName` in mion's struct is a codegen-time local variable name; it isn't wire data and is allocated by the consumer when emitting JS.
 
+### Binary serialization — function-params router conveniences
+
+Mion's binary spec carries two features that the JSON family doesn't need and that we have intentionally **not** ported:
+
+| Feature                          | What it does                                                                                                                                                  | Mion location                                                                                                                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All function params are optional | Every top-level tuple slot becomes optional at the binary protocol level — a caller can transmit `['hello', undefined, undefined]` for a `(a, b, c)` function and the receiver decodes the bits that are set. Enables partial-payload RPC. | `mion/packages/run-types/src/jitCompilers/binary/binarySpec/13BinaryAllParamsOptional.spec.ts` (10 cases), driven by `rt.createJitParamsFunction(toBinary)` / `createSerializationParamsFn` in `binaryHelpers.ts`. |
+| `paramsSlice`                    | Skips the leading N params of a function tuple before serialising. Used by mion's router to strip an injected context arg (`(ctx, a, b)` → wire shape only `(a, b)`).                                                                       | Same file, plus the `slice function params` test in `06BinaryFunctions.spec.ts`. Mion exposes this via the 2nd argument of `createSerializationParamsFn(rt, sliceStart)`.                                              |
+
+Both are router-layer conveniences, not generic type-system features. ts-go-run-types is the latter, so neither has a use case in the current public API surface.
+
+**Why we don't re-introduce `SubKindParams` to the protocol to support these:**
+
+Every other JIT generator (`isType`, `getTypeErrors`, `prepareForJson`, `restoreFromJson`, `stringifyJson`, `prepareForJsonSafe`, `prepareForJsonSafePreserve`, `hasUnknownKeys`, `stripUnknownKeys`, `unknownKeyErrors`, `unknownKeysToUndefined`, `unknownKeysToUndefinedWire`) consumes function parameters via the TS-native `Parameters<typeof fn>` slice — which lowers to a plain tuple at the type-checker layer. None of them carry or read a "this tuple is function params" marker. Adding `SubKindParams` for `toBinary` / `fromBinary` alone would force every other family to either ignore it (wasted protocol bytes) or branch on it (asymmetric code paths across the JIT family). Both are worse than the current uniformity, which is: **`Parameters<typeof fn>` is a tuple, period; binary handles it like any other tuple**.
+
+**Migration path if we ever need these features:**
+
+Surface them as caller-driven options on the binary entry points, not as protocol-level type variants:
+
+```ts
+createBinaryEncoder<T>(val?, options?: {allOptional?: boolean; sliceStart?: number}, id?)
+createBinaryDecoder<T>(val?, options?: {allOptional?: boolean; sliceStart?: number}, id?)
+```
+
+The Go-side wiring already supports the `allOptional` half — `emitTupleToBinary` in `internal/caches/jitfn/tobinary.go` reads an `isFnParams` flag and uses `isFnParams || resolved.Optional` to decide the bitmap slot for each member. The flag is currently hardcoded to `false`; lifting it to a per-request option that the encoder factory threads through is the cleanest path. `sliceStart` is similar — start the bitmap loop at the supplied offset and skip the leading children at compile time.
+
+The corresponding 10 `13BinaryAllParamsOptional` tests + the `slice function params` test become a new `test/adapters/binaryParams.test.ts` file (small enough to hand-write — they're all variations on the same idea, no shared suite needed) once the API is in place.
+
 ---
 
 ## Compiler / resolver features not yet shipped
