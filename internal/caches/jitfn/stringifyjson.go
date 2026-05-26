@@ -151,11 +151,17 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return JitCode{Code: "(" + v + " ? 'true' : 'false')", Type: CodeE}
 
 	case protocol.KindEnum:
-		// mion:stringifyJson.ts:51-53 — number enums emit the bare
-		// numeric value (already a valid JSON literal at any
-		// position); string enums quote via JSON.stringify. Without
-		// an Index distinction in our Go IR, default to the safe
-		// JSON.stringify shape.
+		// mion:stringifyJson.ts:51-53 — number-indexed enums emit the
+		// bare value (already a valid JSON number literal at any
+		// position); string enums quote via JSON.stringify. The
+		// serializer populates RunType.IndexT for every enum so we can
+		// branch on the underlying numeric/string kind here.
+		if rt.IndexT != nil {
+			indexResolved := ctx.ResolveRef(rt.IndexT)
+			if indexResolved != nil && indexResolved.Kind == protocol.KindNumber {
+				return JitCode{Code: v, Type: CodeE}
+			}
+		}
 		return JitCode{Code: "JSON.stringify(" + v + ")", Type: CodeE}
 
 	case protocol.KindLiteral:
