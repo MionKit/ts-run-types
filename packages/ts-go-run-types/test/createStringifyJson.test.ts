@@ -74,6 +74,41 @@ describe('createStringifyJson — atomic raw output', () => {
     const d = new Date('2000-08-06T02:13:00.000Z');
     expect(sjs(d)).toBe('"2000-08-06T02:13:00.000Z"');
   });
+
+  // ============================================================================
+  // Numeric-enum: mion emits the bare value (`v`) at the JS literal slot
+  // rather than `JSON.stringify(v)`, because a JS number is already a
+  // valid JSON literal at any position. Mirrors mion's
+  // jitCompilers/json/stringifyJson.ts:51-53 — the protocol's `IndexT`
+  // field carries the enum's underlying kind, and our emit branches on
+  // `KindNumber` to elide the wrap. String enums keep the JSON.stringify
+  // call so the output is properly quoted.
+  // ============================================================================
+
+  test('numeric enum — bare value at root + array', () => {
+    enum N {
+      A,
+      B,
+      C,
+    }
+    const sjs = createJsonEncoder<N>();
+    expect(sjs(N.A)).toBe('0');
+    expect(sjs(N.B)).toBe('1');
+    expect(sjs(N.C)).toBe('2');
+    const arr = createJsonEncoder<N[]>();
+    expect(arr([N.A, N.C, N.B])).toBe('[0,2,1]');
+  });
+
+  test('string enum — quoted via JSON.stringify', () => {
+    enum S {
+      Red = 'red',
+      Green = 'green',
+    }
+    const sjs = createJsonEncoder<S>();
+    expect(sjs(S.Red)).toBe('"red"');
+    const arr = createJsonEncoder<S[]>();
+    expect(arr([S.Red, S.Green])).toBe('["red","green"]');
+  });
 });
 
 describe('createStringifyJson — compound shapes', () => {
