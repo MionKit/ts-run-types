@@ -1,6 +1,6 @@
 // isType adapter — runs every ValidationCase whose `isType` thunk is
 // defined against the precompiled validator the Go binary emits via
-// internal/caches/jitfn/istype.go.
+// internal/compiled/typefns/istype.go.
 //
 // Shape mirrors mion-run-types:packages/run-types/src/jitCompilers/json/jsonSpec/01JsonAtomic.spec.ts:
 // one explicit `it(...)` per case (no for-loop registration — keeps

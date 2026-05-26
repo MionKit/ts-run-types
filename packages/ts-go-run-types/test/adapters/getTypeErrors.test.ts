@@ -1,6 +1,6 @@
 // getTypeErrors adapter — runs every ValidationCase whose `getTypeErrors`
 // thunk is defined against the precompiled validator the Go binary emits
-// via internal/caches/jitfn/typeerrors.go.
+// via internal/compiled/typefns/typeerrors.go.
 //
 // Mirrors `isType.test.ts` shape exactly — one `describe(...)` per
 // category, one `it(...)` per case (no for-loop registration), a

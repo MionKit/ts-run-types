@@ -21,7 +21,7 @@ Living document. Captures **what's implemented**, **what's deliberately out of s
 | Decorators / `TypeNumberBrand`    | ❌ pending        | needs an AST-level scanner — see below                                         |
 | `infer` kind                      | ❌ pending        | reserved in the enum, only meaningful inside unresolved conditional types     |
 | Pre-process build mode            | ❌ pending        | bundler-agnostic CLI that writes the cache without Vite                        |
-| Serializer circular-detection     | ❌ pending        | jitfn currently treats every compound as non-inlined as a safer default        |
+| Serializer circular-detection     | ❌ pending        | typefns currently treats every compound as non-inlined as a safer default      |
 
 ---
 
@@ -77,7 +77,7 @@ Every mion `isType` node category is ported with end-to-end test coverage: **all
 
 The validation suite's `as const satisfies` type guard catches drift between the suite and the adapter `describe` blocks. Each block's "all cases ran" counter test catches forgotten `it()` registrations.
 
-**Renderer-side architecture**: composite emits propagate a `CodeNS` sentinel from any unsupported leaf upward through the existing compile pass; the renderer's dangling-dep cascade then drops any entry whose recorded deps weren't emitted. Replaces an earlier O(M·S) `subtreeFullySupported` pre-walk; runtime behavior is unchanged (unsupported types silently absent, createIsType-side noop fallback `() => true` handles the cache miss). See `internal/caches/jitfn/codetype.go` → `CodeNS` for the full contract.
+**Renderer-side architecture**: composite emits propagate a `CodeNS` sentinel from any unsupported leaf upward through the existing compile pass; the renderer's dangling-dep cascade then drops any entry whose recorded deps weren't emitted. Replaces an earlier O(M·S) `subtreeFullySupported` pre-walk; runtime behavior is unchanged (unsupported types silently absent, createIsType-side noop fallback `() => true` handles the cache miss). See `internal/compiled/typefns/codetype.go` → `CodeNS` for the full contract.
 
 **Out of scope for `isType`** (and tracked separately, will live in the validation-constraints library):
 - Number brand types (`int` / `uint8` / `Range<a, b>` / …)
@@ -143,7 +143,7 @@ createBinaryEncoder<T>(val?, options?: {allOptional?: boolean; sliceStart?: numb
 createBinaryDecoder<T>(val?, options?: {allOptional?: boolean; sliceStart?: number}, id?)
 ```
 
-The Go-side wiring already supports the `allOptional` half — `emitTupleToBinary` in `internal/caches/jitfn/tobinary.go` reads an `isFnParams` flag and uses `isFnParams || resolved.Optional` to decide the bitmap slot for each member. The flag is currently hardcoded to `false`; lifting it to a per-request option that the encoder factory threads through is the cleanest path. `sliceStart` is similar — start the bitmap loop at the supplied offset and skip the leading children at compile time.
+The Go-side wiring already supports the `allOptional` half — `emitTupleToBinary` in `internal/compiled/typefns/tobinary.go` reads an `isFnParams` flag and uses `isFnParams || resolved.Optional` to decide the bitmap slot for each member. The flag is currently hardcoded to `false`; lifting it to a per-request option that the encoder factory threads through is the cleanest path. `sliceStart` is similar — start the bitmap loop at the supplied offset and skip the leading children at compile time.
 
 The corresponding 10 `13BinaryAllParamsOptional` tests + the `slice function params` test become a new `test/adapters/binaryParams.test.ts` file (small enough to hand-write — they're all variations on the same idea, no shared suite needed) once the API is in place.
 

@@ -16,7 +16,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 
-	"github.com/mionkit/ts-run-types/internal/caches/runtype"
+	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"

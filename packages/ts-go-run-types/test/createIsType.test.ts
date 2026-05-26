@@ -2,7 +2,7 @@
 // vite-plugin pipeline via vitest's vite integration: the plugin
 // transforms this file at load time (injecting the runtype hash at
 // the createIsType call site), serves the `virtual:runtypes-isType`
-// module body from the Go-side jitfn renderer, and `createIsType`
+// module body from the Go-side typefns renderer, and `createIsType`
 // at runtime dispatches into the precompiled factory.
 //
 // Migrated from packages/vite-plugin-runtypes/test/jit-isType.test.ts,

@@ -16,7 +16,7 @@
 export function initCache(jitUtils) {
   // Pure-fn key consts referenced by emitted factory bodies. Names
   // mirror the Go-side alias table at
-  // internal/caches/jitfn/purefn_aliases.go.
+  // internal/compiled/typefns/purefn_aliases.go.
   const k_hasUnknownKeysFromArray = 'mion::hasUnknownKeysFromArray';
   const k_getUnknownKeysFromArray = 'mion::getUnknownKeysFromArray';
   // Register every entry on the shared jitUtils cache with `fn:
