@@ -141,8 +141,8 @@ second-registered fn overwrites the first.
 
 ## Step 5 — Go-side emitter
 
-Create one new file `internal/caches/jitfn/<fnname>.go` implementing
-the `Emitter` interface (see `internal/caches/jitfn/emitter.go` for
+Create one new file `internal/compiled/typefns/<fnname>.go` implementing
+the `Emitter` interface (see `internal/compiled/typefns/emitter.go` for
 the interface definition):
 
 ```go
@@ -166,7 +166,7 @@ func (<FnName>Emitter) Finalize(raw string) (string, bool) { /* append return <R
 **Architectural rule**: keep the entire switch in this one file.
 Don't split kind logic across per-kind files — the convention is
 "one giant switch per JIT fn family." Look at
-`internal/caches/jitfn/istype.go` and `typeerrors.go` as templates.
+`internal/compiled/typefns/istype.go` and `typeerrors.go` as templates.
 
 If the function needs path tracking (e.g. errors need to report
 "where in the value"), use the path-tracking infrastructure already
@@ -194,7 +194,7 @@ plumbing exactly:
   set `Added<FnName>` and populate `<FnName>CacheSource`
 - `internal/resolver/render.go` — add `render<FnName>Module(dump)`
   that calls into the new emitter
-- `internal/caches/jitfn/module.go` — add `<FnName>Module(w, dump)`
+- `internal/compiled/typefns/module.go` — add `<FnName>Module(w, dump)`
   one-liner that calls `RenderFnModule(w, dump,
   CacheModules["<fnname>"], <FnName>Emitter{}, "<fnname>_",
   cachetpl.Skeleton<FnName>)` plus `Any<FnName>Supported(runTypes)`
@@ -372,7 +372,7 @@ skip the round-trip assertion for it.
 ## Step 14 — Architectural invariants
 
 - All logic for the new fn lives in the single Go switch file
-  (`internal/caches/jitfn/<fnname>.go`). Don't spread kind logic
+  (`internal/compiled/typefns/<fnname>.go`). Don't spread kind logic
   across per-kind files.
 - The walker is fn-agnostic. Don't touch `walker.go` for a new fn
   unless you genuinely need new plumbing — e.g. `getTypeErrors`
@@ -412,13 +412,13 @@ pnpm run pre-publish-test
 - `mion/packages/run-types/src/lib/jitFnCompiler.ts`
 
 **Existing Go emitters as templates:**
-- `internal/caches/jitfn/istype.go`
-- `internal/caches/jitfn/typeerrors.go`
+- `internal/compiled/typefns/istype.go`
+- `internal/compiled/typefns/typeerrors.go`
 
 **Walker + emitter interface:**
-- `internal/caches/jitfn/walker.go`
-- `internal/caches/jitfn/emitter.go`
-- `internal/caches/jitfn/module.go`
+- `internal/compiled/typefns/walker.go`
+- `internal/compiled/typefns/emitter.go`
+- `internal/compiled/typefns/module.go`
 
 **Cache registration:**
 - `internal/constants/constants.go`

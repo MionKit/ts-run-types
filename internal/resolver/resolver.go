@@ -1,12 +1,12 @@
 // Package resolver is the session orchestrator. It owns a tsgo Program +
 // checker pool and dispatches incoming protocol ops across the three
-// cache generators under internal/caches/:
+// cache generators under internal/compiled/:
 //
-//   - runtype: resolves call-site type queries, deduplicates serialized
+//   - runtype:  resolves call-site type queries, deduplicates serialized
 //     RunType records, and emits the runTypes cache module.
-//   - jitfn:   precompiles `isType` validators for cached RunTypes the
+//   - typefns: precompiles `isType` validators for cached RunTypes the
 //     emitter supports.
-//   - purefn:  extracts `registerPureFnFactory(...)` bodies and emits
+//   - purefns: extracts `registerPureFnFactory(...)` bodies and emits
 //     the pureFns cache module.
 //
 // Per-op handlers live in dispatch.go; scanning helpers in scan.go;
@@ -20,7 +20,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
-	"github.com/mionkit/ts-run-types/internal/caches/runtype"
+	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -107,7 +107,7 @@ func newJITStore(opts Options) *disk.Store {
 
 // JITStore returns the on-disk JIT artifact cache, or nil when
 // disabled. Render-side wrappers read this to build the RenderOpts
-// they pass into the jitfn module renderers.
+// they pass into the typefns module renderers.
 func (resolver *Resolver) JITStore() *disk.Store {
 	if resolver == nil {
 		return nil

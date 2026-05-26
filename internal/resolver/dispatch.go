@@ -8,8 +8,8 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/compiler"
 	"github.com/microsoft/typescript-go/shim/tspath"
-	"github.com/mionkit/ts-run-types/internal/caches/jitfn"
-	"github.com/mionkit/ts-run-types/internal/caches/purefn"
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
+	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -33,20 +33,20 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// Per-cache "did this scan change anything?" signals consumed by
 		// the Vite plugin's handleHotUpdate.
 		addedRunTypes := len(added) > 0
-		addedIsType := addedRunTypes && jitfn.AnyIsTypeSupported(added)
-		addedTypeErrors := addedRunTypes && jitfn.AnyTypeErrorsSupported(added)
-		addedPrepareForJson := addedRunTypes && jitfn.AnyPrepareForJsonSupported(added)
-		addedRestoreFromJson := addedRunTypes && jitfn.AnyRestoreFromJsonSupported(added)
-		addedStringifyJson := addedRunTypes && jitfn.AnyStringifyJsonSupported(added)
-		addedPrepareForJsonSafe := addedRunTypes && jitfn.AnyPrepareForJsonSafeSupported(added)
-		addedPrepareForJsonSafePreserve := addedRunTypes && jitfn.AnyPrepareForJsonSafePreserveSupported(added)
-		addedHasUnknownKeys := addedRunTypes && jitfn.AnyHasUnknownKeysSupported(added)
-		addedStripUnknownKeys := addedRunTypes && jitfn.AnyStripUnknownKeysSupported(added)
-		addedUnknownKeyErrors := addedRunTypes && jitfn.AnyUnknownKeyErrorsSupported(added)
-		addedUnknownKeysToUndefined := addedRunTypes && jitfn.AnyUnknownKeysToUndefinedSupported(added)
-		addedUnknownKeysToUndefinedWire := addedRunTypes && jitfn.AnyUnknownKeysToUndefinedWireSupported(added)
-		addedToBinary := addedRunTypes && jitfn.AnyToBinarySupported(added)
-		addedFromBinary := addedRunTypes && jitfn.AnyFromBinarySupported(added)
+		addedIsType := addedRunTypes && typefns.AnyIsTypeSupported(added)
+		addedTypeErrors := addedRunTypes && typefns.AnyTypeErrorsSupported(added)
+		addedPrepareForJson := addedRunTypes && typefns.AnyPrepareForJsonSupported(added)
+		addedRestoreFromJson := addedRunTypes && typefns.AnyRestoreFromJsonSupported(added)
+		addedStringifyJson := addedRunTypes && typefns.AnyStringifyJsonSupported(added)
+		addedPrepareForJsonSafe := addedRunTypes && typefns.AnyPrepareForJsonSafeSupported(added)
+		addedPrepareForJsonSafePreserve := addedRunTypes && typefns.AnyPrepareForJsonSafePreserveSupported(added)
+		addedHasUnknownKeys := addedRunTypes && typefns.AnyHasUnknownKeysSupported(added)
+		addedStripUnknownKeys := addedRunTypes && typefns.AnyStripUnknownKeysSupported(added)
+		addedUnknownKeyErrors := addedRunTypes && typefns.AnyUnknownKeyErrorsSupported(added)
+		addedUnknownKeysToUndefined := addedRunTypes && typefns.AnyUnknownKeysToUndefinedSupported(added)
+		addedUnknownKeysToUndefinedWire := addedRunTypes && typefns.AnyUnknownKeysToUndefinedWireSupported(added)
+		addedToBinary := addedRunTypes && typefns.AnyToBinarySupported(added)
+		addedFromBinary := addedRunTypes && typefns.AnyFromBinarySupported(added)
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
@@ -457,11 +457,11 @@ func (resolver *Resolver) dispatchSetSources(sources map[string]string) error {
 // that drops one of its pure-fn calls still leaves the session entry
 // behind (matches the runTypes cache's structural-dedup contract;
 // the orphan is harmless until the next process restart).
-func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefn.Entry, diags []protocol.PureFnDiagnostic, replacements []protocol.Replacement, changed bool) {
+func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []purefns.Entry, diags []protocol.PureFnDiagnostic, replacements []protocol.Replacement, changed bool) {
 	if resolver.Program == nil || len(files) == 0 {
 		return nil, nil, nil, false
 	}
-	entries, rawDiags := purefn.ExtractFromProgram(resolver.Program, files)
+	entries, rawDiags := purefns.ExtractFromProgram(resolver.Program, files)
 	for _, entry := range entries {
 		key := entry.Key()
 		if existing, ok := resolver.pureFnHashes[key]; !ok || existing != entry.BodyHash {
@@ -473,7 +473,7 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 	for _, diag := range rawDiags {
 		diags = append(diags, toWireDiagnostic(diag))
 	}
-	replacements = purefn.Replacements(entries)
+	replacements = purefns.Replacements(entries)
 	return entries, diags, replacements, changed
 }
 
