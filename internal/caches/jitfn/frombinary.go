@@ -75,14 +75,24 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	case protocol.KindNull:
 		// Encoder wrote a 0 byte sentinel; decoder consumes it and
-		// returns null.
-		return JitCode{Code: des + ".view.getUint8(" + des + ".index++);" + ret + " = null", Type: CodeS}
+		// returns null. Comma-expression folds the `index++` advance
+		// into the assignment RHS — mion uses the same trick
+		// (binary/fromBinary.ts:55) to keep the emit as a single
+		// expression-shaped statement instead of two consecutive
+		// statements.
+		return JitCode{Code: ret + " = (" + des + ".index++, null)", Type: CodeS}
 
 	case protocol.KindBoolean:
 		return JitCode{Code: ret + " = !!" + des + ".view.getUint8(" + des + ".index++)", Type: CodeS}
 
 	case protocol.KindNumber:
-		return JitCode{Code: ret + " = " + des + ".view.getFloat64(" + des + ".index, 1); " + des + ".index += 8", Type: CodeS}
+		// Comma-expression trick — `getFloat64` is variadic-tolerant; the
+		// 3rd positional slot is ignored at runtime but its side-effect
+		// (`index += 8`) still runs as part of the call's argument
+		// evaluation. Mirrors mion's binary/fromBinary.ts:59 emit.
+		// Equivalent to `ret = getFloat64(des.index, 1); des.index += 8`
+		// but one statement instead of two.
+		return JitCode{Code: ret + " = " + des + ".view.getFloat64(" + des + ".index, 1, (" + des + ".index += 8))", Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
 		return JitCode{Code: ret + " = " + des + ".desString()", Type: CodeS}
@@ -91,7 +101,9 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return JitCode{Code: ret + " = BigInt(" + des + ".desString())", Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
-		return JitCode{Code: des + ".view.getUint8(" + des + ".index++);" + ret + " = undefined", Type: CodeS}
+		// Same comma-expression pattern as KindNull — mion
+		// binary/fromBinary.ts:69.
+		return JitCode{Code: ret + " = (" + des + ".index++, undefined)", Type: CodeS}
 
 	case protocol.KindSymbol:
 		return JitCode{Code: ret + " = Symbol(" + des + ".desString())", Type: CodeS}
@@ -136,7 +148,10 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 	case protocol.KindClass:
 		switch rt.SubKind {
 		case protocol.SubKindDate:
-			return JitCode{Code: ret + " = new Date(" + des + ".view.getFloat64(" + des + ".index, 1)); " + des + ".index += 8", Type: CodeS}
+			// Same comma-expression trick as KindNumber: the 3rd arg slot
+			// of getFloat64 carries the `index += 8` side-effect while
+			// the read result is wrapped in `new Date(…)`.
+			return JitCode{Code: ret + " = new Date(" + des + ".view.getFloat64(" + des + ".index, 1, (" + des + ".index += 8)))", Type: CodeS}
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableFromBinary(rt, ctx, ret, des)
 		case protocol.SubKindNonSerializable:
