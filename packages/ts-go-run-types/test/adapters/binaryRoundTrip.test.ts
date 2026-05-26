@@ -151,3 +151,94 @@ describe('binary round-trip: with shared serializer', () => {
     expect(dec(buf)).toBe('hello');
   });
 });
+
+describe('binary round-trip: tuples', () => {
+  it('fixed tuple [string, number]', () => {
+    type T = [string, number];
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    const v: T = ['hello', 42];
+    expect(dec(enc(v))).toEqual(v);
+  });
+
+  it('tuple with optional [string, number?]', () => {
+    type T = [string, number?];
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    const present: T = ['x', 1];
+    expect(dec(enc(present))).toEqual(present);
+  });
+});
+
+describe('binary round-trip: Map / Set', () => {
+  it('Map<string, number>', () => {
+    type T = Map<string, number>;
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    const v = new Map<string, number>([
+      ['a', 1],
+      ['b', 2],
+      ['c', 3],
+    ]);
+    const out = dec(enc(v)) as Map<string, number>;
+    expect(out instanceof Map).toBe(true);
+    expect([...out.entries()]).toEqual([...v.entries()]);
+  });
+
+  it('Set<string>', () => {
+    type T = Set<string>;
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    const v = new Set<string>(['a', 'b', 'c']);
+    const out = dec(enc(v)) as Set<string>;
+    expect(out instanceof Set).toBe(true);
+    expect([...out]).toEqual([...v]);
+  });
+
+  it('empty Map', () => {
+    type T = Map<string, number>;
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    const v = new Map<string, number>();
+    const out = dec(enc(v)) as Map<string, number>;
+    expect(out instanceof Map).toBe(true);
+    expect(out.size).toBe(0);
+  });
+});
+
+describe('binary round-trip: unions (flat-prop format)', () => {
+  it('atomic union string | number', () => {
+    type T = string | number;
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    expect(dec(enc('hello'))).toBe('hello');
+    expect(dec(enc(42))).toBe(42);
+  });
+
+  it('atomic union string | boolean | number', () => {
+    type T = string | boolean | number;
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    expect(dec(enc('s'))).toBe('s');
+    expect(dec(enc(true))).toBe(true);
+    expect(dec(enc(42))).toBe(42);
+  });
+
+  it('object union with shared props', () => {
+    type T = {kind: 'a'; value: number} | {kind: 'b'; label: string};
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    const a: T = {kind: 'a', value: 1};
+    const b: T = {kind: 'b', label: 'hi'};
+    // The flat-prop encoder merges these into one envelope with kind +
+    // value (when present) + label (when present). Decoded shape carries
+    // every merged prop slot, with undefined for the branch that didn't
+    // match.
+    const aOut = dec(enc(a)) as Record<string, unknown>;
+    expect(aOut.kind).toBe('a');
+    expect(aOut.value).toBe(1);
+    const bOut = dec(enc(b)) as Record<string, unknown>;
+    expect(bOut.kind).toBe('b');
+    expect(bOut.label).toBe('hi');
+  });
+});

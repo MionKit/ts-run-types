@@ -233,6 +233,12 @@ func emitMergedPropToBinary(mp FlatMergedProp, accessor string, ctx *EmitContext
 // shape. Reads the discriminator, then either dispatches to the
 // atomic-member's decode OR (when sentinel) reads the merged bitmap +
 // merged prop values.
+//
+// Note vs the JSON sibling (emitUnionRestoreFromJsonFlat): binary unions
+// ALWAYS write a discriminator regardless of layout.AtomicNeedsTuple.
+// JSON can recover atomics from their natural form
+// (`JSON.parse('42') === 42`); binary bytes are typeless so the decoder
+// must know which arm produced them. We ignore AtomicNeedsTuple here.
 func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des string) JitCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
