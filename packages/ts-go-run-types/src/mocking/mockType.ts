@@ -23,7 +23,7 @@
 
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../jit/types.ts';
-import {RunTypeKind, RunTypeSubKind} from '../reflectionKind.ts';
+import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
 import {
   mockAny,
   mockBigInt,
