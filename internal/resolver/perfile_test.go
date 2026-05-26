@@ -271,7 +271,7 @@ func containsID(runTypes []*protocol.RunType, id string) bool {
 // touches must never end up in the cache.
 //
 // The invariant is enforced by scanFiles walking CallExpression nodes
-// only (via walker.ForEachCallExpression) and triggering type
+// only (via forEachCallExpression) and triggering type
 // projection (cache.AssignID) only for marker call arguments. This
 // test makes the contract observable so a future refactor that
 // accidentally extended the scan to "every type the file declares"

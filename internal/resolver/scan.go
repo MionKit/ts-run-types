@@ -9,7 +9,6 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/protocol"
-	"github.com/mionkit/ts-run-types/internal/walker"
 )
 
 func (resolver *Resolver) sourceFile(file string) (*ast.SourceFile, error) {
@@ -103,7 +102,7 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 			return nil, nil, err
 		}
 		fileStart := len(sites)
-		walker.ForEachCallExpression(sourceFile, func(call *ast.Node) bool {
+		forEachCallExpression(sourceFile, func(call *ast.Node) bool {
 			site, diags, ok := resolver.scanCall(file, call)
 			if len(diags) > 0 {
 				diagnostics = append(diagnostics, diags...)
