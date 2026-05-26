@@ -560,9 +560,16 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	if len(rt.Children) == 0 {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	// SubKindParams isn't mirrored to the Go protocol; tuple emit
-	// always treats optional vs rest based on the tupleMember Optional
-	// flag.
+	// isFnParams stays false: ts-go-run-types intentionally does NOT
+	// surface mion's SubKindParams on the protocol. Every other JIT
+	// generator (isType / getTypeErrors / prepareForJson / restoreFromJson
+	// / stringifyJson / …) treats `Parameters<typeof fn>` as a plain
+	// tuple; adding the subkind for binary alone would create asymmetric
+	// dispatch across the JIT family. See `docs/ROADMAP.md` →
+	// "Binary serialization — function-params router conveniences" for
+	// the full rationale and the migration path (caller-driven option
+	// rather than protocol-level subkind) if we ever surface mion's
+	// all-optional + paramsSlice behaviours.
 	isFnParams := false
 
 	var required, optional, rest []*protocol.RunType
