@@ -206,6 +206,57 @@ describe('binary round-trip: Map / Set', () => {
   });
 });
 
+describe('binary round-trip: enum', () => {
+  it('numeric enum', () => {
+    enum Color {
+      Red = 0,
+      Green = 1,
+      Blue = 2,
+    }
+    const enc = createBinaryEncoder<Color>();
+    const dec = createBinaryDecoder<Color>();
+    expect(dec(enc(Color.Red))).toBe(Color.Red);
+    expect(dec(enc(Color.Green))).toBe(Color.Green);
+    expect(dec(enc(Color.Blue))).toBe(Color.Blue);
+  });
+
+  it('string enum', () => {
+    enum Mode {
+      Light = 'light',
+      Dark = 'dark',
+    }
+    const enc = createBinaryEncoder<Mode>();
+    const dec = createBinaryDecoder<Mode>();
+    expect(dec(enc(Mode.Light))).toBe('light');
+    expect(dec(enc(Mode.Dark))).toBe('dark');
+  });
+});
+
+describe('binary round-trip: literals', () => {
+  it('string literal "a"', () => {
+    type T = 'a';
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    expect(dec(enc('a'))).toBe('a');
+  });
+
+  it('numeric literal 42', () => {
+    type T = 42;
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    expect(dec(enc(42))).toBe(42);
+  });
+
+  it('union of string literals (no carrier object)', () => {
+    type T = 'a' | 'b' | 'c';
+    const enc = createBinaryEncoder<T>();
+    const dec = createBinaryDecoder<T>();
+    expect(dec(enc('a'))).toBe('a');
+    expect(dec(enc('b'))).toBe('b');
+    expect(dec(enc('c'))).toBe('c');
+  });
+});
+
 describe('binary round-trip: unions (flat-prop format)', () => {
   it('atomic union string | number', () => {
     type T = string | number;

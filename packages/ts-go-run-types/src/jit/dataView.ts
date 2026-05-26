@@ -27,6 +27,18 @@ const LE = true;
 
 const DEFAULT_BUFFER_SIZE = 2 ** 24; // 16 MiB
 
+// Minimal ambient declarations — the package's tsconfig sets `types: []`
+// so the standard `lib.dom.d.ts` globals aren't visible by default.
+// TextEncoder / TextDecoder are universally available in both Node (>=
+// 11) and every browser, so the typing surface here matches what we
+// actually call.
+declare const TextEncoder: {
+  new (): {encodeInto(input: string, dest: Uint8Array): {written?: number; read?: number}};
+};
+declare const TextDecoder: {
+  new (): {decode(input?: ArrayBufferView | ArrayBuffer): string};
+};
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
