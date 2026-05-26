@@ -1139,6 +1139,12 @@ func emitObjectIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode 
 	} else {
 		parts = append(parts, "typeof "+v+" === 'object' && "+v+" !== null")
 	}
+	// Publish the sibling-named-props set for any index-signature child
+	// so its emit can skip those keys via `if (sib === prop) continue;`
+	// at the top of the for-in loop. Mirrors mion's
+	// IndexSignatureRunType.getSkipCode + InterfaceRunType.getNamedChildren.
+	// No-op when the object has no index sig or no named props.
+	publishSiblingNamedKeysForIndexSig(rt, ctx)
 	allOptional := true
 	hasContributingChild := false
 	for _, child := range rt.Children {
@@ -1271,13 +1277,14 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 // mirroring mion's `getKeyPatternVar` + the early-return key check
 // inside the for-in body.
 //
-// The skip-named-props code (mion's `getSkipCode`) — which kicks in
-// when an interface mixes named props + an index signature so the
-// named props aren't double-checked by the index loop — is pending a
-// follow-up; today the named-prop check + the index-key check run
-// against the same key, which is correct for value-typed keys (the
-// value check passes if the named prop's value matches the index's
-// value type) but unnecessary work.
+// Sibling-named-prop skip: mion's `getSkipCode` (indexProperty.ts:166)
+// emits `if (sibA === prop || sibB === prop) continue;` at the top of
+// the for-in body so an object mixing named props with an index
+// signature doesn't double-check the named keys against the index's
+// value type. We honour the same semantic via the shared
+// publishSiblingNamedKeysForIndexSig (called from emitObjectIsType
+// before recursing into children) + siblingNamedSkipCode helpers in
+// unknownkeys_shared.go.
 func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeE}
@@ -1323,6 +1330,10 @@ func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) 
 	body.WriteString(" in ")
 	body.WriteString(v)
 	body.WriteString(") { ")
+	if skip := siblingNamedSkipCode(rt, ctx, keyVar); skip != "" {
+		body.WriteString(skip)
+		body.WriteString(" ")
+	}
 	if keyRegexVar != "" {
 		body.WriteString("if (!")
 		body.WriteString(keyRegexVar)

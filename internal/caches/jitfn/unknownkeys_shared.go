@@ -281,3 +281,81 @@ func trimWhitespace(code string) string {
 	}
 	return out
 }
+
+// siblingNamedKeysCtxKey returns the context-item key under which a
+// parent object's sibling-named-prop set is stored for `idxSig` (the
+// child index-signature RunType). The key is derived from the index
+// sig's own RunType ID — the only canonical handle the index-sig emit
+// has on itself, since we can't store parent-relative data on a shared
+// canonical node (see CLAUDE.md "Never store parent-relative data on a
+// canonical node").
+func siblingNamedKeysCtxKey(idxSig *protocol.RunType) string {
+	return "siblingNamed_" + idxSig.ID
+}
+
+// publishSiblingNamedKeysForIndexSig walks `rt`'s children; for each
+// IndexSignature child, registers a closure-prologue
+// `const siblingNamed_<idxSigID> = new Set(['name1', 'name2'])` so the
+// index-sig emit can guard `if (siblingNamed_X.has(prop)) continue;`
+// at the top of its for-in loop. Mirrors mion's
+// IndexSignatureRunType.getSkipCode + InterfaceRunType.getNamedChildren
+// (mion/packages/run-types/src/nodes/member/indexProperty.ts:166-173,
+// nodes/collection/interface.ts:getNamedChildren).
+//
+// Called from every per-family object emit (isType, typeErrors,
+// hasUnknownKeys, stripUnknownKeys, unknownKeyErrors,
+// unknownKeysToUndefined) when the object mixes named props with an
+// index signature. Each family compiles into its own walker with its
+// own context items, so the same key can be re-published per family
+// without collision.
+func publishSiblingNamedKeysForIndexSig(rt *protocol.RunType, ctx *EmitContext) {
+	var siblingNames []string
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil || resolved.Kind == protocol.KindIndexSignature {
+			continue
+		}
+		if resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		if resolved.Name != "" {
+			siblingNames = append(siblingNames, resolved.Name)
+		}
+	}
+	if len(siblingNames) == 0 {
+		return
+	}
+	siblingNames = dedupSortStrings(siblingNames)
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil || resolved.Kind != protocol.KindIndexSignature {
+			continue
+		}
+		ctxKey := siblingNamedKeysCtxKey(resolved)
+		if ctx.HasContextItem(ctxKey) {
+			continue
+		}
+		ctx.SetContextItem(ctxKey, "const "+ctxKey+" = new Set("+arrayToJSLiteral(siblingNames)+")")
+	}
+}
+
+// siblingNamedSkipCode returns the JS prologue to inject at the top
+// of an index-signature for-in loop body so iterations matching a
+// sibling named property are skipped. Returns "" when the parent
+// object emit didn't publish a sibling-names set for this idxSig
+// (objects without named props alongside the index sig). Mirrors
+// mion's getSkipCode return shape (indexProperty.ts:172) —
+// `if (sib === prop) continue;`. Multi-sibling form uses the published
+// Set for O(1) membership; mion emits `if (a===prop || b===prop) continue;`
+// but Set.has(prop) reads the same at runtime and we already build the
+// set for the unknownKeysToUndefined consumer.
+func siblingNamedSkipCode(idxSig *protocol.RunType, ctx *EmitContext, prop string) string {
+	if idxSig == nil {
+		return ""
+	}
+	ctxKey := siblingNamedKeysCtxKey(idxSig)
+	if !ctx.HasContextItem(ctxKey) {
+		return ""
+	}
+	return "if (" + ctxKey + ".has(" + prop + ")) continue;"
+}
