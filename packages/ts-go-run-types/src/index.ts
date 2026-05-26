@@ -149,10 +149,14 @@ export {
 // DataView helpers — exposed so consumers can pre-build a serializer /
 // deserializer instance and pass it to the encoder / decoder. Useful
 // when reusing buffers across many encodes (avoids the per-call
-// allocation).
+// allocation). `setSerializationOptions` tunes the string-bytes cache
+// and the adaptive buffer-sizing knobs at runtime.
 export {
   createDataViewSerializer,
   createDataViewDeserializer,
+  setSerializationOptions,
+  type CreateSerializerOptions,
+  type SerializationOptions,
   type DataViewSerializer,
   type DataViewDeserializer,
   type StrictArrayBuffer,
