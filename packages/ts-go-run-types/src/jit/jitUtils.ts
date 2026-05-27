@@ -22,7 +22,7 @@ import type {
   RunTypesCache,
 } from './types.ts';
 import {restoreCompiledJitFns} from './restoreJitFns.ts';
-import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticMessages.ts';
+import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
 
 // Minimal ambient — `console` is universally available at runtime (node + browser)
 // but the package's tsconfig sets `types: []` so the global isn't otherwise visible.

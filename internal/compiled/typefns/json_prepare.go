@@ -364,11 +364,11 @@ func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 			continue
 		}
 		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from prepareForJson output")
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
-			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is excluded from prepareForJson output")
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeS)
@@ -401,7 +401,7 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 	if isFunctionLikeKind(resolved.Kind) {
 		// Fast-path: pre-descent skip for known function-shaped children.
 		// Avoids the wasted walker descent + AbsorbUnsupported round-trip.
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from prepareForJson output")
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -417,7 +417,7 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 		// "How a parent absorbs".
 		leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf)
 		if leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from prepareForJson output")
+			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
 		return JitCode{Code: "", Type: CodeS}

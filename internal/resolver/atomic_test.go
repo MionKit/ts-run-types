@@ -3,7 +3,6 @@ package resolver_test
 import (
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/diag"
@@ -1112,11 +1111,8 @@ reflectRuntypeId(makeUser());
 	if d.Severity != diag.SeverityWarning {
 		t.Fatalf("expected severity warning (%d), got %d", diag.SeverityWarning, d.Severity)
 	}
-	if !strings.Contains(d.Message, "makeUser") {
-		t.Fatalf("expected message to mention `makeUser`, got %q", d.Message)
-	}
-	if !strings.Contains(d.Message, "ReturnType") {
-		t.Fatalf("expected message to suggest ReturnType, got %q", d.Message)
+	if len(d.Args) != 1 || d.Args[0] != "makeUser" {
+		t.Fatalf("expected args=[makeUser], got %v", d.Args)
 	}
 	// Site still emitted so the validator works.
 	if len(resp.Sites) != 1 {
@@ -1214,11 +1210,11 @@ createJsonEncoder<string>(undefined, opts);
 	if d.Code != diag.CodeMarkerNonLiteralOptions {
 		t.Fatalf("expected code %s, got %q", diag.CodeMarkerNonLiteralOptions, d.Code)
 	}
-	if d.Severity != diag.SeverityWarning {
-		t.Fatalf("expected severity warning (%d), got %d", diag.SeverityWarning, d.Severity)
+	if d.Severity != diag.SeverityError {
+		t.Fatalf("expected severity error (%d), got %d (MKR002 is Error: silently-dropped options diverge from source intent)", diag.SeverityError, d.Severity)
 	}
-	if !strings.Contains(d.Message, "plain object literal") {
-		t.Fatalf("expected message to mention `plain object literal`, got %q", d.Message)
+	if len(d.Args) != 0 {
+		t.Fatalf("expected no args for MKR002, got %v", d.Args)
 	}
 }
 

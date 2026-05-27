@@ -189,9 +189,9 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
       const collision = collisions[0];
       expect(collision.related?.length).toBe(1);
       expect(collision.related?.[0].filePath).not.toBe(collision.site.filePath);
-      // Message must include the colliding key in quotes — surface looks
-      // similar to TypeScript's "Duplicate identifier 'X'".
-      expect(collision.message).toContain('mion::collideFn');
+      // Args carry the colliding key — the catalog template substitutes
+      // it into the headline ("Duplicate registerPureFnFactory for `X`…").
+      expect(collision.args).toEqual(['mion::collideFn']);
 
       // Virtual module still loads, with the first-occurrence winner.
       const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
@@ -212,7 +212,7 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       const diags = pureFnDiagsOf(response);
-      const evalDiag = diags.find((d) => d.code === 'PFE9010' && d.message.includes('eval'));
+      const evalDiag = diags.find((d) => d.code === 'PFE9010' && d.args?.[0] === 'eval');
       expect(evalDiag).toBeDefined();
       // Ensure the formatted line matches the $tsc problem-matcher regex
       // — VS Code parses build-task output through that pattern.
@@ -238,7 +238,7 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       const diags = pureFnDiagsOf(response);
-      const closureDiag = diags.find((d) => d.code === 'PFE9011' && d.message.includes('PRECISION'));
+      const closureDiag = diags.find((d) => d.code === 'PFE9011' && d.args?.[0] === 'PRECISION');
       expect(closureDiag).toBeDefined();
     });
   });
@@ -248,7 +248,7 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
       code: 'PFE9001',
       family: Family.PureFn,
       severity: Severity.Error,
-      message: 'namespace must be a string literal',
+      args: ['identifier from another module'],
       site: {
         filePath: '/abs/path/x.ts',
         startLine: 12,
@@ -257,7 +257,11 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
         endCol: 9,
       },
     });
-    expect(line).toBe('/abs/path/x.ts(12,5): error PFE9001: namespace must be a string literal');
+    // Headline text comes from the JS catalog; we don't pin the exact
+    // copy here (catalog wording can evolve). Just confirm the line
+    // shape: <path>(<line>,<col>): <severity> <code>: <headline-with-arg>
+    expect(line).toMatch(/^\/abs\/path\/x\.ts\(12,5\): error PFE9001: /);
+    expect(line).toContain('identifier from another module');
     // VS Code's built-in $tsc problem matcher regex:
     expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+(error|warning)\s+[A-Z]+\d+:\s+.+$/);
   });
@@ -267,7 +271,7 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
       code: 'PFE9004',
       family: Family.PureFn,
       severity: Severity.Error,
-      message: 'Duplicate registration of "mion::fn" with mismatched bodyHash',
+      args: ['mion::fn'],
       site: {
         filePath: '/abs/b.ts',
         startLine: 5,

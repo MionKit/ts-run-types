@@ -219,7 +219,7 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// the factory as a noop so the renderer skips emitting it;
 		// consumers fall through to `() => []` on the JS side.
 		if ctx.IsRoot() {
-			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown, "typeErrors on any/unknown is a noop — every value passes")
+			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown)
 		}
 		return JitCode{Code: "", Type: CodeS}
 
@@ -553,14 +553,14 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 			continue
 		}
 		if resolved.IsStatic {
-			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is not checked by typeErrors")
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, memberLabel(resolved))
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
 			// Method / MethodSignature / CallSignature on the shape —
 			// skip from the children body (callable case is handled by
 			// the typeof === 'function' guard below).
-			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is not checked by typeErrors")
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeS)
@@ -626,7 +626,7 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 		return JitCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is not checked by typeErrors")
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
@@ -638,7 +638,7 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	if childJit.Type == CodeNS {
 		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
 		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
-			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is not checked by typeErrors")
+			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
 		return JitCode{Code: "", Type: CodeS}

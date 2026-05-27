@@ -173,7 +173,6 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		diagnostic := diag.New(
 			diag.CodeMarkerFreeTypeParameter,
 			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-			"marker call was made inside a generic function where the type argument is unknown until the function is invoked. The build can only compute an id for a concrete type (e.g. `User`, `{name: string}`). Either inline the marker call at each concrete call site, or accept the id as a `RuntypeId<T>` parameter from the caller.",
 		)
 		return protocol.Site{}, []diag.Diagnostic{diagnostic}, false
 	}
@@ -601,11 +600,10 @@ func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.No
 	startLine, startCol := scanLineCol(sourceFile, callArg.Pos())
 	endLine, endCol := scanLineCol(sourceFile, callArg.End())
 	fnName := callExpressionName(callArg)
-	return diag.Newf(
+	return diag.New(
 		diag.CodeMarkerFunctionCallArg,
 		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-		"Reflect-form marker call received a function-call result. The function `%s` is invoked at runtime purely to satisfy type inference, which can cause side effects, exceptions, or async work for no reason. Use the static form with `ReturnType<typeof fn>` instead — e.g. `createIsType<ReturnType<typeof %s>>()` — or pass a real value of the desired type.",
-		fnName, fnName,
+		fnName,
 	), true
 }
 
@@ -627,7 +625,6 @@ func (resolver *Resolver) markerDiagNonLiteralOptions(file string, optionsNode *
 	return diag.New(
 		diag.CodeMarkerNonLiteralOptions,
 		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-		"Marker options must be a plain object literal at the call site (e.g. `{mode: 'unsafe'}`). The resolver evaluates options at build time and folds their values into the JIT cache id — identifiers, spreads, and function-call results can't be read at build time and are silently treated as zero options.",
 	), true
 }
 

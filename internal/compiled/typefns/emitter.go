@@ -302,10 +302,13 @@ func (ctx *EmitContext) DiagCodeForLeaf(leaf *protocol.RunType) string {
 // time so the user can fix it before the factory is materialised.
 // Use this in place of bare JitThrow for any throw whose user-facing
 // cause is a fixable type-level problem (Never at root, function in
-// array, etc.) — i.e. all of them.
-func (ctx *EmitContext) JitThrowDiag(code, message string) JitCode {
-	ctx.walker.EmitDiagnostic(code, message)
-	return JitThrow(message)
+// array, etc.) — i.e. all of them. `inlineMsg` is the legacy runtime
+// throw message embedded in the JS factory body; the build-time
+// Diagnostic carries only the code+args and resolves text via the
+// JS-side catalog.
+func (ctx *EmitContext) JitThrowDiag(code string, inlineMsg string, args ...string) JitCode {
+	ctx.walker.EmitDiagnostic(code, args...)
+	return JitThrow(inlineMsg)
 }
 
 // JitThrowDiagSlot is the slot-keyed sibling of JitThrowDiag. Used by
@@ -313,23 +316,23 @@ func (ctx *EmitContext) JitThrowDiag(code, message string) JitCode {
 // active emitter's per-family code via DiagCodeFor. Falls back to bare
 // JitThrow (no diagnostic) when the emitter hasn't registered a code
 // for the slot.
-func (ctx *EmitContext) JitThrowDiagSlot(slot DiagSlot, message string) JitCode {
+func (ctx *EmitContext) JitThrowDiagSlot(slot DiagSlot, inlineMsg string, args ...string) JitCode {
 	code := ctx.DiagCodeFor(slot)
 	if code == "" {
-		return JitThrow(message)
+		return JitThrow(inlineMsg)
 	}
-	return ctx.JitThrowDiag(code, message)
+	return ctx.JitThrowDiag(code, inlineMsg, args...)
 }
 
 // EmitDiagnosticSlot is the slot-keyed sibling of EmitDiagnostic for
 // silent-skip sites. Resolves the code via the active emitter's
 // DiagCodeFor; no-op when the slot isn't registered.
-func (ctx *EmitContext) EmitDiagnosticSlot(slot DiagSlot, message string) {
+func (ctx *EmitContext) EmitDiagnosticSlot(slot DiagSlot, args ...string) {
 	code := ctx.DiagCodeFor(slot)
 	if code == "" {
 		return
 	}
-	ctx.walker.EmitDiagnostic(code, message)
+	ctx.walker.EmitDiagnostic(code, args...)
 }
 
 // EmitDiagnostic surfaces a build-time diagnostic without changing the
@@ -337,8 +340,8 @@ func (ctx *EmitContext) EmitDiagnosticSlot(slot DiagSlot, message string) {
 // where the emitter drops a member (function-typed property, method,
 // static field, …) and the user has no signal in their build output
 // that the slot is missing.
-func (ctx *EmitContext) EmitDiagnostic(code, message string) {
-	ctx.walker.EmitDiagnostic(code, message)
+func (ctx *EmitContext) EmitDiagnostic(code string, args ...string) {
+	ctx.walker.EmitDiagnostic(code, args...)
 }
 
 // ArgName looks up the JS identifier the inner function uses for a

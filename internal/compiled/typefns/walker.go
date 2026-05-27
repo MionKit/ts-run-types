@@ -223,10 +223,10 @@ func (w *Walker) AbsorbUnsupported() {
 // EmitDiagnostic records a compile-time diagnostic against every call
 // site that references the root RunType being walked. No-op when DiagSink
 // is unwired, the code has already fired for this walk, or no provenance
-// sites are known. The diagnostic message can be either the static
-// Definition.Template (when args is empty) or a printf-style format
-// against args.
-func (w *Walker) EmitDiagnostic(code, message string) {
+// sites are known. `args` are positional substitution values for the
+// JS-side catalog template — most sites pass 0 or 1 args (a property name
+// or a kind label); pass an empty list for arg-less codes.
+func (w *Walker) EmitDiagnostic(code string, args ...string) {
 	if w.DiagSink == nil {
 		return
 	}
@@ -244,7 +244,7 @@ func (w *Walker) EmitDiagnostic(code, message string) {
 		return
 	}
 	for _, site := range w.rootProvenance {
-		*w.DiagSink = append(*w.DiagSink, diag.New(code, site, message))
+		*w.DiagSink = append(*w.DiagSink, diag.New(code, site, args...))
 	}
 }
 

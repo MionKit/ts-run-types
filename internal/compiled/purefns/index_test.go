@@ -116,8 +116,8 @@ func TestValidatePureFnDependencies_MissingKey_PFE9012(t *testing.T) {
 	if diags[0].Code != CodeMissingPureFnDep {
 		t.Fatalf("expected %s, got %s", CodeMissingPureFnDep, diags[0].Code)
 	}
-	if !strings.Contains(diags[0].Message, "mion::doesNotExist") {
-		t.Errorf("message should mention the key, got %q", diags[0].Message)
+	if len(diags[0].Args) == 0 || diags[0].Args[0] != "mion::doesNotExist" {
+		t.Errorf("expected args[0]=mion::doesNotExist (the missing key), got %v", diags[0].Args)
 	}
 }
 
@@ -191,8 +191,8 @@ export const x = registerPureFnFactory('mion', 'somethingElse', function () { re
 	if len(diags) != 1 || diags[0].Code != CodeMissingPureFnDep {
 		t.Fatalf("expected one PFE9012 diagnostic, got %+v", diags)
 	}
-	if !strings.Contains(diags[0].Message, "mion::asJSONString") {
-		t.Errorf("message should mention the missing key, got %q", diags[0].Message)
+	if len(diags[0].Args) == 0 || diags[0].Args[0] != "mion::asJSONString" {
+		t.Errorf("expected args[0]=mion::asJSONString (the missing key), got %v", diags[0].Args)
 	}
 	if !idx.Scanned(files[0]) {
 		t.Fatal("the file must still be marked scanned (so future passes don't re-parse)")

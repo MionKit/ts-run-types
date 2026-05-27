@@ -46,7 +46,8 @@ export const _ = getRuntypeId<never>();
       expect(pjNever!.severity).toBe(Severity.Error);
       expect(pjNever!.site.filePath).toContain('never.ts');
       expect(pjNever!.site.startLine).toBeGreaterThan(0);
-      expect(pjNever!.message).toContain('Never type');
+      // Args carry the kind label; the catalog template substitutes it.
+      expect(pjNever!.args).toEqual(['Never']);
     });
   });
 
@@ -98,7 +99,7 @@ export const _ = getRuntypeId<User>();
         includeCacheSources: ['isType'],
       });
       const diags = runtypeDiagsOf(response);
-      const dropped = diags.find((d) => (d.code === 'IT010' || d.code === 'IT011') && d.message.includes('onClick'));
+      const dropped = diags.find((d) => (d.code === 'IT010' || d.code === 'IT011') && d.args?.[0] === 'onClick');
       expect(dropped, JSON.stringify(diags, null, 2)).toBeDefined();
       expect(dropped!.severity).toBe(Severity.Warning);
     });
