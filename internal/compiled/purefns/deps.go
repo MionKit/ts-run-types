@@ -4,30 +4,21 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/microsoft/typescript-go/shim/checker"
+	"github.com/mionkit/ts-run-types/internal/comptimeargs"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/marker"
 )
 
-// pureFnDepMethods is the set of jitUtils methods whose first argument
-// identifies a pure-function dependency. Mirrors the runtime tracking
-// proxy in pureFn.ts that used to discover these dynamically.
-//
-// All four key-style methods take a single `"<namespace>::<fnName>"`
-// composite key. `findCompiledPureFn` is the bare-name overload — its
-// argument is just the fnName, cross-namespace.
-var pureFnDepMethods = map[string]bool{
-	"getPureFn":          true,
-	"usePureFn":          true,
-	"getCompiledPureFn":  true,
-	"hasPureFn":          true,
-	"findCompiledPureFn": true,
-}
-
 // extractDeps walks factoryFn's body for `<utlName>.<method>(<keyLit>)`
-// patterns where <method> is one of the pureFnDepMethods entries and
-// <keyLit> is a string literal (resolved against a factory-local symbol
-// table and the file-level table as fallbacks). Returns the sorted,
-// deduped list of dependency keys plus any diagnostics for arguments
-// that couldn't be statically resolved.
+// patterns and collects the literal keys as the entry's
+// pureFnDependencies. The recognised methods are discovered via the
+// `CompTimeArgs<string>` brand on their first parameter — see D4 in
+// the plan. The string-literal `<keyLit>` is resolved against a
+// factory-local symbol table first (fast path for `const KEY = '…'`
+// declared inside the factory body), then via
+// `comptimeargs.ResolveLiteralString` (covers file-level / imported
+// const bindings via the checker).
 //
 // When utlName is empty (factory has no first parameter), returns
 // (nil, nil) — the caller is free to register the entry without deps.
@@ -37,7 +28,7 @@ var pureFnDepMethods = map[string]bool{
 // cross-namespace resolver (mion's findCompiledPureFn) treats it the
 // same way as a suffix match. This mirrors the historical behaviour of
 // the tracking proxy.
-func extractDeps(sourceFile *ast.SourceFile, factoryFn *ast.Node, fileTable symbolTable, utlName string) ([]string, []diag.Diagnostic) {
+func extractDeps(typeChecker *checker.Checker, markerOpts marker.Options, sourceFile *ast.SourceFile, factoryFn *ast.Node, utlName string) ([]string, []diag.Diagnostic) {
 	if utlName == "" {
 		return nil, nil
 	}
@@ -50,7 +41,7 @@ func extractDeps(sourceFile *ast.SourceFile, factoryFn *ast.Node, fileTable symb
 			return false
 		}
 		if node.Kind == ast.KindCallExpression {
-			handleCall(sourceFile, node, fileTable, localTable, utlName, depSet, &diags)
+			handleCall(typeChecker, markerOpts, sourceFile, node, localTable, utlName, depSet, &diags)
 		}
 		node.ForEachChild(visit)
 		return false
@@ -71,13 +62,18 @@ func extractDeps(sourceFile *ast.SourceFile, factoryFn *ast.Node, fileTable symb
 	return deps, diags
 }
 
-// handleCall checks one CallExpression. When the callee is one of the
-// recognised `<utlName>.<method>(...)` shapes, resolves the first
-// argument to a string literal and records it; otherwise it's a no-op.
+// handleCall checks one CallExpression. When the callee is a
+// property access (`<utlName>.<method>(...)`) AND the called method's
+// first parameter is branded `CompTimeArgs<string>` (the brand-based
+// allowlist for jitUtils pure-fn lookup methods, per D4), resolves the
+// first argument to a string literal and records it; otherwise it's a
+// no-op.
 func handleCall(
+	typeChecker *checker.Checker,
+	markerOpts marker.Options,
 	sourceFile *ast.SourceFile,
 	call *ast.Node,
-	fileTable, localTable symbolTable,
+	localTable symbolTable,
 	utlName string,
 	depSet map[string]bool,
 	diags *[]diag.Diagnostic,
@@ -103,14 +99,14 @@ func handleCall(
 		return
 	}
 	method := methodName.Text()
-	if !pureFnDepMethods[method] {
+	if !calleeFirstParamIsCompTimeArgs(typeChecker, markerOpts, call) {
 		return
 	}
 	if callExpr.Arguments == nil || len(callExpr.Arguments.Nodes) == 0 {
 		return
 	}
 	arg := callExpr.Arguments.Nodes[0]
-	literal, _ := resolveDepArg(localTable, fileTable, arg)
+	literal, _ := resolveDepArg(typeChecker, localTable, arg)
 	if literal == nil {
 		*diags = append(*diags, diag.New(
 			diag.CodePurityDepNotLiteral,
@@ -132,61 +128,79 @@ func handleCall(
 	depSet[depKey] = true
 }
 
+// calleeFirstParamIsCompTimeArgs reports whether the resolved
+// signature of call has its first parameter branded
+// `CompTimeArgs<string>` (via marker.DetectAny). This is the
+// brand-driven replacement for the old hard-coded jitUtils method
+// allowlist.
+func calleeFirstParamIsCompTimeArgs(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) bool {
+	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)
+	if signature == nil {
+		return false
+	}
+	parameters := checker.Signature_parameters(signature)
+	if len(parameters) == 0 {
+		return false
+	}
+	first := parameters[0]
+	if first == nil {
+		return false
+	}
+	paramType := checker.Checker_getTypeOfSymbol(typeChecker, first)
+	kind, _, matched := marker.DetectAny(typeChecker, paramType, markerOpts)
+	return matched && kind == marker.KindCompTimeArgs
+}
+
 // resolveDepArg traces argNode through the factory-local table first
 // (covers `const FOO = 'mion::foo'; utl.getPureFn(FOO)` inside the
-// factory) and falls back to the file-level table when there's no hit.
-// Returns the literal node + reason; nil literal means the argument
-// couldn't be traced.
-func resolveDepArg(localTable, fileTable symbolTable, argNode *ast.Node) (*ast.Node, string) {
-	target, reason := traceWithLocal(localTable, fileTable, argNode, maxTraceDepth)
-	if target.StringLiteral != nil {
-		return target.StringLiteral, ""
+// factory) and falls back to comptimeargs.ResolveLiteralString
+// (checker-driven trace, covers file-level / imported bindings) when
+// the identifier isn't in the local table.
+func resolveDepArg(typeChecker *checker.Checker, localTable symbolTable, argNode *ast.Node) (*ast.Node, string) {
+	if argNode == nil {
+		return nil, "argument missing"
 	}
-	if reason != "" {
-		return nil, reason
+	// Fast path: literal at the call site.
+	if argNode.Kind == ast.KindStringLiteral || argNode.Kind == ast.KindNoSubstitutionTemplateLiteral {
+		return argNode, ""
 	}
-	return nil, "not a string literal or local const"
+	// Factory-local identifier hop: `const FOO = '...'` inside the
+	// factory body. This shadows checker-driven resolution because the
+	// inner const isn't a module-level symbol the checker tracks the
+	// same way.
+	if argNode.Kind == ast.KindIdentifier {
+		if decl, found := localTable[argNode.Text()]; found {
+			return resolveDeclLocal(typeChecker, localTable, decl, maxTraceDepth)
+		}
+	}
+	// Fallback: file-level / imported / wrapped identifier — let the
+	// shared comptimeargs trace walk the checker symbol graph.
+	literal, result := comptimeargs.ResolveLiteralString(typeChecker, argNode)
+	if !result.Ok {
+		return nil, result.Reason
+	}
+	return literal, ""
 }
 
-// traceWithLocal mirrors traceIdentifier but consults localTable before
-// fileTable. Identifiers found in localTable shadow the file-level
-// binding; absent there, we re-enter via fileTable. The two tables are
-// disjoint in practice — local const declarations don't appear in the
-// file-level table because buildSymbolTable only walks top-level
-// statements — so the precedence is enforceable without a merged map.
-func traceWithLocal(localTable, fileTable symbolTable, node *ast.Node, depth int) (traceTarget, string) {
-	if node == nil {
-		return traceTarget{}, "argument missing"
-	}
+func resolveDeclLocal(typeChecker *checker.Checker, localTable symbolTable, decl *ast.Node, depth int) (*ast.Node, string) {
 	if depth <= 0 {
-		return traceTarget{}, "tracing depth exceeded"
+		return nil, "tracing depth exceeded"
 	}
-	switch node.Kind {
-	case ast.KindStringLiteral, ast.KindNoSubstitutionTemplateLiteral:
-		return traceTarget{StringLiteral: node}, ""
-	case ast.KindIdentifier:
-		name := node.Text()
-		if decl, found := localTable[name]; found {
-			return resolveDeclLocal(localTable, fileTable, decl, depth)
-		}
-		if decl, found := fileTable[name]; found {
-			return resolveDeclLocal(localTable, fileTable, decl, depth)
-		}
-		return traceTarget{}, "identifier `" + name + "` not declared in scope"
-	}
-	return traceTarget{}, "expression is not a literal or const reference"
-}
-
-func resolveDeclLocal(localTable, fileTable symbolTable, decl *ast.Node, depth int) (traceTarget, string) {
 	switch decl.Kind {
 	case ast.KindVariableDeclaration:
 		varDecl := decl.AsVariableDeclaration()
 		if varDecl == nil || varDecl.Initializer == nil {
-			return traceTarget{}, "binding has no initializer"
+			return nil, "binding has no initializer"
 		}
-		return traceWithLocal(localTable, fileTable, varDecl.Initializer, depth-1)
+		init := varDecl.Initializer
+		if init.Kind == ast.KindStringLiteral || init.Kind == ast.KindNoSubstitutionTemplateLiteral {
+			return init, ""
+		}
+		// Initializer is another identifier — resolve recursively
+		// through the local table, falling back to the checker trace.
+		return resolveDepArg(typeChecker, localTable, init)
 	}
-	return traceTarget{}, "binding is not a const literal"
+	return nil, "binding is not a const literal"
 }
 
 // buildFactoryLocalTable indexes every `const x = <literal>` declared

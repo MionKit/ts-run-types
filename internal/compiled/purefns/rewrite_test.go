@@ -7,7 +7,7 @@ import (
 
 func TestExtract_CapturesFactoryArgBounds(t *testing.T) {
 	source := `
-declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
   return function _f(x: number) { return x + 1; };
 });`
@@ -55,18 +55,16 @@ export const _ = registerPureFnFactory('mion', 'foo', function (utl) {
 func TestExtract_NoReplacement_OnFailedExtraction(t *testing.T) {
 	// When the factory arg can't be resolved (e.g. it's a function call
 	// returning the factory rather than an inline function), the
-	// extractor emits PFE9003 and skips the entry entirely. No
-	// Replacement should be produced.
+	// walker silently skips the entry — no replacement, no walker
+	// diagnostic. The shape diagnostic (PFN001) is emitted by the
+	// marker layer in resolver.scanCall, not by this extractor.
 	source := `
-declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 declare function buildFactory(): any;
 export const _ = registerPureFnFactory('mion', 'bad', buildFactory());`
-	entries, diags := extractFromOverlay(t, map[string]string{"a.ts": source})
+	entries, _ := extractFromOverlay(t, map[string]string{"a.ts": source})
 	if len(entries) != 0 {
 		t.Fatalf("expected no entries, got %+v", entries)
-	}
-	if len(diags) == 0 {
-		t.Fatalf("expected PFE9003 diagnostic, got none")
 	}
 	if len(Replacements(entries)) != 0 {
 		t.Fatalf("expected no replacements for failed extraction")

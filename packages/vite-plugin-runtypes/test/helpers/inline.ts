@@ -29,6 +29,8 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // fake `@mionjs/ts-go-run-types` module.
 export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
   export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   export interface RunTypeOptions {
@@ -37,8 +39,20 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
     strictTypes?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): IsTypeFn;
-  export function deserializeIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): IsTypeFn;
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): IsTypeFn;
+  export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): IsTypeFn;
+  export interface JITUtils {
+    usePureFn(key: CompTimeArgs<string>): any;
+    getPureFn(key: CompTimeArgs<string>): any;
+    getCompiledPureFn(key: CompTimeArgs<string>): any;
+    hasPureFn(key: CompTimeArgs<string>): boolean;
+    findCompiledPureFn(fnName: CompTimeArgs<string>): any;
+  }
+  export function registerPureFnFactory(
+    namespace: CompTimeArgs<string>,
+    functionID: CompTimeArgs<string>,
+    factory: PureFunction<(utl: JITUtils) => any> | null
+  ): any;
 }
 `;
 

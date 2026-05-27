@@ -61,7 +61,7 @@ getRuntypeId<string>();
 
   register('scanning a file with registerPureFnFactory sets addedPureFns', async () => {
     const sources = {
-      'pure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'pure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const a = registerPureFnFactory('hmrns', 'pureFnA', function () {
   return function _a(value: any): any { return value; };
 });
@@ -79,7 +79,7 @@ export const a = registerPureFnFactory('hmrns', 'pureFnA', function () {
 
   register('re-scanning the same pureFn content does not re-set addedPureFns', async () => {
     const sources = {
-      'stable-pure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'stable-pure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const a = registerPureFnFactory('hmrns', 'stableFn', function () {
   return function _s(value: any): any { return value; };
 });

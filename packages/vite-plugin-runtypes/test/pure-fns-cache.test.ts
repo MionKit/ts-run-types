@@ -17,6 +17,30 @@ import {formatTscDiagnostic} from '../src/index.ts';
 import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
 import {hasBinary, withInlineSources} from './helpers/inline.ts';
 
+// runtypesDts is the ambient marker declaration prepended to every
+// fixture below. registerPureFnFactory's discovery is now marker-driven
+// (CompTimeArgs<string> × 2 + PureFunction<F> brands on the three
+// params), so test fixtures need a branded signature in scope —
+// otherwise the walker silently skips the call.
+const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export interface JITUtils {
+    usePureFn(key: CompTimeArgs<string>): any;
+    getPureFn(key: CompTimeArgs<string>): any;
+    getCompiledPureFn(key: CompTimeArgs<string>): any;
+    hasPureFn(key: CompTimeArgs<string>): boolean;
+    findCompiledPureFn(fnName: CompTimeArgs<string>): any;
+  }
+  export function registerPureFnFactory(
+    namespace: CompTimeArgs<string>,
+    functionID: CompTimeArgs<string>,
+    factory: PureFunction<(utl: JITUtils) => any> | null
+  ): any;
+}
+`;
+
 function pureFnDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
   return (response.diagnostics ?? []).filter((d) => d.family === Family.PureFn);
 }
@@ -55,7 +79,7 @@ describe('vite-plugin-runtypes / pure-fns virtual module', () => {
 
   register('emits pureFns entries with structurally-valid metadata', async () => {
     const sources = {
-      'pure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'pure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const a = registerPureFnFactory('mion', 'asJSONString', function () {
   return function _stringify(s: string): string {
     return JSON.stringify(s);
@@ -98,7 +122,7 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
 
   register('emits Replacement entries that null out each factory argument', async () => {
     const sources = {
-      'src.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'src.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const _ = registerPureFnFactory('mion', 'foo', function () {
   return function _f(x: number) { return x + 1; };
 });
@@ -124,9 +148,8 @@ export const _ = registerPureFnFactory('mion', 'foo', function () {
 
   register('extracts pureFnDependencies statically from utl.getPureFn calls', async () => {
     const sources = {
-      'deps.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
-type Utl = {getPureFn(key: string): (x: any) => any};
-export const _ = registerPureFnFactory('mion', 'consumer', function (utl: Utl) {
+      'deps.ts': `import {registerPureFnFactory, type JITUtils} from '@mionjs/ts-go-run-types';
+export const _ = registerPureFnFactory('mion', 'consumer', function (utl: JITUtils) {
   return function _f(x: any) {
     return utl.getPureFn('mion::dep')(x);
   };
@@ -140,42 +163,57 @@ export const _ = registerPureFnFactory('mion', 'consumer', function (utl: Utl) {
     });
   });
 
-  register('emits PFE9001 diagnostic for non-literal namespace', async () => {
+  register('emits CTA001 for non-literal namespace (was PFE9001 pre-marker-migration)', async () => {
     const sources = {
-      'bad-ns.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'bad-ns.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 declare function getNs(): string;
 export const x = registerPureFnFactory(getNs(), 'fn', function () { return function() {}; });
 `,
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const codes = pureFnDiagsOf(response).map((d) => d.code);
-      expect(codes).toContain('PFE9001');
+      // CompTimeArgs<string> brand on the namespace param fires a CTA0xx
+      // diagnostic from the marker layer (resolver.scanCall) — the exact
+      // sub-code depends on the failure mode (CTA001 non-literal, CTA003
+      // function-call construct). The walker silently skips extraction.
+      const ctaSeen = (response.diagnostics ?? [])
+        .filter((d) => d.family === Family.Marker)
+        .some((d) => d.code.startsWith('CTA'));
+      expect(ctaSeen).toBe(true);
+      // No purefn-family shape diagnostic — PFE9001 was retired.
+      expect(pureFnDiagsOf(response).map((d) => d.code)).not.toContain('PFE9001');
     });
   });
 
-  register('emits PFE9003 diagnostic for non-inline factory reference', async () => {
+  register('emits PFN001 for non-inline factory reference (was PFE9003 pre-marker-migration)', async () => {
     const sources = {
-      'bad-fn.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
-declare const externalFn: () => () => void;
+      'bad-fn.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
+declare const externalFn: (utl: unknown) => () => void;
 export const x = registerPureFnFactory('mion', 'fn', externalFn);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const codes = pureFnDiagsOf(response).map((d) => d.code);
-      expect(codes).toContain('PFE9003');
+      // PureFunction<F> brand on the factory param emits PFN001 from
+      // the marker layer when the arg isn't an inline arrow/function
+      // expression (or const-bound binding to one).
+      const markerCodes = (response.diagnostics ?? [])
+        .filter((d) => d.family === Family.Marker)
+        .map((d) => d.code);
+      expect(markerCodes).toContain('PFN001');
+      // No purefn-family shape diagnostic — PFE9003 was retired.
+      expect(pureFnDiagsOf(response).map((d) => d.code)).not.toContain('PFE9003');
     });
   });
 
   register('emits PFE9004 collision diagnostic for mismatched bodies', async () => {
     const sources = {
-      'a.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'a.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const a = registerPureFnFactory('mion', 'collideFn', function () {
   return function v1() { return 1; };
 });
 `,
-      'b.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'b.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const b = registerPureFnFactory('mion', 'collideFn', function () {
   return function v2() { return 2; };
 });
@@ -201,7 +239,7 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
 
   register('emits PFE9010 (forbidden identifier) for eval inside a factory body', async () => {
     const sources = {
-      'impure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'impure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 export const x = registerPureFnFactory('mion', 'evilFn', function () {
   return function _evil() {
     return eval('1+1');
@@ -226,7 +264,7 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
     // captures must blow up at scan time, since the cached fn body
     // can't see anything outside its own scope.
     const sources = {
-      'closure.ts': `declare function registerPureFnFactory(ns: string, fn: string, factory: any): any;
+      'closure.ts': `import {registerPureFnFactory} from '@mionjs/ts-go-run-types';
 const PRECISION = 0.001;
 export const x = registerPureFnFactory('mion', 'rounder', function () {
   return function _round(n: number) {
@@ -245,10 +283,10 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
 
   register('formatTscDiagnostic renders the canonical $tsc problem-matcher line', () => {
     const line = formatTscDiagnostic({
-      code: 'PFE9001',
+      code: 'PFE9004',
       family: Family.PureFn,
       severity: Severity.Error,
-      args: ['identifier from another module'],
+      args: ['mion::collideFn'],
       site: {
         filePath: '/abs/path/x.ts',
         startLine: 12,
@@ -260,8 +298,8 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
     // Headline text comes from the JS catalog; we don't pin the exact
     // copy here (catalog wording can evolve). Just confirm the line
     // shape: <path>(<line>,<col>): <severity> <code>: <headline-with-arg>
-    expect(line).toMatch(/^\/abs\/path\/x\.ts\(12,5\): error PFE9001: /);
-    expect(line).toContain('identifier from another module');
+    expect(line).toMatch(/^\/abs\/path\/x\.ts\(12,5\): error PFE9004: /);
+    expect(line).toContain('mion::collideFn');
     // VS Code's built-in $tsc problem matcher regex:
     expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+(error|warning)\s+[A-Z]+\d+:\s+.+$/);
   });
