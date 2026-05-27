@@ -59,6 +59,18 @@ export function initCache(jitUtils) {
   // alwaysThrowCode (8th arg) + alwaysThrowSite (9th arg); the JS side
   // swaps createJitFn for `jitUtils.alwaysThrowFactory(code, site)` so
   // the first materialisation throws `[code] message (at site)`.
+  //
+  // The 7th arg (`createJitFn`) is UNDEFINED by default — the Go
+  // renderer writes `u` (the `const u = undefined` alias declared at
+  // module top) so the body of the factory only lives in arg 3 as a
+  // string. `materializeJitFn` rebuilds the live factory closure via
+  // `new Function('utl', code)` on first `getJIT(hash)` call. The
+  // Go-side `--emit-create-jit-fn` flag (mapped to the Vite plugin's
+  // `emitCreateJitFn: true` option) opts back into emitting the full
+  // `function g_<hash>(utl){…}` closure for runtimes that disallow
+  // dynamic code construction (Cloudflare WorkerD, CSP `unsafe-eval`
+  // disabled, sandboxed iframes). Test runs enable the flag so suites
+  // exercise both paths on every case.
   function init(
     jitFnHash,
     typeName,

@@ -74,6 +74,7 @@ func main() {
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
+		emitCreateJitFn    bool
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -92,6 +93,10 @@ func main() {
 		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
 	flag.StringVar(&cacheDir, "cache-dir", "",
 		"base directory for the on-disk JIT artifact cache (empty disables)")
+	flag.BoolVar(&emitCreateJitFn, "emit-create-jit-fn", false,
+		"emit the inline createJitFn closure on every cache entry alongside the body string. "+
+			"Default false — the JS side rebuilds the factory from `code` via `new Function` on first lookup. "+
+			"Set true for runtimes that disallow dynamic code (Cloudflare WorkerD, browser CSP without unsafe-eval).")
 	flag.BoolVar(&help, "help", false, "show help")
 	flag.BoolVar(&help, "h", false, "show help")
 	flag.Parse()
@@ -126,8 +131,9 @@ func main() {
 		LiteralHashLength: literalHashLength,
 		Marker:            marker.Options{},
 		Cwd:               absCwd,
-		SingleThreaded: singleThreaded,
-		CacheDir:       cacheDir,
+		SingleThreaded:    singleThreaded,
+		CacheDir:          cacheDir,
+		EmitCreateJitFn:   emitCreateJitFn,
 	}
 
 	var r *resolver.Resolver

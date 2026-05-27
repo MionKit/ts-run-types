@@ -11,6 +11,15 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
+  // When true, the Go binary emits the inline `createJitFn` closure on
+  // every JIT cache entry alongside the body `code` string. Default
+  // false — the JS-side `materializeJitFn` rebuilds factories from
+  // `code` via `new Function('utl', code)` on first lookup, saving
+  // ~the size of one body copy per entry. Set true for runtimes that
+  // disallow dynamic code construction (Cloudflare WorkerD, sandboxed
+  // iframes, CSP without `unsafe-eval`). Test setups also enable this
+  // so suites can cover both materialisation paths on every case.
+  emitCreateJitFn?: boolean;
 }
 
 // MARKER_MODULE is the fixed package every marker brand is declared in.
@@ -77,6 +86,7 @@ export default function runtypes(options: PluginOptions) {
       const cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
+        emitCreateJitFn: options.emitCreateJitFn ?? false,
       });
     },
 

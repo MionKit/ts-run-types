@@ -52,6 +52,18 @@ type Options struct {
 	// hash so cross-version files never collide. Empty disables caching
 	// (the in-memory walker runs every time, matching test mode).
 	CacheDir string
+	// EmitCreateJitFn opts every typefns module renderer into emitting
+	// the inline `createJitFn` closure alongside the body `code`
+	// string. Default false — the JS-side materializeJitFn rebuilds
+	// the factory from `code` via `new Function('utl', code)` on first
+	// lookup, saving the per-entry duplication of the body wrapped in
+	// `function g_<hash>(utl){…}`. Set true for secure runtimes
+	// (Cloudflare WorkerD, sandboxed iframes, browser CSP without
+	// `unsafe-eval`) that disallow dynamic-code construction. The
+	// vitest configs set this true so the test suite covers both the
+	// inline-factory path (via createIsType<T>) and the new-Function
+	// path (via deserializeIsType<T>) on every case.
+	EmitCreateJitFn bool
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer
@@ -99,6 +111,7 @@ func newJITStore(opts Options) *disk.Store {
 	fp := disk.Fingerprint(disk.FingerprintInputs{
 		HashLength:        opts.HashLength,
 		LiteralHashLength: opts.LiteralHashLength,
+		EmitCreateJitFn:   opts.EmitCreateJitFn,
 	})
 	return disk.New(opts.CacheDir, fp)
 }
