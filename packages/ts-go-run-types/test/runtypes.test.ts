@@ -1,10 +1,10 @@
 import {describe, it, expect} from 'vitest';
-import {getRuntypeId, reflectRuntypeId, type RuntypeId} from '../src/index.ts';
+import {getRuntypeId, reflectRuntypeId, type InjectRuntypeId} from '../src/index.ts';
 
 describe('@mionjs/ts-go-run-types', () => {
   it('getRuntypeId throws when called without an id (runtime backstop)', () => {
     // Invoke through a type-erased indirection so the marker scanner
-    // doesn't see `RuntypeId<T>` at the call site and the transformer
+    // doesn't see `InjectRuntypeId<T>` at the call site and the transformer
     // leaves the call alone. Confirms the runtime helper's defensive
     // throw still fires for any path that bypasses the rewrite
     // (dynamic call sites, eval'd code, consumers without the plugin).
@@ -14,7 +14,7 @@ describe('@mionjs/ts-go-run-types', () => {
 
   it('getRuntypeId returns the injected id when the transformer is active', () => {
     // Simulate the transformer by passing the trailing id literal directly.
-    const id = getRuntypeId<{foo: number}>('abc123' as RuntypeId<{foo: number}>);
+    const id = getRuntypeId<{foo: number}>('abc123' as InjectRuntypeId<{foo: number}>);
     expect(id).toBe('abc123');
   });
 
@@ -24,7 +24,7 @@ describe('@mionjs/ts-go-run-types', () => {
   });
 
   it('reflectRuntypeId returns the injected id when the transformer is active', () => {
-    const id = reflectRuntypeId({foo: 1}, 'abc123' as RuntypeId<{foo: number}>);
+    const id = reflectRuntypeId({foo: 1}, 'abc123' as InjectRuntypeId<{foo: number}>);
     expect(id).toBe('abc123');
   });
 });

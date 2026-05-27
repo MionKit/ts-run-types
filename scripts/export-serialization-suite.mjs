@@ -81,9 +81,9 @@ const COMPILE_CYCLES = 3;
 // package without resolving a real package.json. Mirrors the validation
 // suite's RUNTYPES_DTS, extended with the JSON serializer signatures.
 const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
-  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T>;
-  export function reflectRuntypeId<T>(value: T, id?: RuntypeId<T>): RuntypeId<T>;
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+  export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   export interface RunTypeOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
@@ -92,11 +92,11 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type PrepareForJsonFn = (v: unknown) => unknown;
   export type RestoreFromJsonFn = (v: unknown) => unknown;
   export type StringifyJsonFn = (v: unknown) => string | undefined;
-  export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn;
-  export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn;
-  export function createStringifyJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): StringifyJsonFn;
-  export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): PrepareForJsonFn;
-  export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): RestoreFromJsonFn;
+  export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): PrepareForJsonFn;
+  export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): RestoreFromJsonFn;
+  export function createStringifyJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): StringifyJsonFn;
+  export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): PrepareForJsonFn;
+  export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): RestoreFromJsonFn;
 }
 `;
 

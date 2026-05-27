@@ -65,7 +65,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 
 // dispatchScanFiles walks every CallExpression in each requested file and
 // returns one Site per call whose resolved signature has a trailing
-// `RuntypeId<T>` parameter (where T is concretely bound). Sites for every
+// `InjectRuntypeId<T>` parameter (where T is concretely bound). Sites for every
 // file are returned flat, each tagged with .File so callers can filter.
 //
 // After each per-file scan, recordFileIDs walks the sites' RunType graphs
@@ -133,7 +133,7 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 
 // scanCall inspects one call expression and returns a Site when its
 // resolved signature opts into transformer injection via a trailing
-// `RuntypeId<T>` parameter with a concretely-bound T. Also returns any
+// `InjectRuntypeId<T>` parameter with a concretely-bound T. Also returns any
 // non-fatal MarkerDiagnostics emitted for the call (e.g. the
 // function-call-argument anti-pattern warning) — diagnostics are
 // independent of site emission and may be returned with or without

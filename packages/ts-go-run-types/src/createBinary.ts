@@ -29,7 +29,7 @@ import {
   type StrictArrayBuffer,
   type BinaryInput,
 } from './jit/dataView.ts';
-import type {RuntypeId} from './index.ts';
+import type {InjectRuntypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -100,7 +100,7 @@ const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 export function createBinaryEncoder<T>(
   val?: T,
   options?: BinaryEncoderOptions,
-  id?: RuntypeId<T>
+  id?: InjectRuntypeId<T>
 ): BinaryEncoderFn {
   void val;
   if (id === undefined) {
@@ -128,7 +128,7 @@ export function createBinaryEncoder<T>(
 export function createBinaryDecoder<T>(
   val?: T,
   options?: BinaryDecoderOptions,
-  id?: RuntypeId<T>
+  id?: InjectRuntypeId<T>
 ): BinaryDecoderFn<T> {
   void val;
   if (id === undefined) {

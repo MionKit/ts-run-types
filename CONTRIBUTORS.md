@@ -65,7 +65,7 @@ pnpm --filter vite-plugin-runtypes test         # one package
 pnpm --filter @mionjs/ts-go-run-types test            # the other
 ```
 
-Go fixtures live in [internal/testfixtures](internal/testfixtures/) (F1–F17) and cover atomic reflection kinds (string, number, BigInt, Symbol, Date, RegExp, enums, literals), primitive/object/union annotations, inferred function signatures, generic inference, and `RuntypeId<T>` marker variants (direct calls, explicit type args, user wrappers, free type params, collision detection).
+Go fixtures live in [internal/testfixtures](internal/testfixtures/) (F1–F17) and cover atomic reflection kinds (string, number, BigInt, Symbol, Date, RegExp, enums, literals), primitive/object/union annotations, inferred function signatures, generic inference, and `InjectRuntypeId<T>` marker variants (direct calls, explicit type args, user wrappers, free type params, collision detection).
 
 The JS plugin tests in [packages/vite-plugin-runtypes/test](packages/vite-plugin-runtypes/test/) **spawn the Go binary** — make sure it has been built first.
 
@@ -134,7 +134,7 @@ Then send the same JSON ops to `/tmp/ts-go-run-types.sock` from another process.
 --out-ts PATH                 also write self-wired TS module on dump
 --hash-length N               default 6 (types)
 --literal-hash-length N       default 5 (literals)
---marker-name NAME            default RuntypeId
+--marker-name NAME            default InjectRuntypeId
 --marker-module MODULE        default @mionjs/ts-go-run-types
 --single-threaded             disable parallel walk (debugging)
 ```

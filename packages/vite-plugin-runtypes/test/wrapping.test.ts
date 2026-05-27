@@ -108,7 +108,7 @@ const b = reflectRuntypeId(s);
 
   // ---- 17c–17d: user-defined wrappers -----------------------------------
   //
-  // User wrappers carry their own trailing RuntypeId<T> slot. The two
+  // User wrappers carry their own trailing InjectRuntypeId<T> slot. The two
   // arities below — value-arg wrapper (isType) and value-as-T wrapper
   // (nameOf) — are the natural mirrors of the static and reflect helpers
   // and are kept under separate runTest()s.
@@ -116,8 +116,8 @@ const b = reflectRuntypeId(s);
   runTest(
     '17c: user-defined wrapper with explicit type argument',
     {
-      '17c.ts': `import {type RuntypeId} from '@mionjs/ts-go-run-types';
-function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+      '17c.ts': `import {type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -140,8 +140,8 @@ const c = isType<{flag: boolean}>(true);
   runTest(
     '17d: user-defined wrapper with T inferred from argument',
     {
-      '17d.ts': `import {type RuntypeId} from '@mionjs/ts-go-run-types';
-function nameOf<T>(_val: T, id?: RuntypeId<T>): RuntypeId<T> {
+      '17d.ts': `import {type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function nameOf<T>(_val: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
@@ -166,8 +166,8 @@ const d = nameOf({kind: 'node', value: 42});
   runTest(
     '17e static: getRuntypeId<T>() inside generic body with free T — no site',
     {
-      '17e_static.ts': `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
-function inner<T>(_val: T): RuntypeId<T> {
+      '17e_static.ts': `import {getRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function inner<T>(_val: T): InjectRuntypeId<T> {
   return getRuntypeId<T>();
 }
 export {inner};
@@ -189,8 +189,8 @@ export {inner};
   runTest(
     '17e reflect: reflectRuntypeId<T>(val) inside generic body with free T — no site',
     {
-      '17e_reflect.ts': `import {reflectRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
-function inner<T>(val: T): RuntypeId<T> {
+      '17e_reflect.ts': `import {reflectRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function inner<T>(val: T): InjectRuntypeId<T> {
   return reflectRuntypeId<T>(val);
 }
 export {inner};
@@ -210,7 +210,7 @@ export {inner};
   );
 
   runTest(
-    '17f: same-name RuntypeId from a non-marker module is ignored',
+    '17f: same-name InjectRuntypeId from a non-marker module is ignored',
     {
       '17f.ts': `type RuntypeId_Local<T> = {readonly localBrand?: T};
 function maskedWrapper<T>(_v: T, _id?: RuntypeId_Local<T>): void {}
@@ -235,8 +235,8 @@ maskedWrapper('noop');
   runTest(
     'passthrough A static: wrapper forwards id to getRuntypeId — outer site only',
     {
-      'pt_a_static.ts': `import {getRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
-function getTypeIdWrapper<T>(id?: RuntypeId<T>): RuntypeId<T> {
+      'pt_a_static.ts': `import {getRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function getTypeIdWrapper<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   return getRuntypeId<T>(id);
 }
 const x = getTypeIdWrapper<{a: number}>();
@@ -261,8 +261,8 @@ const x = getTypeIdWrapper<{a: number}>();
   runTest(
     'passthrough A reflect: wrapper forwards id to reflectRuntypeId — outer site only',
     {
-      'pt_a_reflect.ts': `import {reflectRuntypeId, type RuntypeId} from '@mionjs/ts-go-run-types';
-function reflectWrapper<T>(value: T, id?: RuntypeId<T>): RuntypeId<T> {
+      'pt_a_reflect.ts': `import {reflectRuntypeId, type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function reflectWrapper<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   return reflectRuntypeId<T>(value, id);
 }
 const x = reflectWrapper({a: 1});
@@ -288,12 +288,12 @@ const x = reflectWrapper({a: 1});
   runTest(
     'passthrough B: wrapper-of-wrapper forwarding id — only outermost site emitted',
     {
-      'pt_b.ts': `import {type RuntypeId} from '@mionjs/ts-go-run-types';
-function inner<T>(_v: T, id?: RuntypeId<T>): RuntypeId<T> {
+      'pt_b.ts': `import {type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function inner<T>(_v: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-function outer<T>(v: T, id?: RuntypeId<T>): RuntypeId<T> {
+function outer<T>(v: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   return inner(v, id);
 }
 const y = outer({k: 'v'});
@@ -316,12 +316,12 @@ const y = outer({k: 'v'});
   runTest(
     'passthrough C: wrapper-of-wrapper, intermediate drops id — outer-only site',
     {
-      'pt_c.ts': `import {type RuntypeId} from '@mionjs/ts-go-run-types';
-function inner<T>(_v: T, id?: RuntypeId<T>): RuntypeId<T> {
+      'pt_c.ts': `import {type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function inner<T>(_v: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }
-function outer<T>(v: T, _id?: RuntypeId<T>): RuntypeId<T> {
+function outer<T>(v: T, _id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   return inner(v);
 }
 const z = outer({n: 7});
@@ -389,8 +389,8 @@ const a = reflectRuntypeId(u, 'manualHash');
   runTest(
     'explicit E: caller passes literal id to a user-defined wrapper — no rewrite',
     {
-      'ex_e.ts': `import {type RuntypeId} from '@mionjs/ts-go-run-types';
-function isType<T>(_v: unknown, id?: RuntypeId<T>): RuntypeId<T> {
+      'ex_e.ts': `import {type InjectRuntypeId} from '@mionjs/ts-go-run-types';
+function isType<T>(_v: unknown, id?: InjectRuntypeId<T>): InjectRuntypeId<T> {
   if (!id) throw new Error('transformer not active');
   return id;
 }

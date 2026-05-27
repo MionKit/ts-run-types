@@ -28,17 +28,17 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // `withInlineSources` so per-test fixtures don't have to redeclare the
 // fake `@mionjs/ts-go-run-types` module.
 export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
-  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
-  export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T>;
-  export function reflectRuntypeId<T>(value: T, id?: RuntypeId<T>): RuntypeId<T>;
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+  export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
   export interface RunTypeOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
     strictTypes?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): IsTypeFn;
-  export function deserializeIsType<T>(val?: T, options?: RunTypeOptions, id?: RuntypeId<T>): IsTypeFn;
+  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): IsTypeFn;
+  export function deserializeIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): IsTypeFn;
 }
 `;
 
