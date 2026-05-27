@@ -99,7 +99,6 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 		*diags = append(*diags, diag.New(
 			diag.CodePurityThis,
 			siteFromNode(sourceFile, node),
-			"'this' is not allowed in a pure function factory body",
 		))
 		return
 
@@ -107,7 +106,6 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 		*diags = append(*diags, diag.New(
 			diag.CodePurityAwait,
 			siteFromNode(sourceFile, node),
-			"async/await is not allowed in a pure function factory body",
 		))
 		// Continue descending — inner expressions may have their own violations.
 
@@ -115,7 +113,6 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 		*diags = append(*diags, diag.New(
 			diag.CodePurityYield,
 			siteFromNode(sourceFile, node),
-			"generators (yield) are not allowed in a pure function factory body",
 		))
 
 	case ast.KindCallExpression:
@@ -124,7 +121,6 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 			*diags = append(*diags, diag.New(
 				diag.CodePurityDynamicImport,
 				siteFromNode(sourceFile, node),
-				"dynamic import() is not allowed in a pure function factory body",
 			))
 		}
 		// Fall through to descend into the callee + args (nested violations).
@@ -135,20 +131,20 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 		}
 		name := node.Text()
 		if forbiddenIdentifiers[name] {
-			*diags = append(*diags, diag.Newf(
+			*diags = append(*diags, diag.New(
 				diag.CodePurityForbidden,
 				siteFromNode(sourceFile, node),
-				"%q is not allowed in a pure function factory body", name,
+				name,
 			))
 			return
 		}
 		if current.has(name) || allowedGlobals[name] {
 			return
 		}
-		*diags = append(*diags, diag.Newf(
+		*diags = append(*diags, diag.New(
 			diag.CodePurityClosure,
 			siteFromNode(sourceFile, node),
-			"Closure variable %q is not allowed in a pure function factory body. Pure functions cannot access outer scope variables.", name,
+			name,
 		))
 		return
 	}

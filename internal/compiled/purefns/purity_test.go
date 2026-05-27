@@ -1,7 +1,6 @@
 package purefns
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -204,8 +203,8 @@ func TestPurity_Eval_PFE9010(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected PFE9010 for eval, got %+v", diags)
 	}
-	if !strings.Contains(diag.Message, "eval") {
-		t.Errorf("message should reference `eval`, got %q", diag.Message)
+	if len(diag.Args) == 0 || diag.Args[0] != "eval" {
+		t.Errorf("message should reference `eval`, got %v", diag.Args)
 	}
 }
 
@@ -251,8 +250,8 @@ func TestPurity_GlobalThis_Forbidden(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected PFE9010 for globalThis, got %+v", diags)
 	}
-	if !strings.Contains(diag.Message, "globalThis") {
-		t.Errorf("message should reference `globalThis`, got %q", diag.Message)
+	if len(diag.Args) == 0 || diag.Args[0] != "globalThis" {
+		t.Errorf("message should reference `globalThis`, got %v", diag.Args)
 	}
 }
 
@@ -271,8 +270,8 @@ func TestPurity_ClosureVariable_PFE9011(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected PFE9011 for SECRET closure, got %+v", diags)
 	}
-	if !strings.Contains(diag.Message, "SECRET") {
-		t.Errorf("message should reference `SECRET`, got %q", diag.Message)
+	if len(diag.Args) == 0 || diag.Args[0] != "SECRET" {
+		t.Errorf("message should reference `SECRET`, got %v", diag.Args)
 	}
 }
 
@@ -296,8 +295,8 @@ export const sayHello = registerPureFnFactory('myNamespace', 'sayHello', functio
 	if !ok {
 		t.Fatalf("expected PFE9011 for module-level `name` closure, got %+v", diags)
 	}
-	if !strings.Contains(diag.Message, "name") {
-		t.Errorf("message should reference `name`, got %q", diag.Message)
+	if len(diag.Args) == 0 || diag.Args[0] != "name" {
+		t.Errorf("message should reference `name`, got %v", diag.Args)
 	}
 }
 
@@ -318,8 +317,8 @@ export const x = registerPureFnFactory('ns', 'fn', function () {
 	if !ok {
 		t.Fatalf("expected PFE9011 for module-level `helper` closure, got %+v", diags)
 	}
-	if !strings.Contains(diag.Message, "helper") {
-		t.Errorf("message should reference `helper`, got %q", diag.Message)
+	if len(diag.Args) == 0 || diag.Args[0] != "helper" {
+		t.Errorf("message should reference `helper`, got %v", diag.Args)
 	}
 }
 
@@ -340,8 +339,8 @@ export const x = registerPureFnFactory('ns', 'fn', function () {
 	if !ok {
 		t.Fatalf("expected PFE9011 for module-level imported symbol, got %+v", diags)
 	}
-	if !strings.Contains(diag.Message, "someImportedHelper") {
-		t.Errorf("message should reference `someImportedHelper`, got %q", diag.Message)
+	if len(diag.Args) == 0 || diag.Args[0] != "someImportedHelper" {
+		t.Errorf("message should reference `someImportedHelper`, got %v", diag.Args)
 	}
 }
 
@@ -374,10 +373,10 @@ func TestPurity_MultipleViolations_AllReported(t *testing.T) {
 		if diag.Code != CodePurityForbidden {
 			continue
 		}
-		if strings.Contains(diag.Message, "eval") {
+		if len(diag.Args) > 0 && diag.Args[0] == "eval" {
 			hasEval = true
 		}
-		if strings.Contains(diag.Message, "fetch") {
+		if len(diag.Args) > 0 && diag.Args[0] == "fetch" {
 			hasFetch = true
 		}
 	}

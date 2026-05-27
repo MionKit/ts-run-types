@@ -27,7 +27,7 @@ func TestDefinitions_AllRegisteredCodesHaveFamilyAndSeverity(t *testing.T) {
 }
 
 func TestNew_PopulatesFamilyAndSeverityFromCatalog(t *testing.T) {
-	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 1, StartCol: 2}, "hi")
+	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 1, StartCol: 2}, "makeUser")
 	if d.Code != CodeMarkerFunctionCallArg {
 		t.Errorf("Code: got %q want %q", d.Code, CodeMarkerFunctionCallArg)
 	}
@@ -37,6 +37,9 @@ func TestNew_PopulatesFamilyAndSeverityFromCatalog(t *testing.T) {
 	if d.Severity != SeverityWarning {
 		t.Errorf("Severity: got %d want %d", d.Severity, SeverityWarning)
 	}
+	if len(d.Args) != 1 || d.Args[0] != "makeUser" {
+		t.Errorf("Args: got %v want [\"makeUser\"]", d.Args)
+	}
 }
 
 func TestNew_PanicsOnUnknownCode(t *testing.T) {
@@ -45,11 +48,11 @@ func TestNew_PanicsOnUnknownCode(t *testing.T) {
 			t.Fatal("expected panic on unknown code")
 		}
 	}()
-	New("ZZZZ999", Site{}, "x")
+	New("ZZZZ999", Site{})
 }
 
 func TestDiagnostic_MarshalJSON_NumericSeverityAndFamily(t *testing.T) {
-	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 3, StartCol: 4}, "msg")
+	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 3, StartCol: 4}, "fn")
 	out, err := json.Marshal(d)
 	if err != nil {
 		t.Fatal(err)
@@ -64,23 +67,42 @@ func TestDiagnostic_MarshalJSON_NumericSeverityAndFamily(t *testing.T) {
 	if strings.Contains(s, `"severity":"warning"`) {
 		t.Errorf("severity must be numeric, not string: %s", s)
 	}
-}
-
-func TestFormatTsc_RendersHumanLabelForSeverity(t *testing.T) {
-	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 5, StartCol: 7}, "the message")
-	line := FormatTsc(d)
-	if !strings.Contains(line, "/a/b.ts(5,7): warning MKR001: the message") {
-		t.Errorf("unexpected canonical line: %q", line)
+	// Args present, message absent — wire shape sanity.
+	if !strings.Contains(s, `"args":["fn"]`) {
+		t.Errorf("expected args array in JSON: %s", s)
+	}
+	if strings.Contains(s, `"message"`) {
+		t.Errorf("message field must not appear in wire: %s", s)
 	}
 }
 
-func TestFormatTsc_AppendsRelatedLines(t *testing.T) {
-	d := New(CodeBodyHashCollision,
+func TestDiagnostic_MarshalJSON_OmitsEmptyArgs(t *testing.T) {
+	d := New(CodeMarkerNonLiteralOptions, Site{FilePath: "/a.ts", StartLine: 1, StartCol: 1})
+	out, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	if strings.Contains(s, `"args"`) {
+		t.Errorf("empty args should be omitted: %s", s)
+	}
+}
+
+func TestFormatDebug_RendersCodeAndArgs(t *testing.T) {
+	d := New(CodeMarkerFunctionCallArg, Site{FilePath: "/a/b.ts", StartLine: 5, StartCol: 7}, "makeUser")
+	line := FormatDebug(d)
+	if !strings.Contains(line, "/a/b.ts(5,7): warning MKR001(makeUser)") {
+		t.Errorf("unexpected debug line: %q", line)
+	}
+}
+
+func TestFormatDebug_AppendsRelatedLines(t *testing.T) {
+	d := NewWithRelated(CodeBodyHashCollision,
 		Site{FilePath: "/a.ts", StartLine: 1, StartCol: 1},
-		"dup",
+		[]string{"ns::fn"},
 		Related{Site: Site{FilePath: "/b.ts", StartLine: 9, StartCol: 9}, Message: "first here"},
 	)
-	line := FormatTsc(d)
+	line := FormatDebug(d)
 	if !strings.Contains(line, "\n  Related: /b.ts(9,9): first here") {
 		t.Errorf("missing related line in: %q", line)
 	}

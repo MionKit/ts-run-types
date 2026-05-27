@@ -57,8 +57,8 @@ export const _ = getRuntypeId<never>();
 	if found.Site.StartLine == 0 || found.Site.StartCol == 0 {
 		t.Errorf("expected populated line/col, got line=%d col=%d", found.Site.StartLine, found.Site.StartCol)
 	}
-	if !strings.Contains(found.Message, "Never type") {
-		t.Errorf("message: got %q, expected to mention 'Never type'", found.Message)
+	if len(found.Args) != 1 || found.Args[0] != "Never" {
+		t.Errorf("args: got %v, expected [\"Never\"]", found.Args)
 	}
 }
 
@@ -182,8 +182,8 @@ export const _ = getRuntypeId<User>();
 	if pj001 == nil {
 		t.Fatalf("expected PJ001 diagnostic for the absorbed never property, got %+v", runtype)
 	}
-	if !strings.Contains(pj001.Message, "bad") {
-		t.Errorf("expected diagnostic to mention 'bad' (the absorbed property), got %q", pj001.Message)
+	if len(pj001.Args) != 1 || pj001.Args[0] != "bad" {
+		t.Errorf("expected args=[\"bad\"] (the absorbed property name), got %v", pj001.Args)
 	}
 }
 
@@ -282,8 +282,8 @@ export const _ = getRuntypeId<User>();
 	if found.Severity != diag.SeverityWarning {
 		t.Errorf("severity: got %d want %d", found.Severity, diag.SeverityWarning)
 	}
-	if !strings.Contains(found.Message, "onClick") {
-		t.Errorf("message: got %q, expected to mention 'onClick'", found.Message)
+	if len(found.Args) != 1 || found.Args[0] != "onClick" {
+		t.Errorf("args: got %v, expected [\"onClick\"]", found.Args)
 	}
 }
 

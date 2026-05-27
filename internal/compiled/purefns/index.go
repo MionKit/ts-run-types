@@ -1,8 +1,6 @@
 package purefns
 
 import (
-	"fmt"
-
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -113,14 +111,11 @@ func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup So
 			continue
 		}
 		seenMisses[key] = true
-		message := fmt.Sprintf(
-			"JIT function references pure-fn %q which is not registered in any scanned source file",
-			key,
-		)
-		if dep.FilePath != "" {
-			message += fmt.Sprintf(" (expected registerPureFnFactory(%q, %q, ...) in %s)",
-				dep.Namespace, dep.FunctionName, dep.FilePath)
-		}
+		// Args: [key, expectedNamespace, expectedFunctionName, expectedFilePath].
+		// The catalog template renders all four into the headline/detail.
+		// File path may be empty when the dep was collected purely from a
+		// JIT walk with no source-level provenance.
+		args := []string{key, dep.Namespace, dep.FunctionName, dep.FilePath}
 		// No Site — the dep was collected from a JIT walk, not a TS
 		// source position. Future enhancement: have the jit walker
 		// thread the source position of the utl.getPureFn(...) call
@@ -128,7 +123,7 @@ func ValidatePureFnDependencies(deps []protocol.PureFnDep, idx *Index, lookup So
 		diagnostics = append(diagnostics, diag.New(
 			diag.CodeMissingPureFnDep,
 			diag.Site{},
-			message,
+			args...,
 		))
 	}
 	return diagnostics

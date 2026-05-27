@@ -371,7 +371,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		// identity fallback).
 		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
 			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
-				walker.EmitDiagnostic(diagCode, throwDiagnosticMessage(walker.UnsupportedLeaf, settings))
+				walker.EmitDiagnostic(diagCode, leafKindLabel(walker.UnsupportedLeaf))
 				line := renderAlwaysThrowEntry(runType, settings, innerPrefix, diagCode, walker.rootProvenance)
 				writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
 				return line, nil
@@ -534,45 +534,34 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 // message; createJitFn is a function that throws when invoked, which
 // happens inside materializeJitFn during the entry's first getJIT
 // lookup → throw propagates up to createPrepareForJson()-call site.
-// throwDiagnosticMessage returns the user-facing message for an
-// unsupported leaf in the active family. Mirrors the JS-side
-// messageForCode catalog (packages/ts-go-run-types/src/jit/diagnosticMessages.ts)
-// so the build-time diagnostic carries the same wording the runtime
-// throw will surface.
-func throwDiagnosticMessage(leaf *protocol.RunType, settings constants.CacheModuleSettings) string {
-	family := settings.Tag
-	if family == "" {
-		family = "this JIT family"
-	}
-	kindLabel := leafKindLabel(leaf)
-	return kindLabel + " cannot be handled by " + family
-}
-
 // leafKindLabel returns a short human-readable label for an unsupported
-// leaf RunType — used in build-time diagnostic messages.
+// leaf RunType — passed as the {0} substitution arg in the JS-side
+// catalog template for root-throw diagnostics. The label is family-
+// independent ("Never", "Symbol", "Function", …); per-family wording
+// lives in the catalog entry's headline/detail text.
 func leafKindLabel(leaf *protocol.RunType) string {
 	if leaf == nil {
-		return "Unsupported type"
+		return "Unsupported"
 	}
 	switch leaf.Kind {
 	case protocol.KindNever:
-		return "Never type"
+		return "Never"
 	case protocol.KindSymbol:
-		return "Symbol type"
+		return "Symbol"
 	case protocol.KindPromise:
-		return "Promise type"
+		return "Promise"
 	case protocol.KindFunction,
 		protocol.KindMethod,
 		protocol.KindMethodSignature,
 		protocol.KindCallSignature:
-		return "Function type"
+		return "Function"
 	case protocol.KindClass:
 		if leaf.SubKind == protocol.SubKindNonSerializable {
-			return "Non-serializable class type"
+			return "NonSerializableClass"
 		}
-		return "Class type"
+		return "Class"
 	}
-	return "Unsupported type"
+	return "Unsupported"
 }
 
 // renderAlwaysThrowEntry emits the structured alwaysThrow init() call —

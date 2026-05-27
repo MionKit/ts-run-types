@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
 import {Family, Severity, type CacheKind, type Diagnostic} from './protocol.ts';
@@ -304,14 +305,18 @@ function surfaceDiagnostics(
 // formatTscDiagnostic renders a Diagnostic in the canonical
 // `tsc --pretty=false` line format so VS Code's $tsc problem matcher
 // recognises it:
-//   /abs/path(line,col): error PFE9001: message
+//   /abs/path(line,col): error PFE9001: headline text
 //     Related: /abs/path(line,col): related message
 //
-// Severity is numeric on the wire — switch on it to pick the human
-// label since the canonical line format requires the word, not the digit.
+// The user-facing headline is resolved from the JS-side catalog
+// (`packages/ts-go-run-types/src/jit/diagnosticCatalog.ts`) — the wire
+// only carries the diagnostic code + optional positional args. Severity
+// is numeric on the wire — switch on it to pick the human label since
+// the canonical line format requires the word, not the digit.
 export function formatTscDiagnostic(d: Diagnostic): string {
   const label = severityLabel(d.severity);
-  let line = `${d.site.filePath}(${d.site.startLine},${d.site.startCol}): ${label} ${d.code}: ${d.message}`;
+  const headline = renderHeadline(d.code, d.args);
+  let line = `${d.site.filePath}(${d.site.startLine},${d.site.startCol}): ${label} ${d.code}: ${headline}`;
   if (d.related && d.related.length > 0) {
     for (const r of d.related) {
       line += `\n  Related: ${r.filePath}(${r.startLine},${r.startCol}): ${r.message}`;

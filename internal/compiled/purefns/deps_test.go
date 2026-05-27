@@ -143,8 +143,8 @@ export const _ = registerPureFnFactory('mion', 'bad', function (utl) {
 	for _, d := range diags {
 		if d.Code == CodePurityDepNotLiteral {
 			found = true
-			if !strings.Contains(d.Message, "getPureFn") {
-				t.Errorf("message should mention method name: %q", d.Message)
+			if len(d.Args) < 2 || d.Args[1] != "getPureFn" {
+				t.Errorf("expected args[1]=getPureFn (the dep method name), got %v", d.Args)
 			}
 		}
 	}
