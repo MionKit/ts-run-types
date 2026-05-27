@@ -27,7 +27,7 @@ func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 		"export function initCache(jitUtils)",
 		"function init(",
 		"jitFnHash,",
-		"jitUtils.addToJitCache({",
+		"jitUtils.addToJitCache(entry)",
 	} {
 		if !strings.Contains(out, fragment) {
 			t.Errorf("expected fragment %q in:\n%s", fragment, out)

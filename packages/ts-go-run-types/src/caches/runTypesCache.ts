@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the runtypes cache module. The Go binary
 // reads this file (via the internal/cachetpl embedded copy) and replaces
 // the marker line below with generated factory calls + ref assignments
@@ -28,6 +32,7 @@
 
 /** @typedef {import('../jit/types.ts').RunType} RunType */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   /**
    * Short alias for `jitUtils.useRunType` used by the footer ref-

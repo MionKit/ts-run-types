@@ -1,4 +1,19 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// ----------------------------------------------------------------------------
+// This file is hand-authored, but the Go binary embeds it verbatim (via
+// `//go:embed` in `caches/skeletons.go`) and splices generated `init(…)`
+// calls into the `#### REPLACE HERE ####` marker at render time. Any
+// change to the `init(…)` parameter order/names, the cache-entry shape
+// passed to `jitUtils.addToJitCache(...)`, or the `k_<alias>` pure-fn
+// key constants MUST be matched on the Go side under
+// `internal/compiled/typefns/` (renderer, alias table in
+// `purefn_aliases.go`, slot constants). Drift surfaces as a runtime
+// `lookupJitFn`/`addToJitCache` shape mismatch — keep both sides in
+// sync by hand. See docs/UNSUPPORTED-KINDS.md for the wire-format
+// contract.
+//
 // Hand-authored skeleton for the isType cache module. Served by the Go
 // binary via the Vite plugin's `transform()` hook after replacing the
 // marker line below with generated `init(…)` calls — one per cached
@@ -21,6 +36,7 @@
 
 /** @typedef {import('../jit/types.ts').IsTypeJitFn} IsTypeJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   // Register every entry on the shared jitUtils cache with `fn:
   // undefined`. The fn closure is materialized lazily on first

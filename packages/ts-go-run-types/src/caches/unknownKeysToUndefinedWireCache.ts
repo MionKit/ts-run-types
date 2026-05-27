@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the unknownKeysToUndefinedWire cache
 // module — decoder-internal sibling of unknownKeysToUndefinedCache.
 // Served by the Go binary via the Vite plugin's `transform()` hook
@@ -20,8 +24,9 @@
 
 /** @typedef {import('../jit/types.ts').UnknownKeysToUndefinedWireJitFn} UnknownKeysToUndefinedWireJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
-  const k_getUnknownKeysFromArray = 'mion::getUnknownKeysFromArray';
+  const k_gUKFA = 'mion::getUnknownKeysFromArray';
 
   function init(
     jitFnHash,
@@ -56,7 +61,7 @@ export function initCache(jitUtils) {
     jitUtils.addToJitCache(entry);
   }
   void init;
-  void k_getUnknownKeysFromArray;
+  void k_gUKFA;
   function noopUnknownKeysToUndefinedWire(v) {
     return v;
   }

@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the prepareForJson cache module. Served by
 // the Go binary via the Vite plugin's `transform()` hook after replacing
 // the marker line below with generated `init(…)` calls — one per
@@ -15,6 +19,7 @@
 
 /** @typedef {import('../jit/types.ts').PrepareForJsonJitFn} PrepareForJsonJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   // Register every entry on the shared jitUtils cache with `fn:
   // undefined`. The fn closure is materialized lazily on first
