@@ -103,20 +103,20 @@ export type RunTypesCache = Record<string, RunType>;
 
 export type AnyFn = (...args: any[]) => any;
 
-export type JitFnArgs = {
+export type CompiledFnArgs = {
   /** The name of the value of to be */
   vλl: string;
   /** Other argument names */
   [key: string]: string;
 };
 
-export interface JitCompiledFnData {
+export interface CompiledFnData {
   readonly typeName: string;
   /** The operation family (`it`, `te`, `pj`, `rj`, …). */
   readonly fnID: string;
   readonly jitFnHash: string;
-  readonly args: JitFnArgs;
-  readonly defaultParamValues: JitFnArgs;
+  readonly args: CompiledFnArgs;
+  readonly defaultParamValues: CompiledFnArgs;
   /** True for collapsed-to-identity compilations. */
   readonly isNoop?: boolean;
   readonly code: string;
@@ -140,7 +140,7 @@ export interface JitCompiledFnData {
   readonly alwaysThrowSite?: string;
 }
 
-export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnData {
+export interface CompiledTypeFn<Fn extends AnyFn = AnyFn> extends CompiledFnData {
   /** Factory closure wrapping the jit function with its context-code prologue.
    *  Optional: by default the Go renderer emits `undefined` and the JS-side
    *  `materializeJitFn` rebuilds via `new Function('utl', code)` on first
@@ -149,8 +149,13 @@ export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnDa
    *  entries; always undefined on noop entries. **/
   readonly createJitFn?: (utl: JITUtils) => Fn;
   /** The materialised JIT function. */
-  readonly fn: Fn;
+  readonly fn?: Fn;
 }
+
+/** `CompiledTypeFn` after `materializeJitFn` — `createJitFn` and `fn` are
+ *  guaranteed to be set. */
+export type InitializedTypeFn<Fn extends AnyFn = AnyFn> = CompiledTypeFn<Fn> &
+  Required<Pick<CompiledTypeFn<Fn>, 'createJitFn' | 'fn'>>;
 
 // ############################# JIT CACHES ###################################
 
@@ -159,34 +164,24 @@ export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnDa
 // `@typedef {import('../jit/types.ts').<Alias>}`. Several families share an fn
 // shape but occupy distinct cache slots (`ukuw` vs `uku`; `pjs`/`pjsp` vs `pj`).
 
-export type IsTypeJitFn = JitCompiledFn<IsTypeFn>;
-export type GetTypeErrorsJitFn = JitCompiledFn<GetTypeErrorsFn>;
-export type HasUnknownKeysJitFn = JitCompiledFn<HasUnknownKeysFn>;
-export type StripUnknownKeysJitFn = JitCompiledFn<StripUnknownKeysFn>;
-export type UnknownKeyErrorsJitFn = JitCompiledFn<UnknownKeyErrorsFn>;
-export type UnknownKeysToUndefinedJitFn = JitCompiledFn<UnknownKeysToUndefinedFn>;
-export type UnknownKeysToUndefinedWireJitFn = JitCompiledFn<UnknownKeysToUndefinedFn>;
-export type PrepareForJsonJitFn = JitCompiledFn<PrepareForJsonFn>;
-export type PrepareForJsonSafeJitFn = JitCompiledFn<PrepareForJsonFn>;
-export type PrepareForJsonSafePreserveJitFn = JitCompiledFn<PrepareForJsonFn>;
-export type RestoreFromJsonJitFn = JitCompiledFn<RestoreFromJsonFn>;
-export type StringifyJsonJitFn = JitCompiledFn<StringifyJsonFn>;
-export type ToBinaryJitFn = JitCompiledFn<ToBinaryFn>;
-export type FromBinaryJitFn = JitCompiledFn<FromBinaryFn>;
+export type IsTypeJitFn = CompiledTypeFn<IsTypeFn>;
+export type GetTypeErrorsJitFn = CompiledTypeFn<GetTypeErrorsFn>;
+export type HasUnknownKeysJitFn = CompiledTypeFn<HasUnknownKeysFn>;
+export type StripUnknownKeysJitFn = CompiledTypeFn<StripUnknownKeysFn>;
+export type UnknownKeyErrorsJitFn = CompiledTypeFn<UnknownKeyErrorsFn>;
+export type UnknownKeysToUndefinedJitFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
+export type UnknownKeysToUndefinedWireJitFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
+export type PrepareForJsonJitFn = CompiledTypeFn<PrepareForJsonFn>;
+export type PrepareForJsonSafeJitFn = CompiledTypeFn<PrepareForJsonFn>;
+export type PrepareForJsonSafePreserveJitFn = CompiledTypeFn<PrepareForJsonFn>;
+export type RestoreFromJsonJitFn = CompiledTypeFn<RestoreFromJsonFn>;
+export type StringifyJsonJitFn = CompiledTypeFn<StringifyJsonFn>;
+export type ToBinaryJitFn = CompiledTypeFn<ToBinaryFn>;
+export type FromBinaryJitFn = CompiledTypeFn<FromBinaryFn>;
 
-export type JitFunctionsCache = Record<string, JitCompiledFn>;
+export type TypesFunctionsCache = Record<string, CompiledTypeFn>;
 /** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */
 export type PureFunctionsCache = Record<string, CompiledPureFunction>;
-
-// ########################################### Classes / helpers #########################################
-
-export interface AnyClass<T = any> {
-  new (...args: any[]): T;
-}
-
-export interface SerializableClass<T = any> {
-  new (): T;
-}
 
 // Web/DOM globals referenced below — declared as opaque interfaces because
 // the package's tsconfig sets `types: []`. At runtime each `instanceof`
@@ -232,3 +227,29 @@ export type DataOnly<T> = T extends object
   : T;
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
+
+// ########################################### Classes / helpers #########################################
+
+export interface AnyClass<T = any> {
+  new (...args: any[]): T;
+}
+
+export interface SerializableClass<T = any> {
+  new (): T;
+}
+
+export type Mutable<T> = {
+  -readonly [K in keyof T]: T[K];
+};
+
+export type DeepRequired<T> = T extends object
+  ? {
+      [P in keyof T]?: DeepRequired<T[P]>;
+    }
+  : T;
+
+export type DeepPartial<T> = T extends object
+  ? {
+      [P in keyof T]?: DeepPartial<T[P]>;
+    }
+  : T;
