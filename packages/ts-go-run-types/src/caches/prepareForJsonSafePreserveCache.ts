@@ -3,15 +3,9 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the prepareForJsonSafePreserve cache
-// module — clone+preserve variant of prepareForJsonSafeCache.
-//
-// Same wire-output shape as prepareForJsonSafe (Date → ISO string,
-// bigint → decimal string, etc.) but every cloned object literal is
-// emitted as `{...v, declared: <transformed>}` so undeclared keys
-// survive the clone. Use case: the encoder's `strategy: 'clone',
-// stripExtras: false` combination. See `isTypeCache.ts` for the JSDoc
-// conventions.
+// prepareForJsonSafePreserve cache module. Clone+preserve variant — every
+// cloned object literal is emitted as `{...v, declared: <transformed>}` so
+// undeclared keys survive. Powers `strategy: 'clone', stripExtras: false`.
 
 'use strict';
 

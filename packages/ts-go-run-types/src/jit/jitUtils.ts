@@ -21,65 +21,50 @@ import type {
 import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
 import type {CompTimeArgs} from '../markers.ts';
 
-/** Builds a fresh factory closure from a serialized `JitCompiledFnData.code`
- *  body via `new Function('utl', code)`. `code` is expected to be the
- *  factory body — the contents between `function(utl){ … }` braces — as
- *  emitted by the Go-side WrapClosure. Strict mode is forced via a leading
- *  `'use strict';` directive. Caller is responsible for invoking the
- *  returned closure with jitUtils to obtain the live validator. **/
+/** Builds a fresh factory closure from a serialized code body via
+ *  `new Function('utl', code)`. Forces strict mode. **/
 export function buildFactoryFromCode(code: string): (utl: JITUtils) => (...args: any[]) => any {
   return new Function('utl', `'use strict'; ${code}`) as (utl: JITUtils) => (...args: any[]) => any;
 }
 
-// Minimal ambient — `console` is universally available at runtime (node + browser)
-// but the package's tsconfig sets `types: []` so the global isn't otherwise visible.
+// `console` is universally available at runtime but the package's tsconfig
+// sets `types: []` so the global isn't otherwise visible.
 declare const console: {warn(...args: any[]): void};
 
-// Module-local caches. Plain objects/Maps — no globalThis singleton trick;
-// dual-loading (CJS + ESM) is solved elsewhere in the bundler config.
 const jitFnsCache: JitFunctionsCache = {};
-/** Flat pure-function cache keyed by "<namespace>::<fnName>". */
 const pureFnsCache: PureFunctionsCache = {};
-/** Run-type registry keyed by canonical type id. Populated by the runTypes
- *  cache module (the Go binary's emit replaces the marker line with
- *  `jitUtils.addRunType(...)` calls). */
 const runTypesCache: RunTypesCache = {};
 const deserializeFnsRegistry = new Map<string, DeserializeClassFn<any>>();
 const serializableClassRegistry = new Map<string, SerializableClass>();
 
-/** Composes the flat-cache key from a namespace + function name pair.
- *  Both halves of the composite key are required to be non-empty; the
- *  helper centralises the `::` separator so callers don't repeat it. **/
+/** Composite key for the pure-fn cache: `<namespace>::<fnName>`. **/
 export function pureFnKey(namespace: string, fnName: string): string {
   return namespace + '::' + fnName;
 }
 
 /**
- * Interface defining the shape of jitUtils
- *
- * !! Important: this needs to be defined as a type for reflection to work correctly
- * !! we can not use  typeof jitUtils
+ * Shape of jitUtils. Must be defined as a type — `typeof jitUtils` breaks
+ * reflection.
  */
 export interface JITUtils {
-  /** optimized function to convert an string into a json string wrapped in double quotes */
   addToJitCache(comp: JitCompiledFn): void;
   removeFromJitCache(comp: JitCompiledFn): void;
   getJIT(jitFnHash: string): JitCompiledFn | undefined;
   getJitFn(jitFnHash: string): (...args: any[]) => any;
   hasJitFn(jitFnHash: string): boolean;
-  /** Adds a compiled pure function. `key` is the composite `"namespace::fnName"`. */
+  /** Add a compiled pure function. `key` is the composite `"namespace::fnName"`. */
   addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction;
   usePureFn(key: CompTimeArgs<string>): PureFunction;
   getPureFn(key: CompTimeArgs<string>): PureFunction | undefined;
   getCompiledPureFn(key: CompTimeArgs<string>): CompiledPureFunction | undefined;
   hasPureFn(key: CompTimeArgs<string>): boolean;
-  /** Find a pure function across all namespaces. Returns the compiled function or undefined. */
+  /** Find a pure function across all namespaces. */
   findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined;
-  /** Add (or overwrite) a run-type entry keyed by canonical id. Returns the stored entry. */
+  /** Add or overwrite a run-type entry. */
   addRunType(id: string, runType: RunType): RunType;
   removeRunType(id: string): void;
   getRunType(id: string): RunType | undefined;
-  /** Look up a run-type by id; throws when missing. Use when absence is a bug. */
+  /** Throws when missing. Use when absence is a bug. */
   useRunType(id: string): RunType;
   hasRunType(id: string): boolean;
   setSerializableClass<C extends SerializableClass>(cls: C): void;
@@ -89,13 +74,9 @@ export interface JITUtils {
   useDeserializeFn(className: string): DeserializeClassFn<any>;
   getDeserializeFn(className: string): DeserializeClassFn<any> | undefined;
   /**
-   * Build a throwing-factory for an alwaysThrow cache entry. The Go-side
-   * compiler ships the diag code (e.g. 'PJ001') as the 8th arg of init()
-   * and an optional `file:line:col` provenance hint as the 9th arg; the
-   * cache module forwards both here. The factory throws
-   * `[code] message (at file:line:col)` on invocation, or
-   * `[code] message` when no provenance is known. Centralised so the
-   * message catalog lives in one place. See docs/UNSUPPORTED-KINDS.md.
+   * Build a throwing-factory for an alwaysThrow cache entry. Throws
+   * `[code] message (at file:line:col)` on invocation (suffix omitted when
+   * no provenance is known). See docs/UNSUPPORTED-KINDS.md.
    */
   alwaysThrowFactory(code: string, siteHint?: string): () => never;
 }
@@ -128,7 +109,7 @@ const jitUtils: JITUtils = {
     if (!key) throw new Error('Pure function key must be a non-empty "namespace::fnName" string');
     const existing = pureFnsCache[key];
     if (existing) {
-      // Validate body hash matches - if not, this is a version conflict
+      // Version conflict — body changed; replace and warn.
       if (existing.bodyHash && compiledFn.bodyHash && existing.bodyHash !== compiledFn.bodyHash) {
         console.warn(
           `Pure function ${key} body hash mismatch. ` +
@@ -162,9 +143,6 @@ const jitUtils: JITUtils = {
     return !!pureFnsCache[key];
   },
   findCompiledPureFn(fnName: string): CompiledPureFunction | undefined {
-    // Cross-namespace lookup: scan the flat keys for one ending in
-    // `::<fnName>`. Behaves identically to the old nested walk but
-    // without the namespace indirection.
     const suffix = '::' + fnName;
     for (const key of Object.keys(pureFnsCache)) {
       if (key === fnName || key.endsWith(suffix)) return pureFnsCache[key];
@@ -225,18 +203,12 @@ const jitUtils: JITUtils = {
   },
 };
 
-/**
- * Returns the jitUtils instance.
- * This function provides access to the utilities used by JIT generated functions.
- */
 export function getJitUtils(): JITUtils {
   return jitUtils;
 }
 
-/**
- * Returns the jit and pure functions caches.
- * DO NOT MODIFY THE RETURNED OBJECTS AS THEY ARE THE ORIGINAL ONES USED BY THE JIT FUNCTIONS
- */
+/** Returns the JIT and pure-function caches. DO NOT MODIFY — the returned
+ *  objects are the originals used by JIT functions. */
 export function getJitFnCaches() {
   return {
     jitFnsCache: jitFnsCache as Readonly<JitFunctionsCache>,
@@ -244,15 +216,15 @@ export function getJitFnCaches() {
   };
 }
 
-/** Lazily materialize a pure function's `.fn` by invoking its `createPureFn` closure. */
+/** Lazily materialize a pure function's `.fn` via its `createPureFn` closure. */
 function initPureFunction(compiled: CompiledPureFunction): asserts compiled is Required<CompiledPureFunction> {
   if (compiled.fn) return;
   compiled.fn = compiled.createPureFn(jitUtils);
-} /** Look up the JIT-compiled entry registered at `<prefix>_<id>` on the
- *  jitUtils singleton. Returns the entry's `fn` when present, the
- *  caller-supplied identity fallback when the runtype is registered
- *  but its factory collapsed to a noop, and throws otherwise. **/
+}
 
+/** Look up the JIT entry at `<prefix>_<id>`. Returns the entry's `fn`,
+ *  the identity fallback when the runtype is registered but its factory
+ *  collapsed to a noop, or throws. **/
 export function lookupJitFn<F extends AnyFn>(callerName: string, prefix: string, id: string, identityFn: F): F {
   const utils = getJitUtils();
   const entry = utils.getJIT(prefix + '_' + id) as JitCompiledFn | undefined;
@@ -263,61 +235,36 @@ export function lookupJitFn<F extends AnyFn>(callerName: string, prefix: string,
   );
 }
 
-/** Cycle guard for lazy fn materialization. When entry A's createJitFn
- *  closure invokes `utl.getJIT('B')`, that call materializes B; B's
- *  createJitFn may invoke `utl.getJIT('A')`, which would re-enter
- *  materializeJitFn for A while A's createJitFn is still running. The
- *  marker short-circuits that re-entry: getJIT still returns A's entry
- *  (with `fn` undefined for now), but the inner closure B is building
- *  only captures the entry REFERENCE — A.fn is read later, at
- *  validator-call time, by which point Phase 2's outer call has
- *  finished and A.fn is set. **/
+/** Cycle guard. When entry A's createJitFn invokes `getJIT('B')` and B's
+ *  createJitFn invokes `getJIT('A')`, the second call would re-enter
+ *  materializeJitFn for A while A is still materializing. The marker
+ *  short-circuits that re-entry — getJIT still returns A's entry (with
+ *  `fn` undefined for now); the inner closure captures the entry reference
+ *  and reads `A.fn` later at call time, by which point it's set. **/
 const materializing = new Set<string>();
 
-/** Lazily populate an entry's `createJitFn` + `fn`. Cache modules
- *  register entries without eager materialization — the actual fn
- *  closure is built on first `getJIT(hash)` call. This keeps
- *  materialization ordered AFTER every cache module's `initCache()`
- *  has populated its entries, so any cross-cache `utl.getJIT('other_
- *  fn_hash')` lookup inside a closure resolves to an entry that
- *  already exists.
+/** Lazily populate an entry's `createJitFn` + `fn`. Cache modules register
+ *  entries without eager materialization so cross-cache `getJIT()` lookups
+ *  inside a closure resolve to entries that already exist.
  *
- *  Two emit modes feed into this fn:
+ *  Emit modes:
+ *  - Inline-factory mode (`--emit-create-jit-fn`): `entry.createJitFn` is
+ *    the embedded `function(utl){…}` closure — invoke it.
+ *  - Default: `entry.createJitFn` is undefined; rebuild from `entry.code`
+ *    via `new Function('utl', code)`, cache on the entry.
  *
- *  - Inline-factory mode (Go-side `--emit-create-jit-fn`):
- *    `entry.createJitFn` is the live `function g_<hash>(utl){…}`
- *    closure embedded in the cache module. We just invoke it.
+ *  Noop entries skip via the `entry.fn` guard (cache modules pre-populate
+ *  `fn` with the family-specific identity at register time).
  *
- *  - Default (no inline factory): the cache module wrote
- *    `entry.createJitFn = undefined` to save bytes. We rebuild the
- *    factory from `entry.code` via `new Function('utl', code)` and
- *    cache the result on `entry.createJitFn` so a second
- *    materialization (which only happens after a manual cache wipe)
- *    doesn't pay the `new Function` cost twice.
- *
- *  Noop entries land here too — they're short-circuited by the
- *  `entry.fn` guard at the top because cache modules pre-populate
- *  `entry.fn` with the family-specific identity (e.g. `() => true`
- *  for isType) at register time.
- *
- *  alwaysThrow entries: the cache module sets `entry.createJitFn` to
- *  the throwing closure built by `jitUtils.alwaysThrowFactory(code,
- *  site)`. That closure ignores its `utl` arg and throws — the
- *  exception propagates up through `getJIT()` to the user's
- *  `createXxx<T>()` call site. **/
+ *  alwaysThrow entries: `entry.createJitFn` is the throwing closure from
+ *  `alwaysThrowFactory(code, site)`; it ignores `utl` and throws. **/
 function materializeJitFn(entry: JitCompiledFn): void {
   if (entry.fn) return;
   if (materializing.has(entry.jitFnHash)) return;
-  // No createJitFn AND no code → nothing to materialize. (Noop entries
-  // hit the `entry.fn` short-circuit above; this branch only catches
-  // genuinely-empty entries from a broken renderer.)
   if (!entry.createJitFn && !entry.code) return;
   materializing.add(entry.jitFnHash);
   try {
     if (!entry.createJitFn) {
-      // Default emit mode — rebuild the factory from the body string.
-      // Cache the rebuilt factory on the entry so subsequent calls
-      // skip the new-Function cost.
       (entry as {createJitFn: JitCompiledFn['createJitFn']}).createJitFn = buildFactoryFromCode(
         entry.code
       ) as JitCompiledFn['createJitFn'];

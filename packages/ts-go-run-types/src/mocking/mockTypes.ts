@@ -1,92 +1,67 @@
 // Public types for the mock-value generator. Surface mirrors mion's
-// `MockOptions` interface (mion-run-types:packages/run-types/src/types.ts)
-// so existing consumers can port option bags verbatim. Every option is
-// optional at the call site — `createMockType<T>()` merges caller options
-// over `defaultMockOptions` (`constants.mock.ts`) before walking the
-// runtype graph.
+// `MockOptions`. `createMockType<T>()` merges caller options over
+// `defaultMockOptions` before walking the runtype graph.
 
-/** Per-call options that steer how atomic values are generated and how
- *  optional / recursive shapes are handled. Ported field-for-field from
- *  mion. **/
+/** Per-call options steering atomic-value generation and optional/recursive
+ *  shape handling. Ported field-for-field from mion. **/
 export interface MockOptions {
-  /** Pool the walker draws from for `any` / `unknown` kinds. **/
+  /** Pool for `any` / `unknown` kinds. **/
   anyValuesList: unknown[];
-  /** Inclusive lower bound for `mockNumber` / `mockBigInt`. **/
+  /** Inclusive bounds for `mockNumber` / `mockBigInt`. **/
   minNumber?: number;
-  /** Inclusive upper bound for `mockNumber` / `mockBigInt`. **/
   maxNumber?: number;
-  /** Inclusive lower bound (timestamp) for `mockDate`. **/
+  /** Inclusive timestamp bounds for `mockDate`. **/
   minDate?: number | Date;
-  /** Inclusive upper bound (timestamp) for `mockDate`. **/
   maxDate?: number | Date;
-  /** Force a specific enum branch; if unset a random one is picked. **/
+  /** Force a specific enum branch. **/
   enumIndex?: number;
-  /** Pool the walker draws from for the `object` kind. **/
+  /** Pool for the `object` kind. **/
   objectList: object[];
-  /** Promise resolution delay (ms). 0 resolves synchronously after a
-   *  microtask. **/
+  /** Promise resolution delay (ms). 0 = synchronous (microtask). **/
   promiseTimeOut: number;
-  /** When set the mocked Promise rejects with this value instead of
-   *  resolving. **/
+  /** When set the mocked Promise rejects with this value. **/
   promiseReject?: unknown;
-  /** Pool the walker draws from for the `regexp` kind. **/
+  /** Pool for the `regexp` kind. **/
   regexpList: RegExp[];
-  /** Upper bound for random string lengths when `stringLength` is
-   *  omitted. **/
+  /** Upper bound used when `stringLength` is omitted. **/
   maxRandomStringLength: number;
   /** Force a specific string length. **/
   stringLength?: number;
   /** Character set used by `mockString`. **/
   stringCharSet: string;
-  /** Force a specific symbol-description length. **/
   symbolLength?: number;
-  /** Override character set for symbol-description generation. **/
   symbolCharSet?: string;
-  /** Force a specific symbol description. **/
   symbolName?: string;
-  /** Upper bound for random array / Map / Set / indexSignature sizes
-   *  when `arrayLength` is omitted. **/
+  /** Upper bound for array / Map / Set / indexSignature sizes. **/
   maxRandomItemsLength: number;
-  /** Force a specific array / Map / Set length. **/
+  /** Force a specific length. **/
   arrayLength?: number;
-  /** Probability (0..1) that an optional property / parameter is
-   *  included. Decays by nesting depth in cyclic types. **/
+  /** Probability (0..1) that an optional is included. Decays by depth. **/
   optionalProbability: number;
-  /** Per-property override of `optionalProbability`. Keyed by property
-   *  name; value is in the same 0..1 range. **/
+  /** Per-property override of `optionalProbability`. **/
   optionalPropertyProbability?: Record<string | number, number>;
-  /** Pre-built object the walker mutates for cyclic-shape parents. The
-   *  decay helper clears this on every recursion to prevent runaway
-   *  binding. **/
+  /** Pre-built object the walker mutates for cyclic-shape parents.
+   *  The decay helper clears this on each recursion. **/
   parentObj?: Record<string | number | symbol, unknown>;
-  /** Force a specific union branch; out-of-range throws. **/
+  /** Force a specific union branch. **/
   unionIndex?: number;
-  /** Per-element mock options for tuple members. **/
   tupleOptions?: MockOptions[];
-  /** Per-parameter mock options for function parameters. **/
   paramsOptions?: MockOptions[];
-  /** Hard cap on stack depth (currently informational — the
-   *  `maxMockRecursion` decay handles the practical case). **/
+  /** Informational only — `maxMockRecursion` decay handles the practical case. **/
   maxStackDepth: number;
-  /** Cap on how many times a given runtype can appear on the descent
-   *  stack before mocking bails out with `undefined`. Combined with
-   *  the probability decay this guarantees termination on cyclic
-   *  types. **/
+  /** Cap on stack re-entry count before mocking bails to `undefined`.
+   *  Combined with the probability decay this guarantees termination. **/
   maxMockRecursion: number;
 }
 
-/** Wrapper bag passed at factory or call site. Mirrors mion's
- *  `RunTypeOptions.mock` slot — keeping the wrapper lets future option
- *  groups (e.g. `validation`, `format`) slot in alongside without
- *  breaking the public signature. **/
+/** Wrapper bag passed at factory or call site. Reserved for future option
+ *  groups (e.g. `validation`, `format`) without breaking the signature. **/
 export interface RunTypeMockOptions {
   mock?: DeepPartial<MockOptions>;
 }
 
-/** Generator returned by `createMockType<T>()`. Each invocation returns
- *  a fresh value. Per-call options merge over the factory's defaults. **/
+/** Generator returned by `createMockType<T>()`. **/
 export type MockTypeFn<T = unknown> = (options?: DeepPartial<RunTypeMockOptions>) => T;
 
-/** Recursive Partial — every object branch becomes optional in lockstep
- *  with mion's `DeepPartial`. Arrays and primitives stay as-is. **/
+/** Recursive Partial — every object branch becomes optional. **/
 export type DeepPartial<T> = T extends object ? (T extends ReadonlyArray<infer _> ? T : {[K in keyof T]?: DeepPartial<T[K]>}) : T;

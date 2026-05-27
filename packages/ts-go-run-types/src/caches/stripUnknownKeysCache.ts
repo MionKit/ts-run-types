@@ -3,16 +3,8 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the stripUnknownKeys cache module. Served
-// by the Go binary via the Vite plugin's `transform()` hook after
-// replacing the marker line below with generated `init(…)` calls —
-// one per cached RunType the StripUnknownKeys emitter supports.
-//
-// Mirrors `prepareForJsonCache.ts` shape with the `fnID: 'suk'` tag.
-// Every JitCompiledFn entry the stripUnknownKeys emitter produces
-// takes a single value, deletes properties not declared in the schema
-// (in place), and returns the value. See `isTypeCache.ts` for the
-// JSDoc conventions.
+// stripUnknownKeys cache module. Each entry deletes undeclared properties
+// in place and returns the value.
 
 'use strict';
 
@@ -20,13 +12,8 @@
 
 /** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
-  // Pure-fn key consts referenced by emitted factory bodies.
   const k_gUKFA = 'mion::getUnknownKeysFromArray';
 
-  // Register every entry on the shared jitUtils cache with `fn:
-  // undefined`. Noop entries pre-populate fn with the family-specific
-  // identity (`(v) => v` — atomic shapes can't carry unknown keys, so
-  // strip is a passthrough).
   function init(
     jitFnHash,
     typeName,

@@ -3,15 +3,7 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the toBinary cache module. Served by the Go
-// binary via the Vite plugin's `transform()` hook after replacing the
-// marker line below with generated `init(…)` calls — one per cached
-// RunType the toBinary emitter supports.
-//
-// `init` closes over `jitUtils` from the surrounding `initCache`
-// parameter and registers each compiled JitCompiledFn via
-// `jitUtils.addToJitCache(entry)`. See `isTypeCache.ts` for the JSDoc
-// conventions.
+// toBinary cache module. Each entry writes bytes into a DataViewSerializer.
 
 'use strict';
 
@@ -52,10 +44,8 @@ export function initCache(jitUtils) {
     jitUtils.addToJitCache(entry);
   }
   void init;
-  // Noop fallback for runtypes whose toBinary emit collapsed to identity
-  // (e.g. `any` / `unknown` where bytes can't be derived from the type).
-  // Returns the serializer untouched so callers can still chain
-  // `.getBuffer()`.
+  // Noop fallback for collapsed entries (e.g. `any` / `unknown`). Returns
+  // the serializer untouched so callers can still chain `.getBuffer()`.
   function noopToBinary(v, Ser) {
     void v;
     return Ser;

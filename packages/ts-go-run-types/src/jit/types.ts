@@ -5,19 +5,13 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-// Type surface copied from mion (`@mionjs/core`) so jitUtils can live in this
-// package without pulling the full `@mionjs/core` dependency tree. Only the
-// symbols `jitUtils.ts` actually reaches are kept here.
-// Sources (when cross-referencing changes):
-//   - mion/packages/core/src/types/general.types.ts
-//   - mion/packages/core/src/types/pureFunctions.types.ts
+// Type surface copied from `@mionjs/core` so jitUtils stays dependency-free.
+// Only the symbols `jitUtils.ts` actually reaches are kept here.
 
 import type {JITUtils} from './jitUtils.ts';
-// Per-family fn signatures live next to the public `createXxx` factories
-// that return them — we re-use those aliases here so the cache-entry
-// typedefs below stay a single source of truth. The imports are
-// type-only, so the circular reference is erased at emit time and no
-// runtime cycle exists.
+// Per-family fn signatures are imported (type-only, no runtime cycle) from
+// the modules that own them so the cache-entry typedefs below stay a single
+// source of truth.
 import type {
   IsTypeFn,
   GetTypeErrorsFn,
@@ -59,13 +53,11 @@ export interface CompiledPureFunction extends PureFunctionData {
 
 // ########################################### Run types ##############################################
 
-/** Runtime representation of a single reflected type, populated by the Go
- *  binary into the runTypes cache module. Shape mirrors the `rt(...)`
- *  factory in `caches/runTypesCache.ts`: identification fields are filled
- *  in by the factory call; ref slots (`child`, `parameters`, …) start as
- *  `undefined` and are patched post-construction by the emitter's footer
- *  assignments. Fields are typed permissively because their concrete
- *  schema lives on the Go side. */
+/** Runtime representation of a reflected type. Identification fields are
+ *  set by the `rt(...)` factory; ref slots (`child`, `parameters`, …) start
+ *  as `undefined` and are patched post-construction by the emitter's footer
+ *  assignments. Fields are typed permissively — the concrete schema lives
+ *  on the Go side. */
 export interface RunType {
   id: string;
   kind: unknown;
@@ -120,85 +112,52 @@ export type JitFnArgs = {
 
 export interface JitCompiledFnData {
   readonly typeName: string;
-  /** The id of the function (operation) to be compiled (isType, typeErrors, prepareForJson, restoreFromJson, etc) */
+  /** The operation family (`it`, `te`, `pj`, `rj`, …). */
   readonly fnID: string;
-  /** Unique id of the function */
   readonly jitFnHash: string;
-  /** The names of the arguments of the function */
   readonly args: JitFnArgs;
-  /** Default values for the arguments */
   readonly defaultParamValues: JitFnArgs;
-  /**
-   * This flag is set to true when the result of a jit compilation is a no operation (empty function).
-   * if this flag is set to true, the function should not be called as it will not do anything.
-   */
+  /** True for collapsed-to-identity compilations. */
   readonly isNoop?: boolean;
-  /** Code for the jit function. after the operation has been compiled */
   readonly code: string;
-  /** The list of all jit functions that are used by this function and it's children. */
+  /** Sibling jit-fn hashes this entry calls into. */
   readonly jitDependencies?: Array<string>;
-  /** Pure function dependencies in format "namespace::fnHash" */
+  /** Pure function dependencies in format `"namespace::fnHash"`. */
   readonly pureFnDependencies?: Array<string>;
-  /** function param names if the compiled type is function params */
   paramNames?: string[];
   /**
    * Per-family diagnostic code (e.g. 'PJ001') when this entry is an
-   * alwaysThrow factory — the Go-side compiler reached an unsupported
-   * leaf and ships the code instead of an inline throwing body. The JS
-   * side resolves code → message via `messageForCode` at materialise
-   * time and constructs a factory that throws with `[code] message`.
-   * Undefined for normal and noop entries. See docs/UNSUPPORTED-KINDS.md.
+   * alwaysThrow factory — the Go-side compiler reached an unsupported leaf
+   * and ships the code. The JS side renders `[code] message` at materialise
+   * time. Undefined for normal and noop entries. See docs/UNSUPPORTED-KINDS.md.
    */
   readonly alwaysThrowCode?: string;
   /**
-   * `file:line:col` of the first known marker call site that referenced
-   * this runtype. Set alongside `alwaysThrowCode` on alwaysThrow entries
-   * so the runtime error message can suffix `(at file:line:col)` and
-   * point the user straight at the offending call. Undefined for normal
-   * and noop entries, or when the renderer has no provenance for the
-   * type (orphaned cache entry — rare). See docs/UNSUPPORTED-KINDS.md.
+   * `file:line:col` of the first known marker call site for this runtype.
+   * Set alongside `alwaysThrowCode` so the error message suffixes
+   * `(at file:line:col)`. See docs/UNSUPPORTED-KINDS.md.
    */
   readonly alwaysThrowSite?: string;
 }
 
 export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnData {
-  /** The closure function that wraps the jit function with its context-code
-   *  prologue. Optional: by default the Go renderer emits `undefined`
-   *  in this slot and the JS-side `materializeJitFn` rebuilds the
-   *  factory from `code` via `new Function('utl', code)` on first
-   *  `getJIT(hash)` call. The Go-side `--emit-create-jit-fn` flag
-   *  (`resolver.Options.EmitCreateJitFn`) opts back into eager
-   *  emission for runtimes that can't use `new Function`. Always set
-   *  on alwaysThrow entries (to the throwing closure built by
-   *  `jitUtils.alwaysThrowFactory`); always undefined on noop
-   *  entries (whose `entry.fn` is the family-specific identity). **/
+  /** Factory closure wrapping the jit function with its context-code prologue.
+   *  Optional: by default the Go renderer emits `undefined` and the JS-side
+   *  `materializeJitFn` rebuilds via `new Function('utl', code)` on first
+   *  lookup. The `--emit-create-jit-fn` flag opts back into eager emission
+   *  for runtimes that can't use `new Function`. Always set on alwaysThrow
+   *  entries; always undefined on noop entries. **/
   readonly createJitFn?: (utl: JITUtils) => Fn;
-  /** The Jit Generated function once the compilation is finished */
+  /** The materialised JIT function. */
   readonly fn: Fn;
 }
 
 // ############################# JIT CACHES ###################################
 
-// Per-family JitCompiledFn aliases — one per cache module under
-// `src/caches/`. The cache skeletons (`isTypeCache.ts`,
-// `getTypeErrorsCache.ts`, …) are `// @ts-nocheck`'d JS, so they reach
-// these typedefs via JSDoc `@typedef {import('../jit/types.ts').<Alias>}`
-// instead of a real `import type` — same single source of truth.
-// Mapping (alias → JitCompiledFn type-parameter):
-//   IsTypeJitFn                       → IsTypeFn
-//   GetTypeErrorsJitFn                → GetTypeErrorsFn
-//   HasUnknownKeysJitFn               → HasUnknownKeysFn
-//   StripUnknownKeysJitFn             → StripUnknownKeysFn
-//   UnknownKeyErrorsJitFn             → UnknownKeyErrorsFn
-//   UnknownKeysToUndefinedJitFn       → UnknownKeysToUndefinedFn
-//   UnknownKeysToUndefinedWireJitFn   → UnknownKeysToUndefinedFn (same fn shape, distinct cache slot 'ukuw')
-//   PrepareForJsonJitFn               → PrepareForJsonFn
-//   PrepareForJsonSafeJitFn           → PrepareForJsonFn          (same fn shape, distinct cache slot 'pjs')
-//   PrepareForJsonSafePreserveJitFn   → PrepareForJsonFn          (same fn shape, distinct cache slot 'pjsp')
-//   RestoreFromJsonJitFn              → RestoreFromJsonFn
-//   StringifyJsonJitFn                → StringifyJsonFn
-//   ToBinaryJitFn                     → ToBinaryFn
-//   FromBinaryJitFn                   → FromBinaryFn
+// Per-family JitCompiledFn aliases — one per cache module under `src/caches/`.
+// The cache skeletons are `@ts-nocheck`'d JS and reach these via JSDoc
+// `@typedef {import('../jit/types.ts').<Alias>}`. Several families share an fn
+// shape but occupy distinct cache slots (`ukuw` vs `uku`; `pjs`/`pjsp` vs `pj`).
 
 export type IsTypeJitFn = JitCompiledFn<IsTypeFn>;
 export type GetTypeErrorsJitFn = JitCompiledFn<GetTypeErrorsFn>;
@@ -215,7 +174,6 @@ export type StringifyJsonJitFn = JitCompiledFn<StringifyJsonFn>;
 export type ToBinaryJitFn = JitCompiledFn<ToBinaryFn>;
 export type FromBinaryJitFn = JitCompiledFn<FromBinaryFn>;
 
-// jit and pure functions at runtime, contains both createJitFn and fn
 export type JitFunctionsCache = Record<string, JitCompiledFn>;
 /** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */
 export type PureFunctionsCache = Record<string, CompiledPureFunction>;
@@ -230,10 +188,9 @@ export interface SerializableClass<T = any> {
   new (): T;
 }
 
-// Web/DOM globals referenced by the `Native` union below — declared as
-// opaque interfaces so this file stays compilable under the package's
-// strict `types: []` config (no `dom` or `node` lib in scope). At runtime
-// each `instanceof` check resolves against the platform's real global.
+// Web/DOM globals referenced below — declared as opaque interfaces because
+// the package's tsconfig sets `types: []`. At runtime each `instanceof`
+// resolves against the platform's real global.
 interface URL {
   readonly __webURL?: never;
 }
@@ -256,9 +213,8 @@ interface FormData {
 // prettier-ignore
 type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | FormData | ArrayBuffer | SharedArrayBuffer | DataView | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
 
-/** Typescript mapping type that stripes methods and only keep properties.
- * it takes into account, dates, objects, classes, arrays, maps and sets.
- */
+/** Mapping type that strips methods and keeps data properties. Handles
+ *  Date, plain objects, classes, arrays, Map, Set. */
 export type DataOnly<T> = T extends object
   ? T extends Native
     ? T

@@ -1,29 +1,7 @@
-// Single home for every JIT-backed factory exported by this package.
-//
-// Each createXxx<T>() is a thin wrapper over the private `createJitFunction`
-// generic. The only thing that varies per family is the cache-key prefix
-// (`it`, `te`, `pj`, …), the identity fallback used when a runtype is
-// registered but its factory collapsed to a noop, and the return type
-// alias.
-//
-// No local Maps live here. The jitUtils singleton is the only cache —
-// `getJIT(hash)` returns the entry, `materializeJitFn` populates
-// `entry.fn` once, and every subsequent lookup reads the same slot.
-//
-// JSON I/O lives behind exactly two public entry functions:
-// `createJsonEncoder` and `createJsonDecoder`. Each takes an `options`
-// object with orthogonal axes (encoder: strategy + stripExtras;
-// decoder: stripExtras only) that pick between compiled variants. The
-// underlying JIT primitives (prepareForJson / restoreFromJson /
-// stringifyJson / prepareForJsonSafe / prepareForJsonSafePreserve /
-// unknownKeysToUndefined / ukuWire) are emitted by the Go side and
-// looked up internally; consumers never call them directly.
-//
-// The deserialize-from-code test twins live under
-// `test/util/deserializeJitFunctions.ts` — production callers never need
-// them (cache modules auto-register entries and `materializeJitFn` builds
-// `entry.fn` on first lookup), so they don't belong in the package's
-// public surface.
+// Home for every JIT-backed factory exported by this package. Each
+// `createXxx<T>()` is a thin wrapper over the private `createJitFunction`
+// generic; only the cache-key prefix, identity fallback, and return type
+// vary per family. The jitUtils singleton is the only cache.
 
 import {initCache as initIsTypeCache} from './caches/isTypeCache.ts';
 import {initCache as initGetTypeErrorsCache} from './caches/getTypeErrorsCache.ts';
@@ -46,55 +24,38 @@ import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
 // Type definitions
 // =============================================================================
 
-/** Subset of mion's RunTypeOptions
- *  (mion-run-types:packages/run-types/src/types.ts:110-127) that
- *  affects atomic-type isType validation. Currently only `noLiterals`
- *  is plumbed end-to-end; the other fields are typed for forward
- *  compatibility with mion's full surface.
- *
- *  Pass an OBJECT LITERAL at the call site — the Go-side marker
- *  scanner extracts the option values at build time from the literal
- *  AST node and bakes them into the validator's hash. Identifier or
- *  spread expressions are ignored; if you need dynamic options the
- *  v2 plan is to surface a separate factory API. **/
+/** Subset of mion's RunTypeOptions that affects atomic-type isType validation.
+ *  Pass an OBJECT LITERAL at the call site — the Go-side marker scanner reads
+ *  the values at build time and bakes them into the validator's hash. **/
 export interface RunTypeOptions {
-  /** When true, compiled literal validators degrade to their base-type
-   *  check — `literal 'a'` accepts any string, `literal 2` accepts any
-   *  finite number, etc. Mirrors mion's literal.ts:56-59 behavior. **/
+  /** Literal validators degrade to their base-type check
+   *  (`literal 'a'` → any string, `literal 2` → any finite number). **/
   noLiterals?: boolean;
-  /** When true and the type is an array, the compiled validator skips
-   *  the leading `Array.isArray(v)` guard and iterates `v` directly —
-   *  trades safety for speed when the caller has already verified the
-   *  input is array-like. Mirrors mion's array.ts:emitIsType behavior
-   *  under `comp.opts.noIsArrayCheck`. Folded into the validator's hash
-   *  at build time so `string[]` and `string[] + {noIsArrayCheck:true}`
-   *  resolve to distinct validators. **/
+  /** Skip the leading `Array.isArray(v)` guard on array validators. Folded
+   *  into the validator hash so `string[]` and `string[] + {noIsArrayCheck:true}`
+   *  resolve to distinct entries. **/
   noIsArrayCheck?: boolean;
-  /** Reserved — see mion's RunTypeOptions. Not yet plumbed. **/
+  /** Reserved — not yet plumbed. **/
   strictTypes?: boolean;
 }
 
 /** Validator function returned by `createIsType<T>()`. **/
 export type IsTypeFn = (value: unknown) => boolean;
 
-/** Mirror of mion's RunTypeError shape. Path segments are
- *  `string | number` for normal accessors; Map / Set emitters add
- *  `{key, index, failed: 'mapKey' | 'mapValue'}` segments. **/
+/** Mirror of mion's RunTypeError shape. Map / Set emitters add
+ *  `{key, index, failed: 'mapKey' | 'mapValue'}` path segments. **/
 export type RunTypeErrorPathSegment = string | number | object;
 export interface RunTypeError {
   path: RunTypeErrorPathSegment[];
   expected: string;
 }
 
-/** Validator function returned by `createGetTypeErrors<T>()`. Caller-
- *  optional `path` and `errors` slots so the validator can be chained
- *  or pre-seeded. **/
+/** Validator returned by `createGetTypeErrors<T>()`. Caller-optional `path`
+ *  and `errors` slots so the validator can be chained or pre-seeded. **/
 export type GetTypeErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
 
-/** Options bag passed to a HasUnknownKeysFn at runtime. Mirrors mion's
- *  `runTimeOptions.checkNonJitProps` — when true, the known-keys list
- *  is expanded to include children the JIT skipped (static / function-
- *  typed properties). Defaults to false. **/
+/** Options bag for HasUnknownKeysFn. When `checkNonJitProps` is true the
+ *  known-keys list expands to include children the JIT skipped. **/
 export interface HasUnknownKeysOptions {
   checkNonJitProps?: boolean;
 }
@@ -102,95 +63,59 @@ export interface HasUnknownKeysOptions {
 /** Predicate returned by `createHasUnknownKeys<T>()`. **/
 export type HasUnknownKeysFn = (value: unknown, options?: HasUnknownKeysOptions) => boolean;
 
-/** Mutator returned by `createStripUnknownKeys<T>()`. Mutates the value
- *  by deleting any property not declared in the schema for `T`, then
- *  returns the same value reference. **/
+/** Mutator returned by `createStripUnknownKeys<T>()`. Deletes properties
+ *  not declared in the schema and returns the same value reference. **/
 export type StripUnknownKeysFn = (value: unknown) => unknown;
 
-/** Validator returned by `createUnknownKeyErrors<T>()`. Same arg shape
- *  as createGetTypeErrors. Each unknown key produces one
- *  `{path, expected: 'never'}` entry. **/
+/** Validator returned by `createUnknownKeyErrors<T>()`. Each unknown key
+ *  produces one `{path, expected: 'never'}` entry. **/
 export type UnknownKeyErrorsFn = (value: unknown, path?: RunTypeErrorPathSegment[], errors?: RunTypeError[]) => RunTypeError[];
 
 /** Mutator returned by `createUnknownKeysToUndefined<T>()`. Sets every
- *  unknown property to `undefined` (instead of removing it). **/
+ *  unknown property to `undefined` instead of removing it. **/
 export type UnknownKeysToUndefinedFn = (value: unknown) => unknown;
 
-// Internal type aliases describing the underlying JIT-primitive
-// signatures. These are referenced by createJsonEncoder /
-// createJsonDecoder when composing closures, and by the test util's
-// deserialize twins; they are NOT re-exported from `index.ts`.
+// Internal JIT-primitive signatures consumed by the JSON encoder/decoder.
 export type PrepareForJsonFn = (value: unknown) => unknown;
 export type RestoreFromJsonFn = (value: unknown) => unknown;
 export type StringifyJsonFn = (value: unknown) => string | undefined;
 
-/** Stringifier returned by `createJsonEncoder<T>()`. Returns the JSON
- *  string for `value`, OR `undefined` for top-level `undefined` inputs
- *  (matches `JSON.stringify` and the underlying `stringifyJson`
- *  primitive). Callers should handle the `undefined` return when the
- *  input type admits `undefined`. **/
+/** Stringifier returned by `createJsonEncoder<T>()`. Returns the JSON string,
+ *  OR `undefined` for top-level `undefined` inputs (matches `JSON.stringify`). **/
 export type JsonEncoderFn = (value: unknown) => string | undefined;
 
 /** Parse function returned by `createJsonDecoder<T>()`. **/
 export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
 
-/** Caller-controlled options for `createJsonEncoder<T>()`. Two
- *  orthogonal axes:
+/** Caller-controlled options for `createJsonEncoder<T>()`. Two orthogonal axes:
  *
- *  - `strategy`: how the encoder produces the output.
- *    - `'clone'` (default): walk the type, build a NEW value, hand to
- *      native `JSON.stringify`. Non-mutating. Allocates per nested
- *      object literal.
- *    - `'mutate'`: walk `v`, transform leaves in place, hand to
- *      native `JSON.stringify`. Mutates the input. No clone allocation.
- *    - `'direct'`: single-pass `stringifyJson` JIT — walks the type
- *      and builds the JSON string directly. Never mutates, no clone
- *      allocation, but slower than the native stringify path on
- *      non-trivial shapes. Always strips extras (the JIT walks the
- *      type, so it can't see undeclared keys).
+ *  - `strategy`:
+ *    - `'clone'` (default): walk the type, build a new value, hand to native
+ *      `JSON.stringify`. Non-mutating, allocates per nested object literal.
+ *    - `'mutate'`: walk `v`, transform leaves in place, hand to native
+ *      `JSON.stringify`. Mutates the input, no clone allocation.
+ *    - `'direct'`: single-pass `stringifyJson` JIT. Never mutates, no clone
+ *      allocation, slower on non-trivial shapes. Always strips extras.
  *
- *  - `stripExtras`: whether undeclared keys are removed from the
- *    output (defaults to `true`). For `strategy: 'direct'` this is
- *    pinned to `true` at the type level — passing `false` is a
- *    compile error.
- *
- *  Combinations:
- *
- *  | strategy | stripExtras | behaviour                                |
- *  |----------|-------------|-------------------------------------------|
- *  | clone    | true (def)  | clone + transform + strip (default)       |
- *  | clone    | false       | clone + transform + preserve extras       |
- *  | mutate   | true        | mutate + strip extras + transform         |
- *  | mutate   | false       | mutate + preserve extras + transform      |
- *  | direct   | true (only) | single-pass stringify, strips by walking  |
+ *  - `stripExtras` (default `true`): whether undeclared keys are removed.
+ *    Pinned to `true` for `strategy: 'direct'`.
  */
 export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
 
-// Binary I/O types, factory functions, cache initialisation, and HMR
-// wiring live in `./createBinary.ts` so bundlers can drop the whole
-// binary subtree when consumers don't use it. See the comment at the
-// top of that file for the rationale.
-
 /** Caller-controlled options for `createJsonDecoder<T>()`. The decoder
- *  always allocates fresh via `JSON.parse`, so there's no
- *  clone-vs-mutate axis — only the strip knob applies.
- *
- *  `stripExtras` (default `true`): undeclared properties on the parsed
- *  wire value are set to `undefined` (closing the safety hole when the
- *  encoder didn't strip them — e.g. an unsafe-encoded payload). `false`:
- *  undeclared properties pass through untouched. **/
+ *  always allocates fresh via `JSON.parse`, so only the strip knob applies.
+ *  When `stripExtras` is true (default), undeclared properties on the parsed
+ *  wire value become `undefined` before restore walks the declared shape. **/
 export interface JsonDecoderOptions {
   stripExtras?: boolean;
 }
 
 // =============================================================================
-// Cache bootstrap — register every JIT family on the jitUtils singleton.
-// initCache is idempotent (addToJitCache overwrites by jitFnHash), so HMR
-// can safely re-run any of these on cache-module re-eval. Each call only
-// registers entries; the actual fn closures are built lazily by
-// materializeJitFn on first getJIT() lookup, which keeps cross-family
-// dependencies happy regardless of registration order.
+// Cache bootstrap
 // =============================================================================
+// initCache is idempotent (addToJitCache overwrites by jitFnHash), so HMR can
+// safely re-run any of these. Each call only registers entries; fn closures
+// are built lazily by materializeJitFn on first getJIT() lookup.
 
 const _utils = getJitUtils();
 initIsTypeCache(_utils);
@@ -205,18 +130,15 @@ initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
 initPrepareForJsonSafeCache(_utils);
 initPrepareForJsonSafePreserveCache(_utils);
-// Binary cache init lives in `./createBinary.ts` so the two binary
-// cache modules don't get pulled into bundles that never reference
-// the binary encoder / decoder.
+// Binary cache init lives in `./createBinary.ts` so binary cache modules
+// don't get pulled into bundles that never reference the binary encoder/decoder.
 
 // =============================================================================
 // Private generic factories
 // =============================================================================
 
-/** Production-path generic. Returns the per-id closure for the given
- *  family by looking up `<prefix>_<id>` on the jitUtils singleton.
- *  Falls back to `identityFn` when the runtype is registered but the
- *  Go-side emit collapsed the factory to a noop. Throws otherwise. **/
+/** Returns the per-id closure for a family. Falls back to `identityFn` when
+ *  the runtype is registered but its Go-side factory collapsed to a noop. **/
 function createJitFunction<F extends AnyFn>(
   fnName: string,
   prefix: string,
@@ -240,16 +162,12 @@ function createJitFunction<F extends AnyFn>(
   };
 }
 
-// `lookupJitFn` lives in `./jit/lookupJitFn.ts` so both this module and
-// `./createBinary.ts` can use it without one depending on the other.
-
 // =============================================================================
 // Standard family wrappers.
 //
 // The trailing `as unknown as <T>(...) => Fn` cast restores the generic <T>
-// signature the Go-side marker scanner reads to identify call sites. The
-// runtime function is a non-generic JS closure; <T> only ever exists at the
-// type-checker layer and is erased before execution.
+// signature the Go-side marker scanner reads to identify call sites. <T>
+// only exists at the type-checker layer and is erased before execution.
 // =============================================================================
 
 const identityValueFn = (v: unknown) => v;
@@ -295,24 +213,17 @@ export const createUnknownKeysToUndefined = createJitFunction<UnknownKeysToUndef
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
 //
-// Each composes one or two underlying JIT primitives based on the
-// runtime `options` shape. The Go-side marker scanner injects a
-// canonical runtype id for `T` — option fields (strategy / stripExtras)
-// are NOT folded into the typeid, so every encoder shape against the
-// same `T` shares one type id; the runtime picks the right family
-// (`sj` / `pj` / `pjs` / `pjsp` + optional `uku` compose) based on the
-// caller's options.
-//
-// No closure cache here — composition is one allocation per call. The
-// underlying JIT primitives ARE cached on the jitUtils singleton, so
-// the heavy code runs once per type.
+// Each composes one or two underlying JIT primitives based on runtime options.
+// Option fields (strategy / stripExtras) are NOT folded into the typeid, so
+// every encoder shape against the same `T` shares one type id; the runtime
+// picks the right family (`sj` / `pj` / `pjs` / `pjsp` + optional `uku`
+// compose) based on the caller's options.
 // =============================================================================
 
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
-/** Returns a JSON encoder for `T`. See `JsonEncoderOptions` for the
- *  full 5-combination matrix. Defaults: `strategy: 'clone',
- *  stripExtras: true`. **/
+/** Returns a JSON encoder for `T`. Defaults: `strategy: 'clone',
+ *  stripExtras: true`. See `JsonEncoderOptions` for the full matrix. **/
 export function createJsonEncoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonEncoderOptions>,
@@ -325,27 +236,21 @@ export function createJsonEncoder<T>(
     );
   }
   const strategy = options?.strategy ?? 'clone';
-  // direct strategy is type-pinned to stripExtras: true (the JIT walks
-  // the type, can't see undeclared keys). For other strategies the
-  // default is true.
+  // `direct` is type-pinned to stripExtras: true (the JIT walks the type and
+  // can't see undeclared keys).
   const stripExtras = strategy === 'direct' ? true : ((options as {stripExtras?: boolean})?.stripExtras ?? true);
 
   if (strategy === 'direct') {
-    // Single-pass stringifyJson — returns `string | undefined`; callers
-    // handle the undefined for top-level-undefined inputs the same way
-    // they would for `JSON.stringify`.
     return lookupJitFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
   }
 
   if (strategy === 'clone') {
     if (stripExtras) {
-      // clone + strip — pjs (prepareForJsonSafe). Default path.
       const prepareSafeFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
       return (value) => JSON.stringify(prepareSafeFn(value));
     }
-    // clone + preserve — pjsp (prepareForJsonSafePreserve). Same clone
-    // codegen as pjs but every object literal spreads `...v` so
-    // undeclared keys survive.
+    // pjsp = same clone codegen as pjs but with `...v` spread so undeclared
+    // keys survive.
     const prepareSafePreserveFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', id, identityValueFn);
     return (value) => JSON.stringify(prepareSafePreserveFn(value));
   }
@@ -353,13 +258,10 @@ export function createJsonEncoder<T>(
   // strategy === 'mutate'
   const prepareFn = lookupJitFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
   if (!stripExtras) {
-    // mutate + preserve — pj (prepareForJson) directly.
     return (value) => JSON.stringify(prepareFn(value));
   }
-  // mutate + strip — composition: uku sets undeclared keys to undefined,
-  // then pj transforms declared leaves, then JSON.stringify skips
-  // undefined-valued keys naturally. Same wire output as the clone+strip
-  // path but no clone allocation.
+  // mutate + strip: uku sets undeclared keys to undefined, pj transforms
+  // declared leaves, then JSON.stringify skips undefined-valued keys naturally.
   const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', id, identityValueFn);
   return (value) => {
     ukuFn(value);
@@ -367,12 +269,8 @@ export function createJsonEncoder<T>(
   };
 }
 
-/** Returns a JSON decoder for `T`. Default `stripExtras: true` —
- *  undeclared properties on the parsed wire value become `undefined`
- *  before restore walks the declared shape (closing the safety hole
- *  when the encoder didn't strip them). `stripExtras: false` skips the
- *  unknown-keys pass and passes undeclared properties through to the
- *  restored value untouched. **/
+/** Returns a JSON decoder for `T`. Default `stripExtras: true` — undeclared
+ *  properties become `undefined` before restore walks the declared shape. **/
 export function createJsonDecoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonDecoderOptions>,
@@ -389,20 +287,15 @@ export function createJsonDecoder<T>(
   if (!stripExtras) {
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
-  // Use ukuWire (not the public uku) so the union-arm emit reaches
-  // into the flat-union wire wrapper `[-1, mergedObject]` instead of
-  // corrupting its `0`/`1` indices.
+  // ukuWire (not public uku): union-arm emit reaches into the flat-union wire
+  // wrapper `[-1, mergedObject]` instead of corrupting its `0`/`1` indices.
   const ukuFn = lookupJitFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
   return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }
 
-// Binary encode / decode entry functions (`createBinaryEncoder`,
-// `createBinaryDecoder`) live in `./createBinary.ts`.
-
 // =============================================================================
 // HMR — refresh the JIT registry whenever any cache module re-evaluates.
-// Production builds tree-shake the entire `if (hot)` block at bundle time.
-// HMR for the two binary cache modules lives in `./createBinary.ts`.
+// Tree-shaken at bundle time. Binary HMR lives in `./createBinary.ts`.
 // =============================================================================
 
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};

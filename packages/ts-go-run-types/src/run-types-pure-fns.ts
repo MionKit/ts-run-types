@@ -6,11 +6,8 @@
  * ######## */
 import {registerPureFnFactory} from './jit/pureFn.ts';
 
-// Slim type aliases copied from mion (`@mionjs/core`) so this file can live in
-// `@mionjs/ts-go-run-types` without pulling the full mion type tree. Pure type
-// annotations — fully erased at runtime. Sources (when cross-referencing):
-//   - mion/packages/core/src/types/general.types.ts (StrNumber, RunTypeError)
-//   - mion/packages/core/src/types/formats/formats.types.ts (TypeFormatError)
+// Slim type aliases copied from `@mionjs/core` so this file stays
+// dependency-free. Fully erased at runtime.
 type StrNumber = string | number;
 type TypeFormatError = {
   name: string;
@@ -30,7 +27,6 @@ export const cpf_asJSONString = registerPureFnFactory('mion', 'asJSONString', fu
   const STR_ESCAPE = /[\u0000-\u001f\u0022\u005c\ud800-\udfff]/;
   const MAX_SCAPE_TEST_LENGTH = 1000;
   return function _asJSONStringRegexOnly(str) {
-    // Always use regex test for strings >= 42 chars (n o for loop)
     if (str.length < MAX_SCAPE_TEST_LENGTH && STR_ESCAPE.test(str) === false) {
       return '"' + str + '"';
     } else {
@@ -63,7 +59,6 @@ export const cpf_getUnknownKeysFromArray = registerPureFnFactory('mion', 'getUnk
 export const cpf_hasUnknownKeysFromArray = registerPureFnFactory('mion', 'hasUnknownKeysFromArray', function () {
   return function _hasUnknownKeysFromArray(obj: Record<StrNumber, any>, keys: StrNumber[]): boolean {
     for (const prop in obj) {
-      // iterates over the object keys and if not found prop adds to unknownKeys
       let found = false;
       for (let j = 0; j < keys.length; j++) {
         if (keys[j] === prop) {

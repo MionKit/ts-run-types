@@ -1,21 +1,8 @@
 // Binary I/O public surface — separated from `createJitFunctions.ts` so
-// bundlers can leave the binary code (encoder, decoder, types, the two
-// binary cache modules, the DataView helper classes) out of consumer
-// bundles that never touch `createBinaryEncoder` / `createBinaryDecoder`.
-// Binary is a specific feature for a specific scenario (typed-array RPC,
-// router-driven binary transport); JSON / validation consumers shouldn't
-// pay for it.
-//
-// Cache initialisation (`initToBinaryCache` / `initFromBinaryCache`) and
-// the HMR `hot.accept` wiring for those two cache modules live here as
-// well, so loading this module is what registers the binary entries on
-// the jitUtils singleton. If nothing in the consumer's bundle references
-// anything from this file, Rollup / esbuild / webpack drop the whole
-// subtree — the cache modules included.
-//
-// Cross-family helpers (`lookupJitFn`, the DataView factory functions)
-// live in standalone modules consumed by both this file and
-// `createJitFunctions.ts`.
+// bundlers can leave the binary subtree (encoder, decoder, the two binary
+// cache modules, DataView helper classes) out of bundles that never touch
+// `createBinaryEncoder` / `createBinaryDecoder`. Loading this module is what
+// registers the binary entries on the jitUtils singleton.
 
 import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
 import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
@@ -35,52 +22,38 @@ import type {InjectRuntypeId} from './index.ts';
 // Type definitions
 // =============================================================================
 
-/** Internal type alias for the toBinary JIT primitive. Writes bytes for
- *  `value` into the supplied `DataViewSerializer` and returns the same
- *  serializer instance (mirrors mion's `sεr` convention). **/
+/** toBinary JIT primitive. Writes bytes for `value` into the supplied
+ *  serializer and returns the same instance (mirrors mion's `sεr` convention). **/
 export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSerializer;
 
-/** Internal type alias for the fromBinary JIT primitive. Reads bytes
- *  from the supplied `DataViewDeserializer` and returns the decoded
- *  value. The first parameter (`ret`) is a placeholder the JIT body
- *  writes the result into. **/
+/** fromBinary JIT primitive. Reads bytes from the supplied deserializer and
+ *  returns the decoded value. `ret` is a placeholder the JIT body writes into. **/
 export type FromBinaryFn<T = unknown> = (ret: unknown, Des: DataViewDeserializer) => T;
 
-/** Encoder returned by `createBinaryEncoder<T>()`. Writes the value's
- *  binary representation into the supplied `DataViewSerializer` (or a
- *  fresh one if omitted) and returns the trimmed underlying
- *  ArrayBuffer ready to ship over the wire / persist to disk. **/
+/** Encoder returned by `createBinaryEncoder<T>()`. Writes into the supplied
+ *  serializer (or a fresh one) and returns the trimmed ArrayBuffer. **/
 export type BinaryEncoderFn = (value: unknown, serializer?: DataViewSerializer) => StrictArrayBuffer;
 
-/** Decoder returned by `createBinaryDecoder<T>()`. Reads bytes from the
- *  supplied buffer / deserializer and returns the reconstructed value.
- *  Accepts either a raw `StrictArrayBuffer` (the encoder's output) or
- *  a pre-built `DataViewDeserializer`. **/
+/** Decoder returned by `createBinaryDecoder<T>()`. Accepts a raw buffer, a
+ *  typed-array view, or a pre-built `DataViewDeserializer`. **/
 export type BinaryDecoderFn<T = unknown> = (input: BinaryInput | DataViewDeserializer) => T;
 
 /** Caller-controlled options for `createBinaryEncoder<T>()`. **/
 export interface BinaryEncoderOptions {
-  /** Stable string used to bucket adaptive-sizing history (and as a
-   *  diagnostic label on the auto-allocated serializer). Defaults to
-   *  the runtype hash, so every encoder for the same `T` shares size
-   *  history transparently. Pass an explicit value to group several
-   *  unrelated types under one bucket. **/
+  /** Stable string used to bucket adaptive-sizing history. Defaults to the
+   *  runtype hash so every encoder for the same `T` shares size history. **/
   cacheKey?: string;
 }
 
 /** Caller-controlled options for `createBinaryDecoder<T>()`. **/
 export interface BinaryDecoderOptions {
-  /** Stable string used as a diagnostic label on the auto-allocated
-   *  deserializer. Defaults to the runtype hash. **/
+  /** Stable string used as a diagnostic label. Defaults to the runtype hash. **/
   cacheKey?: string;
 }
 
 // =============================================================================
 // Cache initialisation — side effect on module load.
 // =============================================================================
-// Loading this module registers the binary JIT entries on the jitUtils
-// singleton. Consumers that don't import anything from this file get
-// the cache modules dropped at bundle time.
 
 const _utils = getJitUtils();
 initToBinaryCache(_utils);
@@ -93,10 +66,7 @@ initFromBinaryCache(_utils);
 const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 
-/** Returns a binary encoder for `T`. The compiled encoder walks `T`
- *  and writes bytes to a `DataViewSerializer`; the returned wrapper
- *  allocates one if the caller doesn't supply it, runs the encoder,
- *  and returns the trimmed `ArrayBuffer`. **/
+/** Returns a binary encoder for `T`. **/
 export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectRuntypeId<T>): BinaryEncoderFn {
   void val;
   if (id === undefined) {
@@ -110,17 +80,15 @@ export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, 
     const ownsSer = serializer === undefined;
     const ser = serializer ?? createDataViewSerializer(cacheKey);
     encodeFn(value, ser);
-    // Only feed adaptive-sizing history when we own the serializer —
-    // a caller-supplied instance may be reused across multiple encodes
-    // and is responsible for its own end-of-payload semantics.
+    // Only feed adaptive-sizing history when we own the serializer — a
+    // caller-supplied instance may be reused across encodes and is responsible
+    // for its own end-of-payload semantics.
     if (ownsSer) ser.markAsEnded();
     return ser.getBuffer();
   };
 }
 
-/** Returns a binary decoder for `T`. Accepts either a raw
- *  `StrictArrayBuffer` (the encoder's output), any typed-array view, or
- *  a pre-built `DataViewDeserializer`. **/
+/** Returns a binary decoder for `T`. **/
 export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, id?: InjectRuntypeId<T>): BinaryDecoderFn<T> {
   void val;
   if (id === undefined) {
@@ -131,8 +99,7 @@ export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, 
   const cacheKey = options?.cacheKey ?? id;
   const decodeFn = lookupJitFn<FromBinaryFn<T>>('createBinaryDecoder', 'fb', id, noopFromBinaryFn as FromBinaryFn<T>);
   return (input) => {
-    // Distinguish DataViewDeserializer from raw buffer by checking for
-    // the `desString` method — the public interface guarantees it.
+    // Distinguish DataViewDeserializer from raw buffer by the `desString` method.
     let des: DataViewDeserializer;
     if (input && typeof (input as DataViewDeserializer).desString === 'function') {
       des = input as DataViewDeserializer;
@@ -144,8 +111,7 @@ export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, 
 }
 
 // =============================================================================
-// HMR — refresh the binary entries when their cache modules re-evaluate.
-// Production builds tree-shake the entire `if (hot)` block at bundle time.
+// HMR — refresh binary entries when their cache modules re-evaluate.
 // =============================================================================
 
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};

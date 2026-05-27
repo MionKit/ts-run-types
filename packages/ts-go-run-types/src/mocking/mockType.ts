@@ -1,25 +1,12 @@
-// Runtime mock-value generator. Walks a RunType graph and produces a
-// value that passes `isType<T>` for the same `T`. Direct port of mion's
-// `mocking/mockType.ts` — the per-kind switch mirrors mion's
-// `_mockType`, the stack-counting + decay helper mirrors mion's
-// `getMockOptionsForNestedElements`, and the atomic generators come
-// from the verbatim mion port in `./mockUtils.ts`.
+// Runtime mock-value generator. Walks a RunType graph and produces a value
+// that passes `isType<T>` for the same `T`. Direct port of mion's mockType.ts.
 //
-// Unlike every other JIT family in this package, mocking is NOT
-// compiled per-type — the walker is a plain runtime interpreter that
-// reads the existing `runTypesCache` data. Performance is not on the
-// hot path; correctness against the validation suite is.
+// Unlike other JIT families, mocking is NOT compiled per-type — the walker is
+// a runtime interpreter over `runTypesCache`.
 //
-// Termination on cyclic types is guaranteed by two mechanisms:
-//   1. `decayOptionsForNesting` divides `optionalProbability` and
-//      `maxRandomItemsLength` by the current re-entry count, so
-//      optionals get skipped and arrays / Map / Set / indexSignature
-//      lengths trend to 0 as depth grows.
-//   2. `mockRunType` bails out with `undefined` once the re-entry
-//      count exceeds `maxMockRecursion` (default 10).
-// Together these ensure recursive types terminate — verify by running
-// the CIRCULAR cases with a small `maxMockRecursion` before extending
-// the walker further.
+// Termination on cyclic types: `decayOptionsForNesting` divides
+// `optionalProbability` and `maxRandomItemsLength` by the re-entry count, and
+// `mockRunType` bails out with `undefined` past `maxMockRecursion` (default 10).
 
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../jit/types.ts';
@@ -38,13 +25,9 @@ import {
 } from './mockUtils.ts';
 import {stringCharSet} from './constants.mock.ts';
 
-/** Public entry point. Pushes `runType` onto the descent stack, counts
- *  how many times the same node has appeared (cycle detector via
- *  reference identity — the runTypes cache knits cyclic refs to a
- *  single shared object, so `===` is the right comparator), applies
- *  the probability / length decay helper, then dispatches to the
- *  per-kind switch. The stack is popped via `finally` so a throw in a
- *  nested case can't leave the stack imbalanced. **/
+/** Public entry. Tracks descent via `stack`, applies probability/length decay
+ *  based on re-entry count (cycle detector via reference identity — the
+ *  runTypes cache shares one object per cyclic ref), then dispatches. **/
 export function mockRunType(runType: RunType, options: RunTypeMockOptions, stack: RunType[] = []): unknown {
   stack.push(runType);
   try {
@@ -58,10 +41,8 @@ export function mockRunType(runType: RunType, options: RunTypeMockOptions, stack
   }
 }
 
-/** Linear count of how many times `target` appears in `stack` by
- *  reference identity. Loop instead of `.filter().length` to avoid
- *  the intermediate array allocation — the walker calls this on every
- *  recursion. **/
+/** Count how many times `target` appears in `stack` by reference identity.
+ *  Hand-rolled loop avoids `.filter().length` allocation on the hot path. **/
 function countOccurrences(stack: RunType[], target: RunType): number {
   let count = 0;
   for (let i = 0; i < stack.length; i++) {
@@ -70,12 +51,9 @@ function countOccurrences(stack: RunType[], target: RunType): number {
   return count;
 }
 
-/** Reduces the optional-probability and item-length knobs by the
- *  current nesting depth so cyclic types eventually bottom out.
- *  Mirrors mion's `getMockOptionsForNestedElements`. Returns a SHALLOW
- *  copy of `options` with a new `mock` slot — the inner pools
- *  (anyValuesList, regexpList, …) are shared by reference, which is
- *  fine because they're read-only. **/
+/** Reduces optional-probability and item-length by nesting depth so cyclic
+ *  types bottom out. Returns a shallow copy; inner pools are shared (they
+ *  are read-only). Mirrors mion's `getMockOptionsForNestedElements`. **/
 function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number): RunTypeMockOptions {
   const mOps = options.mock as MockOptions;
   const maxDepth = mOps.maxMockRecursion;
@@ -88,10 +66,8 @@ function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number):
     maxRandomItemsLength: newMaxLength,
   };
   if (mOps.optionalPropertyProbability) {
-    // Note: mion's source divides by `divisor` then re-divides by the
-    // result, which collapses every probability to `divisor` (a value
-    // > 1). That's clearly a typo — the intent matches the global
-    // `optionalProbability` decay. We port the intent: value / divisor.
+    // mion's source double-divides (clearly a typo); we port the intent:
+    // value / divisor, matching the global `optionalProbability` decay.
     const entries = Object.entries(mOps.optionalPropertyProbability).map(([key, value]) => {
       const decayed = nestLevel > maxDepth ? 0 : value / divisor;
       return [key, decayed] as const;
@@ -105,10 +81,8 @@ function decayOptionsForNesting(options: RunTypeMockOptions, nestLevel: number):
   return {...options, mock: next};
 }
 
-/** Per-kind dispatch. New kinds land here, NOT in helper files — the
- *  whole switch lives in one place so reviewers can see the full
- *  surface at once (same convention as mion's `_mockType` and
- *  `internal/compiled/typefns/istype.go`). **/
+/** Per-kind dispatch. New kinds land here, NOT in helper files — the whole
+ *  switch lives in one place. **/
 function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): unknown {
   const mOps = options.mock as MockOptions;
   const kind = runType.kind as number;
@@ -152,11 +126,8 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.enumMember:
       throw new Error('Mock enum member is not supported.');
     case RunTypeKind.class: {
-      // Class-shaped runtypes disambiguate via `subKind`: Date / Map /
-      // Set / non-serializable / user-defined. Date / Map / Set get
-      // their own builders; non-serializable bails. User-defined
-      // classes (SubKindNone) walk like objectLiteral — istype.go
-      // does the same fallthrough via emitObjectIsType.
+      // Disambiguate via `subKind`. User-defined classes fall through to
+      // the objectLiteral builder (isType matches structurally).
       const subKind = runType.subKind as number | undefined;
       if (subKind === RunTypeSubKind.date) return mockDate(mOps.minDate, mOps.maxDate);
       if (subKind === RunTypeSubKind.map) return mockMap(runType, options, stack);
@@ -164,17 +135,9 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (subKind === RunTypeSubKind.nonSerializable) {
         throw new Error('Mock is disabled for non-serializable types.');
       }
-      // User-defined class — fall through to the objectLiteral builder
-      // so the returned plain object matches the class shape (isType
-      // accepts structural matches; instanceof is not checked).
       return buildObjectLiteral(runType, options, stack, mOps);
     }
     case RunTypeKind.array: {
-      // Cyclic types reach termination via the per-recursion length
-      // decay applied in `decayOptionsForNesting` — by the time the
-      // walker has re-entered the same array node a few times the
-      // `maxRandomItemsLength` is rounded down to 0, so child
-      // recursion stops.
       const child = runType.child as RunType | undefined;
       if (!child) throw new Error('Cannot mock array: child runtype missing.');
       const length = mOps.arrayLength ?? random(0, mOps.maxRandomItemsLength);
@@ -190,8 +153,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
         const childOpts = perElemOptions?.[index] ? mergeChildOptions(options, perElemOptions[index]) : options;
         return mockRunType(member, childOpts, stack);
       });
-      // If the last tuple member is a rest, flatten its array into the
-      // tuple — mion does the same in `_mockType` for `KindTuple`.
+      // Flatten a trailing rest member into the tuple.
       const lastMember = children[children.length - 1];
       if (lastMember && isRestTupleMember(lastMember) && Array.isArray(params[params.length - 1])) {
         return [...params.slice(0, -1), ...(params[params.length - 1] as unknown[])];
@@ -200,10 +162,8 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     }
     case RunTypeKind.tupleMember:
     case RunTypeKind.parameter: {
-      // Tuple members and function parameters share the
-      // optional-probability flow — both check the case's `optional`
-      // flag before recursing on `child`. Rest members are flagged
-      // via the child's RunTypeKind.rest kind.
+      // Both check `optional` before recursing on `child`. Rest members
+      // are flagged via the child's RunTypeKind.rest kind.
       const child = runType.child as RunType | undefined;
       if (!child) return undefined;
       if (runType.optional && !isRestTupleMember(runType)) {
@@ -256,9 +216,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
             propName = Symbol.for(`key${i}`);
             break;
           case RunTypeKind.templateLiteral: {
-            // Walk the template literal envelope to produce a key
-            // matching the pattern. Mirrors mion — retry on collision
-            // (narrow patterns like `id-${number}` can repeat).
+            // Retry on collision — narrow patterns like `id-${number}` can repeat.
             const buildKey = (): string => buildTemplateLiteralString(keyType, mOps);
             let candidate = buildKey();
             for (let attempt = 0; attempt < 5 && Object.prototype.hasOwnProperty.call(parent, candidate); attempt++) {
@@ -302,22 +260,16 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.callSignature:
     case RunTypeKind.method:
     case RunTypeKind.methodSignature:
-      // Mion returns `undefined` for top-level method / methodSignature
-      // mocks (and throws on function/callSignature without the
-      // synthetic `params` subKind wrapper, which we don't emit). The
-      // mock isn't expected to satisfy `isType<Function>`; the
-      // adapter marks function-typed cases with `mockTypeExpect:
-      // 'skip'`.
+      // The mock isn't expected to satisfy `isType<Function>` — function-typed
+      // cases are marked `mockTypeExpect: 'skip'` in the test adapter.
       return undefined;
     default:
       throw new Error(`Cannot mock runType: kind ${kind} is not yet supported by the mock walker.`);
   }
 }
 
-/** Builds a plain object from an objectLiteral / intersection /
- *  user-class runtype. Walks `children`, skipping methods, recursing
- *  on properties (with optional-probability decay) and collecting
- *  index signatures into the same parent. **/
+/** Builds a plain object from an objectLiteral / intersection / user-class.
+ *  Skips methods; collects index signatures into the same parent. **/
 function buildObjectLiteral(
   runType: RunType,
   options: RunTypeMockOptions,
@@ -342,24 +294,20 @@ function buildObjectLiteral(
   return parent;
 }
 
-/** True iff `member` is a tuple/parameter wrapper around a RunTypeKind.rest
- *  element. Helps the tuple flattening + optional-roll paths
- *  short-circuit correctly. **/
+/** True iff `member` is a tuple/parameter wrapper around RunTypeKind.rest. **/
 function isRestTupleMember(member: RunType): boolean {
   if (member.kind === RunTypeKind.rest) return true;
   const child = member.child as RunType | undefined;
   return child !== undefined && child.kind === RunTypeKind.rest;
 }
 
-/** Wraps a per-element `MockOptions` from `tupleOptions` /
- *  `paramsOptions` into the bag shape `mockRunType` expects. **/
+/** Wrap per-element `MockOptions` into the bag shape `mockRunType` expects. **/
 function mergeChildOptions(options: RunTypeMockOptions, childMock: MockOptions): RunTypeMockOptions {
   return {...options, mock: childMock};
 }
 
-/** Map mock builder. The Go protocol stores Map's key/value types in
- *  `runType.arguments` as KindParameter wrappers (SubKindMapKey /
- *  SubKindMapValue). The wrapped types live at `.child`. **/
+/** Map mock builder. Key/value types live at `runType.arguments[i].child`
+ *  (the wire stores them as KindParameter wrappers). **/
 function mockMap(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): Map<unknown, unknown> {
   const mOps = options.mock as MockOptions;
   const args = (runType.arguments ?? []) as RunType[];
@@ -376,9 +324,7 @@ function mockMap(runType: RunType, options: RunTypeMockOptions, stack: RunType[]
   return result;
 }
 
-/** Set mock builder. The Go protocol stores Set's element type in
- *  `runType.arguments[0]` as a KindParameter wrapper
- *  (SubKindSetItem); the wrapped type lives at `.child`. **/
+/** Set mock builder. Element type lives at `runType.arguments[0].child`. **/
 function mockSet(runType: RunType, options: RunTypeMockOptions, stack: RunType[]): Set<unknown> {
   const mOps = options.mock as MockOptions;
   const args = (runType.arguments ?? []) as RunType[];
@@ -390,13 +336,8 @@ function mockSet(runType: RunType, options: RunTypeMockOptions, stack: RunType[]
   return result;
 }
 
-/** Renders a template-literal runtype to a concrete string that
- *  satisfies its anchored regex. The Go protocol stores the layout
- *  inside `runType.literal.templateLiteral.{texts, placeholders}` —
- *  see `internal/compiled/typefns/istype.go:buildTemplateLiteralRegex`.
- *  `texts` is the list of literal chunks; `placeholders` (1 fewer
- *  entry than `texts`) is the list of placeholder spans interleaved
- *  between them. **/
+/** Render a template-literal runtype to a string satisfying its regex.
+ *  Layout: `runType.literal.templateLiteral.{texts, placeholders}`. **/
 function buildTemplateLiteralString(runType: RunType, mOps: MockOptions): string {
   const envelope = (runType.literal ?? null) as TemplateLiteralEnvelope | null;
   const layout = envelope?.templateLiteral;
@@ -425,9 +366,7 @@ interface TemplateLiteralPlaceholder {
   literal?: unknown;
 }
 
-/** Renders one template-literal placeholder span to a string fragment
- *  that satisfies the regex anchor produced by the Go side. Atomic
- *  kinds delegate to the matching `mock*` helper. **/
+/** Render one placeholder span to a fragment satisfying the regex anchor. **/
 function renderTemplateLiteralPlaceholder(span: TemplateLiteralPlaceholder, mOps: MockOptions): string {
   if (!span) return '';
   const kind = typeof span.kind === 'number' ? span.kind : -1;
@@ -443,10 +382,7 @@ function renderTemplateLiteralPlaceholder(span: TemplateLiteralPlaceholder, mOps
     case RunTypeKind.unknown:
       return mockString(mOps.stringLength ?? random(1, mOps.maxRandomStringLength), mOps.stringCharSet || stringCharSet);
     default:
-      // Unknown placeholder kind — return an empty string so the
-      // surrounding text segments still anchor. Future migration:
-      // surface a specific span shape (e.g. union-of-literals) for
-      // smarter mocks.
+      // Unknown kind — empty string so surrounding text segments still anchor.
       return '';
   }
 }

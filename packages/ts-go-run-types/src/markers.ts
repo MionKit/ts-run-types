@@ -1,72 +1,45 @@
-// Marker primitives — the type-level brands the Go binary scanner
-// recognizes at call sites. Three markers in the family:
+// Marker primitives — the type-level brands the Go binary scanner recognizes
+// at call sites:
+//   • `InjectRuntypeId<T>` — the only *injectable* marker. The trailing
+//     `id?: InjectRuntypeId<T>` parameter is filled in at build time with the
+//     resolved hash id by `vite-plugin-runtypes`.
+//   • `CompTimeArgs<T>` — brands an argument as "must be a literal at the
+//     call site, or a module-scope `const` whose initializer is itself
+//     entirely literal". Static check only, no injection.
+//   • `PureFunction<F>` — brands a function-typed argument as "literal AND
+//     passes purity rules". Static check only.
 //
-//   • `InjectRuntypeId<T>` — the only *injectable* marker. A function whose
-//     trailing parameter is `id?: InjectRuntypeId<T>` opts into compile-
-//     time type-id injection by `vite-plugin-runtypes`; every call site
-//     has the resolved hash id written into that slot at build time.
-//
-//   • `CompTimeArgs<T>` — (Phase 2) brands an argument as "must be a
-//     literal at the call site, or a module-scope `const` whose
-//     initializer is itself entirely literal". Pure static check; no
-//     injection.
-//
-//   • `PureFunction<F>` — (Phase 3) brands a function-typed argument as
-//     "literal function definition AND passes purity rules". Reuses the
-//     existing `purefns.CheckPurity` validation. Pure static check.
-//
-// Wrappers around `getRuntypeId` / `reflectRuntypeId` are supported —
-// declare the same trailing parameter on the wrapper and the
-// transformer treats it identically.
+// Wrappers around `getRuntypeId` / `reflectRuntypeId` are supported — declare
+// the same trailing parameter on the wrapper and the transformer treats it
+// identically.
 
 /**
- * Sentinel marker. The `T` is a phantom type parameter used only by the
- * checker / transformer; at runtime an `InjectRuntypeId<T>` is just a
- * short alphanumeric hash string assigned by the build step.
- *
- * The brand prevents stringly-typed APIs from accidentally satisfying the
- * marker. Without it, any `string` would be assignable to
- * `InjectRuntypeId<X>`, which would defeat the type-safety story for
- * callers reading ids back.
+ * Sentinel marker. `T` is a phantom type parameter used only by the checker /
+ * transformer; at runtime an `InjectRuntypeId<T>` is just a short alphanumeric
+ * hash string. The brand prevents stringly-typed APIs from accidentally
+ * satisfying the marker.
  */
 export type InjectRuntypeId<T> = string & {
   readonly __mionInjectRuntypeIdBrand?: T;
 };
 
-// `any` poisons every downstream cache entry — the marker compiles into a
-// noop validator that returns true / serializer that returns the value
-// unchanged. The reflection form is the typical entry point for that
-// failure mode (`reflectRuntypeId(JSON.parse(s))` where `JSON.parse`
-// returns `any`). Rejecting `any` at the type level forces the caller to
-// annotate the value or the type parameter explicitly — the resulting
-// `never` collapses the marker call and the downstream `createXxx<T>`
-// calls so the user sees the error at the marker site, not at runtime.
+// `any` poisons every downstream cache entry — the marker compiles into a noop
+// validator. Rejecting `any` at the type level forces callers to annotate the
+// value or type parameter explicitly, surfacing the error at the marker site
+// instead of at runtime.
 //
-// Pattern: `0 extends 1 & T` is true ONLY when T is `any` (the
-// intersection short-circuits to `any` and `0 extends any` is true; for
-// any other T the intersection is the more specific type and 0 does not
-// extend it). The branded `RejectAny` tuple lets the TypeScript error
-// message at the call site read as a sentence rather than a structural
-// mismatch.
+// Pattern: `0 extends 1 & T` is true ONLY when T is `any`.
 type IsAny<T> = 0 extends 1 & T ? true : false;
 type RejectAny<T> =
   IsAny<T> extends true ? ['ts-go-run-types error: `T` is `any` — annotate the value or type argument explicitly.'] : T;
 
 /**
- * Static marker. Use when you have an explicit type and no runtime value:
- * `getRuntypeId<User>()`. The vite plugin rewrites the call to
- * `getRuntypeId<User>("<hash>")` — injecting the build-time-resolved id at
- * the trailing slot.
+ * Static marker. Use with an explicit type and no runtime value:
+ * `getRuntypeId<User>()`. Throws if the transformer is not active —
+ * the id can only be computed at build time.
  *
- * Calling without the transformer active (i.e. without
- * `vite-plugin-runtypes` in the chain) throws: the helper depends on the
- * id being injected at compile time and has no way to compute one at
- * runtime in plain JS.
- *
- * Passing `any` as `T` is rejected at the type level — `getRuntypeId<any>()`
- * is almost always a mistake (the resulting cache entry is a noop validator
- * that returns true for every input). Annotate explicitly with a concrete
- * type instead.
+ * Rejects `T = any` at the type level since the resulting cache entry would
+ * accept every input.
  */
 export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<RejectAny<T>> {
   if (id === undefined) {
@@ -76,18 +49,12 @@ export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<Reject
 }
 
 /**
- * Reflection marker. Use when you have a runtime value and want `T`
- * inferred from it: `reflectRuntypeId(user)`. The vite plugin rewrites the
- * call to `reflectRuntypeId(user, "<hash>")`.
+ * Reflection marker. Use when `T` should be inferred from a runtime value:
+ * `reflectRuntypeId(user)`. The `value` is only used for type inference and
+ * is ignored at runtime. Throws if the transformer is not active.
  *
- * Same runtime contract as `getRuntypeId`: throws if the transformer is
- * not active. The `value` is purely for type inference and is ignored at
- * runtime.
- *
- * Passing a value whose inferred type is `any` (typical sources:
- * `JSON.parse`, untyped library returns, `as any` casts) is rejected at
- * the type level — the inferred validator would accept every input. Cast
- * or annotate the value to a concrete shape first.
+ * Rejects inferred-`any` (typical sources: `JSON.parse`, untyped library
+ * returns, `as any` casts) at the type level.
  */
 export function reflectRuntypeId<T>(_value: RejectAny<T>, id?: InjectRuntypeId<T>): InjectRuntypeId<RejectAny<T>> {
   if (id === undefined) {
@@ -98,43 +65,21 @@ export function reflectRuntypeId<T>(_value: RejectAny<T>, id?: InjectRuntypeId<T
 
 /**
  * Compile-time-args marker. Brands a parameter so the Go scanner enforces
- * that the matching argument is *fully literal* — either at the call site
- * (`fn(undefined, {foo: 1})`) or via a module-scope `const` whose
- * initializer is itself entirely literal
- * (`const opts = {foo: 1}; fn(undefined, opts)`). No spread, no function
- * calls, no property access, no template substitution, no ternary —
- * nested literals all the way down. Accepted leaves: strings, numbers,
- * bigints, booleans, null, undefined, regex literals, arrow / function
- * expressions, and nested object / array literals.
- *
- * Pure static check: the brand is a phantom intersection
- * (`T & {__mionCompTimeArgsBrand?: never}`) so the value flows through
- * unwrapped to the function body. Violations are reported as build-time
- * `CTA0xx` diagnostics.
+ * that the matching argument is *fully literal* — at the call site or via a
+ * module-scope `const` whose initializer is itself entirely literal. No
+ * spread, no calls, no property access, no template substitution, no ternary.
+ * The brand is a phantom intersection, so the value flows through unwrapped.
+ * Violations produce `CTA0xx` diagnostics.
  */
 export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
 
 /**
- * Pure-function marker. Brands a function-typed parameter so the Go
- * scanner enforces that the matching argument is *both* an inline
- * function definition (arrow or function expression, at the call site
- * or via a module-scope `const` whose initializer is itself a function
- * literal) *and* passes the purity rules — no `this`, no `await` /
- * `yield`, no dynamic `import`, no eval / Function, no closure over
- * outer bindings (only allow-listed globals and same-scope vars), no
- * forbidden hosts (`fetch`, `process`, `window`, …).
+ * Pure-function marker. Brands a function-typed parameter so the Go scanner
+ * enforces that the matching argument is *both* an inline function definition
+ * *and* passes the purity rules (no `this`, no `await`/`yield`, no dynamic
+ * `import`, no eval/Function, no outer-scope captures, no forbidden hosts).
  *
- * Strictly stronger than `CompTimeArgs<F>` when F is a function: every
- * value `PureFunction<F>` accepts is also a `CompTimeArgs<F>` literal,
- * but `PureFunction` additionally requires purity. Use this for
- * function arguments the JIT plans to inline / AOT-compile; use
- * `CompTimeArgs<F>` when you only need the literal-shape guarantee
- * (e.g. for stable hashing of the function's source text).
- *
- * Pure static check: the brand is a phantom intersection
- * (`F & {__mionPureFunctionBrand?: never}`) so the value flows through
- * unwrapped. Inline-shape violations produce a `PFN001` diagnostic;
- * purity violations propagate via the existing `PFE9006`–`PFE9011`
- * codes from the `purefns` extractor (reused unchanged).
+ * Strictly stronger than `CompTimeArgs<F>` when F is a function. Inline-shape
+ * violations → `PFN001`; purity violations → `PFE9006`–`PFE9011`.
  */
 export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};

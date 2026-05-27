@@ -3,17 +3,10 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the prepareForJsonSafe cache module.
-// Sibling of prepareForJsonCache.ts that produces a NON-mutating
-// JSON-serializable form: instead of overwriting properties on `v`,
-// each emitted factory builds a new value containing only the
-// declared keys (extras are stripped) and the transformed leaves
-// (Date → ISO string, bigint → decimal string, etc.). Pairs with
-// `createRestoreFromJson` on the decode side because the wire shape
-// is identical to `prepareForJson + JSON.stringify`.
-//
-// Consumers opt in via createPrepareForJsonSafe; the non-safe cache
-// stays untouched. See `isTypeCache.ts` for the JSDoc conventions.
+// prepareForJsonSafe cache module. Non-mutating sibling of prepareForJson:
+// builds a new value with only declared keys (extras stripped) and
+// transformed leaves. Wire shape matches `prepareForJson + JSON.stringify`,
+// so it pairs with `createRestoreFromJson` on the decode side.
 
 'use strict';
 

@@ -3,16 +3,9 @@
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
 // See the banner at the top of `isTypeCache.ts` for the full contract.
 //
-// Hand-authored skeleton for the restoreFromJson cache module. Served
-// by the Go binary via the Vite plugin's `transform()` hook after
-// replacing the marker line below with generated `init(…)` calls —
-// one per cached RunType the RestoreFromJson emitter supports.
-//
-// Mirrors `prepareForJsonCache.ts` exactly except for the `fnID: 'rj'`
-// tag. Every JitCompiledFn entry the restoreFromJson emitter produces
-// takes a JSON-parsed value and reconstructs the original runtime
-// shape (Dates from ISO strings, BigInts from decimal strings, etc.).
-// See `isTypeCache.ts` for the JSDoc conventions.
+// restoreFromJson cache module. Each entry takes a JSON-parsed value and
+// reconstructs the original runtime shape (Dates from ISO strings, BigInts
+// from decimal strings, etc.).
 
 'use strict';
 
@@ -20,15 +13,6 @@
 
 /** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
-  // Register every entry on the shared jitUtils cache with `fn:
-  // undefined`. The fn closure is materialized lazily on first
-  // `jitUtils.getJIT(hash)` / `getJitFn(hash)` call — see
-  // isTypeCache.ts for the rationale.
-  //
-  // Noop entries use the short-form init: only jitFnHash, typeName,
-  // and isNoop=true reach this call. fn is set immediately to the
-  // family-specific identity (`(v) => v` for restoreFromJson), letting
-  // consumers skip the lazy-materialize path entirely.
   function init(
     jitFnHash,
     typeName,

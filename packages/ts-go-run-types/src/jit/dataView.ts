@@ -1,51 +1,27 @@
-// DataView-based binary serializer + deserializer ported from
-// mion/packages/core/src/binary/dataView.ts. Kept self-contained
-// (no @mionjs/core dependency) so the marker package stays runtime-
-// dependency-free.
-//
-// Wire format details live alongside the encode/decode in mion's
-// binarySPEC.md; the short version:
-//   - Always little-endian (LE = true).
-//   - Strings: `[uint32 length, utf8 bytes]` via `serString` / `desString`.
-//   - Numbers: float64 via `serFloat64` / `desFloat64`.
-//   - Enums: `[uint32 typeTag, value]` where typeTag is 1 (string) or 2
-//     (number); decoded via `desEnum`.
+// DataView-based binary serializer + deserializer ported from mion. Wire format:
+//   - Little-endian.
+//   - Strings: `[uint32 length, utf8 bytes]`.
+//   - Numbers: float64.
+//   - Enums: `[uint32 typeTag (1=string, 2=number), value]`.
 //   - Optional-property bitmaps: 1 bit per optional prop, 8 per byte.
-//     Encoder primes the bitmap byte(s) to zero via the buffer's
-//     `setUint8` then flips bits via `setBitMask`. Decoder reads the
-//     bitmap byte(s) and tests each bit before decoding the matching
-//     prop.
 //
-// The classes are exposed at runtime so emitted JIT bodies can construct
-// them via the `utl.createSerializer(...)` / `utl.createDeserializer(...)`
-// bindings (see jitUtils.ts).
+// Two ported optimisations:
+//   - String bytes cache — short strings (<64 chars) are UTF-8-encoded once
+//     and blitted on repeat encodes. Bounded with half-LRU eviction.
+//   - Adaptive buffer sizing — pre-allocates `historicalAverage × multiplier`,
+//     falling back to `defaultBufferSize` on a cold cache. Keyed on the
+//     caller-supplied `cacheKey`.
 //
-// Two performance optimisations ported from mion:
-//   - **String bytes cache** — short strings (default <64 chars) are
-//     UTF-8-encoded once and blitted on repeat encodes, skipping the
-//     `TextEncoder` round-trip. Bounded by `maxCacheSize` with a half-
-//     LRU eviction. Optional `skipCache` bypass.
-//   - **Adaptive buffer sizing** — `createDataViewSerializer(cacheKey)`
-//     pre-allocates `historicalAverage × sizeMultiplier`, with a cold-
-//     start fallback of `defaultBufferSize`. The rolling average is fed
-//     by `markAsEnded()`. Keyed on the caller-supplied `cacheKey`
-//     (generic string — typically the runtype hash for ts-go-run-types
-//     callers; not coupled to any router concept).
-//
-// Tune via `setSerializationOptions({...})`. The optional `sizeHistory`
-// and `stringBytesCache` overrides let tests / multi-tenant consumers
-// scope state instead of sharing the module-level maps.
+// Tune via `setSerializationOptions({...})`. The `sizeHistory` and
+// `stringBytesCache` overrides let tests / multi-tenant consumers scope state.
 
 const STR = 1;
 const NUM = 2;
 const POW_2_32 = 2 ** 32;
 const LE = true;
 
-// Minimal ambient declarations — the package's tsconfig sets `types: []`
-// so the standard `lib.dom.d.ts` globals aren't visible by default.
-// TextEncoder / TextDecoder are universally available in both Node (>=
-// 11) and every browser, so the typing surface here matches what we
-// actually call.
+// Ambient declarations — the package's tsconfig sets `types: []` so DOM
+// globals aren't visible. TextEncoder/Decoder are universally available.
 declare const TextEncoder: {
   new (): {encodeInto(input: string, dest: Uint8Array): {written?: number; read?: number}};
 };
@@ -56,36 +32,25 @@ declare const TextDecoder: {
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-/** Tagged ArrayBuffer with the SharedArrayBuffer carve-out — the same
- *  shape mion uses to keep TS happy when slicing typed arrays. **/
+/** Tagged ArrayBuffer with the SharedArrayBuffer carve-out. **/
 export type StrictArrayBuffer = ArrayBuffer & {__brand?: 'StrictArrayBuffer'};
 
-/** Acceptable buffer-like input for the deserializer. Accepts a raw
- *  ArrayBuffer or any typed-array view (Uint8Array, Node Buffer, …). **/
+/** Buffer-like input for the deserializer. **/
 export type BinaryInput = StrictArrayBuffer | ArrayBufferView;
 
-/** Tunable serializer behaviour. All knobs default to the values mion
- *  ships; override via `setSerializationOptions({...})`. **/
+/** Tunable serializer behaviour. **/
 export interface SerializationOptions {
-  /** Cold-start buffer size when no `sizeHistory` entry exists for the
-   *  serializer's cache key. Default 16 MiB (`2 ** 24`). **/
+  /** Cold-start buffer size. Default 16 MiB (`2 ** 24`). **/
   defaultBufferSize: number;
-  /** Safety headroom factor applied to historical averages on warm
-   *  paths: `allocSize = avg * sizeMultiplier`. Default 2. **/
+  /** Safety headroom factor: `allocSize = avg * sizeMultiplier`. Default 2. **/
   sizeMultiplier: number;
-  /** Strings strictly shorter than this bypass the bytes cache (the
-   *  cost of the map lookup + slice outweighs the encode for long
-   *  payloads). Default 64. **/
+  /** Strings shorter than this bypass the bytes cache. Default 64. **/
   maxStrCacheLength: number;
-  /** Maximum entries in the bytes cache before half-LRU eviction
-   *  triggers. Default 1000. **/
+  /** Half-LRU eviction triggers above this. Default 1000. **/
   maxCacheSize: number;
-  /** Cache-key → rolling-average bytes-written map. Defaults to a
-   *  module-level singleton; pass a fresh `Map` to scope history
-   *  (tests, multi-tenant runtimes). **/
+  /** Cache-key → rolling-average bytes-written. Pass a fresh `Map` to scope. **/
   sizeHistory: Map<string, number>;
-  /** Source-string → cached UTF-8 bytes. Same scoping story as
-   *  `sizeHistory`. **/
+  /** Source-string → cached UTF-8 bytes. Pass a fresh `Map` to scope. **/
   stringBytesCache: Map<string, Uint8Array>;
 }
 
@@ -103,23 +68,16 @@ const DEFAULTS: SerializationOptions = {
 
 let opts: SerializationOptions = {...DEFAULTS};
 
-/** Patches the active serialization options. Unspecified fields keep
- *  their current value (initialised from `DEFAULTS`). Passing a fresh
- *  `Map` for `sizeHistory` or `stringBytesCache` lets a caller scope
- *  state so it doesn't share with other consumers in the same process —
- *  e.g. between unit tests or per-tenant servers. **/
+/** Patches the active serialization options. Unspecified fields keep their
+ *  current value. **/
 export function setSerializationOptions(patch: Partial<SerializationOptions>): void {
   opts = {...opts, ...patch};
 }
 
-/** Public interface implemented by DataViewSerializerImpl. Mirrors the
- *  shape mion exposes from `@mionjs/core` so user code can be typed
- *  against it without depending on the concrete class. **/
+/** Public interface implemented by DataViewSerializerImpl. **/
 export interface DataViewSerializer {
   readonly buffer: ArrayBuffer;
-  /** Generic cache key the size-history and (any) diagnostics are
-   *  keyed by. Not tied to any router concept — callers typically pass
-   *  the runtype hash or any other stable per-payload-shape string. **/
+  /** Stable string used for size-history bucketing — typically the runtype hash. **/
   readonly cacheKey: string;
   index: number;
   view: DataView;
@@ -153,21 +111,16 @@ export interface DataViewDeserializer {
   desEnum(): number | string;
 }
 
-/** Optional `createDataViewSerializer` arguments. `size` is an explicit
- *  override; when omitted, `relatedKeys` (if any) sum-of-averages is
- *  used, otherwise the single `cacheKey` average is used; falling back
- *  to `defaultBufferSize` on a cold cache. **/
+/** Optional args for `createDataViewSerializer`. `size` is an explicit
+ *  override; `relatedKeys` predicts via sum-of-averages. **/
 export interface CreateSerializerOptions {
   size?: number;
   relatedKeys?: string[];
 }
 
-/** Creates a DataView-based serializer. `cacheKey` is used both for
- *  diagnostics and as the size-history bucket — typically the runtype
- *  hash for ts-go-run-types callers, but any stable string works. **/
+/** Creates a DataView-based serializer. **/
 export function createDataViewSerializer(cacheKey: string, options?: CreateSerializerOptions | number): DataViewSerializer {
-  // Number overload preserved for back-compat with mion-style callers
-  // that pass an explicit size as the second positional arg.
+  // Number overload kept for back-compat with mion-style callers.
   const explicitSize = typeof options === 'number' ? options : options?.size;
   const relatedKeys = typeof options === 'object' ? options.relatedKeys : undefined;
   const size = explicitSize ?? predictBufferSize(cacheKey, relatedKeys);
@@ -175,8 +128,7 @@ export function createDataViewSerializer(cacheKey: string, options?: CreateSeria
   return new DataViewSerializerImpl(cacheKey, size);
 }
 
-/** Creates a deserializer from ArrayBuffer or any typed-array view
- *  (including Node.js Buffer). **/
+/** Creates a deserializer from ArrayBuffer or any typed-array view. **/
 export function createDataViewDeserializer(cacheKey: string, input: BinaryInput): DataViewDeserializer {
   if (ArrayBuffer.isView(input)) {
     const buffer = input.buffer as StrictArrayBuffer;
@@ -185,9 +137,8 @@ export function createDataViewDeserializer(cacheKey: string, input: BinaryInput)
   return new DataViewDeserializerImpl(cacheKey, input as StrictArrayBuffer);
 }
 
-/** Computes the predicted buffer size for a fresh serializer. Sum of
- *  historical averages × multiplier for related keys, or the single
- *  key's history × multiplier, falling back to `defaultBufferSize`. **/
+/** Sum of historical averages for related keys, or the single key's average,
+ *  falling back to `defaultBufferSize` on a cold cache. **/
 function predictBufferSize(cacheKey: string, relatedKeys?: string[]): number {
   if (relatedKeys && relatedKeys.length) {
     let total = 0;
@@ -203,19 +154,15 @@ function sizeForKey(key: string): number {
   return avg * opts.sizeMultiplier;
 }
 
-/** Updates the rolling average for `cacheKey`. Uses mion's EMA-against-
- *  default approach: the cold-start sample blends against
- *  `defaultBufferSize` rather than replacing it, so the predicted size
- *  for the *next* call never drops below half the default — preventing
- *  under-allocation when the first observation is tiny. Convergence is
- *  slow (~5 iterations) but always safe. **/
+/** EMA-against-default: the cold-start sample blends against
+ *  `defaultBufferSize` so predicted size never drops below half the
+ *  default — preventing under-allocation when the first observation is tiny. **/
 function recordObservedSize(cacheKey: string, observed: number): void {
   const prev = opts.sizeHistory.get(cacheKey) ?? opts.defaultBufferSize;
   opts.sizeHistory.set(cacheKey, Math.floor((prev + observed) / 2));
 }
 
-/** Half-LRU eviction — drops the older half of the bytes cache when it
- *  exceeds `maxCacheSize`. Mion's heuristic; cheap and good enough. **/
+/** Half-LRU eviction. **/
 function evictStringBytesCache(): void {
   const cache = opts.stringBytesCache;
   const entries = Array.from(cache.entries());
@@ -266,10 +213,8 @@ class DataViewSerializerImpl implements DataViewSerializer {
       const targetView = this.uint8View.subarray(this.index + 4);
       const result = textEncoder.encodeInto(str, targetView);
       const read = result.read ?? 0;
-      // `encodeInto` silently truncates when the destination is too
-      // small. We need the explicit read-length check to surface the
-      // failure as a RangeError — otherwise callers persist a corrupted
-      // length prefix and round-trips silently lose data.
+      // `encodeInto` silently truncates on small destinations; surface as
+      // RangeError so callers don't persist a corrupted length prefix.
       if (read < str.length)
         throw new RangeError(
           `DataViewSerializer: buffer too small to encode string (wrote ${read}/${str.length} chars). Call resize() and retry.`
@@ -290,9 +235,8 @@ class DataViewSerializerImpl implements DataViewSerializer {
       this.index += 4 + cached.length;
       return;
     }
-    // Cache miss: encode in place, then snapshot the written bytes for
-    // future hits. The slice copies (mandatory — the working buffer is
-    // overwritten on subsequent writes).
+    // Cache miss: encode in place, then snapshot the written bytes. The slice
+    // copies (mandatory — the working buffer is overwritten on later writes).
     const targetView = this.uint8View.subarray(this.index + 4);
     const result = textEncoder.encodeInto(str, targetView);
     const read = result.read ?? 0;
