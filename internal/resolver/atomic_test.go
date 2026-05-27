@@ -1411,3 +1411,93 @@ withValidator<number>((v) => v === outer);
 		t.Fatalf("expected PFE9011 (closure over outer binding) for `outer`, got %+v (all diags: %+v)", pfeDiags, resp.Diagnostics)
 	}
 }
+
+// Phase 4 regression: marker validation must run for calls that do NOT
+// have an `InjectRuntypeId` trailing parameter. Previously scanCall
+// returned early when the trailing slot wasn't InjectRuntypeId, so any
+// CompTimeArgs / PureFunction marker on an earlier slot was silently
+// skipped. The restructured scanCall walks all params unconditionally.
+
+// markerOnlyDts declares a wrapper function `noInjectWrapper` whose
+// trailing slot is the value (not InjectRuntypeId) and whose leading
+// slot is CompTimeArgs<string>. Used by the two tests below to confirm
+// the marker validation fires even without an injection slot.
+const markerOnlyDts = `declare module '@mionjs/ts-go-run-types' {
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export function noInjectWrapper(label: CompTimeArgs<string>, value: number): number;
+  export function pureOnlyWrapper(fn: PureFunction<(v: unknown) => boolean>): void;
+}
+`
+
+func TestResolver_CompTimeArgs_RunsWithoutInjectionMarker(t *testing.T) {
+	const code = `import {noInjectWrapper} from '@mionjs/ts-go-run-types';
+declare function getLabel(): string;
+noInjectWrapper(getLabel(), 1);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": markerOnlyDts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 CTA diagnostic for non-literal arg without injection slot, got %d (%+v)", len(markerDiags), markerDiags)
+	}
+	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	}
+}
+
+func TestResolver_PureFunction_RunsWithoutInjectionMarker(t *testing.T) {
+	const code = `import {pureOnlyWrapper} from '@mionjs/ts-go-run-types';
+declare const isString: (v: unknown) => boolean;
+pureOnlyWrapper(isString);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": markerOnlyDts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 PFN001 diagnostic for non-literal fn without injection slot, got %d (%+v)", len(markerDiags), markerDiags)
+	}
+	if markerDiags[0].Code != diag.CodePureFunctionNotLiteral {
+		t.Fatalf("expected %s, got %q", diag.CodePureFunctionNotLiteral, markerDiags[0].Code)
+	}
+}
+
+// Phase 4 regression: when a function carries BOTH an InjectRuntypeId
+// trailing slot AND a CompTimeArgs on an earlier slot, scanCall must
+// emit both a Site (for injection) AND a CTA diagnostic (for the
+// invalid non-literal arg). The two passes were previously coupled —
+// MKR003 / argsCount early-returns dropped accumulated diagnostics.
+func TestResolver_TrailingInjectionStillEmitsSite(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface RunTypeOptions {noLiterals?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): (v: unknown) => boolean;
+}
+`
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+declare function getOptions(): {noLiterals: true};
+createIsType<string>(undefined, getOptions());
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	if len(resp.Sites) != 1 {
+		t.Fatalf("expected 1 Site for injection, got %d", len(resp.Sites))
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 CTA diagnostic alongside the Site, got %d (%+v)", len(markerDiags), markerDiags)
+	}
+	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	}
+}
