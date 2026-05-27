@@ -95,3 +95,21 @@ export function reflectRuntypeId<T>(_value: RejectAny<T>, id?: InjectRuntypeId<T
   }
   return id as InjectRuntypeId<RejectAny<T>>;
 }
+
+/**
+ * Compile-time-args marker. Brands a parameter so the Go scanner enforces
+ * that the matching argument is *fully literal* — either at the call site
+ * (`fn(undefined, {foo: 1})`) or via a module-scope `const` whose
+ * initializer is itself entirely literal
+ * (`const opts = {foo: 1}; fn(undefined, opts)`). No spread, no function
+ * calls, no property access, no template substitution, no ternary —
+ * nested literals all the way down. Accepted leaves: strings, numbers,
+ * bigints, booleans, null, undefined, regex literals, arrow / function
+ * expressions, and nested object / array literals.
+ *
+ * Pure static check: the brand is a phantom intersection
+ * (`T & {__mionCompTimeArgsBrand?: never}`) so the value flows through
+ * unwrapped to the function body. Violations are reported as build-time
+ * `CTA0xx` diagnostics.
+ */
+export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};

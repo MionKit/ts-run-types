@@ -1,18 +1,22 @@
-// Package marker detects whether a TypeScript type matches the sentinel
-// `InjectRuntypeId<T>` marker — the trailing-parameter type that opts a function
-// into compile-time type-id injection by the ts-go-run-types transformer.
+// Package marker detects whether a TypeScript type matches one of the
+// recognised marker brands. Three kinds are supported:
 //
-// The detection is two-layered:
-//  1. Name match — the type alias' symbol name must equal Options.Name
-//     (default "InjectRuntypeId").
+//  1. InjectRuntypeId<T> — the trailing-parameter brand that opts a
+//     function into compile-time type-id injection by the
+//     ts-go-run-types transformer.
+//  2. CompTimeArgs<T> — brands a parameter whose corresponding argument
+//     must be a literal at the call site (or via a module-scope `const`
+//     whose initializer is itself entirely literal).
+//  3. PureFunction<F> — brands a function-typed parameter whose argument
+//     must be a literal function definition AND must pass purity rules.
+//
+// The detection is two-layered for every kind:
+//  1. Name match — the type alias' symbol name must equal the configured
+//     marker name (defaults below).
 //  2. Module-of-origin match — the alias must be declared inside the
-//     configured marker package (default "@mionjs/ts-go-run-types"). This is
-//     mandatory: it stops a user's own `type InjectRuntypeId<T> = ...` from
-//     accidentally triggering rewrites.
-//
-// Conceptually similar to a `ReceiveType<T>` phantom parameter, but with
-// strict module-of-origin gating so a user's own `type InjectRuntypeId<T>` in
-// third-party code can never accidentally trigger rewrites.
+//     configured marker package (default "@mionjs/ts-go-run-types"). This
+//     stops a user's own `type InjectRuntypeId<T> = ...` (or similarly
+//     named local brand) from accidentally triggering rewrites.
 package marker
 
 import (
@@ -25,26 +29,97 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 )
 
-// DefaultName is the symbol name the resolver looks for.
+// Kind enumerates the marker brands the scanner knows about.
+type Kind int
+
+const (
+	// KindInjectRuntypeId is the trailing-id injection marker.
+	KindInjectRuntypeId Kind = iota
+	// KindCompTimeArgs requires the argument to be a literal at the call
+	// site or via a module-scope const-of-literals chain.
+	KindCompTimeArgs
+	// KindPureFunction requires the argument to be an inline function
+	// definition that passes the purity rules.
+	KindPureFunction
+)
+
+// DefaultName is the symbol name the resolver looks for for the
+// injection marker. Retained for back-compat with the older single-marker
+// Options.Name field.
 const DefaultName = "InjectRuntypeId"
 
-// DefaultModule is the package the marker type must be declared in.
+// DefaultCompTimeArgsName is the symbol name for the CompTimeArgs brand.
+const DefaultCompTimeArgsName = "CompTimeArgs"
+
+// DefaultPureFunctionName is the symbol name for the PureFunction brand.
+const DefaultPureFunctionName = "PureFunction"
+
+// DefaultModule is the package the marker types must be declared in.
 const DefaultModule = "@mionjs/ts-go-run-types"
 
-// Options configures marker detection. Zero values fall back to the defaults
-// above.
-type Options struct {
+// Spec describes a single marker the scanner should recognise.
+type Spec struct {
 	// Name is the symbol name of the marker type alias.
 	Name string
-	// Module is the package the marker is declared in. The check passes when
-	// the alias' declaration is either inside `declare module "<Module>"`
-	// (ambient form, used by synthetic test fixtures) or in a file whose
-	// enclosing on-disk package.json has its `"name"` field equal to
-	// <Module> (real packages — workspace or installed).
+	// Module is the package the alias is declared in. The check passes
+	// when the alias' declaration is either inside `declare module
+	// "<Module>"` (ambient form, used by synthetic test fixtures) or in a
+	// file whose enclosing on-disk package.json has its `"name"` field
+	// equal to <Module> (real packages — workspace or installed).
 	Module string
+	// Kind is the marker family this spec maps to.
+	Kind Kind
+	// BrandProperty, when non-empty, is the name of the phantom brand
+	// property on the alias. Used as a fallback when alias info is lost
+	// (e.g. CompTimeArgs<A | B> distributes its intersection over the
+	// union — the alias name drops away but the brand property survives
+	// on every member). Empty disables the fallback.
+	BrandProperty string
+}
+
+// Brand property names for each marker kind. Kept in sync with the
+// public TypeScript declarations in
+// packages/ts-go-run-types/src/markers.ts.
+const (
+	BrandInjectRuntypeId = "__mionInjectRuntypeIdBrand"
+	BrandCompTimeArgs    = "__mionCompTimeArgsBrand"
+	BrandPureFunction    = "__mionPureFunctionBrand"
+)
+
+// DefaultSpecs returns the canonical marker set: one spec per supported
+// Kind, all sourced from DefaultModule.
+func DefaultSpecs() []Spec {
+	return []Spec{
+		{Name: DefaultName, Module: DefaultModule, Kind: KindInjectRuntypeId, BrandProperty: BrandInjectRuntypeId},
+		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
+		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
+	}
+}
+
+// Options configures marker detection. Zero values fall back to the
+// defaults above. The Name + Module fields govern *only* the injection
+// marker (back-compat with the original single-marker shape and the
+// --marker-name / --marker-module CLI flags); the CompTimeArgs and
+// PureFunction markers always use their default names sourced from
+// Module (or DefaultModule when unset).
+type Options struct {
+	// Name overrides the injection marker's symbol name. Empty → DefaultName.
+	Name string
+	// Module is the package every marker in the default set is declared
+	// in. Empty → DefaultModule.
+	Module string
+	// Specs, when non-empty, replaces the entire marker set. When empty
+	// the Name + Module fields (plus the CompTimeArgs / PureFunction
+	// defaults sourced from Module) are used. Callers that need to add or
+	// rename markers beyond the injection one should populate Specs
+	// directly.
+	Specs []Spec
 }
 
 // WithDefaults fills any zero fields on opts with the package defaults.
+// When Specs is empty it is populated from Name + Module + the two
+// non-injection defaults so the rest of the package can iterate one
+// uniform list.
 func WithDefaults(opts Options) Options {
 	if opts.Name == "" {
 		opts.Name = DefaultName
@@ -52,12 +127,24 @@ func WithDefaults(opts Options) Options {
 	if opts.Module == "" {
 		opts.Module = DefaultModule
 	}
+	if len(opts.Specs) == 0 {
+		opts.Specs = []Spec{
+			{Name: opts.Name, Module: opts.Module, Kind: KindInjectRuntypeId, BrandProperty: BrandInjectRuntypeId},
+			{Name: DefaultCompTimeArgsName, Module: opts.Module, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
+			{Name: DefaultPureFunctionName, Module: opts.Module, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
+		}
+	}
 	return opts
 }
 
 // Detect inspects the *type of an optional trailing parameter* and returns
-// (typeArgument, true) when it matches the configured marker. The returned
-// typeArgument is the single type argument (`T` in `InjectRuntypeId<T>`).
+// (typeArgument, true) when it matches the configured InjectRuntypeId
+// marker. The returned typeArgument is the single type argument (`T` in
+// `InjectRuntypeId<T>`).
+//
+// Specialised to the injection marker for back-compat — the existing
+// trailing-id codepath in resolver.scanCall calls this. For multi-marker
+// dispatch over arbitrary parameters use DetectAny.
 //
 // The parameter type for an optional `id?: InjectRuntypeId<T>` is typically a
 // union of `InjectRuntypeId<T>` and the undefined-flavoured slot; the alias info
@@ -68,13 +155,17 @@ func Detect(paramType *checker.Type, opts Options) (*checker.Type, bool) {
 		return nil, false
 	}
 	opts = WithDefaults(opts)
-	if typeArgument, ok := matchAlias(paramType, opts); ok {
+	spec, ok := specForKind(opts.Specs, KindInjectRuntypeId)
+	if !ok {
+		return nil, false
+	}
+	if typeArgument, ok := matchAliasSpec(paramType, spec); ok {
 		return typeArgument, true
 	}
 	// Walk union constituents in case the optional flag stripped the alias.
 	if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
 		for _, member := range paramType.Types() {
-			if typeArgument, ok := matchAlias(member, opts); ok {
+			if typeArgument, ok := matchAliasSpec(member, spec); ok {
 				return typeArgument, true
 			}
 		}
@@ -82,16 +173,83 @@ func Detect(paramType *checker.Type, opts Options) (*checker.Type, bool) {
 	return nil, false
 }
 
-func matchAlias(tsType *checker.Type, opts Options) (*checker.Type, bool) {
+// DetectAny inspects a parameter type against every configured marker
+// spec and returns the matching spec's Kind plus the brand's type
+// argument when one matches. Used by the resolver to dispatch
+// per-parameter validation (CompTimeArgs / PureFunction) in a single walk.
+//
+// When typeChecker is non-nil and the alias-name match fails, the
+// spec's BrandProperty is checked against the type's own properties as
+// a fallback — covers CompTimeArgs<A|B> where TS distributes the
+// intersection over the union and the alias name drops off, but the
+// brand property survives on each member.
+func DetectAny(typeChecker *checker.Checker, paramType *checker.Type, opts Options) (Kind, *checker.Type, bool) {
+	if paramType == nil {
+		return 0, nil, false
+	}
+	opts = WithDefaults(opts)
+	for _, spec := range opts.Specs {
+		if typeArgument, ok := matchAliasSpec(paramType, spec); ok {
+			return spec.Kind, typeArgument, true
+		}
+		if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
+			for _, member := range paramType.Types() {
+				if typeArgument, ok := matchAliasSpec(member, spec); ok {
+					return spec.Kind, typeArgument, true
+				}
+			}
+		}
+		if typeChecker != nil && spec.BrandProperty != "" {
+			if matchedByBrand(typeChecker, paramType, spec) {
+				return spec.Kind, nil, true
+			}
+		}
+	}
+	return 0, nil, false
+}
+
+// matchedByBrand reports whether paramType (or any union member when it
+// is a union) carries the brand property unique to spec. Used as a
+// last-resort fallback when the alias name has been lost due to
+// intersection-over-union distribution.
+func matchedByBrand(typeChecker *checker.Checker, paramType *checker.Type, spec Spec) bool {
+	if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
+		for _, member := range paramType.Types() {
+			if hasBrandProperty(typeChecker, member, spec.BrandProperty) {
+				return true
+			}
+		}
+		return false
+	}
+	return hasBrandProperty(typeChecker, paramType, spec.BrandProperty)
+}
+
+func hasBrandProperty(typeChecker *checker.Checker, tsType *checker.Type, brandProperty string) bool {
+	if tsType == nil {
+		return false
+	}
+	return checker.Checker_getPropertyOfType(typeChecker, tsType, brandProperty) != nil
+}
+
+func specForKind(specs []Spec, kind Kind) (Spec, bool) {
+	for _, spec := range specs {
+		if spec.Kind == kind {
+			return spec, true
+		}
+	}
+	return Spec{}, false
+}
+
+func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
 	alias := checker.Type_alias(tsType)
 	if alias == nil {
 		return nil, false
 	}
 	symbol := alias.Symbol()
-	if symbol == nil || symbol.Name != opts.Name {
+	if symbol == nil || symbol.Name != spec.Name {
 		return nil, false
 	}
-	if !DeclaredInModule(symbol, opts.Module) {
+	if !DeclaredInModule(symbol, spec.Module) {
 		return nil, false
 	}
 	typeArguments := alias.TypeArguments()

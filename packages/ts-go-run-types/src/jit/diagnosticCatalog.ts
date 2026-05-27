@@ -134,18 +134,46 @@ Fix — pass an existing value of the desired type:
   const isUser = reflectRuntypeId(existingUser);`,
   },
 
-  MKR002: {
-    headline: 'Marker options must be a plain object literal — your options were silently dropped (treated as `{}`).',
-    detail: `The build resolves marker options before running, so it needs to read
-their values from the source. Identifiers, spreads, and function-call
-results can't be evaluated at build time, so the options slot is
-ignored — your validator/encoder runs with default options, not the ones
-you wrote.
+  CTA001: {
+    headline:
+      '`CompTimeArgs<T>` argument must be a literal at the call site, or a module-scope `const` whose initializer is itself entirely literal.',
+    detail: `The build resolves the argument before running, so it needs to read its
+value from the source. Identifiers from other modules, function-call
+results, property accesses, and \`let\`/\`var\` bindings can't be
+evaluated at build time. Only inline literals and module-scope \`const\`
+bindings whose initializer is itself fully literal are accepted.
 
-Fix — inline the options at the call site:
-  -  const opts = {mode: 'unsafe'};
--  const isUser = createIsType<User>(opts);
-+  const isUser = createIsType<User>({mode: 'unsafe'});`,
+Fix — inline at the call site:
+-  const opts = getOpts();
+-  const isUser = createIsType<User>(undefined, opts);
++  const isUser = createIsType<User>(undefined, {mode: 'unsafe'});
+
+Fix — use a module-scope const of literals:
+  const opts = {mode: 'unsafe'};            // literal initializer ✓
+  const isUser = createIsType<User>(undefined, opts);`,
+  },
+
+  CTA002: {
+    headline: '`CompTimeArgs<T>` literal nesting exceeds the depth cap (16) — refactor to flatten.',
+    detail: `Deeply nested literal walks are capped at 16 levels to keep the build
+predictable. If you hit this, the value is almost certainly not what
+you want at compile time — split it across multiple smaller
+\`CompTimeArgs<T>\` arguments, or flatten the nesting.`,
+  },
+
+  CTA003: {
+    headline:
+      '`CompTimeArgs<T>` literal contains a forbidden construct ({0}). Only literals and nested literals are allowed.',
+    detail: `The Go scanner cannot statically evaluate spread elements, computed
+property names, function calls, ternary expressions, or template-string
+substitutions. Inside a \`CompTimeArgs<T>\` literal every node must be a
+direct literal (string / number / bigint / boolean / null / undefined /
+regex / arrow / object literal / array literal) or a const-traced
+identifier that resolves to one.
+
+Fix — replace the forbidden construct with its literal value:
+  -  const a = {...defaults, mode: 'unsafe'};   // spread
+  +  const a = {strict: true, mode: 'unsafe'};   // literal-only`,
   },
 
   MKR003: {

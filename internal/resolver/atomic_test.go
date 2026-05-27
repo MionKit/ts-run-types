@@ -1179,23 +1179,23 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 	}
 }
 
-// TestResolver_NonLiteralOptionsDiagnostic pins the marker scanner's
-// warning when a marker call's options slot is filled with anything
-// other than a plain object literal. The resolver can't read values
-// off identifiers / spreads / function-call results at build time, so
-// folding them into the cache id silently drops the option — usually
-// not what the user wanted. The diagnostic nudges the user toward a
-// literal at the call site.
-func TestResolver_NonLiteralOptionsDiagnostic(t *testing.T) {
+// TestResolver_CompTimeArgs_NonLiteralDiagnostic pins the CTA001
+// diagnostic for a CompTimeArgs<T>-branded parameter filled with a
+// value the Go scanner cannot statically evaluate (a function-call
+// result here). The new marker family replaces the legacy MKR002
+// "options must be literal" check — broader, since any branded param
+// is covered, not just options-named ones.
+func TestResolver_CompTimeArgs_NonLiteralDiagnostic(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
-  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRuntypeId<T>): (v: unknown) => string | undefined;
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface RunTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
-const opts = {strategy: 'mutate' as const};
-createJsonEncoder<string>(undefined, opts);
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+declare function getOptions(): {noLiterals: true};
+createIsType<string>(undefined, getOptions());
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1207,31 +1207,32 @@ createJsonEncoder<string>(undefined, opts);
 		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(markerDiags), markerDiags)
 	}
 	d := markerDiags[0]
-	if d.Code != diag.CodeMarkerNonLiteralOptions {
-		t.Fatalf("expected code %s, got %q", diag.CodeMarkerNonLiteralOptions, d.Code)
+	// A bare function call inside a CompTimeArgs slot is a forbidden
+	// construct (CTA003) — the validator sees `getOptions()` as a call
+	// expression at the top level and rejects it, not as a "non-literal
+	// identifier-chain leaf" (CTA001).
+	if d.Code != diag.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected code %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, d.Code)
 	}
 	if d.Severity != diag.SeverityError {
-		t.Fatalf("expected severity error (%d), got %d (MKR002 is Error: silently-dropped options diverge from source intent)", diag.SeverityError, d.Severity)
-	}
-	if len(d.Args) != 0 {
-		t.Fatalf("expected no args for MKR002, got %v", d.Args)
+		t.Fatalf("expected severity error (%d), got %d", diag.SeverityError, d.Severity)
 	}
 }
 
-// TestResolver_LiteralOptionsNoDiagnostic pins the negative case for
-// the non-literal-options diagnostic: an object literal at the
-// options slot must NOT trigger a warning, even when the literal is
-// empty.
-func TestResolver_LiteralOptionsNoDiagnostic(t *testing.T) {
+// TestResolver_CompTimeArgs_LiteralAccepted pins the positive case for
+// CompTimeArgs<T>: a direct object literal at the call site must
+// produce zero diagnostics.
+func TestResolver_CompTimeArgs_LiteralAccepted(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
-  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRuntypeId<T>): (v: unknown) => string | undefined;
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface RunTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): (v: unknown) => boolean;
 }
 `
-	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
-createJsonEncoder<string>(undefined, {strategy: 'direct'});
-createJsonEncoder<string>(undefined, {});
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+createIsType<string>(undefined, {noLiterals: true});
+createIsType<string>(undefined, {});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
@@ -1241,5 +1242,65 @@ createJsonEncoder<string>(undefined, {});
 	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
 	if len(markerDiags) != 0 {
 		t.Fatalf("expected 0 marker diagnostics for literal options, got %d (%+v)", len(markerDiags), markerDiags)
+	}
+}
+
+// TestResolver_CompTimeArgs_UnionBrandFallback pins the brand-property
+// fallback path in DetectAny — `CompTimeArgs<A | B>` distributes its
+// intersection over the union, so the alias name `CompTimeArgs` is lost
+// after type resolution, but the brand property survives on every
+// member. The fallback recognises the marker via the property name.
+func TestResolver_CompTimeArgs_UnionBrandFallback(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRuntypeId<T>): (v: unknown) => string | undefined;
+}
+`
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+declare function getOptions(): {strategy: 'mutate'};
+createJsonEncoder<string>(undefined, getOptions());
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 marker diagnostic (CTA003 for function call inside CompTimeArgs), got %d (%+v)", len(markerDiags), markerDiags)
+	}
+	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
+		t.Fatalf("expected code %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	}
+}
+
+// TestResolver_CompTimeArgs_ConstChainAccepted pins the relaxation
+// from the legacy MKR002 path: a module-scope `const` whose
+// initializer is itself a literal must pass the CompTimeArgs check.
+// Under the old MKR002 rule any identifier was rejected; the new rule
+// accepts const-of-literal chains so users can DRY their option
+// objects.
+func TestResolver_CompTimeArgs_ConstChainAccepted(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface RunTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): (v: unknown) => boolean;
+}
+`
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+const opts = {noLiterals: true as const};
+createIsType<string>(undefined, opts);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 0 {
+		t.Fatalf("expected 0 marker diagnostics for const-bound literal, got %d (%+v)", len(markerDiags), markerDiags)
 	}
 }

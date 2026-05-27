@@ -7,6 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-run-types/internal/comptimeargs"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -228,33 +229,12 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			typeArgument = annotated
 		}
 	}
-	// Extract any literal RunTypeOptions object passed at a slot before
-	// the id slot. Today `noLiterals: true`, `noIsArrayCheck: true`,
-	// and `mode: '<value>'` are honored; other fields are reserved
-	// (see createIsType.ts RunTypeOptions). Options are folded into the
-	// id hash by swapping the resolved type below, so `(T, {})` and
-	// `(T, {noLiterals: true})` resolve distinct ids.
-	//
-	// When the options slot is filled with something that is NOT a
-	// plain object literal (e.g. an identifier, a spread, a function
-	// call result), the resolver can't read its values at build time.
-	// Emit a diagnostic — the call will still scan with zero options,
-	// which is likely not what the user wanted.
-	//
-	// Only fire when the signature actually carries an options
-	// parameter at the slot before id — i.e. its declared name
-	// matches a `*options*` or `*opts*` pattern. This excludes
-	// marker functions without an options param (reflectRuntypeId's
-	// slot 0 is the inference value, not options) so they don't get
-	// false diagnostics on call-expression arguments.
-	if lastIndex > 0 && signatureHasOptionsParam(parameters, lastIndex-1) {
-		if candidate := extractRunTypeOptionsCandidate(call, lastIndex, argsCount); candidate != nil &&
-			candidate.Kind != ast.KindObjectLiteralExpression {
-			if diagnostic, ok := resolver.markerDiagNonLiteralOptions(file, candidate); ok {
-				diagnostics = append(diagnostics, diagnostic)
-			}
-		}
-	}
+	// Walk earlier params for CompTimeArgs<T> / PureFunction<F> brands.
+	// The trailing-id slot is already handled above; this loop validates
+	// every other branded parameter the user filled. Slots the user
+	// didn't fill are skipped (the brand only fires when an argument
+	// actually appears at that position).
+	diagnostics = append(diagnostics, resolver.scanSiblingMarkers(file, call, callExpression, parameters, lastIndex, argsCount)...)
 	options := extractRunTypeOptions(call, lastIndex, argsCount)
 	// noLiterals semantics (literal.ts:28-54): the literal node swaps to
 	// its base-kind runtype for validation purposes. We mirror this at
@@ -458,28 +438,81 @@ func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOpti
 	return opts
 }
 
-// signatureHasOptionsParam reports whether the signature's
-// parameter at `optionsIndex` is an options-style parameter
-// (its declared name contains "options" or "opts"). Functions
-// like reflectRuntypeId(value, id?) have lastIndex==1 and slot 0
-// is the inference value, not options; this helper distinguishes
-// them from createIsType(val?, options?, id?) and friends.
-func signatureHasOptionsParam(parameters []*ast.Symbol, optionsIndex int) bool {
-	if optionsIndex < 0 || optionsIndex >= len(parameters) {
-		return false
+// scanSiblingMarkers walks every parameter *before* the trailing id
+// slot and emits diagnostics for non-injection markers
+// (CompTimeArgs<T>, PureFunction<F>) carried on those params. Slots the
+// user didn't fill are skipped — the brand only fires when an argument
+// actually appears at that position. The trailing param itself is
+// handled by the existing InjectRuntypeId path in scanCall.
+func (resolver *Resolver) scanSiblingMarkers(file string, call *ast.Node, callExpression *ast.CallExpression, parameters []*ast.Symbol, lastIndex, argsCount int) []diag.Diagnostic {
+	if callExpression == nil || callExpression.Arguments == nil {
+		return nil
 	}
-	parameter := parameters[optionsIndex]
-	if parameter == nil {
-		return false
+	var diagnostics []diag.Diagnostic
+	for paramIndex := 0; paramIndex < lastIndex; paramIndex++ {
+		if paramIndex >= argsCount {
+			break
+		}
+		paramSymbol := parameters[paramIndex]
+		if paramSymbol == nil {
+			continue
+		}
+		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, paramSymbol)
+		kind, _, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
+		if !matched {
+			continue
+		}
+		if paramIndex >= len(callExpression.Arguments.Nodes) {
+			continue
+		}
+		argumentNode := callExpression.Arguments.Nodes[paramIndex]
+		if argumentNode == nil {
+			continue
+		}
+		switch kind {
+		case marker.KindCompTimeArgs:
+			if diagnostic, ok := resolver.checkCompTimeArgs(file, argumentNode); ok {
+				diagnostics = append(diagnostics, diagnostic)
+			}
+		}
+		_ = call // retained for future PureFunction wiring (Phase 3)
 	}
-	name := parameter.Name
-	return strings.Contains(name, "ptions") || strings.Contains(name, "pts")
+	return diagnostics
+}
+
+// checkCompTimeArgs validates the argument node passes the CompTimeArgs
+// literal-only rules and returns a CTA0xx diagnostic when it doesn't.
+// Returns (_, false) when validation succeeded.
+func (resolver *Resolver) checkCompTimeArgs(file string, argumentNode *ast.Node) (diag.Diagnostic, bool) {
+	result := comptimeargs.CheckLiteral(resolver.checker, argumentNode, 0)
+	if result.Ok {
+		return diag.Diagnostic{}, false
+	}
+	failingNode := result.FailingNode
+	if failingNode == nil {
+		failingNode = argumentNode
+	}
+	sourceFile := ast.GetSourceFileOfNode(failingNode)
+	if sourceFile == nil {
+		return diag.Diagnostic{}, false
+	}
+	startLine, startCol := scanLineCol(sourceFile, failingNode.Pos())
+	endLine, endCol := scanLineCol(sourceFile, failingNode.End())
+	site := diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol}
+	switch result.Kind {
+	case comptimeargs.FailDepthExceeded:
+		return diag.New(diag.CodeCompTimeArgsDepthExceeded, site), true
+	case comptimeargs.FailForbiddenConstruct:
+		return diag.New(diag.CodeCompTimeArgsForbiddenConstruct, site, result.Reason), true
+	default:
+		return diag.New(diag.CodeCompTimeArgsNonLiteral, site), true
+	}
 }
 
 // extractRunTypeOptionsCandidate returns the AST node at the options
-// slot (slot immediately before id), or nil. Used by the marker
-// diagnostic that flags non-literal options arguments — see
-// markerDiagNonLiteralOptions.
+// slot (slot immediately before id), or nil. Retained for the options
+// extractor below; the legacy MKR002 emit path it once fed has been
+// replaced by scanSiblingMarkers + CompTimeArgs.
 func extractRunTypeOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 	if lastIndex == 0 {
 		return nil
@@ -604,27 +637,6 @@ func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.No
 		diag.CodeMarkerFunctionCallArg,
 		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
 		fnName,
-	), true
-}
-
-// markerDiagNonLiteralOptions flags a marker call whose options slot
-// is filled with a non-literal expression (identifier, spread,
-// function call, etc.). The resolver runs at build time and cannot
-// evaluate arbitrary expressions, so non-literal options are silently
-// treated as zero options — which usually isn't what the user
-// wanted. The recommended pattern is to pass a literal object
-// directly at the call site so the option values are visible to the
-// resolver and folded into the JIT cache id.
-func (resolver *Resolver) markerDiagNonLiteralOptions(file string, optionsNode *ast.Node) (diag.Diagnostic, bool) {
-	sourceFile := ast.GetSourceFileOfNode(optionsNode)
-	if sourceFile == nil {
-		return diag.Diagnostic{}, false
-	}
-	startLine, startCol := scanLineCol(sourceFile, optionsNode.Pos())
-	endLine, endCol := scanLineCol(sourceFile, optionsNode.End())
-	return diag.New(
-		diag.CodeMarkerNonLiteralOptions,
-		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
 	), true
 }
 
