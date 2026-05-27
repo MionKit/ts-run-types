@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -180,11 +181,11 @@ func renderFromBinaryModule(dump protocol.Dump, opts typefns.RenderOpts) (string
 // program and runs the extractor itself (the OpDump path). Returns the
 // rendered source plus any wire-shaped diagnostics from the in-place
 // extraction.
-func renderPureFnsModule(prog *program.Program, entries []purefns.Entry, ranExtraction bool) (string, []protocol.PureFnDiagnostic, error) {
+func renderPureFnsModule(prog *program.Program, entries []purefns.Entry, ranExtraction bool) (string, []diag.Diagnostic, error) {
 	if prog == nil {
 		return "", nil, nil
 	}
-	var diagnostics []purefns.Diagnostic
+	var diagnostics []diag.Diagnostic
 	if !ranExtraction {
 		sourceFiles := prog.TS.SourceFiles()
 		walkFiles := make([]string, 0, len(sourceFiles))
@@ -203,38 +204,5 @@ func renderPureFnsModule(prog *program.Program, entries []purefns.Entry, ranExtr
 	if err != nil {
 		return "", nil, err
 	}
-
-	wireDiags := make([]protocol.PureFnDiagnostic, 0, len(diagnostics))
-	for _, diag := range diagnostics {
-		wireDiags = append(wireDiags, toWireDiagnostic(diag))
-	}
-	return rendered, wireDiags, nil
-}
-
-// toWireDiagnostic translates the in-Go diagnostic shape to the protocol's
-// JSON-friendly mirror. Same fields, different package edge.
-func toWireDiagnostic(diag purefns.Diagnostic) protocol.PureFnDiagnostic {
-	out := protocol.PureFnDiagnostic{
-		Code:     diag.Code,
-		Category: diag.Category,
-		Message:  diag.Message,
-		Site:     toWireSite(diag.Site),
-	}
-	for _, related := range diag.Related {
-		out.Related = append(out.Related, protocol.PureFnRelated{
-			PureFnDiagSite: toWireSite(related.DiagnosticSite),
-			Message:        related.Message,
-		})
-	}
-	return out
-}
-
-func toWireSite(site purefns.DiagnosticSite) protocol.PureFnDiagSite {
-	return protocol.PureFnDiagSite{
-		FilePath:  site.FilePath,
-		StartLine: site.StartLine,
-		StartCol:  site.StartCol,
-		EndLine:   site.EndLine,
-		EndCol:    site.EndCol,
-	}
+	return rendered, diagnostics, nil
 }

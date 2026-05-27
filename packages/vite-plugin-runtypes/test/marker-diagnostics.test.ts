@@ -1,9 +1,9 @@
 // End-to-end acceptance test for marker-scanner diagnostics. Drives the
 // Go binary over inline sources, verifying:
 //
-//   1. response.markerDiagnostics surfaces a "marker/function-call-arg"
-//      warning when a marker call's reflect-form value argument is a
-//      function-call expression (`createIsType(getX())`).
+//   1. response.diagnostics surfaces an MKR001 warning when a marker
+//      call's reflect-form value argument is a function-call expression
+//      (`createIsType(getX())`).
 //   2. The diagnostic message names the called function and recommends
 //      the static `ReturnType<typeof fn>` idiom.
 //   3. Legitimate identifier-argument shapes (`createIsType(v)`) do NOT
@@ -16,7 +16,12 @@
 
 import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
+import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
 import {hasBinary, withInlineSources} from './helpers/inline.ts';
+
+function markerDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
+  return (response.diagnostics ?? []).filter((d) => d.family === Family.Marker);
+}
 
 describe('vite-plugin-runtypes / marker diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
@@ -32,10 +37,10 @@ export const _ = createIsType(makeUser());
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      const diagnostics = response.markerDiagnostics ?? [];
+      const diagnostics = markerDiagsOf(response);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].code).toBe('marker/function-call-arg');
-      expect(diagnostics[0].category).toBe('warning');
+      expect(diagnostics[0].code).toBe('MKR001');
+      expect(diagnostics[0].severity).toBe(Severity.Warning);
       expect(diagnostics[0].message).toContain('makeUser');
       expect(diagnostics[0].message).toContain('ReturnType');
       // Site still emitted — the validator works, the warning just nudges.
@@ -52,7 +57,7 @@ export const _ = reflectRuntypeId(getValue());
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      const diagnostics = response.markerDiagnostics ?? [];
+      const diagnostics = markerDiagsOf(response);
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics[0].message).toContain('getValue');
     });
@@ -69,7 +74,7 @@ export const _ = createIsType(state.makeUser());
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      const diagnostics = response.markerDiagnostics ?? [];
+      const diagnostics = markerDiagsOf(response);
       expect(diagnostics).toHaveLength(1);
       // The callee is a property access — diagnostic uses the leaf name.
       expect(diagnostics[0].message).toContain('makeUser');
@@ -85,7 +90,7 @@ export const _ = createIsType(user);
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      expect(response.markerDiagnostics ?? []).toEqual([]);
+      expect(markerDiagsOf(response)).toEqual([]);
     });
   });
 
@@ -98,7 +103,7 @@ export const _ = createIsType(outer.user);
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      expect(response.markerDiagnostics ?? []).toEqual([]);
+      expect(markerDiagsOf(response)).toEqual([]);
     });
   });
 
@@ -111,7 +116,7 @@ export const _ = createIsType<ReturnType<typeof makeUser>>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      expect(response.markerDiagnostics ?? []).toEqual([]);
+      expect(markerDiagsOf(response)).toEqual([]);
     });
   });
 
@@ -124,11 +129,11 @@ export const _ = createIsType(makeUser());
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources));
-      const diag = (response.markerDiagnostics ?? [])[0];
-      expect(diag).toBeDefined();
-      const line = formatTscDiagnostic(diag);
-      // VS Code's $tsc problem matcher expects: path(line,col): cat code: msg
-      expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+warning\s+marker\/function-call-arg:\s+.+$/);
+      const diagnostic = markerDiagsOf(response)[0];
+      expect(diagnostic).toBeDefined();
+      const line = formatTscDiagnostic(diagnostic);
+      // VS Code's $tsc problem matcher expects: path(line,col): severity code: msg
+      expect(line).toMatch(/^[^(]+\(\d+,\d+\):\s+warning\s+MKR001:\s+.+$/);
     });
   });
 });

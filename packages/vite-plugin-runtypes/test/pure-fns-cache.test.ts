@@ -6,14 +6,20 @@
 //      including the inline `createPureFn` literal.
 //   2. response.replacements carries one byte-range null-out per
 //      accepted call site.
-//   3. response.pureFnsDiagnostics surfaces PFE9xxx diagnostics for
-//      bad-shape calls (non-literal args, body-hash collisions, etc.).
+//   3. response.diagnostics (filtered to PureFn family) surfaces PFE9xxx
+//      diagnostics for bad-shape calls (non-literal args, body-hash
+//      collisions, etc.).
 //   4. The diagnostic wire format renders via formatTscDiagnostic into
 //      VS Code's `$tsc` problem-matcher line shape.
 
 import {describe, expect, it} from 'vitest';
 import {formatTscDiagnostic} from '../src/index.ts';
+import {Family, Severity, type Diagnostic} from '../src/protocol.ts';
 import {hasBinary, withInlineSources} from './helpers/inline.ts';
+
+function pureFnDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
+  return (response.diagnostics ?? []).filter((d) => d.family === Family.PureFn);
+}
 
 interface PureFnEntry {
   namespace: string;
@@ -65,7 +71,7 @@ export const b = registerPureFnFactory('mion', 'safeKey', function () {
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
       expect(response.pureFnsCacheSource).toBeDefined();
-      expect(response.pureFnsDiagnostics ?? []).toEqual([]);
+      expect(pureFnDiagsOf(response)).toEqual([]);
 
       const pureFns = evalPureFnsModule(response.pureFnsCacheSource!);
       expect(Object.keys(pureFns).sort()).toEqual(['mion::asJSONString', 'mion::safeKey']);
@@ -143,7 +149,7 @@ export const x = registerPureFnFactory(getNs(), 'fn', function () { return funct
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const codes = (response.pureFnsDiagnostics ?? []).map((diag) => diag.code);
+      const codes = pureFnDiagsOf(response).map((d) => d.code);
       expect(codes).toContain('PFE9001');
     });
   });
@@ -157,7 +163,7 @@ export const x = registerPureFnFactory('mion', 'fn', externalFn);
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const codes = (response.pureFnsDiagnostics ?? []).map((diag) => diag.code);
+      const codes = pureFnDiagsOf(response).map((d) => d.code);
       expect(codes).toContain('PFE9003');
     });
   });
@@ -177,7 +183,7 @@ export const b = registerPureFnFactory('mion', 'collideFn', function () {
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const collisions = (response.pureFnsDiagnostics ?? []).filter((diag) => diag.code === 'PFE9004');
+      const collisions = pureFnDiagsOf(response).filter((d) => d.code === 'PFE9004');
       expect(collisions.length).toBe(1);
 
       const collision = collisions[0];
@@ -205,8 +211,8 @@ export const x = registerPureFnFactory('mion', 'evilFn', function () {
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const diags = response.pureFnsDiagnostics ?? [];
-      const evalDiag = diags.find((diag) => diag.code === 'PFE9010' && diag.message.includes('eval'));
+      const diags = pureFnDiagsOf(response);
+      const evalDiag = diags.find((d) => d.code === 'PFE9010' && d.message.includes('eval'));
       expect(evalDiag).toBeDefined();
       // Ensure the formatted line matches the $tsc problem-matcher regex
       // — VS Code parses build-task output through that pattern.
@@ -231,8 +237,8 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {includeCacheSources: ['all']});
-      const diags = response.pureFnsDiagnostics ?? [];
-      const closureDiag = diags.find((diag) => diag.code === 'PFE9011' && diag.message.includes('PRECISION'));
+      const diags = pureFnDiagsOf(response);
+      const closureDiag = diags.find((d) => d.code === 'PFE9011' && d.message.includes('PRECISION'));
       expect(closureDiag).toBeDefined();
     });
   });
@@ -240,7 +246,8 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
   register('formatTscDiagnostic renders the canonical $tsc problem-matcher line', () => {
     const line = formatTscDiagnostic({
       code: 'PFE9001',
-      category: 'error',
+      family: Family.PureFn,
+      severity: Severity.Error,
       message: 'namespace must be a string literal',
       site: {
         filePath: '/abs/path/x.ts',
@@ -258,7 +265,8 @@ export const x = registerPureFnFactory('mion', 'rounder', function () {
   register('formatTscDiagnostic includes Related sites on continuation lines', () => {
     const line = formatTscDiagnostic({
       code: 'PFE9004',
-      category: 'error',
+      family: Family.PureFn,
+      severity: Severity.Error,
       message: 'Duplicate registration of "mion::fn" with mismatched bodyHash',
       site: {
         filePath: '/abs/b.ts',
