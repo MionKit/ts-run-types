@@ -277,6 +277,22 @@ type LeafDiagCodeProvider interface {
 	DiagCodeForLeaf(leaf *protocol.RunType) string
 }
 
+// MarkUnsupportedLeaf records leaf as the walker's UnsupportedLeaf when
+// the latch is still empty. Used by emit short-circuits that detect a
+// non-serializable child without descending into it (e.g. array emits
+// that reject Symbol[] / Function[]) — without this, the renderer's
+// DiagCodeForLeaf would see the parent kind (Array) and fall back to a
+// silent skip instead of emitting an alwaysThrow factory keyed by the
+// child's actual kind. Safe to call with a nil leaf (no-op).
+func (ctx *EmitContext) MarkUnsupportedLeaf(leaf *protocol.RunType) {
+	if leaf == nil || ctx.walker == nil {
+		return
+	}
+	if ctx.walker.UnsupportedLeaf == nil {
+		ctx.walker.UnsupportedLeaf = leaf
+	}
+}
+
 // DiagCodeFor returns the per-family diag code the current emitter
 // registered for slot, or "" when the emitter doesn't provide one.
 func (ctx *EmitContext) DiagCodeFor(slot DiagSlot) string {

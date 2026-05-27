@@ -436,6 +436,8 @@ export const SERIALIZATION_SPEC = {
     },
     symbol: {
       title: 'symbol',
+      description:
+        'symbol at root is unsupported — identity does not survive JSON or binary round-trips, so the factory is rendered as alwaysThrow. See docs/UNSUPPORTED-KINDS.md.',
       unsafeEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate', stripExtras: false}),
       clonePreserveEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'clone', stripExtras: false}),
       mutateStripEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate', stripExtras: true}),
@@ -445,7 +447,8 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<symbol>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<symbol>(),
       binaryDecoder: () => createBinaryDecoder<symbol>(),
-      getTestData: () => ({values: [Symbol('foo'), Symbol()]}),
+      throwsAtCompile: true,
+      getTestData: () => ({values: []}),
     },
     object: {
       title: 'object',

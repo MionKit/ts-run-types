@@ -37,7 +37,14 @@ function safeStringify(value: unknown): string {
 
 function assertMockType(c: ValidationCase): void {
   if (!c.mockType) throw new Error(`case ${c.title}: missing mockType thunk`);
-  const expectMode = c.mockTypeExpect ?? 'value';
+
+  // factoryThrows — the isType / getTypeErrors factories are
+  // alwaysThrow for this kind (root-unsupported), but the mock walker
+  // doesn't go through the JIT cache. It still produces a value (a
+  // mocked symbol, function, etc.); we just can't isType-check it
+  // since the paired validator throws on construction. Run the mock
+  // fn so we still verify no error escapes the generator, then bail.
+  const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
 
   if (expectMode === 'throw') {
     const mockFn = c.mockType();
@@ -49,13 +56,23 @@ function assertMockType(c: ValidationCase): void {
     return;
   }
 
-  if (!c.isType) throw new Error(`case ${c.title}: mockType needs paired isType thunk to validate`);
+  if (expectMode !== 'skip' && !c.isType) {
+    throw new Error(`case ${c.title}: mockType needs paired isType thunk to validate`);
+  }
 
   const runPass = (mockFn: () => unknown, label: string): void => {
+    // expectMode === 'skip' means we exercise the mock generator but
+    // can't validate output — either because the kind has no isType
+    // semantic (functions) or because the paired isType factory is
+    // alwaysThrow (root symbol). Either way, skip the isType call so
+    // it doesn't blow up the test.
+    if (expectMode === 'skip') {
+      for (let i = 0; i < MOCK_ITERATIONS; i++) mockFn();
+      return;
+    }
     const isValid = c.isType!();
     for (let i = 0; i < MOCK_ITERATIONS; i++) {
       const generated = mockFn();
-      if (expectMode === 'skip') continue;
       const ok = isValid(generated);
       if (!ok) {
         throw new Error(
