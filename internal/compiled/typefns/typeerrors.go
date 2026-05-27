@@ -296,7 +296,7 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 			// mion: nodes/native/nonSerializable.ts:21-22 —
 			// `emitTypeErrors(): JitCode { throw new Error('Jit
 			// compilation disabled for Non Serializable types.'); }`.
-			return JitThrow("Jit compilation disabled for Non Serializable types.")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 		}
 		// Future subkinds — silent skip.
 		return JitCode{Code: "", Type: CodeNS}

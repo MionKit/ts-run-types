@@ -231,6 +231,95 @@ func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) 
 	ctx.walker.AddPureFnDependency(namespace, fnName, filePath)
 }
 
+// DiagSlot identifies a JIT-throw / silent-skip site by its semantic
+// shape rather than its per-family code. Emitters expose a DiagCodeFor
+// map keyed by these slots so that emit code shared across multiple
+// emitters (e.g. json_prepare_safe.go used by both PrepareForJsonSafe
+// and PrepareForJsonSafePreserve) emits diagnostics under the correct
+// per-family prefix.
+type DiagSlot string
+
+const (
+	// Root-position throw slots — factory throws on call.
+	SlotNeverRoot           DiagSlot = "never-root"
+	SlotNonSerializableRoot DiagSlot = "ns-root"
+	SlotFunctionRoot        DiagSlot = "fn-root"
+	SlotArrayElement        DiagSlot = "array-element"
+	SlotNonSerializableElem DiagSlot = "ns-elem"
+
+	// Child-position silent-skip slots — factory degrades.
+	SlotFunctionPropDropped DiagSlot = "fn-prop-dropped"
+	SlotMethodDropped       DiagSlot = "method-dropped"
+	SlotStaticDropped       DiagSlot = "static-dropped"
+	SlotSymbolKeyedDropped  DiagSlot = "symbol-keyed-dropped"
+
+	// Advisory slots.
+	SlotRootAnyUnknown DiagSlot = "root-any-unknown"
+)
+
+// DiagCodeProvider is the optional capability emitters implement when
+// they want per-family diagnostic codes attached to their throw /
+// silent-skip sites. Returning "" for a slot disables emission at that
+// slot. Emitters that don't implement this interface still throw at
+// runtime; the diagnostic just doesn't surface at build time.
+type DiagCodeProvider interface {
+	DiagCodeFor(slot DiagSlot) string
+}
+
+// DiagCodeFor returns the per-family diag code the current emitter
+// registered for slot, or "" when the emitter doesn't provide one.
+func (ctx *EmitContext) DiagCodeFor(slot DiagSlot) string {
+	if provider, ok := ctx.walker.Emitter.(DiagCodeProvider); ok {
+		return provider.DiagCodeFor(slot)
+	}
+	return ""
+}
+
+// JitThrowDiag combines a JitThrow (factory-body runtime throw) with an
+// EmitDiagnostic call. The runtime throw still fires when the user calls
+// createXxx<T>(); the diagnostic surfaces the same problem at build
+// time so the user can fix it before the factory is materialised.
+// Use this in place of bare JitThrow for any throw whose user-facing
+// cause is a fixable type-level problem (Never at root, function in
+// array, etc.) — i.e. all of them.
+func (ctx *EmitContext) JitThrowDiag(code, message string) JitCode {
+	ctx.walker.EmitDiagnostic(code, message)
+	return JitThrow(message)
+}
+
+// JitThrowDiagSlot is the slot-keyed sibling of JitThrowDiag. Used by
+// emit code shared across multiple emitters — the slot resolves to the
+// active emitter's per-family code via DiagCodeFor. Falls back to bare
+// JitThrow (no diagnostic) when the emitter hasn't registered a code
+// for the slot.
+func (ctx *EmitContext) JitThrowDiagSlot(slot DiagSlot, message string) JitCode {
+	code := ctx.DiagCodeFor(slot)
+	if code == "" {
+		return JitThrow(message)
+	}
+	return ctx.JitThrowDiag(code, message)
+}
+
+// EmitDiagnosticSlot is the slot-keyed sibling of EmitDiagnostic for
+// silent-skip sites. Resolves the code via the active emitter's
+// DiagCodeFor; no-op when the slot isn't registered.
+func (ctx *EmitContext) EmitDiagnosticSlot(slot DiagSlot, message string) {
+	code := ctx.DiagCodeFor(slot)
+	if code == "" {
+		return
+	}
+	ctx.walker.EmitDiagnostic(code, message)
+}
+
+// EmitDiagnostic surfaces a build-time diagnostic without changing the
+// emitted runtime behavior. Use this at silent-skip sites — places
+// where the emitter drops a member (function-typed property, method,
+// static field, …) and the user has no signal in their build output
+// that the slot is missing.
+func (ctx *EmitContext) EmitDiagnostic(code, message string) {
+	ctx.walker.EmitDiagnostic(code, message)
+}
+
 // ArgName looks up the JS identifier the inner function uses for a
 // conceptual arg slot ("vλl", "pλth", "εrr") via the emitter's Args
 // list. Returns "" when the slot isn't declared on this emitter — eg

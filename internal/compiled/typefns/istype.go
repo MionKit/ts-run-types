@@ -274,7 +274,7 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 			// `createJitFn(utl){ throw new Error(<msg>) }` so the
 			// throw surfaces at createIsType()-call time (mion's
 			// createJitFunction()-call equivalent).
-			return JitThrow("Jit compilation disabled for Non Serializable types.")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 		}
 		if rt.SubKind != protocol.SubKindNone {
 			// Unknown future subkind — keep the silent-skip path.

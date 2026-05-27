@@ -195,12 +195,12 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 	case protocol.KindNever:
 		// mion:binary/toBinary.ts:82 — throws "Never type cannot be
 		// serialized to Binary".
-		return JitThrow("Never type cannot be serialized to Binary")
+		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be serialized to Binary")
 
 	case protocol.KindPromise:
 		// mion:binary/toBinary.ts:218 — throws
 		// "Jit compilation disabled for Non Serializable types.".
-		return JitThrow("Jit compilation disabled for Non Serializable types.")
+		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindLiteral:
 		// mion:binary/toBinary.ts:86-106 — when opts.noLiterals, dispatch
@@ -223,7 +223,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		// compileReturn for that. The Go side has no params subkind
 		// (see protocol/subkind.go) so we always throw at top-level
 		// function types.
-		return JitThrow("Binary serialization not supported for functions, call compileParams or compileReturn instead.")
+		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Binary serialization not supported for functions, call compileParams or compileReturn instead.")
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyToBinary(rt, ctx, v, ser)
@@ -244,7 +244,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableToBinary(rt, ctx, v, ser)
 		case protocol.SubKindNonSerializable:
-			return JitThrow("Binary serialization is disabled for Non Serializable types")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableElem, "Binary serialization is disabled for Non Serializable types")
 		case protocol.SubKindNone:
 			return emitObjectToBinary(rt, ctx, v, ser)
 		}
@@ -314,7 +314,7 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved != nil && isNonSerializableElementKind(resolved.Kind) {
-		return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+		return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 	}
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")

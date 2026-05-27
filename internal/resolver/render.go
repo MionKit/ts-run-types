@@ -18,14 +18,57 @@ import (
 // (the dispatch path, render.go wrappers) feed this into every typefns
 // module call so the disk cache and runtype lookup follow the resolver
 // across requests.
-func (resolver *Resolver) jitRenderOpts() typefns.RenderOpts {
+//
+// sink (when non-nil) is the destination for compile-time diagnostics
+// emitted by the walker at JitThrow / silent-skip sites; provenance
+// (when non-nil) maps RT IDs to the marker call sites that reference
+// them, so EmitDiagnostic can fan out one Diagnostic per call site.
+func (resolver *Resolver) jitRenderOpts(sink *[]diag.Diagnostic, provenance map[string][]diag.Site) typefns.RenderOpts {
 	if resolver == nil {
 		return typefns.RenderOpts{}
 	}
 	return typefns.RenderOpts{
-		Store:  resolver.jitStore,
-		Lookup: resolver.cache,
+		Store:           resolver.jitStore,
+		Lookup:          resolver.cache,
+		DiagSink:        sink,
+		ProvenanceSites: provenance,
 	}
+}
+
+// buildProvenanceSites converts the resolver's protocol.Site list into
+// the (RT ID → []diag.Site) map the typefns walker uses to fan out
+// per-call-site diagnostics. Pos→line/col is computed against the
+// resolver's current Program; sites whose file isn't in the program
+// (defensive) are skipped.
+func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
+	if resolver == nil || resolver.Program == nil {
+		return nil
+	}
+	sites := resolver.Sites()
+	if len(sites) == 0 {
+		return nil
+	}
+	out := make(map[string][]diag.Site, len(sites))
+	for _, site := range sites {
+		if site.ID == "" {
+			continue
+		}
+		sourceFile, err := resolver.sourceFile(site.File)
+		if err != nil || sourceFile == nil {
+			// Fall back to file-only — better than dropping the entry
+			// entirely; the user still sees which file the error belongs
+			// to even when line/col can't be resolved.
+			out[site.ID] = append(out[site.ID], diag.Site{FilePath: site.File})
+			continue
+		}
+		line, col := scanLineCol(sourceFile, site.Pos)
+		out[site.ID] = append(out[site.ID], diag.Site{
+			FilePath:  site.File,
+			StartLine: line,
+			StartCol:  col,
+		})
+	}
+	return out
 }
 
 // renderToString invokes a cache-module writer against a buffer and

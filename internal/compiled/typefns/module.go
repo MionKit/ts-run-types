@@ -9,6 +9,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/cachetpl"
 	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -25,6 +26,18 @@ type RenderOpts struct {
 	// session. Required when Store is non-nil. The resolver passes its
 	// runtype.Cache here (which satisfies disk.HashLookup).
 	Lookup disk.HashLookup
+	// DiagSink is the destination for compile-time diagnostics emitted
+	// by the walker at JitThrow / silent-skip sites. Nil disables
+	// diagnostic emission entirely — keeps tests that don't care about
+	// the per-call-site fan-out quiet. The dispatcher wires this from
+	// the response's Diagnostics slice and flushes after each render.
+	DiagSink *[]diag.Diagnostic
+	// ProvenanceSites maps each cached RunType ID to the set of marker
+	// call sites that reference it. EmitDiagnostic uses this to fan out
+	// one Diagnostic per call site so the user gets actionable file:line:col
+	// coordinates — without it, a JitThrow would record a diagnostic
+	// with empty Site and the warning would be useless in the editor.
+	ProvenanceSites map[string][]diag.Site
 }
 
 // innerPrefix derives the inner-fn name prefix from a cache-module's
@@ -335,6 +348,12 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// InnerPrefix lets dispatch namespace child cache keys consistently
 	// with the factory registration's first arg (innerName below).
 	walker.InnerPrefix = innerPrefix
+	// Wire diagnostic emission for this walk. EmitDiagnostic fans each
+	// recorded code out across every call site referencing this RT.
+	walker.DiagSink = opts.DiagSink
+	if opts.ProvenanceSites != nil {
+		walker.rootProvenance = opts.ProvenanceSites[runType.ID]
+	}
 	innerFn, isNoop, isUnsupported := walker.Compile()
 	if isUnsupported {
 		// Two failure modes:
