@@ -21,9 +21,9 @@
 //
 // The deserialize-from-code test twins live under
 // `test/util/deserializeJitFunctions.ts` — production callers never need
-// them (`addSerializedJitCaches` already writes the rebuilt fn onto
-// `entry.fn` on jitUtils), so they don't belong in the package's public
-// surface.
+// them (cache modules auto-register entries and `materializeJitFn` builds
+// `entry.fn` on first lookup), so they don't belong in the package's
+// public surface.
 
 import {initCache as initIsTypeCache} from './caches/isTypeCache.ts';
 import {initCache as initGetTypeErrorsCache} from './caches/getTypeErrorsCache.ts';
@@ -38,7 +38,7 @@ import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.t
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
-import {lookupJitFn} from './jit/lookupJitFn.ts';
+import {lookupJitFn} from './jit/jitUtils.ts';
 import type {AnyFn, JitCompiledFn} from './jit/types.ts';
 import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
 

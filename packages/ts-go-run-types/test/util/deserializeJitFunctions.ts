@@ -1,14 +1,13 @@
 // Test-only twins of the `createXxx` factories. Each `deserializeXxx<T>()`
 // rebuilds its per-id closure from the serialized `JitCompiledFnData.code`
 // string via `new Function('utl', code)(jitUtils)` on every call — the same
-// reconstruction path `restoreCompiledJitFns` (in src/jit/restoreJitFns.ts)
-// runs once at startup when production callers ingest a serialized cache
-// over the wire.
+// reconstruction path `materializeJitFn` (in src/jit/jitUtils.ts) runs
+// lazily on the first `getJIT(hash)` lookup for a production caller.
 //
 // Lives under test/util/ rather than src/ because production code has no
-// reason to call these directly: `addSerializedJitCaches` already writes
-// the rebuilt fn back onto `entry.fn` on the jitUtils singleton, so the
-// regular `createXxx` factories return the deserialized closure
+// reason to call these directly: cache modules auto-register entries on
+// import and `materializeJitFn` builds `entry.fn` on demand, so the
+// regular `createXxx` factories already return the deserialized closure
 // transparently. The wrappers exist purely so the test suites can assert
 // that each `entry.code` round-trips to an equivalent fn.
 //
@@ -37,7 +36,7 @@ import {
 // deserialize twins that exercise the per-primitive `entry.code`
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createJitFunctions.ts';
-import {buildFactoryFromCode} from '../../src/jit/restoreJitFns.ts';
+import {buildFactoryFromCode} from '../../src/jit/jitUtils.ts';
 import type {AnyFn, JitCompiledFn} from '../../src/jit/types.ts';
 
 /** Test-side mirror of the production `createJitFunction` generic. Rebuilds

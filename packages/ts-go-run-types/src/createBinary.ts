@@ -20,7 +20,7 @@
 import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
 import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
 import {getJitUtils} from './jit/jitUtils.ts';
-import {lookupJitFn} from './jit/lookupJitFn.ts';
+import {lookupJitFn} from './jit/jitUtils.ts';
 import {
   createDataViewSerializer,
   createDataViewDeserializer,

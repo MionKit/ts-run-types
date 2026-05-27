@@ -14,7 +14,7 @@ export {type InjectRuntypeId, type CompTimeArgs, type PureFunction, getRuntypeId
 // module imports — those modules call `initCache(getJitUtils())` at
 // module top level, and we want `getJitUtils` to be a real function by
 // then through any ESM cycle.
-export {getJitUtils, addAOTCaches, addSerializedJitCaches, getJitFnCaches, type JITUtils} from './jit/jitUtils.ts';
+export {getJitUtils, getJitFnCaches, type JITUtils} from './jit/jitUtils.ts';
 
 // Side-effect: populate the run-type registry from the precompiled cache
 // module. Pulled in here so the registry is ready before any consumer
@@ -34,13 +34,6 @@ if (_hot) {
     newMod?.initCache?.(_getJitUtilsForInit());
   });
 }
-
-export {
-  flattenUnionDiscriminators,
-  type DiscriminatorPropLike,
-  type DiscriminatorUnionLike,
-  type FlattenedDiscriminator,
-} from './unionDiscriminator.ts';
 
 // `pureFn.ts` MUST evaluate before any module whose cache factories
 // reference pure-fn helpers (typeErrors needs `mion::newRunTypeErr`).

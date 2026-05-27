@@ -6,7 +6,7 @@ package protocol
 // The walker uses FilePath at compile time to assert the dependency
 // actually exists in source (Go-side AST integrity check); it does
 // not reach the emitted JS — the wire shape stays the flat
-// "namespace::fnName" string array that mion's restoreJitFns
+// "namespace::fnName" string array that the JS-side jitUtils
 // consumes today.
 type PureFnDep struct {
 	Namespace    string
