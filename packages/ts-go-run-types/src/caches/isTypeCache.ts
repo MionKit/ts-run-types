@@ -13,37 +13,13 @@
 // The file is intentionally `@ts-nocheck`'d (the Go renderer splices
 // generated JS into the body and we want the served output to parse
 // identically through Vite and through `new Function`). The JSDoc
-// `@typedef` and `@param` blocks below document the contract for
-// readers without turning checking back on.
+// `@typedef`s below pull the cache-entry shape from
+// `../jit/types.ts` — the canonical source for every cache module — so
+// readers get hover-typing without turning checking back on.
 
 'use strict';
 
-/**
- * Cache entry produced by every `init(…)` call below.
- *
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').IsTypeFn>} IsTypeJitFn
- */
-
-/**
- * Argument tuple passed by the Go renderer to each generated `init(…)`
- * call site. Three positional shapes the renderer emits:
- *   - Normal:       all 7 leading slots populated, alwaysThrow* undefined.
- *   - Noop:         (jitFnHash, typeName, undefined, true) — trailing slots
- *                   omitted; the JS side fills `fn` with `noopIsType`.
- *   - AlwaysThrow:  (jitFnHash, typeName, undefined, false, undefined,
- *                   undefined, undefined, alwaysThrowCode, alwaysThrowSite).
- *
- * @typedef {object} IsTypeInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').IsTypeFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (IT001 / IT002 / …) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').IsTypeJitFn} IsTypeJitFn */
 
 export function initCache(jitUtils) {
   // Register every entry on the shared jitUtils cache with `fn:

@@ -7,26 +7,11 @@
 // Mirrors `getTypeErrorsCache.ts` exactly with the `fnID: 'uke'` tag.
 // Every JitCompiledFn entry produces a (v, pth=[], er=[]) validator
 // that appends one RunTypeError of expected='never' per unknown key.
-// See `isTypeCache.ts` for the JSDoc conventions used below.
+// See `isTypeCache.ts` for the JSDoc conventions.
 
 'use strict';
 
-/**
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').UnknownKeyErrorsFn>} UnknownKeyErrorsJitFn
- */
-
-/**
- * @typedef {object} UnknownKeyErrorsInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').UnknownKeyErrorsFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (UKE…) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').UnknownKeyErrorsJitFn} UnknownKeyErrorsJitFn */
 
 export function initCache(jitUtils) {
   // Module-local pure-fn key consts. The Go emitter references these

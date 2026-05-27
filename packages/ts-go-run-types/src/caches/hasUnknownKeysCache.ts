@@ -10,26 +10,11 @@
 // a boolean indicating whether the value has any property not declared
 // in the schema. Ported from mion's emitHasUnknownKeys on
 // InterfaceRunType / ArrayRunType / IndexSignatureRunType / etc. See
-// `isTypeCache.ts` for the JSDoc conventions used below.
+// `isTypeCache.ts` for the JSDoc conventions.
 
 'use strict';
 
-/**
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').HasUnknownKeysFn>} HasUnknownKeysJitFn
- */
-
-/**
- * @typedef {object} HasUnknownKeysInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').HasUnknownKeysFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (HUK…) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').HasUnknownKeysJitFn} HasUnknownKeysJitFn */
 
 export function initCache(jitUtils) {
   // Pure-fn key consts referenced by emitted factory bodies. Names

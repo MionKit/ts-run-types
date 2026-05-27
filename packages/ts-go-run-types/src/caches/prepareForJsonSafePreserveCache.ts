@@ -11,22 +11,7 @@
 
 'use strict';
 
-/**
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').PrepareForJsonFn>} PrepareForJsonSafePreserveJitFn
- */
-
-/**
- * @typedef {object} PrepareForJsonSafePreserveInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').PrepareForJsonFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (PJP001 / PJP005 / …) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').PrepareForJsonSafePreserveJitFn} PrepareForJsonSafePreserveJitFn */
 
 export function initCache(jitUtils) {
   function init(

@@ -13,6 +13,23 @@
 //   - mion/packages/core/src/types/pureFunctions.types.ts
 
 import type {JITUtils} from './jitUtils.ts';
+// Per-family fn signatures live next to the public `createXxx` factories
+// that return them — we re-use those aliases here so the cache-entry
+// typedefs below stay a single source of truth. The imports are
+// type-only, so the circular reference is erased at emit time and no
+// runtime cycle exists.
+import type {
+  IsTypeFn,
+  GetTypeErrorsFn,
+  HasUnknownKeysFn,
+  StripUnknownKeysFn,
+  UnknownKeyErrorsFn,
+  UnknownKeysToUndefinedFn,
+  PrepareForJsonFn,
+  RestoreFromJsonFn,
+  StringifyJsonFn,
+} from '../createJitFunctions.ts';
+import type {ToBinaryFn, FromBinaryFn} from '../createBinary.ts';
 
 // ########################################### Pure functions #########################################
 
@@ -164,6 +181,42 @@ export interface PersistedJitFn extends Omit<JitCompiledFn, 'fn'> {
 }
 
 // ############################# JIT CACHES ###################################
+
+// Per-family JitCompiledFn aliases — one per cache module under
+// `src/caches/`. The cache skeletons (`isTypeCache.ts`,
+// `getTypeErrorsCache.ts`, …) are `// @ts-nocheck`'d JS, so they reach
+// these typedefs via JSDoc `@typedef {import('../jit/types.ts').<Alias>}`
+// instead of a real `import type` — same single source of truth.
+// Mapping (alias → JitCompiledFn type-parameter):
+//   IsTypeJitFn                       → IsTypeFn
+//   GetTypeErrorsJitFn                → GetTypeErrorsFn
+//   HasUnknownKeysJitFn               → HasUnknownKeysFn
+//   StripUnknownKeysJitFn             → StripUnknownKeysFn
+//   UnknownKeyErrorsJitFn             → UnknownKeyErrorsFn
+//   UnknownKeysToUndefinedJitFn       → UnknownKeysToUndefinedFn
+//   UnknownKeysToUndefinedWireJitFn   → UnknownKeysToUndefinedFn (same fn shape, distinct cache slot 'ukuw')
+//   PrepareForJsonJitFn               → PrepareForJsonFn
+//   PrepareForJsonSafeJitFn           → PrepareForJsonFn          (same fn shape, distinct cache slot 'pjs')
+//   PrepareForJsonSafePreserveJitFn   → PrepareForJsonFn          (same fn shape, distinct cache slot 'pjsp')
+//   RestoreFromJsonJitFn              → RestoreFromJsonFn
+//   StringifyJsonJitFn                → StringifyJsonFn
+//   ToBinaryJitFn                     → ToBinaryFn
+//   FromBinaryJitFn                   → FromBinaryFn
+
+export type IsTypeJitFn = JitCompiledFn<IsTypeFn>;
+export type GetTypeErrorsJitFn = JitCompiledFn<GetTypeErrorsFn>;
+export type HasUnknownKeysJitFn = JitCompiledFn<HasUnknownKeysFn>;
+export type StripUnknownKeysJitFn = JitCompiledFn<StripUnknownKeysFn>;
+export type UnknownKeyErrorsJitFn = JitCompiledFn<UnknownKeyErrorsFn>;
+export type UnknownKeysToUndefinedJitFn = JitCompiledFn<UnknownKeysToUndefinedFn>;
+export type UnknownKeysToUndefinedWireJitFn = JitCompiledFn<UnknownKeysToUndefinedFn>;
+export type PrepareForJsonJitFn = JitCompiledFn<PrepareForJsonFn>;
+export type PrepareForJsonSafeJitFn = JitCompiledFn<PrepareForJsonFn>;
+export type PrepareForJsonSafePreserveJitFn = JitCompiledFn<PrepareForJsonFn>;
+export type RestoreFromJsonJitFn = JitCompiledFn<RestoreFromJsonFn>;
+export type StringifyJsonJitFn = JitCompiledFn<StringifyJsonFn>;
+export type ToBinaryJitFn = JitCompiledFn<ToBinaryFn>;
+export type FromBinaryJitFn = JitCompiledFn<FromBinaryFn>;
 
 // jit and pure functions at runtime, contains both createJitFn and fn
 export type JitFunctionsCache = Record<string, JitCompiledFn>;
