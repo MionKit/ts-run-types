@@ -18,6 +18,7 @@ const (
 	CodeISMethodDropped       = "IT011"
 	CodeISStaticDropped       = "IT012"
 	CodeISSymbolKeyedDropped  = "IT013"
+	CodeISRootAnyUnknown      = "IT021"
 )
 
 // typeErrors family.
@@ -165,6 +166,9 @@ func init() {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "Runtype child-position member dropped"})
 	}
 
-	// Advisory info codes.
-	register(Definition{Code: CodeTERootAnyUnknown, Family: FamilyRunType, Severity: SeverityInfo, Title: "typeErrors root any/unknown — identity fallback"})
+	// Root any/unknown — noop validators that accept every value. Warning
+	// severity (not Info): the user opted into a permissive type, often
+	// without realising the runtime is no longer enforcing the schema.
+	register(Definition{Code: CodeTERootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "typeErrors root any/unknown — identity fallback"})
+	register(Definition{Code: CodeISRootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "isType root any/unknown — identity fallback"})
 }

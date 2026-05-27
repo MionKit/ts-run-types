@@ -216,6 +216,9 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		// `true` and rely on Finalize to collapse the body to a noop. The
 		// renderer then skips the factory entirely and consumers fall back
 		// to a trivial `() => true`. Functionally equivalent.
+		if ctx.IsRoot() {
+			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown, "isType on any/unknown is a noop — every value passes")
+		}
 		return JitCode{Code: "true", Type: CodeE}
 
 	case protocol.KindNever:

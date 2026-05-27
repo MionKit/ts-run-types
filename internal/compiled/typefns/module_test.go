@@ -97,7 +97,7 @@ func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
 		// KindSymbol is unsupported at root — see docs/UNSUPPORTED-KINDS.md
 		// FAQ. Renderer emits an alwaysThrow factory keyed by IT002,
 		// not a body-bearing validator.
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('it_sym','symbol',undefined,false,undefined,undefined,undefined,'IT002')", false},
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('it_sym','symbol',undefined,false,undefined,undefined,undefined,'IT002',undefined)", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -717,7 +717,7 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('it_ns1','class',undefined,false,undefined,undefined,undefined,'IT001')") {
+		if !strings.Contains(out, "init('it_ns1','class',undefined,false,undefined,undefined,undefined,'IT001',undefined)") {
 			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code IT001, got:\n%s", out)
 		}
 		// No inline throwing function body should remain.

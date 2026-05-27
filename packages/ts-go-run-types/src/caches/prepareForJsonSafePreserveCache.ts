@@ -11,9 +11,20 @@
 'use strict';
 
 export function initCache(jitUtils) {
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
+  function init(
+    jitFnHash,
+    typeName,
+    code,
+    isNoop,
+    jitDependencies,
+    pureFnDependencies,
+    createJitFn,
+    alwaysThrowCode,
+    alwaysThrowSite
+  ) {
     const fn = isNoop ? noopPrepareForJsonSafePreserve : undefined;
-    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
+    const resolvedCreateJitFn =
+      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'pjsp',

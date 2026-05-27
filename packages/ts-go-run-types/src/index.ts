@@ -20,6 +20,25 @@ export type RuntypeId<T> = string & {
   readonly __mionRuntypeBrand?: T;
 };
 
+// `any` poisons every downstream cache entry — the marker compiles into a
+// noop validator that returns true / serializer that returns the value
+// unchanged. The reflection form is the typical entry point for that
+// failure mode (`reflectRuntypeId(JSON.parse(s))` where `JSON.parse`
+// returns `any`). Rejecting `any` at the type level forces the caller to
+// annotate the value or the type parameter explicitly — the resulting
+// `never` collapses the marker call and the downstream `createXxx<T>`
+// calls so the user sees the error at the marker site, not at runtime.
+//
+// Pattern: `0 extends 1 & T` is true ONLY when T is `any` (the
+// intersection short-circuits to `any` and `0 extends any` is true; for
+// any other T the intersection is the more specific type and 0 does not
+// extend it). The branded `RejectAny` tuple lets the TypeScript error
+// message at the call site read as a sentence rather than a structural
+// mismatch.
+type IsAny<T> = 0 extends 1 & T ? true : false;
+type RejectAny<T> =
+  IsAny<T> extends true ? ['ts-go-run-types error: `T` is `any` — annotate the value or type argument explicitly.'] : T;
+
 /**
  * Static marker. Use when you have an explicit type and no runtime value:
  * `getRuntypeId<User>()`. The vite plugin rewrites the call to
@@ -30,12 +49,17 @@ export type RuntypeId<T> = string & {
  * `vite-plugin-runtypes` in the chain) throws: the helper depends on the
  * id being injected at compile time and has no way to compute one at
  * runtime in plain JS.
+ *
+ * Passing `any` as `T` is rejected at the type level — `getRuntypeId<any>()`
+ * is almost always a mistake (the resulting cache entry is a noop validator
+ * that returns true for every input). Annotate explicitly with a concrete
+ * type instead.
  */
-export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T> {
+export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<RejectAny<T>> {
   if (id === undefined) {
     throw new Error('getRuntypeId(): no id injected. vite-plugin-runtypes must be active.');
   }
-  return id;
+  return id as RuntypeId<RejectAny<T>>;
 }
 
 /**
@@ -46,12 +70,17 @@ export function getRuntypeId<T>(id?: RuntypeId<T>): RuntypeId<T> {
  * Same runtime contract as `getRuntypeId`: throws if the transformer is
  * not active. The `value` is purely for type inference and is ignored at
  * runtime.
+ *
+ * Passing a value whose inferred type is `any` (typical sources:
+ * `JSON.parse`, untyped library returns, `as any` casts) is rejected at
+ * the type level — the inferred validator would accept every input. Cast
+ * or annotate the value to a concrete shape first.
  */
-export function reflectRuntypeId<T>(_value: T, id?: RuntypeId<T>): RuntypeId<T> {
+export function reflectRuntypeId<T>(_value: RejectAny<T>, id?: RuntypeId<T>): RuntypeId<RejectAny<T>> {
   if (id === undefined) {
     throw new Error('reflectRuntypeId(): no id injected. vite-plugin-runtypes must be active.');
   }
-  return id;
+  return id as RuntypeId<RejectAny<T>>;
 }
 
 // JIT runtime registry — migrated from `@mionjs/core`. Consumers (currently
