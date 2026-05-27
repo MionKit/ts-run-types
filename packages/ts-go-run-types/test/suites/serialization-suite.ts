@@ -125,11 +125,14 @@ export interface SerializationCase {
    *  requiring deep-equal back to the original. **/
   roundTripBestEffort?: boolean;
 
-  /** When the prepareForJson / restoreFromJson factory creation itself
-   *  is expected to throw (e.g. `never` type, non-serializable
-   *  primitives, Promise top-level). Tests verify a throw at thunk
-   *  invocation time rather than a successful round-trip. **/
-  throwsAtCompile?: boolean;
+  /** When `createXxx<T>()` is rendered as an alwaysThrow cache entry
+   *  by the Go pipeline (e.g. `never`, root `symbol`, function-typed
+   *  tuple slot, Promise root, …). Calling the factory throws at the
+   *  first lookup — the materialised throwing stub fires inside
+   *  `lookupJitFn` before returning to the caller. Tests assert the
+   *  throw at the thunk-invocation site rather than a successful
+   *  round-trip. See docs/UNSUPPORTED-KINDS.md. **/
+  factoryThrows?: boolean;
 
   /** When the factory builds successfully but `JSON.stringify(prepared)`
    *  is expected to throw at runtime. Documents mion's "extras pass
@@ -153,11 +156,11 @@ export interface SerializationCase {
   /** Binary decoder thunk. Must come paired with `binaryEncoder`. **/
   binaryDecoder?: () => BinaryDecoderFn;
 
-  /** Override `throwsAtCompile` for binary alone. Use only when binary
-   *  has a different compile-time contract than JSON (e.g. a kind
+  /** Override `factoryThrows` for binary alone. Use only when binary
+   *  has a different unsupported-kind contract than JSON (e.g. a kind
    *  binary refuses but JSON accepts, or vice versa). Falls back to
-   *  `throwsAtCompile` when unset. **/
-  binaryThrowsAtCompile?: boolean;
+   *  `factoryThrows` when unset. **/
+  binaryFactoryThrows?: boolean;
 
   /** Override `getTestData` for binary alone. Use only when binary's
    *  round-trip diverges from JSON — e.g. bigint extras that
@@ -447,7 +450,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<symbol>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<symbol>(),
       binaryDecoder: () => createBinaryDecoder<symbol>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     object: {
@@ -489,7 +492,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<never>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<never>(),
       binaryDecoder: () => createBinaryDecoder<never>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     literal_string: {
@@ -640,7 +643,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<symbol[]>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<symbol[]>(),
       binaryDecoder: () => createBinaryDecoder<symbol[]>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     array_circular: {
@@ -2478,7 +2481,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<[number, () => any]>(),
       binaryDecoder: () => createBinaryDecoder<[number, () => any]>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     tuple_circular: {
@@ -3250,7 +3253,7 @@ export const SERIALIZATION_SPEC = {
       // in `() => null`. Function-typed tuple slots are unsupported in
       // every family now (previously JSON silently dropped them, binary
       // threw); both paths render as alwaysThrow.
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     function_promise_return_type: {
@@ -3337,7 +3340,7 @@ export const SERIALIZATION_SPEC = {
         }
         return createBinaryDecoder<ReturnType<typeof fnReturnsPromise>>();
       },
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     function_return_type_is_function: {
@@ -3424,7 +3427,7 @@ export const SERIALIZATION_SPEC = {
         }
         return createBinaryDecoder<ReturnType<typeof fnReturnsFunction>>();
       },
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     call_signature_params: {
@@ -4240,7 +4243,7 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<Date | number | string | (() => any)>(),
       binaryDecoder: () => createBinaryDecoder<Date | number | string | (() => any)>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
 
@@ -5552,7 +5555,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<Promise<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<Promise<string>>(),
       binaryDecoder: () => createBinaryDecoder<Promise<string>>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     non_serializable: {
@@ -5566,7 +5569,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<Int8Array>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<Int8Array>(),
       binaryDecoder: () => createBinaryDecoder<Int8Array>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     non_serializable_interface: {
@@ -5580,7 +5583,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<{a: Int8Array}>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<{a: Int8Array}>(),
       binaryDecoder: () => createBinaryDecoder<{a: Int8Array}>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     non_serializable_array: {
@@ -5594,7 +5597,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<Int8Array[]>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<Int8Array[]>(),
       binaryDecoder: () => createBinaryDecoder<Int8Array[]>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
     non_serializable_tuple: {
@@ -5608,7 +5611,7 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<[Int8Array]>(undefined, {stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<[Int8Array]>(),
       binaryDecoder: () => createBinaryDecoder<[Int8Array]>(),
-      throwsAtCompile: true,
+      factoryThrows: true,
       getTestData: () => ({values: []}),
     },
   },
