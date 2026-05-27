@@ -12,7 +12,7 @@ func init() {
 	for _, definition := range []Definition{
 		{Code: CodeMarkerFunctionCallArg, Family: FamilyMarker, Severity: SeverityWarning, Title: "Reflect-form marker received function-call argument"},
 		{Code: CodeMarkerNonLiteralOptions, Family: FamilyMarker, Severity: SeverityWarning, Title: "Marker options not a literal object"},
-		{Code: CodeMarkerFreeTypeParameter, Family: FamilyMarker, Severity: SeverityWarning, Title: "Marker call has unresolved type parameter — rewrite skipped"},
+		{Code: CodeMarkerFreeTypeParameter, Family: FamilyMarker, Severity: SeverityError, Title: "Marker call inside generic wrapper — type argument is unresolved"},
 	} {
 		register(definition)
 	}
