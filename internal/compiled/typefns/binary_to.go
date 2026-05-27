@@ -312,11 +312,6 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved != nil && isNonSerializableElementKind(resolved.Kind) {
-		ctx.MarkUnsupportedLeaf(resolved)
-		return JitCode{Code: "", Type: CodeNS}
-	}
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
 	childJit := ctx.CompileChild(rt.Child, CodeS)
