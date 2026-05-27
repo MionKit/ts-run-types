@@ -32,8 +32,8 @@ describe('vite-plugin-runtypes / runtype diagnostics', () => {
 
   register('emits PJ001 for Never at root under prepareForJson', async () => {
     const sources = {
-      'never.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<never>();
+      'never.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<never>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -53,8 +53,8 @@ export const _ = getRuntypeId<never>();
 
   register('emits per-family codes — SJ001 / TB001 / PJ001 — for same root throw', async () => {
     const sources = {
-      'never-multi.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<never>();
+      'never-multi.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<never>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -70,10 +70,10 @@ export const _ = getRuntypeId<never>();
 
   register('emits per-call-site fan-out — three marker calls = three diagnostics', async () => {
     const sources = {
-      'fan-out.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const a = getRuntypeId<never>();
-export const b = getRuntypeId<never>();
-export const c = getRuntypeId<never>();
+      'fan-out.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const a = getRunTypeId<never>();
+export const b = getRunTypeId<never>();
+export const c = getRunTypeId<never>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -89,9 +89,9 @@ export const c = getRuntypeId<never>();
 
   register('emits child-position warning for function-typed property under isType', async () => {
     const sources = {
-      'fn-prop.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'fn-prop.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
-export const _ = getRuntypeId<User>();
+export const _ = getRunTypeId<User>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -107,8 +107,8 @@ export const _ = getRuntypeId<User>();
 
   register('formatTscDiagnostic renders runtype warnings in tsc line format', async () => {
     const sources = {
-      'fmt-rt.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<never>();
+      'fmt-rt.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<never>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -124,8 +124,8 @@ export const _ = getRuntypeId<never>();
 
   register('emits TE020 warning diagnostic for typeErrors on root any/unknown', async () => {
     const sources = {
-      'any.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<any>();
+      'any.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<any>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -145,8 +145,8 @@ export const _ = getRuntypeId<any>();
 
   register('emits IT021 warning diagnostic for isType on root any/unknown', async () => {
     const sources = {
-      'any-istype.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<unknown>();
+      'any-istype.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<unknown>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -173,8 +173,8 @@ export const _ = getRuntypeId<unknown>();
 
   register('propagates function-typed tuple slot as alwaysThrow under prepareForJson', async () => {
     const sources = {
-      'fn-tuple.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<[number, () => void]>();
+      'fn-tuple.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<[number, () => void]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -199,8 +199,8 @@ export const _ = getRuntypeId<[number, () => void]>();
 
   register('propagates function-typed tuple slot as alwaysThrow under toBinary / fromBinary', async () => {
     const sources = {
-      'fn-tuple-bin.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<[string, () => number]>();
+      'fn-tuple-bin.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<[string, () => number]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -221,8 +221,8 @@ export const _ = getRuntypeId<[string, () => number]>();
     // path even before the fix. This test pins that behavior so a future
     // optimisation can't silently regress it.
     const sources = {
-      'sym-tuple.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRuntypeId<[number, symbol]>();
+      'sym-tuple.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRunTypeId<[number, symbol]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -246,9 +246,9 @@ export const _ = getRuntypeId<[number, symbol]>();
   // emit shape.
   register('default emit (no inline createRTFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
     const sources = {
-      'mini.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'mini.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface User { name: string; age: number; tags: string[]; }
-export const _ = getRuntypeId<User>();
+export const _ = getRunTypeId<User>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {

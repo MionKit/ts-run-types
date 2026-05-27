@@ -27,7 +27,7 @@
 // failure surfaces the divergence visibly per the testing rules.
 
 import {describe, expect, it} from 'vitest';
-import {getRTFnCaches, getRuntypeId} from '@mionjs/ts-go-run-types';
+import {getRTFnCaches, getRunTypeId} from '@mionjs/ts-go-run-types';
 
 interface NoJsonENCDECRequired {
   a: number;
@@ -55,8 +55,8 @@ function rjEntry(id: string) {
 
 describe('json noop markers (00JsonOnly.spec.ts port)', () => {
   it('interface json encode/decode should be marked as noop when there are no actions required', () => {
-    const noopId = getRuntypeId<NoJsonENCDECRequired>();
-    const encId = getRuntypeId<SonENCDECRequired>();
+    const noopId = getRunTypeId<NoJsonENCDECRequired>();
+    const encId = getRunTypeId<SonENCDECRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(true);
     expect(rjEntry(noopId)?.isNoop).toBe(true);
@@ -65,8 +65,8 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
   });
 
   it('tuple json encode/decode should be marked as noop when there are no actions required', () => {
-    const noopId = getRuntypeId<TupleNoJsonENCDECRequired>();
-    const encId = getRuntypeId<TupleSonENCDECRequired>();
+    const noopId = getRunTypeId<TupleNoJsonENCDECRequired>();
+    const encId = getRunTypeId<TupleSonENCDECRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(true);
     expect(rjEntry(noopId)?.isNoop).toBe(true);
@@ -88,8 +88,8 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     // For `bigint | Date`, both members are non-noop on at least one
     // half (bigint pj/rj are non-noop, Date rj is non-noop), so the
     // wrap is preserved on every member and both halves stay non-noop.
-    const noopId = getRuntypeId<AtomicNoEncRequired>();
-    const encId = getRuntypeId<AtomicEncRequired>();
+    const noopId = getRunTypeId<AtomicNoEncRequired>();
+    const encId = getRunTypeId<AtomicEncRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(false);
     expect(rjEntry(noopId)?.isNoop).toBe(true);

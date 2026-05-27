@@ -4,7 +4,7 @@
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
 import {getRTUtils} from '../runtypes/rtUtils.ts';
-import type {InjectRuntypeId} from '../index.ts';
+import type {InjectRunTypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
@@ -12,7 +12,7 @@ import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './m
 /** Returns a mock-value generator for `T`. Each call produces a fresh value
  *  that passes `isType<T>`. Options merge: call < factory < defaults.
  *  Throws if the Vite plugin isn't active (no `id` injected). **/
-export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRuntypeId<T>): MockTypeFn<T> {
+export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(

@@ -14,11 +14,11 @@ import (
 // scanned file (dump exposes the whole thing), but the request's
 // runTypes/runTypeCacheSource projection only sees the listed files.
 func TestPerRequestScope_FilesOnly(t *testing.T) {
-	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+	const aSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `
-	const bSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<{a: number}>();
+	const bSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
 
@@ -91,8 +91,8 @@ getRuntypeId<{a: number}>();
 // referencing the same shape produce a single wire id and the union slice
 // contains it exactly once.
 func TestPerRequestScope_DedupAcrossRequestedFiles(t *testing.T) {
-	const src = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+	const src = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `
 	r := setupInline(t, map[string]string{"a.ts": src, "b.ts": src})
 
@@ -125,11 +125,11 @@ getRuntypeId<string>();
 // scanFiles([a]) projection contains only a's ids — no leak from the
 // pre-reset session.
 func TestPerRequestScope_ResetWipesFileRecords(t *testing.T) {
-	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+	const aSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `
-	const bSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<{a: number}>();
+	const bSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
 	respA := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
@@ -171,11 +171,11 @@ getRuntypeId<{a: number}>();
 // setSources rather than reset. setSources rebuilds the Program and so
 // must drop the per-file record map.
 func TestPerRequestScope_SetSourcesWipesFileRecords(t *testing.T) {
-	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+	const aSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `
-	const bSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<{a: number}>();
+	const bSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
 	if resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}}); resp.Error != "" {
@@ -213,11 +213,11 @@ getRuntypeId<{a: number}>();
 // that's been recorded), regardless of which subset of files the latest
 // scanFiles call asked about.
 func TestDump_FullCacheRegardlessOfPriorScans(t *testing.T) {
-	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+	const aSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `
-	const bSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<{a: number}>();
+	const bSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<{a: number}>();
 `
 	r := setupInline(t, map[string]string{"a.ts": aSrc, "b.ts": bSrc})
 	respA := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}})
@@ -277,7 +277,7 @@ func containsID(runTypes []*protocol.RunType, id string) bool {
 // accidentally extended the scan to "every type the file declares"
 // breaks loudly.
 func TestScope_UnreferencedTypesAreNotProjected(t *testing.T) {
-	const src = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const src = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 
 // Referenced — has a marker call; should be projected.
 type Referenced = {a: string; b: number};
@@ -289,7 +289,7 @@ type UnusedA = {x: bigint};                  // KindBigInt
 type UnusedB = {y: Date};                    // KindClass with SubKindDate
 export type UnusedC = string[];              // KindArray
 
-getRuntypeId<Referenced>();
+getRunTypeId<Referenced>();
 `
 	r := setupInline(t, map[string]string{"call.ts": src})
 	resp := r.Dispatch(protocol.Request{
@@ -301,7 +301,7 @@ getRuntypeId<Referenced>();
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	if len(resp.Sites) != 1 {
-		t.Fatalf("expected 1 site (the getRuntypeId<Referenced> call), got %d", len(resp.Sites))
+		t.Fatalf("expected 1 site (the getRunTypeId<Referenced> call), got %d", len(resp.Sites))
 	}
 	// The Referenced type must appear in the projection.
 	if !containsID(resp.RunTypes, resp.Sites[0].ID) {
@@ -334,13 +334,13 @@ getRuntypeId<Referenced>();
 // file before the dump — this test confirms the eager scan finds no
 // markers in unrelated files and therefore projects nothing from them.
 func TestDump_OnlyMarkerReachableTypes(t *testing.T) {
-	const aSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const aSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Junk = {trash: bigint};
-getRuntypeId<{a: string}>();
+getRunTypeId<{a: string}>();
 `
-	const bSrc = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const bSrc = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface Garbage { rubbish: Date }
-getRuntypeId<{b: number}>();
+getRunTypeId<{b: number}>();
 `
 	// c.ts has NO marker imports and NO marker calls — scanAllProgramFiles
 	// will reach it but find nothing to project.

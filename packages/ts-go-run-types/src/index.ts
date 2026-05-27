@@ -1,5 +1,5 @@
 // Public entry point for @mionjs/ts-go-run-types.
-export {type InjectRuntypeId, type CompTimeArgs, type PureFunction, getRuntypeId, reflectRuntypeId} from './markers.ts';
+export {type InjectRunTypeId, type CompTimeArgs, type PureFunction, getRunTypeId, reflectRunTypeId} from './markers.ts';
 
 // RT registry — exported BEFORE `./createRTFunctions.ts` so rtUtils is a
 // real function by the time downstream cache modules call `initCache(getRTUtils())`

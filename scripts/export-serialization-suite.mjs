@@ -62,13 +62,13 @@ const FN_FIELDS = [
 //   direct     → strategy='direct'                     (sj)
 // Two decoders cover stripExtras true / false.
 const APIS = [
-  {key: 'safe',           kind: 'encode', factory: 'safeEncoder',           cacheKind: 'prepareForJsonSafe'},
-  {key: 'clone-preserve', kind: 'encode', factory: 'clonePreserveEncoder',  cacheKind: 'prepareForJsonSafePreserve'},
-  {key: 'mutate-strip',   kind: 'encode', factory: 'mutateStripEncoder',    cacheKind: 'prepareForJson'},
-  {key: 'unsafe',         kind: 'encode', factory: 'unsafeEncoder',         cacheKind: 'prepareForJson'},
-  {key: 'direct',         kind: 'encode', factory: 'safeDirectEncoder',     cacheKind: 'stringifyJson'},
-  {key: 'safe-decode',    kind: 'decode', factory: 'safeDecoder',           cacheKind: 'restoreFromJson'},
-  {key: 'unsafe-decode',  kind: 'decode', factory: 'unsafeDecoder',         cacheKind: 'restoreFromJson'},
+  {key: 'safe', kind: 'encode', factory: 'safeEncoder', cacheKind: 'prepareForJsonSafe'},
+  {key: 'clone-preserve', kind: 'encode', factory: 'clonePreserveEncoder', cacheKind: 'prepareForJsonSafePreserve'},
+  {key: 'mutate-strip', kind: 'encode', factory: 'mutateStripEncoder', cacheKind: 'prepareForJson'},
+  {key: 'unsafe', kind: 'encode', factory: 'unsafeEncoder', cacheKind: 'prepareForJson'},
+  {key: 'direct', kind: 'encode', factory: 'safeDirectEncoder', cacheKind: 'stringifyJson'},
+  {key: 'safe-decode', kind: 'decode', factory: 'safeDecoder', cacheKind: 'restoreFromJson'},
+  {key: 'unsafe-decode', kind: 'decode', factory: 'unsafeDecoder', cacheKind: 'restoreFromJson'},
 ];
 
 // Workload knobs. Tune at the top — no CLI flags for now.
@@ -81,9 +81,9 @@ const COMPILE_CYCLES = 3;
 // package without resolving a real package.json. Mirrors the validation
 // suite's RUNTYPES_DTS, extended with the JSON serializer signatures.
 const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
-  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
-  export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
-  export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface RunTypeOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
@@ -92,11 +92,11 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type PrepareForJsonFn = (v: unknown) => unknown;
   export type RestoreFromJsonFn = (v: unknown) => unknown;
   export type StringifyJsonFn = (v: unknown) => string | undefined;
-  export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): PrepareForJsonFn;
-  export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): RestoreFromJsonFn;
-  export function createStringifyJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): StringifyJsonFn;
-  export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): PrepareForJsonFn;
-  export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): RestoreFromJsonFn;
+  export function createPrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): PrepareForJsonFn;
+  export function createRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): RestoreFromJsonFn;
+  export function createStringifyJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): StringifyJsonFn;
+  export function deserializePrepareForJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): PrepareForJsonFn;
+  export function deserializeRestoreFromJson<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): RestoreFromJsonFn;
 }
 `;
 

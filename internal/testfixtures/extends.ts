@@ -1,5 +1,5 @@
 /// <reference path="./runtypes.d.ts" />
-import {getRuntypeId, reflectRuntypeId} from '@mionjs/ts-go-run-types';
+import {getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
 
 export {};
 
@@ -12,9 +12,9 @@ class A1 {
 class B1 extends A1 {
   b: number = 0;
 }
-const classBasic = getRuntypeId<B1>();
+const classBasic = getRunTypeId<B1>();
 declare const b1: B1;
-const classBasicReflect = reflectRuntypeId(b1);
+const classBasicReflect = reflectRunTypeId(b1);
 
 // 2 — Override: child narrows parent's prop type to a literal.
 class A2 {
@@ -23,7 +23,7 @@ class A2 {
 class B2 extends A2 {
   name: 'fixed' = 'fixed';
 }
-const classOverride = getRuntypeId<B2>();
+const classOverride = getRunTypeId<B2>();
 
 // 3 — Chained inheritance: C → B → A. All ancestor props on C.
 class A3 {
@@ -35,7 +35,7 @@ class B3 extends A3 {
 class C3 extends B3 {
   c: boolean = false;
 }
-const classChained = getRuntypeId<C3>();
+const classChained = getRunTypeId<C3>();
 
 // 4 — Generic parent.
 class A4<T> {
@@ -44,7 +44,7 @@ class A4<T> {
 class B4 extends A4<string> {
   extra: number = 0;
 }
-const classGeneric = getRuntypeId<B4>();
+const classGeneric = getRunTypeId<B4>();
 
 // ---- interface extends -------------------------------------------------
 
@@ -55,9 +55,9 @@ interface IA1 {
 interface IB1 extends IA1 {
   b: number;
 }
-const interfaceBasic = getRuntypeId<IB1>();
+const interfaceBasic = getRunTypeId<IB1>();
 declare const ib1: IB1;
-const interfaceBasicReflect = reflectRuntypeId(ib1);
+const interfaceBasicReflect = reflectRunTypeId(ib1);
 
 // 6 — Multiple parents.
 interface IA2 {
@@ -69,7 +69,7 @@ interface IB2 {
 interface IC2 extends IA2, IB2 {
   c: boolean;
 }
-const interfaceMulti = getRuntypeId<IC2>();
+const interfaceMulti = getRunTypeId<IC2>();
 
 // 7 — Diamond inheritance — A appears once in flattened children.
 interface IA3 {
@@ -84,7 +84,7 @@ interface IC3 extends IA3 {
 interface ID3 extends IB3, IC3 {
   d: bigint;
 }
-const interfaceDiamond = getRuntypeId<ID3>();
+const interfaceDiamond = getRunTypeId<ID3>();
 
 // 8 — Property override on interface extension.
 interface IA4 {
@@ -93,14 +93,14 @@ interface IA4 {
 interface IB4 extends IA4 {
   x: 'a' | 'b';
 }
-const interfaceOverride = getRuntypeId<IB4>();
+const interfaceOverride = getRunTypeId<IB4>();
 
 // 9 — type aliases never carry the Extends slot (compare to interfaces).
 type TAlias = {a: string};
-const noExtendsAlias = getRuntypeId<TAlias>();
+const noExtendsAlias = getRunTypeId<TAlias>();
 
 // 10 — anonymous object literals never carry Extends.
-const noExtendsAnonymous = getRuntypeId<{a: string}>();
+const noExtendsAnonymous = getRunTypeId<{a: string}>();
 
 export const __sites = {
   classBasic,

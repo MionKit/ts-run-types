@@ -26,9 +26,9 @@ import (
 // ---- optional vs required --------------------------------------------------
 
 func TestIntersection_OptionalAndRequired_RequiredWins(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a?: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -41,9 +41,9 @@ getRuntypeId<T>();
 }
 
 func TestIntersection_BothOptional_StaysOptional(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a?: string} & {a?: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -53,9 +53,9 @@ getRuntypeId<T>();
 }
 
 func TestIntersection_BothRequired_StaysRequired(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -75,9 +75,9 @@ getRuntypeId<T>();
 // constituent prop is NOT readonly, the merged prop is NOT readonly.
 
 func TestIntersection_ReadonlyAndWritable_WritableWins(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly a: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -90,9 +90,9 @@ getRuntypeId<T>();
 }
 
 func TestIntersection_BothReadonly_StaysReadonly(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly a: string} & {readonly a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -108,9 +108,9 @@ getRuntypeId<T>();
 // → required + writable.
 
 func TestIntersection_OptionalReadonlyMix(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly a?: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -128,9 +128,9 @@ getRuntypeId<T>();
 // ---- conflicting property types -------------------------------------------
 
 func TestIntersection_ConflictingPropertyTypes_Narrows(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} & {a: 'x'};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -147,9 +147,9 @@ getRuntypeId<T>();
 }
 
 func TestIntersection_IncompatiblePropertyTypes_NeverProp(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} & {a: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	a := findProp(dump(r), tn, "a")
@@ -175,11 +175,11 @@ getRuntypeId<T>();
 // the path doesn't crash and produces a usable shape.
 
 func TestIntersection_PrivateAndPublic_OnClasses(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { private x = 1; }
 class B { x = 2; }
 type T = A & B;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	// Path must not crash. Some shape with prop x must surface.

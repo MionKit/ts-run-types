@@ -63,16 +63,16 @@ const COMPILE_CYCLES = 3;
 // package without a real package.json lookup. Mirrors RUNTYPES_DTS in
 // packages/vite-plugin-runtypes/test/helpers/inline.ts.
 const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
-  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
-  export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
-  export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface RunTypeOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
     strictTypes?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRuntypeId<T>): Promise<IsTypeFn>;
+  export function createIsType<T>(val?: T, options?: RunTypeOptions, id?: InjectRunTypeId<T>): Promise<IsTypeFn>;
 }
 `;
 

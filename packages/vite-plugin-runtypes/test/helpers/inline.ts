@@ -28,19 +28,19 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 // `withInlineSources` so per-test fixtures don't have to redeclare the
 // fake `@mionjs/ts-go-run-types` module.
 export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
-  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
-  export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
-  export function reflectRuntypeId<T>(value: T, id?: InjectRuntypeId<T>): InjectRuntypeId<T>;
+  export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
+  export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export interface RunTypeOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
     strictTypes?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): IsTypeFn;
-  export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): IsTypeFn;
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): IsTypeFn;
+  export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): IsTypeFn;
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
@@ -58,11 +58,11 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 
 export type InlineSources = Record<string, string>;
 
-// Shape of the daemon-response capture attached to `task.meta.mionRuntypes`.
+// Shape of the daemon-response capture attached to `task.meta.mionRunTypes`.
 // Read by `scripts/runtypes-logs-reporter.mjs` when `pnpm test:logs` runs.
 // `responses` is an array because a single test may call `evalCacheFor`
 // multiple times; outside that path the field is silently absent.
-export interface RuntypesMeta {
+export interface RunTypesMeta {
   title: string;
   sources: InlineSources;
   mode: 'inline' | 'file';
@@ -75,7 +75,7 @@ export interface RuntypesMeta {
 // The helpers run `fn(sources)` inside `metaStore.run(meta, ...)`, so any
 // await-chained call from inside the test can read the same meta via
 // `metaStore.getStore()` and push onto its `responses` array.
-const metaStore = new AsyncLocalStorage<RuntypesMeta>();
+const metaStore = new AsyncLocalStorage<RunTypesMeta>();
 
 function recordResponse(response: unknown): void {
   const meta = metaStore.getStore();
@@ -259,8 +259,8 @@ export type FilePaths = Record<string, string>;
 export function runTest(title: string, sources: InlineSources, fn: (sources: InlineSources) => void | Promise<void>): void {
   const register = runIfBinary(it);
   register(title, async ({task}) => {
-    const meta: RuntypesMeta = {title, sources, mode: 'inline', responses: []};
-    (task.meta as Record<string, unknown>).mionRuntypes = meta;
+    const meta: RunTypesMeta = {title, sources, mode: 'inline', responses: []};
+    (task.meta as Record<string, unknown>).mionRunTypes = meta;
     await metaStore.run(meta, () => Promise.resolve(fn(sources)));
   });
 }
@@ -274,8 +274,8 @@ export function runFiles(title: string, files: FilePaths, fn: (sources: InlineSo
       if (!fs.existsSync(abs)) throw new Error(`runFiles: missing fixture file for "${name}": ${abs}`);
       resolved[name] = fs.readFileSync(abs, 'utf8');
     }
-    const meta: RuntypesMeta = {title, sources: resolved, mode: 'file', paths: files, responses: []};
-    (task.meta as Record<string, unknown>).mionRuntypes = meta;
+    const meta: RunTypesMeta = {title, sources: resolved, mode: 'file', paths: files, responses: []};
+    (task.meta as Record<string, unknown>).mionRunTypes = meta;
     await metaStore.run(meta, () => Promise.resolve(fn(resolved)));
   });
 }

@@ -24,27 +24,27 @@ import (
 const weirdPropName = "weird prop name \n?>'\\\t\r"
 
 func TestF23_ObjectShapes_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface O {
   readonly id: number;
   nick?: string;
   "weird prop name \n?>'\\\t\r": boolean;
 }
-getRuntypeId<O>();
+getRunTypeId<O>();
 `
 	r, root := resolveInline(t, code)
 	assertF23ObjectShapes(t, r, root)
 }
 
 func TestF23_ObjectShapes_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface O {
   readonly id: number;
   nick?: string;
   "weird prop name \n?>'\\\t\r": boolean;
 }
 declare const value: O;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF23ObjectShapes(t, r, root)
@@ -100,7 +100,7 @@ func assertF23ObjectShapes(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 // ---- F24 — class property modifiers -----------------------------------------
 
 func TestF24_ClassPropertyModifiers_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class U {
   public id = 0;
   private secret = "";
@@ -108,14 +108,14 @@ class U {
   readonly tag = "t";
   static count = 0;
 }
-getRuntypeId<U>();
+getRunTypeId<U>();
 `
 	r, root := resolveInline(t, code)
 	assertF24ClassPropertyModifiers(t, r, root)
 }
 
 func TestF24_ClassPropertyModifiers_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 class U {
   public id = 0;
   private secret = "";
@@ -124,7 +124,7 @@ class U {
   static count = 0;
 }
 declare const value: U;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF24ClassPropertyModifiers(t, r, root)
@@ -169,27 +169,27 @@ func assertF24ClassPropertyModifiers(t *testing.T, r *resolver.Resolver, root *p
 // ---- F25 — class method modifiers -------------------------------------------
 
 func TestF25_ClassMethodModifiers_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 abstract class S {
   abstract greet(): void;
   static factory(): void {}
   private hidden(): void {}
 }
-getRuntypeId<S>();
+getRunTypeId<S>();
 `
 	r, root := resolveInline(t, code)
 	assertF25ClassMethodModifiers(t, r, root)
 }
 
 func TestF25_ClassMethodModifiers_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 abstract class S {
   abstract greet(): void;
   static factory(): void {}
   private hidden(): void {}
 }
 declare const value: S;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF25ClassMethodModifiers(t, r, root)
@@ -227,17 +227,17 @@ func assertF25ClassMethodModifiers(t *testing.T, r *resolver.Resolver, root *pro
 // Optional bit, and Flags=["rest"] on the variadic tail.
 
 func TestF26_TupleLabeled_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<[a: number, b?: string, ...rest: boolean[]]>();
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<[a: number, b?: string, ...rest: boolean[]]>();
 `
 	r, root := resolveInline(t, code)
 	assertF26TupleLabeled(t, r, root)
 }
 
 func TestF26_TupleLabeled_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 declare const value: [a: number, b?: string, ...rest: boolean[]];
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF26TupleLabeled(t, r, root)
@@ -290,23 +290,23 @@ func assertF26TupleLabeled(t *testing.T, r *resolver.Resolver, root *protocol.Ru
 // ---- F27 — readonly index signature -----------------------------------------
 
 func TestF27_ReadonlyIndexSignature_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface M {
   readonly [k: string]: number;
 }
-getRuntypeId<M>();
+getRunTypeId<M>();
 `
 	r, root := resolveInline(t, code)
 	assertF27ReadonlyIndexSignature(t, r, root)
 }
 
 func TestF27_ReadonlyIndexSignature_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 interface M {
   readonly [k: string]: number;
 }
 declare const value: M;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `
 	r, root := resolveInline(t, code)
 	assertF27ReadonlyIndexSignature(t, r, root)
@@ -351,18 +351,18 @@ func assertF27ReadonlyIndexSignature(t *testing.T, r *resolver.Resolver, root *p
 // literal triggers the function dispatch), so we walk root.Parameters.
 
 func TestF28_ParameterDefaults_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Fn = (a: number, b?: string, c?: number, d?: number) => void;
-getRuntypeId<Fn>();
+getRunTypeId<Fn>();
 `
 	r, root := resolveInline(t, code)
 	assertF28ParameterDefaults(t, r, root, false)
 }
 
 func TestF28_ParameterDefaults_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 function fn(a: number, b: string = "x", c: number = 5, d: number = (() => 7)()): void {}
-reflectRuntypeId(fn);
+reflectRunTypeId(fn);
 `
 	r, root := resolveInline(t, code)
 	assertF28ParameterDefaults(t, r, root, true)

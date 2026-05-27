@@ -1,6 +1,6 @@
 package diag
 
-// Runtype RT-compiler codes. Per-family prefixes so users reading their
+// RunType RT-compiler codes. Per-family prefixes so users reading their
 // build log can tell which RT family produced a diagnostic without
 // reading the message: SJ010 is unambiguously "stringifyJson dropped a
 // member"; IT010 is "isType dropped a member"; even if both messages are
@@ -147,7 +147,7 @@ func init() {
 		CodeTBNeverRoot, CodeTBNonSerializableRoot, CodeTBFunctionRoot, CodeTBArrayElement, CodeTBNonSerializableElem, CodeTBSymbolRoot,
 		CodeFBNeverRoot, CodeFBNonSerializableRoot, CodeFBFunctionRoot, CodeFBArrayElement, CodeFBNonSerializableElem, CodeFBSymbolRoot,
 	} {
-		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityError, Title: "Runtype root-position error"})
+		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityError, Title: "RunType root-position error"})
 	}
 
 	// Child-position warnings — the factory still emits, just drops the member.
@@ -163,7 +163,7 @@ func init() {
 		CodeFBFunctionPropDropped, CodeFBMethodDropped, CodeFBStaticDropped, CodeFBSymbolKeyedDropped,
 		CodeHUKFunctionPropDropped, CodeSUKFunctionPropDropped, CodeUKEFunctionPropDropped, CodeUKUFunctionPropDropped, CodeUKWFunctionPropDropped,
 	} {
-		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "Runtype child-position member dropped"})
+		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityWarning, Title: "RunType child-position member dropped"})
 	}
 
 	// Root any/unknown — noop validators that accept every value. Warning

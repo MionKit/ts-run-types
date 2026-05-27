@@ -21,8 +21,8 @@ describe('vite-plugin-runtypes / HMR signals on scanFiles', () => {
 
   register('first scan that introduces a new RunType sets addedRunTypes + addedIsType', async () => {
     const sources = {
-      'fresh.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+      'fresh.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `,
     };
     await withInlineSources(
@@ -38,8 +38,8 @@ getRuntypeId<string>();
 
   register('idempotent re-scan reports no deltas across all three signals', async () => {
     const sources = {
-      'idempotent.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string>();
+      'idempotent.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string>();
 `,
     };
     await withInlineSources(

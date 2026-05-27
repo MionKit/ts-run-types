@@ -22,9 +22,9 @@ describe('vite-plugin-runtypes / intersection × modifier conflict round-trip', 
   runTest(
     'optional & required → required wins static',
     {
-      'opt.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'opt.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a?: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -39,10 +39,10 @@ getRuntypeId<T>();
   runTest(
     'optional & required → required wins reflect',
     {
-      'opt.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'opt.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a?: string} & {a: string};
 declare const value: T;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -58,9 +58,9 @@ reflectRuntypeId(value);
   runTest(
     'both optional → stays optional static',
     {
-      'bo.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'bo.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a?: string} & {a?: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -73,9 +73,9 @@ getRuntypeId<T>();
   runTest(
     'both required → stays required static',
     {
-      'br.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'br.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -92,9 +92,9 @@ getRuntypeId<T>();
   runTest(
     'readonly & writable → writable wins static',
     {
-      'rw.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'rw.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly a: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -107,9 +107,9 @@ getRuntypeId<T>();
   runTest(
     'both readonly → stays readonly static',
     {
-      'rr.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'rr.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly a: string} & {readonly a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -124,9 +124,9 @@ getRuntypeId<T>();
   runTest(
     'readonly+optional & writable+required → required + writable static',
     {
-      'mix.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'mix.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly a?: string} & {a: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -144,9 +144,9 @@ getRuntypeId<T>();
   runTest(
     'conflicting types narrow to literal static',
     {
-      'narrow.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'narrow.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} & {a: 'x'};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -161,9 +161,9 @@ getRuntypeId<T>();
   runTest(
     'incompatible types become never prop static',
     {
-      'inc.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'inc.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} & {a: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -179,11 +179,11 @@ getRuntypeId<T>();
   runTest(
     'private+public class intersection does not crash static',
     {
-      'cvi.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'cvi.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class A { private x = 1; }
 class B { x = 2; }
 type T = A & B;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {

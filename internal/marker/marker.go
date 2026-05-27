@@ -1,7 +1,7 @@
 // Package marker detects whether a TypeScript type matches one of the
 // recognised marker brands. Three kinds are supported:
 //
-//  1. InjectRuntypeId<T> — the trailing-parameter brand that opts a
+//  1. InjectRunTypeId<T> — the trailing-parameter brand that opts a
 //     function into compile-time type-id injection by the
 //     ts-go-run-types transformer.
 //  2. CompTimeArgs<T> — brands a parameter whose corresponding argument
@@ -15,7 +15,7 @@
 //     marker name (defaults below).
 //  2. Module-of-origin match — the alias must be declared inside the
 //     configured marker package (default "@mionjs/ts-go-run-types"). This
-//     stops a user's own `type InjectRuntypeId<T> = ...` (or similarly
+//     stops a user's own `type InjectRunTypeId<T> = ...` (or similarly
 //     named local brand) from accidentally triggering rewrites.
 package marker
 
@@ -33,8 +33,8 @@ import (
 type Kind int
 
 const (
-	// KindInjectRuntypeId is the trailing-id injection marker.
-	KindInjectRuntypeId Kind = iota
+	// KindInjectRunTypeId is the trailing-id injection marker.
+	KindInjectRunTypeId Kind = iota
 	// KindCompTimeArgs requires the argument to be a literal at the call
 	// site or via a module-scope const-of-literals chain.
 	KindCompTimeArgs
@@ -46,7 +46,7 @@ const (
 // DefaultName is the symbol name the resolver looks for for the
 // injection marker. Used by DefaultSpecs when building the canonical
 // marker set.
-const DefaultName = "InjectRuntypeId"
+const DefaultName = "InjectRunTypeId"
 
 // DefaultCompTimeArgsName is the symbol name for the CompTimeArgs brand.
 const DefaultCompTimeArgsName = "CompTimeArgs"
@@ -81,7 +81,7 @@ type Spec struct {
 // public TypeScript declarations in
 // packages/ts-go-run-types/src/markers.ts.
 const (
-	BrandInjectRuntypeId = "__mionInjectRuntypeIdBrand"
+	BrandInjectRunTypeId = "__mionInjectRunTypeIdBrand"
 	BrandCompTimeArgs    = "__mionCompTimeArgsBrand"
 	BrandPureFunction    = "__mionPureFunctionBrand"
 )
@@ -90,7 +90,7 @@ const (
 // Kind, all sourced from DefaultModule.
 func DefaultSpecs() []Spec {
 	return []Spec{
-		{Name: DefaultName, Module: DefaultModule, Kind: KindInjectRuntypeId, BrandProperty: BrandInjectRuntypeId},
+		{Name: DefaultName, Module: DefaultModule, Kind: KindInjectRunTypeId, BrandProperty: BrandInjectRunTypeId},
 		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
 	}

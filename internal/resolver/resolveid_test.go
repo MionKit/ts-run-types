@@ -14,13 +14,13 @@ import (
 // child slots stay as refs so payloads stay bounded — and that NodeByID
 // returns nil for unknown ids.
 
-const resolveIDArrayCodeStatic = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
-getRuntypeId<string[]>();
+const resolveIDArrayCodeStatic = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<string[]>();
 `
 
-const resolveIDArrayCodeReflect = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+const resolveIDArrayCodeReflect = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 const xs: string[] = ['a', 'b'];
-reflectRuntypeId(xs);
+reflectRunTypeId(xs);
 `
 
 func TestResolveID_ArrayRoundTrip_Static(t *testing.T) {

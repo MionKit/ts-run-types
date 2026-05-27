@@ -20,9 +20,9 @@ describe('vite-plugin-runtypes / union safe-order + discriminator round-trip', (
   runTest(
     'subset member sorts after superset (1+2 props) static',
     {
-      'subset.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'subset.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -34,10 +34,10 @@ getRuntypeId<T>();
   runTest(
     'subset member sorts after superset (1+2 props) reflect',
     {
-      'subset.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'subset.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number};
 declare const value: T;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -61,9 +61,9 @@ reflectRuntypeId(value);
   runTest(
     'deep subset chain orders by prop count static',
     {
-      'deep.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'deep.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number} | {a: string; b: number; c: boolean};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -85,9 +85,9 @@ getRuntypeId<T>();
   runTest(
     'each child has a slot in safeUnionChildren static',
     {
-      'pos.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'pos.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number} | {x: boolean};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -108,9 +108,9 @@ getRuntypeId<T>();
   runTest(
     'shared-name kind literal marked discriminator static',
     {
-      'disc.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'disc.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: 'a'; x: number} | {kind: 'b'; y: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -122,10 +122,10 @@ getRuntypeId<T>();
   runTest(
     'shared-name kind literal marked discriminator reflect',
     {
-      'disc.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'disc.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: 'a'; x: number} | {kind: 'b'; y: string};
 declare const value: T;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -139,9 +139,9 @@ reflectRuntypeId(value);
   runTest(
     'shared name but same type is not picked as discriminator static',
     {
-      'shared.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'shared.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: string; x: 1} | {kind: string; y: 2};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -160,9 +160,9 @@ getRuntypeId<T>();
   runTest(
     'no shared name falls back to unique-prop discriminator static',
     {
-      'uniq.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'uniq.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -182,9 +182,9 @@ getRuntypeId<T>();
   runTest(
     'primitive-only union has no discriminator slot static',
     {
-      'prim.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'prim.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string | number;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -199,10 +199,10 @@ getRuntypeId<T>();
   runTest(
     'nested union flattens to a single 3-member union static',
     {
-      'nested.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'nested.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Inner = 'a' | 'b';
 type T = Inner | 'c';
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -218,9 +218,9 @@ getRuntypeId<T>();
   runTest(
     'union with null and undefined static',
     {
-      'nullable.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'nullable.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string | null | undefined;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -237,9 +237,9 @@ getRuntypeId<T>();
   runTest(
     'union of arrays static',
     {
-      'arrunion.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'arrunion.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string[] | number[];
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -256,9 +256,9 @@ getRuntypeId<T>();
   runTest(
     'unrelated objects keep declaration order static',
     {
-      'unrel.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'unrel.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -283,11 +283,11 @@ getRuntypeId<T>();
   runTest(
     'discriminator info is scoped per-union (shared prop does not bleed)',
     {
-      'iso.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'iso.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type UA = {kind: 'a'; n: number} | {kind: 'b'; n: number};
 type UB = {kind: 'a'; aa: string} | {kind: 'a'; bb: number};
-getRuntypeId<UA>();
-getRuntypeId<UB>();
+getRunTypeId<UA>();
+getRunTypeId<UB>();
 `,
     },
     async (sources) => {

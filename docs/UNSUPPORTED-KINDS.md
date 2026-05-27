@@ -138,7 +138,7 @@ The walker, property-absorb mechanism, alwaysThrow renderer, and 8-arg init() sh
 
 ## FAQ
 
-**"Why doesn't my `getRuntypeId<{onClick: () => void}>()` throw any more?"**
+**"Why doesn't my `getRunTypeId<{onClick: () => void}>()` throw any more?"**
 Property-level absorption is now the rule. The validator works for the rest of the object; `onClick` drops with an `IT010` / `IT011` diagnostic. To see the diagnostics, build with the Vite plugin and check the Problems panel — or read the Go binary's `Response.Diagnostics` field directly.
 
 **"My symbol-typed property stopped validating!"**

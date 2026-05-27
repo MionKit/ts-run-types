@@ -13,16 +13,16 @@ import (
 // /root/.claude/plans/intersection-zesty-spindle.md §E.1 and the collapse
 // table in §Reference algorithms. Each test asserts a single rule.
 // Paired *_Static / *_Reflect tests follow the marker coverage rule
-// (CLAUDE.md): static form via getRuntypeId<T>() vs reflection via
-// reflectRuntypeId(v).
+// (CLAUDE.md): static form via getRunTypeId<T>() vs reflection via
+// reflectRunTypeId(v).
 // =========================================================================
 
 // ---- two-object-literal merge ------------------------------------------------
 
 func TestIntersection_TwoObjectLiterals_Merges_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = {a: string} & {b: number};
-getRuntypeId<AB>();
+getRunTypeId<AB>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindObjectLiteral {
@@ -34,10 +34,10 @@ getRuntypeId<AB>();
 }
 
 func TestIntersection_TwoObjectLiterals_Merges_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = {a: string} & {b: number};
 const v = null as unknown as AB;
-reflectRuntypeId(v);
+reflectRunTypeId(v);
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindObjectLiteral {
@@ -51,10 +51,10 @@ reflectRuntypeId(v);
 // ---- interface × object literal merge ---------------------------------------
 
 func TestIntersection_ObjectAndInterface_Merges(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I {a: string}
 type AB = I & {b: number};
-getRuntypeId<AB>();
+getRunTypeId<AB>();
 `
 	r, tn := resolveInline(t, code)
 	// Interfaces with no class flag are object literals to mion.
@@ -69,10 +69,10 @@ getRuntypeId<AB>();
 // ---- class × object literal merge -------------------------------------------
 
 func TestIntersection_ClassAndObjectLiteral_Merges(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class C { x: string = ''; }
 type T = C & {y: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindObjectLiteral && tn.Kind != protocol.KindClass {
@@ -86,9 +86,9 @@ getRuntypeId<T>();
 // ---- primitive × brand (single brand) ---------------------------------------
 
 func TestIntersection_PrimitiveAndBrand_PreservesPrimitive_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
-getRuntypeId<Email>();
+getRunTypeId<Email>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {
@@ -104,10 +104,10 @@ getRuntypeId<Email>();
 }
 
 func TestIntersection_PrimitiveAndBrand_PreservesPrimitive_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
 const v = null as unknown as Email;
-reflectRuntypeId(v);
+reflectRunTypeId(v);
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {
@@ -121,9 +121,9 @@ reflectRuntypeId(v);
 // ---- primitive × multiple brands --------------------------------------------
 
 func TestIntersection_PrimitiveAndMultipleBrands_AllStored(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Tagged = string & {readonly __a: 1} & {readonly __b: 2};
-getRuntypeId<Tagged>();
+getRunTypeId<Tagged>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {
@@ -137,9 +137,9 @@ getRuntypeId<Tagged>();
 // ---- number × brand ---------------------------------------------------------
 
 func TestIntersection_NumberAndBrand_PreservesNumber(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type UserId = number & {readonly __nominal: 'Id'};
-getRuntypeId<UserId>();
+getRunTypeId<UserId>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNumber {
@@ -155,9 +155,9 @@ getRuntypeId<UserId>();
 // level; our test asserts the post-checker behaviour (literal wins).
 
 func TestIntersection_PrimitiveAndLiteralExtends_KeepsLiteral(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string & 'hello';
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
@@ -172,9 +172,9 @@ getRuntypeId<T>();
 // `string & 1` → TS collapses this to never at the checker layer.
 
 func TestIntersection_PrimitiveAndLiteralWrongBase_Never(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string & 1;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNever {
@@ -185,9 +185,9 @@ getRuntypeId<T>();
 // ---- two different primitives -----------------------------------------------
 
 func TestIntersection_TwoDifferentPrimitives_Never(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string & number;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNever {
@@ -198,9 +198,9 @@ getRuntypeId<T>();
 // ---- two incompatible literals ----------------------------------------------
 
 func TestIntersection_TwoIncompatibleLiterals_Never(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = 1 & 2;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNever {
@@ -211,9 +211,9 @@ getRuntypeId<T>();
 // ---- intersection containing never -----------------------------------------
 
 func TestIntersection_WithNeverMember_Never(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = never & {x: 1};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNever {
@@ -225,9 +225,9 @@ getRuntypeId<T>();
 // `("a"|"b") & string` → distributes through and reduces to `"a" | "b"`.
 
 func TestIntersection_DistributesOverUnion(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = ('a' | 'b') & string;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnion {
@@ -243,9 +243,9 @@ getRuntypeId<T>();
 // `("a"|"b") & number` → both branches are never, so reduces to never.
 
 func TestIntersection_DistributeAllNever_ReducesToNever(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = ('a' | 'b') & number;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindNever {
@@ -257,9 +257,9 @@ getRuntypeId<T>();
 // `("a"|1) & string` → only the "a" branch survives.
 
 func TestIntersection_DistributeMixed_FiltersNever(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = ('a' | 1) & string;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindLiteral {
@@ -274,9 +274,9 @@ getRuntypeId<T>();
 // `any & T` and `unknown & T` are identity: T survives unchanged.
 
 func TestIntersection_AnyAndT_KeepsT(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = any & {x: 1};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	// `any & X` actually resolves to `any` in TS, but our collapse
@@ -295,9 +295,9 @@ getRuntypeId<T>();
 }
 
 func TestIntersection_UnknownAndT_KeepsT(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = unknown & string;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindString {
@@ -308,13 +308,13 @@ getRuntypeId<T>();
 // ---- commutativity ---------------------------------------------------------
 
 func TestIntersection_Commutativity_ObjectObject(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type A = {a: string};
 type B = {b: number};
 type AB = A & B;
 type BA = B & A;
-getRuntypeId<AB>();
-getRuntypeId<BA>();
+getRunTypeId<AB>();
+getRunTypeId<BA>();
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
@@ -330,12 +330,12 @@ getRuntypeId<BA>();
 }
 
 func TestIntersection_Commutativity_PrimitiveBrand(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type B = {readonly __brand: 'Email'};
 type SB = string & B;
 type BS = B & string;
-getRuntypeId<SB>();
-getRuntypeId<BS>();
+getRunTypeId<SB>();
+getRunTypeId<BS>();
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
@@ -351,14 +351,14 @@ getRuntypeId<BS>();
 }
 
 func TestIntersection_Associativity_Triple(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type A = {a: string};
 type B = {b: number};
 type C = {c: boolean};
 type Left  = (A & B) & C;
 type Right = A & (B & C);
-getRuntypeId<Left>();
-getRuntypeId<Right>();
+getRunTypeId<Left>();
+getRunTypeId<Right>();
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})
@@ -376,15 +376,15 @@ getRuntypeId<Right>();
 // ---- wire-format invariant: KindIntersection must never reach the dump ----
 
 func TestIntersection_NeverEmitsKindIntersection(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type A = {a: string} & {b: number};
 type B = string & {readonly __brand: 'Email'};
 type C = string & number;
 type D = ('a' | 'b') & string;
-getRuntypeId<A>();
-getRuntypeId<B>();
-getRuntypeId<C>();
-getRuntypeId<D>();
+getRunTypeId<A>();
+getRunTypeId<B>();
+getRunTypeId<C>();
+getRunTypeId<D>();
 `
 	r := setupInline(t, map[string]string{"test.ts": code})
 	r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"test.ts"}})

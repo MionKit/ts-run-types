@@ -17,9 +17,9 @@ describe('vite-plugin-runtypes / intersection collapse round-trip', () => {
   runTest(
     'object × object merge static',
     {
-      'merge.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'merge.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = {a: string} & {b: number};
-getRuntypeId<AB>();
+getRunTypeId<AB>();
 `,
     },
     async (sources) => {
@@ -31,10 +31,10 @@ getRuntypeId<AB>();
   runTest(
     'object × object merge reflect',
     {
-      'merge.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'merge.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = {a: string} & {b: number};
 declare const value: AB;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -56,9 +56,9 @@ reflectRuntypeId(value);
   runTest(
     'primitive & brand static',
     {
-      'brand.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'brand.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
-getRuntypeId<Email>();
+getRunTypeId<Email>();
 `,
     },
     async (sources) => {
@@ -70,10 +70,10 @@ getRuntypeId<Email>();
   runTest(
     'primitive & brand reflect',
     {
-      'brand.ts': `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+      'brand.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type Email = string & {readonly __brand: 'Email'};
 declare const value: Email;
-reflectRuntypeId(value);
+reflectRunTypeId(value);
 `,
     },
     async (sources) => {
@@ -95,9 +95,9 @@ reflectRuntypeId(value);
   runTest(
     'primitive & multiple brands static',
     {
-      'multi.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'multi.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Tagged = string & {readonly __a: 1} & {readonly __b: 2};
-getRuntypeId<Tagged>();
+getRunTypeId<Tagged>();
 `,
     },
     async (sources) => {
@@ -113,9 +113,9 @@ getRuntypeId<Tagged>();
   runTest(
     'number & brand static',
     {
-      'numbrand.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'numbrand.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type UserId = number & {readonly __nominal: 'Id'};
-getRuntypeId<UserId>();
+getRunTypeId<UserId>();
 `,
     },
     async (sources) => {
@@ -131,9 +131,9 @@ getRuntypeId<UserId>();
   runTest(
     'incompatible primitives collapse to never static',
     {
-      'never.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'never.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Conflict = string & number;
-getRuntypeId<Conflict>();
+getRunTypeId<Conflict>();
 `,
     },
     async (sources) => {
@@ -146,9 +146,9 @@ getRuntypeId<Conflict>();
   runTest(
     'never member short-circuits to never static',
     {
-      'never2.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'never2.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = never & {x: 1};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -162,9 +162,9 @@ getRuntypeId<T>();
   runTest(
     'primitive & compatible literal keeps literal static',
     {
-      'narrow.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'narrow.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string & 'hello';
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -178,9 +178,9 @@ getRuntypeId<T>();
   runTest(
     'primitive & incompatible literal becomes never static',
     {
-      'narrow2.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'narrow2.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string & 1;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -194,9 +194,9 @@ getRuntypeId<T>();
   runTest(
     'intersection distributes over union static',
     {
-      'dist.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'dist.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = ('a' | 'b') & string;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -211,9 +211,9 @@ getRuntypeId<T>();
   runTest(
     'distribution filters dead branches static',
     {
-      'dist2.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'dist2.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = ('a' | 1) & string;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -231,9 +231,9 @@ getRuntypeId<T>();
   runTest(
     'intersection preserves optional modifier static',
     {
-      'opt.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'opt.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string; b?: number} & {c: boolean};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -249,9 +249,9 @@ getRuntypeId<T>();
   runTest(
     'intersection preserves readonly modifier static',
     {
-      'ro.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'ro.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {readonly id: number} & {name: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `,
     },
     async (sources) => {
@@ -268,11 +268,11 @@ getRuntypeId<T>();
   runTest(
     'A & B and B & A share a hash static',
     {
-      'comm.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'comm.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type A = {a: string};
 type B = {b: number};
-const ab = getRuntypeId<A & B>();
-const ba = getRuntypeId<B & A>();
+const ab = getRunTypeId<A & B>();
+const ba = getRunTypeId<B & A>();
 export {ab, ba};
 `,
     },
@@ -290,15 +290,15 @@ export {ab, ba};
   runTest(
     'collapse output never carries KindIntersection static',
     {
-      'invariant.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+      'invariant.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type Merge = {a: string} & {b: number};
 type Brand = string & {readonly __brand: 'X'};
 type Bad   = string & number;
 type Dist  = ('a' | 'b') & string;
-getRuntypeId<Merge>();
-getRuntypeId<Brand>();
-getRuntypeId<Bad>();
-getRuntypeId<Dist>();
+getRunTypeId<Merge>();
+getRunTypeId<Brand>();
+getRunTypeId<Bad>();
+getRunTypeId<Dist>();
 `,
     },
     async (sources) => {

@@ -14,10 +14,10 @@ import (
 // =========================================================================
 
 func TestClassImplements_SingleInterface(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { a: string; }
 class C implements I { a: string = ''; }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindClass {
@@ -33,11 +33,11 @@ getRuntypeId<C>();
 }
 
 func TestClassImplements_MultipleInterfaces(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I1 { a: string; }
 interface I2 { b: number; }
 class C implements I1, I2 { a: string = ''; b: number = 0; }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.Implements) != 2 {
@@ -55,14 +55,14 @@ getRuntypeId<C>();
 }
 
 func TestClassImplements_DoesNotAffectChildren(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { a: string; b: number; }
 class C implements I {
   a: string = '';
   b: number = 0;
   c: boolean = false;
 }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	r, tn := resolveInline(t, code)
 	// C declares a, b, c — implements I means it must structurally
@@ -74,11 +74,11 @@ getRuntypeId<C>();
 }
 
 func TestClassImplements_ExtendsAndImplements(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 interface I { tag: 'i'; }
 class B { x: string = ''; }
 class C extends B implements I { tag: 'i' = 'i'; }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.ExtendsArguments) != 1 {
@@ -98,9 +98,9 @@ getRuntypeId<C>();
 }
 
 func TestClassImplements_EmptyForPlainClass(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 class C { x: string = ''; }
-getRuntypeId<C>();
+getRunTypeId<C>();
 `
 	_, tn := resolveInline(t, code)
 	if len(tn.Implements) != 0 {

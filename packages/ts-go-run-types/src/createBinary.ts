@@ -16,7 +16,7 @@ import {
   type StrictArrayBuffer,
   type BinaryInput,
 } from './runtypes/dataView.ts';
-import type {InjectRuntypeId} from './index.ts';
+import type {InjectRunTypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -67,7 +67,7 @@ const noopToBinaryFn: ToBinaryFn = (_v, Ser) => Ser;
 const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 
 /** Returns a binary encoder for `T`. **/
-export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectRuntypeId<T>): BinaryEncoderFn {
+export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectRunTypeId<T>): BinaryEncoderFn {
   void val;
   if (id === undefined) {
     throw new Error(
@@ -89,7 +89,7 @@ export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, 
 }
 
 /** Returns a binary decoder for `T`. **/
-export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, id?: InjectRuntypeId<T>): BinaryDecoderFn<T> {
+export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, id?: InjectRunTypeId<T>): BinaryDecoderFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(

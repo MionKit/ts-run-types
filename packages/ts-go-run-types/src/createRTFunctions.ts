@@ -18,7 +18,7 @@ import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepare
 import {getRTUtils} from './runtypes/rtUtils.ts';
 import {lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn} from './runtypes/types.ts';
-import type {CompTimeArgs, InjectRuntypeId} from './index.ts';
+import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -177,40 +177,40 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 export const createIsType = createRTFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
   val?: T,
   options?: CompTimeArgs<RunTypeOptions>,
-  id?: InjectRuntypeId<T>
+  id?: InjectRunTypeId<T>
 ) => IsTypeFn;
 
 export const createGetTypeErrors = createRTFunction<GetTypeErrorsFn>(
   'createGetTypeErrors',
   'te',
   getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => GetTypeErrorsFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
 
 export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <
   T,
 >(
   val?: T,
   options?: CompTimeArgs<RunTypeOptions>,
-  id?: InjectRuntypeId<T>
+  id?: InjectRunTypeId<T>
 ) => HasUnknownKeysFn;
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
   'suk',
   identityValueFn
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => StripUnknownKeysFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => StripUnknownKeysFn;
 
 export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => UnknownKeyErrorsFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn;
 
 export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
   'uku',
   identityValueFn
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>) => UnknownKeysToUndefinedFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
 
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
@@ -229,7 +229,7 @@ const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 export function createJsonEncoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonEncoderOptions>,
-  id?: InjectRuntypeId<T>
+  id?: InjectRunTypeId<T>
 ): JsonEncoderFn {
   void val;
   if (id === undefined) {
@@ -276,7 +276,7 @@ export function createJsonEncoder<T>(
 export function createJsonDecoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonDecoderOptions>,
-  id?: InjectRuntypeId<T>
+  id?: InjectRunTypeId<T>
 ): JsonDecoderFn<T> {
   void val;
   if (id === undefined) {

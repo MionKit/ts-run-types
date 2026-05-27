@@ -1,7 +1,7 @@
 // Marker primitives — the type-level brands the Go binary scanner recognizes
 // at call sites:
-//   • `InjectRuntypeId<T>` — the only *injectable* marker. The trailing
-//     `id?: InjectRuntypeId<T>` parameter is filled in at build time with the
+//   • `InjectRunTypeId<T>` — the only *injectable* marker. The trailing
+//     `id?: InjectRunTypeId<T>` parameter is filled in at build time with the
 //     resolved hash id by `vite-plugin-runtypes`.
 //   • `CompTimeArgs<T>` — brands an argument as "must be a literal at the
 //     call site, or a module-scope `const` whose initializer is itself
@@ -9,18 +9,18 @@
 //   • `PureFunction<F>` — brands a function-typed argument as "literal AND
 //     passes purity rules". Static check only.
 //
-// Wrappers around `getRuntypeId` / `reflectRuntypeId` are supported — declare
+// Wrappers around `getRunTypeId` / `reflectRunTypeId` are supported — declare
 // the same trailing parameter on the wrapper and the transformer treats it
 // identically.
 
 /**
  * Sentinel marker. `T` is a phantom type parameter used only by the checker /
- * transformer; at runtime an `InjectRuntypeId<T>` is just a short alphanumeric
+ * transformer; at runtime an `InjectRunTypeId<T>` is just a short alphanumeric
  * hash string. The brand prevents stringly-typed APIs from accidentally
  * satisfying the marker.
  */
-export type InjectRuntypeId<T> = string & {
-  readonly __mionInjectRuntypeIdBrand?: T;
+export type InjectRunTypeId<T> = string & {
+  readonly __mionInjectRunTypeIdBrand?: T;
 };
 
 // `any` poisons every downstream cache entry — the marker compiles into a noop
@@ -35,32 +35,32 @@ type RejectAny<T> =
 
 /**
  * Static marker. Use with an explicit type and no runtime value:
- * `getRuntypeId<User>()`. Throws if the transformer is not active —
+ * `getRunTypeId<User>()`. Throws if the transformer is not active —
  * the id can only be computed at build time.
  *
  * Rejects `T = any` at the type level since the resulting cache entry would
  * accept every input.
  */
-export function getRuntypeId<T>(id?: InjectRuntypeId<T>): InjectRuntypeId<RejectAny<T>> {
+export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<RejectAny<T>> {
   if (id === undefined) {
-    throw new Error('getRuntypeId(): no id injected. vite-plugin-runtypes must be active.');
+    throw new Error('getRunTypeId(): no id injected. vite-plugin-runtypes must be active.');
   }
-  return id as InjectRuntypeId<RejectAny<T>>;
+  return id as InjectRunTypeId<RejectAny<T>>;
 }
 
 /**
  * Reflection marker. Use when `T` should be inferred from a runtime value:
- * `reflectRuntypeId(user)`. The `value` is only used for type inference and
+ * `reflectRunTypeId(user)`. The `value` is only used for type inference and
  * is ignored at runtime. Throws if the transformer is not active.
  *
  * Rejects inferred-`any` (typical sources: `JSON.parse`, untyped library
  * returns, `as any` casts) at the type level.
  */
-export function reflectRuntypeId<T>(_value: RejectAny<T>, id?: InjectRuntypeId<T>): InjectRuntypeId<RejectAny<T>> {
+export function reflectRunTypeId<T>(_value: RejectAny<T>, id?: InjectRunTypeId<T>): InjectRunTypeId<RejectAny<T>> {
   if (id === undefined) {
-    throw new Error('reflectRuntypeId(): no id injected. vite-plugin-runtypes must be active.');
+    throw new Error('reflectRunTypeId(): no id injected. vite-plugin-runtypes must be active.');
   }
-  return id as InjectRuntypeId<RejectAny<T>>;
+  return id as InjectRunTypeId<RejectAny<T>>;
 }
 
 /**

@@ -23,7 +23,7 @@ import {hasBinary, withInlineSources} from './helpers/inline.ts';
 // params), so test fixtures need a branded signature in scope —
 // otherwise the walker silently skips the call.
 const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
-  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
   export interface RTUtils {

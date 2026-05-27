@@ -16,9 +16,9 @@ import (
 // ---- safe-order: subset-related members get sorted by prop count -----------
 
 func TestUnion_SubsetMember_SortedFirst_Static(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnion {
@@ -34,10 +34,10 @@ getRuntypeId<T>();
 }
 
 func TestUnion_SubsetMember_SortedFirst_Reflect(t *testing.T) {
-	const code = `import {reflectRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number};
 const v = null as unknown as T;
-reflectRuntypeId(v);
+reflectRunTypeId(v);
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnion {
@@ -53,9 +53,9 @@ reflectRuntypeId(v);
 }
 
 func TestUnion_DeepSubsetChain_OrderedByPropCount(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number} | {a: string; b: number; c: boolean};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.SafeUnionChildren) != 3 {
@@ -76,9 +76,9 @@ getRuntypeId<T>();
 // ---- safe-order: unrelated members keep declaration order ------------------
 
 func TestUnion_UnrelatedObjects_KeepDeclarationOrder(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.SafeUnionChildren) != 2 {
@@ -97,9 +97,9 @@ getRuntypeId<T>();
 // ---- safe-order: every child appears in safeUnionChildren -----------------
 
 func TestUnion_EveryChildHasSafeUnionSlot(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {a: string; b: number} | {x: boolean};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if len(tn.Children) != len(tn.SafeUnionChildren) {
@@ -122,9 +122,9 @@ getRuntypeId<T>();
 // ---- safe-order: any goes last ---------------------------------------------
 
 func TestUnion_AnyMember_GoesLast(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string | number | any;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	// `string | number | any` collapses to `any` at the checker level, so we
@@ -142,9 +142,9 @@ getRuntypeId<T>();
 }
 
 func TestUnion_UnknownMember_GoesLast(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | unknown;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	// `T | unknown` may collapse to `unknown`. Accept either form.
@@ -163,9 +163,9 @@ getRuntypeId<T>();
 // ---- safe-order: multiple any get deduped (first kept) ---------------------
 
 func TestUnion_MultipleAnyMembers_KeepsFirstOnly(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string | any | any;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	// TS collapses `X | any | any` to `any` — that's fine. Otherwise count
@@ -188,9 +188,9 @@ getRuntypeId<T>();
 // ---- safe-order: bucket ordering simple → objects ------------------------
 
 func TestUnion_SimpleAndObjects_BucketOrder(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = number | {a: string} | {a: string; b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnion {
@@ -218,9 +218,9 @@ getRuntypeId<T>();
 // ---- safe-order: degenerate single-member union ---------------------------
 
 func TestUnion_SingleMember_Degenerate(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string | string;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind == protocol.KindString {
@@ -238,10 +238,10 @@ getRuntypeId<T>();
 // ---- safe-order: nested unions flatten via Distributed() ------------------
 
 func TestUnion_NestedUnion_FlattenedByDistributed(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type AB = 'a' | 'b';
 type T = AB | 'c';
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	if tn.Kind != protocol.KindUnion {
@@ -258,9 +258,9 @@ getRuntypeId<T>();
 // ---- discriminator: shared-name kind literal --------------------------------
 
 func TestUnionDiscriminator_NamedSharedField_LiteralKind(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: 'a'; x: number} | {kind: 'b'; y: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
@@ -285,10 +285,10 @@ getRuntypeId<T>();
 // ---- discriminator: pick least-complex shared name --------------------------
 
 func TestUnionDiscriminator_NamedShared_PicksLeastComplex(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {k1: 'a'; k2: {nested: {deep: 1}}; x: number}
        | {k1: 'b'; k2: {nested: {deep: 2}}; y: string};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
@@ -308,9 +308,9 @@ getRuntypeId<T>();
 // ---- discriminator: no shared name → falls back to unique-prop -------------
 
 func TestUnionDiscriminator_NoSharedName_UsesUniqueProp(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: string} | {b: number};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
@@ -335,9 +335,9 @@ getRuntypeId<T>();
 // ---- discriminator: shared name with same type doesn't qualify ------------
 
 func TestUnionDiscriminator_SharedNonUniqueType_NotMarked(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {kind: string; x: 1} | {kind: string; y: 2};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	// shared-name pass must reject `kind` (same type-id across members).
@@ -359,9 +359,9 @@ getRuntypeId<T>();
 // ---- discriminator: no objects, no discriminator marks ---------------------
 
 func TestUnionDiscriminator_NoObjects_NoDiscriminator(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = string | number;
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	_, tn := resolveInline(t, code)
 	// No object members → markDiscriminators short-circuits, slot empty.
@@ -373,9 +373,9 @@ getRuntypeId<T>();
 // ---- discriminator: single-prop members → unique prop wins -----------------
 
 func TestUnionDiscriminator_SinglePropMembers_MarksUniqueProp(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = {a: 1} | {b: 2};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.UnionDiscriminators) != len(tn.SafeUnionChildren) {
@@ -409,11 +409,11 @@ getRuntypeId<T>();
 // node, and that flag bled across to B's output. With the field
 // scoped to the union, B's UnionDiscriminators is independent.
 func TestUnion_DiscriminatorIsolation_SamePropInTwoUnions(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type UA = {kind: 'a'; n: number} | {kind: 'b'; n: number};
 type UB = {kind: 'a'; aa: string} | {kind: 'a'; bb: number};
-getRuntypeId<UA>();
-getRuntypeId<UB>();
+getRunTypeId<UA>();
+getRunTypeId<UB>();
 `
 	r := setupInline(t, map[string]string{"iso.ts": code})
 	scan := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"iso.ts"}})
@@ -471,9 +471,9 @@ getRuntypeId<UB>();
 // ---- discriminator: parallel-to-safeUnionChildren invariant ---------------
 
 func TestUnion_UnionDiscriminatorsParallelToSafeUnionChildren(t *testing.T) {
-	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type T = number | {kind: 'a'; x: 1} | {kind: 'b'; y: 2};
-getRuntypeId<T>();
+getRunTypeId<T>();
 `
 	r, tn := resolveInline(t, code)
 	if len(tn.UnionDiscriminators) == 0 {
