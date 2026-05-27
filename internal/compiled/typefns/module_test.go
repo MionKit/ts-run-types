@@ -9,7 +9,28 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
+// renderToString defaults to EmitCreateJitFn=true so body-shape
+// assertions can substring-match against the un-escaped validator body
+// embedded in the `function g_<id>(utl){return function <id>(v){
+// <body>}}` closure. Under the production default (no inline factory)
+// the same body lives only inside the JSON-quoted `code` arg-3 string,
+// making raw-body assertions unreadable. Tests that care about the
+// wire encoding (createJitFn arg-7 token, alwaysThrow, noop shape)
+// explicitly call renderToStringDefault.
 func renderToString(t *testing.T, dump protocol.Dump) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := IsTypeModule(&buf, dump, RenderOpts{EmitCreateJitFn: true}); err != nil {
+		t.Fatalf("IsTypeModule: %v", err)
+	}
+	return buf.String()
+}
+
+// renderToStringDefault renders with the production-default
+// (EmitCreateJitFn=false) — arg-7 becomes the `u` alias, the body
+// lives only in the quoted `code` string. Used by the few tests that
+// assert the wire-shape transition between the two emit modes.
+func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
 	if err := IsTypeModule(&buf, dump, RenderOpts{}); err != nil {
@@ -62,6 +83,9 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
+	// Opt-in (EmitCreateJitFn=true): arg-7 carries the full
+	// `function g_<hash>(utl){…}` declaration. Used by runtimes
+	// without `new Function` and by every body-shape test below.
 	out := renderToString(t, dump)
 	want := "init(" +
 		"'it_abc123'," +
@@ -74,6 +98,34 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 		");"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
+	}
+}
+
+// TestIsTypeModule_SingleEntryShape_DefaultEmit pins the
+// production-default shape: arg-7 is the `u = undefined` alias and
+// no `function g_<hash>(utl){…}` closure leaks into the module. The
+// body lives only in the quoted `code` arg-3 string; the JS-side
+// materializeJitFn rebuilds the factory via `new Function('utl',
+// code)` on first lookup.
+func TestIsTypeModule_SingleEntryShape_DefaultEmit(t *testing.T) {
+	dump := protocol.Dump{
+		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
+	}
+	out := renderToStringDefault(t, dump)
+	want := "init(" +
+		"'it_abc123'," +
+		"'string'," +
+		"'return function it_abc123(v){return typeof v === \\'string\\'}'," +
+		"false," +
+		"[]," +
+		"[]," +
+		"u" +
+		");"
+	if !strings.Contains(out, want) {
+		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
+	}
+	if strings.Contains(out, "function g_it_abc123") {
+		t.Errorf("default emit must NOT inline the createJitFn closure, but found g_it_abc123 in:\n%s", out)
 	}
 }
 

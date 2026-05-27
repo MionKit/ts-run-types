@@ -166,8 +166,17 @@ export interface JitCompiledFnData {
 }
 
 export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnData {
-  /** The closure function that contains the jit function, this one contains the context code */
-  readonly createJitFn: (utl: JITUtils) => Fn;
+  /** The closure function that wraps the jit function with its context-code
+   *  prologue. Optional: by default the Go renderer emits `undefined`
+   *  in this slot and the JS-side `materializeJitFn` rebuilds the
+   *  factory from `code` via `new Function('utl', code)` on first
+   *  `getJIT(hash)` call. The Go-side `--emit-create-jit-fn` flag
+   *  (`resolver.Options.EmitCreateJitFn`) opts back into eager
+   *  emission for runtimes that can't use `new Function`. Always set
+   *  on alwaysThrow entries (to the throwing closure built by
+   *  `jitUtils.alwaysThrowFactory`); always undefined on noop
+   *  entries (whose `entry.fn` is the family-specific identity). **/
+  readonly createJitFn?: (utl: JITUtils) => Fn;
   /** The Jit Generated function once the compilation is finished */
   readonly fn: Fn;
 }
