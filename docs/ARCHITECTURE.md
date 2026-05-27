@@ -22,7 +22,7 @@
 ### Three lifecycles
 
 1. **Build lifecycle** (Vite, Rollup, CI codegen): Go resolver is spawned once, receives one `scanFiles` query per source file, dumps the full table at end-of-build, is torn down.
-2. **Query lifecycle**: every source file with calls to `RuntypeId<T>`-marked functions is sent to `scanFiles`. The resolver walks every CallExpression, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter type is the sentinel marker.
+2. **Query lifecycle**: every source file with calls to `InjectRuntypeId<T>`-marked functions is sent to `scanFiles`. The resolver walks every CallExpression, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter type is the sentinel marker.
 3. **Runtime lifecycle**: the rewritten source passes the site id as the trailing argument; the library's runtime helper does a `Map.get(id)`. No reflection work happens at runtime.
 
 ## Execution model — what we replace and what we don't
@@ -35,7 +35,7 @@ Concretely, at build time:
 | -------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Type checking the project              | Whatever the user's tsconfig points at — `tsc`, `vue-tsc`, the editor, etc. | Unchanged. We don't type-check on the user's behalf.                                                                                                                    |
 | TS → JS emit                           | Vite's default (esbuild)                                                    | Unchanged. We never write `.js`.                                                                                                                                        |
-| Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-go-run-types** Go binary                    | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `RuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
+| Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-go-run-types** Go binary                    | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `InjectRuntypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
 | Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                         | One synthetic ES module containing the full reflection-shape `RunType` graph, keyed by hash.                                                                            |
 | Runtime metadata access                | `import * as cache from 'virtual:runtypes-cache'` + `cache[RUNTYPES_VAR_PREFIX + id]` | Direct property access on the cache module's namespace — no Map, no resolver indirection. Future transformer pass can rewrite to named imports for tree-shaking.       |
 
@@ -85,18 +85,18 @@ The user's tsconfig drives both worlds: the binary parses it to bootstrap the sa
 Detection is anchored on a single TypeScript type alias exported from the `@mionjs/ts-go-run-types` package:
 
 ```ts
-export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
 ```
 
-A function opts into compile-time id injection by declaring `id?: RuntypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
+A function opts into compile-time id injection by declaring `id?: InjectRuntypeId<T>` as its **trailing parameter**. The transformer rewrites every call site of such a function, injecting the resolved hash id at that slot. This includes:
 
 - The static helper `getRuntypeId<T>(id?)` shipped from `@mionjs/ts-go-run-types` — explicit type, no value.
 - The reflection helper `reflectRuntypeId<T>(value, id?)` — `T` inferred from a runtime value.
-- Any user-defined wrapper that propagates the marker — `function isType<T>(v, id?: RuntypeId<T>)`.
+- Any user-defined wrapper that propagates the marker — `function isType<T>(v, id?: InjectRuntypeId<T>)`.
 
 Detection requires both:
 
-1. The trailing parameter type alias must be named `RuntypeId` (configurable via `--marker-name`).
+1. The trailing parameter type alias must be named `InjectRuntypeId` (configurable via `--marker-name`).
 2. The alias must be declared in `@mionjs/ts-go-run-types` (configurable via `--marker-module`). Either inside `declare module "@mionjs/ts-go-run-types" { ... }` or in a file path containing `/@mionjs/ts-go-run-types/`. This rules out accidental collisions with same-named user types declared elsewhere.
 
 A call inside a generic body where the marker's `T` is the wrapper's own free type parameter is **skipped** — there's no concrete `T` to assign an id to yet. The wrapper must propagate the marker via its own signature, and the injection happens at the wrapper's call sites instead.
@@ -107,7 +107,7 @@ A call inside a generic body where the marker's `T` is the wrapper's own free ty
 cmd/ts-go-run-types/                CLI entry point
 internal/program/                tsconfig + VFS bootstrap
 internal/walker/                 position → AST node finder + call iterator
-internal/marker/                 RuntypeId<T> sentinel detection
+internal/marker/                 InjectRuntypeId<T> sentinel detection
 internal/resolver/               scanFiles + dump dispatch
 internal/serialize/              *checker.Type → protocol.RunType (dedup by id)
 internal/protocol/               stdio JSON request/response types
@@ -148,7 +148,7 @@ Dispatches two operations:
 
 | op         | semantics                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scanFiles` | Walks every CallExpression in file. For each whose resolved signature has a trailing `RuntypeId<T>` param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount}`. |
+| `scanFiles` | Walks every CallExpression in file. For each whose resolved signature has a trailing `InjectRuntypeId<T>` param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount}`. |
 | `dump`     | Returns the full cache (every RunType) + the running Sites slice.                                                                                                         |
 
 `Pos` is the byte offset of the closing `)` of the call — the TS-side patcher inserts at that offset. `ParamIndex` is the 0-based slot the injected id goes into; `ArgsCount` is the number of arguments the user already wrote (so the patcher knows whether to pad with `undefined`).
@@ -172,7 +172,7 @@ Two output formats share the same in-memory `protocol.Dump`:
 
 Public marker package. Exports:
 
-- `type RuntypeId<T>` — the sentinel.
+- `type InjectRuntypeId<T>` — the sentinel.
 - `function getRuntypeId<T>(id?)` — static marker. Use with an explicit type argument when there's no runtime value. Throws if called without an injected id (i.e. the plugin isn't active).
 - `function reflectRuntypeId<T>(value, id?)` — reflection marker. `T` is inferred from `value`. Same runtime contract as `getRuntypeId`.
 
@@ -187,7 +187,7 @@ Cache lookup is done by the consumer directly: `import * as cache from 'virtual:
 
 ## Slot injection and padding
 
-The id is injected at the trailing `RuntypeId<T>` slot. The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` pads with `undefined` whenever the caller wrote fewer arguments than `paramIndex`:
+The id is injected at the trailing `InjectRuntypeId<T>` slot. The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` pads with `undefined` whenever the caller wrote fewer arguments than `paramIndex`:
 
 ```
 getRuntypeId<T>()         →   getRuntypeId<T>("<hash>")
@@ -345,7 +345,7 @@ Vite's resolver and tsgo's resolver are unrelated implementations. Vite reads `r
 
 ### How the marker gate plays into this
 
-[`internal/marker/marker.go`](../internal/marker/marker.go) gates whether a `RuntypeId<T>` reference counts as the marker by checking that the alias' declaration lives inside the configured marker package. The check accepts two forms:
+[`internal/marker/marker.go`](../internal/marker/marker.go) gates whether a `InjectRuntypeId<T>` reference counts as the marker by checking that the alias' declaration lives inside the configured marker package. The check accepts two forms:
 
 1. The declaration is inside an ambient `declare module "<module>" { … }` block (used by [`internal/testfixtures/runtypes.d.ts`](../internal/testfixtures/runtypes.d.ts) and any other synthetic fixture without a real package.json on disk).
 2. The declaration's file belongs to an on-disk package whose `package.json` `"name"` equals `<module>`. The check walks parent directories from the declaration file looking for the nearest `package.json` and reads its name. The on-disk directory name is irrelevant — only the `"name"` field matters.
@@ -361,4 +361,4 @@ The Go test suite still needs `internal/testfixtures/runtypes.d.ts` because the 
 - No source-map adjustments when the rewriter injects arguments. Negligible for the POC, small fix for production.
 - The shim locks us into tsgo's internal API surface. A renovate-driven sync on the tsgolint submodule keeps it current.
 - Concurrency: `Cache` is not safe for concurrent use; the resolver holds one checker per process and serialises requests.
-- v1 supports a single, trailing `RuntypeId<T>` parameter per signature. Multiple markers per call (or non-trailing position) is a v2 follow-up.
+- v1 supports a single, trailing `InjectRuntypeId<T>` parameter per signature. Multiple markers per call (or non-trailing position) is a v2 follow-up.

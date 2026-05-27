@@ -5,7 +5,7 @@
 //
 // Per-test sequence is:
 //   1. Spawn the Go binary with this test's inline source(s)
-//   2. rewrite() to inject the trailing-RuntypeId<T> id
+//   2. rewrite() to inject the trailing-InjectRuntypeId<T> id
 //   3. Render a runtypes-cache JS module from the resolver dump
 //   4. Eval the module and assert the resulting reflection-shape RunType
 //      contains real runtime values where applicable (BigInt / Symbol /

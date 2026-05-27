@@ -1149,9 +1149,9 @@ reflectRuntypeId(user);
 // return the same id for the same `T`.
 func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
-  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
+  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRuntypeId<T>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
@@ -1188,9 +1188,9 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 // literal at the call site.
 func TestResolver_NonLiteralOptionsDiagnostic(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
-  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
+  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRuntypeId<T>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
@@ -1224,9 +1224,9 @@ createJsonEncoder<string>(undefined, opts);
 // empty.
 func TestResolver_LiteralOptionsNoDiagnostic(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
-  export type RuntypeId<T> = string & {readonly __mionRuntypeBrand?: T};
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: RuntypeId<T>): (v: unknown) => string | undefined;
+  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRuntypeId<T>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';

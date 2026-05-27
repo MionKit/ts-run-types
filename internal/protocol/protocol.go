@@ -270,7 +270,7 @@ func NewRef(id string) *RunType {
 const (
 	// OpScanFiles walks every CallExpression in each requested file and
 	// returns one Site per call whose resolved signature opts into
-	// transformer injection (trailing `RuntypeId<T>` parameter with a
+	// transformer injection (trailing `InjectRuntypeId<T>` parameter with a
 	// concretely-bound T). When Request.IncludeRunTypes or
 	// IncludeCacheSources is set, the response also carries a projection
 	// scoped to Request.Files only — NOT to the cache's session-wide

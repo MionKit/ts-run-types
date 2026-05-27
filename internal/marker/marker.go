@@ -1,17 +1,17 @@
 // Package marker detects whether a TypeScript type matches the sentinel
-// `RuntypeId<T>` marker — the trailing-parameter type that opts a function
+// `InjectRuntypeId<T>` marker — the trailing-parameter type that opts a function
 // into compile-time type-id injection by the ts-go-run-types transformer.
 //
 // The detection is two-layered:
 //  1. Name match — the type alias' symbol name must equal Options.Name
-//     (default "RuntypeId").
+//     (default "InjectRuntypeId").
 //  2. Module-of-origin match — the alias must be declared inside the
 //     configured marker package (default "@mionjs/ts-go-run-types"). This is
-//     mandatory: it stops a user's own `type RuntypeId<T> = ...` from
+//     mandatory: it stops a user's own `type InjectRuntypeId<T> = ...` from
 //     accidentally triggering rewrites.
 //
 // Conceptually similar to a `ReceiveType<T>` phantom parameter, but with
-// strict module-of-origin gating so a user's own `type RuntypeId<T>` in
+// strict module-of-origin gating so a user's own `type InjectRuntypeId<T>` in
 // third-party code can never accidentally trigger rewrites.
 package marker
 
@@ -26,7 +26,7 @@ import (
 )
 
 // DefaultName is the symbol name the resolver looks for.
-const DefaultName = "RuntypeId"
+const DefaultName = "InjectRuntypeId"
 
 // DefaultModule is the package the marker type must be declared in.
 const DefaultModule = "@mionjs/ts-go-run-types"
@@ -57,10 +57,10 @@ func WithDefaults(opts Options) Options {
 
 // Detect inspects the *type of an optional trailing parameter* and returns
 // (typeArgument, true) when it matches the configured marker. The returned
-// typeArgument is the single type argument (`T` in `RuntypeId<T>`).
+// typeArgument is the single type argument (`T` in `InjectRuntypeId<T>`).
 //
-// The parameter type for an optional `id?: RuntypeId<T>` is typically a
-// union of `RuntypeId<T>` and the undefined-flavoured slot; the alias info
+// The parameter type for an optional `id?: InjectRuntypeId<T>` is typically a
+// union of `InjectRuntypeId<T>` and the undefined-flavoured slot; the alias info
 // stays on the union, so we can read it directly. If for some reason the
 // alias is on a constituent instead, we fall back to scanning union members.
 func Detect(paramType *checker.Type, opts Options) (*checker.Type, bool) {
