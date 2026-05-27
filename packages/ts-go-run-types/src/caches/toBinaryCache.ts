@@ -11,8 +11,9 @@
 'use strict';
 
 export function initCache(jitUtils) {
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
     const fn = isNoop ? noopToBinary : undefined;
+    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'tb',
@@ -23,8 +24,9 @@ export function initCache(jitUtils) {
       isNoop,
       jitDependencies,
       pureFnDependencies,
-      createJitFn,
+      createJitFn: resolvedCreateJitFn,
       fn,
+      alwaysThrowCode,
     });
   }
   void init;

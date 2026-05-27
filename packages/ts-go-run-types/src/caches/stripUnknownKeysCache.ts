@@ -19,8 +19,9 @@ export function initCache(jitUtils) {
   // undefined`. Noop entries pre-populate fn with the family-specific
   // identity (`(v) => v` — atomic shapes can't carry unknown keys, so
   // strip is a passthrough).
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
     const fn = isNoop ? noopStripUnknownKeys : undefined;
+    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'suk',
@@ -31,8 +32,9 @@ export function initCache(jitUtils) {
       isNoop,
       jitDependencies,
       pureFnDependencies,
-      createJitFn,
+      createJitFn: resolvedCreateJitFn,
       fn,
+      alwaysThrowCode,
     });
   }
   void init;

@@ -188,8 +188,12 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 		return JitCode{Code: "typeof " + v + " === 'bigint'", Type: CodeE}
 
 	case protocol.KindSymbol:
-		// mion:nodes/atomic/symbol.ts:18
-		return JitCode{Code: "typeof " + v + " === 'symbol'", Type: CodeE}
+		// Unsupported — `typeof v === 'symbol'` accepts ANY symbol,
+		// giving the false impression that the user's specific symbol
+		// value was validated. Symbol identity isn't comparable across
+		// realms / round-trips, so the validator gives no useful
+		// guarantee. See docs/UNSUPPORTED-KINDS.md FAQ.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindNull:
 		// mion:nodes/atomic/null.ts:14
@@ -274,7 +278,7 @@ func (IsTypeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) Ji
 			// `createJitFn(utl){ throw new Error(<msg>) }` so the
 			// throw surfaces at createIsType()-call time (mion's
 			// createJitFunction()-call equivalent).
-			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		if rt.SubKind != protocol.SubKindNone {
 			// Unknown future subkind — keep the silent-skip path.
@@ -1246,9 +1250,7 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 		return JitCode{Code: "", Type: CodeE}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		// mion: PropertySignature.getJitChild returns undefined when
-		// member.skipJit() is true (function kinds skipJit). Empty code
-		// is the parent's signal to drop this slot from the AND chain.
+		// Fast-path skip for function-shaped children.
 		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is not validated by isType")
 		return JitCode{Code: "", Type: CodeE}
 	}
@@ -1257,9 +1259,13 @@ func emitPropertyIsType(rt *protocol.RunType, ctx *EmitContext, v string) JitCod
 	childJit := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
 	if childJit.Type == CodeNS {
-		// Wrapped value type can't be validated → property can't be
-		// validated → propagate upward.
-		return JitCode{Code: "", Type: CodeNS}
+		// Absorb at property — drop the slot from the AND chain rather
+		// than propagating up to the root. See docs/UNSUPPORTED-KINDS.md.
+		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is not validated by isType")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeE}
 	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeE}

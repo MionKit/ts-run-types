@@ -169,7 +169,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 
 	case protocol.KindNever:
 		// mion:stringifyJson.ts:90-91 — `Never type cannot be stringified.`
-		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be stringified.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindNull, protocol.KindNumber:
 		// mion:stringifyJson.ts:92-99 — at root, `String(v)` wraps
@@ -186,8 +186,8 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return JitCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
 
 	case protocol.KindSymbol:
-		// mion:stringifyJson.ts:108-109.
-		return JitCode{Code: "JSON.stringify('Symbol:'+(" + v + ".description||''))", Type: CodeE}
+		// Unsupported — see docs/UNSUPPORTED-KINDS.md FAQ.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUndefined:
 		// mion:stringifyJson.ts:113-118 — at root, emit `undefined`
@@ -225,13 +225,13 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableStringifyJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
 		// mion:stringifyJson.ts:250-252.
-		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyStringifyJson(rt, ctx, v)
@@ -255,7 +255,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		// mion:stringifyJson.ts:183-187 — function-shaped at root
 		// throws; param-shaped is handled by function-param emit
 		// (not reachable as a top-level JIT fn).
-		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Compile function StringifyJson not supported, call compileParams or compileReturn instead.")
+		return JitCode{Code: "", Type: CodeNS}
 	}
 	return JitCode{Code: "", Type: CodeNS}
 }
@@ -327,7 +327,7 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	}
 	resolvedChild := ctx.ResolveRef(rt.Child)
 	if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-		return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+		return JitCode{Code: "", Type: CodeNS}
 	}
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
@@ -503,7 +503,12 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 	childJit := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
 	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
+		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from stringifyJson output")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeE}
 	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeE}

@@ -106,7 +106,8 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return JitCode{Code: ret + " = (" + des + ".index++, undefined)", Type: CodeS}
 
 	case protocol.KindSymbol:
-		return JitCode{Code: ret + " = Symbol(" + des + ".desString())", Type: CodeS}
+		// Unsupported — see docs/UNSUPPORTED-KINDS.md FAQ.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
 		// Encoder wrote source then flags as two strings.
@@ -116,10 +117,10 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return JitCode{Code: ret + " = " + des + ".desEnum()", Type: CodeS}
 
 	case protocol.KindNever:
-		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be deserialized from Binary")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindLiteral:
 		return emitLiteralFromBinary(rt, ret, des)
@@ -133,7 +134,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Binary deserialization not supported for functions, call compileParams or compileReturn instead.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyFromBinary(rt, ctx, ret, des)
@@ -155,7 +156,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableFromBinary(rt, ctx, ret, des)
 		case protocol.SubKindNonSerializable:
-			return ctx.JitThrowDiagSlot(SlotNonSerializableElem, "Binary deserialization is disabled for Non Serializable types")
+			return JitCode{Code: "", Type: CodeNS}
 		case protocol.SubKindNone:
 			return emitObjectFromBinary(rt, ctx, ret, des)
 		}
@@ -250,7 +251,7 @@ func emitArrayFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved != nil && isNonSerializableElementKind(resolved.Kind) {
-		return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+		return JitCode{Code: "", Type: CodeNS}
 	}
 	lenVar := ctx.NextLocalVar("alen")
 	iVar := ctx.NextLocalVar("i")
@@ -325,7 +326,12 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 	childJit := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
+		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from fromBinary")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeS}
 	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeS}

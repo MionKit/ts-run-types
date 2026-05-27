@@ -356,26 +356,26 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	innerFn, isNoop, isUnsupported := walker.Compile()
 	if isUnsupported {
-		// Two failure modes:
+		// Compile reached an unsupported leaf and the parent positions
+		// chose to propagate (not absorb). Render an alwaysThrow factory
+		// keyed by the leaf's per-family diag code so the JS-side init()
+		// can materialise a throwing factory with the catalog message.
+		// Surface the same code as a build-time diagnostic against every
+		// call site referencing this RT — users see the cause at build
+		// time AND at runtime. See docs/UNSUPPORTED-KINDS.md for the
+		// unified model.
 		//
-		// 1. ThrowMessage non-empty — the compile reached a runtype
-		//    whose JSON emit throws at JIT-compile time in mion
-		//    (never, Promise, NonSerializableRunType, the symbol[]/
-		//    function[] check in array.ts). Emit a throw-factory
-		//    that raises `new Error(<msg>)` when the entry is
-		//    materialised; the throw surfaces at
-		//    createPrepareForJson()-call time, matching mion's
-		//    `expect(() => rt.createJitFunction(...)).toThrow()`
-		//    contract.
-		//
-		// 2. ThrowMessage empty — the kind has no emit at all; keep
-		//    the existing silent-skip behaviour so the runtime cache
-		//    miss is caught by the create*()-side
-		//    hasRunType-but-no-jit identity fallback.
-		if walker.ThrowMessage != "" {
-			line := renderThrowEntry(runType, settings, innerPrefix, walker.ThrowMessage)
-			writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
-			return line, nil
+		// Fallback to silent skip when the emitter registers no code
+		// for the leaf — preserves the safety net for unknown future
+		// kinds (the runtime cache miss is caught by createXxx<T>'s
+		// identity fallback).
+		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
+			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
+				walker.EmitDiagnostic(diagCode, throwDiagnosticMessage(walker.UnsupportedLeaf, settings))
+				line := renderAlwaysThrowEntry(runType, settings, innerPrefix, diagCode)
+				writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+				return line, nil
+			}
 		}
 		return "", nil
 	}
@@ -534,20 +534,78 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 // message; createJitFn is a function that throws when invoked, which
 // happens inside materializeJitFn during the entry's first getJIT
 // lookup → throw propagates up to createPrepareForJson()-call site.
-func renderThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, message string) string {
+// throwDiagnosticMessage returns the user-facing message for an
+// unsupported leaf in the active family. Mirrors the JS-side
+// messageForCode catalog (packages/ts-go-run-types/src/jit/diagnosticMessages.ts)
+// so the build-time diagnostic carries the same wording the runtime
+// throw will surface.
+func throwDiagnosticMessage(leaf *protocol.RunType, settings constants.CacheModuleSettings) string {
+	family := settings.Tag
+	if family == "" {
+		family = "this JIT family"
+	}
+	kindLabel := leafKindLabel(leaf)
+	return kindLabel + " cannot be handled by " + family
+}
+
+// leafKindLabel returns a short human-readable label for an unsupported
+// leaf RunType — used in build-time diagnostic messages.
+func leafKindLabel(leaf *protocol.RunType) string {
+	if leaf == nil {
+		return "Unsupported type"
+	}
+	switch leaf.Kind {
+	case protocol.KindNever:
+		return "Never type"
+	case protocol.KindSymbol:
+		return "Symbol type"
+	case protocol.KindPromise:
+		return "Promise type"
+	case protocol.KindFunction,
+		protocol.KindMethod,
+		protocol.KindMethodSignature,
+		protocol.KindCallSignature:
+		return "Function type"
+	case protocol.KindClass:
+		if leaf.SubKind == protocol.SubKindNonSerializable {
+			return "Non-serializable class type"
+		}
+		return "Class type"
+	}
+	return "Unsupported type"
+}
+
+// renderAlwaysThrowEntry emits the structured alwaysThrow init() call —
+// 8th argument is the per-family diag code; the JS-side init() consumer
+// resolves it to a human-readable message via messageForCode() and
+// constructs the throwing factory at materialise time. Replaces the
+// legacy renderThrowEntry which embedded the message as an inline
+// function body. Wire-size win: ~50 bytes saved per throw entry; the
+// JS side avoids a `new Function` parse on first use.
+//
+// Shape (relative to the normal 7-arg init):
+//
+//	init('<hash>', '<typeName>',
+//	     undefined,  // code
+//	     false,      // isNoop
+//	     undefined,  // jitDependencies
+//	     undefined,  // pureFnDependencies
+//	     undefined,  // createJitFn — JS-side derives from diagCode
+//	     '<diagCode>')
+//
+// See docs/UNSUPPORTED-KINDS.md "Wire format".
+func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, diagCode string) string {
 	_ = settings
 	innerName := innerPrefix + runType.ID
-	quoted := quoteJS(message)
-	body := "throw new Error(" + quoted + ");"
-	factory := "function(utl){" + body + "}"
 	args := []string{
 		quoteJS(innerName),
 		quoteJS(jitTypeName(runType)),
-		quoteJS(body),
-		"false",     // isNoop — false so the identity-fn stub doesn't mask the throw
+		"undefined", // code
+		"false",     // isNoop
 		"undefined", // jitDependencies
 		"undefined", // pureFnDependencies
-		factory,
+		"undefined", // createJitFn
+		quoteJS(diagCode),
 	}
 	return "init(" + joinArgs(args) + ");"
 }

@@ -179,9 +179,9 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		return JitCode{Code: ser + ".view.setUint8(" + ser + ".index++, 1)", Type: CodeS}
 
 	case protocol.KindSymbol:
-		// mion:binary/toBinary.ts:68 —
-		// `serString(v.description || '')`.
-		return JitCode{Code: ser + ".serString(" + v + ".description || '')", Type: CodeS}
+		// Unsupported — symbol identity does not round-trip through
+		// serialisation. See docs/UNSUPPORTED-KINDS.md FAQ.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
 		// mion:binary/toBinary.ts:71 —
@@ -195,12 +195,12 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 	case protocol.KindNever:
 		// mion:binary/toBinary.ts:82 — throws "Never type cannot be
 		// serialized to Binary".
-		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be serialized to Binary")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
 		// mion:binary/toBinary.ts:218 — throws
 		// "Jit compilation disabled for Non Serializable types.".
-		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindLiteral:
 		// mion:binary/toBinary.ts:86-106 — when opts.noLiterals, dispatch
@@ -223,7 +223,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		// compileReturn for that. The Go side has no params subkind
 		// (see protocol/subkind.go) so we always throw at top-level
 		// function types.
-		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Binary serialization not supported for functions, call compileParams or compileReturn instead.")
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyToBinary(rt, ctx, v, ser)
@@ -244,7 +244,7 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableToBinary(rt, ctx, v, ser)
 		case protocol.SubKindNonSerializable:
-			return ctx.JitThrowDiagSlot(SlotNonSerializableElem, "Binary serialization is disabled for Non Serializable types")
+			return JitCode{Code: "", Type: CodeNS}
 		case protocol.SubKindNone:
 			return emitObjectToBinary(rt, ctx, v, ser)
 		}
@@ -314,7 +314,7 @@ func emitArrayToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved != nil && isNonSerializableElementKind(resolved.Kind) {
-		return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+		return JitCode{Code: "", Type: CodeNS}
 	}
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
@@ -404,7 +404,12 @@ func emitPropertyToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser 
 	childJit := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
+		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is excluded from toBinary output")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
 		// The parent (emitObjectToBinary) wraps optional props with their

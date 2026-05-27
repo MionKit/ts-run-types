@@ -29,8 +29,9 @@ export function initCache(jitUtils) {
   // specific identity (`() => false` for hasUnknownKeys — atomic shapes
   // can't carry unknown keys), letting consumers skip the lazy-
   // materialize path entirely.
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
     const fn = isNoop ? noopHasUnknownKeys : undefined;
+    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'huk',
@@ -41,8 +42,9 @@ export function initCache(jitUtils) {
       isNoop,
       jitDependencies,
       pureFnDependencies,
-      createJitFn,
+      createJitFn: resolvedCreateJitFn,
       fn,
+      alwaysThrowCode,
     });
   }
   void init;

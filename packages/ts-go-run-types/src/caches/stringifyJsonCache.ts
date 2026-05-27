@@ -30,8 +30,9 @@ export function initCache(jitUtils) {
   // noopStringifyJson (JSON.stringify-of-v) — there is no identity
   // shape for stringifyJson, so atomic noops degrade to the
   // canonical JSON.stringify fallback.
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn) {
+  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
     const fn = isNoop ? noopStringifyJson : undefined;
+    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'sj',
@@ -42,8 +43,9 @@ export function initCache(jitUtils) {
       isNoop,
       jitDependencies,
       pureFnDependencies,
-      createJitFn,
+      createJitFn: resolvedCreateJitFn,
       fn,
+      alwaysThrowCode,
     });
   }
   void init;

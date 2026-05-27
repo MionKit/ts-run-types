@@ -1,6 +1,45 @@
 package typefns
 
-import "github.com/mionkit/ts-run-types/internal/diag"
+import (
+	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
+
+// leafKindToRootCode maps an unsupported root leaf kind to a per-family
+// root-error code via the supplied family-specific map. Returns "" for
+// kinds not in the map — the renderer falls back to silent skip (no
+// alwaysThrow factory) so unknown future kinds don't surface diagnostics
+// without a registered code. See docs/UNSUPPORTED-KINDS.md.
+type rootCodeMap struct {
+	never           string // KindNever
+	nonSerializable string // KindPromise + KindClass.SubKindNonSerializable
+	function        string // KindFunction / KindMethod / KindMethodSignature / KindCallSignature
+	symbol          string // KindSymbol — see docs FAQ for why this is unsupported
+}
+
+func (m rootCodeMap) codeFor(leaf *protocol.RunType) string {
+	if leaf == nil {
+		return ""
+	}
+	switch leaf.Kind {
+	case protocol.KindNever:
+		return m.never
+	case protocol.KindPromise:
+		return m.nonSerializable
+	case protocol.KindFunction,
+		protocol.KindMethod,
+		protocol.KindMethodSignature,
+		protocol.KindCallSignature:
+		return m.function
+	case protocol.KindSymbol:
+		return m.symbol
+	case protocol.KindClass:
+		if leaf.SubKind == protocol.SubKindNonSerializable {
+			return m.nonSerializable
+		}
+	}
+	return ""
+}
 
 // Per-emitter DiagCodeFor implementations. Each emitter declares a flat
 // map from slot to its family's diag code; the shared dispatch helper on
@@ -22,6 +61,17 @@ var prepareForJsonCodes = map[DiagSlot]string{
 
 func (PrepareForJsonEmitter) DiagCodeFor(slot DiagSlot) string { return prepareForJsonCodes[slot] }
 
+var prepareForJsonRootCodes = rootCodeMap{
+	never:           diag.CodePJNeverRoot,
+	nonSerializable: diag.CodePJNonSerializableRoot,
+	function:        diag.CodePJFunctionRoot,
+	symbol:          diag.CodePJSymbolRoot,
+}
+
+func (PrepareForJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return prepareForJsonRootCodes.codeFor(leaf)
+}
+
 var prepareForJsonSafeCodes = map[DiagSlot]string{
 	SlotNeverRoot:           diag.CodePJSNeverRoot,
 	SlotNonSerializableRoot: diag.CodePJSNonSerializableRoot,
@@ -35,6 +85,17 @@ var prepareForJsonSafeCodes = map[DiagSlot]string{
 
 func (PrepareForJsonSafeEmitter) DiagCodeFor(slot DiagSlot) string {
 	return prepareForJsonSafeCodes[slot]
+}
+
+var prepareForJsonSafeRootCodes = rootCodeMap{
+	never:           diag.CodePJSNeverRoot,
+	nonSerializable: diag.CodePJSNonSerializableRoot,
+	function:        diag.CodePJSFunctionRoot,
+	symbol:          diag.CodePJSSymbolRoot,
+}
+
+func (PrepareForJsonSafeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return prepareForJsonSafeRootCodes.codeFor(leaf)
 }
 
 var prepareForJsonSafePreserveCodes = map[DiagSlot]string{
@@ -52,6 +113,17 @@ func (PrepareForJsonSafePreserveEmitter) DiagCodeFor(slot DiagSlot) string {
 	return prepareForJsonSafePreserveCodes[slot]
 }
 
+var prepareForJsonSafePreserveRootCodes = rootCodeMap{
+	never:           diag.CodePJPNeverRoot,
+	nonSerializable: diag.CodePJPNonSerializableRoot,
+	function:        diag.CodePJPFunctionRoot,
+	symbol:          diag.CodePJPSymbolRoot,
+}
+
+func (PrepareForJsonSafePreserveEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return prepareForJsonSafePreserveRootCodes.codeFor(leaf)
+}
+
 var restoreFromJsonCodes = map[DiagSlot]string{
 	SlotNeverRoot:           diag.CodeRJNeverRoot,
 	SlotNonSerializableRoot: diag.CodeRJNonSerializableRoot,
@@ -65,6 +137,17 @@ var restoreFromJsonCodes = map[DiagSlot]string{
 
 func (RestoreFromJsonEmitter) DiagCodeFor(slot DiagSlot) string { return restoreFromJsonCodes[slot] }
 
+var restoreFromJsonRootCodes = rootCodeMap{
+	never:           diag.CodeRJNeverRoot,
+	nonSerializable: diag.CodeRJNonSerializableRoot,
+	function:        diag.CodeRJFunctionRoot,
+	symbol:          diag.CodeRJSymbolRoot,
+}
+
+func (RestoreFromJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return restoreFromJsonRootCodes.codeFor(leaf)
+}
+
 var stringifyJsonCodes = map[DiagSlot]string{
 	SlotNeverRoot:           diag.CodeSJNeverRoot,
 	SlotNonSerializableRoot: diag.CodeSJNonSerializableRoot,
@@ -77,6 +160,17 @@ var stringifyJsonCodes = map[DiagSlot]string{
 }
 
 func (StringifyJsonEmitter) DiagCodeFor(slot DiagSlot) string { return stringifyJsonCodes[slot] }
+
+var stringifyJsonRootCodes = rootCodeMap{
+	never:           diag.CodeSJNeverRoot,
+	nonSerializable: diag.CodeSJNonSerializableRoot,
+	function:        diag.CodeSJFunctionRoot,
+	symbol:          diag.CodeSJSymbolRoot,
+}
+
+func (StringifyJsonEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return stringifyJsonRootCodes.codeFor(leaf)
+}
 
 var toBinaryCodes = map[DiagSlot]string{
 	SlotNeverRoot:           diag.CodeTBNeverRoot,
@@ -92,6 +186,17 @@ var toBinaryCodes = map[DiagSlot]string{
 
 func (ToBinaryEmitter) DiagCodeFor(slot DiagSlot) string { return toBinaryCodes[slot] }
 
+var toBinaryRootCodes = rootCodeMap{
+	never:           diag.CodeTBNeverRoot,
+	nonSerializable: diag.CodeTBNonSerializableRoot,
+	function:        diag.CodeTBFunctionRoot,
+	symbol:          diag.CodeTBSymbolRoot,
+}
+
+func (ToBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return toBinaryRootCodes.codeFor(leaf)
+}
+
 var fromBinaryCodes = map[DiagSlot]string{
 	SlotNeverRoot:           diag.CodeFBNeverRoot,
 	SlotNonSerializableRoot: diag.CodeFBNonSerializableRoot,
@@ -106,6 +211,17 @@ var fromBinaryCodes = map[DiagSlot]string{
 
 func (FromBinaryEmitter) DiagCodeFor(slot DiagSlot) string { return fromBinaryCodes[slot] }
 
+var fromBinaryRootCodes = rootCodeMap{
+	never:           diag.CodeFBNeverRoot,
+	nonSerializable: diag.CodeFBNonSerializableRoot,
+	function:        diag.CodeFBFunctionRoot,
+	symbol:          diag.CodeFBSymbolRoot,
+}
+
+func (FromBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return fromBinaryRootCodes.codeFor(leaf)
+}
+
 var isTypeCodes = map[DiagSlot]string{
 	SlotNonSerializableRoot: diag.CodeISNonSerializableRoot,
 	SlotFunctionPropDropped: diag.CodeISFunctionPropDropped,
@@ -115,6 +231,17 @@ var isTypeCodes = map[DiagSlot]string{
 }
 
 func (IsTypeEmitter) DiagCodeFor(slot DiagSlot) string { return isTypeCodes[slot] }
+
+var isTypeRootCodes = rootCodeMap{
+	never:           "", // isType validates Never as "no inhabitants" — handled by existing never arm, not unsupported
+	nonSerializable: diag.CodeISNonSerializableRoot,
+	function:        "", // isType validates function-kinds as `typeof === 'function'` — supported
+	symbol:          diag.CodeISSymbolRoot,
+}
+
+func (IsTypeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return isTypeRootCodes.codeFor(leaf)
+}
 
 var typeErrorsCodes = map[DiagSlot]string{
 	SlotNonSerializableRoot: diag.CodeTENonSerializableRoot,
@@ -126,6 +253,17 @@ var typeErrorsCodes = map[DiagSlot]string{
 }
 
 func (TypeErrorsEmitter) DiagCodeFor(slot DiagSlot) string { return typeErrorsCodes[slot] }
+
+var typeErrorsRootCodes = rootCodeMap{
+	never:           "",
+	nonSerializable: diag.CodeTENonSerializableRoot,
+	function:        "",
+	symbol:          diag.CodeTESymbolRoot,
+}
+
+func (TypeErrorsEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return typeErrorsRootCodes.codeFor(leaf)
+}
 
 var hasUnknownKeysCodes = map[DiagSlot]string{
 	SlotFunctionPropDropped: diag.CodeHUKFunctionPropDropped,

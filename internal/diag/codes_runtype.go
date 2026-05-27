@@ -13,6 +13,7 @@ package diag
 // isType family.
 const (
 	CodeISNonSerializableRoot = "IT001"
+	CodeISSymbolRoot          = "IT002"
 	CodeISFunctionPropDropped = "IT010"
 	CodeISMethodDropped       = "IT011"
 	CodeISStaticDropped       = "IT012"
@@ -22,6 +23,7 @@ const (
 // typeErrors family.
 const (
 	CodeTENonSerializableRoot = "TE001"
+	CodeTESymbolRoot          = "TE002"
 	CodeTEFunctionPropDropped = "TE010"
 	CodeTEMethodDropped       = "TE011"
 	CodeTEStaticDropped       = "TE012"
@@ -35,6 +37,7 @@ const (
 	CodePJNonSerializableRoot = "PJ002"
 	CodePJFunctionRoot        = "PJ003"
 	CodePJArrayElement        = "PJ004"
+	CodePJSymbolRoot          = "PJ005"
 	CodePJFunctionPropDropped = "PJ010"
 	CodePJMethodDropped       = "PJ011"
 	CodePJStaticDropped       = "PJ012"
@@ -47,6 +50,7 @@ const (
 	CodePJSNonSerializableRoot = "PJS002"
 	CodePJSFunctionRoot        = "PJS003"
 	CodePJSArrayElement        = "PJS004"
+	CodePJSSymbolRoot          = "PJS005"
 	CodePJSFunctionPropDropped = "PJS010"
 	CodePJSMethodDropped       = "PJS011"
 	CodePJSStaticDropped       = "PJS012"
@@ -59,6 +63,7 @@ const (
 	CodePJPNonSerializableRoot = "PJP002"
 	CodePJPFunctionRoot        = "PJP003"
 	CodePJPArrayElement        = "PJP004"
+	CodePJPSymbolRoot          = "PJP005"
 	CodePJPFunctionPropDropped = "PJP010"
 	CodePJPMethodDropped       = "PJP011"
 	CodePJPStaticDropped       = "PJP012"
@@ -71,6 +76,7 @@ const (
 	CodeRJNonSerializableRoot = "RJ002"
 	CodeRJFunctionRoot        = "RJ003"
 	CodeRJArrayElement        = "RJ004"
+	CodeRJSymbolRoot          = "RJ005"
 	CodeRJFunctionPropDropped = "RJ010"
 	CodeRJMethodDropped       = "RJ011"
 	CodeRJStaticDropped       = "RJ012"
@@ -83,6 +89,7 @@ const (
 	CodeSJNonSerializableRoot = "SJ002"
 	CodeSJFunctionRoot        = "SJ003"
 	CodeSJArrayElement        = "SJ004"
+	CodeSJSymbolRoot          = "SJ005"
 	CodeSJFunctionPropDropped = "SJ010"
 	CodeSJMethodDropped       = "SJ011"
 	CodeSJStaticDropped       = "SJ012"
@@ -96,6 +103,7 @@ const (
 	CodeTBFunctionRoot        = "TB003"
 	CodeTBNonSerializableElem = "TB005"
 	CodeTBArrayElement        = "TB004"
+	CodeTBSymbolRoot          = "TB006"
 	CodeTBFunctionPropDropped = "TB010"
 	CodeTBMethodDropped       = "TB011"
 	CodeTBStaticDropped       = "TB012"
@@ -109,6 +117,7 @@ const (
 	CodeFBFunctionRoot        = "FB003"
 	CodeFBNonSerializableElem = "FB005"
 	CodeFBArrayElement        = "FB004"
+	CodeFBSymbolRoot          = "FB006"
 	CodeFBFunctionPropDropped = "FB010"
 	CodeFBMethodDropped       = "FB011"
 	CodeFBStaticDropped       = "FB012"
@@ -127,15 +136,15 @@ const (
 func init() {
 	// Root-position errors — render a throwing factory.
 	for _, code := range []string{
-		CodeISNonSerializableRoot,
-		CodeTENonSerializableRoot,
-		CodePJNeverRoot, CodePJNonSerializableRoot, CodePJFunctionRoot, CodePJArrayElement,
-		CodePJSNeverRoot, CodePJSNonSerializableRoot, CodePJSFunctionRoot, CodePJSArrayElement,
-		CodePJPNeverRoot, CodePJPNonSerializableRoot, CodePJPFunctionRoot, CodePJPArrayElement,
-		CodeRJNeverRoot, CodeRJNonSerializableRoot, CodeRJFunctionRoot, CodeRJArrayElement,
-		CodeSJNeverRoot, CodeSJNonSerializableRoot, CodeSJFunctionRoot, CodeSJArrayElement,
-		CodeTBNeverRoot, CodeTBNonSerializableRoot, CodeTBFunctionRoot, CodeTBArrayElement, CodeTBNonSerializableElem,
-		CodeFBNeverRoot, CodeFBNonSerializableRoot, CodeFBFunctionRoot, CodeFBArrayElement, CodeFBNonSerializableElem,
+		CodeISNonSerializableRoot, CodeISSymbolRoot,
+		CodeTENonSerializableRoot, CodeTESymbolRoot,
+		CodePJNeverRoot, CodePJNonSerializableRoot, CodePJFunctionRoot, CodePJArrayElement, CodePJSymbolRoot,
+		CodePJSNeverRoot, CodePJSNonSerializableRoot, CodePJSFunctionRoot, CodePJSArrayElement, CodePJSSymbolRoot,
+		CodePJPNeverRoot, CodePJPNonSerializableRoot, CodePJPFunctionRoot, CodePJPArrayElement, CodePJPSymbolRoot,
+		CodeRJNeverRoot, CodeRJNonSerializableRoot, CodeRJFunctionRoot, CodeRJArrayElement, CodeRJSymbolRoot,
+		CodeSJNeverRoot, CodeSJNonSerializableRoot, CodeSJFunctionRoot, CodeSJArrayElement, CodeSJSymbolRoot,
+		CodeTBNeverRoot, CodeTBNonSerializableRoot, CodeTBFunctionRoot, CodeTBArrayElement, CodeTBNonSerializableElem, CodeTBSymbolRoot,
+		CodeFBNeverRoot, CodeFBNonSerializableRoot, CodeFBFunctionRoot, CodeFBArrayElement, CodeFBNonSerializableElem, CodeFBSymbolRoot,
 	} {
 		register(Definition{Code: code, Family: FamilyRunType, Severity: SeverityError, Title: "Runtype root-position error"})
 	}

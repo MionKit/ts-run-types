@@ -94,7 +94,10 @@ func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
 		{"number", &protocol.RunType{ID: "num", Kind: protocol.KindNumber}, "return Number.isFinite(v)", false},
 		{"boolean", &protocol.RunType{ID: "boo", Kind: protocol.KindBoolean}, "return typeof v === 'boolean'", false},
 		{"bigint", &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}, "return typeof v === 'bigint'", false},
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "return typeof v === 'symbol'", false},
+		// KindSymbol is unsupported at root — see docs/UNSUPPORTED-KINDS.md
+		// FAQ. Renderer emits an alwaysThrow factory keyed by IT002,
+		// not a body-bearing validator.
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('it_sym','symbol',undefined,false,undefined,undefined,undefined,'IT002')", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -623,7 +626,11 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 	})
 
-	t.Run("object_with_one_unsupported_prop_skipped", func(t *testing.T) {
+	t.Run("object_with_one_unsupported_prop_renders_without_it", func(t *testing.T) {
+		// v2: property positions ABSORB unsupported children rather than
+		// propagating CodeNS to root. The object's emit drops the unsupported
+		// property from its AND chain and still renders for the supported
+		// siblings. See docs/UNSUPPORTED-KINDS.md "How a parent absorbs".
 		propUns := &protocol.RunType{
 			ID:         "pU",
 			Kind:       protocol.KindPropertySignature,
@@ -648,8 +655,16 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propUns, propOk, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "init('it_if1',") {
-			t.Errorf("object with one unsupported property must be skipped, got:\n%s", out)
+		if !strings.Contains(out, "init('it_if1',") {
+			t.Errorf("object with one unsupported property must still render (absorption), got:\n%s", out)
+		}
+		// The body must NOT reference the dropped property's accessor.
+		if strings.Contains(out, "v.u") {
+			t.Errorf("rendered body should not reference dropped property 'u', got:\n%s", out)
+		}
+		// The supported sibling's accessor must be present.
+		if !strings.Contains(out, "v.o") {
+			t.Errorf("rendered body should reference surviving property 'o', got:\n%s", out)
 		}
 	})
 
@@ -695,20 +710,19 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 	})
 
 	t.Run("plain_user_class_with_nonserializable_subkind_throws", func(t *testing.T) {
-		// KindClass + SubKindNonSerializable mirrors mion's
-		// NonSerializableRunType.emitIsType which throws "Jit
-		// compilation disabled for Non Serializable types.". The
-		// renderer emits a throw-factory raising the same message
-		// at createIsType()-call time — same observable behaviour
-		// as mion's `expect(() => rt.createJitFunction(...)).toThrow()`.
+		// v2: alwaysThrow init() carries the diag code as the 8th arg
+		// (no embedded throw body). JS side resolves the code to a
+		// message via messageForCode() at materialise time. See
+		// docs/UNSUPPORTED-KINDS.md "Wire format".
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('it_ns1',") {
-			t.Errorf("KindClass+SubKindNonSerializable must emit a throw-factory, got:\n%s", out)
+		if !strings.Contains(out, "init('it_ns1','class',undefined,false,undefined,undefined,undefined,'IT001')") {
+			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code IT001, got:\n%s", out)
 		}
-		if !strings.Contains(out, `throw new Error('Jit compilation disabled for Non Serializable types.')`) {
-			t.Errorf("throw-factory body must carry mion's message, got:\n%s", out)
+		// No inline throwing function body should remain.
+		if strings.Contains(out, "throw new Error(") {
+			t.Errorf("v2 wire format should not embed throw-body strings, got:\n%s", out)
 		}
 		if !strings.Contains(out, "init('it_str',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)
