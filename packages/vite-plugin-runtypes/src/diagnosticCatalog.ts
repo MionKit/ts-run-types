@@ -190,6 +190,24 @@ Fix — replace the forbidden construct with its literal value:
   +  const a = {strict: true, mode: 'unsafe'};   // literal-only`,
   },
 
+  PFN001: {
+    headline:
+      '`PureFunction<F>` argument must be an inline arrow or function expression (or a module-scope `const` initialized to one).',
+    detail: `The build inlines / AOT-compiles the function body, so it needs to see
+the literal definition at the call site. Imported functions, function
+calls that return a function, and \`let\` / \`var\` bindings can't be
+followed.
+
+Fix — inline the function at the call site:
+-  import {validate} from './validators';
+-  registerValidator(validate);
++  registerValidator((v) => typeof v === 'string');
+
+Fix — use a module-scope const initialized to a function literal:
+  const validate = (v: unknown) => typeof v === 'string';
+  registerValidator(validate);`,
+  },
+
   MKR003: {
     headline:
       'Marker call is inside a generic function — the type argument is unresolved, so no id can be computed at build time.',

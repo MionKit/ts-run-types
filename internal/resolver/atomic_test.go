@@ -1304,3 +1304,110 @@ createIsType<string>(undefined, opts);
 		t.Fatalf("expected 0 marker diagnostics for const-bound literal, got %d (%+v)", len(markerDiags), markerDiags)
 	}
 }
+
+// PureFunction marker test fixture — used by every PureFunction
+// test below. Declares a `withValidator` wrapper whose first parameter
+// is branded `PureFunction<(v: unknown) => boolean>` so the scanner
+// dispatches to the purity walker for that argument.
+const pureFunctionDts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
+  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
+  export function withValidator<T>(validate: PureFunction<(v: unknown) => boolean>, val?: T, id?: InjectRuntypeId<T>): (v: unknown) => boolean;
+}
+`
+
+// TestResolver_PureFunction_InlineArrowAccepted pins the positive case
+// for the PureFunction marker: an inline arrow whose body only uses
+// allow-listed globals and its own parameter produces no diagnostics.
+func TestResolver_PureFunction_InlineArrowAccepted(t *testing.T) {
+	const code = `import {withValidator} from '@mionjs/ts-go-run-types';
+withValidator<string>((v) => typeof v === 'string');
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": pureFunctionDts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 0 {
+		t.Fatalf("expected 0 marker diagnostics for inline pure arrow, got %d (%+v)", len(markerDiags), markerDiags)
+	}
+}
+
+// TestResolver_PureFunction_NonLiteralEmitsPFN001 pins PFN001 for an
+// imported identifier — not a literal function definition, can't be
+// inlined by the AOT compiler.
+func TestResolver_PureFunction_NonLiteralEmitsPFN001(t *testing.T) {
+	const code = `import {withValidator} from '@mionjs/ts-go-run-types';
+declare const isString: (v: unknown) => boolean;
+withValidator<string>(isString);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": pureFunctionDts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 marker diagnostic (PFN001), got %d (%+v)", len(markerDiags), markerDiags)
+	}
+	if markerDiags[0].Code != diag.CodePureFunctionNotLiteral {
+		t.Fatalf("expected code %s, got %q", diag.CodePureFunctionNotLiteral, markerDiags[0].Code)
+	}
+}
+
+// TestResolver_PureFunction_PurityViolationsPropagate pins that the
+// purity walker (PFE9006–PFE9011) fires when the inline function body
+// breaks a rule — here, `await` inside the arrow triggers PFE9007.
+// The PureFunction marker reuses the purefns.CheckPurity engine
+// unchanged, so any PFE the extractor emits should reach the resolver.
+func TestResolver_PureFunction_PurityViolationsPropagate(t *testing.T) {
+	const code = `import {withValidator} from '@mionjs/ts-go-run-types';
+withValidator<string>(async (v) => { await Promise.resolve(); return typeof v === 'string'; });
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": pureFunctionDts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	// All PFE diagnostics live under FamilyPureFn — not FamilyMarker.
+	pfeDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyPureFn)
+	if len(pfeDiags) == 0 {
+		t.Fatalf("expected at least one PFE diagnostic for `await`, got 0 (all: %+v)", resp.Diagnostics)
+	}
+	awaitSeen := false
+	for _, d := range pfeDiags {
+		if d.Code == "PFE9007" {
+			awaitSeen = true
+		}
+	}
+	if !awaitSeen {
+		t.Fatalf("expected PFE9007 (`await` violation), got %+v", pfeDiags)
+	}
+}
+
+// TestResolver_PureFunction_ClosureViolation pins PFE9011 — the
+// inline arrow captures `outer` from the surrounding module scope.
+// The purity walker treats this as closing over an outer binding,
+// which prevents AOT inlining.
+func TestResolver_PureFunction_ClosureViolation(t *testing.T) {
+	const code = `import {withValidator} from '@mionjs/ts-go-run-types';
+const outer = 42;
+withValidator<number>((v) => v === outer);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": pureFunctionDts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	pfeDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyPureFn)
+	closureSeen := false
+	for _, d := range pfeDiags {
+		if d.Code == "PFE9011" {
+			closureSeen = true
+		}
+	}
+	if !closureSeen {
+		t.Fatalf("expected PFE9011 (closure over outer binding) for `outer`, got %+v (all diags: %+v)", pfeDiags, resp.Diagnostics)
+	}
+}

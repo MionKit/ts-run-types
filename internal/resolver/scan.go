@@ -7,6 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/comptimeargs"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
@@ -474,10 +475,42 @@ func (resolver *Resolver) scanSiblingMarkers(file string, call *ast.Node, callEx
 			if diagnostic, ok := resolver.checkCompTimeArgs(file, argumentNode); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
+		case marker.KindPureFunction:
+			diagnostics = append(diagnostics, resolver.checkPureFunction(file, argumentNode)...)
 		}
-		_ = call // retained for future PureFunction wiring (Phase 3)
+		_ = call // call retained for future per-call diagnostic plumbing
 	}
 	return diagnostics
+}
+
+// checkPureFunction validates that argumentNode is an inline
+// arrow / function expression (emits PFN001 on failure) and then runs
+// the purity rules against the resolved function node (emits any of
+// PFE9006–PFE9011 on violation). Inline-shape failure short-circuits —
+// there is nothing to walk for purity when the arg isn't a function.
+func (resolver *Resolver) checkPureFunction(file string, argumentNode *ast.Node) []diag.Diagnostic {
+	fnNode, shapeResult := comptimeargs.CheckLiteralFunction(resolver.checker, argumentNode)
+	if !shapeResult.Ok {
+		failingNode := shapeResult.FailingNode
+		if failingNode == nil {
+			failingNode = argumentNode
+		}
+		sourceFile := ast.GetSourceFileOfNode(failingNode)
+		if sourceFile == nil {
+			return nil
+		}
+		startLine, startCol := scanLineCol(sourceFile, failingNode.Pos())
+		endLine, endCol := scanLineCol(sourceFile, failingNode.End())
+		return []diag.Diagnostic{diag.New(
+			diag.CodePureFunctionNotLiteral,
+			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+		)}
+	}
+	sourceFile := ast.GetSourceFileOfNode(fnNode)
+	if sourceFile == nil {
+		return nil
+	}
+	return purefns.CheckPurity(sourceFile, fnNode)
 }
 
 // checkCompTimeArgs validates the argument node passes the CompTimeArgs

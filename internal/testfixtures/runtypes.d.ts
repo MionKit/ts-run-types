@@ -17,4 +17,9 @@ declare module '@mionjs/ts-go-run-types' {
   // Compile-time-args brand — the Go scanner requires the argument to be
   // fully literal at the call site or via a module-scope const initializer.
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+
+  // Pure-function brand — the argument must be a literal arrow/function
+  // expression AND must pass the purity rules (no closures, no this, no
+  // await/yield, no forbidden globals).
+  export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
 }
