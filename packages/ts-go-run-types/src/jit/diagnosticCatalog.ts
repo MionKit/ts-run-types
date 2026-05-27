@@ -243,8 +243,8 @@ Fix:
   PFE9003: {
     headline:
       "`registerPureFnFactory`'s third argument (the factory) must be an inline function/arrow or a same-file `const` — got: {0}.",
-    detail: `The build extracts the factory\'s source text to register it. Factories
-imported from other modules, or wrapped through helpers, can\'t be read.
+    detail: `The build extracts the factory's source text to register it. Factories
+imported from other modules, or wrapped through helpers, can't be read.
 
 Fix — inline the factory:
   registerPureFnFactory('ns', 'fn', (utl) => {
@@ -270,7 +270,7 @@ registration the extractor saw.`,
   PFE9005: {
     headline: 'Pure-fn factory `{0}` uses destructured parameters — only simple identifier params are supported.',
     detail: `The build inlines parameter references by name when it materialises the
-factory. Destructuring patterns (\`({a, b})\`, \`([x, y])\`) don\'t have a
+factory. Destructuring patterns (\`({a, b})\`, \`([x, y])\`) don't have a
 single name to substitute.
 
 Fix — destructure inside the body:
@@ -297,7 +297,7 @@ out of the class/object method that owns the \`this\`:
   PFE9007: {
     headline: '`async`/`await` is not allowed inside a `registerPureFnFactory` factory body.',
     detail: `Pure functions must run synchronously so the build can call them at
-compile time. \`async\` introduces a Promise that won\'t resolve until
+compile time. \`async\` introduces a Promise that won't resolve until
 runtime.
 
 Fix — make the factory synchronous; move async work to the caller:
