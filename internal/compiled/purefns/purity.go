@@ -1,9 +1,8 @@
 package purefns
 
 import (
-	"fmt"
-
 	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/mionkit/ts-run-types/internal/diag"
 )
 
 // scope is one frame in the lexical scope chain. parent is nil at the
@@ -37,8 +36,8 @@ func (s *scope) has(name string) bool {
 // The Go port uses a proper lexical scope stack (push/pop per function
 // boundary) rather than mion's flat-scope approximation — more correct
 // for nested functions whose params should only be visible inside them.
-func checkPurity(sourceFile *ast.SourceFile, factoryNode *ast.Node) []Diagnostic {
-	var diags []Diagnostic
+func checkPurity(sourceFile *ast.SourceFile, factoryNode *ast.Node) []diag.Diagnostic {
+	var diags []diag.Diagnostic
 	visitForPurity(sourceFile, factoryNode, nil, &diags)
 	return diags
 }
@@ -50,7 +49,7 @@ func checkPurity(sourceFile *ast.SourceFile, factoryNode *ast.Node) []Diagnostic
 // emit a diagnostic at that node's position; identifier references are
 // checked against scope ∪ allowedGlobals, with forbiddenIdentifiers
 // taking precedence.
-func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, diags *[]Diagnostic) {
+func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, diags *[]diag.Diagnostic) {
 	if node == nil {
 		return
 	}
@@ -97,40 +96,36 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 		if node.Parent != nil && isInTypePosition(node) {
 			return
 		}
-		*diags = append(*diags, Diagnostic{
-			Code:     CodePurityThis,
-			Category: "error",
-			Message:  "'this' is not allowed in a pure function factory body",
-			Site:     siteFromNode(sourceFile, node),
-		})
+		*diags = append(*diags, diag.New(
+			diag.CodePurityThis,
+			siteFromNode(sourceFile, node),
+			"'this' is not allowed in a pure function factory body",
+		))
 		return
 
 	case ast.KindAwaitExpression:
-		*diags = append(*diags, Diagnostic{
-			Code:     CodePurityAwait,
-			Category: "error",
-			Message:  "async/await is not allowed in a pure function factory body",
-			Site:     siteFromNode(sourceFile, node),
-		})
+		*diags = append(*diags, diag.New(
+			diag.CodePurityAwait,
+			siteFromNode(sourceFile, node),
+			"async/await is not allowed in a pure function factory body",
+		))
 		// Continue descending — inner expressions may have their own violations.
 
 	case ast.KindYieldExpression:
-		*diags = append(*diags, Diagnostic{
-			Code:     CodePurityYield,
-			Category: "error",
-			Message:  "generators (yield) are not allowed in a pure function factory body",
-			Site:     siteFromNode(sourceFile, node),
-		})
+		*diags = append(*diags, diag.New(
+			diag.CodePurityYield,
+			siteFromNode(sourceFile, node),
+			"generators (yield) are not allowed in a pure function factory body",
+		))
 
 	case ast.KindCallExpression:
 		callExpr := node.AsCallExpression()
 		if callExpr != nil && callExpr.Expression != nil && callExpr.Expression.Kind == ast.KindImportKeyword {
-			*diags = append(*diags, Diagnostic{
-				Code:     CodePurityDynamicImport,
-				Category: "error",
-				Message:  "dynamic import() is not allowed in a pure function factory body",
-				Site:     siteFromNode(sourceFile, node),
-			})
+			*diags = append(*diags, diag.New(
+				diag.CodePurityDynamicImport,
+				siteFromNode(sourceFile, node),
+				"dynamic import() is not allowed in a pure function factory body",
+			))
 		}
 		// Fall through to descend into the callee + args (nested violations).
 
@@ -140,23 +135,21 @@ func visitForPurity(sourceFile *ast.SourceFile, node *ast.Node, current *scope, 
 		}
 		name := node.Text()
 		if forbiddenIdentifiers[name] {
-			*diags = append(*diags, Diagnostic{
-				Code:     CodePurityForbidden,
-				Category: "error",
-				Message:  fmt.Sprintf("%q is not allowed in a pure function factory body", name),
-				Site:     siteFromNode(sourceFile, node),
-			})
+			*diags = append(*diags, diag.Newf(
+				diag.CodePurityForbidden,
+				siteFromNode(sourceFile, node),
+				"%q is not allowed in a pure function factory body", name,
+			))
 			return
 		}
 		if current.has(name) || allowedGlobals[name] {
 			return
 		}
-		*diags = append(*diags, Diagnostic{
-			Code:     CodePurityClosure,
-			Category: "error",
-			Message:  fmt.Sprintf("Closure variable %q is not allowed in a pure function factory body. Pure functions cannot access outer scope variables.", name),
-			Site:     siteFromNode(sourceFile, node),
-		})
+		*diags = append(*diags, diag.Newf(
+			diag.CodePurityClosure,
+			siteFromNode(sourceFile, node),
+			"Closure variable %q is not allowed in a pure function factory body. Pure functions cannot access outer scope variables.", name,
+		))
 		return
 	}
 

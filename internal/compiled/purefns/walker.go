@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/mionkit/ts-run-types/internal/diag"
 )
 
 // Entry is the in-Go shape that mirrors TS-side `Entry`.
@@ -68,9 +69,9 @@ type SourceFileLookup interface {
 //
 // Order: entries sorted by Key (alphabetical); diagnostics sorted by Site
 // (filepath, line, col) — both deterministic for stable test fixtures.
-func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []Diagnostic) {
+func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
-	var diagnostics []Diagnostic
+	var diagnostics []diag.Diagnostic
 	seen := map[string]int{} // key → index in entries (the winner)
 
 	for _, filePath := range files {
@@ -86,16 +87,15 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []Dia
 				if winner.BodyHash == entry.BodyHash {
 					continue // idempotent re-registration
 				}
-				diagnostics = append(diagnostics, Diagnostic{
-					Code:     CodeBodyHashCollision,
-					Category: "error",
-					Message:  "Duplicate registration of \"" + entry.Key() + "\" with mismatched bodyHash",
-					Site:     siteFromFile(entry.sourceFile, entry.callPos),
-					Related: []RelatedSite{{
-						DiagnosticSite: siteFromFile(winner.sourceFile, winner.callPos),
-						Message:        "First registered here with bodyHash=" + winner.BodyHash,
-					}},
-				})
+				diagnostics = append(diagnostics, diag.New(
+					diag.CodeBodyHashCollision,
+					siteFromFile(entry.sourceFile, entry.callPos),
+					"Duplicate registration of \""+entry.Key()+"\" with mismatched bodyHash",
+					diag.Related{
+						Site:    siteFromFile(winner.sourceFile, winner.callPos),
+						Message: "First registered here with bodyHash=" + winner.BodyHash,
+					},
+				))
 				continue
 			}
 			seen[entry.Key()] = len(entries)
@@ -129,7 +129,7 @@ func ExtractFromProgram(lookup SourceFileLookup, files []string) ([]Entry, []Dia
 // caller folds entries into a shared map and surfaces collisions there.
 // A nil/missing source file yields (nil, nil); the caller decides
 // whether that is an error.
-func extractFromFile(lookup SourceFileLookup, filePath string) ([]Entry, []Diagnostic) {
+func extractFromFile(lookup SourceFileLookup, filePath string) ([]Entry, []diag.Diagnostic) {
 	sourceFile := lookup.SourceFile(filePath)
 	if sourceFile == nil {
 		return nil, nil
@@ -141,9 +141,9 @@ func extractFromFile(lookup SourceFileLookup, filePath string) ([]Entry, []Diagn
 // table, walk every CallExpression, dispatch to extractOne. Shared by
 // the lookup-driven helper above and the original ExtractFromProgram
 // loop body (which already holds a *SourceFile in hand).
-func extractFromSourceFile(sourceFile *ast.SourceFile) ([]Entry, []Diagnostic) {
+func extractFromSourceFile(sourceFile *ast.SourceFile) ([]Entry, []diag.Diagnostic) {
 	var entries []Entry
-	var diagnostics []Diagnostic
+	var diagnostics []diag.Diagnostic
 	table := buildSymbolTable(sourceFile)
 	findCalls(sourceFile, func(call *ast.Node) {
 		entry, diags := extractOne(sourceFile, table, call)
@@ -176,7 +176,7 @@ func findCalls(sourceFile *ast.SourceFile, cb func(*ast.Node)) {
 // can't be resolved. The returned Entry carries internal-only fields
 // (sourceFile, callPos) that the caller uses for cross-file collision
 // reporting; these never reach the wire.
-func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (*Entry, []Diagnostic) {
+func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (*Entry, []diag.Diagnostic) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil {
 		return nil, nil
@@ -198,36 +198,33 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	if args[2].Kind == ast.KindNullKeyword {
 		return nil, nil
 	}
-	var diags []Diagnostic
+	var diags []diag.Diagnostic
 
 	nsLit, nsReason := resolveStringArg(table, args[0])
 	if nsLit == nil {
-		diags = append(diags, Diagnostic{
-			Code:     CodeNamespaceNotLiteral,
-			Category: "error",
-			Message:  "registerPureFnFactory namespace must be a string literal or a local const string in the same module (" + nsReason + ")",
-			Site:     siteFromNode(sourceFile, args[0]),
-		})
+		diags = append(diags, diag.New(
+			diag.CodeNamespaceNotLiteral,
+			siteFromNode(sourceFile, args[0]),
+			"registerPureFnFactory namespace must be a string literal or a local const string in the same module ("+nsReason+")",
+		))
 	}
 
 	fnNameLit, fnNameReason := resolveStringArg(table, args[1])
 	if fnNameLit == nil {
-		diags = append(diags, Diagnostic{
-			Code:     CodeFunctionIDNotLiteral,
-			Category: "error",
-			Message:  "registerPureFnFactory functionID must be a string literal or a local const string in the same module (" + fnNameReason + ")",
-			Site:     siteFromNode(sourceFile, args[1]),
-		})
+		diags = append(diags, diag.New(
+			diag.CodeFunctionIDNotLiteral,
+			siteFromNode(sourceFile, args[1]),
+			"registerPureFnFactory functionID must be a string literal or a local const string in the same module ("+fnNameReason+")",
+		))
 	}
 
 	factoryFn, factoryReason := resolveFactoryArg(table, args[2])
 	if factoryFn == nil {
-		diags = append(diags, Diagnostic{
-			Code:     CodeFactoryNotInline,
-			Category: "error",
-			Message:  "registerPureFnFactory factory must be an inline function/arrow or a local function/const-assigned function in the same module (" + factoryReason + ")",
-			Site:     siteFromNode(sourceFile, args[2]),
-		})
+		diags = append(diags, diag.New(
+			diag.CodeFactoryNotInline,
+			siteFromNode(sourceFile, args[2]),
+			"registerPureFnFactory factory must be an inline function/arrow or a local function/const-assigned function in the same module ("+factoryReason+")",
+		))
 	}
 
 	if nsLit == nil || fnNameLit == nil || factoryFn == nil {
@@ -247,12 +244,11 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 		paramDecl := paramNode.AsParameterDeclaration()
 		nameNode := paramDecl.Name()
 		if nameNode == nil || nameNode.Kind != ast.KindIdentifier {
-			diags = append(diags, Diagnostic{
-				Code:     CodeDestructuredParam,
-				Category: "error",
-				Message:  "registerPureFnFactory factory at \"" + namespace + "::" + functionName + "\" uses destructured parameters — only simple identifier params are allowed",
-				Site:     siteFromNode(sourceFile, paramNode),
-			})
+			diags = append(diags, diag.New(
+				diag.CodeDestructuredParam,
+				siteFromNode(sourceFile, paramNode),
+				"registerPureFnFactory factory at \""+namespace+"::"+functionName+"\" uses destructured parameters — only simple identifier params are allowed",
+			))
 			return nil, diags
 		}
 		paramNames = append(paramNames, nameNode.Text())
@@ -310,14 +306,14 @@ func extractOne(sourceFile *ast.SourceFile, table symbolTable, call *ast.Node) (
 	return entry, diags
 }
 
-// siteFromNode builds a 1-based DiagnosticSite for the node's start/end.
-func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) DiagnosticSite {
+// siteFromNode builds a 1-based diag.Site for the node's start/end.
+func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) diag.Site {
 	if node == nil {
-		return DiagnosticSite{}
+		return diag.Site{}
 	}
 	startLine, startCol := lineCol(sourceFile, node.Pos())
 	endLine, endCol := lineCol(sourceFile, node.End())
-	return DiagnosticSite{
+	return diag.Site{
 		FilePath:  sourceFile.FileName(),
 		StartLine: startLine,
 		StartCol:  startCol,
@@ -329,19 +325,19 @@ func siteFromNode(sourceFile *ast.SourceFile, node *ast.Node) DiagnosticSite {
 // siteFromCall is siteFromNode anchored at a CallExpression's callee position
 // so the diagnostic points at `registerPureFnFactory` instead of the whole
 // argument list.
-func siteFromCall(sourceFile *ast.SourceFile, call *ast.Node) DiagnosticSite {
+func siteFromCall(sourceFile *ast.SourceFile, call *ast.Node) diag.Site {
 	return siteFromNode(sourceFile, call)
 }
 
 // siteFromFile reproduces a site from a previously-captured file + pos pair,
 // used when the winner of a collision lives in a different file from the
 // duplicate.
-func siteFromFile(sourceFile *ast.SourceFile, pos int) DiagnosticSite {
+func siteFromFile(sourceFile *ast.SourceFile, pos int) diag.Site {
 	if sourceFile == nil {
-		return DiagnosticSite{}
+		return diag.Site{}
 	}
 	line, col := lineCol(sourceFile, pos)
-	return DiagnosticSite{
+	return diag.Site{
 		FilePath:  sourceFile.FileName(),
 		StartLine: line,
 		StartCol:  col,

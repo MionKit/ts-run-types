@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {ResolverClient} from './resolver-client.ts';
 import {rewrite} from './rewrite.ts';
-import type {CacheKind, MarkerDiagnostic, PureFnDiagnostic} from './protocol.ts';
+import {Family, Severity, type CacheKind, type Diagnostic} from './protocol.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -101,10 +101,14 @@ export default function runtypes(options: PluginOptions) {
         const dump = await resolver.dump({includeCacheSources: [kind]});
         // PureFn diagnostics flow alongside pureFnsCacheSource only —
         // surface them on that one transform call so each diagnostic is
-        // emitted exactly once per build pass.
+        // emitted exactly once per build pass. Filter to the PureFn
+        // family so we don't double-emit marker/runtype warnings here
+        // (those flow through the scanFiles path).
         if (kind === 'pureFns') {
-          for (const diag of dump.pureFnsDiagnostics ?? []) {
-            this.warn(formatTscDiagnostic(diag));
+          for (const d of dump.diagnostics ?? []) {
+            if (d.family === Family.PureFn) {
+              this.warn(formatTscDiagnostic(d));
+            }
           }
         }
         const body = pickCacheSource(dump, kind);
@@ -167,15 +171,12 @@ export default function runtypes(options: PluginOptions) {
         return;
       }
 
-      // PureFn diagnostics from this scan — surface immediately so
-      // the editor's problem panel updates as the user types.
-      for (const diag of result.pureFnsDiagnostics ?? []) {
-        this.warn?.(formatTscDiagnostic(diag));
-      }
-      // Marker-scanner diagnostics (e.g. function-call-argument
-      // anti-pattern). Same surface as pureFns above.
-      for (const diag of result.markerDiagnostics ?? []) {
-        this.warn?.(formatTscDiagnostic(diag));
+      // Every diagnostic flows through one wire field now; the Family
+      // discriminator inside each entry tells consumers which subsystem
+      // produced it. Re-emit immediately so the editor's problem panel
+      // updates as the user types.
+      for (const d of result.diagnostics ?? []) {
+        this.warn?.(formatTscDiagnostic(d));
       }
 
       const invalidated: any[] = [];
@@ -255,20 +256,32 @@ function pickCacheSource(
   return undefined;
 }
 
-// formatTscDiagnostic renders a diagnostic (pure-fn or marker) in the
-// canonical `tsc --pretty=false` line format so VS Code's $tsc problem
-// matcher recognises it:
+// formatTscDiagnostic renders a Diagnostic in the canonical
+// `tsc --pretty=false` line format so VS Code's $tsc problem matcher
+// recognises it:
 //   /abs/path(line,col): error PFE9001: message
 //     Related: /abs/path(line,col): related message
-export function formatTscDiagnostic(diag: PureFnDiagnostic | MarkerDiagnostic): string {
-  let line = `${diag.site.filePath}(${diag.site.startLine},${diag.site.startCol}): ${diag.category} ${diag.code}: ${diag.message}`;
-  const related = 'related' in diag ? diag.related : undefined;
-  if (related && related.length > 0) {
-    for (const r of related) {
+//
+// Severity is numeric on the wire — switch on it to pick the human
+// label since the canonical line format requires the word, not the digit.
+export function formatTscDiagnostic(d: Diagnostic): string {
+  const label = severityLabel(d.severity);
+  let line = `${d.site.filePath}(${d.site.startLine},${d.site.startCol}): ${label} ${d.code}: ${d.message}`;
+  if (d.related && d.related.length > 0) {
+    for (const r of d.related) {
       line += `\n  Related: ${r.filePath}(${r.startLine},${r.startCol}): ${r.message}`;
     }
   }
   return line;
+}
+
+function severityLabel(s: Severity): string {
+  switch (s) {
+    case Severity.Error: return 'error';
+    case Severity.Warning: return 'warning';
+    case Severity.Info: return 'info';
+    default: return 'info';
+  }
 }
 
 export type {PluginOptions as Options};

@@ -6,10 +6,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 	"github.com/mionkit/ts-run-types/internal/resolver"
 )
+
+// filterDiagsByFamily returns the subset of diags belonging to the given
+// family. Test helper for asserting on per-family diagnostic counts.
+func filterDiagsByFamily(diagnostics []diag.Diagnostic, family diag.Family) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	for _, d := range diagnostics {
+		if d.Family == family {
+			out = append(out, d)
+		}
+	}
+	return out
+}
 
 // atomicFixturesDir is a separate test-fixtures tree so the per-atomic
 // tests are isolated from the broader F1–F16 suite. Retained for the
@@ -1088,21 +1101,22 @@ reflectRuntypeId(makeUser());
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if len(resp.MarkerDiagnostics) != 1 {
-		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	diag := resp.MarkerDiagnostics[0]
-	if diag.Code != "marker/function-call-arg" {
-		t.Fatalf("expected code marker/function-call-arg, got %q", diag.Code)
+	d := markerDiags[0]
+	if d.Code != diag.CodeMarkerFunctionCallArg {
+		t.Fatalf("expected code %s, got %q", diag.CodeMarkerFunctionCallArg, d.Code)
 	}
-	if diag.Category != "warning" {
-		t.Fatalf("expected category warning, got %q", diag.Category)
+	if d.Severity != diag.SeverityWarning {
+		t.Fatalf("expected severity warning (%d), got %d", diag.SeverityWarning, d.Severity)
 	}
-	if !strings.Contains(diag.Message, "makeUser") {
-		t.Fatalf("expected message to mention `makeUser`, got %q", diag.Message)
+	if !strings.Contains(d.Message, "makeUser") {
+		t.Fatalf("expected message to mention `makeUser`, got %q", d.Message)
 	}
-	if !strings.Contains(diag.Message, "ReturnType") {
-		t.Fatalf("expected message to suggest ReturnType, got %q", diag.Message)
+	if !strings.Contains(d.Message, "ReturnType") {
+		t.Fatalf("expected message to suggest ReturnType, got %q", d.Message)
 	}
 	// Site still emitted so the validator works.
 	if len(resp.Sites) != 1 {
@@ -1122,8 +1136,9 @@ reflectRuntypeId(user);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if len(resp.MarkerDiagnostics) != 0 {
-		t.Fatalf("expected 0 marker diagnostics for identifier arg, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 0 {
+		t.Fatalf("expected 0 marker diagnostics for identifier arg, got %d (%+v)", len(markerDiags), markerDiags)
 	}
 }
 
@@ -1191,18 +1206,19 @@ createJsonEncoder<string>(undefined, opts);
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if len(resp.MarkerDiagnostics) != 1 {
-		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 1 {
+		t.Fatalf("expected 1 marker diagnostic, got %d (%+v)", len(markerDiags), markerDiags)
 	}
-	diag := resp.MarkerDiagnostics[0]
-	if diag.Code != "marker/non-literal-options" {
-		t.Fatalf("expected code marker/non-literal-options, got %q", diag.Code)
+	d := markerDiags[0]
+	if d.Code != diag.CodeMarkerNonLiteralOptions {
+		t.Fatalf("expected code %s, got %q", diag.CodeMarkerNonLiteralOptions, d.Code)
 	}
-	if diag.Category != "warning" {
-		t.Fatalf("expected category warning, got %q", diag.Category)
+	if d.Severity != diag.SeverityWarning {
+		t.Fatalf("expected severity warning (%d), got %d", diag.SeverityWarning, d.Severity)
 	}
-	if !strings.Contains(diag.Message, "plain object literal") {
-		t.Fatalf("expected message to mention `plain object literal`, got %q", diag.Message)
+	if !strings.Contains(d.Message, "plain object literal") {
+		t.Fatalf("expected message to mention `plain object literal`, got %q", d.Message)
 	}
 }
 
@@ -1226,7 +1242,8 @@ createJsonEncoder<string>(undefined, {});
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if len(resp.MarkerDiagnostics) != 0 {
-		t.Fatalf("expected 0 marker diagnostics for literal options, got %d (%+v)", len(resp.MarkerDiagnostics), resp.MarkerDiagnostics)
+	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
+	if len(markerDiags) != 0 {
+		t.Fatalf("expected 0 marker diagnostics for literal options, got %d (%+v)", len(markerDiags), markerDiags)
 	}
 }

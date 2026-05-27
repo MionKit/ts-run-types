@@ -7,6 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -93,9 +94,9 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // (scripts/export-{serialization,validation}-suite.mjs) depend on this
 // invariant — they assume scanFiles' work scales with marker-reachable
 // type complexity, NOT with the file's total declaration count.
-func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []protocol.MarkerDiagnostic, error) {
+func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
 	var sites []protocol.Site
-	var diagnostics []protocol.MarkerDiagnostic
+	var diagnostics []diag.Diagnostic
 	for _, file := range files {
 		sourceFile, err := resolver.sourceFile(file)
 		if err != nil {
@@ -137,7 +138,7 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 // function-call-argument anti-pattern warning) — diagnostics are
 // independent of site emission and may be returned with or without
 // a site.
-func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, []protocol.MarkerDiagnostic, bool) {
+func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, []diag.Diagnostic, bool) {
 	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
 	if signature == nil {
 		return protocol.Site{}, nil, false
@@ -174,7 +175,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// Diagnostics accumulated for this call. Emission is independent of
 	// site emission — every diagnostic flows back regardless of whether
 	// the call produces a Site at the end.
-	var diagnostics []protocol.MarkerDiagnostic
+	var diagnostics []diag.Diagnostic
 	// REFLECT-FORM CHECKS: only fire when T was inferred from a value
 	// argument (no explicit type-argument list) AND at least one value
 	// arg is present.
@@ -193,8 +194,8 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// recommended replacement is the static form using `ReturnType<
 		// typeof fn>`. Emit a build warning to nudge the user toward it.
 		if argZero != nil && argZero.Kind == ast.KindCallExpression {
-			if diag, ok := resolver.markerDiagFunctionCallArg(file, argZero); ok {
-				diagnostics = append(diagnostics, diag)
+			if diagnostic, ok := resolver.markerDiagFunctionCallArg(file, argZero); ok {
+				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
 		// REFLECT-FORM ANNOTATION HONORING: when the argument is a
@@ -236,8 +237,8 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if lastIndex > 0 && signatureHasOptionsParam(parameters, lastIndex-1) {
 		if candidate := extractRunTypeOptionsCandidate(call, lastIndex, argsCount); candidate != nil &&
 			candidate.Kind != ast.KindObjectLiteralExpression {
-			if diag, ok := resolver.markerDiagNonLiteralOptions(file, candidate); ok {
-				diagnostics = append(diagnostics, diag)
+			if diagnostic, ok := resolver.markerDiagNonLiteralOptions(file, candidate); ok {
+				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
 	}
@@ -571,37 +572,27 @@ func splitRegexLiteralText(text string) (source, flags string) {
 	return body[:lastSlash], body[lastSlash+1:]
 }
 
-// markerDiagFunctionCallArg builds a MarkerDiagnostic flagging a reflect-form
+// markerDiagFunctionCallArg builds an MKR001 diagnostic flagging a reflect-form
 // marker call that received a function-call argument (`createIsType(getX())`).
 // The function gets invoked at runtime purely so TypeScript can infer T from
 // its return type, which can produce side effects, exceptions, or async work
 // for no reason. The recommended replacement is the static form using
 // `ReturnType<typeof fn>`. Returns (_, false) when the call's source file
 // can't be located (defensive — shouldn't happen during scanFiles).
-func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.Node) (protocol.MarkerDiagnostic, bool) {
+func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.Node) (diag.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(callArg)
 	if sourceFile == nil {
-		return protocol.MarkerDiagnostic{}, false
+		return diag.Diagnostic{}, false
 	}
 	startLine, startCol := scanLineCol(sourceFile, callArg.Pos())
 	endLine, endCol := scanLineCol(sourceFile, callArg.End())
 	fnName := callExpressionName(callArg)
-	message := fmt.Sprintf(
+	return diag.Newf(
+		diag.CodeMarkerFunctionCallArg,
+		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
 		"Reflect-form marker call received a function-call result. The function `%s` is invoked at runtime purely to satisfy type inference, which can cause side effects, exceptions, or async work for no reason. Use the static form with `ReturnType<typeof fn>` instead — e.g. `createIsType<ReturnType<typeof %s>>()` — or pass a real value of the desired type.",
 		fnName, fnName,
-	)
-	return protocol.MarkerDiagnostic{
-		Code:     "marker/function-call-arg",
-		Category: "warning",
-		Message:  message,
-		Site: protocol.PureFnDiagSite{
-			FilePath:  file,
-			StartLine: startLine,
-			StartCol:  startCol,
-			EndLine:   endLine,
-			EndCol:    endCol,
-		},
-	}, true
+	), true
 }
 
 // markerDiagNonLiteralOptions flags a marker call whose options slot
@@ -612,26 +603,18 @@ func (resolver *Resolver) markerDiagFunctionCallArg(file string, callArg *ast.No
 // wanted. The recommended pattern is to pass a literal object
 // directly at the call site so the option values are visible to the
 // resolver and folded into the JIT cache id.
-func (resolver *Resolver) markerDiagNonLiteralOptions(file string, optionsNode *ast.Node) (protocol.MarkerDiagnostic, bool) {
+func (resolver *Resolver) markerDiagNonLiteralOptions(file string, optionsNode *ast.Node) (diag.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(optionsNode)
 	if sourceFile == nil {
-		return protocol.MarkerDiagnostic{}, false
+		return diag.Diagnostic{}, false
 	}
 	startLine, startCol := scanLineCol(sourceFile, optionsNode.Pos())
 	endLine, endCol := scanLineCol(sourceFile, optionsNode.End())
-	message := "Marker options must be a plain object literal at the call site (e.g. `{mode: 'unsafe'}`). The resolver evaluates options at build time and folds their values into the JIT cache id — identifiers, spreads, and function-call results can't be read at build time and are silently treated as zero options."
-	return protocol.MarkerDiagnostic{
-		Code:     "marker/non-literal-options",
-		Category: "warning",
-		Message:  message,
-		Site: protocol.PureFnDiagSite{
-			FilePath:  file,
-			StartLine: startLine,
-			StartCol:  startCol,
-			EndLine:   endLine,
-			EndCol:    endCol,
-		},
-	}, true
+	return diag.New(
+		diag.CodeMarkerNonLiteralOptions,
+		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+		"Marker options must be a plain object literal at the call site (e.g. `{mode: 'unsafe'}`). The resolver evaluates options at build time and folds their values into the JIT cache id — identifiers, spreads, and function-call results can't be read at build time and are silently treated as zero options.",
+	), true
 }
 
 // callExpressionName returns a short label for a CallExpression's callee —

@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
+	"github.com/mionkit/ts-run-types/internal/diag"
 )
 
 // pureFnDepMethods is the set of jitUtils methods whose first argument
@@ -36,13 +37,13 @@ var pureFnDepMethods = map[string]bool{
 // cross-namespace resolver (mion's findCompiledPureFn) treats it the
 // same way as a suffix match. This mirrors the historical behaviour of
 // the tracking proxy.
-func extractDeps(sourceFile *ast.SourceFile, factoryFn *ast.Node, fileTable symbolTable, utlName string) ([]string, []Diagnostic) {
+func extractDeps(sourceFile *ast.SourceFile, factoryFn *ast.Node, fileTable symbolTable, utlName string) ([]string, []diag.Diagnostic) {
 	if utlName == "" {
 		return nil, nil
 	}
 	localTable := buildFactoryLocalTable(factoryFn)
 	depSet := map[string]bool{}
-	var diags []Diagnostic
+	var diags []diag.Diagnostic
 	var visit ast.Visitor
 	visit = func(node *ast.Node) bool {
 		if node == nil {
@@ -79,7 +80,7 @@ func handleCall(
 	fileTable, localTable symbolTable,
 	utlName string,
 	depSet map[string]bool,
-	diags *[]Diagnostic,
+	diags *[]diag.Diagnostic,
 ) {
 	callExpr := call.AsCallExpression()
 	if callExpr == nil || callExpr.Expression == nil {
@@ -111,12 +112,11 @@ func handleCall(
 	arg := callExpr.Arguments.Nodes[0]
 	literal, _ := resolveDepArg(localTable, fileTable, arg)
 	if literal == nil {
-		*diags = append(*diags, Diagnostic{
-			Code:     CodePurityDepNotLiteral,
-			Category: "error",
-			Message:  "pure-fn dependency arg to `" + utlName + "." + method + "` must be a string literal or a local const string in the same scope",
-			Site:     siteFromNode(sourceFile, arg),
-		})
+		*diags = append(*diags, diag.New(
+			diag.CodePurityDepNotLiteral,
+			siteFromNode(sourceFile, arg),
+			"pure-fn dependency arg to `"+utlName+"."+method+"` must be a string literal or a local const string in the same scope",
+		))
 		return
 	}
 	depKey := literal.Text()

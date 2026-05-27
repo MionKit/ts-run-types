@@ -18,7 +18,11 @@
 // hash regardless of declaration order or alias name.
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/mionkit/ts-run-types/internal/diag"
+)
 
 func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
 
@@ -480,61 +484,20 @@ type Response struct {
 	// Populated on OpDump and on OpScanFiles when the caller opts into
 	// CacheKindPureFns / CacheKindAll via IncludeCacheSources.
 	PureFnsCacheSource string `json:"pureFnsCacheSource,omitempty"`
-	// PureFnsDiagnostics carries non-fatal extractor errors (bad arg
-	// shapes, body-hash collisions, purity violations, dep-arg shape
-	// errors). The Vite plugin re-emits each one via `this.warn` in
-	// canonical tsc line format. Schema mirrors the LSP Diagnostic shape
-	// so downstream tooling (LSP servers, ESLint reporters, problem
-	// matchers) can ingest with minimal glue.
-	PureFnsDiagnostics []PureFnDiagnostic `json:"pureFnsDiagnostics,omitempty"`
-	// MarkerDiagnostics carries non-fatal resolver warnings about
-	// marker call-site usage — currently only the "function-call
-	// argument in reflect form" anti-pattern (e.g. `createIsType(getX())`
-	// invokes getX() at runtime purely for type inference). Emitted
-	// from scanCall; surfaced through the same `this.warn` channel as
-	// pure-fn diagnostics.
-	MarkerDiagnostics []MarkerDiagnostic `json:"markerDiagnostics,omitempty"`
+	// Diagnostics carries every non-fatal diagnostic the Go binary
+	// emits — pure-fn extractor (PFE9xxx), marker scanner (MKRxxx),
+	// JIT compiler (IT/TE/PJ/…/FB) — through one wire channel. The
+	// Family discriminator inside each entry tells the consumer which
+	// subsystem produced it; the Code is the stable identifier and
+	// Severity classifies impact. Vite plugin re-emits each via
+	// `this.warn(diag.FormatTsc(d))` so VS Code's $tsc problem matcher
+	// picks them up. Schema mirrors the LSP Diagnostic shape.
+	Diagnostics []diag.Diagnostic `json:"diagnostics,omitempty"`
 	// TsCompileMs is populated by OpTsCompile only. Wall time of the
 	// tsgo bind + typecheck + Emit() pass on the resolver's current
 	// source overlay, in milliseconds. Zero for every other op.
 	TsCompileMs float64 `json:"tsCompileMs,omitempty"`
 	Error       string  `json:"error,omitempty"`
-}
-
-// PureFnDiagnostic is the wire shape of purefns.Diagnostic. The Vite
-// plugin re-emits each one as a build warning so VS Code's $tsc problem
-// matcher surfaces it in the Problems panel.
-type PureFnDiagnostic struct {
-	Code     string          `json:"code"`
-	Category string          `json:"category"` // "error" | "warning"
-	Message  string          `json:"message"`
-	Site     PureFnDiagSite  `json:"site"`
-	Related  []PureFnRelated `json:"related,omitempty"`
-}
-
-type PureFnDiagSite struct {
-	FilePath  string `json:"filePath"`
-	StartLine int    `json:"startLine"`
-	StartCol  int    `json:"startCol"`
-	EndLine   int    `json:"endLine"`
-	EndCol    int    `json:"endCol"`
-}
-
-type PureFnRelated struct {
-	PureFnDiagSite
-	Message string `json:"message"`
-}
-
-// MarkerDiagnostic is a non-fatal warning from the marker scanner about
-// a marker call-site that compiles correctly but uses an anti-pattern.
-// Today the only emitted code is "marker/function-call-arg" — passing a
-// function-call expression as the reflect-form value argument. The Vite
-// plugin re-emits each one as a build warning via `this.warn`.
-type MarkerDiagnostic struct {
-	Code     string         `json:"code"`
-	Category string         `json:"category"` // "warning"
-	Message  string         `json:"message"`
-	Site     PureFnDiagSite `json:"site"`
 }
 
 // Site records one transformer-injection point. Pos is the byte offset of
@@ -688,11 +651,8 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.PureFnsCacheSource != "" {
 		out["pureFnsCacheSource"] = response.PureFnsCacheSource
 	}
-	if len(response.PureFnsDiagnostics) > 0 {
-		out["pureFnsDiagnostics"] = response.PureFnsDiagnostics
-	}
-	if len(response.MarkerDiagnostics) > 0 {
-		out["markerDiagnostics"] = response.MarkerDiagnostics
+	if len(response.Diagnostics) > 0 {
+		out["diagnostics"] = response.Diagnostics
 	}
 	if response.TsCompileMs > 0 {
 		out["tsCompileMs"] = response.TsCompileMs
