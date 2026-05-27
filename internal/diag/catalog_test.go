@@ -77,7 +77,7 @@ func TestDiagnostic_MarshalJSON_NumericSeverityAndFamily(t *testing.T) {
 }
 
 func TestDiagnostic_MarshalJSON_OmitsEmptyArgs(t *testing.T) {
-	d := New(CodeMarkerNonLiteralOptions, Site{FilePath: "/a.ts", StartLine: 1, StartCol: 1})
+	d := New(CodeCompTimeArgsNonLiteral, Site{FilePath: "/a.ts", StartLine: 1, StartCol: 1})
 	out, err := json.Marshal(d)
 	if err != nil {
 		t.Fatal(err)
