@@ -1,0 +1,164 @@
+package resolver_test
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
+
+// runtypeDiagsOf is the analogue of filterDiagsByFamily for runtype
+// diagnostics — keeps the assertions terse without forcing a map lookup
+// per test.
+func runtypeDiagsOf(diagnostics []diag.Diagnostic) []diag.Diagnostic {
+	return filterDiagsByFamily(diagnostics, diag.FamilyRunType)
+}
+
+// TestDiag_RuntypeJitThrow_NeverAtRoot pins the end-to-end runtype
+// diagnostic flow. A `getRuntypeId<never>()` call site reaches the
+// prepareForJson emitter's JitThrow site for KindNever, which records
+// a PJ001 diagnostic against the marker call site. The diagnostic
+// fans out one entry per call site (per user direction: dedup is
+// one-per-call-site, not one-per-type-id).
+func TestDiag_RuntypeJitThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<never>();
+`
+	r := setupInline(t, map[string]string{"a.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"a.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	runtypeDiags := runtypeDiagsOf(resp.Diagnostics)
+	if len(runtypeDiags) == 0 {
+		t.Fatalf("expected at least one runtype diagnostic, got 0 (%+v)", resp.Diagnostics)
+	}
+	var found *diag.Diagnostic
+	for i := range runtypeDiags {
+		if runtypeDiags[i].Code == diag.CodePJNeverRoot {
+			found = &runtypeDiags[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected a %s diagnostic, got %+v", diag.CodePJNeverRoot, runtypeDiags)
+	}
+	if found.Severity != diag.SeverityError {
+		t.Errorf("severity: got %d want %d", found.Severity, diag.SeverityError)
+	}
+	if !strings.Contains(found.Site.FilePath, "a.ts") {
+		t.Errorf("site filePath: got %q, expected to contain 'a.ts'", found.Site.FilePath)
+	}
+	if found.Site.StartLine == 0 || found.Site.StartCol == 0 {
+		t.Errorf("expected populated line/col, got line=%d col=%d", found.Site.StartLine, found.Site.StartCol)
+	}
+	if !strings.Contains(found.Message, "Never type") {
+		t.Errorf("message: got %q, expected to mention 'Never type'", found.Message)
+	}
+}
+
+// TestDiag_RuntypeJitThrow_FunctionAtRoot exercises the function-root
+// throw across the JSON families. `getRuntypeId<() => void>()` reaches
+// the function-root JitThrow in each family.
+func TestDiag_RuntypeJitThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<() => void>();
+`
+	r := setupInline(t, map[string]string{"f.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"f.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	runtypeDiags := runtypeDiagsOf(resp.Diagnostics)
+	var found *diag.Diagnostic
+	for i := range runtypeDiags {
+		if runtypeDiags[i].Code == diag.CodePJFunctionRoot {
+			found = &runtypeDiags[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected a %s diagnostic, got %+v", diag.CodePJFunctionRoot, runtypeDiags)
+	}
+}
+
+// TestDiag_PerFamilyPrefix_DistinctCodes pins the per-family prefix
+// scheme. The same logical throw (Never at root) under different
+// emitters surfaces as distinct codes — SJ001 for stringifyJson,
+// TB001 for toBinary, etc. — so users reading their build log can
+// see which JIT family produced the diagnostic without parsing
+// message text.
+func TestDiag_PerFamilyPrefix_NeverAtRoot_DistinctCodes(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<never>();
+`
+	r := setupInline(t, map[string]string{"n.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:    protocol.OpScanFiles,
+		Files: []string{"n.ts"},
+		IncludeCacheSources: []protocol.CacheKind{
+			protocol.CacheKindPrepareForJson,
+			protocol.CacheKindStringifyJson,
+			protocol.CacheKindToBinary,
+		},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	codes := map[string]bool{}
+	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
+		codes[d.Code] = true
+	}
+	for _, expected := range []string{diag.CodePJNeverRoot, diag.CodeSJNeverRoot, diag.CodeTBNeverRoot} {
+		if !codes[expected] {
+			t.Errorf("expected diagnostic code %s in %v", expected, codes)
+		}
+	}
+}
+
+// TestDiag_RuntypeFansOutAcrossCallSites pins the per-user-direction
+// dedup rule: when N marker calls reference the same RT ID with the
+// same problem, emit N diagnostics — one per call site — not one
+// shared by them all.
+func TestDiag_RuntypeFansOutAcrossCallSites(t *testing.T) {
+	const code = `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const a = getRuntypeId<never>();
+export const b = getRuntypeId<never>();
+export const c = getRuntypeId<never>();
+`
+	r := setupInline(t, map[string]string{"multi.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:                  protocol.OpScanFiles,
+		Files:               []string{"multi.ts"},
+		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	var neverDiags []diag.Diagnostic
+	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
+		if d.Code == diag.CodePJNeverRoot {
+			neverDiags = append(neverDiags, d)
+		}
+	}
+	if len(neverDiags) != 3 {
+		t.Fatalf("expected 3 diagnostics (one per call site), got %d (%+v)", len(neverDiags), neverDiags)
+	}
+	// Each entry has its own distinct line.
+	seenLines := map[int]bool{}
+	for _, d := range neverDiags {
+		seenLines[d.Site.StartLine] = true
+	}
+	if len(seenLines) != 3 {
+		t.Errorf("expected 3 distinct call-site lines, got %d (%v)", len(seenLines), seenLines)
+	}
+}

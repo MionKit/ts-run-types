@@ -187,7 +187,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// `emitPrepareForJson(): JitCode { throw new Error('Never
 		// type cannot be encoded to JSON.'); }`. Surfaced as a
 		// runtime-throwing factory via JitThrow.
-		return JitThrow("Never type cannot be encoded to JSON.")
+		return ctx.JitThrowDiagSlot(SlotNeverRoot, "Never type cannot be encoded to JSON.")
 
 	case protocol.KindBigInt:
 		// mion:nodes/atomic/bigInt.ts:20 — `v.toString()`.
@@ -223,7 +223,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			return JitThrow("Jit compilation disabled for Non Serializable types.")
+			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 		}
 		return JitCode{Code: "", Type: CodeNS}
 
@@ -231,7 +231,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// mion:nodes/native/promise.ts:23-24 — `emitPrepareForJson():
 		// JitCode { throw new Error('Jit compilation disabled for
 		// Non Serializable types.'); }`. Same throw-factory pattern.
-		return JitThrow("Jit compilation disabled for Non Serializable types.")
+		return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJson(rt, ctx, v)
@@ -259,7 +259,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// emitObjectPrepareForJson / emitPropertyPrepareForJson) and
 		// never reach this arm. Tuple-member also filters via
 		// isFunctionLikeKind.
-		return JitThrow("Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
+		return ctx.JitThrowDiagSlot(SlotFunctionRoot, "Compile function PrepareForJson not supported, call compileParams or compileReturn instead.")
 
 	case protocol.KindUnion:
 		// Unions encode via the flat-union wire shape (see union_flat.go) —
@@ -309,7 +309,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 			// ie: Symbol[], Function[], etc." when the element's
 			// skipJit returns true (Symbol, Function). We mirror via
 			// a throw-factory.
-			return JitThrow("Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
+			return ctx.JitThrowDiagSlot(SlotArrayElement, "Arrays can not have non serializable types, ie: Symbol[], Function[], etc.")
 		}
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
