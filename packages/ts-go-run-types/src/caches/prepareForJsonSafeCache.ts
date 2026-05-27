@@ -9,9 +9,26 @@
 // is identical to `prepareForJson + JSON.stringify`.
 //
 // Consumers opt in via createPrepareForJsonSafe; the non-safe cache
-// stays untouched.
+// stays untouched. See `isTypeCache.ts` for the JSDoc conventions.
 
 'use strict';
+
+/**
+ * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').PrepareForJsonFn>} PrepareForJsonSafeJitFn
+ */
+
+/**
+ * @typedef {object} PrepareForJsonSafeInitArgs
+ * @property {string} jitFnHash
+ * @property {string} typeName
+ * @property {string|undefined} code
+ * @property {boolean} isNoop
+ * @property {ReadonlyArray<string>|undefined} jitDependencies
+ * @property {ReadonlyArray<string>|undefined} pureFnDependencies
+ * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').PrepareForJsonFn)|undefined} createJitFn
+ * @property {string|undefined} alwaysThrowCode  Per-family diag code (PJS001 / PJS005 / …) on alwaysThrow entries.
+ * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
+ */
 
 export function initCache(jitUtils) {
   function init(
@@ -28,7 +45,8 @@ export function initCache(jitUtils) {
     const fn = isNoop ? noopPrepareForJsonSafe : undefined;
     const resolvedCreateJitFn =
       alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    jitUtils.addToJitCache({
+    /** @type {PrepareForJsonSafeJitFn} */
+    const entry = {
       jitFnHash,
       fnID: 'pjs',
       typeName,
@@ -41,7 +59,9 @@ export function initCache(jitUtils) {
       createJitFn: resolvedCreateJitFn,
       fn,
       alwaysThrowCode,
-    });
+      alwaysThrowSite,
+    };
+    jitUtils.addToJitCache(entry);
   }
   void init;
   function noopPrepareForJsonSafe(v) {

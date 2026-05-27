@@ -7,8 +7,26 @@
 // Mirrors `getTypeErrorsCache.ts` exactly with the `fnID: 'uke'` tag.
 // Every JitCompiledFn entry produces a (v, pth=[], er=[]) validator
 // that appends one RunTypeError of expected='never' per unknown key.
+// See `isTypeCache.ts` for the JSDoc conventions used below.
 
 'use strict';
+
+/**
+ * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').UnknownKeyErrorsFn>} UnknownKeyErrorsJitFn
+ */
+
+/**
+ * @typedef {object} UnknownKeyErrorsInitArgs
+ * @property {string} jitFnHash
+ * @property {string} typeName
+ * @property {string|undefined} code
+ * @property {boolean} isNoop
+ * @property {ReadonlyArray<string>|undefined} jitDependencies
+ * @property {ReadonlyArray<string>|undefined} pureFnDependencies
+ * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').UnknownKeyErrorsFn)|undefined} createJitFn
+ * @property {string|undefined} alwaysThrowCode  Per-family diag code (UKE…) on alwaysThrow entries.
+ * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
+ */
 
 export function initCache(jitUtils) {
   // Module-local pure-fn key consts. The Go emitter references these
@@ -36,7 +54,8 @@ export function initCache(jitUtils) {
     const fn = isNoop ? noopUnknownKeyErrors : undefined;
     const resolvedCreateJitFn =
       alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    jitUtils.addToJitCache({
+    /** @type {UnknownKeyErrorsJitFn} */
+    const entry = {
       jitFnHash,
       fnID: 'uke',
       typeName,
@@ -49,7 +68,9 @@ export function initCache(jitUtils) {
       createJitFn: resolvedCreateJitFn,
       fn,
       alwaysThrowCode,
-    });
+      alwaysThrowSite,
+    };
+    jitUtils.addToJitCache(entry);
   }
   void init;
   void k_nRT;
