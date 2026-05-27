@@ -1,4 +1,4 @@
-// End-to-end test for the on-disk JIT artifact cache. Spawns a
+// End-to-end test for the on-disk RT artifact cache. Spawns a
 // short-lived ResolverClient with --cache-dir pointed at a temp
 // directory, runs a scanFiles request, asserts that:
 //   1. cache files appear under <cacheDir>/<fp>/<typeID>/<fnTag>.json
@@ -34,7 +34,7 @@ async function renderIsTypeFor(client: ResolverClient, files: Record<string, str
 
 const skipUnlessBinary = hasBinary() ? describe : describe.skip;
 
-skipUnlessBinary('disk JIT cache (end-to-end)', () => {
+skipUnlessBinary('disk RT cache (end-to-end)', () => {
   // One scratch root per describe block; each test gets its own subdir.
   let scratchRoot: string;
   beforeAll(() => {
@@ -64,14 +64,14 @@ skipUnlessBinary('disk JIT cache (end-to-end)', () => {
 
     // At least one typeID directory should have an `it.json` for the
     // string we resolved. Walk the tree; assert there's at least one
-    // `it.json` and its contents look like a JITEntry.
-    const jitFiles: string[] = [];
+    // `it.json` and its contents look like a RTEntry.
+    const rtFiles: string[] = [];
     for (const typeId of fs.readdirSync(fpDir)) {
       const itPath = path.join(fpDir, typeId, 'it.json');
-      if (fs.existsSync(itPath)) jitFiles.push(itPath);
+      if (fs.existsSync(itPath)) rtFiles.push(itPath);
     }
-    expect(jitFiles.length).toBeGreaterThan(0);
-    const parsed = JSON.parse(fs.readFileSync(jitFiles[0], 'utf8'));
+    expect(rtFiles.length).toBeGreaterThan(0);
+    const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
     expect(parsed.version).toBe(1);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);

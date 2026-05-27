@@ -46,7 +46,7 @@ Options:
     --inline-server     persistent inline-sources server: start with no
                         Program, accept setSources / resetCache / scanFiles /
                         dump ops; used by long-lived test daemons
-    --cache-dir PATH    base directory for the on-disk JIT artifact cache
+    --cache-dir PATH    base directory for the on-disk RT artifact cache
                         (typically node_modules/.cache/ts-go-run-types).
                         Per-(typeID, fnTag) files under
                         <cache-dir>/<optsFingerprint>/<typeID>/<fnTag>.json
@@ -74,7 +74,7 @@ func main() {
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
-		emitCreateJitFn    bool
+		emitCreateRTFn    bool
 		help               bool
 	)
 	flag.StringVar(&tsconfigPath, "tsconfig", "", "tsconfig.json path")
@@ -92,9 +92,9 @@ func main() {
 	flag.BoolVar(&inlineServer, "inline-server", false,
 		"persistent inline-sources server: start with no Program; accept setSources / resetCache ops")
 	flag.StringVar(&cacheDir, "cache-dir", "",
-		"base directory for the on-disk JIT artifact cache (empty disables)")
-	flag.BoolVar(&emitCreateJitFn, "emit-create-jit-fn", false,
-		"emit the inline createJitFn closure on every cache entry alongside the body string. "+
+		"base directory for the on-disk RT artifact cache (empty disables)")
+	flag.BoolVar(&emitCreateRTFn, "emit-create-rt-fn", false,
+		"emit the inline createRTFn closure on every cache entry alongside the body string. "+
 			"Default false — the JS side rebuilds the factory from `code` via `new Function` on first lookup. "+
 			"Set true for runtimes that disallow dynamic code (Cloudflare WorkerD, browser CSP without unsafe-eval).")
 	flag.BoolVar(&help, "help", false, "show help")
@@ -133,7 +133,7 @@ func main() {
 		Cwd:               absCwd,
 		SingleThreaded:    singleThreaded,
 		CacheDir:          cacheDir,
-		EmitCreateJitFn:   emitCreateJitFn,
+		EmitCreateRTFn:   emitCreateRTFn,
 	}
 
 	var r *resolver.Resolver

@@ -8,45 +8,45 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').GetTypeErrorsJitFn} GetTypeErrorsJitFn */
+/** @typedef {import('../rt/types.ts').GetTypeErrorsRTFn} GetTypeErrorsRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   // Pure-fn key consts referenced by emitted factory bodies. Mirror the
   // Go-side alias table at internal/compiled/typefns/purefn_aliases.go.
   const k_nRT = 'mion::newRunTypeErr';
   const k_sIK = 'mion::safeIterableKey';
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopTypeErrors : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {GetTypeErrorsJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {GetTypeErrorsRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'te',
       typeName,
       args: {vλl: 'v', pλth: 'pth', εrr: 'er'},
       defaultParamValues: {vλl: undefined, pλth: [], εrr: []},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   void k_nRT;

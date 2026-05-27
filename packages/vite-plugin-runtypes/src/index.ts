@@ -11,15 +11,15 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
-  // When true, the Go binary emits the inline `createJitFn` closure on
-  // every JIT cache entry alongside the body `code` string. Default
-  // false — the JS-side `materializeJitFn` rebuilds factories from
+  // When true, the Go binary emits the inline `createRTFn` closure on
+  // every RT cache entry alongside the body `code` string. Default
+  // false — the JS-side `materializeRTFn` rebuilds factories from
   // `code` via `new Function('utl', code)` on first lookup, saving
   // ~the size of one body copy per entry. Set true for runtimes that
   // disallow dynamic code construction (Cloudflare WorkerD, sandboxed
   // iframes, CSP without `unsafe-eval`). Test setups also enable this
   // so suites can cover both materialisation paths on every case.
-  emitCreateJitFn?: boolean;
+  emitCreateRTFn?: boolean;
 }
 
 // MARKER_MODULE is the fixed package every marker brand is declared in.
@@ -86,7 +86,7 @@ export default function runtypes(options: PluginOptions) {
       const cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
-        emitCreateJitFn: options.emitCreateJitFn ?? false,
+        emitCreateRTFn: options.emitCreateRTFn ?? false,
       });
     },
 
@@ -156,7 +156,7 @@ export default function runtypes(options: PluginOptions) {
     //      so Vite ships them in a single HMR message. The cache
     //      module's `accept` callback fires before the user file's swap,
     //      so any new hash id rewritten into the user file already has
-    //      a backing jitUtils entry.
+    //      a backing rtUtils entry.
     async handleHotUpdate(this: any, ctx: any) {
       if (!resolver) return;
       const file: string = ctx.file;
@@ -316,7 +316,7 @@ function surfaceDiagnostics(
 //     Related: /abs/path(line,col): related message
 //
 // The user-facing headline is resolved from the JS-side catalog
-// (`packages/ts-go-run-types/src/jit/diagnosticCatalog.ts`) — the wire
+// (`packages/ts-go-run-types/src/rt/diagnosticCatalog.ts`) — the wire
 // only carries the diagnostic code + optional positional args. Severity
 // is numeric on the wire — switch on it to pick the human label since
 // the canonical line format requires the word, not the digit.

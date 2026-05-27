@@ -22,15 +22,11 @@ function assertGetTypeErrors(c: ValidationCase): void {
   // invocation. getExpectedErrors / samples are not consulted.
   if (c.factoryThrows) {
     expect(() => c.getTypeErrors!(), `${c.title} [static]: factory must throw`).toThrow();
-    if (c.getTypeErrorsReflect)
-      expect(() => c.getTypeErrorsReflect(), `${c.title} [reflect]: factory must throw`).toThrow();
+    if (c.getTypeErrorsReflect) expect(() => c.getTypeErrorsReflect(), `${c.title} [reflect]: factory must throw`).toThrow();
     if (c.deserializeGetTypeErrors)
       expect(() => c.deserializeGetTypeErrors!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
     if (c.deserializeGetTypeErrorsReflect)
-      expect(
-        () => c.deserializeGetTypeErrorsReflect!(),
-        `${c.title} [deserialize-reflect]: factory must throw`
-      ).toThrow();
+      expect(() => c.deserializeGetTypeErrorsReflect!(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
     return;
   }
 

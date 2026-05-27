@@ -8,45 +8,45 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').HasUnknownKeysJitFn} HasUnknownKeysJitFn */
+/** @typedef {import('../rt/types.ts').HasUnknownKeysRTFn} HasUnknownKeysRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   // Pure-fn key consts referenced by emitted factory bodies. Mirror the
   // Go-side alias table at internal/compiled/typefns/purefn_aliases.go.
   const k_hUKFA = 'mion::hasUnknownKeysFromArray';
   const k_gUKFA = 'mion::getUnknownKeysFromArray';
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopHasUnknownKeys : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {HasUnknownKeysJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {HasUnknownKeysRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'huk',
       typeName,
       args: {vλl: 'v', θpts: 'opts'},
       defaultParamValues: {vλl: undefined, θpts: {}},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   void k_hUKFA;

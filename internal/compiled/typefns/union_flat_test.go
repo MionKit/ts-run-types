@@ -73,11 +73,11 @@ func renderModule(t *testing.T, dump protocol.Dump, fn func(*bytes.Buffer, proto
 // dispatch for the object members (the whole point of the optimisation).
 func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	// EmitCreateJitFn=true so the body assertions below match the
+	// EmitCreateRTFn=true so the body assertions below match the
 	// un-escaped form inside the `function g_pj_uni(utl){…}` closure.
 	// See module_test.go's renderToString comment for the rationale.
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonModule(w, d, RenderOpts{EmitCreateJitFn: true})
+		return PrepareForJsonModule(w, d, RenderOpts{EmitCreateRTFn: true})
 	})
 
 	if !strings.Contains(out, "g_pj_uni") {
@@ -139,10 +139,10 @@ func TestRestoreFromJsonModule_ObjectUnionDecodesFlat(t *testing.T) {
 // conditional concat (one comma is prepended per populated branch).
 func TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	// EmitCreateJitFn=true so the body assertions match the
+	// EmitCreateRTFn=true so the body assertions match the
 	// un-escaped form inside the inline factory closure.
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return StringifyJsonModule(w, d, RenderOpts{EmitCreateJitFn: true})
+		return StringifyJsonModule(w, d, RenderOpts{EmitCreateRTFn: true})
 	})
 
 	if !strings.Contains(out, "'[-1,'") {

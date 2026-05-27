@@ -1,4 +1,4 @@
-// Package typefns ports mion's JitFnCompiler to Go so validator functions
+// Package typefns ports mion's RTFnCompiler to Go so validator functions
 // (isType, typeErrors, prepareForJson, …) can be precompiled at build
 // time and shipped as static JS source instead of being assembled at
 // runtime via `new Function`.
@@ -13,15 +13,15 @@
 // silently skip that entry's factory (see CodeNS below).
 //
 // Mirrors:
-//   - mion/packages/run-types/src/lib/jitFnCompiler.ts (BaseFnCompiler)
-//   - mion/packages/run-types/src/lib/createJitFunction.ts (closure assembly)
-//   - mion/packages/run-types/src/jitCompilers/json/stringifyJson.ts (the
+//   - mion/packages/run-types/src/lib/rtFnCompiler.ts (BaseFnCompiler)
+//   - mion/packages/run-types/src/lib/createRTFunction.ts (closure assembly)
+//   - mion/packages/run-types/src/rtCompilers/json/stringifyJson.ts (the
 //     "single big switch over ReflectionKind" dispatch pattern this
 //     package uses for `EmitIsType`).
 package typefns
 
 // CodeType matches mion's CodeTypes enum
-// (run-types/src/constants.functions.ts:11). A JitCode snippet must
+// (run-types/src/constants.functions.ts:11). A RTCode snippet must
 // declare which of the four shapes its source text takes so the
 // parent frame knows whether it can be interpolated as-is, wrapped
 // in a self-invoking function, terminated with a fullstop, or
@@ -53,12 +53,12 @@ const (
 	// The renderer's contract: when a top-level Walker.Compile()
 	// returns isUnsupported=true, no factory is emitted for that
 	// RunType — the runtime cache miss is caught by createIsType's
-	// hasRunType-but-no-jit fallback and degrades to `() => true`,
+	// hasRunType-but-no-rt fallback and degrades to `() => true`,
 	// which mirrors mion's "no validator available" stance.
 	CodeNS CodeType = "NS"
 )
 
-// JitCode is one emitter's output. `Code == ""` means "no code emitted"
+// RTCode is one emitter's output. `Code == ""` means "no code emitted"
 // (mion uses `undefined` for the same state — both halves treat empty
 // snippets as a noop the orchestrator can drop).
 //
@@ -67,25 +67,25 @@ const (
 // throws inside emitPrepareForJson / emitRestoreFromJson (never,
 // Promise, NonSerializableRunType, the `Arrays can not have non
 // serializable types` check in array.ts) propagate as JS exceptions out
-// of createJitFunction; our equivalent lands the message here, the
+// of createRTFunction; our equivalent lands the message here, the
 // walker latches it onto Walker.ThrowMessage on the first encounter,
 // and module.go emits a `function(utl){ throw new Error(<msg>) }`
 // factory so the throw surfaces at createPrepareForJson()-call time
-// (matching mion's "throws at JIT compile" semantic).
-type JitCode struct {
+// (matching mion's "throws at RT compile" semantic).
+type RTCode struct {
 	Code         string
 	Type         CodeType
 	ErrorMessage string
 }
 
-// JitThrow returns a CodeNS JitCode carrying a message. Renderer emits
+// RTThrow returns a CodeNS RTCode carrying a message. Renderer emits
 // a throw-factory whose body raises `new Error(message)` when invoked,
 // so the throw surfaces at `createPrepareForJson<T>()` call time (which
-// triggers the entry's first getJIT lookup → materialize →
-// createJitFn(utl) → throw). Mirrors mion's per-runtype throws in
+// triggers the entry's first getRT lookup → materialize →
+// createRTFn(utl) → throw). Mirrors mion's per-runtype throws in
 // nodes/atomic/never.ts, nodes/native/promise.ts,
 // nodes/native/nonSerializable.ts, and the explicit
 // checkNonSkipTypes() in nodes/member/array.ts.
-func JitThrow(message string) JitCode {
-	return JitCode{Code: "", Type: CodeNS, ErrorMessage: message}
+func RTThrow(message string) RTCode {
+	return RTCode{Code: "", Type: CodeNS, ErrorMessage: message}
 }

@@ -2,10 +2,10 @@ package typefns
 
 import "github.com/mionkit/ts-run-types/internal/protocol"
 
-// InlineContext is the input to an Emitter.IsJitInlined call. Mirrors
-// the surface mion's `BaseRunType.isJitInlined` reads from `this`
+// InlineContext is the input to an Emitter.IsRTInlined call. Mirrors
+// the surface mion's `BaseRunType.isRTInlined` reads from `this`
 // (run-types/src/lib/baseRunTypes.ts:52) plus the env / depth flags
-// that live caller-side in mion's JitFnCompiler. Keeping the fields
+// that live caller-side in mion's RTFnCompiler. Keeping the fields
 // explicit makes the predicate easy to override per-fn (the user's
 // stated reason for moving inlining decisions onto Emitters) without
 // forcing every implementation to reach back into the Walker.
@@ -18,7 +18,7 @@ type InlineContext struct {
 	// Kind, TypeName, and FamilyOf(Kind) — same triplet mion uses.
 	RT *protocol.RunType
 	// DebugInline is the resolved value of mion's
-	// `getENV('DEBUG_JIT') === 'INLINED'` flag — when true the
+	// `getENV('DEBUG_RT') === 'INLINED'` flag — when true the
 	// predicate must return true regardless of other heuristics, so
 	// developers can force-inline every node to study generated code.
 	// Resolved once at Walker construction; threaded through here so
@@ -52,10 +52,10 @@ func (ctx *InlineContext) CurrentVλl() string {
 	return ctx.walker.Vλl
 }
 
-// DefaultIsJitInlined is the shared default predicate every Emitter
-// can delegate to. Body matches mion's BaseRunType.isJitInlined
+// DefaultIsRTInlined is the shared default predicate every Emitter
+// can delegate to. Body matches mion's BaseRunType.isRTInlined
 // (run-types/src/lib/baseRunTypes.ts:52–61) — the implementation is
-// shared across ALL jit functions in mion (no per-class overrides
+// shared across ALL rt functions in mion (no per-class overrides
 // are defined in the entire run-types package), so emitters that
 // don't have a strong reason to differ should just call this.
 //
@@ -64,7 +64,7 @@ func (ctx *InlineContext) CurrentVλl() string {
 // Mion went all-shared and that's worked. Per-fn variation is a
 // capability we want to RESERVE, not exercise speculatively.
 //
-// Decision matrix (in order) — matches mion's BaseRunType.isJitInlined
+// Decision matrix (in order) — matches mion's BaseRunType.isRTInlined
 // (baseRunTypes.ts:52-61) byte-for-byte:
 //  1. IsCircular → false. Circular types must self-invoke, so the
 //     parent always issues a dependency call instead of inlining.
@@ -90,7 +90,7 @@ func (ctx *InlineContext) CurrentVλl() string {
 //  5. Named Collection → false (mion comment: "collection with name
 //     might be used in different places so worth deduplicating").
 //  6. Otherwise → true.
-func DefaultIsJitInlined(ctx *InlineContext) bool {
+func DefaultIsRTInlined(ctx *InlineContext) bool {
 	if ctx == nil || ctx.RT == nil {
 		return true
 	}

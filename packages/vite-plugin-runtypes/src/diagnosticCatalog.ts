@@ -1,5 +1,5 @@
 // Vendored copy of the diagnostic catalog from
-// packages/ts-go-run-types/src/jit/diagnosticCatalog.ts. Kept in sync
+// packages/ts-go-run-types/src/rt/diagnosticCatalog.ts. Kept in sync
 // manually for now — a follow-up `gen:diag-catalog` script will pick one
 // canonical source-of-truth file and emit both copies.
 //
@@ -25,11 +25,11 @@
 //
 // Wording standard (see CLAUDE.md):
 //   1. Use the user's TypeScript vocabulary (property names, identifiers,
-//      imported helpers). No compiler-internal jargon ("JIT", "factory",
+//      imported helpers). No compiler-internal jargon ("RT", "factory",
 //      "rewrite", "absorption", "leaf", "Non Serializable" — terms the
 //      user has never seen).
 //   2. State the user-visible consequence ("cannot be encoded to JSON"),
-//      not what the compiler did ("JIT compilation disabled").
+//      not what the compiler did ("RT compilation disabled").
 //   3. End with the fix as concrete code where possible.
 //   4. Single-line headline first, optional detail block after — the
 //      headline is what `formatTscDiagnostic` renders on the tsc problem-
@@ -334,8 +334,8 @@ Fix — import \`{0}\` directly inside the factory if it's a module export.`,
 
   PFE9012: {
     headline:
-      'Pure-fn `{0}` is referenced by a JIT function but never registered — call `registerPureFnFactory({1}, {2}, …)` first.',
-    detail: `A JIT validator/encoder calls \`utl.usePureFn('{0}')\` (or similar) but
+      'Pure-fn `{0}` is referenced by a RT function but never registered — call `registerPureFnFactory({1}, {2}, …)` first.',
+    detail: `A RT validator/encoder calls \`utl.usePureFn('{0}')\` (or similar) but
 no \`registerPureFnFactory\` call with that namespace+function pair was
 found in any scanned source file.
 

@@ -1,6 +1,6 @@
-# Mion JIT Port — Status, Deviations, and Open Failures
+# Mion RT Port — Status, Deviations, and Open Failures
 
-Status snapshot of every JIT function family ported from
+Status snapshot of every RT function family ported from
 [mion's `@mionjs/run-types`](https://github.com/mionkit/mion) into
 ts-go-run-types: what was ported, where our emit intentionally
 deviates from mion, and the precise list of currently-failing tests
@@ -47,14 +47,14 @@ different extras semantics; we mirror both:
   includes JSON-compatible extras, throws on bigint extras, and
   silently drops symbol-/function-valued extras. Public API:
   `createUnsafeJsonStringify<T>()` + `createUnsafeJsonParse<T>()`.
-- **Safe path** (single-pass `stringifyJson` JIT — ported from mion's
-  `jitCompilers/json/stringifyJson.ts`, see "Migrated JIT function
+- **Safe path** (single-pass `stringifyJson` RT — ported from mion's
+  `rtCompilers/json/stringifyJson.ts`, see "Migrated RT function
   families" below). Extras are stripped by construction in the emit
   (walks declared members only, never `v`'s own enumerable keys),
   `v` is not mutated, and JSON-incompatible extras are silently
   dropped before they can crash. Public API:
   `createStringifyJson<T>()` direct, OR
-  `createSafeJsonStringify<T>()` wrapper (single JIT call internally)
+  `createSafeJsonStringify<T>()` wrapper (single RT call internally)
   + `createSafeJsonParse<T>(undefined, {onUnknownKeys})`.
   `createSafeJsonParse` accepts `{onUnknownKeys: 'strip' | 'error'}`
   in its 2nd positional slot (default `'strip'`); `'error'` runs
@@ -75,15 +75,15 @@ Test infrastructure:
   end-to-end via the full Vite-plugin pipeline (happy-path types,
   EXTRA_PARAMS divergences, the `onUnknownKeys` option semantics).
 
-## Migrated JIT function families
+## Migrated RT function families
 
 | Family                     | Mion source                                                          | Go emitter                                              | JS factory                                 | Cache tag |
 |----------------------------|----------------------------------------------------------------------|---------------------------------------------------------|--------------------------------------------|-----------|
-| `isType`                   | `nodes/**/emitIsType` + `lib/jitFnCompiler.ts`                       | `internal/compiled/typefns/istype.go`                       | `createIsType` / `deserializeIsType`       | `it`      |
-| `getTypeErrors`            | `nodes/**/emitTypeErrors` + `JitErrorsFnCompiler`                    | `internal/compiled/typefns/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
+| `isType`                   | `nodes/**/emitIsType` + `lib/rtFnCompiler.ts`                       | `internal/compiled/typefns/istype.go`                       | `createIsType` / `deserializeIsType`       | `it`      |
+| `getTypeErrors`            | `nodes/**/emitTypeErrors` + `RTErrorsFnCompiler`                    | `internal/compiled/typefns/typeerrors.go`                   | `createGetTypeErrors` / `deserializeGetTypeErrors` | `te` |
 | `prepareForJson`           | `nodes/**/emitPrepareForJson`                                        | `internal/compiled/typefns/json_prepare.go`                 | `createPrepareForJson` / `deserializePrepareForJson` | `pj` |
 | `restoreFromJson`          | `nodes/**/emitRestoreFromJson`                                       | `internal/compiled/typefns/json_restore.go`                 | `createRestoreFromJson` / `deserializeRestoreFromJson` | `rj` |
-| `stringifyJson`            | `jitCompilers/json/stringifyJson.ts` (`createStringifyCompiler`)     | `internal/compiled/typefns/json_stringify.go`                | `createStringifyJson` / `deserializeStringifyJson` | `sj` |
+| `stringifyJson`            | `rtCompilers/json/stringifyJson.ts` (`createStringifyCompiler`)     | `internal/compiled/typefns/json_stringify.go`                | `createStringifyJson` / `deserializeStringifyJson` | `sj` |
 | `hasUnknownKeys`           | `nodes/**/emitHasUnknownKeys` + `callCheckUnknownProperties`         | `internal/compiled/typefns/unknownkeys_has.go`               | `createHasUnknownKeys` / `deserializeHasUnknownKeys` | `huk` |
 | `stripUnknownKeys`         | `nodes/**/emitStripUnknownKeys`                                      | `internal/compiled/typefns/unknownkeys_strip.go`             | `createStripUnknownKeys` / `deserializeStripUnknownKeys` | `suk` |
 | `unknownKeyErrors`         | `nodes/**/emitUnknownKeyErrors`                                      | `internal/compiled/typefns/unknownkeys_errors.go`             | `createUnknownKeyErrors` / `deserializeUnknownKeyErrors` | `uke` |
@@ -142,7 +142,7 @@ fragment (the parent emit concatenates fragments with `+`).
 | void                       | `undefined`                                              |
 | enum                       | `JSON.stringify(v)` (defensive — both string + number)    |
 | literal                    | defers to underlying primitive kind                       |
-| never / Promise / NonSerializable / function-at-root | throw at JIT-compile (surfaced via `JitThrow` runtime factory) |
+| never / Promise / NonSerializable / function-at-root | throw at RT-compile (surfaced via `RTThrow` runtime factory) |
 | array                      | for-loop into `ls.push(child)`; `'[' + ls.join(',') + ']'` |
 | objectLiteral / class      | `'{' + props.join('+') + '}'` (declaration order)         |
 | property / propertySignature | `'"name":' + childCode + sep`; optional → empty when undefined |
@@ -164,7 +164,7 @@ comments; this is the consolidated list.
 mirror in `json_restore.go`).
 
 **Mion**: when a body collapses to `return v` with no transformation,
-mion's `createJitCompiledFunction` sets `isNoop: true` and elides the
+mion's `createRTCompiledFunction` sets `isNoop: true` and elides the
 inner factory.
 
 **Us**: we set `isNoop: false` and emit the identity factory anyway —
@@ -208,17 +208,17 @@ identities (`return v` / `return v` / `return er` respectively).
 Not a divergence — listed here as a parity confirmation since the
 four-fn family has subtle finalize behavior worth pinning.
 
-### 4. JSON-family throw-at-JIT-compile for non-serializable kinds
+### 4. JSON-family throw-at-RT-compile for non-serializable kinds
 
 **Where**: `internal/compiled/typefns/json_prepare.go` Supports + Emit
 for `KindNever` / `KindPromise` / function-flavoured kinds /
 `SubKindNonSerializable`.
 
 **Mion**: throws synchronously from the emit method
-(`throw new Error('Jit compilation disabled for Non Serializable
+(`throw new Error('RT compilation disabled for Non Serializable
 types.');`) — the factory creation itself fails.
 
-**Us**: emits a runtime-throwing factory (`JitThrow(...)`) — the
+**Us**: emits a runtime-throwing factory (`RTThrow(...)`) — the
 factory creation succeeds, but **calling** the resulting fn throws.
 Same observable contract from a userland test (the
 `throwsAtCompile: true` adapter helper invokes `c.prepareForJson()`
@@ -243,8 +243,8 @@ truth used by all three union emitters (`emitUnionPrepareForJson`,
 `emitUnionStringifyJson`, `emitUnionRestoreFromJson`). A member skips
 the `[memberIndex, value]` envelope iff BOTH its `prepareForJson`
 AND `restoreFromJson` compile to a noop — matches mion's
-`needsTupleEncoding = !!encJit?.code || !!decJit?.code`
-(`jitCompilers/json/stringifyJson.ts:295-306`).
+`needsTupleEncoding = !!encRT?.code || !!decRT?.code`
+(`rtCompilers/json/stringifyJson.ts:295-306`).
 
 Implementation notes:
 - The encoders peek into the *opposite* emitter via the existing
@@ -254,7 +254,7 @@ Implementation notes:
   families share the same per-member answer without re-compiling
   each member's subtree three times.
 - `peekMemberIsNoop` distinguishes "truly unsupported" (no emit at
-  all → counts as noop) from "JitThrow with ErrorMessage" (the member
+  all → counts as noop) from "RTThrow with ErrorMessage" (the member
   emits a runtime throw → counts as NON-noop). Without this split,
   a union containing a function / never / Promise member would skip
   the wrap on the rj side and the throw would never propagate to the
@@ -271,12 +271,12 @@ Implementation notes:
 
 Documented divergence cleared; behaviour now matches mion.
 
-### 6. `JIT_SUITE` → `VALIDATION_SUITE` rename
+### 6. `RT_SUITE` → `VALIDATION_SUITE` rename
 
 **Where**: `packages/ts-go-run-types/test/suites/validation-suite.ts`.
 
-The shared suite was originally named `jit-suite` when it carried
-thunks for every JIT family. Once the JSON pair was moved to its
+The shared suite was originally named `rt-suite` when it carried
+thunks for every RT family. Once the JSON pair was moved to its
 own `serialization-suite.ts` (because JSON samples need
 `deserializedValues` and the JSON-throws-on-extras contract clashes
 with isType's "extras are valid" semantic), the remaining file only
@@ -328,7 +328,7 @@ ECMAScript spec — no throw was ever exercised).
   `deep.cExtra`, `?other weird p.eExtra`); expected
   `noExtraParams` (extras stripped).
 - **What mion asserts**:
-  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/03JsonObjects.spec.ts:138-149`.
+  `mion/packages/run-types/src/rtCompilers/json/jsonSpec/03JsonObjects.spec.ts:138-149`.
   Mion expects `deserialized === originalValues[i]` where
   `originalValues = getTestData(true).values = [objectWithExtraParams]`
   (extras intact). The line `// expect(deserializedValues[i]).toEqual(deserialized); // native JSON.stringify do not strip extra params`
@@ -348,7 +348,7 @@ ECMAScript spec — no throw was ever exercised).
 ### Failure 2 — `RECORDS > multiple index properties (symbol keys skipped)`
 
 **Closed by**: symbol-keyed-index-sig skip in all 8 `emitIndexSignature*`
-emitters (mirrors mion's `IndexSignatureRunType.skipJit`
+emitters (mirrors mion's `IndexSignatureRunType.skipRT`
 `indexProperty.ts:30-36`). New shared helper `isSymbolKeyedIndexSig`
 in `internal/compiled/typefns/istype.go`; gate added to prepareForJson,
 restoreFromJson, isType, typeErrors, hasUnknownKeys, stripUnknownKeys,
@@ -364,7 +364,7 @@ unknownKeyErrors, unknownKeysToUndefined.
   String values are being passed to `new Date(...)` during
   `restoreFromJson`, producing Invalid Date.
 - **What mion asserts**:
-  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/04JsonRecords.spec.ts:49-58`
+  `mion/packages/run-types/src/rtCompilers/json/jsonSpec/04JsonRecords.spec.ts:49-58`
   asserts `deserializedValues[i] === deserialized`.
 - **Why mion behaves that way**: mion's `IndexSignatureRunType` emits
   one branch PER index signature, gated on a key-pattern regex. The
@@ -401,7 +401,7 @@ the correct concrete member before falling back to the weak shape.
   with input `{c: 1n}`. Expected: round-trip preserves `{c: 1n}`.
 - **What our test gets**: `TypeError: Do not know how to serialize a BigInt` at JSON.stringify.
 - **What mion asserts**:
-  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/09JsonUnions.spec.ts:79-88`
+  `mion/packages/run-types/src/rtCompilers/json/jsonSpec/09JsonUnions.spec.ts:79-88`
   asserts round-trip equality.
 - **Why mion behaves that way**:
   `mion/packages/run-types/src/nodes/collection/union.ts:114-152`
@@ -447,7 +447,7 @@ on restore. Atomic-noop fast-path falls back to the original
   BigInt).
 - **What our test gets**: `TypeError: Do not know how to serialize a BigInt` at JSON.stringify.
 - **What mion asserts**:
-  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/11JsonIterables.spec.ts:26-35`
+  `mion/packages/run-types/src/rtCompilers/json/jsonSpec/11JsonIterables.spec.ts:26-35`
   asserts `deserialized === originalValues[i]`.
 - **Why mion behaves that way**:
   `mion/packages/run-types/src/nodes/native/Iterable.ts:49-65`
@@ -493,7 +493,7 @@ its own transform via `e0[0]` / `e0[1]` accessors — matches the
 - **What our test asserts**: `Map<bigint, number>` round-trip
   preserves bigint keys.
 - **What mion asserts**:
-  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/11JsonIterables.spec.ts`
+  `mion/packages/run-types/src/rtCompilers/json/jsonSpec/11JsonIterables.spec.ts`
   asserts round-trip equality (assumes per-element transform recurses
   into key + value).
 - **Why we fail**: same as #4 — `Array.from(v)` preserves the bigint
@@ -519,7 +519,7 @@ intermittent failures (sometimes `expected false to be true`,
 sometimes `Do not know how to serialize a BigInt`) flipped based on
 emit order.
 
-mion never hits this because its runtime JIT compiles per-call — the
+mion never hits this because its runtime RT compiles per-call — the
 two declarations live in independent compile passes. Our AOT cache
 is project-global so the dedup applies across files. Fix: extend
 `cycleRef` to fall back to the symbol's first-declaration position
@@ -537,7 +537,7 @@ unaffected (named type aliases continue to disambiguate as before).
   to serialize a BigInt`, sometimes succeeds. Deterministic under
   `pool: forks` / `--no-file-parallelism` (passes consistently).
 - **What mion asserts**:
-  `mion/packages/run-types/src/jitCompilers/json/jsonSpec/10JsonCircular.spec.ts:37-46`
+  `mion/packages/run-types/src/rtCompilers/json/jsonSpec/10JsonCircular.spec.ts:37-46`
   asserts round-trip equality.
 - **Why mion behaves that way**: mion's `TupleRunType.emitPrepareForJson`
   with a recursive child emits a self-recursive dep call. The bigint
@@ -598,7 +598,7 @@ failure, deferred for a separate decision on the extras semantic.
 1. ~~**Map/Set per-entry element transform**~~ — DONE; closes
    Failures 4, 5, 6, 7.
 2. ~~**Symbol-keyed index signature skip**~~ — DONE; closes
-   Failure 2. Mion's actual gate is per-fn `skipJit` for
+   Failure 2. Mion's actual gate is per-fn `skipRT` for
    symbol-keyed sigs (`indexProperty.ts:30-36`), not per-pattern
    dispatch as originally proposed — the for-in loop doesn't
    enumerate symbol keys at runtime anyway, but the previous
@@ -642,7 +642,7 @@ implementation notes. Summary:
   memoise on `Walker.peekedNoops` (`internal/compiled/typefns/walker.go`)
   so the three emit families share answers per-Compile-pass instead
   of re-walking each member subtree.
-- `peekMemberIsNoop` now distinguishes JitThrow-emitting members
+- `peekMemberIsNoop` now distinguishes RTThrow-emitting members
   (NON-noop — the throw must propagate) from truly-unsupported
   kinds (noop — identity passes). Without this split, a union
   containing a function / never / Promise member would silently

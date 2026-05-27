@@ -1,5 +1,5 @@
 // Serialization suite ported from
-// mion/packages/run-types/src/jitCompilers/serialization-suite.ts.
+// mion/packages/run-types/src/rtCompilers/serialization-suite.ts.
 //
 // Runs ALONGSIDE validation-suite.ts as a separate, JSON-specific driver.
 // validation-suite covers isType / getTypeErrors with broad
@@ -129,7 +129,7 @@ export interface SerializationCase {
    *  by the Go pipeline (e.g. `never`, root `symbol`, function-typed
    *  tuple slot, Promise root, …). Calling the factory throws at the
    *  first lookup — the materialised throwing stub fires inside
-   *  `lookupJitFn` before returning to the caller. Tests assert the
+   *  `lookupRTFn` before returning to the caller. Tests assert the
    *  throw at the thunk-invocation site rather than a successful
    *  round-trip. See docs/UNSUPPORTED-KINDS.md. **/
   factoryThrows?: boolean;
@@ -633,7 +633,7 @@ export const SERIALIZATION_SPEC = {
     },
     non_serializable_in_array: {
       title: 'non serializable items throws an error',
-      description: 'symbol[] should throw at JIT-compile time per mion semantic.',
+      description: 'symbol[] should throw at RT-compile time per mion semantic.',
       unsafeEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate', stripExtras: false}),
       clonePreserveEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone', stripExtras: false}),
       mutateStripEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate', stripExtras: true}),
@@ -4229,7 +4229,7 @@ export const SERIALIZATION_SPEC = {
     },
     union_with_non_serializable: {
       title: 'union with non-serializable type throws',
-      description: 'function in union — mion throws at JIT-compile time.',
+      description: 'function in union — mion throws at RT-compile time.',
       unsafeEncoder: () =>
         createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: false}),
       clonePreserveEncoder: () =>

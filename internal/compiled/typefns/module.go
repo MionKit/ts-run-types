@@ -20,14 +20,14 @@ import (
 // through to a fresh compile, a write failure is logged once and
 // ignored so a read-only filesystem doesn't break builds.
 type RenderOpts struct {
-	// Store is the on-disk JIT cache. Nil disables caching.
+	// Store is the on-disk RT cache. Nil disables caching.
 	Store *disk.Store
 	// Lookup resolves structural ids ↔ short hashes for the current
 	// session. Required when Store is non-nil. The resolver passes its
 	// runtype.Cache here (which satisfies disk.HashLookup).
 	Lookup disk.HashLookup
 	// DiagSink is the destination for compile-time diagnostics emitted
-	// by the walker at JitThrow / silent-skip sites. Nil disables
+	// by the walker at RTThrow / silent-skip sites. Nil disables
 	// diagnostic emission entirely — keeps tests that don't care about
 	// the per-call-site fan-out quiet. The dispatcher wires this from
 	// the response's Diagnostics slice and flushes after each render.
@@ -35,11 +35,11 @@ type RenderOpts struct {
 	// ProvenanceSites maps each cached RunType ID to the set of marker
 	// call sites that reference it. EmitDiagnostic uses this to fan out
 	// one Diagnostic per call site so the user gets actionable file:line:col
-	// coordinates — without it, a JitThrow would record a diagnostic
+	// coordinates — without it, a RTThrow would record a diagnostic
 	// with empty Site and the warning would be useless in the editor.
 	ProvenanceSites map[string][]diag.Site
-	// EmitCreateJitFn opts the renderer into emitting the inline
-	// `createJitFn` closure alongside the body `code` string. False
+	// EmitCreateRTFn opts the renderer into emitting the inline
+	// `createRTFn` closure alongside the body `code` string. False
 	// (the default) writes `u` (the `const u = undefined` alias) in the
 	// arg-7 slot and the JS-side materializer rebuilds the factory from
 	// `code` via `new Function('utl', code)` lazily on first lookup.
@@ -47,12 +47,12 @@ type RenderOpts struct {
 	// runtimes that disallow `new Function` (Cloudflare WorkerD,
 	// browser CSP without `unsafe-eval`, …) can still materialise
 	// validators. See docs/UNSUPPORTED-KINDS.md.
-	EmitCreateJitFn bool
+	EmitCreateRTFn bool
 }
 
 // innerPrefix derives the inner-fn name prefix from a cache-module's
 // short Tag (e.g. "te" → "te_"). The inner validator function inside
-// each createJitFn closure is named `<innerPrefix><hash>`; the same
+// each createRTFn closure is named `<innerPrefix><hash>`; the same
 // prefix namespaces the JS cache key registered via factory's first arg.
 func innerPrefix(settings constants.CacheModuleSettings) string {
 	return settings.Tag + "_"
@@ -61,7 +61,7 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 // IsTypeModule writes the runtime artifact for the isType cache module:
 // the hand-authored skeleton with the marker line replaced by one
 // `init(…);` call per cached RunType the IsTypeEmitter supports.
-// The skeleton's `init` closes over the surrounding `initCache(jitUtils)`
+// The skeleton's `init` closes over the surrounding `initCache(rtUtils)`
 // parameter, so the per-entry call site doesn't repeat the argument.
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is one
@@ -186,14 +186,14 @@ func FromBinaryModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) err
 // RenderFnModule is the fn-agnostic module renderer. Emits one
 // `init('hash', …);` line per supported RunType then splices the
 // result into the named skeleton. The skeleton's `init` closes over
-// `jitUtils` from its enclosing `initCache(jitUtils)`, so call sites
+// `rtUtils` from its enclosing `initCache(rtUtils)`, so call sites
 // stay compact.
 //
 // Entries are emitted in **child-before-parent** order so each
-// factory's `createJitFn(jitUtils)` invocation can resolve its
-// `utl.getJIT('<childHash>')` context items against an already-
+// factory's `createRTFn(rtUtils)` invocation can resolve its
+// `utl.getRT('<childHash>')` context items against an already-
 // populated cache. The order is derived from each entry's
-// `jitDependencies` (discovered during compile) via a DFS post-order
+// `rtDependencies` (discovered during compile) via a DFS post-order
 // walk over the input set; entries with no deps keep their input
 // position relative to each other (stable topo sort).
 //
@@ -201,17 +201,17 @@ func FromBinaryModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) err
 // skipped — the alternative (panicking) would crash the whole module
 // for the presence of one unsupported kind, making kind-by-kind
 // rollout impossible. The acceptance test in
-// packages/vite-plugin-runtypes/test/jit-isType.test.ts asserts on the
+// packages/vite-plugin-runtypes/test/rt-isType.test.ts asserts on the
 // KindString case; if dispatch regresses for KindString the test fails
 // loudly there.
 //
 // Parameters:
 //   - settings: which CacheModule the factory uses for inner-closure
 //     names; the VarPrefix prefixes the outer factory's debug name
-//     inside createJitFn.
+//     inside createRTFn.
 //   - emitter: the per-fn dispatch + Args + Finalize implementation.
 //   - innerPrefix: the prefix for the INNER validator function inside
-//     each createJitFn closure.
+//     each createRTFn closure.
 //   - skeleton: the cachetpl skeleton name to splice into.
 func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, skeleton string, opts RenderOpts) error {
 	var body strings.Builder
@@ -238,7 +238,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	// runtype ID, e.g. "it_abc123"). Sharing this key with the
 	// init registration's first arg means downstream tooling
 	// (dangling-dep cascade, topo sort) operates on the same identifier
-	// the JS side sees in jitUtils.
+	// the JS side sees in rtUtils.
 	entries := make(map[string]compiled, len(dump.RunTypes))
 	order := make([]string, 0, len(dump.RunTypes))
 	for _, runType := range dump.RunTypes {
@@ -330,7 +330,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 }
 
 // renderEntryWithDeps compiles one RunType into its `init(…);` line
-// and returns the discovered jit-dependency hashes alongside. Inner
+// and returns the discovered rt-dependency hashes alongside. Inner
 // function name is `<innerPrefix><hash>` (e.g. "it_abc123"); the
 // outer factory's debug name (`<VarPrefix><hash>`, e.g.
 // "g_it_abc123") is used only as the closure's printed name so
@@ -394,14 +394,14 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// the entry with a family-specific identity `fn` (`() => true` for
 	// isType, `(v, pth, er) => er` for typeErrors, `(v) => v` for
 	// prepareForJson / restoreFromJson) and leaves `code`,
-	// `jitDependencies`, `pureFnDependencies`, and `createJitFn` as
+	// `rtDependencies`, `pureFnDependencies`, and `createRTFn` as
 	// undefined. Same dep-call wiring works — a parent referencing the
 	// noop entry's `<hash>.fn(v)` still hits a real function — without
 	// the per-entry payload bloat of an inlined `return v` body.
 	if isNoop {
 		args := []string{
 			quoteJS(innerName),
-			quoteJS(jitTypeName(runType)),
+			quoteJS(rtTypeName(runType)),
 			"undefined", // code
 			"true",      // isNoop
 		}
@@ -409,39 +409,39 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
 		return line, nil
 	}
-	createJitFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
+	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	// The 3rd arg (`code`) carries the factory BODY — the contents
 	// between the `function(utl){ … }` braces — so a consumer holding
-	// only the serialized JitCompiledFnData can rebuild the validator
-	// via `new Function('utl', code)(jitUtils)`. The inner-validator
+	// only the serialized RTCompiledFnData can rebuild the validator
+	// via `new Function('utl', code)(rtUtils)`. The inner-validator
 	// body remains embedded in `code` (as `return function …(v){…}`).
 	//
-	// The 7th arg (`createJitFn`) is OMITTED by default (rendered as
+	// The 7th arg (`createRTFn`) is OMITTED by default (rendered as
 	// the `u = undefined` alias declared once at the top of the
-	// module): the JS-side materializeJitFn rebuilds the factory from
-	// `code` on first `getJIT(hash)` call. The opt-in branch under
-	// `opts.EmitCreateJitFn` writes the full `function g_<hash>(utl)
+	// module): the JS-side materializeRTFn rebuilds the factory from
+	// `code` on first `getRT(hash)` call. The opt-in branch under
+	// `opts.EmitCreateRTFn` writes the full `function g_<hash>(utl)
 	// {…}` declaration so runtimes without `new Function` (Cloudflare
 	// WorkerD, sandboxed iframes, etc.) can materialise validators
 	// without the dynamic-code path.
 	//
 	// First arg is the namespaced cache key (innerPrefix + runType.ID)
-	// so the JS-side jitFnsCache slot is distinct from the same
+	// so the JS-side rtFnsCache slot is distinct from the same
 	// runtype's isType / prepareForJson / … entries.
-	createJitFnArg := "u"
-	if opts.EmitCreateJitFn {
-		createJitFnArg = createJitFn
+	createRTFnArg := "u"
+	if opts.EmitCreateRTFn {
+		createRTFnArg = createRTFn
 	}
 	args := []string{
 		quoteJS(innerName),
-		quoteJS(jitTypeName(runType)),
+		quoteJS(rtTypeName(runType)),
 		quoteJS(factoryBody),
 		boolJS(isNoop),
-		stringSliceJS(walker.JitDependencies),
+		stringSliceJS(walker.RTDependencies),
 		pureFnDepsJS(walker.PureFnDependencies),
-		createJitFnArg,
+		createRTFnArg,
 	}
-	deps := append([]string(nil), walker.JitDependencies...)
+	deps := append([]string(nil), walker.RTDependencies...)
 	line := "init(" + joinArgs(args) + ");"
 	writeCachedEntry(runType, settings, innerPrefix, line, deps, opts)
 	return line, deps
@@ -470,7 +470,7 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		// means we cannot verify the file safely.
 		return "", nil, false
 	}
-	entry, ok, err := opts.Store.ReadJIT(runType.ID, settings.Tag)
+	entry, ok, err := opts.Store.ReadRT(runType.ID, settings.Tag)
 	if err != nil || !ok || entry == nil {
 		return "", nil, false
 	}
@@ -497,8 +497,8 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 // out-of-space FS shouldn't break the build, and the next run will
 // re-attempt the write.
 //
-// deps here are the namespaced jit-dependency hashes
-// (walker.JitDependencies, e.g. "it_<childHash>"). We strip the prefix
+// deps here are the namespaced rt-dependency hashes
+// (walker.RTDependencies, e.g. "it_<childHash>"). We strip the prefix
 // to recover the bare childHash and look up its structural id for the
 // ChildRefs record.
 func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, line string, deps []string, opts RenderOpts) {
@@ -527,13 +527,13 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 			Hash:         childHash,
 		})
 	}
-	entry := disk.JITEntry{
+	entry := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: structural,
 		Line:         line,
 		ChildRefs:    childRefs,
 	}
-	if err := opts.Store.WriteJIT(runType.ID, settings.Tag, entry); err != nil {
+	if err := opts.Store.WriteRT(runType.ID, settings.Tag, entry); err != nil {
 		// Best-effort: report once per session would be ideal, but
 		// keep it simple — fmt.Fprintln on the first failure is
 		// enough to surface FS-permission misconfigurations without
@@ -543,7 +543,7 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 }
 
 // renderThrowEntry emits the short-form init line for a runtype whose
-// JSON emit throws at JIT compile time (mion's per-runtype throws —
+// JSON emit throws at RT compile time (mion's per-runtype throws —
 // never, Promise, NonSerializableRunType, the array.ts symbol[]/
 // function[] check). Shape:
 //
@@ -553,8 +553,8 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 // isNoop=false (the family-specific identity stub would mask the
 // throw); code carries the throw body so deserialize* — which
 // reconstructs via `new Function('utl', code)` — throws the same
-// message; createJitFn is a function that throws when invoked, which
-// happens inside materializeJitFn during the entry's first getJIT
+// message; createRTFn is a function that throws when invoked, which
+// happens inside materializeRTFn during the entry's first getRT
 // lookup → throw propagates up to createPrepareForJson()-call site.
 // leafKindLabel returns a short human-readable label for an unsupported
 // leaf RunType — passed as the {0} substitution arg in the JS-side
@@ -605,9 +605,9 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //	init('<hash>', '<typeName>',
 //	     undefined,  // code
 //	     false,      // isNoop
-//	     undefined,  // jitDependencies
+//	     undefined,  // rtDependencies
 //	     undefined,  // pureFnDependencies
-//	     undefined,  // createJitFn — JS-side derives from diagCode
+//	     undefined,  // createRTFn — JS-side derives from diagCode
 //	     '<diagCode>',
 //	     '<siteHint>')
 //
@@ -617,12 +617,12 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheM
 	innerName := innerPrefix + runType.ID
 	args := []string{
 		quoteJS(innerName),
-		quoteJS(jitTypeName(runType)),
+		quoteJS(rtTypeName(runType)),
 		"undefined", // code
 		"false",     // isNoop
-		"undefined", // jitDependencies
+		"undefined", // rtDependencies
 		"undefined", // pureFnDependencies
-		"undefined", // createJitFn
+		"undefined", // createRTFn
 		quoteJS(diagCode),
 		formatCallSiteHint(provenance),
 	}
@@ -641,12 +641,12 @@ func formatCallSiteHint(provenance []diag.Site) string {
 	return quoteJS(fmt.Sprintf("%s:%d:%d", site.FilePath, site.StartLine, site.StartCol))
 }
 
-// jitTypeName resolves the `typeName` field for a JitCompiledFn entry.
+// rtTypeName resolves the `typeName` field for a RTCompiledFn entry.
 // Mion uses the RunType's declared TypeName when present; for anonymous
 // atomics it falls back to a name derived from the kind. Names mirror
 // mion's ReflectionKindName table at
 // mion-run-types:packages/run-types/src/constants.kind.ts.
-func jitTypeName(runType *protocol.RunType) string {
+func rtTypeName(runType *protocol.RunType) string {
 	if runType.TypeName != "" {
 		return runType.TypeName
 	}
@@ -736,7 +736,7 @@ func boolJS(b bool) string {
 }
 
 // joinArgs concatenates positional args with bare commas. The
-// createJitFn arg is multi-line; padding around commas would not align
+// createRTFn arg is multi-line; padding around commas would not align
 // readably across long entries, so emit them flush.
 func joinArgs(args []string) string {
 	var b []byte

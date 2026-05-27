@@ -697,7 +697,7 @@ reflectRuntypeId(sym);
 	// the description argument from the `Symbol(<desc>)` call site —
 	// NOT the binding name. For `const sym = Symbol('hello')` the
 	// description is `'hello'`. Previously this field held the binding
-	// identifier `'sym'` which produced JIT code that never matched the
+	// identifier `'sym'` which produced RT code that never matched the
 	// runtime symbol's actual description.
 	if name, _ := m["symbol"].(string); name != "hello" {
 		t.Fatalf("expected literal.symbol=hello (description argument), got %v", m["symbol"])
@@ -1143,7 +1143,7 @@ reflectRuntypeId(user);
 // the runtype id. All option-combination call sites against the same
 // `T` must resolve to the SAME id — different encoder shapes share
 // one canonical typeid, the runtime dispatches shapes via the
-// JIT-family prefix (`pj_` / `pjs_` / `pjsp_` / `sj_`). Folding the
+// RT-family prefix (`pj_` / `pjs_` / `pjsp_` / `sj_`). Folding the
 // options into the id would break the invariant that
 // `getRuntypeId<T>()` and `createJsonEncoder<T>({strategy: 'mutate'})`
 // return the same id for the same `T`.

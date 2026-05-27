@@ -12,7 +12,7 @@ import (
 //
 // This family is NOT exposed via the public createUnknownKeysToUndefined
 // API. The decoder's safe pipeline at
-// packages/ts-go-run-types/src/createJitFunctions.ts composes:
+// packages/ts-go-run-types/src/createRTFunctions.ts composes:
 //
 //	restore(ukuWire(JSON.parse(s)))
 //
@@ -40,8 +40,8 @@ func AnyUnknownKeysToUndefinedWireSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-func (UnknownKeysToUndefinedWireEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return UnknownKeysToUndefinedEmitter{}.IsJitInlined(ctx)
+func (UnknownKeysToUndefinedWireEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return UnknownKeysToUndefinedEmitter{}.IsRTInlined(ctx)
 }
 
 func (UnknownKeysToUndefinedWireEmitter) ReturnName() string {
@@ -75,7 +75,7 @@ func (UnknownKeysToUndefinedWireEmitter) Finalize(raw string) (string, bool) {
 // has no inner-object extras left to strip post-parse — keeping the
 // Map/Set arm noop on the wire side mirrors the pre-fix behaviour
 // (before iterable unknown-keys support landed on the public uku).
-func (UnknownKeysToUndefinedWireEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ct CodeType) JitCode {
+func (UnknownKeysToUndefinedWireEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, ct CodeType) RTCode {
 	if rt != nil && rt.Kind == protocol.KindUnion {
 		return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
 			Snippet: func(_ *EmitContext, accessor, keyVar string) string {
@@ -88,7 +88,7 @@ func (UnknownKeysToUndefinedWireEmitter) Emit(rt *protocol.RunType, ctx *EmitCon
 	if rt != nil && rt.Kind == protocol.KindClass {
 		switch rt.SubKind {
 		case protocol.SubKindMap, protocol.SubKindSet:
-			return JitCode{Code: "", Type: CodeS}
+			return RTCode{Code: "", Type: CodeS}
 		}
 	}
 	return UnknownKeysToUndefinedEmitter{}.Emit(rt, ctx, ct)

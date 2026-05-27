@@ -15,26 +15,26 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// jitRenderOpts builds the RenderOpts the typefns module renderers expect
+// rtRenderOpts builds the RenderOpts the typefns module renderers expect
 // from the resolver's session state. Callers that need a one-off render
 // (the dispatch path, render.go wrappers) feed this into every typefns
 // module call so the disk cache and runtype lookup follow the resolver
 // across requests.
 //
 // sink (when non-nil) is the destination for compile-time diagnostics
-// emitted by the walker at JitThrow / silent-skip sites; provenance
+// emitted by the walker at RTThrow / silent-skip sites; provenance
 // (when non-nil) maps RT IDs to the marker call sites that reference
 // them, so EmitDiagnostic can fan out one Diagnostic per call site.
-func (resolver *Resolver) jitRenderOpts(sink *[]diag.Diagnostic, provenance map[string][]diag.Site) typefns.RenderOpts {
+func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[string][]diag.Site) typefns.RenderOpts {
 	if resolver == nil {
 		return typefns.RenderOpts{}
 	}
 	return typefns.RenderOpts{
-		Store:           resolver.jitStore,
+		Store:           resolver.rtStore,
 		Lookup:          resolver.cache,
 		DiagSink:        sink,
 		ProvenanceSites: provenance,
-		EmitCreateJitFn: resolver.opts.EmitCreateJitFn,
+		EmitCreateRTFn: resolver.opts.EmitCreateRTFn,
 	}
 }
 

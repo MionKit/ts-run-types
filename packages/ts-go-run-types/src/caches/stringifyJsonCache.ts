@@ -10,41 +10,41 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').StringifyJsonJitFn} StringifyJsonJitFn */
+/** @typedef {import('../rt/types.ts').StringifyJsonRTFn} StringifyJsonRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopStringifyJson : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {StringifyJsonJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {StringifyJsonRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'sj',
       typeName,
       args: {vλl: 'v'},
       defaultParamValues: {vλl: undefined},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   function noopStringifyJson(v) {

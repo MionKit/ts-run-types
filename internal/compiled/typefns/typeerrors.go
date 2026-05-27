@@ -9,7 +9,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// TypeErrorsEmitter implements the `typeErrors` jit function — produces
+// TypeErrorsEmitter implements the `typeErrors` rt function — produces
 // a validator that accumulates RunTypeError entries into the third arg
 // `er` instead of returning a boolean. The factory shape it emits:
 //
@@ -33,7 +33,7 @@ type TypeErrorsEmitter struct{}
 const typeErrorsPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-fns.ts"
 
 // Args returns the three parameters the inner typeErrors function takes.
-// Mirrors mion's `jitErrorArgs` (run-types/src/constants.functions.ts:47):
+// Mirrors mion's `rtErrorArgs` (run-types/src/constants.functions.ts:47):
 // vλl=v (current value), pλth=pth (path accumulator, default []),
 // εrr=er (error accumulator, default []).
 func (TypeErrorsEmitter) Args() []ArgSpec {
@@ -126,11 +126,11 @@ func AnyTypeErrorsSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-// IsJitInlined delegates to DefaultIsJitInlined — same heuristics as
-// isType (mion shares the predicate across all jit fns via
-// BaseRunType.isJitInlined).
-func (TypeErrorsEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return DefaultIsJitInlined(ctx)
+// IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
+// isType (mion shares the predicate across all rt fns via
+// BaseRunType.isRTInlined).
+func (TypeErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return DefaultIsRTInlined(ctx)
 }
 
 // ReturnName is `er` — typeErrors accumulates errors into the third
@@ -142,57 +142,57 @@ func (TypeErrorsEmitter) ReturnName() string {
 
 // Emit dispatches the per-kind switch. Each arm emits CodeS
 // statements that either check the value and append errors via
-// callJitErr on mismatch, or recurse into children with the path
+// callRTErr on mismatch, or recurse into children with the path
 // segment threaded through via SetChildPathLiteral. Mirrors mion's
 // emitTypeErrors per-node implementations.
 //
 // Unsupported kinds emit CodeNS — the walker latches the signal and
 // the renderer drops the factory entirely. Same contract as
 // IsTypeEmitter.
-func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	switch rt.Kind {
 
 	case protocol.KindString:
 		// mion:nodes/atomic/string.ts:emitTypeErrors
-		return JitCode{
-			Code: "if (typeof " + v + " !== 'string') " + callJitErr(ctx, "string", ""),
+		return RTCode{
+			Code: "if (typeof " + v + " !== 'string') " + callRTErr(ctx, "string", ""),
 			Type: CodeS,
 		}
 
 	case protocol.KindNumber:
 		// mion:nodes/atomic/number.ts:emitTypeErrors. Number.isFinite
 		// rejects NaN / Infinity / -Infinity along with non-numbers.
-		return JitCode{
-			Code: "if (!(Number.isFinite(" + v + "))) " + callJitErr(ctx, "number", ""),
+		return RTCode{
+			Code: "if (!(Number.isFinite(" + v + "))) " + callRTErr(ctx, "number", ""),
 			Type: CodeS,
 		}
 
 	case protocol.KindBoolean:
 		// mion:nodes/atomic/boolean.ts:emitTypeErrors
-		return JitCode{
-			Code: "if (typeof " + v + " !== 'boolean') " + callJitErr(ctx, "boolean", ""),
+		return RTCode{
+			Code: "if (typeof " + v + " !== 'boolean') " + callRTErr(ctx, "boolean", ""),
 			Type: CodeS,
 		}
 
 	case protocol.KindBigInt:
 		// mion:nodes/atomic/bigInt.ts:emitTypeErrors
-		return JitCode{
-			Code: "if (typeof " + v + " !== 'bigint') " + callJitErr(ctx, "bigint", ""),
+		return RTCode{
+			Code: "if (typeof " + v + " !== 'bigint') " + callRTErr(ctx, "bigint", ""),
 			Type: CodeS,
 		}
 
 	case protocol.KindSymbol:
 		// Unsupported — see docs/UNSUPPORTED-KINDS.md FAQ.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindNull:
 		// mion:nodes/atomic/null.ts:emitTypeErrors
-		return JitCode{
-			Code: "if (" + v + " !== null) " + callJitErr(ctx, "null", ""),
+		return RTCode{
+			Code: "if (" + v + " !== null) " + callRTErr(ctx, "null", ""),
 			Type: CodeS,
 		}
 
@@ -200,16 +200,16 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// mion:nodes/atomic/undefined.ts:emitTypeErrors. Uses
 		// typeof to allow `var v` references that haven't been
 		// assigned yet (matches mion's `typeof === 'undefined'` text).
-		return JitCode{
-			Code: "if (typeof " + v + " !== 'undefined') " + callJitErr(ctx, "undefined", ""),
+		return RTCode{
+			Code: "if (typeof " + v + " !== 'undefined') " + callRTErr(ctx, "undefined", ""),
 			Type: CodeS,
 		}
 
 	case protocol.KindVoid:
 		// mion:nodes/atomic/void.ts:emitTypeErrors — void accepts
 		// only undefined; null is rejected (matches isType).
-		return JitCode{
-			Code: "if (" + v + " !== undefined) " + callJitErr(ctx, "void", ""),
+		return RTCode{
+			Code: "if (" + v + " !== undefined) " + callRTErr(ctx, "void", ""),
 			Type: CodeS,
 		}
 
@@ -221,29 +221,29 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		if ctx.IsRoot() {
 			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown)
 		}
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
 		// mion:nodes/atomic/never.ts:emitTypeErrors — every value is
 		// an error against `never`. No type check, just record the
 		// error unconditionally.
-		return JitCode{
-			Code: callJitErr(ctx, "never", "") + ";",
+		return RTCode{
+			Code: callRTErr(ctx, "never", "") + ";",
 			Type: CodeS,
 		}
 
 	case protocol.KindObject:
 		// mion:nodes/atomic/object.ts — strict TS `object` type:
 		// non-null and not a primitive. Same gate as isType.
-		return JitCode{
-			Code: "if (!(typeof " + v + " === 'object' && " + v + " !== null)) " + callJitErr(ctx, "objectLiteral", ""),
+		return RTCode{
+			Code: "if (!(typeof " + v + " === 'object' && " + v + " !== null)) " + callRTErr(ctx, "objectLiteral", ""),
 			Type: CodeS,
 		}
 
 	case protocol.KindRegexp:
 		// mion:nodes/atomic/regexp.ts:emitTypeErrors
-		return JitCode{
-			Code: "if (!(" + v + " instanceof RegExp)) " + callJitErr(ctx, "regexp", ""),
+		return RTCode{
+			Code: "if (!(" + v + " instanceof RegExp)) " + callRTErr(ctx, "regexp", ""),
 			Type: CodeS,
 		}
 
@@ -254,8 +254,8 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// mion:nodes/atomic/enum.ts:emitTypeErrors — OR-chain of
 		// `v === val` checks; record an error if NONE match.
 		if len(rt.Values) == 0 {
-			return JitCode{
-				Code: callJitErr(ctx, "enum", "") + ";",
+			return RTCode{
+				Code: callRTErr(ctx, "enum", "") + ";",
 				Type: CodeS,
 			}
 		}
@@ -267,8 +267,8 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 			}
 			parts = append(parts, v+" === "+lit)
 		}
-		return JitCode{
-			Code: "if (!(" + strings.Join(parts, " || ") + ")) " + callJitErr(ctx, "enum", ""),
+		return RTCode{
+			Code: "if (!(" + strings.Join(parts, " || ") + ")) " + callRTErr(ctx, "enum", ""),
 			Type: CodeS,
 		}
 
@@ -276,8 +276,8 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		if rt.SubKind == protocol.SubKindDate {
 			// mion:nodes/atomic/date.ts:emitTypeErrors — Date instance
 			// AND a valid date (rejects `new Date('not a date')`).
-			return JitCode{
-				Code: "if (!(" + v + " instanceof Date) || isNaN(" + v + ".getTime())) " + callJitErr(ctx, "date", ""),
+			return RTCode{
+				Code: "if (!(" + v + " instanceof Date) || isNaN(" + v + ".getTime())) " + callRTErr(ctx, "date", ""),
 				Type: CodeS,
 			}
 		}
@@ -294,18 +294,18 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		}
 		if rt.SubKind == protocol.SubKindNonSerializable {
 			// mion: nodes/native/nonSerializable.ts:21-22 —
-			// `emitTypeErrors(): JitCode { throw new Error('Jit
+			// `emitTypeErrors(): RTCode { throw new Error('RT
 			// compilation disabled for Non Serializable types.'); }`.
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		// Future subkinds — silent skip.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
 		// mion:nodes/native/promise.ts — thenable check, wrapped T
 		// not validated synchronously.
-		return JitCode{
-			Code: "if (!(typeof " + v + " === 'object' && " + v + " !== null && typeof " + v + ".then === 'function')) " + callJitErr(ctx, "promise", ""),
+		return RTCode{
+			Code: "if (!(typeof " + v + " === 'object' && " + v + " !== null && typeof " + v + ".then === 'function')) " + callRTErr(ctx, "promise", ""),
 			Type: CodeS,
 		}
 
@@ -323,8 +323,8 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// mion:nodes/function/function.ts:emitTypeErrors — `typeof v
 		// === 'function'`. Children (params, return) aren't validated
 		// here; treat the whole shape as opaque-callable.
-		return JitCode{
-			Code: "if (typeof " + v + " !== 'function') " + callJitErr(ctx, jitTypeNameForKind(rt.Kind), ""),
+		return RTCode{
+			Code: "if (typeof " + v + " !== 'function') " + callRTErr(ctx, rtTypeNameForKind(rt.Kind), ""),
 			Type: CodeS,
 		}
 
@@ -348,7 +348,7 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// access-path, then composes:
 		//
 		//   if (!Array.isArray(v)) {
-		//     <callJitErr 'array'>
+		//     <callRTErr 'array'>
 		//   } else {
 		//     for (let i0 = 0; i0 < v.length; i0++) {
 		//       <childCode>
@@ -359,47 +359,47 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// → "" (whole check evaporates); child empty + no noIsArrayCheck
 		// → bare `if (!Array.isArray(v)) <err>;` (array-only check).
 		if rt.Child == nil {
-			return JitCode{Code: "", Type: CodeS}
+			return RTCode{Code: "", Type: CodeS}
 		}
 		resolvedChild := ctx.ResolveRef(rt.Child)
 		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
 			// Symbol[] / Function[] cannot be validated — mion throws at
-			// JIT-compile time. Emit an unconditional error so the
+			// RT-compile time. Emit an unconditional error so the
 			// runtime call surfaces the rejection consistently with
 			// `() => false` on the isType side.
-			return JitCode{Code: callJitErr(ctx, "array", "") + ";", Type: CodeS}
+			return RTCode{Code: callRTErr(ctx, "array", "") + ";", Type: CodeS}
 		}
 		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
 		ctx.SetChildPathLiteral(iVar)
-		childJit := ctx.CompileChild(rt.Child, CodeS)
+		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		// If the child contributes no body (e.g. KindAny element),
 		// reduce to the bare array guard or a noop.
-		if childJit.Code == "" {
+		if childRT.Code == "" {
 			if noIsArrayCheck {
-				return JitCode{Code: "", Type: CodeS}
+				return RTCode{Code: "", Type: CodeS}
 			}
-			return JitCode{
-				Code: "if (!Array.isArray(" + v + ")) " + callJitErr(ctx, "array", ""),
+			return RTCode{
+				Code: "if (!Array.isArray(" + v + ")) " + callRTErr(ctx, "array", ""),
 				Type: CodeS,
 			}
 		}
-		itemsCode := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}"
+		itemsCode := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
 		if noIsArrayCheck {
-			return JitCode{Code: itemsCode, Type: CodeS}
+			return RTCode{Code: itemsCode, Type: CodeS}
 		}
-		return JitCode{
-			Code: "if (!Array.isArray(" + v + ")) {" + callJitErr(ctx, "array", "") + "} else {" + itemsCode + "}",
+		return RTCode{
+			Code: "if (!Array.isArray(" + v + ")) {" + callRTErr(ctx, "array", "") + "} else {" + itemsCode + "}",
 			Type: CodeS,
 		}
 	}
-	return JitCode{Code: "", Type: CodeNS}
+	return RTCode{Code: "", Type: CodeNS}
 }
 
 // EmitDependencyCall returns the JS expression that invokes a
@@ -407,18 +407,18 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 // `pth.push(...) ; <call> ; pth.splice(-N)` envelope when the current
 // static-path segments are non-empty so the child's errors carry the
 // right access-path prefix. Mirrors mion's `BaseFnCompiler.callDependency`
-// branch at jitFnCompiler.ts:388-397.
+// branch at rtFnCompiler.ts:388-397.
 func (TypeErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
 	args := ctx.Vλl + "," + pthArg + "," + errArg
 	var callCode string
-	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	if isSelf {
 		callCode = ctx.walker.FnName + "(" + args + ")"
 	} else {
 		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 		}
 		callCode = childID + ".fn(" + args + ")"
 	}
@@ -448,10 +448,10 @@ func (TypeErrorsEmitter) Finalize(rawCode string) (string, bool) {
 	return code, false
 }
 
-// callJitErr builds the JS call to cpf_newRunTypeErr that appends one
+// callRTErr builds the JS call to cpf_newRunTypeErr that appends one
 // RunTypeError entry to the `er` array. Mirrors mion's
-// JitErrorsFnCompiler.callJitErr / callJitErrWithPath
-// (jitFnCompiler.ts:610-629).
+// RTErrorsFnCompiler.callRTErr / callRTErrWithPath
+// (rtFnCompiler.ts:610-629).
 //
 // Args at the call site:
 //   - pth (runtime path array)
@@ -463,14 +463,14 @@ func (TypeErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // "unknown key" / "map key" markers that aren't part of the runtime
 // path but should appear in the error). Empty `extra` → no trailing
 // segment, AccessPathLiteral handles the empty-array short-circuit.
-func callJitErr(ctx *EmitContext, expected string, extra string) string {
+func callRTErr(ctx *EmitContext, expected string, extra string) string {
 	ctx.AddPureFnDependency("mion", "newRunTypeErr", typeErrorsPureFnFilePath)
 	key := pureFnAlias("newRunTypeErr")
 	if !ctx.HasContextItem(key) {
-		// jitUtils.getPureFn takes a single composite key
+		// rtUtils.getPureFn takes a single composite key
 		// `<namespace>::<fnName>` (see pureFnKey helper in
-		// packages/ts-go-run-types/src/jit/jitUtils.ts:45). The literal
-		// is duplicated in both the body STRING and the createJitFn
+		// packages/ts-go-run-types/src/rt/rtUtils.ts:45). The literal
+		// is duplicated in both the body STRING and the createRTFn
 		// closure because the body is also evaluated through
 		// `new Function('utl', code)` where module-level consts like
 		// `k_nRT` are not in scope — only pureFnDependencies (which
@@ -492,13 +492,13 @@ func callJitErr(ctx *EmitContext, expected string, extra string) string {
 // the bigint / symbol / regexp / primitive cases — emitLiteral returns
 // a JS boolean expression (the isType check); we wrap it in
 // `if (!(<expr>)) <error>`.
-func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	isTypeExpr := emitLiteral(rt, ctx.Vλl)
 	if isTypeExpr.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{
-		Code: "if (!(" + isTypeExpr.Code + ")) " + callJitErr(ctx, "literal", ""),
+	return RTCode{
+		Code: "if (!(" + isTypeExpr.Code + ")) " + callRTErr(ctx, "literal", ""),
 		Type: CodeS,
 	}
 }
@@ -510,7 +510,7 @@ func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
 // error on mismatch, otherwise runs each child's emitTypeErrors
 // statement.
 //
-// Children are filtered the same way mion's getJitChildren filters
+// Children are filtered the same way mion's getRTChildren filters
 // (matching emitObjectIsType in istype.go): static + method-shaped
 // kinds dropped; PropertySignature wrapping a function-typed value
 // also dropped via its own empty emit.
@@ -523,7 +523,7 @@ func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) JitCode {
 // rather than slipping through the bare `typeof === 'object'` check.
 // Mirrors interface.ts:allOptionalCode. Suppressed for callable
 // shapes (the value is a Function, not an Object).
-func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	// Detect a CallSignature child for the callable-interface case.
 	var callSigChild *protocol.RunType
 	for _, child := range rt.Children {
@@ -563,18 +563,18 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 			ctx.EmitDiagnosticSlot(SlotMethodDropped, memberLabel(resolved))
 			continue
 		}
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
+		if childRT.Code == "" {
 			continue
 		}
 		hasContributingChild = true
 		if !memberIsOptional(resolved) {
 			allOptional = false
 		}
-		childrenParts = append(childrenParts, childJit.Code)
+		childrenParts = append(childrenParts, childRT.Code)
 	}
 	childrenCode := strings.Join(childrenParts, ";")
 
@@ -601,13 +601,13 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 
 	if childrenCode == "" {
 		// No contributing children — emit only the shape guard.
-		return JitCode{
-			Code: "if (!(" + objectCheck + ")) " + callJitErr(ctx, expected, ""),
+		return RTCode{
+			Code: "if (!(" + objectCheck + ")) " + callRTErr(ctx, expected, ""),
 			Type: CodeS,
 		}
 	}
-	return JitCode{
-		Code: "if (!(" + objectCheck + ")) {" + callJitErr(ctx, expected, "") + "} else {" + childrenCode + "}",
+	return RTCode{
+		Code: "if (!(" + objectCheck + ")) {" + callRTErr(ctx, expected, "") + "} else {" + childrenCode + "}",
 		Type: CodeS,
 	}
 }
@@ -617,42 +617,42 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 // JS string literal) before recursing, then wraps the child code in
 // an optional guard if the property is optional. Mirrors mion's
 // nodes/member/property.ts:emitTypeErrors.
-func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
 		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, rt.Name)
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
 	ctx.SetChildAccessor(accessor)
 	ctx.SetChildPathLiteral(quoteJS(rt.Name))
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
+	if childRT.Type == CodeNS {
 		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
 		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
 			ctx.walker.EmitDiagnostic(leafCode, rt.Name)
 		}
 		ctx.walker.AbsorbUnsupported()
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
-		return JitCode{
-			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+		return RTCode{
+			Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}",
 			Type: CodeS,
 		}
 	}
-	return childJit
+	return childRT
 }
 
 // emitIndexSignatureTypeErrors handles KindIndexSignature. Loops
@@ -661,19 +661,19 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 // per-key regex.test that records a 'never' error for keys that don't
 // match the pattern. Mirrors mion's
 // nodes/member/indexProperty.ts:emitTypeErrors.
-func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isSymbolKeyedIndexSig(rt, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	// Template-literal key regex (`{[k: `api/${string}`]: T}`) lifted
 	// into the closure prologue, same shape as the isType emit.
@@ -692,14 +692,14 @@ func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v stri
 	keyVar := ctx.NextLocalVar("k")
 	ctx.SetChildAccessor(v + "[" + keyVar + "]")
 	ctx.SetChildPathLiteral(keyVar)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" && keyRegexVar == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" && keyRegexVar == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	var body strings.Builder
 	body.WriteString("for (const ")
@@ -713,31 +713,31 @@ func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v stri
 	}
 	if keyRegexVar != "" {
 		// Template-literal key failure → 'never' error at path
-		// [..., keyVar]. Mirrors mion's callJitErrWithPath('never', keyVar).
+		// [..., keyVar]. Mirrors mion's callRTErrWithPath('never', keyVar).
 		// `extra=keyVar` appends the key as the trailing path segment.
 		body.WriteString("if (!")
 		body.WriteString(keyRegexVar)
 		body.WriteString(".test(")
 		body.WriteString(keyVar)
 		body.WriteString(")) ")
-		body.WriteString(callJitErr(ctx, "never", keyVar))
+		body.WriteString(callRTErr(ctx, "never", keyVar))
 		body.WriteString("; else ")
 	}
-	if childJit.Code != "" {
+	if childRT.Code != "" {
 		body.WriteString("{")
-		body.WriteString(childJit.Code)
+		body.WriteString(childRT.Code)
 		body.WriteString("}")
 	}
 	body.WriteString("}")
-	return JitCode{Code: body.String(), Type: CodeS}
+	return RTCode{Code: body.String(), Type: CodeS}
 }
 
-// jitTypeNameForKind returns the kindname mion uses for the
+// rtTypeNameForKind returns the kindname mion uses for the
 // `expected` field on a RunTypeError record. Mirrors module.go's
-// jitTypeName function but for the no-RunType callers — function-
+// rtTypeName function but for the no-RunType callers — function-
 // flavoured kinds map to their concrete name (function / method /
 // methodSignature / callSignature).
-func jitTypeNameForKind(kind protocol.ReflectionKind) string {
+func rtTypeNameForKind(kind protocol.ReflectionKind) string {
 	switch kind {
 	case protocol.KindFunction:
 		return "function"
@@ -755,7 +755,7 @@ func jitTypeNameForKind(kind protocol.ReflectionKind) string {
 // nodes/collection/tuple.ts:emitTypeErrors. Body shape (CodeS):
 //
 //	if (!Array.isArray(v) [|| v.length > N]) {
-//	  <callJitErr 'tuple'>
+//	  <callRTErr 'tuple'>
 //	} else {
 //	  <member0Code>; <member1Code>; …
 //	}
@@ -764,23 +764,23 @@ func jitTypeNameForKind(kind protocol.ReflectionKind) string {
 // empty array is the only valid value). Rest-bearing tuples skip the
 // upper-length-bound check; rest-member emit handles the per-element
 // loop and accumulates errors with the loop counter as the path.
-func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if len(rt.Children) == 0 {
 		// Empty tuple — only the empty array passes.
-		return JitCode{
-			Code: "if (!(Array.isArray(" + v + ") && " + v + ".length === 0)) " + callJitErr(ctx, "tuple", ""),
+		return RTCode{
+			Code: "if (!(Array.isArray(" + v + ") && " + v + ".length === 0)) " + callRTErr(ctx, "tuple", ""),
 			Type: CodeS,
 		}
 	}
 	// Build the per-member body.
 	var bodyParts []string
 	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			bodyParts = append(bodyParts, childJit.Code)
+		if childRT.Code != "" {
+			bodyParts = append(bodyParts, childRT.Code)
 		}
 	}
 	body := strings.Join(bodyParts, ";")
@@ -790,13 +790,13 @@ func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCo
 		lengthCheck = " || " + v + ".length > " + strconv.Itoa(len(rt.Children))
 	}
 	if body == "" {
-		return JitCode{
-			Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") " + callJitErr(ctx, "tuple", ""),
+		return RTCode{
+			Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") " + callRTErr(ctx, "tuple", ""),
 			Type: CodeS,
 		}
 	}
-	return JitCode{
-		Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") {" + callJitErr(ctx, "tuple", "") + "} else {" + body + "}",
+	return RTCode{
+		Code: "if (!Array.isArray(" + v + ")" + lengthCheck + ") {" + callRTErr(ctx, "tuple", "") + "} else {" + body + "}",
 		Type: CodeS,
 	}
 }
@@ -811,7 +811,7 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 	key := pureFnAlias("safeIterableKey")
 	if !ctx.HasContextItem(key) {
 		ctx.AddPureFnDependency("mion", "safeIterableKey", typeErrorsPureFnFilePath)
-		// Literal duplicated in body + closure — see callJitErr for the
+		// Literal duplicated in body + closure — see callRTErr for the
 		// reason `k_<alias>` hoist is restricted to pureFnDependencies.
 		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::safeIterableKey')")
 	}
@@ -822,7 +822,7 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 // Body shape (CodeS):
 //
 //	if (!(v instanceof Map)) {
-//	  <callJitErr 'map'>
+//	  <callRTErr 'map'>
 //	} else {
 //	  for (const entry0 of v.entries()) {
 //	    const k0 = entry0[0]; const val0 = entry0[1];
@@ -835,7 +835,7 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 // `cpf_safeIterableKey` sanitisation), the entry index, and a `failed`
 // marker indicating which side of the entry the error came from.
 // Matches mion's getStaticPathLiteral output.
-func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	keyType, valueType := mapKeyValueTypes(rt, ctx)
 	entryVar := ctx.NextLocalVar("entry")
 	idxVar := ctx.NextLocalVar("i")
@@ -857,14 +857,14 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 		inner.WriteString("[0];")
 		ctx.SetChildAccessor(keyVar)
 		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + keyVar + "),index:" + idxVar + ",failed:'mapKey'}")
-		keyJit := ctx.CompileChild(keyType, CodeS)
+		keyRT := ctx.CompileChild(keyType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if keyJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if keyRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if keyJit.Code != "" {
-			inner.WriteString(keyJit.Code)
+		if keyRT.Code != "" {
+			inner.WriteString(keyRT.Code)
 			// Dep-call envelope keys end with `(pth.push(...), <call>,
 			// pth.splice(-1))` — a parenthesised comma expression with
 			// no trailing semicolon. Without an explicit separator, the
@@ -872,7 +872,7 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 			// a JS syntax error. Append `;` defensively for any non-
 			// terminator-ending key code; identical to mion's
 			// "emit each child on its own statement" convention.
-			if last := keyJit.Code[len(keyJit.Code)-1]; last != ';' && last != '}' {
+			if last := keyRT.Code[len(keyRT.Code)-1]; last != ';' && last != '}' {
 				inner.WriteString(";")
 			}
 		}
@@ -886,18 +886,18 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 		inner.WriteString("[1];")
 		ctx.SetChildAccessor(valVar)
 		ctx.SetChildPathLiteral("{key:" + safeKey + "(" + entryVar + "[0]),index:" + idxVar + ",failed:'mapValue'}")
-		valJit := ctx.CompileChild(valueType, CodeS)
+		valRT := ctx.CompileChild(valueType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if valJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if valRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if valJit.Code != "" {
-			inner.WriteString(valJit.Code)
+		if valRT.Code != "" {
+			inner.WriteString(valRT.Code)
 			// Same statement-separator concern as the key half: keep a
 			// trailing `;` between a `(...)` comma-expression and the
 			// loop's `i0++`.
-			if last := valJit.Code[len(valJit.Code)-1]; last != ';' && last != '}' {
+			if last := valRT.Code[len(valRT.Code)-1]; last != ';' && last != '}' {
 				inner.WriteString(";")
 			}
 		}
@@ -905,8 +905,8 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 	inner.WriteString(idxVar)
 	inner.WriteString("++;}")
 	body := inner.String()
-	return JitCode{
-		Code: "if (!(" + v + " instanceof Map)) {" + callJitErr(ctx, "map", "") + "} else {" + body + "}",
+	return RTCode{
+		Code: "if (!(" + v + " instanceof Map)) {" + callRTErr(ctx, "map", "") + "} else {" + body + "}",
 		Type: CodeS,
 	}
 }
@@ -915,14 +915,14 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 // nodes/collection/templateLiteral.ts:emitTypeErrors. Reuses
 // emitTemplateLiteralIsType to get the boolean expression
 // (`typeof v === 'string' && reTL.test(v)`), wraps in
-// `if (!<expr>) callJitErr('templateLiteral')`.
-func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+// `if (!<expr>) callRTErr('templateLiteral')`.
+func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isTypeExpr := emitTemplateLiteralIsType(rt, ctx, v)
 	if isTypeExpr.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{
-		Code: "if (!(" + isTypeExpr.Code + ")) " + callJitErr(ctx, "templateLiteral", ""),
+	return RTCode{
+		Code: "if (!(" + isTypeExpr.Code + ")) " + callRTErr(ctx, "templateLiteral", ""),
 		Type: CodeS,
 	}
 }
@@ -933,21 +933,21 @@ func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v str
 // Per-arm error breakdown is explicitly NOT a feature of mion's
 // typeErrors (mion's stance: a union failure is one error, not N).
 //
-// The cross-fn lookup happens at runtime via the shared jitUtils
+// The cross-fn lookup happens at runtime via the shared rtUtils
 // cache. We register a closure-prologue context item but DO NOT add
-// the isType hash to walker.JitDependencies — the dangling-dep
+// the isType hash to walker.RTDependencies — the dangling-dep
 // cascade in module.go operates per-fn (entries map only carries
 // typeErrors entries), so a typeErrors entry can't satisfy an
 // isType dep ref. The runtime load order (isType cache → typeErrors
 // cache) means the entry is always populated by the time the
-// typeErrors closure invokes `utl.getJIT('it_<hash>')`.
-func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+// typeErrors closure invokes `utl.getRT('it_<hash>')`.
+func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isTypeHash := constants.CacheModules["isType"].Tag + "_" + rt.ID
 	if !ctx.HasContextItem(isTypeHash) {
-		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getJIT("+quoteJS(isTypeHash)+")")
+		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getRT("+quoteJS(isTypeHash)+")")
 	}
-	return JitCode{
-		Code: "if (!" + isTypeHash + ".fn(" + v + ")) " + callJitErr(ctx, "union", ""),
+	return RTCode{
+		Code: "if (!" + isTypeHash + ".fn(" + v + ")) " + callRTErr(ctx, "union", ""),
 		Type: CodeS,
 	}
 }
@@ -955,7 +955,7 @@ func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCo
 // emitSetTypeErrors mirrors mion's nodes/native/set emitTypeErrors.
 // Same pattern as Map but with a single item type and `.values()`
 // iteration. Path segment for an item error: the item index.
-func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	itemVar := ctx.NextLocalVar("item")
 	idxVar := ctx.NextLocalVar("i")
@@ -970,19 +970,19 @@ func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 	if itemType != nil {
 		ctx.SetChildAccessor(itemVar)
 		ctx.SetChildPathLiteral(idxVar)
-		itemJit := ctx.CompileChild(itemType, CodeS)
+		itemRT := ctx.CompileChild(itemType, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if itemJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if itemRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if itemJit.Code != "" {
-			inner.WriteString(itemJit.Code)
+		if itemRT.Code != "" {
+			inner.WriteString(itemRT.Code)
 			// Same statement-separator concern as the Map emitter: a
 			// dep-call envelope `(pth.push(...), <call>, pth.splice(-1))`
 			// has no trailing `;`, so the following `i0++` would lex as
 			// `(expr)i0++` — a JS syntax error. Defensive semicolon.
-			if last := itemJit.Code[len(itemJit.Code)-1]; last != ';' && last != '}' {
+			if last := itemRT.Code[len(itemRT.Code)-1]; last != ';' && last != '}' {
 				inner.WriteString(";")
 			}
 		}
@@ -990,8 +990,8 @@ func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 	inner.WriteString(idxVar)
 	inner.WriteString("++;}")
 	body := inner.String()
-	return JitCode{
-		Code: "if (!(" + v + " instanceof Set)) {" + callJitErr(ctx, "set", "") + "} else {" + body + "}",
+	return RTCode{
+		Code: "if (!(" + v + " instanceof Set)) {" + callRTErr(ctx, "set", "") + "} else {" + body + "}",
 		Type: CodeS,
 	}
 }
@@ -1001,21 +1001,21 @@ func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode
 // accessor (`v[i]`) + path literal (the position index) before
 // recursing into the wrapped child. Rest members produce a for-loop
 // in their own emit; optional members get the undefined-guard wrap.
-func emitTupleMemberTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitTupleMemberTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
 		// Non-serializable element — mion: `if (v[i] !== undefined)
-		// callJitErrWithPath('undefined', i)`. The slot must be
+		// callRTErrWithPath('undefined', i)`. The slot must be
 		// undefined.
 		idxLit := positionStr(rt)
 		accessor := v + "[" + idxLit + "]"
 		// Use the extra path literal to thread the index through the
-		// access path (callJitErr second arg).
-		return JitCode{
-			Code: "if (" + accessor + " !== undefined) " + callJitErr(ctx, "undefined", idxLit),
+		// access path (callRTErr second arg).
+		return RTCode{
+			Code: "if (" + accessor + " !== undefined) " + callRTErr(ctx, "undefined", idxLit),
 			Type: CodeS,
 		}
 	}
@@ -1024,17 +1024,17 @@ func emitTupleMemberTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string)
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
 		ctx.SetChildPathLiteral(iVar)
-		childJit := ctx.CompileChild(rt.Child, CodeS)
+		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
 		ctx.SetChildPathLiteral("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
-			return JitCode{Code: "", Type: CodeS}
+		if childRT.Code == "" {
+			return RTCode{Code: "", Type: CodeS}
 		}
-		return JitCode{
-			Code: "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childJit.Code + "}",
+		return RTCode{
+			Code: "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}",
 			Type: CodeS,
 		}
 	}
@@ -1043,20 +1043,20 @@ func emitTupleMemberTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
 	ctx.SetChildPathLiteral(idxLit)
-	childJit := ctx.CompileChild(rt.Child, CodeS)
+	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeS}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if rt.Optional {
-		return JitCode{
-			Code: "if (" + accessor + " !== undefined) {" + childJit.Code + "}",
+		return RTCode{
+			Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}",
 			Type: CodeS,
 		}
 	}
-	return childJit
+	return childRT
 }

@@ -1,7 +1,7 @@
 package diag
 
-// Runtype JIT-compiler codes. Per-family prefixes so users reading their
-// build log can tell which JIT family produced a diagnostic without
+// Runtype RT-compiler codes. Per-family prefixes so users reading their
+// build log can tell which RT family produced a diagnostic without
 // reading the message: SJ010 is unambiguously "stringifyJson dropped a
 // member"; IT010 is "isType dropped a member"; even if both messages are
 // otherwise identical.

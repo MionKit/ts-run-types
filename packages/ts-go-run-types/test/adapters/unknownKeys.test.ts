@@ -1,4 +1,4 @@
-// End-to-end tests for the unknown-keys jit family. Verifies that the
+// End-to-end tests for the unknown-keys rt family. Verifies that the
 // four functions ported from mion's emit* methods on InterfaceRunType
 // produce correct runtime behavior for the common cases:
 //
@@ -179,12 +179,12 @@ describe('index-signature & function-typed property cases', () => {
     expect(errors.every((e) => e.expected === 'never')).toBe(true);
   });
 
-  it('hasUnknownKeys default ignores the checkNonJitProps option for a JIT-only schema', () => {
-    // No function-typed children, so checkNonJitProps has no effect here —
+  it('hasUnknownKeys default ignores the checkNonRTProps option for a RT-only schema', () => {
+    // No function-typed children, so checkNonRTProps has no effect here —
     // verifies the option threading doesn't break the basic case.
     const has = createHasUnknownKeys<{a: string}>();
-    expect(has({a: 'x'}, {checkNonJitProps: true})).toBe(false);
-    expect(has({a: 'x', extra: 1}, {checkNonJitProps: true})).toBe(true);
+    expect(has({a: 'x'}, {checkNonRTProps: true})).toBe(false);
+    expect(has({a: 'x', extra: 1}, {checkNonRTProps: true})).toBe(true);
   });
 });
 

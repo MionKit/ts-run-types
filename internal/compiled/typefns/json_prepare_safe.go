@@ -59,8 +59,8 @@ func AnyPrepareForJsonSafeSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-func (PrepareForJsonSafeEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return DefaultIsJitInlined(ctx)
+func (PrepareForJsonSafeEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return DefaultIsRTInlined(ctx)
 }
 
 // ReturnName is `v` for compatibility with the walker's tail-wrap, but
@@ -80,12 +80,12 @@ func (PrepareForJsonSafeEmitter) ReturnName() string {
 // as an expression slot (e.g. `{inner: <hash>.fn(v.inner)}`).
 func (PrepareForJsonSafeEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	if isSelf {
 		return ctx.walker.FnName + "(" + args + ")"
 	}
 	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 	}
 	return childID + ".fn(" + args + ")"
 }
@@ -114,9 +114,9 @@ func (PrepareForJsonSafeEmitter) Finalize(raw string) (string, bool) {
 // uses the input accessor (`v.<name>` / `v[i]` / `_e`) directly — that
 // expression IS the safe-form because no transform is needed. When the
 // child returns CodeE, the parent uses that expression.
-func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	v := ctx.Vλl
 	switch rt.Kind {
@@ -126,39 +126,39 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
 		protocol.KindObject, protocol.KindEnum:
 		// Atomic JSON-compatible kinds — Finalize collapses to noop.
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindBigInt:
-		return JitCode{Code: v + ".toString()", Type: CodeE}
+		return RTCode{Code: v + ".toString()", Type: CodeE}
 
 	case protocol.KindSymbol:
 		// Unsupported — see docs/UNSUPPORTED-KINDS.md FAQ.
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
-		return JitCode{Code: v + ".toString()", Type: CodeE}
+		return RTCode{Code: v + ".toString()", Type: CodeE}
 
 	case protocol.KindVoid:
-		return JitCode{Code: "undefined", Type: CodeE}
+		return RTCode{Code: "undefined", Type: CodeE}
 
 	case protocol.KindClass:
 		switch rt.SubKind {
 		case protocol.SubKindDate:
-			return JitCode{Code: v + ".toISOString()", Type: CodeE}
+			return RTCode{Code: v + ".toISOString()", Type: CodeE}
 		case protocol.SubKindNone:
 			return emitObjectPrepareForJsonSafe(rt, ctx, v)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJsonSafe(rt, ctx, v)
 		case protocol.SubKindNonSerializable:
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindPromise:
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindObjectLiteral:
 		return emitObjectPrepareForJsonSafe(rt, ctx, v)
@@ -171,16 +171,16 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindUnion:
 		return emitUnionPrepareForJsonSafe(rt, ctx, v)
 
 	case protocol.KindIntersection:
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindTemplateLiteral:
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindLiteral:
 		return emitLiteralPrepareForJsonSafe(rt, v)
@@ -194,37 +194,37 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 		// each property's .Child directly). This arm catches the rare case
 		// of a Property reached at root — same noop emit as the non-safe
 		// sibling.
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 
 	case protocol.KindTupleMember:
 		// Same as Property — tuple members are consumed inline by their
 		// parent tuple (emitTuplePrepareForJsonSafe iterates and dispatches
 		// per-member directly).
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: "", Type: CodeNS}
+	return RTCode{Code: "", Type: CodeNS}
 }
 
 // emitLiteralPrepareForJsonSafe — literal-flavoured atomic kinds:
 // bigint / symbol / regexp literals carry a Flags marker and use the
 // same transform as the bare kind. Primitive literals are noops.
-func emitLiteralPrepareForJsonSafe(rt *protocol.RunType, v string) JitCode {
+func emitLiteralPrepareForJsonSafe(rt *protocol.RunType, v string) RTCode {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
 		flagSet[flag] = true
 	}
 	if flagSet["bigint"] {
-		return JitCode{Code: v + ".toString()", Type: CodeE}
+		return RTCode{Code: v + ".toString()", Type: CodeE}
 	}
 	if flagSet["symbol"] {
-		return JitCode{Code: "'Symbol:' + (" + v + ".description || '')", Type: CodeE}
+		return RTCode{Code: "'Symbol:' + (" + v + ".description || '')", Type: CodeE}
 	}
 	if entry, isMap := rt.Literal.(map[string]any); isMap {
 		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return JitCode{Code: v + ".toString()", Type: CodeE}
+			return RTCode{Code: v + ".toString()", Type: CodeE}
 		}
 	}
-	return JitCode{Code: "", Type: CodeS}
+	return RTCode{Code: "", Type: CodeS}
 }
 
 // safeChildExpr is the composition primitive: returns a JS expression
@@ -233,12 +233,12 @@ func emitLiteralPrepareForJsonSafe(rt *protocol.RunType, v string) JitCode {
 // the child is noop — the safe-form IS the accessor.
 func safeChildExpr(childRef *protocol.RunType, accessor string, ctx *EmitContext) (string, bool) {
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(childRef, CodeE)
+	childRT := ctx.CompileChild(childRef, CodeE)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
+	if childRT.Type == CodeNS {
 		return "", false
 	}
-	if childJit.Code == "" {
+	if childRT.Code == "" {
 		return accessor, true
 	}
 	// CodeRB / CodeS results need to be wrapped in an IIFE to fit an
@@ -246,10 +246,10 @@ func safeChildExpr(childRef *protocol.RunType, accessor string, ctx *EmitContext
 	// handleCodeInterpolation when called with CodeE expected; defensive
 	// catch here in case a child emit returns CodeRB at a level we don't
 	// expect.
-	if childJit.Type == CodeS || childJit.Type == CodeRB {
-		return "(function(){" + childJit.Code + "})()", true
+	if childRT.Type == CodeS || childRT.Type == CodeRB {
+		return "(function(){" + childRT.Code + "})()", true
 	}
-	return childJit.Code, true
+	return childRT.Code, true
 }
 
 // safePropEmit captures one declared property's compiled safe-form
@@ -272,7 +272,7 @@ type safePropEmit struct {
 // child type is JSON-compatible, the body short-circuits to `return v`
 // when `Object.keys(v).length === N`. Mixed-optionality / has-transform
 // shapes always clone.
-func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	var props []safePropEmit
 	var indexSigs []*protocol.RunType
 	// `allExtraProof` is the stricter Approach-3 fastpath gate — a
@@ -320,7 +320,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 		accessor := propertyAccessor(v, resolved.Name, resolved.IsSafeName)
 		expr, ok := safeChildExpr(resolved.Child, accessor, ctx)
 		if !ok {
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		if !isExtraProof(propResolved, ctx) {
 			allExtraProof = false
@@ -346,7 +346,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	if len(props) == 0 {
 		// No serializable declared properties — the safe-form is `{}`
 		// regardless of v's content (strips ALL extras).
-		return JitCode{Code: "return {}", Type: CodeRB}
+		return RTCode{Code: "return {}", Type: CodeRB}
 	}
 
 	// Approach 3 fastpath: only applies when EVERY prop is required AND
@@ -360,9 +360,9 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	if fastpath {
 		body := "if (Object.keys(" + v + ").length === " + strconv.Itoa(len(props)) + ") return " + v + ";" +
 			"return " + cloneExpr
-		return JitCode{Code: body, Type: CodeRB}
+		return RTCode{Code: body, Type: CodeRB}
 	}
-	return JitCode{Code: "return " + cloneExpr, Type: CodeRB}
+	return RTCode{Code: "return " + cloneExpr, Type: CodeRB}
 }
 
 // buildSafeIndexSignatureObject — emits a CodeRB block that builds a
@@ -372,7 +372,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 // sig's child transform applied. Declared keys are NOT walked by the
 // for-in loop (their assignments come AFTER and would otherwise be
 // overridden by raw index-sig values).
-func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*protocol.RunType, ctx *EmitContext) JitCode {
+func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*protocol.RunType, ctx *EmitContext) RTCode {
 	var b strings.Builder
 	b.WriteString("const _r = {};")
 	// Build the per-index-sig arms inside one for-in over v.
@@ -405,7 +405,7 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*
 		accessor := v + "[" + keyVar + "]"
 		expr, ok := safeChildExpr(sig.Child, accessor, ctx)
 		if !ok {
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		arms = append(arms, sigArm{keyRegexVar: keyRegexVar, valueExpr: expr})
 	}
@@ -475,7 +475,7 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*
 		}
 	}
 	b.WriteString("return _r")
-	return JitCode{Code: b.String(), Type: CodeRB}
+	return RTCode{Code: b.String(), Type: CodeRB}
 }
 
 // buildSafeObjectLiteral assembles the JS expression that clones the
@@ -637,31 +637,31 @@ func extraProofRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 // there are no extras to strip at the array level itself, AND the
 // elements are guaranteed not to carry extras either. Otherwise emit
 // `v.map(function(_e){return <safeExpr>})`.
-func emitArrayPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitArrayPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolvedChild := ctx.ResolveRef(rt.Child)
 	if isExtraProof(resolvedChild, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	elemVar := ctx.NextLocalVar("e")
 	expr, ok := safeChildExpr(rt.Child, elemVar, ctx)
 	if !ok {
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	return JitCode{Code: v + ".map(function(" + elemVar + "){return " + expr + "})", Type: CodeE}
+	return RTCode{Code: v + ".map(function(" + elemVar + "){return " + expr + "})", Type: CodeE}
 }
 
 // emitTuplePrepareForJsonSafe — fast noop when every member is
 // extra-proof; otherwise emit a tuple literal with per-position safe
 // expressions. Rest members emit a tail spread of mapped elements.
-func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isExtraProof(rt, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	var parts []string
 	restPart := ""
@@ -689,7 +689,7 @@ func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 			elemVar := ctx.NextLocalVar("e")
 			expr, ok := safeChildExpr(resolved.Child, elemVar, ctx)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			start := positionStr(resolved)
 			restPart = "..." + v + ".slice(" + start + ").map(function(" + elemVar + "){return " + expr + "})"
@@ -699,7 +699,7 @@ func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		accessor := v + "[" + idx + "]"
 		expr, ok := safeChildExpr(resolved.Child, accessor, ctx)
 		if !ok {
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		if resolved.Optional {
 			// Replace `undefined` slots with `null` so the JSON form
@@ -713,25 +713,25 @@ func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		parts = append(parts, restPart)
 	}
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
-	return JitCode{Code: "[" + strings.Join(parts, ",") + "]", Type: CodeE}
+	return RTCode{Code: "[" + strings.Join(parts, ",") + "]", Type: CodeE}
 }
 
 // emitIndexSignaturePrepareForJsonSafe — produces a new object whose
 // keys are filtered by the (optional) template-literal key regex and
 // whose values are the child's safe transform applied to the original
-// value. Symbol-keyed sigs are dropped per mion's skipJit rule.
-func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+// value. Symbol-keyed sigs are dropped per mion's skipRT rule.
+func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	if isSymbolKeyedIndexSig(rt, ctx) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	keyRegexVar := ""
 	if rt.Index != nil {
@@ -749,14 +749,14 @@ func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 	accessor := v + "[" + keyVar + "]"
 	expr, ok := safeChildExpr(rt.Child, accessor, ctx)
 	if !ok {
-		return JitCode{Code: "", Type: CodeNS}
+		return RTCode{Code: "", Type: CodeNS}
 	}
 	body := "const _r = {};for (const " + keyVar + " in " + v + ") {"
 	if keyRegexVar != "" {
 		body += "if (!" + keyRegexVar + ".test(" + keyVar + ")) continue;"
 	}
 	body += "_r[" + keyVar + "] = " + expr + ";}return _r"
-	return JitCode{Code: body, Type: CodeRB}
+	return RTCode{Code: body, Type: CodeRB}
 }
 
 // emitUnionPrepareForJsonSafe — cloning, non-mutating variant of
@@ -766,10 +766,10 @@ func emitIndexSignaturePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 // otherwise) so the result decodes through the existing flat
 // restoreFromJson. Each clause returns a NEW value built from
 // safeChildExpr / buildSafeObjectLiteral; the input is never touched.
-func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	var clauses []string
@@ -777,7 +777,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 	for _, m := range layout.AtomicMembers {
 		memberExpr, ok := safeChildExpr(m.Ref, v, ctx)
 		if !ok {
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
@@ -799,7 +799,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 			propExpr, ok := emitMergedPropPrepareSafe(mp, accessor, ctx)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			props = append(props, safePropEmit{
 				name:       mp.Name,
@@ -816,7 +816,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 
 	errVar := flatUnionEncodeErrorVar(ctx)
 	body := strings.Join(clauses, " ") + " throw new Error(" + errVar + ")"
-	return JitCode{Code: body, Type: CodeRB}
+	return RTCode{Code: body, Type: CodeRB}
 }
 
 // emitMergedPropPrepareSafe returns the safe-form EXPRESSION for one
@@ -855,7 +855,7 @@ func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitCont
 
 // emitNativeIterablePrepareForJsonSafe handles Map / Set safely:
 // returns a NEW array of safe-form entries (no mutation of v).
-func emitNativeIterablePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitNativeIterablePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
 	var innerTypes []*protocol.RunType
 	if isMap {
@@ -876,7 +876,7 @@ func emitNativeIterablePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 		}
 	}
 	if allCompat {
-		return JitCode{Code: "Array.from(" + v + ")", Type: CodeE}
+		return RTCode{Code: "Array.from(" + v + ")", Type: CodeE}
 	}
 	entryVar := ctx.NextLocalVar("e")
 	var entryParts []string
@@ -890,7 +890,7 @@ func emitNativeIterablePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 		}
 		expr, ok := safeChildExpr(innerType, accessor, ctx)
 		if !ok {
-			return JitCode{Code: "", Type: CodeNS}
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		entryParts = append(entryParts, expr)
 	}
@@ -900,5 +900,5 @@ func emitNativeIterablePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext
 	} else {
 		perEntry = entryParts[0]
 	}
-	return JitCode{Code: "Array.from(" + v + ", function(" + entryVar + "){return " + perEntry + "})", Type: CodeE}
+	return RTCode{Code: "Array.from(" + v + ", function(" + entryVar + "){return " + perEntry + "})", Type: CodeE}
 }

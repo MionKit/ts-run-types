@@ -1,16 +1,16 @@
 ---
-name: add-jit-fn-from-scratch
-description: Implement a brand-new JIT function (validator, serializer, coercer, …) in ts-go-run-types from first principles, with NO mion reference to port from. Use when the user asks to add a JIT family that doesn't exist in @mionjs/run-types — they want a new behavior, not a port. Covers the same Go-side + JS-side + test-suite plumbing as the port skill, but adds a design phase up front.
+name: add-rt-fn-from-scratch
+description: Implement a brand-new RT function (validator, serializer, coercer, …) in ts-go-run-types from first principles, with NO mion reference to port from. Use when the user asks to add a RT family that doesn't exist in @mionjs/run-types — they want a new behavior, not a port. Covers the same Go-side + JS-side + test-suite plumbing as the port skill, but adds a design phase up front.
 argument-hint: <fn-name>  (e.g. coerce, schemaFromType)
 effort: high
 ---
 
-# Add a brand-new JIT function to `ts-go-run-types` (no mion reference)
+# Add a brand-new RT function to `ts-go-run-types` (no mion reference)
 
-Use this skill when the target JIT function does NOT exist in
+Use this skill when the target RT function does NOT exist in
 `@mionjs/run-types` and you have to design its wire contract from
 first principles. If the function DOES exist in mion, use
-`port-jit-fn-from-mion` instead — that skill mirrors mion's
+`port-rt-fn-from-mion` instead — that skill mirrors mion's
 existing emit code, which is much faster than re-designing it.
 
 ## CRITICAL — present a plan before editing
@@ -96,7 +96,7 @@ after the initial gate.
 Pick a short identifier (e.g. `coerce`, `schemaFromType`). Cache
 entries register under `<fnname>_<runtypeID>`.
 
-**Critical**: do NOT reuse the bare runtype ID. Different JIT fns
+**Critical**: do NOT reuse the bare runtype ID. Different RT fns
 for the same runtype must have distinct cache keys, otherwise the
 second-registered fn overwrites the first.
 
@@ -110,9 +110,9 @@ type <FnName>Emitter struct{}
 
 func (<FnName>Emitter) Args() []ArgSpec { /* greek-letter args + defaults from step 1 */ }
 func (<FnName>Emitter) Supports(rt *protocol.RunType) bool { /* kind set */ }
-func (<FnName>Emitter) IsJitInlined(ctx *EmitContext) bool { return DefaultIsJitInlined(ctx) }
+func (<FnName>Emitter) IsRTInlined(ctx *EmitContext) bool { return DefaultIsRTInlined(ctx) }
 func (<FnName>Emitter) ReturnName() string { return "<return-id-from-step-1>" }
-func (<FnName>Emitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) JitCode {
+func (<FnName>Emitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
     switch rt.Kind {
     case protocol.KindString: /* matches sketch from step 1 */
     case protocol.KindArray: /* matches sketch from step 1 */
@@ -125,7 +125,7 @@ func (<FnName>Emitter) Finalize(raw string) (string, bool) { /* append return <R
 
 **Architectural rule**: keep the entire switch in this one file.
 Don't split kind logic across per-kind files — the convention is
-"one giant switch per JIT fn family." Look at
+"one giant switch per RT fn family." Look at
 `internal/compiled/typefns/istype.go` and `typeerrors.go` as templates
 for file shape (not for semantics).
 
@@ -177,7 +177,7 @@ Three new files + two edits:
 - `packages/ts-go-run-types/src/index.ts` — import + bootstrap the
   new cache. **Load-order matters**: if the new fn uses pure fns,
   import `pureFn.ts` BEFORE the new factory. Pure fns must register
-  first, otherwise the cache's `createJitFn` closures fail with
+  first, otherwise the cache's `createRTFn` closures fail with
   `cpf_<name> is not a function` at runtime. Then re-export
   `create<FnName>`, `deserialize<FnName>`, and any new types.
 
@@ -196,21 +196,21 @@ Two edits:
 
 ## Step 8 — Generalize the test suite name (FIRST non-validator fn only)
 
-When you're adding the first JIT fn whose semantics isn't "is this
+When you're adding the first RT fn whose semantics isn't "is this
 value valid", rename:
 
 - `packages/ts-go-run-types/test/suites/validation-suite.ts` →
-  `jit-suite.ts`
-- Interface `ValidationCase` → `JitCase`
-- Export `VALIDATION_SUITE` → `JIT_SUITE`
+  `rt-suite.ts`
+- Interface `ValidationCase` → `RTCase`
+- Export `VALIDATION_SUITE` → `RT_SUITE`
 - Update imports in `test/adapters/*.test.ts`
 
-Subsequent fns just add new optional thunks to the existing `JitCase`
+Subsequent fns just add new optional thunks to the existing `RTCase`
 interface — no further renames.
 
 ## Step 9 — Per-case thunks in the suite
 
-Add four optional thunks per `JitCase`:
+Add four optional thunks per `RTCase`:
 
 ```ts
 <fnname>?: () => <FnName>Fn;
@@ -248,7 +248,7 @@ the matching thunk being defined.
 
 ```ts
 it('all atomic <fnname> tests ran', () => {
-  expect(ranTests).toBe(Object.keys(JIT_SUITE.ATOMIC).length);
+  expect(ranTests).toBe(Object.keys(RT_SUITE.ATOMIC).length);
 });
 ```
 
@@ -262,7 +262,7 @@ For serializer fn families, success is
 adapter helper bundles this:
 
 ```ts
-function assert<FnName>(c: JitCase): void {
+function assert<FnName>(c: RTCase): void {
   const serialize = c.<fnname>!();
   const restore = c.deserialize<FnName>?.() ?? ((v: unknown) => v);
   for (const v of c.getSamples().valid) {
@@ -366,6 +366,6 @@ pnpm run pre-publish-test
 
 **Test suite + adapters:**
 - `packages/ts-go-run-types/test/suites/validation-suite.ts`
-  (or `jit-suite.ts` post-rename)
+  (or `rt-suite.ts` post-rename)
 - `packages/ts-go-run-types/test/adapters/isType.test.ts`
 - `packages/ts-go-run-types/test/adapters/getTypeErrors.test.ts`

@@ -1,28 +1,28 @@
 // Public entry point for @mionjs/ts-go-run-types.
 export {type InjectRuntypeId, type CompTimeArgs, type PureFunction, getRuntypeId, reflectRuntypeId} from './markers.ts';
 
-// JIT registry — exported BEFORE `./createJitFunctions.ts` so jitUtils is a
-// real function by the time downstream cache modules call `initCache(getJitUtils())`
+// RT registry — exported BEFORE `./createRTFunctions.ts` so rtUtils is a
+// real function by the time downstream cache modules call `initCache(getRTUtils())`
 // at module top level through any ESM cycle.
-export {getJitUtils, getJitFnCaches, type JITUtils} from './jit/jitUtils.ts';
+export {getRTUtils, getRTFnCaches, type RTUtils} from './rt/rtUtils.ts';
 
 // Populate the run-type registry from the precompiled cache module before any
 // consumer queries it. Idempotent — re-running overwrites entries by id.
 import {initCache as initRunTypesCache} from './caches/runTypesCache.ts';
-import {getJitUtils as _getJitUtilsForInit} from './jit/jitUtils.ts';
-initRunTypesCache(_getJitUtilsForInit());
+import {getRTUtils as _getRTUtilsForInit} from './rt/rtUtils.ts';
+initRunTypesCache(_getRTUtilsForInit());
 
 type _HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const _hot = (import.meta as unknown as {hot?: _HMR}).hot;
 if (_hot) {
   _hot.accept('./caches/runTypesCache.ts', (newMod) => {
-    newMod?.initCache?.(_getJitUtilsForInit());
+    newMod?.initCache?.(_getRTUtilsForInit());
   });
 }
 
 // `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
 // helpers (e.g. typeErrors needs `mion::newRunTypeErr`).
-export {registerPureFnFactory} from './jit/pureFn.ts';
+export {registerPureFnFactory} from './rt/pureFn.ts';
 
 // JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
 // level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
@@ -49,7 +49,7 @@ export {
   createJsonDecoder,
   type JsonDecoderFn,
   type JsonDecoderOptions,
-} from './createJitFunctions.ts';
+} from './createRTFunctions.ts';
 
 // Binary I/O re-exported from a dedicated module so bundlers can drop the
 // binary subtree when consumers never reference either factory.
@@ -81,4 +81,4 @@ export {
   type DataViewDeserializer,
   type StrictArrayBuffer,
   type BinaryInput,
-} from './jit/dataView.ts';
+} from './rt/dataView.ts';

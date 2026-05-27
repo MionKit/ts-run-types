@@ -44,7 +44,7 @@ type Options struct {
 	// SetSources. Mirrors program.Options.SingleThreaded.
 	SingleThreaded bool
 	// CacheDir, when non-empty, points at a directory under which the
-	// resolver persists per-(typeID, fnTag) JIT artifacts. Typically
+	// resolver persists per-(typeID, fnTag) RT artifacts. Typically
 	// <projectRoot>/node_modules/.cache/ts-go-run-types. The disk layer
 	// fingerprints non-version build options (hash lengths, marker
 	// settings) into a subdirectory so distinct configurations don't
@@ -52,9 +52,9 @@ type Options struct {
 	// hash so cross-version files never collide. Empty disables caching
 	// (the in-memory walker runs every time, matching test mode).
 	CacheDir string
-	// EmitCreateJitFn opts every typefns module renderer into emitting
-	// the inline `createJitFn` closure alongside the body `code`
-	// string. Default false — the JS-side materializeJitFn rebuilds
+	// EmitCreateRTFn opts every typefns module renderer into emitting
+	// the inline `createRTFn` closure alongside the body `code`
+	// string. Default false — the JS-side materializeRTFn rebuilds
 	// the factory from `code` via `new Function('utl', code)` on first
 	// lookup, saving the per-entry duplication of the body wrapped in
 	// `function g_<hash>(utl){…}`. Set true for secure runtimes
@@ -63,7 +63,7 @@ type Options struct {
 	// vitest configs set this true so the test suite covers both the
 	// inline-factory path (via createIsType<T>) and the new-Function
 	// path (via deserializeIsType<T>) on every case.
-	EmitCreateJitFn bool
+	EmitCreateRTFn bool
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer
@@ -94,36 +94,36 @@ type Resolver struct {
 	// (which would duplicate site entries on resolver.sites). Cleared
 	// alongside the cache + sites on Rebind / Clear.
 	scannedFiles map[string]struct{}
-	// jitStore is the on-disk JIT artifact cache shared by every
+	// rtStore is the on-disk RT artifact cache shared by every
 	// renderXxxModule call. nil when CacheDir was empty — the renderer
 	// treats nil as "no cache wired", so test paths that build a
 	// resolver without a CacheDir keep the original semantics.
-	jitStore *disk.Store
+	rtStore *disk.Store
 }
 
-// newJITStore builds the on-disk store for opts, returning nil when
+// newRTStore builds the on-disk store for opts, returning nil when
 // caching is disabled. Centralised so New / NewServer share the same
 // fingerprinting rules.
-func newJITStore(opts Options) *disk.Store {
+func newRTStore(opts Options) *disk.Store {
 	if opts.CacheDir == "" {
 		return nil
 	}
 	fp := disk.Fingerprint(disk.FingerprintInputs{
 		HashLength:        opts.HashLength,
 		LiteralHashLength: opts.LiteralHashLength,
-		EmitCreateJitFn:   opts.EmitCreateJitFn,
+		EmitCreateRTFn:   opts.EmitCreateRTFn,
 	})
 	return disk.New(opts.CacheDir, fp)
 }
 
-// JITStore returns the on-disk JIT artifact cache, or nil when
+// RTStore returns the on-disk RT artifact cache, or nil when
 // disabled. Render-side wrappers read this to build the RenderOpts
 // they pass into the typefns module renderers.
-func (resolver *Resolver) JITStore() *disk.Store {
+func (resolver *Resolver) RTStore() *disk.Store {
 	if resolver == nil {
 		return nil
 	}
-	return resolver.jitStore
+	return resolver.rtStore
 }
 
 // New builds a Resolver against prog. Defaults to hashid's default lengths when
@@ -149,7 +149,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
-		jitStore:     newJITStore(opts),
+		rtStore:     newRTStore(opts),
 	}, nil
 }
 
@@ -166,7 +166,7 @@ func NewServer(opts Options) *Resolver {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
-		jitStore:     newJITStore(opts),
+		rtStore:     newRTStore(opts),
 	}
 }
 
