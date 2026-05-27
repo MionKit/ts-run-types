@@ -676,13 +676,14 @@ func emitTuplePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 		if resolved.Child == nil {
 			continue
 		}
-		propResolved := ctx.ResolveRef(resolved.Child)
-		if propResolved == nil || isFunctionLikeKind(propResolved.Kind) {
-			// Function-typed slot — emit `null` so the array length is
-			// preserved on the wire (functions don't serialize).
+		if propResolved := ctx.ResolveRef(resolved.Child); propResolved == nil {
 			parts = append(parts, "null")
 			continue
 		}
+		// Function-typed slots fall through to safeChildExpr below —
+		// the function arm returns CodeNS, ok=false, and the renderer
+		// surfaces an alwaysThrow factory. The previous `null`
+		// placeholder produced a lossy clone for a structural position.
 		if isRestTupleMember(resolved) {
 			// Rest tail: spread a mapped slice over the remaining elements.
 			elemVar := ctx.NextLocalVar("e")

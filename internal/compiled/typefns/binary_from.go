@@ -515,10 +515,11 @@ func emitTupleMemberFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des 
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
+	// Function-typed tuple slots fall through to CompileChild — the
+	// function arm returns CodeNS and the renderer emits alwaysThrow.
 	if isRestTupleMember(rt) {
 		// Rest tuple member: read uint32 length, then loop.
 		lenVar := ctx.NextLocalVar("rln")

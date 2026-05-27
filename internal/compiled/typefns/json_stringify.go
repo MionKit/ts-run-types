@@ -683,8 +683,7 @@ func emitTupleMemberStringifyJson(rt *protocol.RunType, ctx *EmitContext, v stri
 		}
 		return JitCode{Code: sep + "'null'", Type: CodeE}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
 		isFirst := positionInt(rt) == 0
 		sep := "','+"
 		if isFirst {
@@ -692,6 +691,10 @@ func emitTupleMemberStringifyJson(rt *protocol.RunType, ctx *EmitContext, v stri
 		}
 		return JitCode{Code: sep + "'null'", Type: CodeE}
 	}
+	// Function-typed tuple slots fall through to CompileChild — the
+	// function arm returns CodeNS and the renderer surfaces an
+	// alwaysThrow. Emitting bare `'null'` (the previous silent path)
+	// produced a lossy stringifier.
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
@@ -732,10 +735,11 @@ func emitTupleRestStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string
 		// No element type — emit the empty tail.
 		return JitCode{Code: sep + "''", Type: CodeE}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
 		return JitCode{Code: sep + "''", Type: CodeE}
 	}
+	// Function-typed rest element falls through to CompileChild — the
+	// function arm returns CodeNS and the renderer emits alwaysThrow.
 	iVar := ctx.NextLocalVar("i")
 	arrName := ctx.NextLocalVar("res")
 	itemName := ctx.NextLocalVar("its")
