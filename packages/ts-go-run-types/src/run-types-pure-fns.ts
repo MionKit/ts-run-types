@@ -4,7 +4,7 @@
  * License: MIT
  * The software is provided "as is", without warranty of any kind.
  * ######## */
-import {registerPureFnFactory} from './jit/pureFn.ts';
+import {registerPureFnFactory} from './rt/pureFn.ts';
 
 // Slim type aliases copied from `@mionjs/core` so this file stays
 // dependency-free. Fully erased at runtime.

@@ -17,7 +17,7 @@ export interface ResolverClientOptions {
   // setSources / reset cycles, so a single child process can serve every
   // test in a vitest file.
   serverMode?: boolean;
-  // Base directory for the on-disk JIT artifact cache (forwarded as
+  // Base directory for the on-disk RT artifact cache (forwarded as
   // --cache-dir). Typically `<projectRoot>/node_modules/.cache/ts-go-run-types`.
   // The Go binary fingerprints non-version build options into a subdir
   // and folds binary version into every typeID hash, so cache files
@@ -25,11 +25,11 @@ export interface ResolverClientOptions {
   // / undefined disables caching (test paths and inline-source one-shots
   // skip this).
   cacheDir?: string;
-  // Forwarded as --emit-create-jit-fn. When true the Go renderer
-  // emits the inline `createJitFn` closure on every JIT entry; when
+  // Forwarded as --emit-create-rt-fn. When true the Go renderer
+  // emits the inline `createRTFn` closure on every RT entry; when
   // false (default) the entry carries only the body `code` string and
   // the JS side reconstructs the factory via `new Function`.
-  emitCreateJitFn?: boolean;
+  emitCreateRTFn?: boolean;
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -280,7 +280,7 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.inlineSources) args.push('--inline-sources-stdin');
     if (opts.serverMode) args.push('--inline-server');
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir);
-    if (opts.emitCreateJitFn) args.push('--emit-create-jit-fn');
+    if (opts.emitCreateRTFn) args.push('--emit-create-rt-fn');
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');

@@ -34,7 +34,7 @@ minimumReleaseAge: 43200
 # blocked by a transitive we trust.
 #
 # `@mionjs/core` — our own @mionjs/* sibling package on npm. The marker
-# package pulls `getJitUtils` from it at runtime. Trusted implicitly
+# package pulls `getRTUtils` from it at runtime. Trusted implicitly
 # (same org as this repo); the release-age policy exists to defend
 # against compromised third-party publishers, which doesn't apply here.
 #

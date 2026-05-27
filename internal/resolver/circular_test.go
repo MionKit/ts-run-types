@@ -9,7 +9,7 @@ import (
 
 // Circular-type tests adapted from mion's circularRefs.spec.ts at
 // /home/user/mion/packages/run-types/src/nodes/collection/circularRefs.spec.ts.
-// Mion's spec exercises JIT validation behaviour; this suite exercises only
+// Mion's spec exercises RT validation behaviour; this suite exercises only
 // the structural projection — that our serializer walks every shape without
 // infinite recursion, lands one canonical RunType per recursive type in the
 // cache, and that the back-edge closes via id equality (the wire-level

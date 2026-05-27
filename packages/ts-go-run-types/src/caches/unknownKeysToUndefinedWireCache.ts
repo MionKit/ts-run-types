@@ -10,43 +10,43 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').UnknownKeysToUndefinedWireJitFn} UnknownKeysToUndefinedWireJitFn */
+/** @typedef {import('../rt/types.ts').UnknownKeysToUndefinedWireRTFn} UnknownKeysToUndefinedWireRTFn */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   const k_gUKFA = 'mion::getUnknownKeysFromArray';
 
   function init(
-    jitFnHash,
+    rtFnHash,
     typeName,
     code,
     isNoop,
-    jitDependencies,
+    rtDependencies,
     pureFnDependencies,
-    createJitFn,
+    createRTFn,
     alwaysThrowCode,
     alwaysThrowSite
   ) {
     const fn = isNoop ? noopUnknownKeysToUndefinedWire : undefined;
-    const resolvedCreateJitFn =
-      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    /** @type {UnknownKeysToUndefinedWireJitFn} */
+    const resolvedCreateRTFn =
+      alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
+    /** @type {UnknownKeysToUndefinedWireRTFn} */
     const entry = {
-      jitFnHash,
+      rtFnHash,
       fnID: 'ukuw',
       typeName,
       args: {vλl: 'v'},
       defaultParamValues: {vλl: undefined},
       code,
       isNoop,
-      jitDependencies,
+      rtDependencies,
       pureFnDependencies,
-      createJitFn: resolvedCreateJitFn,
+      createRTFn: resolvedCreateRTFn,
       fn,
       alwaysThrowCode,
       alwaysThrowSite,
     };
-    jitUtils.addToJitCache(entry);
+    rtUtils.addToRTCache(entry);
   }
   void init;
   void k_gUKFA;

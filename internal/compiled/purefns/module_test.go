@@ -17,7 +17,7 @@ func TestPureFnsModule_EmptyInput(t *testing.T) {
 	// Skeleton wrappers must always be present, even with zero entries.
 	for _, fragment := range []string{
 		"'use strict';",
-		"export function initCache(jitUtils)",
+		"export function initCache(rtUtils)",
 		"function factory(",
 	} {
 		if !strings.Contains(got, fragment) {

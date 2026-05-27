@@ -26,7 +26,7 @@ const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
-  export interface JITUtils {
+  export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
     getCompiledPureFn(key: CompTimeArgs<string>): any;
@@ -36,7 +36,7 @@ const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
   export function registerPureFnFactory(
     namespace: CompTimeArgs<string>,
     functionID: CompTimeArgs<string>,
-    factory: PureFunction<(utl: JITUtils) => any> | null
+    factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
 }
 `;
@@ -57,7 +57,7 @@ interface PureFnEntry {
 }
 
 // evalPureFnsModule strips `export`s from the rendered module,
-// evaluates its `initCache(jitUtils)` export against a stub that
+// evaluates its `initCache(rtUtils)` export against a stub that
 // records every `addPureFn(key, entry)` call, and returns the
 // populated flat cache (`{ 'ns::name': CompiledPureFunction-ish }`).
 function evalPureFnsModule(source: string): Record<string, PureFnEntry> {
@@ -69,7 +69,7 @@ function evalPureFnsModule(source: string): Record<string, PureFnEntry> {
   };
   const stripped = source.replace(/^\s*export\s+function\s+/gm, 'function ');
   const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (jitUtils: typeof stub) => void;
+  const initCache = factory() as (rtUtils: typeof stub) => void;
   initCache(stub);
   return registered;
 }
@@ -148,8 +148,8 @@ export const _ = registerPureFnFactory('mion', 'foo', function () {
 
   register('extracts pureFnDependencies statically from utl.getPureFn calls', async () => {
     const sources = {
-      'deps.ts': `import {registerPureFnFactory, type JITUtils} from '@mionjs/ts-go-run-types';
-export const _ = registerPureFnFactory('mion', 'consumer', function (utl: JITUtils) {
+      'deps.ts': `import {registerPureFnFactory, type RTUtils} from '@mionjs/ts-go-run-types';
+export const _ = registerPureFnFactory('mion', 'consumer', function (utl: RTUtils) {
   return function _f(x: any) {
     return utl.getPureFn('mion::dep')(x);
   };

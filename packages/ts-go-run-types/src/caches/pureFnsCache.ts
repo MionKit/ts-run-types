@@ -12,10 +12,10 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').CompiledPureFunction} CompiledPureFunction */
+/** @typedef {import('../rt/types.ts').CompiledPureFunction} CompiledPureFunction */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
   function factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn) {
     const sep = key.indexOf('::');
     /** @type {CompiledPureFunction} */
@@ -29,7 +29,7 @@ export function initCache(jitUtils) {
       createPureFn,
       fn: undefined,
     };
-    jitUtils.addPureFn(key, entry);
+    rtUtils.addPureFn(key, entry);
   }
   void factory;
 

@@ -2,7 +2,7 @@
 // circularRefs.spec.ts at
 // /home/user/mion/packages/run-types/src/nodes/collection/circularRefs.spec.ts.
 //
-// Mion's spec exercises JIT validation; this suite only proves the
+// Mion's spec exercises RT validation; this suite only proves the
 // structural pipeline — the emit footer wires each circular shape into a
 // graph that closes by *referential equality* once the virtual cache
 // module evaluates, just like mion's runtime graph does.

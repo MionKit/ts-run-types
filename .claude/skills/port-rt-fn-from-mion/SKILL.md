@@ -1,13 +1,13 @@
 ---
-name: port-jit-fn-from-mion
-description: Port a JIT function (validator, serializer, coercer, …) from @mionjs/run-types into the ts-go-run-types Go-side AOT compiler + JS adapter + test suite. Use when the user asks to add isType-style / typeErrors-style / prepareForJson / jsonStringify / jsonDecode / coerce / any other named JIT family that already exists in the mion run-types package.
+name: port-rt-fn-from-mion
+description: Port a RT function (validator, serializer, coercer, …) from @mionjs/run-types into the ts-go-run-types Go-side AOT compiler + JS adapter + test suite. Use when the user asks to add isType-style / typeErrors-style / prepareForJson / jsonStringify / jsonDecode / coerce / any other named RT family that already exists in the mion run-types package.
 argument-hint: <fn-name>  (e.g. isType — OR a serialize/deserialize pair like "jsonStringify jsonDecode")
 effort: high
 ---
 
-# Port a JIT function from `@mionjs/run-types` into `ts-go-run-types`
+# Port a RT function from `@mionjs/run-types` into `ts-go-run-types`
 
-Use this skill when the target JIT function already has a reference
+Use this skill when the target RT function already has a reference
 implementation in mion (`mion/packages/run-types/src/nodes/**/emit<Fn>.ts`).
 The mion source is the contract; your job is to mirror its emitted JS,
 its arg shape, and its pure-fn dependencies into the Go-side AOT
@@ -60,9 +60,9 @@ Locate the mion source for the target function. The patterns are:
 
 - `mion/packages/run-types/src/nodes/**/emit<Fn>.ts` — per-kind
   emit implementations (one file per kind/category)
-- `mion/packages/run-types/src/lib/jitFnCompiler.ts` — defines the
+- `mion/packages/run-types/src/lib/rtFnCompiler.ts` — defines the
   per-fn `Compiler` class (args, return name, call helpers like
-  `callJitErr`, `callJitErrWithPath`)
+  `callRTErr`, `callRTErrWithPath`)
 
 Build a list of every kind that has an `emit<Fn>` so the Go switch
 can mirror it. Group them by category so the phased rollout maps
@@ -121,7 +121,7 @@ into the plan file covering:
   (both halves of a pair may need different pure fns; list them
   separately).
 - Whether this is the FIRST non-validator port (and therefore
-  triggers the `validation-suite.ts` → `jit-suite.ts` rename — see
+  triggers the `validation-suite.ts` → `rt-suite.ts` rename — see
   step 8)
 - The verification commands from step 14, including the round-trip
   assertion for each serializer pair.
@@ -135,7 +135,7 @@ Call `ExitPlanMode` and wait for the user to approve.
 Pick a short identifier (`isType`, `typeErrors`, `prepareForJson`).
 Cache entries register under `<fnname>_<runtypeID>`.
 
-**Critical**: do NOT reuse the bare runtype ID. Different JIT fns
+**Critical**: do NOT reuse the bare runtype ID. Different RT fns
 for the same runtype must have distinct cache keys, otherwise the
 second-registered fn overwrites the first.
 
@@ -150,9 +150,9 @@ type <FnName>Emitter struct{}
 
 func (<FnName>Emitter) Args() []ArgSpec { /* greek-letter args + defaults */ }
 func (<FnName>Emitter) Supports(rt *protocol.RunType) bool { /* kind set */ }
-func (<FnName>Emitter) IsJitInlined(ctx *EmitContext) bool { return DefaultIsJitInlined(ctx) }
+func (<FnName>Emitter) IsRTInlined(ctx *EmitContext) bool { return DefaultIsRTInlined(ctx) }
 func (<FnName>Emitter) ReturnName() string { return "<return-id>" }
-func (<FnName>Emitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) JitCode {
+func (<FnName>Emitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
     switch rt.Kind {
     case protocol.KindString: /* ... */
     case protocol.KindArray: /* ... */
@@ -165,7 +165,7 @@ func (<FnName>Emitter) Finalize(raw string) (string, bool) { /* append return <R
 
 **Architectural rule**: keep the entire switch in this one file.
 Don't split kind logic across per-kind files — the convention is
-"one giant switch per JIT fn family." Look at
+"one giant switch per RT fn family." Look at
 `internal/compiled/typefns/istype.go` and `typeerrors.go` as templates.
 
 If the function needs path tracking (e.g. errors need to report
@@ -225,7 +225,7 @@ Three new files + two edits:
 - `packages/ts-go-run-types/src/index.ts` — import + bootstrap the
   new cache. **Load-order matters**: if the new fn uses pure fns,
   import `pureFn.ts` BEFORE the new factory module. Pure fns must
-  register first, otherwise the cache's `createJitFn` closures fail
+  register first, otherwise the cache's `createRTFn` closures fail
   with `cpf_<name> is not a function` at runtime. Then re-export
   `create<FnName>`, `deserialize<FnName>`, and any new types
   (`<FnName>Fn` etc.)
@@ -249,22 +249,22 @@ Two edits:
 ## Step 9 — Generalize the test suite name (FIRST non-validator port only)
 
 When you're adding the first serialization or coercion family (i.e.
-the first JIT fn whose semantics isn't "is this value valid"),
+the first RT fn whose semantics isn't "is this value valid"),
 rename the test suite to reflect that it now covers more than
 validation:
 
 - `packages/ts-go-run-types/test/suites/validation-suite.ts` →
-  `jit-suite.ts`
-- Interface `ValidationCase` → `JitCase`
-- Export `VALIDATION_SUITE` → `JIT_SUITE`
+  `rt-suite.ts`
+- Interface `ValidationCase` → `RTCase`
+- Export `VALIDATION_SUITE` → `RT_SUITE`
 - Update imports in `test/adapters/*.test.ts`
 
 Subsequent ports just add new optional thunks to the existing
-`JitCase` interface — no further renames needed.
+`RTCase` interface — no further renames needed.
 
 ## Step 10 — Per-case thunks in the suite
 
-Add four optional thunks per `JitCase` (or `ValidationCase` if you
+Add four optional thunks per `RTCase` (or `ValidationCase` if you
 haven't done the rename yet):
 
 ```ts
@@ -303,7 +303,7 @@ on the matching thunk being defined.
 
 ```ts
 it('all atomic <fnname> tests ran', () => {
-  expect(ranTests).toBe(Object.keys(JIT_SUITE.ATOMIC).length);
+  expect(ranTests).toBe(Object.keys(RT_SUITE.ATOMIC).length);
 });
 ```
 
@@ -318,7 +318,7 @@ defined as `expect(deserialize(serialize(v))).toEqual(v)` deep
 equality. The adapter helper bundles this:
 
 ```ts
-function assertPrepareForJson(c: JitCase): void {
+function assertPrepareForJson(c: RTCase): void {
   const prepare = c.prepareForJson!();
   const restore = c.jsonDecode?.() ?? ((v: unknown) => v);
   for (const v of c.getSamples().valid) {
@@ -409,7 +409,7 @@ pnpm run pre-publish-test
 
 **Mion source of truth:**
 - `mion/packages/run-types/src/nodes/**/emit<Fn>.ts`
-- `mion/packages/run-types/src/lib/jitFnCompiler.ts`
+- `mion/packages/run-types/src/lib/rtFnCompiler.ts`
 
 **Existing Go emitters as templates:**
 - `internal/compiled/typefns/istype.go`
@@ -445,6 +445,6 @@ pnpm run pre-publish-test
 
 **Test suite + adapters:**
 - `packages/ts-go-run-types/test/suites/validation-suite.ts`
-  (or `jit-suite.ts` post-rename)
+  (or `rt-suite.ts` post-rename)
 - `packages/ts-go-run-types/test/adapters/isType.test.ts`
 - `packages/ts-go-run-types/test/adapters/getTypeErrors.test.ts`

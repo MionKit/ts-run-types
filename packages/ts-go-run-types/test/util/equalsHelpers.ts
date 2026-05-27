@@ -1,5 +1,5 @@
 // Ported verbatim from
-// mion/packages/run-types/src/jitCompilers/equalsHelpers.ts. Used by the
+// mion/packages/run-types/src/rtCompilers/equalsHelpers.ts. Used by the
 // prepareForJson + restoreFromJson adapter tests to normalise both sides
 // of a round-trip comparison before invoking `expect(...).toEqual(...)`.
 //

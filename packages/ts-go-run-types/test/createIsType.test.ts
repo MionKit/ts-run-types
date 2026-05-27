@@ -5,7 +5,7 @@
 // module body from the Go-side typefns renderer, and `createIsType`
 // at runtime dispatches into the precompiled factory.
 //
-// Migrated from packages/vite-plugin-runtypes/test/jit-isType.test.ts,
+// Migrated from packages/vite-plugin-runtypes/test/rt-isType.test.ts,
 // which used a `new Function` eval shortcut to bypass the bundler.
 // The pipeline now works end-to-end via the real plugin so the
 // shortcut is redundant.

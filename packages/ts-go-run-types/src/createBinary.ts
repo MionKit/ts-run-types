@@ -1,13 +1,13 @@
-// Binary I/O public surface — separated from `createJitFunctions.ts` so
+// Binary I/O public surface — separated from `createRTFunctions.ts` so
 // bundlers can leave the binary subtree (encoder, decoder, the two binary
 // cache modules, DataView helper classes) out of bundles that never touch
 // `createBinaryEncoder` / `createBinaryDecoder`. Loading this module is what
-// registers the binary entries on the jitUtils singleton.
+// registers the binary entries on the rtUtils singleton.
 
 import {initCache as initToBinaryCache} from './caches/toBinaryCache.ts';
 import {initCache as initFromBinaryCache} from './caches/fromBinaryCache.ts';
-import {getJitUtils} from './jit/jitUtils.ts';
-import {lookupJitFn} from './jit/jitUtils.ts';
+import {getRTUtils} from './rt/rtUtils.ts';
+import {lookupRTFn} from './rt/rtUtils.ts';
 import {
   createDataViewSerializer,
   createDataViewDeserializer,
@@ -15,19 +15,19 @@ import {
   type DataViewDeserializer,
   type StrictArrayBuffer,
   type BinaryInput,
-} from './jit/dataView.ts';
+} from './rt/dataView.ts';
 import type {InjectRuntypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
 // =============================================================================
 
-/** toBinary JIT primitive. Writes bytes for `value` into the supplied
+/** toBinary RT primitive. Writes bytes for `value` into the supplied
  *  serializer and returns the same instance (mirrors mion's `sεr` convention). **/
 export type ToBinaryFn = (value: unknown, Ser: DataViewSerializer) => DataViewSerializer;
 
-/** fromBinary JIT primitive. Reads bytes from the supplied deserializer and
- *  returns the decoded value. `ret` is a placeholder the JIT body writes into. **/
+/** fromBinary RT primitive. Reads bytes from the supplied deserializer and
+ *  returns the decoded value. `ret` is a placeholder the RT body writes into. **/
 export type FromBinaryFn<T = unknown> = (ret: unknown, Des: DataViewDeserializer) => T;
 
 /** Encoder returned by `createBinaryEncoder<T>()`. Writes into the supplied
@@ -55,7 +55,7 @@ export interface BinaryDecoderOptions {
 // Cache initialisation — side effect on module load.
 // =============================================================================
 
-const _utils = getJitUtils();
+const _utils = getRTUtils();
 initToBinaryCache(_utils);
 initFromBinaryCache(_utils);
 
@@ -75,7 +75,7 @@ export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, 
     );
   }
   const cacheKey = options?.cacheKey ?? id;
-  const encodeFn = lookupJitFn<ToBinaryFn>('createBinaryEncoder', 'tb', id, noopToBinaryFn);
+  const encodeFn = lookupRTFn<ToBinaryFn>('createBinaryEncoder', 'tb', id, noopToBinaryFn);
   return (value, serializer) => {
     const ownsSer = serializer === undefined;
     const ser = serializer ?? createDataViewSerializer(cacheKey);
@@ -97,7 +97,7 @@ export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, 
     );
   }
   const cacheKey = options?.cacheKey ?? id;
-  const decodeFn = lookupJitFn<FromBinaryFn<T>>('createBinaryDecoder', 'fb', id, noopFromBinaryFn as FromBinaryFn<T>);
+  const decodeFn = lookupRTFn<FromBinaryFn<T>>('createBinaryDecoder', 'fb', id, noopFromBinaryFn as FromBinaryFn<T>);
   return (input) => {
     // Distinguish DataViewDeserializer from raw buffer by the `desString` method.
     let des: DataViewDeserializer;
@@ -117,6 +117,6 @@ export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, 
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const hot = (import.meta as unknown as {hot?: HMR}).hot;
 if (hot) {
-  hot.accept('./caches/toBinaryCache.ts', (m) => m?.initCache?.(getJitUtils()));
-  hot.accept('./caches/fromBinaryCache.ts', (m) => m?.initCache?.(getJitUtils()));
+  hot.accept('./caches/toBinaryCache.ts', (m) => m?.initCache?.(getRTUtils()));
+  hot.accept('./caches/fromBinaryCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }

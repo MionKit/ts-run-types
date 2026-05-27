@@ -125,7 +125,7 @@ function ensureBinary() {
 }
 
 // Load the suite WITH the runtypes plugin active so the marker scanner +
-// JIT cache populate before we exercise any factory.
+// RT cache populate before we exercise any factory.
 async function loadSuiteWithPlugin() {
   const server = await createServer({
     root: REPO_ROOT,
@@ -340,7 +340,7 @@ function benchOneApi(caseObj, api) {
     // throwaway copy; collect indices that survive. The bench pool then
     // only draws from surviving indices so a single bigint-in-`any`
     // sample doesn't crash the loop mid-flight. (For `any`-typed
-    // cases the JIT emits a raw JSON.stringify(v) and bigint root
+    // cases the RT emits a raw JSON.stringify(v) and bigint root
     // values throw — those samples are not what the bench is
     // characterising.)
     let surviving;

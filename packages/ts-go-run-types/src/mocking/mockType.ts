@@ -1,7 +1,7 @@
 // Runtime mock-value generator. Walks a RunType graph and produces a value
 // that passes `isType<T>` for the same `T`. Direct port of mion's mockType.ts.
 //
-// Unlike other JIT families, mocking is NOT compiled per-type — the walker is
+// Unlike other RT families, mocking is NOT compiled per-type — the walker is
 // a runtime interpreter over `runTypesCache`.
 //
 // Termination on cyclic types: `decayOptionsForNesting` divides
@@ -9,7 +9,7 @@
 // `mockRunType` bails out with `undefined` past `maxMockRecursion` (default 10).
 
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
-import type {RunType} from '../jit/types.ts';
+import type {RunType} from '../rt/types.ts';
 import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
 import {
   mockAny,

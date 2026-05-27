@@ -2,9 +2,9 @@ package typefns
 
 import "github.com/mionkit/ts-run-types/internal/protocol"
 
-// ArgSpec describes one parameter of the emitted jit function. Mirrors
+// ArgSpec describes one parameter of the emitted rt function. Mirrors
 // mion's `args[key] = name` + `defaultParamValues[key] = default`
-// pairing (jitFnCompiler.ts:71). Key is the conceptual slot ("vλl",
+// pairing (rtFnCompiler.ts:71). Key is the conceptual slot ("vλl",
 // "pλth", "εrr"); Name is the JS identifier in the emitted signature;
 // Default is the JS-source default expression (empty for no default).
 type ArgSpec struct {
@@ -13,7 +13,7 @@ type ArgSpec struct {
 	Default string
 }
 
-// Emitter is the per-fn implementation surface. One Emitter per jit
+// Emitter is the per-fn implementation surface. One Emitter per rt
 // function id (isType, typeErrors, prepareForJson, …). All fn-specific
 // logic lives behind this interface; the Walker (walker.go) drives
 // traversal without knowing which fn is being emitted.
@@ -36,7 +36,7 @@ type Emitter interface {
 	// handle should panic loudly so the bug surfaces at compile time.
 	Supports(rt *protocol.RunType) bool
 
-	// IsJitInlined reports whether the walker should inline rt's
+	// IsRTInlined reports whether the walker should inline rt's
 	// emitted code at the call site (true) or emit a dependency call
 	// to a precompiled factory (false). The walker enforces an
 	// independent depth gate (only dependency-call at depth > 1, so
@@ -44,14 +44,14 @@ type Emitter interface {
 	// "is rt cheap enough to inline?" question.
 	//
 	// Mion's run-types/src/lib/baseRunTypes.ts:52 defines this once
-	// on BaseRunType — shared across every jit fn. Our equivalent
-	// is `DefaultIsJitInlined` (inlining.go); emitters that want
+	// on BaseRunType — shared across every rt fn. Our equivalent
+	// is `DefaultIsRTInlined` (inlining.go); emitters that want
 	// mion's behaviour delegate to it. Emitters that need different
 	// rules (the user's stated reason for surfacing this on the
 	// Emitter interface) override the body. Per-fn override is
 	// CAPABILITY, not policy — share unless you have a concrete
 	// reason to diverge.
-	IsJitInlined(ctx *InlineContext) bool
+	IsRTInlined(ctx *InlineContext) bool
 
 	// Emit dispatches the giant per-kind switch. The Walker calls
 	// this once per node in the RunType graph. EmitContext exposes
@@ -59,16 +59,16 @@ type Emitter interface {
 	// (recursion into children, context-item registration).
 	// expectedCType is the parent frame's required CodeType — most
 	// emitters can ignore it; reconciliation happens in the Walker.
-	Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) JitCode
+	Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode
 
 	// EmitDependencyCall returns the JS expression that invokes a
-	// pre-rendered child JIT entry. Used by the Walker when the
+	// pre-rendered child RT entry. Used by the Walker when the
 	// dispatch site decides a child is non-inline-cheap and the
 	// stack is past depth 1 (mirrors mion's
-	// BaseFnCompiler.callDependency at jitFnCompiler.ts:326). The
+	// BaseFnCompiler.callDependency at rtFnCompiler.ts:326). The
 	// emitter also registers a context-item declaration of the form
-	// `const <hash> = utl.getJIT('<hash>')` so the inner factory's
-	// closure resolves the child via the jitUtils singleton.
+	// `const <hash> = utl.getRT('<hash>')` so the inner factory's
+	// closure resolves the child via the rtUtils singleton.
 	//
 	// Self-recursive calls (childID == own hash) emit `<hash>(args)`;
 	// cross-function calls emit `<hash>.fn(args)` — same split as
@@ -112,15 +112,15 @@ type EmitContext struct {
 // to compose child code into their own snippet. v1's atomic-only
 // scope never reaches this path; the method is here so the first
 // collection emitter that lands can call into it without restructuring.
-func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeType) JitCode {
+func (ctx *EmitContext) CompileChild(rt *protocol.RunType, expectedCType CodeType) RTCode {
 	return ctx.walker.compileNode(rt, expectedCType)
 }
 
-// IsRoot reports whether the current Emit call is at the JIT
+// IsRoot reports whether the current Emit call is at the RT
 // function's root (the outermost frame). Mirrors mion's
 // `comp.getNestLevel(runType) === 0`. Used by emitters whose output
 // shape depends on root-vs-nested context — e.g. stringifyJson's
-// atomic number/null emits return `String(v)` at root (so the JIT
+// atomic number/null emits return `String(v)` at root (so the RT
 // fn returns a JSON-parseable string) but bare `v` at non-root
 // (the parent concatenates and the JS `+` coerces).
 func (ctx *EmitContext) IsRoot() bool {
@@ -139,7 +139,7 @@ func (ctx *EmitContext) ResolveRef(rt *protocol.RunType) *protocol.RunType {
 
 // NextLocalVar allocates and returns a fresh local variable name
 // scoped to the current emitter instance. Mirrors mion's
-// JitFnCompiler.getLocalVarName (jitFnCompiler.ts:236) — each call
+// RTFnCompiler.getLocalVarName (rtFnCompiler.ts:236) — each call
 // hands out a unique name so child accessors and result locals
 // never collide across nested frames. Prefix convention: "i" for
 // loop counters, "res" for child-result locals.
@@ -177,7 +177,7 @@ func (ctx *EmitContext) SetChildPathLiteral(literal string) {
 // cpf_newRunTypeErr to embed the static path segments at error sites.
 //
 // Mirrors mion's `getAccessPath` + `getAccessPathLiteral`
-// (jitFnCompiler.ts:677-681) — same join, same `extra` semantics.
+// (rtFnCompiler.ts:677-681) — same join, same `extra` semantics.
 func (ctx *EmitContext) AccessPathLiteral(extra string) string {
 	segments := ctx.walker.accessPath()
 	if extra != "" {
@@ -193,7 +193,7 @@ func (ctx *EmitContext) AccessPathLiteral(extra string) string {
 // current stack contributes (with `extra` counted when non-empty).
 // Used by typeErrors EmitDependencyCall to size the `pth.splice(-N)`
 // pop that unwinds the path after a dependency-call returns. Mirrors
-// mion's `getAccessPathLength` (jitFnCompiler.ts implicit via array
+// mion's `getAccessPathLength` (rtFnCompiler.ts implicit via array
 // length on getAccessPath result).
 func (ctx *EmitContext) AccessPathLength(extra string) int {
 	n := len(ctx.walker.accessPath())
@@ -206,17 +206,17 @@ func (ctx *EmitContext) AccessPathLength(extra string) int {
 // SetContextItem registers a closure-prologue `const xyz = …;`
 // declaration. WrapClosure emits these before the inner function so
 // they're evaluated once per factory call, not on every validator
-// invocation. Mirrors jitFnCompiler.ts:243.
+// invocation. Mirrors rtFnCompiler.ts:243.
 func (ctx *EmitContext) SetContextItem(key, value string) {
 	ctx.walker.ContextItems.set(key, value)
 }
 
-// HasContextItem mirrors jitFnCompiler.ts:253.
+// HasContextItem mirrors rtFnCompiler.ts:253.
 func (ctx *EmitContext) HasContextItem(key string) bool {
 	return ctx.walker.ContextItems.has(key)
 }
 
-// GetContextItem mirrors jitFnCompiler.ts:248.
+// GetContextItem mirrors rtFnCompiler.ts:248.
 func (ctx *EmitContext) GetContextItem(key string) (string, bool) {
 	return ctx.walker.ContextItems.get(key)
 }
@@ -231,7 +231,7 @@ func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) 
 	ctx.walker.AddPureFnDependency(namespace, fnName, filePath)
 }
 
-// DiagSlot identifies a JIT-throw / silent-skip site by its semantic
+// DiagSlot identifies a RT-throw / silent-skip site by its semantic
 // shape rather than its per-family code. Emitters expose a DiagCodeFor
 // map keyed by these slots so that emit code shared across multiple
 // emitters (e.g. json_prepare_safe.go used by both PrepareForJsonSafe
@@ -296,32 +296,32 @@ func (ctx *EmitContext) DiagCodeForLeaf(leaf *protocol.RunType) string {
 	return ""
 }
 
-// JitThrowDiag combines a JitThrow (factory-body runtime throw) with an
+// RTThrowDiag combines a RTThrow (factory-body runtime throw) with an
 // EmitDiagnostic call. The runtime throw still fires when the user calls
 // createXxx<T>(); the diagnostic surfaces the same problem at build
 // time so the user can fix it before the factory is materialised.
-// Use this in place of bare JitThrow for any throw whose user-facing
+// Use this in place of bare RTThrow for any throw whose user-facing
 // cause is a fixable type-level problem (Never at root, function in
 // array, etc.) — i.e. all of them. `inlineMsg` is the legacy runtime
 // throw message embedded in the JS factory body; the build-time
 // Diagnostic carries only the code+args and resolves text via the
 // JS-side catalog.
-func (ctx *EmitContext) JitThrowDiag(code string, inlineMsg string, args ...string) JitCode {
+func (ctx *EmitContext) RTThrowDiag(code string, inlineMsg string, args ...string) RTCode {
 	ctx.walker.EmitDiagnostic(code, args...)
-	return JitThrow(inlineMsg)
+	return RTThrow(inlineMsg)
 }
 
-// JitThrowDiagSlot is the slot-keyed sibling of JitThrowDiag. Used by
+// RTThrowDiagSlot is the slot-keyed sibling of RTThrowDiag. Used by
 // emit code shared across multiple emitters — the slot resolves to the
 // active emitter's per-family code via DiagCodeFor. Falls back to bare
-// JitThrow (no diagnostic) when the emitter hasn't registered a code
+// RTThrow (no diagnostic) when the emitter hasn't registered a code
 // for the slot.
-func (ctx *EmitContext) JitThrowDiagSlot(slot DiagSlot, inlineMsg string, args ...string) JitCode {
+func (ctx *EmitContext) RTThrowDiagSlot(slot DiagSlot, inlineMsg string, args ...string) RTCode {
 	code := ctx.DiagCodeFor(slot)
 	if code == "" {
-		return JitThrow(inlineMsg)
+		return RTThrow(inlineMsg)
 	}
-	return ctx.JitThrowDiag(code, inlineMsg, args...)
+	return ctx.RTThrowDiag(code, inlineMsg, args...)
 }
 
 // EmitDiagnosticSlot is the slot-keyed sibling of EmitDiagnostic for
@@ -349,7 +349,7 @@ func (ctx *EmitContext) EmitDiagnostic(code string, args ...string) {
 // list. Returns "" when the slot isn't declared on this emitter — eg
 // isType has no "pλth" / "εrr", so callers gating on those slots
 // short-circuit cleanly without panicking. Mirrors mion's
-// `this.args.<key>` access (jitFnCompiler.ts:671).
+// `this.args.<key>` access (rtFnCompiler.ts:671).
 func (ctx *EmitContext) ArgName(key string) string {
 	for _, arg := range ctx.walker.Emitter.Args() {
 		if arg.Key == key {

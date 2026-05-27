@@ -1,6 +1,6 @@
 // Package diag is the centralised catalog of every non-fatal diagnostic the
 // Go binary can emit. Every diagnostic the resolver, pure-fn extractor, and
-// JIT compiler surface flows through one of the typed constructors in this
+// RT compiler surface flows through one of the typed constructors in this
 // package, so the full set of user-visible messages — codes, severities,
 // templates — is auditable in one place.
 //
@@ -75,12 +75,12 @@ type Related struct {
 
 // Diagnostic is the single wire shape for everything the Go binary
 // emits. The Family discriminator carries which subsystem produced it
-// (purefn extractor, marker scanner, runtype JIT compiler); the Code is
+// (purefn extractor, marker scanner, runtype RT compiler); the Code is
 // the stable identifier (PFE9001, MKR001, IT010, SJ001, …) and Severity
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message
-// templates live in the JS-side catalog (packages/ts-go-run-types/src/jit/
+// templates live in the JS-side catalog (packages/ts-go-run-types/src/rt/
 // diagnosticCatalog.ts); the Go side only ships positional substitution
 // values via Args (typically 0–2 strings: a property name, a type
 // argument label, etc.). The Vite plugin resolves Code+Args → final

@@ -5,10 +5,10 @@
  * The software is provided "as is", without warranty of any kind.
  * ######## */
 
-// Type surface copied from `@mionjs/core` so jitUtils stays dependency-free.
-// Only the symbols `jitUtils.ts` actually reaches are kept here.
+// Type surface copied from `@mionjs/core` so rtUtils stays dependency-free.
+// Only the symbols `rtUtils.ts` actually reaches are kept here.
 
-import type {JITUtils} from './jitUtils.ts';
+import type {RTUtils} from './rtUtils.ts';
 // Per-family fn signatures are imported (type-only, no runtime cycle) from
 // the modules that own them so the cache-entry typedefs below stay a single
 // source of truth.
@@ -22,14 +22,14 @@ import type {
   PrepareForJsonFn,
   RestoreFromJsonFn,
   StringifyJsonFn,
-} from '../createJitFunctions.ts';
+} from '../createRTFunctions.ts';
 import type {ToBinaryFn, FromBinaryFn} from '../createBinary.ts';
 
 // ########################################### Pure functions #########################################
 
 export type PureFunction = (...args: any[]) => any;
 
-export type PureFunctionFactory = (jitUtils: JITUtils) => PureFunction;
+export type PureFunctionFactory = (rtUtils: RTUtils) => PureFunction;
 
 export interface PureFunctionData {
   /** The namespace this pure function belongs to */
@@ -99,7 +99,7 @@ export interface RunType {
 /** Flat run-type cache keyed by canonical type id. */
 export type RunTypesCache = Record<string, RunType>;
 
-// ########################################### JIT functions ##########################################
+// ########################################### RT functions ##########################################
 
 export type AnyFn = (...args: any[]) => any;
 
@@ -114,14 +114,14 @@ export interface CompiledFnData {
   readonly typeName: string;
   /** The operation family (`it`, `te`, `pj`, `rj`, …). */
   readonly fnID: string;
-  readonly jitFnHash: string;
+  readonly rtFnHash: string;
   readonly args: CompiledFnArgs;
   readonly defaultParamValues: CompiledFnArgs;
   /** True for collapsed-to-identity compilations. */
   readonly isNoop?: boolean;
   readonly code: string;
-  /** Sibling jit-fn hashes this entry calls into. */
-  readonly jitDependencies?: Array<string>;
+  /** Sibling rt-fn hashes this entry calls into. */
+  readonly rtDependencies?: Array<string>;
   /** Pure function dependencies in format `"namespace::fnHash"`. */
   readonly pureFnDependencies?: Array<string>;
   paramNames?: string[];
@@ -141,43 +141,43 @@ export interface CompiledFnData {
 }
 
 export interface CompiledTypeFn<Fn extends AnyFn = AnyFn> extends CompiledFnData {
-  /** Factory closure wrapping the jit function with its context-code prologue.
+  /** Factory closure wrapping the rt function with its context-code prologue.
    *  Optional: by default the Go renderer emits `undefined` and the JS-side
-   *  `materializeJitFn` rebuilds via `new Function('utl', code)` on first
-   *  lookup. The `--emit-create-jit-fn` flag opts back into eager emission
+   *  `materializeRTFn` rebuilds via `new Function('utl', code)` on first
+   *  lookup. The `--emit-create-rt-fn` flag opts back into eager emission
    *  for runtimes that can't use `new Function`. Always set on alwaysThrow
    *  entries; always undefined on noop entries. **/
-  readonly createJitFn?: (utl: JITUtils) => Fn;
-  /** The materialised JIT function. */
+  readonly createRTFn?: (utl: RTUtils) => Fn;
+  /** The materialised RT function. */
   readonly fn?: Fn;
 }
 
-/** `CompiledTypeFn` after `materializeJitFn` — `createJitFn` and `fn` are
+/** `CompiledTypeFn` after `materializeRTFn` — `createRTFn` and `fn` are
  *  guaranteed to be set. */
 export type InitializedTypeFn<Fn extends AnyFn = AnyFn> = CompiledTypeFn<Fn> &
-  Required<Pick<CompiledTypeFn<Fn>, 'createJitFn' | 'fn'>>;
+  Required<Pick<CompiledTypeFn<Fn>, 'createRTFn' | 'fn'>>;
 
-// ############################# JIT CACHES ###################################
+// ############################# RT CACHES ###################################
 
-// Per-family JitCompiledFn aliases — one per cache module under `src/caches/`.
+// Per-family RTCompiledFn aliases — one per cache module under `src/caches/`.
 // The cache skeletons are `@ts-nocheck`'d JS and reach these via JSDoc
-// `@typedef {import('../jit/types.ts').<Alias>}`. Several families share an fn
+// `@typedef {import('../rt/types.ts').<Alias>}`. Several families share an fn
 // shape but occupy distinct cache slots (`ukuw` vs `uku`; `pjs`/`pjsp` vs `pj`).
 
-export type IsTypeJitFn = CompiledTypeFn<IsTypeFn>;
-export type GetTypeErrorsJitFn = CompiledTypeFn<GetTypeErrorsFn>;
-export type HasUnknownKeysJitFn = CompiledTypeFn<HasUnknownKeysFn>;
-export type StripUnknownKeysJitFn = CompiledTypeFn<StripUnknownKeysFn>;
-export type UnknownKeyErrorsJitFn = CompiledTypeFn<UnknownKeyErrorsFn>;
-export type UnknownKeysToUndefinedJitFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
-export type UnknownKeysToUndefinedWireJitFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
-export type PrepareForJsonJitFn = CompiledTypeFn<PrepareForJsonFn>;
-export type PrepareForJsonSafeJitFn = CompiledTypeFn<PrepareForJsonFn>;
-export type PrepareForJsonSafePreserveJitFn = CompiledTypeFn<PrepareForJsonFn>;
-export type RestoreFromJsonJitFn = CompiledTypeFn<RestoreFromJsonFn>;
-export type StringifyJsonJitFn = CompiledTypeFn<StringifyJsonFn>;
-export type ToBinaryJitFn = CompiledTypeFn<ToBinaryFn>;
-export type FromBinaryJitFn = CompiledTypeFn<FromBinaryFn>;
+export type IsTypeRTFn = CompiledTypeFn<IsTypeFn>;
+export type GetTypeErrorsRTFn = CompiledTypeFn<GetTypeErrorsFn>;
+export type HasUnknownKeysRTFn = CompiledTypeFn<HasUnknownKeysFn>;
+export type StripUnknownKeysRTFn = CompiledTypeFn<StripUnknownKeysFn>;
+export type UnknownKeyErrorsRTFn = CompiledTypeFn<UnknownKeyErrorsFn>;
+export type UnknownKeysToUndefinedRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
+export type UnknownKeysToUndefinedWireRTFn = CompiledTypeFn<UnknownKeysToUndefinedFn>;
+export type PrepareForJsonRTFn = CompiledTypeFn<PrepareForJsonFn>;
+export type PrepareForJsonSafeRTFn = CompiledTypeFn<PrepareForJsonFn>;
+export type PrepareForJsonSafePreserveRTFn = CompiledTypeFn<PrepareForJsonFn>;
+export type RestoreFromJsonRTFn = CompiledTypeFn<RestoreFromJsonFn>;
+export type StringifyJsonRTFn = CompiledTypeFn<StringifyJsonFn>;
+export type ToBinaryRTFn = CompiledTypeFn<ToBinaryFn>;
+export type FromBinaryRTFn = CompiledTypeFn<FromBinaryFn>;
 
 export type TypesFunctionsCache = Record<string, CompiledTypeFn>;
 /** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */

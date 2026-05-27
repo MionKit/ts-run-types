@@ -41,7 +41,7 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type IsTypeFn = (value: unknown) => boolean;
   export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): IsTypeFn;
   export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRuntypeId<T>): IsTypeFn;
-  export interface JITUtils {
+  export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
     getCompiledPureFn(key: CompTimeArgs<string>): any;
@@ -51,7 +51,7 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export function registerPureFnFactory(
     namespace: CompTimeArgs<string>,
     functionID: CompTimeArgs<string>,
-    factory: PureFunction<(utl: JITUtils) => any> | null
+    factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
 }
 `;
@@ -107,13 +107,13 @@ function getClient(): ResolverClient {
   if (!hasBinary()) throw new Error(`ts-go-run-types binary not built: ${BIN}`);
   // --inline-server: no startup Program, no handshake. cwd = repo root so
   // setSources keys like "user.ts" resolve to <repo>/user.ts.
-  // emitCreateJitFn:true mirrors the sibling `ts-go-run-types` vitest
+  // emitCreateRTFn:true mirrors the sibling `ts-go-run-types` vitest
   // config — every cache module rendered during the test run carries
-  // BOTH the body string AND the inline `createJitFn` closure so the
+  // BOTH the body string AND the inline `createRTFn` closure so the
   // helper's diagnostic-style tests can assert against either form.
   // Per-test cases that need the production default (no inline
   // factory) flip this back in their scanFiles request when needed.
-  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitCreateJitFn: true});
+  stash.client = new ResolverClient(BIN, ROOT, '', {serverMode: true, emitCreateRTFn: true});
   if (!stash.atExitWired) {
     stash.atExitWired = true;
     // Best-effort cleanup if the worker exits without going through the
@@ -208,7 +208,7 @@ export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts 
 
 // evalRunTypesModule evaluates the rendered runtypes cache module body
 // (skeleton + spliced rt(...) / c('id').slot assignments) via
-// `new Function` against a stub jitUtils that records every `addRunType`
+// `new Function` against a stub rtUtils that records every `addRunType`
 // call into a local table and serves `useRunType` lookups from that
 // same table. Returns the populated cache object.
 function evalRunTypesModule(source: string): Record<string, RunType> {
@@ -225,7 +225,7 @@ function evalRunTypesModule(source: string): Record<string, RunType> {
   };
   const stripped = stripExports(source);
   const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (jitUtils: typeof stub) => void;
+  const initCache = factory() as (rtUtils: typeof stub) => void;
   initCache(stub);
   return registered;
 }

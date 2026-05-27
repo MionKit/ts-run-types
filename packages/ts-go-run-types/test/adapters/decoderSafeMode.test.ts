@@ -4,7 +4,7 @@
 //
 //   decode(s) → restore(uku(JSON.parse(s)))
 //
-// where `uku` is actually the ukuWire JIT family (the public uku is a
+// where `uku` is actually the ukuWire RT family (the public uku is a
 // no-op on unions because the same factory hash is shared with the
 // public createUnknownKeysToUndefined API which operates on raw
 // objects).

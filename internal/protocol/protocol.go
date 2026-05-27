@@ -1,6 +1,6 @@
 // Package protocol defines the wire types exchanged between the ts-go-run-types
 // resolver and its callers. The shape is the canonical mion runtypes reflection
-// `RunType` discriminated union so the user's runtypes JIT — which already
+// `RunType` discriminated union so the user's runtypes RT — which already
 // understands this runtime shape — can consume our cache directly.
 //
 // Because JSON cannot carry cycles or live references, child RunType slots in
@@ -98,7 +98,7 @@ type RunType struct {
 	// Kind via FamilyOf in family.go; populated by PopulateFamily at
 	// cache-exit time (Cache.Dump / Cache.Added / Cache.NodesForIDs).
 	// Refs (Kind=KindRef) and reserved kinds get FamilyUnknown (the empty
-	// string), which omitempty strips. The JIT compiler uses this to
+	// string), which omitempty strips. The RT compiler uses this to
 	// decide whether to inline a node or emit a dependency call.
 	Family        Family     `json:"family,omitempty"`
 	TypeName      string     `json:"typeName,omitempty"`
@@ -106,7 +106,7 @@ type RunType struct {
 	Inlined       bool       `json:"inlined,omitempty"`
 	// IsCircular flags a RunType that appears inside its own subtree
 	// (e.g. `type CA = CA[]`). Mirrors mion's `isCircular` flag on
-	// BaseRunType (run-types/src/lib/baseRunTypes.ts) — the JIT compiler
+	// BaseRunType (run-types/src/lib/baseRunTypes.ts) — the RT compiler
 	// uses it to force a self-recursive dependency call instead of
 	// inlining the body. The serializer does NOT yet auto-set this
 	// field; circular types still work end-to-end because every
@@ -433,7 +433,7 @@ type Response struct {
 	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
 	// TypeErrorsCacheSource is the rendered body of the
 	// `virtual:runtypes-typeErrors` module — one
-	// `factory(jitFnHash, typeName, code, isNoop, deps, …)` call per
+	// `factory(rtFnHash, typeName, code, isNoop, deps, …)` call per
 	// cached RunType the precompiler's TypeErrorsEmitter knows how to
 	// handle. Sibling of IsTypeCacheSource, same projection semantics.
 	TypeErrorsCacheSource string `json:"typeErrorsCacheSource,omitempty"`
@@ -443,7 +443,7 @@ type Response struct {
 	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
 	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
 	// StringifyJsonCacheSource is the rendered body of the
-	// `virtual:runtypes-stringifyJson` module — single-pass JIT that
+	// `virtual:runtypes-stringifyJson` module — single-pass RT that
 	// walks the type and emits a JSON string directly. Sibling of
 	// PrepareForJsonCacheSource; same factory shape and projection
 	// semantics.
@@ -457,7 +457,7 @@ type Response struct {
 	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
-	// JIT functions ported from mion's emitHasUnknownKeys et al. Same
+	// RT functions ported from mion's emitHasUnknownKeys et al. Same
 	// factory shape and projection semantics as IsTypeCacheSource.
 	HasUnknownKeysCacheSource         string `json:"hasUnknownKeysCacheSource,omitempty"`
 	StripUnknownKeysCacheSource       string `json:"stripUnknownKeysCacheSource,omitempty"`
@@ -486,7 +486,7 @@ type Response struct {
 	PureFnsCacheSource string `json:"pureFnsCacheSource,omitempty"`
 	// Diagnostics carries every non-fatal diagnostic the Go binary
 	// emits — pure-fn extractor (PFE9xxx), marker scanner (MKRxxx),
-	// JIT compiler (IT/TE/PJ/…/FB) — through one wire channel. The
+	// RT compiler (IT/TE/PJ/…/FB) — through one wire channel. The
 	// Family discriminator inside each entry tells the consumer which
 	// subsystem produced it; the Code is the stable identifier and
 	// Severity classifies impact. Vite plugin re-emits each via

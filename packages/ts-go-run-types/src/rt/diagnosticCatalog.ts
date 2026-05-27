@@ -294,8 +294,8 @@ Fix — import \`{0}\` directly inside the factory if it's a module export.`,
 
   PFE9012: {
     headline:
-      'Pure-fn `{0}` is referenced by a JIT function but never registered — call `registerPureFnFactory({1}, {2}, …)` first.',
-    detail: `A JIT validator/encoder calls \`utl.usePureFn('{0}')\` (or similar) but
+      'Pure-fn `{0}` is referenced by a RT function but never registered — call `registerPureFnFactory({1}, {2}, …)` first.',
+    detail: `A RT validator/encoder calls \`utl.usePureFn('{0}')\` (or similar) but
 no \`registerPureFnFactory\` call with that namespace+function pair was
 found in any scanned source file.
 

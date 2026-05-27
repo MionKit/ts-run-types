@@ -43,7 +43,7 @@ const APIS = ['isType', 'isTypeReflect'];
 // Cache module the validation bench actually needs rendered per
 // compile cycle. Both API forms (static `isType` + reflection
 // `isTypeReflect`) share the same isType cache — the runtime distinction
-// is the call-site shape, not the JIT factory. Asking the resolver for
+// is the call-site shape, not the RT factory. Asking the resolver for
 // just this cache (instead of `['all']`) keeps compileMs measuring the
 // work the validation suite is actually about — not the cost of
 // rendering 12 unrelated cache modules.

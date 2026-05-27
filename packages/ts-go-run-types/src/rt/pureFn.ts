@@ -7,13 +7,13 @@
 
 import {initCache as initPureFnsCache} from '../caches/pureFnsCache.ts';
 import type {CompiledPureFunction, PureFunctionFactory} from './types.ts';
-import {getJitUtils, pureFnKey} from './jitUtils.ts';
+import {getRTUtils, pureFnKey} from './rtUtils.ts';
 import type {CompTimeArgs, PureFunction as PureFunctionMarker} from '../markers.ts';
 
 // Populate the pure-fn cache. The cache module is the canonical runtime home
 // of every pure-fn body; the user's `registerPureFnFactory(ns, fn, factory)`
 // call is rewritten by the Vite plugin to pass `null` as the factory argument.
-initPureFnsCache(getJitUtils());
+initPureFnsCache(getRTUtils());
 
 /**
  * Looks up the `CompiledPureFunction` the Go binary registered for
@@ -30,7 +30,7 @@ export function registerPureFnFactory(
   createPureFn: PureFunctionMarker<PureFunctionFactory> | null
 ): CompiledPureFunction {
   const key = pureFnKey(namespace, functionID);
-  const existing = getJitUtils().getCompiledPureFn(key);
+  const existing = getRTUtils().getCompiledPureFn(key);
   if (!existing) {
     throw new Error(
       `[ts-go-run-types] registerPureFnFactory: no cache entry for "${key}". ` +
@@ -47,11 +47,11 @@ export function registerPureFnFactory(
   return existing;
 }
 
-// HMR: re-register every entry against the live jitUtils on cache reload.
+// HMR: re-register every entry against the live rtUtils on cache reload.
 type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
 const hot = (import.meta as unknown as {hot?: HMR}).hot;
 if (hot) {
   hot.accept('../caches/pureFnsCache.ts', (newMod) => {
-    newMod?.initCache?.(getJitUtils());
+    newMod?.initCache?.(getRTUtils());
   });
 }

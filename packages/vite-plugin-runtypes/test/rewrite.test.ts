@@ -241,7 +241,7 @@ const myAPI = reflectRuntypeId(routes);
     expect(cacheSource).toContain('export function initCache');
 
     // Evaluate the module body the same way evalCacheFor does: strip
-    // top-level `export`s and call `initCache(jitUtils)` against a stub
+    // top-level `export`s and call `initCache(rtUtils)` against a stub
     // that records each `addRunType` call and serves `useRunType` from
     // the same table.
     const stripped = cacheSource.replace(/^\s*export\s+function\s+/gm, 'function ');
@@ -257,7 +257,7 @@ const myAPI = reflectRuntypeId(routes);
       },
     };
     const factory = new Function(`${stripped}\nreturn initCache;`);
-    const initCache = factory() as (jitUtils: typeof stub) => void;
+    const initCache = factory() as (rtUtils: typeof stub) => void;
     initCache(stub);
     const entries = Object.values(registered).filter(
       (t): t is Record<string, any> => t !== null && typeof t === 'object' && 'kind' in t

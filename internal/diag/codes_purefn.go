@@ -36,7 +36,7 @@ func init() {
 		{Code: CodePurityForbidden, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn body uses a forbidden global"},
 		{Code: CodePurityClosure, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn body closes over outer binding"},
 
-		{Code: CodeMissingPureFnDep, Family: FamilyPureFn, Severity: SeverityError, Title: "JIT depends on missing pure-fn"},
+		{Code: CodeMissingPureFnDep, Family: FamilyPureFn, Severity: SeverityError, Title: "RT depends on missing pure-fn"},
 		{Code: CodePurityDepNotLiteral, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn dep arg not a literal"},
 	} {
 		register(definition)

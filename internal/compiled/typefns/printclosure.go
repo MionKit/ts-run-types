@@ -2,15 +2,15 @@ package typefns
 
 import "strings"
 
-// WrapClosure produces the outer factory function that wraps a jit
+// WrapClosure produces the outer factory function that wraps a rt
 // function's inner body with its context-item prologue. Returns both
-// the full declaration (used as the live `createJitFn` arg in the
+// the full declaration (used as the live `createRTFn` arg in the
 // rendered cache module) and the bare body (the contents between the
-// `(utl){ … }` braces — what gets stored in `JitCompiledFnData.code`
+// `(utl){ … }` braces — what gets stored in `RTCompiledFnData.code`
 // for `new Function('utl', body)` reconstruction on the consumer side).
 //
-// Shape mirrors mion's createJitFunction.ts:47 + printClosure
-// (jitFnCompiler.ts:732):
+// Shape mirrors mion's createRTFunction.ts:47 + printClosure
+// (rtFnCompiler.ts:732):
 //
 //	function <factoryName>(utl){
 //	  <contextItem1>;

@@ -19,7 +19,7 @@ const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRuntypeId<T> = string & {readonly __mionInjectRuntypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
-  export interface JITUtils {
+  export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;
     getCompiledPureFn(key: CompTimeArgs<string>): any;
@@ -29,7 +29,7 @@ const runtypesDts = `declare module '@mionjs/ts-go-run-types' {
   export function registerPureFnFactory(
     namespace: CompTimeArgs<string>,
     functionID: CompTimeArgs<string>,
-    factory: PureFunction<(utl: JITUtils) => any> | null
+    factory: PureFunction<(utl: RTUtils) => any> | null
   ): any;
 }
 `

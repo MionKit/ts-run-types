@@ -7,22 +7,22 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// HasUnknownKeysEmitter implements the `hasUnknownKeys` jit function —
+// HasUnknownKeysEmitter implements the `hasUnknownKeys` rt function —
 // a boolean predicate that returns true if the value (or any nested
 // child) carries property keys not declared in the schema. Ported from
 // mion's emitHasUnknownKeys methods on InterfaceRunType, MemberRunType,
 // IterableRunType, etc.
 //
-// Arg shape mirrors mion's `jitArgsWithOptions` (constants.functions.ts:49):
+// Arg shape mirrors mion's `rtArgsWithOptions` (constants.functions.ts:49):
 // the function takes (v, opts) where opts is a runtime options bag
-// carrying `checkNonJitProps` — when true, the keys-list against which
-// unknown is decided expands from JIT children to ALL children (including
+// carrying `checkNonRTProps` — when true, the keys-list against which
+// unknown is decided expands from RT children to ALL children (including
 // function-typed / static / non-serialisable ones that the schema lists
-// but the JIT skipped). Default false: any key not in the JIT-children
+// but the RT skipped). Default false: any key not in the RT-children
 // list is unknown.
 type HasUnknownKeysEmitter struct{}
 
-// Args mirrors mion's jitArgsWithOptions = {vλl: 'v', θpts: 'opts'}.
+// Args mirrors mion's rtArgsWithOptions = {vλl: 'v', θpts: 'opts'}.
 // `opts` defaults to `{}` so callers can invoke `huk(v)` without
 // explicitly passing the options bag.
 func (HasUnknownKeysEmitter) Args() []ArgSpec {
@@ -100,12 +100,12 @@ func AnyHasUnknownKeysSupported(runTypes []*protocol.RunType) bool {
 	return false
 }
 
-func (HasUnknownKeysEmitter) IsJitInlined(ctx *InlineContext) bool {
-	return DefaultIsJitInlined(ctx)
+func (HasUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
+	return DefaultIsRTInlined(ctx)
 }
 
 // ReturnName is `v` — mion's hasUnknownKeys returns the value? No:
-// `returnName: jitArgsWithOptions.vλl` (constants.functions.ts:153)
+// `returnName: rtArgsWithOptions.vλl` (constants.functions.ts:153)
 // means the SOURCE-LEVEL "what's returned by an empty body" is `v`,
 // but the BODY itself returns booleans. Mion's Finalize for this
 // family rewrites an empty body to `return false` — and the noop
@@ -119,9 +119,9 @@ func (HasUnknownKeysEmitter) ReturnName() string {
 // Emit is the per-kind switch. Phase 0 returns empty body for every
 // supported kind so the cache module renders end-to-end. Phase 1
 // implements the object/interface logic.
-func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) JitCode {
+func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	_ = ctx
 	switch rt.Kind {
@@ -134,7 +134,7 @@ func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableHasUnknownKeys(rt, ctx, ctx.Vλl)
 		}
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyHasUnknownKeys(rt, ctx)
 	case protocol.KindArray:
@@ -149,7 +149,7 @@ func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return emitUnionHasUnknownKeys(rt, ctx)
 	}
 	// All atomic / non-composite kinds — noop.
-	return JitCode{Code: "", Type: CodeS}
+	return RTCode{Code: "", Type: CodeS}
 }
 
 // EmitDependencyCall — composite parents may need to invoke a child's
@@ -159,12 +159,12 @@ func (HasUnknownKeysEmitter) EmitDependencyCall(rt *protocol.RunType, childID st
 	v := ctx.Vλl
 	optsArg := ctx.ArgName("θpts")
 	args := v + "," + optsArg
-	isSelf := ctx.walker != nil && childID == ctx.walker.JitFnHash
+	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
 	if isSelf {
 		return ctx.walker.FnName + "(" + args + ")"
 	}
 	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getJIT("+quoteJS(childID)+")")
+		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 	}
 	return childID + ".fn(" + args + ")"
 }
@@ -194,11 +194,11 @@ func (HasUnknownKeysEmitter) Finalize(raw string) (string, bool) {
 //     nothing.
 //
 // Phase 1 placeholder — full implementation follows.
-func emitObjectHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitObjectHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return emitInterfaceHasUnknownKeys(rt, ctx)
 }
 
-func emitInterfaceHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitInterfaceHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	parts, hasIndex := collectObjectHasUnknownKeysChildren(rt, ctx)
 	parentExpr := ""
 	if !hasIndex {
@@ -210,43 +210,43 @@ func emitInterfaceHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode
 	}
 	expressions = append(expressions, parts...)
 	if len(expressions) == 0 {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
-	return JitCode{Code: joinOr(expressions), Type: CodeE}
+	return RTCode{Code: joinOr(expressions), Type: CodeE}
 }
 
 // emitPropertyHasUnknownKeys handles KindProperty / KindPropertySignature.
 // Sets the child accessor (`v.<name>`) and recurses. Optional properties
 // guard the descent with `<accessor> !== undefined ? <childCode> : false`.
-func emitPropertyHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitPropertyHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	if resolved.IsStatic {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	v := ctx.Vλl
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(rt.Child, CodeE)
+	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeE}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeE}
 	}
 	if rt.Optional {
-		return JitCode{Code: "(" + accessor + " !== undefined && (" + childJit.Code + "))", Type: CodeE}
+		return RTCode{Code: "(" + accessor + " !== undefined && (" + childRT.Code + "))", Type: CodeE}
 	}
-	return JitCode{Code: childJit.Code, Type: CodeE}
+	return RTCode{Code: childRT.Code, Type: CodeE}
 }
 
 // emitArrayHasUnknownKeys ports mion's
@@ -254,108 +254,108 @@ func emitPropertyHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode 
 // noop. Otherwise iterate elements; if any reports true, return true.
 //
 // Returns CodeRB because the body is a `for + return false` block.
-func emitArrayHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitArrayHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	// mion: `if (this.getMemberType().getFamily() === 'A') return undefined`
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	v := ctx.Vλl
 	iVar := ctx.NextLocalVar("i")
 	resVar := ctx.NextLocalVar("res")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
-	childJit := ctx.CompileChild(rt.Child, CodeE)
+	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeE}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeE}
 	}
 	body := "if (!Array.isArray(" + v + ")) return false;" +
 		"for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" +
-		"const " + resVar + " = " + childJit.Code + ";" +
+		"const " + resVar + " = " + childRT.Code + ";" +
 		"if (" + resVar + ") return true;" +
 		"}" +
 		"return false"
-	return JitCode{Code: body, Type: CodeRB}
+	return RTCode{Code: body, Type: CodeRB}
 }
 
 // emitTupleHasUnknownKeys mirrors CollectionRunType.emitHasUnknownKeys
 // for tuples — each member's own emit, OR-joined.
-func emitTupleHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitTupleHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if len(rt.Children) == 0 {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	var parts []string
 	for _, child := range rt.Children {
-		childJit := ctx.CompileChild(child, CodeE)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(child, CodeE)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			parts = append(parts, childJit.Code)
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
 		}
 	}
 	if len(parts) == 0 {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
-	return JitCode{Code: joinOr(parts), Type: CodeE}
+	return RTCode{Code: joinOr(parts), Type: CodeE}
 }
 
 // emitTupleMemberHasUnknownKeys: descend into the wrapped child. Rest
 // members iterate from the position; regular members use a single
 // element accessor. Atomic-typed wrapped types contribute nothing.
-func emitTupleMemberHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitTupleMemberHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	v := ctx.Vλl
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		resVar := ctx.NextLocalVar("res")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childJit := ctx.CompileChild(rt.Child, CodeE)
+		childRT := ctx.CompileChild(rt.Child, CodeE)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code == "" {
-			return JitCode{Code: "", Type: CodeE}
+		if childRT.Code == "" {
+			return RTCode{Code: "", Type: CodeE}
 		}
 		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" +
-			"const " + resVar + " = " + childJit.Code + ";" +
+			"const " + resVar + " = " + childRT.Code + ";" +
 			"if (" + resVar + ") return true;}return false"
-		return JitCode{Code: body, Type: CodeRB}
+		return RTCode{Code: body, Type: CodeRB}
 	}
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
-	childJit := ctx.CompileChild(rt.Child, CodeE)
+	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
-	if childJit.Code == "" {
-		return JitCode{Code: "", Type: CodeE}
+	if childRT.Code == "" {
+		return RTCode{Code: "", Type: CodeE}
 	}
 	if rt.Optional {
-		return JitCode{Code: "(" + accessor + " !== undefined && (" + childJit.Code + "))", Type: CodeE}
+		return RTCode{Code: "(" + accessor + " !== undefined && (" + childRT.Code + "))", Type: CodeE}
 	}
-	return JitCode{Code: childJit.Code, Type: CodeE}
+	return RTCode{Code: childRT.Code, Type: CodeE}
 }
 
 // emitIndexSignatureHasUnknownKeys ports mion's
@@ -363,23 +363,23 @@ func emitTupleMemberHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCo
 // When the value type is atomic AND there's no key pattern, every key
 // is "known" — emit nothing. Otherwise iterate `for (const k in v)`,
 // checking the pattern (if any) and recursing into the value.
-func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if rt.Child == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
-	// Symbol-keyed sigs are skipped from JIT compilation per mion's
-	// IndexSignatureRunType.skipJit (indexProperty.ts:30-36). Empty
+	// Symbol-keyed sigs are skipped from RT compilation per mion's
+	// IndexSignatureRunType.skipRT (indexProperty.ts:30-36). Empty
 	// CodeE drops the sig from the parent's OR chain; if this is the
 	// root, Finalize collapses the empty body to `return false`.
 	if isSymbolKeyedIndexSig(rt, ctx) {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
 	if resolved == nil {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	keyRegexVar := ""
 	if rt.Index != nil {
@@ -395,30 +395,30 @@ func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) Ji
 	}
 	// Atomic value + no key pattern → every key is "known" already.
 	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic && keyRegexVar == "" {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	v := ctx.Vλl
 	prop := ctx.NextLocalVar("k")
 	ctx.SetChildAccessor(v + "[" + prop + "]")
-	childJit := ctx.CompileChild(rt.Child, CodeE)
+	childRT := ctx.CompileChild(rt.Child, CodeE)
 	ctx.SetChildAccessor("")
-	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+	if childRT.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
 	}
 	patternCheck := ""
 	if keyRegexVar != "" {
 		patternCheck = "if (!" + keyRegexVar + ".test(" + prop + ")) return true;"
 	}
 	childCheck := ""
-	if childJit.Code != "" {
+	if childRT.Code != "" {
 		resVar := ctx.NextLocalVar("res")
-		childCheck = "const " + resVar + " = " + childJit.Code + ";if (" + resVar + ") return true;"
+		childCheck = "const " + resVar + " = " + childRT.Code + ";if (" + resVar + ") return true;"
 	}
 	if patternCheck == "" && childCheck == "" {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 	body := "for (const " + prop + " in " + v + ") {" + patternCheck + childCheck + "}return false"
-	return JitCode{Code: body, Type: CodeRB}
+	return RTCode{Code: body, Type: CodeRB}
 }
 
 // emitUnionHasUnknownKeys — walks the merged-allowlist via the shared
@@ -427,7 +427,7 @@ func emitIndexSignatureHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) Ji
 // per-member dispatch (CompileChild + joinOr) silently mis-reported
 // hits because each member's own emit ran against the entire value
 // regardless of which union arm matched at runtime.
-func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
+func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return emitUnionUnknownKeysMerged(rt, ctx, UnknownKeysOpts{
 		Snippet: func(_ *EmitContext, _, _ string) string {
 			return "return true"
@@ -449,7 +449,7 @@ func emitUnionHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext) JitCode {
 //   - Map: `e0` is the `[key, value]` tuple; `e0[0]` is key, `e0[1]` is
 //     value — matches the prepare/restore-side accessor convention used
 //     elsewhere (mion's MapKeyRunType / MapValueRunType useArrayAccessor).
-func emitNativeIterableHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext, v string) JitCode {
+func emitNativeIterableHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
 	ctorName := "Map"
 	if !isMap {
@@ -475,23 +475,23 @@ func emitNativeIterableHasUnknownKeys(rt *protocol.RunType, ctx *EmitContext, v 
 			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
 		}
 		ctx.SetChildAccessor(accessor)
-		childJit := ctx.CompileChild(innerType, CodeE)
+		childRT := ctx.CompileChild(innerType, CodeE)
 		ctx.SetChildAccessor("")
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		if childJit.Code != "" {
-			childChecks = append(childChecks, "if ("+childJit.Code+") return true;")
+		if childRT.Code != "" {
+			childChecks = append(childChecks, "if ("+childRT.Code+") return true;")
 		}
 	}
 
 	if len(childChecks) == 0 {
-		return JitCode{Code: "", Type: CodeE}
+		return RTCode{Code: "", Type: CodeE}
 	}
 
 	body := "if (!(" + v + " instanceof " + ctorName + ")) return false;" +
 		"for (const " + entryVar + " of " + v + ") {" +
 		strings.Join(childChecks, "") +
 		"} return false"
-	return JitCode{Code: body, Type: CodeRB}
+	return RTCode{Code: body, Type: CodeRB}
 }

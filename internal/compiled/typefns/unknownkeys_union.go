@@ -7,7 +7,7 @@ import (
 )
 
 // unknownkeys_union.go owns the union-arm emit for every member of the
-// unknown-keys JIT family — stripUnknownKeys, unknownKeysToUndefined,
+// unknown-keys RT family — stripUnknownKeys, unknownKeysToUndefined,
 // hasUnknownKeys, unknownKeyErrors. The legacy per-family code each
 // re-derived "what counts as a declared key on a union" inline; this
 // helper consolidates the decision onto FlatLayout's MergedProps.
@@ -37,7 +37,7 @@ type UnknownKeysOpts struct {
 	// runtime-shape inputs, `v[1]` for the wire-format reach-in);
 	// `keyVar` is the loop variable holding the key name string.
 	Snippet func(ctx *EmitContext, accessor, keyVar string) string
-	// CodeShape is the resulting JitCode.Type. CodeS for strip/uku/uke
+	// CodeShape is the resulting RTCode.Type. CodeS for strip/uku/uke
 	// (emit statements); CodeE for hasUnknownKeys (the for-loop is
 	// wrapped in an IIFE expression that returns `true` on the first
 	// undeclared key, `false` after the loop completes).
@@ -51,9 +51,9 @@ type UnknownKeysOpts struct {
 
 // emitUnionUnknownKeysMerged is the consolidated union-arm emit. Reads
 // the FlatLayout for the union and produces the per-family for-loop +
-// merged-allowlist guard. Returns empty JitCode when there's no work
+// merged-allowlist guard. Returns empty RTCode when there's no work
 // to do (atomic-only union, all-index-sig union, …).
-func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts UnknownKeysOpts) JitCode {
+func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts UnknownKeysOpts) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 
 	// Index-sig carve-out — any indexed member kills the merged-allowlist
@@ -64,17 +64,17 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 			continue
 		}
 		if isObjectLikeKind(atomic.Resolved.Kind) && objectHasIndexSignatureChild(atomic.Resolved, ctx) {
-			return JitCode{Code: "", Type: opts.CodeShape}
+			return RTCode{Code: "", Type: opts.CodeShape}
 		}
 	}
 
 	// Atomic-only union — atomic primitives carry no keys; the family
 	// has nothing to do.
 	if len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: opts.CodeShape}
+		return RTCode{Code: "", Type: opts.CodeShape}
 	}
 	if len(layout.MergedProps) == 0 {
-		return JitCode{Code: "", Type: opts.CodeShape}
+		return RTCode{Code: "", Type: opts.CodeShape}
 	}
 
 	target := ctx.Vλl
@@ -96,15 +96,15 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 		iife := "(function(){ " + body + " return false; })()"
 		if opts.JsonWireFormat {
 			gate := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) return " + iife + "; return false;"
-			return JitCode{Code: "(function(){ " + gate + " })()", Type: CodeE}
+			return RTCode{Code: "(function(){ " + gate + " })()", Type: CodeE}
 		}
-		return JitCode{Code: iife, Type: CodeE}
+		return RTCode{Code: iife, Type: CodeE}
 	default:
 		if opts.JsonWireFormat {
 			gated := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) { " + body + " }"
-			return JitCode{Code: gated, Type: CodeS}
+			return RTCode{Code: gated, Type: CodeS}
 		}
-		return JitCode{Code: body, Type: CodeS}
+		return RTCode{Code: body, Type: CodeS}
 	}
 }
 

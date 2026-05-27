@@ -353,7 +353,7 @@ export interface Response {
   // `scanFiles` when the caller opts into `'pureFns'` (or `'all'`).
   pureFnsCacheSource?: string;
   // Diagnostics carries every non-fatal diagnostic the Go binary emits —
-  // pure-fn extractor (PFE9xxx), marker scanner (MKRxxx), JIT compiler
+  // pure-fn extractor (PFE9xxx), marker scanner (MKRxxx), RT compiler
   // (IT/TE/PJ/…/FB). The Family discriminator on each entry tells the
   // consumer which subsystem produced it. The Vite plugin re-emits each
   // via `this.warn(formatTscDiagnostic(d))` so VS Code's $tsc problem
@@ -403,12 +403,12 @@ export interface DiagnosticRelated extends DiagnosticSite {
 
 // Diagnostic mirrors the Go-side diag.Diagnostic. The Family
 // discriminator tells the consumer which subsystem produced it (purefn
-// extractor, marker scanner, runtype JIT compiler); the Code is the
+// extractor, marker scanner, runtype RT compiler); the Code is the
 // stable identifier (PFE9004, CTA001, PFN001, IT010, SJ001, …) and Severity
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message
-// templates live in `packages/ts-go-run-types/src/jit/diagnosticCatalog.ts`
+// templates live in `packages/ts-go-run-types/src/rt/diagnosticCatalog.ts`
 // (alongside the runtime alwaysThrow catalog) and resolve at format time
 // against `args` — typically 0–2 positional substitution values (a
 // property name, a kind label, etc.). The Vite plugin renders the final

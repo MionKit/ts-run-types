@@ -186,8 +186,8 @@ func trimTrailingUndefined(args []string) []string {
 
 // cacheRef turns a hash id into the function-call expression the
 // generated code uses to look up a cached RunType, e.g. `c('Lrjx')`.
-// `c` is a short alias for `jitUtils.useRunType` declared inside the
-// skeleton's `initCache(jitUtils)` body — both the `rt(...)` factory
+// `c` is a short alias for `rtUtils.useRunType` declared inside the
+// skeleton's `initCache(rtUtils)` body — both the `rt(...)` factory
 // and the footer ref-assignment lines close over it.
 func cacheRef(id string) string {
 	return "c(" + quoteJS(id) + ")"

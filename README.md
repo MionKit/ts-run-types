@@ -2,7 +2,7 @@
 
 Compile-time type resolver for [mion runtypes](https://github.com/mionkit) on **TypeScript 7 / typescript-go (tsgo)**.
 
-`ts-go-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `InjectRuntypeId<T>` (from `@mionjs/ts-go-run-types`) and emits a deduplicated type-metadata module the runtime (and the JIT) can consume.
+`ts-go-run-types` is a native Go binary that reaches into tsgo's type checker (via the `oxc-project/tsgolint` shim layer) and answers _call-site_ type queries. A paired Vite plugin rewrites every call whose trailing parameter is the sentinel marker `InjectRuntypeId<T>` (from `@mionjs/ts-go-run-types`) and emits a deduplicated type-metadata module the runtime (and the RT) can consume.
 
 ## Why
 
@@ -27,7 +27,7 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
                        │                                 │ structural-id → hashid
                        │                                 │  (reflection-shape Type)
                        ▼       ◀── Dump ──[dump]─────────┘
-              virtual:runtypes-cache  ──▶  runtime / JIT  (cache[t_<hash>])
+              virtual:runtypes-cache  ──▶  runtime / RT  (cache[t_<hash>])
 ```
 
 1. User code imports `InjectRuntypeId<T>` / `getRuntypeId<T>()` (static) or `reflectRuntypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: InjectRuntypeId<T>` as its trailing parameter to opt into the same flow.

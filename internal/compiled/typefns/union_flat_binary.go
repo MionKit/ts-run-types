@@ -73,10 +73,10 @@ func readDiscriminator(des, width string) string {
 // the sentinel value (0xFF or 0xFFFF). Note: this means a union with
 // >255 atomic members but no objects still encodes as uint16 if any
 // originalIndex spills past 255 — handled identically here.
-func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string) JitCode {
+func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 
 	totalMembers := len(layout.AtomicMembers) + len(layout.ObjectMembers)
@@ -87,9 +87,9 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 
 	// Atomic members — `if (isType) { writeDiscriminator(idx); encode; }`.
 	for _, m := range layout.AtomicMembers {
-		childJit := ctx.CompileChild(m.Ref, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(m.Ref, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
@@ -97,8 +97,8 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
 		}
 		body := writeDiscriminator(ser, width, m.OriginalIndex)
-		if childJit.Code != "" {
-			body += ";" + strings.TrimSpace(childJit.Code)
+		if childRT.Code != "" {
+			body += ";" + strings.TrimSpace(childRT.Code)
 		}
 		clause := "if (" + guard + ") {" + body + "}"
 		if len(clauses) > 0 {
@@ -136,7 +136,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 			accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 			propCode, ok := emitMergedPropToBinary(mp, accessor, ctx, ser)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			if propCode != "" {
 				parts = append(parts, propCode)
@@ -151,7 +151,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 				accessor := propertyAccessor(v, mp.Name, mp.IsSafeName)
 				propCode, ok := emitMergedPropToBinary(mp, accessor, ctx, ser)
 				if !ok {
-					return JitCode{Code: "", Type: CodeNS}
+					return RTCode{Code: "", Type: CodeNS}
 				}
 				bitIdx := strconv.Itoa(i & 7)
 				setMask := ser + ".setBitMask(" + bitmapVar + ", " + bitIdx + ")"
@@ -177,7 +177,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 
 	errVar := flatUnionEncodeErrorVar(ctx)
 	clauses = append(clauses, " else { throw new Error("+errVar+") }")
-	return JitCode{Code: strings.Join(clauses, ""), Type: CodeS}
+	return RTCode{Code: strings.Join(clauses, ""), Type: CodeS}
 }
 
 // emitMergedPropToBinary mirrors emitMergedPropPrepare for the binary
@@ -239,10 +239,10 @@ func emitMergedPropToBinary(mp FlatMergedProp, accessor string, ctx *EmitContext
 // JSON can recover atomics from their natural form
 // (`JSON.parse('42') === 42`); binary bytes are typeless so the decoder
 // must know which arm produced them. We ignore AtomicNeedsTuple here.
-func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des string) JitCode {
+func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des string) RTCode {
 	layout := buildFlatLayout(rt, ctx)
 	if len(layout.AtomicMembers) == 0 && len(layout.ObjectMembers) == 0 {
-		return JitCode{Code: "", Type: CodeS}
+		return RTCode{Code: "", Type: CodeS}
 	}
 	totalMembers := len(layout.AtomicMembers) + len(layout.ObjectMembers)
 	width, _ := discriminatorWidth(totalMembers)
@@ -273,7 +273,7 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 			}
 			propCode, ok := emitMergedPropFromBinary(mp, accessor, ctx, des)
 			if !ok {
-				return JitCode{Code: "", Type: CodeNS}
+				return RTCode{Code: "", Type: CodeNS}
 			}
 			// Always initialize the prop slot then run the decode.
 			initSlot := accessor + " = undefined"
@@ -305,7 +305,7 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 				bitCheck := "(" + des + ".view.getUint8(" + bitmapVar + " + " + strconv.Itoa(byteOffset) + ") & " + strconv.Itoa(1<<bitIdx) + ")"
 				propCode, ok := emitMergedPropFromBinary(mp, accessor, ctx, des)
 				if !ok {
-					return JitCode{Code: "", Type: CodeNS}
+					return RTCode{Code: "", Type: CodeNS}
 				}
 				body := accessor + " = undefined"
 				if propCode != "" {
@@ -322,11 +322,11 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 	// Atomic arms — read each member's bytes when discriminator matches
 	// its originalIndex.
 	for _, m := range layout.AtomicMembers {
-		childJit := ctx.CompileChild(m.Ref, CodeS)
-		if childJit.Type == CodeNS {
-			return JitCode{Code: "", Type: CodeNS}
+		childRT := ctx.CompileChild(m.Ref, CodeS)
+		if childRT.Type == CodeNS {
+			return RTCode{Code: "", Type: CodeNS}
 		}
-		body := strings.TrimSpace(childJit.Code)
+		body := strings.TrimSpace(childRT.Code)
 		arm := "if (" + decVar + " === " + strconv.Itoa(m.OriginalIndex) + ") {" + body + "}"
 		if len(arms) > 0 {
 			arm = " else " + arm
@@ -335,12 +335,12 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 	}
 
 	if len(arms) == 0 {
-		return JitCode{Code: readDec, Type: CodeS}
+		return RTCode{Code: readDec, Type: CodeS}
 	}
 
 	errVar := flatUnionDecodeErrorVar(ctx)
 	inner := strings.Join(arms, "") + " else { throw new Error(" + errVar + ") }"
-	return JitCode{Code: readDec + ";" + inner, Type: CodeS}
+	return RTCode{Code: readDec + ";" + inner, Type: CodeS}
 }
 
 // emitMergedPropFromBinary mirrors emitMergedPropRestore for the binary

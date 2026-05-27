@@ -8,7 +8,7 @@
 //
 // - `rt(id, …)` adds one entry to the run-type registry with every ref slot
 //   pre-set to `undefined`.
-// - `c(id)` aliases `jitUtils.useRunType` — footer assignments patch ref slots
+// - `c(id)` aliases `rtUtils.useRunType` — footer assignments patch ref slots
 //   via `c('id').child = c('id2')`. `useRunType` throws on missing ids, so
 //   emitter bugs surface immediately.
 //
@@ -17,13 +17,13 @@
 
 'use strict';
 
-/** @typedef {import('../jit/types.ts').RunType} RunType */
+/** @typedef {import('../rt/types.ts').RunType} RunType */
 
-/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
-export function initCache(jitUtils) {
-  /** Short alias for `jitUtils.useRunType` used by footer ref assignments. */
+/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+export function initCache(rtUtils) {
+  /** Short alias for `rtUtils.useRunType` used by footer ref assignments. */
   function c(id) {
-    return jitUtils.useRunType(id);
+    return rtUtils.useRunType(id);
   }
   // 19-arg positional shape — id + identification fields. Ref slots start
   // as `undefined` and are patched by footer assignments.
@@ -85,7 +85,7 @@ export function initCache(jitUtils) {
       extends: undefined,
       classType: undefined,
     };
-    jitUtils.addRunType(id, entry);
+    rtUtils.addRunType(id, entry);
   }
   // Reference the helpers so an empty body (no generated calls) doesn't trip
   // `noUnusedLocals`.

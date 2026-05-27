@@ -10,7 +10,7 @@ package protocol
 // computer mirrors that rule (see internal/typeid/typeid.go).
 //
 // Note: mion's `params` subKind (1701) is deliberately not mirrored here.
-// It exists in mion only because deepkit's JIT iterates a generic `children`
+// It exists in mion only because deepkit's RT iterates a generic `children`
 // collection on every node and `TypeFunction` keeps its parameters on a
 // separate `parameters` property; mion synthesises a `subKind=1701` wrapper
 // purely so the iterator picks parameters up. The Go side carries

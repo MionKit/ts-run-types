@@ -52,7 +52,7 @@ function runCase(c: SerializationCase): void {
   // factoryThrows cases — every `createXxx<T>()` factory throws on
   // first call. mion fails the runtype's emit step for unsupported
   // kinds; our Go pipeline emits an alwaysThrow cache entry whose
-  // throwing stub fires inside `lookupJitFn` at the factory-call site
+  // throwing stub fires inside `lookupRTFn` at the factory-call site
   // here. See docs/UNSUPPORTED-KINDS.md.
   if (c.factoryThrows) {
     expect(() => c.unsafeEncoder(), `${c.title}: unsafeEncoder factory must throw`).toThrow();
@@ -169,7 +169,7 @@ function assertSafeRoundTrip(c: SerializationCase): void {
 //
 // Same shape as assertSafeRoundTrip but builds the encoder via
 // `createJsonEncoder<T>(undefined, {strategy: 'direct'})` — the
-// single-pass `stringifyJson` JIT family. Pairs with `c.safeDecoder()`
+// single-pass `stringifyJson` RT family. Pairs with `c.safeDecoder()`
 // (decoder is two-mode, both safe variants use the same decoder).
 // The no-mutation invariant still applies (single-pass stringify
 // walks the type, never the value).

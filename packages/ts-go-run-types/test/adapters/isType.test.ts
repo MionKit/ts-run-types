@@ -2,7 +2,7 @@
 // defined against the precompiled validator the Go binary emits via
 // internal/compiled/typefns/istype.go.
 //
-// Shape mirrors mion-run-types:packages/run-types/src/jitCompilers/json/jsonSpec/01JsonAtomic.spec.ts:
+// Shape mirrors mion-run-types:packages/run-types/src/rtCompilers/json/jsonSpec/01JsonAtomic.spec.ts:
 // one explicit `it(...)` per case (no for-loop registration — keeps
 // the failure surface readable and lets the IDE jump to each test),
 // an `afterEach` counter per category, and a final coverage-guard
@@ -63,8 +63,8 @@ function assertIsType(c: ValidationCase): void {
   }
 
   // Deserialize-static form: deserializeIsType<T>() rebuilds the
-  // validator from the serialized JitCompiledFnData.code body via
-  // `new Function('utl', code)(jitUtils)` — verifies that the
+  // validator from the serialized RTCompiledFnData.code body via
+  // `new Function('utl', code)(rtUtils)` — verifies that the
   // over-the-wire round-trip produces an equivalent validator.
   if (c.deserializeIsType) {
     const deserializedStatic = c.deserializeIsType();
@@ -306,7 +306,7 @@ describe('isType / UNION', () => {
 
 // Template literal types (`\`api/user/${number}\``) project as
 // KindTemplateLiteral with the literal text + placeholder spans on
-// rt.Literal; the emit compiles to an anchored RegExp at JIT-build
+// rt.Literal; the emit compiles to an anchored RegExp at RT-build
 // time and hoists it into the closure prologue as a context-item
 // const, then validator-call runs `typeof v === 'string' &&
 // regex.test(v)`.

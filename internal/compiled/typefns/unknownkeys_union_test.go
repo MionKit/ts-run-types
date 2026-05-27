@@ -18,7 +18,7 @@ func unionUnknownKeysCtx(t *testing.T, runTypes []*protocol.RunType) *EmitContex
 		}
 		refTable[rt.ID] = rt
 	}
-	walker := &Walker{RefTable: refTable, JitFnHash: "test", localVarCounters: make(map[string]int)}
+	walker := &Walker{RefTable: refTable, RTFnHash: "test", localVarCounters: make(map[string]int)}
 	return &EmitContext{walker: walker, Vλl: "v"}
 }
 

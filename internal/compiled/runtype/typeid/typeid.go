@@ -66,7 +66,7 @@ func (computer *Computer) stackIndex(tsType *checker.Type) int {
 func (computer *Computer) cycleRef(tsType *checker.Type, index int) string {
 	kind := KindOf(computer.typeChecker, tsType)
 	name := aliasName(tsType)
-	// Mion JIT-compiles per-call, so two distinct `interface Foo { …self… }`
+	// Mion RT-compiles per-call, so two distinct `interface Foo { …self… }`
 	// declarations in different files never collide — each invocation
 	// sees one Type instance. Our AOT cache is project-global, so an
 	// undifferentiated cycle token (`$<kind>_<index>`) makes the inner
