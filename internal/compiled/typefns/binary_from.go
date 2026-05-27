@@ -249,11 +249,6 @@ func emitArrayFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved != nil && isNonSerializableElementKind(resolved.Kind) {
-		ctx.MarkUnsupportedLeaf(resolved)
-		return JitCode{Code: "", Type: CodeNS}
-	}
 	lenVar := ctx.NextLocalVar("alen")
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(ret + "[" + iVar + "]")
