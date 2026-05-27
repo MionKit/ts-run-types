@@ -372,7 +372,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
 			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
 				walker.EmitDiagnostic(diagCode, throwDiagnosticMessage(walker.UnsupportedLeaf, settings))
-				line := renderAlwaysThrowEntry(runType, settings, innerPrefix, diagCode)
+				line := renderAlwaysThrowEntry(runType, settings, innerPrefix, diagCode, walker.rootProvenance)
 				writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
 				return line, nil
 			}
@@ -583,6 +583,12 @@ func leafKindLabel(leaf *protocol.RunType) string {
 // function body. Wire-size win: ~50 bytes saved per throw entry; the
 // JS side avoids a `new Function` parse on first use.
 //
+// 9th argument is an optional `file:line:col` hint pointing at the FIRST
+// known marker call site for the type. Appended to the runtime error
+// message so a user who somehow ships an alwaysThrow factory to runtime
+// sees `[CODE] msg (at src/foo.ts:7:18)` instead of an anonymous throw.
+// When provenance is empty (orphaned entry), the slot is `undefined`.
+//
 // Shape (relative to the normal 7-arg init):
 //
 //	init('<hash>', '<typeName>',
@@ -591,10 +597,11 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //	     undefined,  // jitDependencies
 //	     undefined,  // pureFnDependencies
 //	     undefined,  // createJitFn — JS-side derives from diagCode
-//	     '<diagCode>')
+//	     '<diagCode>',
+//	     '<siteHint>')
 //
 // See docs/UNSUPPORTED-KINDS.md "Wire format".
-func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, diagCode string) string {
+func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, diagCode string, provenance []diag.Site) string {
 	_ = settings
 	innerName := innerPrefix + runType.ID
 	args := []string{
@@ -606,8 +613,21 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheM
 		"undefined", // pureFnDependencies
 		"undefined", // createJitFn
 		quoteJS(diagCode),
+		formatCallSiteHint(provenance),
 	}
 	return "init(" + joinArgs(args) + ");"
+}
+
+// formatCallSiteHint renders the first call-site as `file:line:col` for
+// the alwaysThrow 9th arg. Returns the literal `undefined` when no
+// provenance is known so the JS-side init() consumer treats the slot
+// as absent.
+func formatCallSiteHint(provenance []diag.Site) string {
+	if len(provenance) == 0 {
+		return "undefined"
+	}
+	site := provenance[0]
+	return quoteJS(fmt.Sprintf("%s:%d:%d", site.FilePath, site.StartLine, site.StartCol))
 }
 
 // jitTypeName resolves the `typeName` field for a JitCompiledFn entry.

@@ -228,6 +228,7 @@ var isTypeCodes = map[DiagSlot]string{
 	SlotMethodDropped:       diag.CodeISMethodDropped,
 	SlotStaticDropped:       diag.CodeISStaticDropped,
 	SlotSymbolKeyedDropped:  diag.CodeISSymbolKeyedDropped,
+	SlotRootAnyUnknown:      diag.CodeISRootAnyUnknown,
 }
 
 func (IsTypeEmitter) DiagCodeFor(slot DiagSlot) string { return isTypeCodes[slot] }

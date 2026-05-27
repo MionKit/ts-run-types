@@ -31,9 +31,20 @@ export function initCache(jitUtils) {
   // family-specific identity (`(v, pth, er) => er` — typeErrors
   // returns the accumulated error array unchanged), letting consumers
   // skip the lazy-materialize path entirely.
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
+  function init(
+    jitFnHash,
+    typeName,
+    code,
+    isNoop,
+    jitDependencies,
+    pureFnDependencies,
+    createJitFn,
+    alwaysThrowCode,
+    alwaysThrowSite
+  ) {
     const fn = isNoop ? noopTypeErrors : undefined;
-    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
+    const resolvedCreateJitFn =
+      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'te',

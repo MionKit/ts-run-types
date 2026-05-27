@@ -160,8 +160,22 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
 		// free type parameter. Skip: no id to inject until the wrapper
-		// is itself instantiated at its own call sites.
-		return protocol.Site{}, nil, false
+		// is itself instantiated at its own call sites. Emit MKR003 so
+		// the user knows why the rewrite was skipped — otherwise they
+		// hit the runtime "no id injected" throw with no build-time
+		// breadcrumb.
+		sourceFile := ast.GetSourceFileOfNode(call)
+		if sourceFile == nil {
+			return protocol.Site{}, nil, false
+		}
+		startLine, startCol := scanLineCol(sourceFile, call.Pos())
+		endLine, endCol := scanLineCol(sourceFile, call.End())
+		diagnostic := diag.New(
+			diag.CodeMarkerFreeTypeParameter,
+			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+			"marker call has free type parameter; the rewrite needs T to be resolved. Move the call to a context where T is concrete, or accept a `RuntypeId<T>` from the caller.",
+		)
+		return protocol.Site{}, []diag.Diagnostic{diagnostic}, false
 	}
 	argsCount := 0
 	if callExpression := call.AsCallExpression(); callExpression != nil && callExpression.Arguments != nil {

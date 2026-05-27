@@ -3,6 +3,11 @@
   "compilerOptions": {
     "types": ["node"],
     "noEmit": true,
+    // Drop `rootDir` from the build config (tests live alongside src)
+    // so `pnpm typecheck:test` can include both src/ and test/ without
+    // hitting TS6059. Build/publish still uses tsconfig.json
+    // (rootDir = src) — dist/ stays clean of test artifacts.
+    "rootDir": ".",
     // Resolve `@mionjs/ts-go-run-types` (this package's self-import in
     // tests) to `src/index.ts` via the `"source"` exports condition in
     // package.json, instead of the un-built `dist/index.d.ts`.

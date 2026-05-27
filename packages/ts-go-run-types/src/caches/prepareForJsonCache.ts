@@ -23,9 +23,20 @@ export function initCache(jitUtils) {
   // and isNoop=true reach this call. fn is set immediately to the
   // family-specific identity (`(v) => v` for prepareForJson), letting
   // consumers skip the lazy-materialize path entirely.
-  function init(jitFnHash, typeName, code, isNoop, jitDependencies, pureFnDependencies, createJitFn, alwaysThrowCode) {
+  function init(
+    jitFnHash,
+    typeName,
+    code,
+    isNoop,
+    jitDependencies,
+    pureFnDependencies,
+    createJitFn,
+    alwaysThrowCode,
+    alwaysThrowSite
+  ) {
     const fn = isNoop ? noopPrepareForJson : undefined;
-    const resolvedCreateJitFn = alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode) : createJitFn;
+    const resolvedCreateJitFn =
+      alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
     jitUtils.addToJitCache({
       jitFnHash,
       fnID: 'pj',

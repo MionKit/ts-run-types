@@ -144,9 +144,22 @@ The Go test suite ([`internal/testfixtures/runtypes.d.ts`](internal/testfixtures
 - Types are **deduplicated twice** in [internal/serialize](internal/serialize/) — pointer identity (same `*checker.Type` reached via two paths) AND structural id (two distinct `Type` objects with the same shape). Both collapse to a single cache entry.
 - **Never store parent-relative data on a canonical node**. Cache entries are shared singletons (one per structural id), so any field whose meaning depends on which parent referenced the node — `parent` back-link, "my slot index in MY parent", "I'm a discriminator for THIS parent union" — is silently wrong the moment that node appears under more than one parent. If a relationship is parent-scoped, store it on the **parent** (e.g. `RunType.UnionDiscriminators` lives on the union, not on the property), or have the consumer build the back-link at walk time from a known root. See `docs/ROADMAP.md` → "JSON shape — known limitations" for the `parent` row and the union discriminator wire shape rationale.
 
+## isType contract — serializable data only
+
+`createIsType<T>()` and `createGetTypeErrors<T>()` validate **serializable data**, not the full TypeScript type. Non-serialisable members (functions, methods, symbols, symbol-keyed properties, getters/setters with no backing data) are **silently dropped** from the validated shape with a build-time **Warning** diagnostic (IT010/IT011/IT012/IT013, TE010/…). This is by design — JSON drops them on the wire anyway, so validating against a JSON-shaped projection of `T` is the right semantic for the typical use case (RPC, persistence, network IO).
+
+Consequence: `interface User { name: string; onClick: () => void }` produces a validator that only checks `name`. A user passing `{name: 'x', onClick: 'not-a-fn'}` will see `isUser(value)` return `true` — the schema **does not enforce** `onClick`. The IT010 warning at build time is the only build-time signal of this; do **not** treat it as an error.
+
+This same rule applies to the JSON / binary serialisation families: a property that can't be serialised silently drops at the **property** position (with a per-family Warning code), while at the **root** or other propagating positions (array element, tuple slot, union member, function param/return) it generates an `alwaysThrow` factory with an **Error**-severity diagnostic — calling that factory throws at runtime, so the build halts.
+
+The clean line: **Warning = expected drop, the user should know but it's fine**. **Error = will throw at runtime, build must fail**.
+
+Future direction (out of scope for the current code): we may refine the return type to `IsTypeFn<DataOnly<T>>` (where `DataOnly<T>` strips non-serialisable members from the type), rename `createIsType` → `createIsDataType`, or introduce a separate stricter `createIsFullType` that errors instead of dropping. Discuss in [docs/ROADMAP.md](docs/ROADMAP.md) before changing — current callers depend on the silent-drop semantics.
+
 ## Documentation
 
 - [README.md](README.md) — project overview, how-it-works, usage, CLI flags
 - [CONTRIBUTORS.md](CONTRIBUTORS.md) — full contributor setup, patch management workflow, dev-loop recipes, troubleshooting table
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — detailed design, execution model, the sentinel marker, lossy mappings
 - [docs/ROADMAP.md](docs/ROADMAP.md) — scope + known lossy mappings
+- [docs/UNSUPPORTED-KINDS.md](docs/UNSUPPORTED-KINDS.md) — the unified throw architecture, which kinds are unsupported and why, the two-rule property-vs-non-property model
