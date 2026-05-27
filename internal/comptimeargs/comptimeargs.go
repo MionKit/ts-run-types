@@ -137,6 +137,40 @@ func checkLiteralFunctionRecursive(typeChecker *checker.Checker, node *ast.Node,
 	return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "not an inline arrow or function expression", FailingNode: unwrapped}
 }
 
+// ResolveLiteralString is the string-typed analogue of CheckLiteralFunction.
+// Validates that node is a string literal (or a const-chain that ends in
+// one) and returns the resolved literal node alongside the Result. The
+// returned node is either KindStringLiteral or KindNoSubstitutionTemplateLiteral
+// — call .Text() on it to read the underlying text.
+//
+// Used by call-site extractors (purefns walker, deps) that need the literal
+// node's text content, not just a pass/fail verdict. CheckLiteral remains
+// the right choice when only the verdict matters.
+func ResolveLiteralString(typeChecker *checker.Checker, node *ast.Node) (*ast.Node, Result) {
+	return resolveLiteralStringRecursive(typeChecker, node, 0)
+}
+
+func resolveLiteralStringRecursive(typeChecker *checker.Checker, node *ast.Node, depth int) (*ast.Node, Result) {
+	if depth > DepthCap {
+		return nil, Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
+	}
+	unwrapped := unwrapWrappers(node)
+	if unwrapped == nil {
+		return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "nil node", FailingNode: node}
+	}
+	switch unwrapped.Kind {
+	case ast.KindStringLiteral, ast.KindNoSubstitutionTemplateLiteral:
+		return unwrapped, Result{Ok: true}
+	case ast.KindIdentifier:
+		initializer, ok := resolveConstInitializer(typeChecker, unwrapped)
+		if !ok {
+			return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "identifier not a same-module `const` binding to a string literal", FailingNode: unwrapped}
+		}
+		return resolveLiteralStringRecursive(typeChecker, initializer, depth+1)
+	}
+	return nil, Result{Ok: false, Kind: FailNonLiteral, Reason: "not a string literal", FailingNode: unwrapped}
+}
+
 func unwrapWrappers(node *ast.Node) *ast.Node {
 	for node != nil {
 		switch node.Kind {
