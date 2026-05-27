@@ -7,26 +7,11 @@
 // `init` closes over `jitUtils` from the surrounding `initCache`
 // parameter and registers each compiled JitCompiledFn via
 // `jitUtils.addToJitCache(entry)`. See `isTypeCache.ts` for the JSDoc
-// conventions used below.
+// conventions.
 
 'use strict';
 
-/**
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createBinary.ts').ToBinaryFn>} ToBinaryJitFn
- */
-
-/**
- * @typedef {object} ToBinaryInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createBinary.ts').ToBinaryFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (TB001 / TB006 / …) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').ToBinaryJitFn} ToBinaryJitFn */
 
 export function initCache(jitUtils) {
   function init(

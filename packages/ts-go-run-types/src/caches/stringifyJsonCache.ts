@@ -20,22 +20,7 @@
 
 'use strict';
 
-/**
- * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').StringifyJsonFn>} StringifyJsonJitFn
- */
-
-/**
- * @typedef {object} StringifyJsonInitArgs
- * @property {string} jitFnHash
- * @property {string} typeName
- * @property {string|undefined} code
- * @property {boolean} isNoop
- * @property {ReadonlyArray<string>|undefined} jitDependencies
- * @property {ReadonlyArray<string>|undefined} pureFnDependencies
- * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').StringifyJsonFn)|undefined} createJitFn
- * @property {string|undefined} alwaysThrowCode  Per-family diag code (SJ001 / SJ005 / …) on alwaysThrow entries.
- * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
- */
+/** @typedef {import('../jit/types.ts').StringifyJsonJitFn} StringifyJsonJitFn */
 
 export function initCache(jitUtils) {
   // Register every entry on the shared jitUtils cache with `fn:
