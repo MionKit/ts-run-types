@@ -383,9 +383,7 @@ describe('iterables — Set<T> unknown-keys', () => {
 
   it('hasUnknownKeys: true when an element object has an extra key', () => {
     const has = createHasUnknownKeys<Set<SmallObject>>();
-    const s: Set<SmallObject> = new Set([
-      {a: 'x', b: 1, extra: 'gone'} as SmallObject,
-    ]);
+    const s: Set<SmallObject> = new Set([{a: 'x', b: 1, extra: 'gone'} as SmallObject]);
     expect(has(s)).toBe(true);
   });
 

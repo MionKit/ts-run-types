@@ -313,7 +313,11 @@ const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 /** Returns a JSON encoder for `T`. See `JsonEncoderOptions` for the
  *  full 5-combination matrix. Defaults: `strategy: 'clone',
  *  stripExtras: true`. **/
-export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRuntypeId<T>): JsonEncoderFn {
+export function createJsonEncoder<T>(
+  val?: T,
+  options?: CompTimeArgs<JsonEncoderOptions>,
+  id?: InjectRuntypeId<T>
+): JsonEncoderFn {
   void val;
   if (id === undefined) {
     throw new Error(
@@ -369,7 +373,11 @@ export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoder
  *  when the encoder didn't strip them). `stripExtras: false` skips the
  *  unknown-keys pass and passes undeclared properties through to the
  *  restored value untouched. **/
-export function createJsonDecoder<T>(val?: T, options?: CompTimeArgs<JsonDecoderOptions>, id?: InjectRuntypeId<T>): JsonDecoderFn<T> {
+export function createJsonDecoder<T>(
+  val?: T,
+  options?: CompTimeArgs<JsonDecoderOptions>,
+  id?: InjectRuntypeId<T>
+): JsonDecoderFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(

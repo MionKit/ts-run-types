@@ -769,7 +769,8 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(undefined, {strategy: 'mutate', stripExtras: false}),
-      binaryEncoder: () => createBinaryEncoder<{
+      binaryEncoder: () =>
+        createBinaryEncoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -779,7 +780,8 @@ export const SERIALIZATION_SPEC = {
           "weird prop name \n?>'\\\t\r": string;
           optionalString?: string;
         }>(),
-      binaryDecoder: () => createBinaryDecoder<{
+      binaryDecoder: () =>
+        createBinaryDecoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -1473,7 +1475,8 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(undefined, {strategy: 'mutate', stripExtras: false}),
-      binaryEncoder: () => createBinaryEncoder<{
+      binaryEncoder: () =>
+        createBinaryEncoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -1485,7 +1488,8 @@ export const SERIALIZATION_SPEC = {
           deep: {a: string; b: number};
           '?other weird p': {c: string; d: number};
         }>(),
-      binaryDecoder: () => createBinaryDecoder<{
+      binaryDecoder: () =>
+        createBinaryDecoder<{
           startDate: Date;
           quantity: number;
           name: string;
@@ -3743,8 +3747,10 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
           stripExtras: false,
         }),
-      binaryEncoder: () => createBinaryEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
-      binaryDecoder: () => createBinaryDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      binaryEncoder: () =>
+        createBinaryEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
+      binaryDecoder: () =>
+        createBinaryDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
       getTestData: () => ({values: [{name: 'John', createdAt: new Date('2000-08-06T02:13:00.000Z')}]}),
     },
     omit_properties: {
@@ -3946,13 +3952,15 @@ export const SERIALIZATION_SPEC = {
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
-      binaryEncoder: () => createBinaryEncoder<
+      binaryEncoder: () =>
+        createBinaryEncoder<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
           | {type: boolean; otherProp: string}
         >(),
-      binaryDecoder: () => createBinaryDecoder<
+      binaryDecoder: () =>
+        createBinaryDecoder<
           | {type: 'a'; otherProp: boolean}
           | {type: 'b'; otherProp: number}
           | {type: 'c'; otherProp: string; time: Date}
@@ -3998,8 +4006,14 @@ export const SERIALIZATION_SPEC = {
           undefined,
           {stripExtras: false}
         ),
-      binaryEncoder: () => createBinaryEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
-      binaryDecoder: () => createBinaryDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      binaryEncoder: () =>
+        createBinaryEncoder<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(),
+      binaryDecoder: () =>
+        createBinaryDecoder<
+          string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+        >(),
       getTestData: () => ({values: [['a', 'b', 'c'], {a: 'hello', aa: true}]}),
     },
     union_index_property_with_discriminator: {
@@ -4060,14 +4074,16 @@ export const SERIALIZATION_SPEC = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
-      binaryEncoder: () => createBinaryEncoder<
+      binaryEncoder: () =>
+        createBinaryEncoder<
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
-      binaryDecoder: () => createBinaryDecoder<
+      binaryDecoder: () =>
+        createBinaryDecoder<
           | string[]
           | {a: string; aa: boolean}
           | {b: number}
@@ -4162,10 +4178,12 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(undefined, {strategy: 'mutate', stripExtras: false}),
-      binaryEncoder: () => createBinaryEncoder<
+      binaryEncoder: () =>
+        createBinaryEncoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
-      binaryDecoder: () => createBinaryDecoder<
+      binaryDecoder: () =>
+        createBinaryDecoder<
           {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
         >(),
       getTestData: () => {
@@ -4331,8 +4349,10 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
           stripExtras: false,
         }),
-      binaryEncoder: () => createBinaryEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
-      binaryDecoder: () => createBinaryDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
+      binaryEncoder: () =>
+        createBinaryEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
+      binaryDecoder: () =>
+        createBinaryDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
       getTestData: () => ({
         values: [
           {kind: 'created', at: new Date('2000-08-06T02:13:00.000Z'), by: 'alice'},
@@ -4372,8 +4392,10 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
           stripExtras: false,
         }),
-      binaryEncoder: () => createBinaryEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
-      binaryDecoder: () => createBinaryDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
+      binaryEncoder: () =>
+        createBinaryEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
+      binaryDecoder: () =>
+        createBinaryDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
       getTestData: () => ({
         values: [
           {kind: 'event', when: new Date('2000-08-06T02:13:00.000Z'), label: 'kickoff'},
@@ -4413,8 +4435,10 @@ export const SERIALIZATION_SPEC = {
         createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
           stripExtras: false,
         }),
-      binaryEncoder: () => createBinaryEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
-      binaryDecoder: () => createBinaryDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
+      binaryEncoder: () =>
+        createBinaryEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
+      binaryDecoder: () =>
+        createBinaryDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
       getTestData: () => ({
         values: [
           {form: 'big', id: 9007199254740993n, label: 'beyond Number.MAX_SAFE_INTEGER'},
