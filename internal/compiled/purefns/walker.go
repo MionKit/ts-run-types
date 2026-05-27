@@ -57,12 +57,18 @@ type SourceFileLookup interface {
 	SourceFile(absPath string) *ast.SourceFile
 }
 
-// ExtractFromProgram walks every file in `files`, finds calls whose
-// resolved signature carries the registerPureFnFactory marker shape
-// (CompTimeArgs<string> × 2 + PureFunction<F> on slots 0, 1, 2), and
-// returns (deduped entries, diagnostics). Discovery is marker-driven —
-// the callee name is irrelevant; the contract lives on the parameter
-// brands.
+// ExtractFromProgram walks every file in `files`, finds calls to
+// `registerPureFnFactory(...)` whose resolved signature carries the
+// expected marker brands (CompTimeArgs<string> × 2 + PureFunction<F>
+// on slots 0, 1, 2), and returns (deduped entries, diagnostics).
+//
+// Discovery is two-layered: a cheap callee-name filter
+// (`pureFnFactoryCalleeName`) rules out unrelated calls without paying
+// for signature resolution, then a brand check on the resolved
+// signature verifies the call is the real, branded
+// `registerPureFnFactory` from the marker package (not a user's
+// same-named local function). The brands are the correctness contract;
+// the name is a fast-path filter only.
 //
 // Diagnostics never block compilation — they're surfaced via the Vite
 // plugin's `this.warn` channel using the canonical tsc-compatible
@@ -182,13 +188,53 @@ func findCalls(sourceFile *ast.SourceFile, cb func(*ast.Node)) {
 	sourceFile.AsNode().ForEachChild(visit)
 }
 
-// isPureFnFactoryCall reports whether call's resolved signature carries
-// the registerPureFnFactory marker shape: at least 3 parameters where
-// slots 0 and 1 are branded CompTimeArgs<string> and slot 2 is branded
-// PureFunction<F>. Discovery is signature-driven — the callee name is
-// not consulted. A call from a function whose signature lacks any of
-// these brands is silently a no-op (returns false).
+// pureFnFactoryCalleeName is the well-known identifier the walker uses
+// as a cheap pre-filter before resolving signatures. tsgo's signature
+// resolution is one of its heaviest operations; running it for every
+// CallExpression in every file (most of which are unrelated to
+// purefns) is wasteful when a string compare on the callee identifier
+// rules out 99% of calls immediately.
+//
+// The name is NOT the contract — the marker brands are. After the
+// pre-filter the brand check via `isPureFnFactoryCall` still runs and
+// verifies the call's signature really matches `(CompTimeArgs<string>,
+// CompTimeArgs<string>, PureFunction<F> | null)`. A user's own
+// `function registerPureFnFactory()` declared elsewhere is rejected by
+// the brand check even if it passes the name filter; the real
+// `registerPureFnFactory` imported under an alias is missed, but the
+// inner call inside any typed wrapper still gets found, and the cache
+// entry that comes out is the same.
+//
+// Compile-time validation (CTA001 / PFN001 on bad args) is a separate
+// concern handled by `resolver.scanCall`, which walks every call
+// regardless of name and emits diagnostics from the brand alone. So
+// the name filter here only short-circuits the EXTRACTION pass — the
+// user-facing type-checking guarantees come from the brands either
+// way.
+const pureFnFactoryCalleeName = "registerPureFnFactory"
+
+// isPureFnFactoryCall reports whether call is a purefn-factory
+// registration that should be extracted. Two-layer check:
+//
+//  1. Cheap: the callee is an identifier whose text equals the
+//     well-known `registerPureFnFactory` name. Avoids signature
+//     resolution on unrelated calls.
+//  2. Brand verify: the resolved signature has ≥3 parameters where
+//     slots 0+1 carry `CompTimeArgs<string>` and slot 2 carries
+//     `PureFunction<F>`. Module-of-origin is implicit in the brand
+//     check (markers only match aliases declared in the
+//     `@mionjs/ts-go-run-types` package), so a user's own
+//     `function registerPureFnFactory()` is rejected here even if it
+//     passes the name filter.
 func isPureFnFactoryCall(typeChecker *checker.Checker, markerOpts marker.Options, call *ast.Node) bool {
+	callExpr := call.AsCallExpression()
+	if callExpr == nil || callExpr.Expression == nil {
+		return false
+	}
+	callee := callExpr.Expression
+	if callee.Kind != ast.KindIdentifier || callee.Text() != pureFnFactoryCalleeName {
+		return false
+	}
 	signature := checker.Checker_getResolvedSignature(typeChecker, call, nil, 0)
 	if signature == nil {
 		return false
@@ -215,9 +261,10 @@ func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, par
 }
 
 // extractOne processes a single CallExpression. Returns (nil, nil)
-// when the call's signature doesn't carry the registerPureFnFactory
-// marker shape (CompTimeArgs<string> × 2 + PureFunction<F>), or when
-// any of the three args can't be resolved to its literal form.
+// when the call isn't a `registerPureFnFactory(...)` invocation (the
+// callee name + brand shape both have to match — see
+// `isPureFnFactoryCall`), or when any of the three args can't be
+// resolved to its literal form.
 //
 // Marker-shape validation (non-literal namespace / fnId / factory) is
 // emitted as CTA001 / PFN001 by `resolver.scanCall` — this function
