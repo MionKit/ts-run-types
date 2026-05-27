@@ -186,11 +186,8 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		}
 
 	case protocol.KindSymbol:
-		// mion:nodes/atomic/symbol.ts:emitTypeErrors
-		return JitCode{
-			Code: "if (typeof " + v + " !== 'symbol') " + callJitErr(ctx, "symbol", ""),
-			Type: CodeS,
-		}
+		// Unsupported — see docs/UNSUPPORTED-KINDS.md FAQ.
+		return JitCode{Code: "", Type: CodeNS}
 
 	case protocol.KindNull:
 		// mion:nodes/atomic/null.ts:emitTypeErrors
@@ -299,7 +296,7 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 			// mion: nodes/native/nonSerializable.ts:21-22 —
 			// `emitTypeErrors(): JitCode { throw new Error('Jit
 			// compilation disabled for Non Serializable types.'); }`.
-			return ctx.JitThrowDiagSlot(SlotNonSerializableRoot, "Jit compilation disabled for Non Serializable types.")
+			return JitCode{Code: "", Type: CodeNS}
 		}
 		// Future subkinds — silent skip.
 		return JitCode{Code: "", Type: CodeNS}
@@ -629,8 +626,6 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 		return JitCode{Code: "", Type: CodeS}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
-		// PropertySignature wrapping a function — skipped from the
-		// parent's children chain (mion's getJitChild → undefined).
 		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is not checked by typeErrors")
 		return JitCode{Code: "", Type: CodeS}
 	}
@@ -641,7 +636,12 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")
 	if childJit.Type == CodeNS {
-		return JitCode{Code: "", Type: CodeNS}
+		// Absorb at property — see docs/UNSUPPORTED-KINDS.md.
+		if leafCode := ctx.DiagCodeForLeaf(ctx.walker.UnsupportedLeaf); leafCode != "" {
+			ctx.walker.EmitDiagnostic(leafCode, "property "+rt.Name+" has unsupported type and is not checked by typeErrors")
+		}
+		ctx.walker.AbsorbUnsupported()
+		return JitCode{Code: "", Type: CodeS}
 	}
 	if childJit.Code == "" {
 		return JitCode{Code: "", Type: CodeS}

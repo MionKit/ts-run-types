@@ -128,6 +128,15 @@ export interface JitCompiledFnData {
   readonly pureFnDependencies?: Array<string>;
   /** function param names if the compiled type is function params */
   paramNames?: string[];
+  /**
+   * Per-family diagnostic code (e.g. 'PJ001') when this entry is an
+   * alwaysThrow factory — the Go-side compiler reached an unsupported
+   * leaf and ships the code instead of an inline throwing body. The JS
+   * side resolves code → message via `messageForCode` at materialise
+   * time and constructs a factory that throws with `[code] message`.
+   * Undefined for normal and noop entries. See docs/UNSUPPORTED-KINDS.md.
+   */
+  readonly alwaysThrowCode?: string;
 }
 
 export interface JitCompiledFn<Fn extends AnyFn = AnyFn> extends JitCompiledFnData {
