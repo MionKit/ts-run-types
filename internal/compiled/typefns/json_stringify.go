@@ -327,6 +327,7 @@ func emitArrayStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	}
 	resolvedChild := ctx.ResolveRef(rt.Child)
 	if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+		ctx.MarkUnsupportedLeaf(resolvedChild)
 		return JitCode{Code: "", Type: CodeNS}
 	}
 	iVar := ctx.NextLocalVar("i")

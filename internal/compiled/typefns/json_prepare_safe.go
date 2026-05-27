@@ -643,6 +643,7 @@ func emitArrayPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 	}
 	resolvedChild := ctx.ResolveRef(rt.Child)
 	if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
+		ctx.MarkUnsupportedLeaf(resolvedChild)
 		return JitCode{Code: "", Type: CodeNS}
 	}
 	if isExtraProof(resolvedChild, ctx) {

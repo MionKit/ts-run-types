@@ -307,7 +307,8 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 			// throws "Arrays can not have non serializable types,
 			// ie: Symbol[], Function[], etc." when the element's
 			// skipJit returns true (Symbol, Function). We mirror via
-			// a throw-factory.
+			// an alwaysThrow factory keyed off the child's kind.
+			ctx.MarkUnsupportedLeaf(resolvedChild)
 			return JitCode{Code: "", Type: CodeNS}
 		}
 		iVar := ctx.NextLocalVar("i")
