@@ -162,8 +162,7 @@ you want at compile time — split it across multiple smaller
   },
 
   CTA003: {
-    headline:
-      '`CompTimeArgs<T>` literal contains a forbidden construct ({0}). Only literals and nested literals are allowed.',
+    headline: '`CompTimeArgs<T>` literal contains a forbidden construct ({0}). Only literals and nested literals are allowed.',
     detail: `The Go scanner cannot statically evaluate spread elements, computed
 property names, function calls, ternary expressions, or template-string
 substitutions. Inside a \`CompTimeArgs<T>\` literal every node must be a

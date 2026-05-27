@@ -97,11 +97,7 @@ const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
  *  and writes bytes to a `DataViewSerializer`; the returned wrapper
  *  allocates one if the caller doesn't supply it, runs the encoder,
  *  and returns the trimmed `ArrayBuffer`. **/
-export function createBinaryEncoder<T>(
-  val?: T,
-  options?: BinaryEncoderOptions,
-  id?: InjectRuntypeId<T>
-): BinaryEncoderFn {
+export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectRuntypeId<T>): BinaryEncoderFn {
   void val;
   if (id === undefined) {
     throw new Error(
@@ -125,11 +121,7 @@ export function createBinaryEncoder<T>(
 /** Returns a binary decoder for `T`. Accepts either a raw
  *  `StrictArrayBuffer` (the encoder's output), any typed-array view, or
  *  a pre-built `DataViewDeserializer`. **/
-export function createBinaryDecoder<T>(
-  val?: T,
-  options?: BinaryDecoderOptions,
-  id?: InjectRuntypeId<T>
-): BinaryDecoderFn<T> {
+export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, id?: InjectRuntypeId<T>): BinaryDecoderFn<T> {
   void val;
   if (id === undefined) {
     throw new Error(
@@ -142,10 +134,7 @@ export function createBinaryDecoder<T>(
     // Distinguish DataViewDeserializer from raw buffer by checking for
     // the `desString` method — the public interface guarantees it.
     let des: DataViewDeserializer;
-    if (
-      input &&
-      typeof (input as DataViewDeserializer).desString === 'function'
-    ) {
+    if (input && typeof (input as DataViewDeserializer).desString === 'function') {
       des = input as DataViewDeserializer;
     } else {
       des = createDataViewDeserializer(cacheKey, input as BinaryInput);
