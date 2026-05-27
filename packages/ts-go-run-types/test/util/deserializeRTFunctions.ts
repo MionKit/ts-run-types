@@ -1,7 +1,7 @@
 // Test-only twins of the `createXxx` factories. Each `deserializeXxx<T>()`
 // rebuilds its per-id closure from the serialized `RTCompiledFnData.code`
 // string via `new Function('utl', code)(rtUtils)` on every call — the same
-// reconstruction path `materializeRTFn` (in src/rt/rtUtils.ts) runs
+// reconstruction path `materializeRTFn` (in src/runtypes/rtUtils.ts) runs
 // lazily on the first `getRT(hash)` lookup for a production caller.
 //
 // Lives under test/util/ rather than src/ because production code has no
@@ -36,8 +36,8 @@ import {
 // deserialize twins that exercise the per-primitive `entry.code`
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
-import {buildFactoryFromCode} from '../../src/rt/rtUtils.ts';
-import type {AnyFn, RTCompiledFn} from '../../src/rt/types.ts';
+import {buildFactoryFromCode} from '../../src/runtypes/rtUtils.ts';
+import type {AnyFn, RTCompiledFn} from '../../src/runtypes/types.ts';
 
 /** Test-side mirror of the production `createRTFunction` generic. Rebuilds
  *  the per-id closure from `entry.code` on every call instead of reading

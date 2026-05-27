@@ -3,7 +3,7 @@
 // bundles that don't reference `createMockType`. Mock has no per-type RT
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
-import {getRTUtils} from '../rt/rtUtils.ts';
+import {getRTUtils} from '../runtypes/rtUtils.ts';
 import type {InjectRuntypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {defaultMockOptions} from './constants.mock.ts';

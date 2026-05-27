@@ -316,7 +316,7 @@ function surfaceDiagnostics(
 //     Related: /abs/path(line,col): related message
 //
 // The user-facing headline is resolved from the JS-side catalog
-// (`packages/ts-go-run-types/src/rt/diagnosticCatalog.ts`) — the wire
+// (`packages/ts-go-run-types/src/runtypes/diagnosticCatalog.ts`) — the wire
 // only carries the diagnostic code + optional positional args. Severity
 // is numeric on the wire — switch on it to pick the human label since
 // the canonical line format requires the word, not the digit.

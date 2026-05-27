@@ -17,9 +17,9 @@
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').RunType} RunType */
+/** @typedef {import('../runtypes/types.ts').RunType} RunType */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   /** Short alias for `rtUtils.useRunType` used by footer ref assignments. */
   function c(id) {

@@ -143,7 +143,7 @@ function evalIsTypeModule(source: string): {byHash: Record<string, RTEntry>; reg
   const registered: Record<string, RTEntry> = {};
   // The cache module no longer materialises `entry.fn` eagerly — the
   // real rtUtils does it lazily on first `getRT(hash)` call (see
-  // packages/ts-go-run-types/src/rt/rtUtils.ts:materializeRTFn).
+  // packages/ts-go-run-types/src/runtypes/rtUtils.ts:materializeRTFn).
   // This test stub mimics that: after each addToRTCache, invoke
   // createRTFn(stub) so `entry.fn` is populated for the assertions
   // below that check `fn` is a function.

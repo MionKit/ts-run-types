@@ -469,7 +469,7 @@ func callRTErr(ctx *EmitContext, expected string, extra string) string {
 	if !ctx.HasContextItem(key) {
 		// rtUtils.getPureFn takes a single composite key
 		// `<namespace>::<fnName>` (see pureFnKey helper in
-		// packages/ts-go-run-types/src/rt/rtUtils.ts:45). The literal
+		// packages/ts-go-run-types/src/runtypes/rtUtils.ts:45). The literal
 		// is duplicated in both the body STRING and the createRTFn
 		// closure because the body is also evaluated through
 		// `new Function('utl', code)` where module-level consts like

@@ -6,9 +6,9 @@
  * ######## */
 
 import {describe, it, expect} from 'vitest';
-import type {CompiledPureFunction} from '../src/rt/types.ts';
-import {RTUtils, getRTUtils, pureFnKey} from '../src/rt/rtUtils.ts';
-import {registerPureFnFactory} from '../src/rt/pureFn.ts';
+import type {CompiledPureFunction} from '../src/runtypes/types.ts';
+import {RTUtils, getRTUtils, pureFnKey} from '../src/runtypes/rtUtils.ts';
+import {registerPureFnFactory} from '../src/runtypes/pureFn.ts';
 
 const TEST_NAMESPACE = 'test';
 

@@ -12,9 +12,9 @@
 
 'use strict';
 
-/** @typedef {import('../rt/types.ts').CompiledPureFunction} CompiledPureFunction */
+/** @typedef {import('../runtypes/types.ts').CompiledPureFunction} CompiledPureFunction */
 
-/** @param {import('../rt/rtUtils.ts').RTUtils} rtUtils */
+/** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
   function factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn) {
     const sep = key.indexOf('::');
