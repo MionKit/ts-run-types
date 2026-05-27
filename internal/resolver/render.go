@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -224,7 +226,7 @@ func renderFromBinaryModule(dump protocol.Dump, opts typefns.RenderOpts) (string
 // program and runs the extractor itself (the OpDump path). Returns the
 // rendered source plus any wire-shaped diagnostics from the in-place
 // extraction.
-func renderPureFnsModule(prog *program.Program, entries []purefns.Entry, ranExtraction bool) (string, []diag.Diagnostic, error) {
+func renderPureFnsModule(typeChecker *checker.Checker, markerOpts marker.Options, prog *program.Program, entries []purefns.Entry, ranExtraction bool) (string, []diag.Diagnostic, error) {
 	if prog == nil {
 		return "", nil, nil
 	}
@@ -238,7 +240,7 @@ func renderPureFnsModule(prog *program.Program, entries []purefns.Entry, ranExtr
 			}
 			walkFiles = append(walkFiles, sf.FileName())
 		}
-		entries, diagnostics = purefns.ExtractFromProgram(prog, walkFiles)
+		entries, diagnostics = purefns.ExtractFromProgram(typeChecker, markerOpts, prog, walkFiles)
 	}
 
 	rendered, err := renderToString("renderPureFnsModule", func(w io.Writer) error {

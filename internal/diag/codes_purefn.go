@@ -2,12 +2,16 @@ package diag
 
 // Pure-function extractor codes (PFE9xxx). Private namespace avoids
 // collision with TypeScript's own diagnostic ranges (TS2xxx / TS6xxx).
+//
+// PFE9001 (namespace not literal), PFE9002 (fnId not literal), PFE9003
+// (factory not inline) were retired in favour of the marker-layer
+// emitters CTA001 (CompTimeArgs<T> non-literal) and PFN001
+// (PureFunction<F> not inline) — those flow through resolver.scanCall
+// now that registerPureFnFactory is discovered by marker shape rather
+// than by callee name. See plan D6.
 const (
-	CodeNamespaceNotLiteral  = "PFE9001"
-	CodeFunctionIDNotLiteral = "PFE9002"
-	CodeFactoryNotInline     = "PFE9003"
-	CodeBodyHashCollision    = "PFE9004"
-	CodeDestructuredParam    = "PFE9005"
+	CodeBodyHashCollision = "PFE9004"
+	CodeDestructuredParam = "PFE9005"
 
 	CodePurityThis          = "PFE9006"
 	CodePurityAwait         = "PFE9007"
@@ -22,9 +26,6 @@ const (
 
 func init() {
 	for _, definition := range []Definition{
-		{Code: CodeNamespaceNotLiteral, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn namespace not a literal"},
-		{Code: CodeFunctionIDNotLiteral, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn id not a literal"},
-		{Code: CodeFactoryNotInline, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn factory not inline"},
 		{Code: CodeBodyHashCollision, Family: FamilyPureFn, Severity: SeverityError, Title: "Duplicate registration with mismatched bodyHash"},
 		{Code: CodeDestructuredParam, Family: FamilyPureFn, Severity: SeverityError, Title: "Pure-fn factory uses destructured parameter"},
 

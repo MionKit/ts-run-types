@@ -23,6 +23,7 @@ import type {
 } from './types.ts';
 import {restoreCompiledJitFns} from './restoreJitFns.ts';
 import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
+import type {CompTimeArgs} from '../markers.ts';
 
 // Minimal ambient — `console` is universally available at runtime (node + browser)
 // but the package's tsconfig sets `types: []` so the global isn't otherwise visible.
@@ -62,12 +63,12 @@ export interface JITUtils {
   hasJitFn(jitFnHash: string): boolean;
   /** Adds a compiled pure function. `key` is the composite `"namespace::fnName"`. */
   addPureFn(key: string, compiledFn: CompiledPureFunction): CompiledPureFunction;
-  usePureFn(key: string): PureFunction;
-  getPureFn(key: string): PureFunction | undefined;
-  getCompiledPureFn(key: string): CompiledPureFunction | undefined;
-  hasPureFn(key: string): boolean;
+  usePureFn(key: CompTimeArgs<string>): PureFunction;
+  getPureFn(key: CompTimeArgs<string>): PureFunction | undefined;
+  getCompiledPureFn(key: CompTimeArgs<string>): CompiledPureFunction | undefined;
+  hasPureFn(key: CompTimeArgs<string>): boolean;
   /** Find a pure function across all namespaces. Returns the compiled function or undefined. */
-  findCompiledPureFn(fnName: string): CompiledPureFunction | undefined;
+  findCompiledPureFn(fnName: CompTimeArgs<string>): CompiledPureFunction | undefined;
   /** Add (or overwrite) a run-type entry keyed by canonical id. Returns the stored entry. */
   addRunType(id: string, runType: RunType): RunType;
   removeRunType(id: string): void;

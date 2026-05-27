@@ -214,46 +214,10 @@ Fix — accept a pre-computed id from the caller:
   },
 
   // ─────────── Pure-fn family (PFE9xxx) — registerPureFnFactory ───────────
-
-  PFE9001: {
-    headline: "`registerPureFnFactory`'s first argument (namespace) must be a string literal or a same-file `const` — got: {0}.",
-    detail: `The build resolves the namespace at compile time and folds it into the
-function key. Identifiers from other modules, spreads, and computed
-strings can't be read at build time.
-
-Fix — use a string literal, or a \`const\` in the same file:
-  registerPureFnFactory('mion::core', 'asJSON', (utl) => ...);
-
-  // or:
-  const NS = 'mion::core';
-  registerPureFnFactory(NS, 'asJSON', (utl) => ...);`,
-  },
-
-  PFE9002: {
-    headline:
-      "`registerPureFnFactory`'s second argument (function id) must be a string literal or a same-file `const` — got: {0}.",
-    detail: `Same rule as the namespace argument — the build needs a static string to
-key the function. Use a literal or a same-file \`const\`.
-
-Fix:
-  registerPureFnFactory('ns', 'asJSONString', (utl) => ...);`,
-  },
-
-  PFE9003: {
-    headline:
-      "`registerPureFnFactory`'s third argument (the factory) must be an inline function/arrow or a same-file `const` — got: {0}.",
-    detail: `The build extracts the factory's source text to register it. Factories
-imported from other modules, or wrapped through helpers, can't be read.
-
-Fix — inline the factory:
-  registerPureFnFactory('ns', 'fn', (utl) => {
-    return (value) => ...
-  });
-
-Fix — assign to a same-file \`const\`:
-  const factory = (utl) => ...;
-  registerPureFnFactory('ns', 'fn', factory);`,
-  },
+  // PFE9001 / PFE9002 (non-literal namespace/fnId) and PFE9003 (non-inline
+  // factory) were retired with the marker migration. registerPureFnFactory
+  // now brands its args with CompTimeArgs<string> + PureFunction<F>, so
+  // shape diagnostics flow through CTA001 / PFN001 from the marker layer.
 
   PFE9004: {
     headline: 'Duplicate `registerPureFnFactory` for `{0}` with a different body — only one definition can win.',
