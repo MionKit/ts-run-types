@@ -198,6 +198,17 @@ type Walker struct {
 	diagSeen map[string]bool
 }
 
+// memberLabel returns a short human-readable identifier for a member-
+// shaped RunType (Property / Method / PropertySignature / …). Falls
+// back to "<anonymous>" when the runtime carries no Name — defensive
+// for the rare anonymous-callable case.
+func memberLabel(rt *protocol.RunType) string {
+	if rt == nil || rt.Name == "" {
+		return "<anonymous>"
+	}
+	return rt.Name
+}
+
 // EmitDiagnostic records a compile-time diagnostic against every call
 // site that references the root RunType being walked. No-op when DiagSink
 // is unwired, the code has already fired for this walk, or no provenance

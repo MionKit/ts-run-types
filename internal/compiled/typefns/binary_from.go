@@ -313,7 +313,11 @@ func emitPropertyFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des str
 		return JitCode{Code: "", Type: CodeS}
 	}
 	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+	if resolved == nil {
+		return JitCode{Code: "", Type: CodeS}
+	}
+	if isFunctionLikeKind(resolved.Kind) {
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from fromBinary")
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(ret, rt.Name, rt.IsSafeName)
@@ -344,7 +348,11 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 	var required, optional []*protocol.RunType
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
-		if resolved == nil || resolved.IsStatic {
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from fromBinary")
 			continue
 		}
 		if resolved.Kind != protocol.KindProperty && resolved.Kind != protocol.KindPropertySignature {
@@ -354,7 +362,11 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 			continue
 		}
 		childResolved := ctx.ResolveRef(resolved.Child)
-		if childResolved == nil || isFunctionLikeKind(childResolved.Kind) {
+		if childResolved == nil {
+			continue
+		}
+		if isFunctionLikeKind(childResolved.Kind) {
+			ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+resolved.Name+" has function-typed value and is excluded from fromBinary")
 			continue
 		}
 		if resolved.Optional {

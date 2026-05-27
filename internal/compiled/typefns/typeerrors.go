@@ -221,6 +221,9 @@ func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// Finalize collapses empty bodies to `return er` and flags
 		// the factory as a noop so the renderer skips emitting it;
 		// consumers fall through to `() => []` on the JS side.
+		if ctx.IsRoot() {
+			ctx.EmitDiagnosticSlot(SlotRootAnyUnknown, "typeErrors on any/unknown is a noop — every value passes")
+		}
 		return JitCode{Code: "", Type: CodeS}
 
 	case protocol.KindNever:
@@ -553,12 +556,14 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) JitC
 			continue
 		}
 		if resolved.IsStatic {
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is not checked by typeErrors")
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
 			// Method / MethodSignature / CallSignature on the shape —
 			// skip from the children body (callable case is handled by
 			// the typeof === 'function' guard below).
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is not checked by typeErrors")
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeS)
@@ -626,6 +631,7 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) Ji
 	if isFunctionLikeKind(resolved.Kind) {
 		// PropertySignature wrapping a function — skipped from the
 		// parent's children chain (mion's getJitChild → undefined).
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is not checked by typeErrors")
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)

@@ -365,9 +365,11 @@ func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 			continue
 		}
 		if resolved.IsStatic {
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from prepareForJson output")
 			continue
 		}
 		if isFunctionLikeKind(resolved.Kind) {
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is excluded from prepareForJson output")
 			continue
 		}
 		childJit := ctx.CompileChild(child, CodeS)
@@ -400,6 +402,7 @@ func emitPropertyPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string
 	if isFunctionLikeKind(resolved.Kind) {
 		// mion: PropertySignature wrapping a function — skipped from
 		// the parent's children chain.
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from prepareForJson output")
 		return JitCode{Code: "", Type: CodeS}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)

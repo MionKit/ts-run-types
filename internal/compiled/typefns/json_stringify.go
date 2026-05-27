@@ -377,7 +377,15 @@ func emitObjectStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) J
 	allOptional := true
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
-		if resolved == nil || resolved.IsStatic || isFunctionLikeKind(resolved.Kind) {
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			ctx.EmitDiagnosticSlot(SlotStaticDropped, "static member "+memberLabel(resolved)+" is excluded from stringifyJson output")
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			ctx.EmitDiagnosticSlot(SlotMethodDropped, "method "+memberLabel(resolved)+" is excluded from stringifyJson output")
 			continue
 		}
 		opt := resolved.Optional
@@ -487,6 +495,7 @@ func emitPropertyStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string)
 		return JitCode{Code: "", Type: CodeE}
 	}
 	if isFunctionLikeKind(resolved.Kind) {
+		ctx.EmitDiagnosticSlot(SlotFunctionPropDropped, "property "+rt.Name+" has function-typed value and is excluded from stringifyJson output")
 		return JitCode{Code: "", Type: CodeE}
 	}
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
