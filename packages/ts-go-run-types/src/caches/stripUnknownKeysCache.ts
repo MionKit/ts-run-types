@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the stripUnknownKeys cache module. Served
 // by the Go binary via the Vite plugin's `transform()` hook after
 // replacing the marker line below with generated `init(…)` calls —
@@ -14,9 +18,10 @@
 
 /** @typedef {import('../jit/types.ts').StripUnknownKeysJitFn} StripUnknownKeysJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   // Pure-fn key consts referenced by emitted factory bodies.
-  const k_getUnknownKeysFromArray = 'mion::getUnknownKeysFromArray';
+  const k_gUKFA = 'mion::getUnknownKeysFromArray';
 
   // Register every entry on the shared jitUtils cache with `fn:
   // undefined`. Noop entries pre-populate fn with the family-specific
@@ -55,7 +60,7 @@ export function initCache(jitUtils) {
     jitUtils.addToJitCache(entry);
   }
   void init;
-  void k_getUnknownKeysFromArray;
+  void k_gUKFA;
   function noopStripUnknownKeys(v) {
     return v;
   }

@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the prepareForJsonSafe cache module.
 // Sibling of prepareForJsonCache.ts that produces a NON-mutating
 // JSON-serializable form: instead of overwriting properties on `v`,
@@ -15,6 +19,7 @@
 
 /** @typedef {import('../jit/types.ts').PrepareForJsonSafeJitFn} PrepareForJsonSafeJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   function init(
     jitFnHash,

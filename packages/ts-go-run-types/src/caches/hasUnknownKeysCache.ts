@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the hasUnknownKeys cache module. Served by
 // the Go binary via the Vite plugin's `transform()` hook after replacing
 // the marker line below with generated `init(…)` calls — one per
@@ -16,12 +20,13 @@
 
 /** @typedef {import('../jit/types.ts').HasUnknownKeysJitFn} HasUnknownKeysJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   // Pure-fn key consts referenced by emitted factory bodies. Names
   // mirror the Go-side alias table at
   // internal/compiled/typefns/purefn_aliases.go.
-  const k_hasUnknownKeysFromArray = 'mion::hasUnknownKeysFromArray';
-  const k_getUnknownKeysFromArray = 'mion::getUnknownKeysFromArray';
+  const k_hUKFA = 'mion::hasUnknownKeysFromArray';
+  const k_gUKFA = 'mion::getUnknownKeysFromArray';
   // Register every entry on the shared jitUtils cache with `fn:
   // undefined`. The fn closure is materialized lazily on first
   // `jitUtils.getJIT(hash)` / `getJitFn(hash)` call — see
@@ -65,8 +70,8 @@ export function initCache(jitUtils) {
     jitUtils.addToJitCache(entry);
   }
   void init;
-  void k_hasUnknownKeysFromArray;
-  void k_getUnknownKeysFromArray;
+  void k_hUKFA;
+  void k_gUKFA;
   function noopHasUnknownKeys() {
     return false;
   }

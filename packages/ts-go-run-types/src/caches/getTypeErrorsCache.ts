@@ -1,4 +1,8 @@
 // @ts-nocheck
+//
+// ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
+// See the banner at the top of `isTypeCache.ts` for the full contract.
+//
 // Hand-authored skeleton for the typeErrors cache module. Served by
 // the Go binary via the Vite plugin's `transform()` hook after replacing
 // the marker line below with generated `init(…)` calls — one per
@@ -13,6 +17,7 @@
 
 /** @typedef {import('../jit/types.ts').GetTypeErrorsJitFn} GetTypeErrorsJitFn */
 
+/** @param {import('../jit/jitUtils.ts').JITUtils} jitUtils */
 export function initCache(jitUtils) {
   // Module-local pure-fn key consts. The Go emitter references these
   // by short name in `pureFnDependencies` and inside each createJitFn

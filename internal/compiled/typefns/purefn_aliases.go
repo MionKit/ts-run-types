@@ -6,15 +6,18 @@ package typefns
 // the body STRING and the createJitFn closure.
 //
 // The matching key-const name (`k_<alias>`, e.g. "k_nRT") MUST be
-// declared at module scope inside both cache skeletons
-// (packages/ts-go-run-types/src/caches/{isTypeCache,getTypeErrorsCache}.ts)
-// so the emitter can reference it in `pureFnDependencies` and inside
-// the createJitFn closure without re-quoting the full "mion::<fnName>"
-// literal. Add a new entry here AND the matching `k_<alias>` const
-// in the skeleton when introducing a pure fn the emitter calls.
+// declared at module scope inside every cache skeleton under
+// packages/ts-go-run-types/src/caches/ that calls the aliased pure-fn
+// (typeerrors / unknownkeys families today) so the emitter can
+// reference it in `pureFnDependencies` and inside the createJitFn
+// closure without re-quoting the full "mion::<fnName>" literal. Add a
+// new entry here AND the matching `k_<alias>` const in every relevant
+// skeleton when introducing a pure-fn the emitter calls.
 var pureFnAliases = map[string]string{
-	"newRunTypeErr":   "nRT",
-	"safeIterableKey": "sIK",
+	"newRunTypeErr":           "nRT",
+	"safeIterableKey":         "sIK",
+	"getUnknownKeysFromArray": "gUKFA",
+	"hasUnknownKeysFromArray": "hUKFA",
 }
 
 // pureFnAlias returns the emitter-side alias for a registered pure-fn
