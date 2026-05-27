@@ -354,7 +354,7 @@ getRuntypeId<Tagged>();
 // value at the source level is awkward and produces a different shape
 // (TypeScript widens `tag` to string). The static form covers the
 // canonical interface shape; the marker-coverage parity is preserved by
-// F35–F39 reflect tests already exercising the marker.Detect path.
+// F35–F39 reflect tests already exercising the marker.DetectAny path.
 
 func assertF40CallSignature(t *testing.T, r *resolver.Resolver, root *protocol.RunType) {
 	t.Helper()

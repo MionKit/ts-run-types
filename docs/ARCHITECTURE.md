@@ -96,8 +96,8 @@ A function opts into compile-time id injection by declaring `id?: InjectRuntypeI
 
 Detection requires both:
 
-1. The trailing parameter type alias must be named `InjectRuntypeId` (configurable via `--marker-name`).
-2. The alias must be declared in `@mionjs/ts-go-run-types` (configurable via `--marker-module`). Either inside `declare module "@mionjs/ts-go-run-types" { ... }` or in a file path containing `/@mionjs/ts-go-run-types/`. This rules out accidental collisions with same-named user types declared elsewhere.
+1. The trailing parameter type alias must be named `InjectRuntypeId`.
+2. The alias must be declared in `@mionjs/ts-go-run-types`. Either inside `declare module "@mionjs/ts-go-run-types" { ... }` or in a file whose enclosing on-disk `package.json` has `"name": "@mionjs/ts-go-run-types"`. This rules out accidental collisions with same-named user types declared elsewhere. The marker set is fixed at the binary's defaults — there is no CLI override for either knob.
 
 A call inside a generic body where the marker's `T` is the wrapper's own free type parameter is **skipped** — there's no concrete `T` to assign an id to yet. The wrapper must propagate the marker via its own signature, and the injection happens at the wrapper's call sites instead.
 
@@ -181,7 +181,7 @@ Cache lookup is done by the consumer directly: `import * as cache from 'virtual:
 
 ### packages/vite-plugin-runtypes
 
-- `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses. Forwards `--marker-name` / `--marker-module` if the user overrides them.
+- `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses.
 - `rewrite.ts` — single function: for each file, calls `scanFiles`, then applies the returned sites as **byte-offset** insertions to the source. Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
 - `index.ts` — Vite plugin glue. Short-circuits any file that doesn't contain the marker-module name as a cheap pre-filter. `load("virtual:runtypes-cache")` returns the `runTypeCacheSource` field from the resolver's `dump` response — the Go side is the single renderer.
 
