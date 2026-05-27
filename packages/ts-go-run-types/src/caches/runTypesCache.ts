@@ -26,10 +26,64 @@
 
 'use strict';
 
+/**
+ * Cache entry produced by every `rt(…)` call below.
+ *
+ * @typedef {import('../jit/types.ts').RunType} RunTypeEntry
+ */
+
+/**
+ * Positional args the Go renderer passes to `rt(…)`. Slots after `id`
+ * are the runtype's identification fields; every ref-shaped slot
+ * (`child`, `parameters`, …) starts as `undefined` and is patched
+ * post-construction by the emitter's footer assignments via `c(id).<slot>
+ * = c(otherId)`.
+ *
+ * @typedef {object} RunTypeArgs
+ * @property {string} id                                 Canonical structural id (hash) keying the cache.
+ * @property {unknown} kind                              ReflectionKind constant (see RunTypeKind).
+ * @property {unknown} [subKind]                         Sub-classifier (Map / Set / NonSerializable / …).
+ * @property {unknown} [typeName]                        TypeScript-source declaration name.
+ * @property {unknown} [name]                            Member name when this RT is a Property / Method / TupleMember.
+ * @property {unknown} [literal]                         Literal payload (string / number / regexp shape).
+ * @property {unknown} [optional]                        Optional-member flag.
+ * @property {unknown} [readonly]                        readonly-modifier flag.
+ * @property {unknown} [isAbstract]                      Abstract-class flag.
+ * @property {unknown} [isStatic]                        Static-member flag.
+ * @property {unknown} [visibility]                      public / protected / private.
+ * @property {unknown} [isSafeName]                      True when `name` is a valid JS identifier (no bracket access needed).
+ * @property {unknown} [position]                        Tuple-member / param positional index.
+ * @property {unknown} [inlined]                         Inlined-into-parent marker.
+ * @property {unknown} [flags]                           Per-kind freeform flag set.
+ * @property {unknown} [description]                     JSDoc / inline doc text.
+ * @property {unknown} [defaultVal]                      Default-parameter value.
+ * @property {unknown} [enumVal]                         Enum-member value.
+ * @property {unknown} [values]                          Enum / template-literal value pool.
+ */
+
 export function initCache(jitUtils) {
+  /**
+   * Short alias for `jitUtils.useRunType` used by the footer ref-
+   * assignment lines (`c('id').child = c('id2')`). `useRunType` throws
+   * on a missing id, so emitter bugs surface immediately instead of
+   * producing a chain of undefined references.
+   *
+   * @param {string} id
+   * @returns {RunTypeEntry}
+   */
   function c(id) {
     return jitUtils.useRunType(id);
   }
+  /**
+   * Adds one RunType entry to the shared jitUtils registry with every
+   * ref-shaped slot pre-set to `undefined`. The Go-side renderer emits
+   * one `rt(…)` call per cached RunType, then a footer block of `c(id).
+   * <slot> = c(otherId)` lines to re-knot the graph after every entry
+   * exists.
+   *
+   * Argument names mirror RunTypeArgs — positional 19-arg signature
+   * (see `RunTypeArgs` typedef above for slot semantics).
+   */
   function rt(
     id,
     kind,
@@ -51,7 +105,8 @@ export function initCache(jitUtils) {
     enumVal,
     values
   ) {
-    jitUtils.addRunType(id, {
+    /** @type {RunTypeEntry} */
+    const entry = {
       id,
       kind,
       subKind,
@@ -86,7 +141,8 @@ export function initCache(jitUtils) {
       implements: undefined,
       extends: undefined,
       classType: undefined,
-    });
+    };
+    jitUtils.addRunType(id, entry);
   }
   // Reference the helpers so a freshly-served empty body (no generated
   // calls yet) doesn't trip `noUnusedLocals` on the consumer side.

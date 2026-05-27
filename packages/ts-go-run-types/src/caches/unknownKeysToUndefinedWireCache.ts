@@ -14,8 +14,26 @@
 //
 // Mirrors `unknownKeysToUndefinedCache.ts` shape with the `fnID:
 // 'ukuw'` tag. Every JitCompiledFn entry produces a (v) -> v mutator.
+// See `isTypeCache.ts` for the JSDoc conventions used below.
 
 'use strict';
+
+/**
+ * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').UnknownKeysToUndefinedFn>} UnknownKeysToUndefinedWireJitFn
+ */
+
+/**
+ * @typedef {object} UnknownKeysToUndefinedWireInitArgs
+ * @property {string} jitFnHash
+ * @property {string} typeName
+ * @property {string|undefined} code
+ * @property {boolean} isNoop
+ * @property {ReadonlyArray<string>|undefined} jitDependencies
+ * @property {ReadonlyArray<string>|undefined} pureFnDependencies
+ * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').UnknownKeysToUndefinedFn)|undefined} createJitFn
+ * @property {string|undefined} alwaysThrowCode  Per-family diag code (UKW…) on alwaysThrow entries.
+ * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
+ */
 
 export function initCache(jitUtils) {
   const k_getUnknownKeysFromArray = 'mion::getUnknownKeysFromArray';
@@ -34,7 +52,8 @@ export function initCache(jitUtils) {
     const fn = isNoop ? noopUnknownKeysToUndefinedWire : undefined;
     const resolvedCreateJitFn =
       alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    jitUtils.addToJitCache({
+    /** @type {UnknownKeysToUndefinedWireJitFn} */
+    const entry = {
       jitFnHash,
       fnID: 'ukuw',
       typeName,
@@ -47,7 +66,9 @@ export function initCache(jitUtils) {
       createJitFn: resolvedCreateJitFn,
       fn,
       alwaysThrowCode,
-    });
+      alwaysThrowSite,
+    };
+    jitUtils.addToJitCache(entry);
   }
   void init;
   void k_getUnknownKeysFromArray;

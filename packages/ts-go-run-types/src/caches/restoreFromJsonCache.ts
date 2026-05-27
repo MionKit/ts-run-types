@@ -8,8 +8,26 @@
 // tag. Every JitCompiledFn entry the restoreFromJson emitter produces
 // takes a JSON-parsed value and reconstructs the original runtime
 // shape (Dates from ISO strings, BigInts from decimal strings, etc.).
+// See `isTypeCache.ts` for the JSDoc conventions.
 
 'use strict';
+
+/**
+ * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').RestoreFromJsonFn>} RestoreFromJsonJitFn
+ */
+
+/**
+ * @typedef {object} RestoreFromJsonInitArgs
+ * @property {string} jitFnHash
+ * @property {string} typeName
+ * @property {string|undefined} code
+ * @property {boolean} isNoop
+ * @property {ReadonlyArray<string>|undefined} jitDependencies
+ * @property {ReadonlyArray<string>|undefined} pureFnDependencies
+ * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').RestoreFromJsonFn)|undefined} createJitFn
+ * @property {string|undefined} alwaysThrowCode  Per-family diag code (RJ001 / RJ005 / …) on alwaysThrow entries.
+ * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
+ */
 
 export function initCache(jitUtils) {
   // Register every entry on the shared jitUtils cache with `fn:
@@ -35,7 +53,8 @@ export function initCache(jitUtils) {
     const fn = isNoop ? noopRestoreFromJson : undefined;
     const resolvedCreateJitFn =
       alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    jitUtils.addToJitCache({
+    /** @type {RestoreFromJsonJitFn} */
+    const entry = {
       jitFnHash,
       fnID: 'rj',
       typeName,
@@ -48,7 +67,9 @@ export function initCache(jitUtils) {
       createJitFn: resolvedCreateJitFn,
       fn,
       alwaysThrowCode,
-    });
+      alwaysThrowSite,
+    };
+    jitUtils.addToJitCache(entry);
   }
   void init;
   function noopRestoreFromJson(v) {

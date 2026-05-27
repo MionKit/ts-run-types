@@ -15,9 +15,27 @@
 // because the input is a value and the output is a string. For
 // atomic-noop kinds where the emit collapses (any / unknown / string /
 // object / regexp), the runtime fallback is `JSON.stringify(v)` —
-// keeps parity with the per-kind explicit emits.
+// keeps parity with the per-kind explicit emits. See `isTypeCache.ts`
+// for the JSDoc conventions.
 
 'use strict';
+
+/**
+ * @typedef {import('../jit/types.ts').JitCompiledFn<import('../createJitFunctions.ts').StringifyJsonFn>} StringifyJsonJitFn
+ */
+
+/**
+ * @typedef {object} StringifyJsonInitArgs
+ * @property {string} jitFnHash
+ * @property {string} typeName
+ * @property {string|undefined} code
+ * @property {boolean} isNoop
+ * @property {ReadonlyArray<string>|undefined} jitDependencies
+ * @property {ReadonlyArray<string>|undefined} pureFnDependencies
+ * @property {((utl: import('../jit/jitUtils.ts').JITUtils) => import('../createJitFunctions.ts').StringifyJsonFn)|undefined} createJitFn
+ * @property {string|undefined} alwaysThrowCode  Per-family diag code (SJ001 / SJ005 / …) on alwaysThrow entries.
+ * @property {string|undefined} alwaysThrowSite  `file:line:col` appended to the runtime throw's message.
+ */
 
 export function initCache(jitUtils) {
   // Register every entry on the shared jitUtils cache with `fn:
@@ -44,7 +62,8 @@ export function initCache(jitUtils) {
     const fn = isNoop ? noopStringifyJson : undefined;
     const resolvedCreateJitFn =
       alwaysThrowCode !== undefined ? jitUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createJitFn;
-    jitUtils.addToJitCache({
+    /** @type {StringifyJsonJitFn} */
+    const entry = {
       jitFnHash,
       fnID: 'sj',
       typeName,
@@ -57,7 +76,9 @@ export function initCache(jitUtils) {
       createJitFn: resolvedCreateJitFn,
       fn,
       alwaysThrowCode,
-    });
+      alwaysThrowSite,
+    };
+    jitUtils.addToJitCache(entry);
   }
   void init;
   function noopStringifyJson(v) {

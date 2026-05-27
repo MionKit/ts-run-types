@@ -18,9 +18,35 @@
 
 'use strict';
 
+/**
+ * Cache entry produced by every `factory(…)` call below.
+ *
+ * @typedef {import('../jit/types.ts').CompiledPureFunction} PureFnEntry
+ */
+
+/**
+ * Positional args the Go renderer passes to `factory(…)`.
+ *
+ * @typedef {object} PureFnFactoryArgs
+ * @property {string} key                                "<namespace>::<fnName>" composite key — split inside `factory` to populate the two fields.
+ * @property {string} bodyHash                           Hash of the function body for version validation.
+ * @property {ReadonlyArray<string>} paramNames          Parameter names of the pure function.
+ * @property {string} code                               JS source body — same string baked into `createPureFn` below.
+ * @property {ReadonlyArray<string>|undefined} pureFnDependencies  Other pure-fn keys this body reaches via `utl.getPureFn(…)`.
+ * @property {import('../jit/types.ts').PureFunctionFactory} createPureFn  Lazy factory: `(utl) => (...args) => unknown` — invoked on first lookup.
+ */
+
 export function initCache(jitUtils) {
+  /**
+   * Registers one CompiledPureFunction entry on the shared jitUtils
+   * cache. The factory closure is invoked lazily on first
+   * `getPureFn(key)` call — same delayed-materialise contract as the
+   * JIT-family caches (see `isTypeCache.ts`), so cross-cache pure-fn
+   * dependencies always resolve to canonical entries.
+   */
   function factory(key, bodyHash, paramNames, code, pureFnDependencies, createPureFn) {
     const sep = key.indexOf('::');
+    /** @type {PureFnEntry} */
     const entry = {
       namespace: sep >= 0 ? key.slice(0, sep) : '',
       fnName: sep >= 0 ? key.slice(sep + 2) : key,
