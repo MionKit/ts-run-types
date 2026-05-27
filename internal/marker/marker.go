@@ -44,8 +44,8 @@ const (
 )
 
 // DefaultName is the symbol name the resolver looks for for the
-// injection marker. Retained for back-compat with the older single-marker
-// Options.Name field.
+// injection marker. Used by DefaultSpecs when building the canonical
+// marker set.
 const DefaultName = "InjectRuntypeId"
 
 // DefaultCompTimeArgsName is the symbol name for the CompTimeArgs brand.
@@ -96,81 +96,23 @@ func DefaultSpecs() []Spec {
 	}
 }
 
-// Options configures marker detection. Zero values fall back to the
-// defaults above. The Name + Module fields govern *only* the injection
-// marker (back-compat with the original single-marker shape and the
-// --marker-name / --marker-module CLI flags); the CompTimeArgs and
-// PureFunction markers always use their default names sourced from
-// Module (or DefaultModule when unset).
+// Options configures marker detection. The Specs slice is the only
+// configuration surface — populated from DefaultSpecs() by
+// WithDefaults when empty. Callers that need to add or rename markers
+// (e.g. tests pinning a non-default module) construct Specs directly.
 type Options struct {
-	// Name overrides the injection marker's symbol name. Empty → DefaultName.
-	Name string
-	// Module is the package every marker in the default set is declared
-	// in. Empty → DefaultModule.
-	Module string
 	// Specs, when non-empty, replaces the entire marker set. When empty
-	// the Name + Module fields (plus the CompTimeArgs / PureFunction
-	// defaults sourced from Module) are used. Callers that need to add or
-	// rename markers beyond the injection one should populate Specs
-	// directly.
+	// WithDefaults fills it with DefaultSpecs().
 	Specs []Spec
 }
 
-// WithDefaults fills any zero fields on opts with the package defaults.
-// When Specs is empty it is populated from Name + Module + the two
-// non-injection defaults so the rest of the package can iterate one
-// uniform list.
+// WithDefaults populates Specs from DefaultSpecs() when empty. Returns
+// opts otherwise.
 func WithDefaults(opts Options) Options {
-	if opts.Name == "" {
-		opts.Name = DefaultName
-	}
-	if opts.Module == "" {
-		opts.Module = DefaultModule
-	}
 	if len(opts.Specs) == 0 {
-		opts.Specs = []Spec{
-			{Name: opts.Name, Module: opts.Module, Kind: KindInjectRuntypeId, BrandProperty: BrandInjectRuntypeId},
-			{Name: DefaultCompTimeArgsName, Module: opts.Module, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
-			{Name: DefaultPureFunctionName, Module: opts.Module, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
-		}
+		opts.Specs = DefaultSpecs()
 	}
 	return opts
-}
-
-// Detect inspects the *type of an optional trailing parameter* and returns
-// (typeArgument, true) when it matches the configured InjectRuntypeId
-// marker. The returned typeArgument is the single type argument (`T` in
-// `InjectRuntypeId<T>`).
-//
-// Specialised to the injection marker for back-compat — the existing
-// trailing-id codepath in resolver.scanCall calls this. For multi-marker
-// dispatch over arbitrary parameters use DetectAny.
-//
-// The parameter type for an optional `id?: InjectRuntypeId<T>` is typically a
-// union of `InjectRuntypeId<T>` and the undefined-flavoured slot; the alias info
-// stays on the union, so we can read it directly. If for some reason the
-// alias is on a constituent instead, we fall back to scanning union members.
-func Detect(paramType *checker.Type, opts Options) (*checker.Type, bool) {
-	if paramType == nil {
-		return nil, false
-	}
-	opts = WithDefaults(opts)
-	spec, ok := specForKind(opts.Specs, KindInjectRuntypeId)
-	if !ok {
-		return nil, false
-	}
-	if typeArgument, ok := matchAliasSpec(paramType, spec); ok {
-		return typeArgument, true
-	}
-	// Walk union constituents in case the optional flag stripped the alias.
-	if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
-		for _, member := range paramType.Types() {
-			if typeArgument, ok := matchAliasSpec(member, spec); ok {
-				return typeArgument, true
-			}
-		}
-	}
-	return nil, false
 }
 
 // DetectAny inspects a parameter type against every configured marker

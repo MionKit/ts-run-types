@@ -11,14 +11,15 @@ export interface PluginOptions {
   cwd?: string;
   // Path to tsconfig.json, relative to cwd. Defaults to "tsconfig.json".
   tsconfig?: string;
-  // Marker type alias name. Defaults to "InjectRuntypeId".
-  markerName?: string;
-  // Package the marker is declared in. Defaults to "@mionjs/ts-go-run-types".
-  // Files that don't import the marker module are short-circuited.
-  markerModule?: string;
 }
 
-const DEFAULT_MARKER_MODULE = '@mionjs/ts-go-run-types';
+// MARKER_MODULE is the fixed package every marker brand is declared in.
+// Files that don't import this module are short-circuited as a cheap
+// pre-filter. The marker module is no longer user-configurable — the
+// --marker-name / --marker-module CLI flags went away with the marker
+// migration. To use a custom marker, embed the Go resolver directly
+// and pass marker.Options{Specs: [...]}.
+const MARKER_MODULE = '@mionjs/ts-go-run-types';
 
 // CACHE_FILE_RE matches the three on-disk cache module files the plugin
 // transforms in place: `…/caches/runTypesCache.ts` (source mode under
@@ -50,8 +51,6 @@ const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
 };
 
 export default function runtypes(options: PluginOptions) {
-  const markerModule = options.markerModule ?? DEFAULT_MARKER_MODULE;
-
   let resolver: ResolverClient | null = null;
   let cwdAbs = '';
   // Resolved absolute ids of the three cache modules — stashed when the
@@ -77,8 +76,6 @@ export default function runtypes(options: PluginOptions) {
       // build configurations stay isolated.
       const cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
-        markerName: options.markerName,
-        markerModule: options.markerModule,
         cacheDir,
       });
     },
@@ -128,7 +125,7 @@ export default function runtypes(options: PluginOptions) {
       // Short-circuit: a file that doesn't reference the marker module
       // can't contain rewritable sites. Cheap textual check before the
       // round-trip to the resolver.
-      if (!code.includes(markerModule)) return null;
+      if (!code.includes(MARKER_MODULE)) return null;
 
       const rel = path.relative(options.cwd ?? process.cwd(), id);
       const result = await rewrite(rel, code, resolver);
@@ -305,7 +302,7 @@ function surfaceDiagnostics(
 // formatTscDiagnostic renders a Diagnostic in the canonical
 // `tsc --pretty=false` line format so VS Code's $tsc problem matcher
 // recognises it:
-//   /abs/path(line,col): error PFE9001: headline text
+//   /abs/path(line,col): error PFE9004: headline text
 //     Related: /abs/path(line,col): related message
 //
 // The user-facing headline is resolved from the JS-side catalog

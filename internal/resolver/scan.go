@@ -79,7 +79,8 @@ func (resolver *Resolver) scanAllProgramFiles() {
 //
 // The scanner walks CallExpression AST nodes ONLY and assigns typeids
 // ONLY for marker call arguments (cache.AssignID is invoked exclusively
-// from scanCall when marker.Detect succeeds). Type projection
+// from scanCall when marker.DetectAny matches the trailing slot as
+// InjectRuntypeId). Type projection
 // (cache.AssignID → cache.Serialize) is rooted at marker-referenced
 // types and follows children transitively from there — it never
 // reaches into the file's top-level declarations, exported type

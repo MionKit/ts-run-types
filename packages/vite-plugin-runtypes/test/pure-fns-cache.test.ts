@@ -197,9 +197,7 @@ export const x = registerPureFnFactory('mion', 'fn', externalFn);
       // PureFunction<F> brand on the factory param emits PFN001 from
       // the marker layer when the arg isn't an inline arrow/function
       // expression (or const-bound binding to one).
-      const markerCodes = (response.diagnostics ?? [])
-        .filter((d) => d.family === Family.Marker)
-        .map((d) => d.code);
+      const markerCodes = (response.diagnostics ?? []).filter((d) => d.family === Family.Marker).map((d) => d.code);
       expect(markerCodes).toContain('PFN001');
       // No purefn-family shape diagnostic — PFE9003 was retired.
       expect(pureFnDiagsOf(response).map((d) => d.code)).not.toContain('PFE9003');

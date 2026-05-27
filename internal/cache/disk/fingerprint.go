@@ -19,24 +19,23 @@ import (
 type FingerprintInputs struct {
 	HashLength        int
 	LiteralHashLength int
-	MarkerName        string
-	MarkerModule      string
 }
 
 // Fingerprint hashes inputs into a stable 12-hex-char prefix used as the
 // per-build-options cache directory. Short enough to keep paths
 // human-friendly, wide enough that collisions are not a practical
 // concern.
+//
+// The "v2" version tag was bumped from "v1" when the MarkerName /
+// MarkerModule inputs were dropped (the --marker-name / --marker-module
+// CLI flags went away with the marker migration). Bumping ensures
+// caches written by older binaries land under a different prefix.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v1\n")
+	sb.WriteString("v2\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(strconv.Itoa(inputs.LiteralHashLength))
-	sb.WriteByte('\n')
-	sb.WriteString(inputs.MarkerName)
-	sb.WriteByte('\n')
-	sb.WriteString(inputs.MarkerModule)
 	sb.WriteByte('\n')
 	sum := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(sum[:])[:12]
