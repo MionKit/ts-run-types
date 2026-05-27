@@ -669,10 +669,12 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 	if rt.Child == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil || isFunctionLikeKind(resolved.Kind) {
+	if resolved := ctx.ResolveRef(rt.Child); resolved == nil {
 		return JitCode{Code: "", Type: CodeS}
 	}
+	// Function-typed tuple slots fall through to CompileChild — the
+	// function arm returns CodeNS, the walker latches the leaf, and the
+	// renderer surfaces an alwaysThrow.
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")

@@ -2466,7 +2466,9 @@ export const SERIALIZATION_SPEC = {
       getTestData: () => ({values: [[34567, 1n, 2n, 3n], [3]]}),
     },
     tuple_with_non_serializable: {
-      title: 'tuple with non serializable types are transformed to undefined',
+      title: 'tuple with function-typed slot — alwaysThrow',
+      description:
+        'Function-typed tuple slots are unsupported at every serialization family: tuple positions are structural, so the previous silent drop produced lossy output (functions became null / undefined depending on path). The factory is now rendered as alwaysThrow.',
       unsafeEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: false}),
       clonePreserveEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'clone', stripExtras: false}),
       mutateStripEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: true}),
@@ -2476,7 +2478,8 @@ export const SERIALIZATION_SPEC = {
       unsafeDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'mutate', stripExtras: false}),
       binaryEncoder: () => createBinaryEncoder<[number, () => any]>(),
       binaryDecoder: () => createBinaryDecoder<[number, () => any]>(),
-      getTestData: () => ({values: [[3, () => null]], deserializedValues: [[3, undefined]]}),
+      throwsAtCompile: true,
+      getTestData: () => ({values: []}),
     },
     tuple_circular: {
       title: 'tuple circular',
@@ -3243,21 +3246,12 @@ export const SERIALIZATION_SPEC = {
         }
         return createBinaryDecoder<Parameters<typeof fnWithCallback>>();
       },
-      // JSON silently drops the function-valued param; binary refuses
-      // function kinds outright at JIT-compile time per mion's binary
-      // contract — there's no canonical wire shape for function-valued
-      // tuple members.
-      binaryThrowsAtCompile: true,
-      getTestData: () => ({
-        values: [
-          [3, true, () => null],
-          [3, true, undefined],
-        ],
-        deserializedValues: [
-          [3, true, undefined],
-          [3, true, undefined],
-        ],
-      }),
+      // Parameters<typeof fnWithCallback> resolves to a tuple ending
+      // in `() => null`. Function-typed tuple slots are unsupported in
+      // every family now (previously JSON silently dropped them, binary
+      // threw); both paths render as alwaysThrow.
+      throwsAtCompile: true,
+      getTestData: () => ({values: []}),
     },
     function_promise_return_type: {
       title: 'function returns a promise',

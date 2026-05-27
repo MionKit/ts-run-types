@@ -162,4 +162,76 @@ export const _ = getRuntypeId<unknown>();
       expect(warning!.severity).toBe(Severity.Warning);
     });
   });
+
+  // Tuple slots are structural — a function or symbol slot can't be
+  // silently dropped without changing the tuple's length / shape on the
+  // wire. The serialization families (prepareForJson, prepareForJsonSafe,
+  // restoreFromJson, stringifyJson, toBinary, fromBinary) propagate the
+  // CodeNS upward so the renderer emits an alwaysThrow factory keyed on
+  // the leaf's per-family code. Regression coverage for the array-style
+  // short-circuits we removed in the tuple emits.
+
+  register('propagates function-typed tuple slot as alwaysThrow under prepareForJson', async () => {
+    const sources = {
+      'fn-tuple.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<[number, () => void]>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeCacheSources: ['prepareForJson', 'prepareForJsonSafe', 'restoreFromJson', 'stringifyJson'],
+      });
+      const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
+      // One per-family error code per emitter — PJ003 / PJS003 /
+      // PJP003 / RJ003 / SJ003 — all on the same function-root leaf.
+      expect(codes, [...codes].join(',')).toContain('PJ003');
+      expect(codes).toContain('PJS003');
+      expect(codes).toContain('RJ003');
+      expect(codes).toContain('SJ003');
+      // Cache module must wire the tuple's `pj_<hash>` entry as
+      // alwaysThrow so calling `createJsonEncoder<[number, () => void]>()`
+      // throws at the first lookup. The 8th positional arg on init()
+      // is the alwaysThrowCode — verify it's present for the tuple.
+      const pj = response.prepareForJsonCacheSource ?? '';
+      expect(pj).toMatch(/init\('pj_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'PJ003'/);
+    });
+  });
+
+  register('propagates function-typed tuple slot as alwaysThrow under toBinary / fromBinary', async () => {
+    const sources = {
+      'fn-tuple-bin.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<[string, () => number]>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeCacheSources: ['toBinary', 'fromBinary'],
+      });
+      const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
+      expect(codes).toContain('TB003');
+      expect(codes).toContain('FB003');
+      const tb = response.toBinaryCacheSource ?? '';
+      expect(tb).toMatch(/init\('tb_[A-Za-z0-9]+','tuple',undefined,false,undefined,undefined,undefined,'TB003'/);
+    });
+  });
+
+  register('propagates symbol-typed tuple slot as alwaysThrow under prepareForJson', async () => {
+    // Symbol in a tuple slot wasn't covered by the explicit
+    // isFunctionLikeKind short-circuit — it took the natural CompileChild
+    // path even before the fix. This test pins that behavior so a future
+    // optimisation can't silently regress it.
+    const sources = {
+      'sym-tuple.ts': `import {getRuntypeId} from '@mionjs/ts-go-run-types';
+export const _ = getRuntypeId<[number, symbol]>();
+`,
+    };
+    await withInlineSources(sources, async ({client}) => {
+      const response = await client.scanFiles(Object.keys(sources), {
+        includeCacheSources: ['prepareForJson', 'toBinary'],
+      });
+      const codes = new Set(runtypeDiagsOf(response).map((d) => d.code));
+      expect(codes).toContain('PJ005');
+      expect(codes).toContain('TB006');
+    });
+  });
 });
