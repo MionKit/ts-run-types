@@ -31,6 +31,12 @@
       "types": "./dist/caches/pureFnsCache.d.ts",
       "import": "./dist/caches/pureFnsCache.js",
       "require": "./dist/caches/pureFnsCache.cjs"
+    },
+    "./formats": {
+      "source": "./src/formats/index.ts",
+      "types": "./dist/formats/index.d.ts",
+      "import": "./dist/formats/index.js",
+      "require": "./dist/formats/index.cjs"
     }
   },
   "files": [

@@ -8,7 +8,7 @@ import (
 )
 
 // uuidEmitter implements the format named "uuid" — FormatUUIDv4 /
-// FormatUUIDv7 in `@mionjs/ts-go-type-formats`. The validator
+// FormatUUIDv7 in `@mionjs/ts-go-run-types/formats`. The validator
 // dispatches to the `cpf_isUUID` pure fn that ships with the JS
 // package, passing the version-pinned params at the call site.
 //
@@ -23,7 +23,7 @@ type uuidEmitter struct{}
 // resolver registers cpf_isUUID under. Matches the file where the
 // JS-side `registerPureFnFactory('mionFormats', 'isUUID', ...)` call
 // lives — keep these in sync when either side moves.
-const typeFormatsPureFnFilePath = "packages/ts-go-type-formats/src/string/string-formats-pure-fns.ts"
+const typeFormatsPureFnFilePath = "packages/ts-go-run-types/src/formats/string/string-formats-pure-fns.ts"
 
 func init() {
 	formats.Register(uuidEmitter{})

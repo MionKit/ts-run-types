@@ -10,6 +10,6 @@ package all
 
 import (
 	// String-family emitters. JS-side mirrors live under
-	// `packages/ts-go-type-formats/src/string/`.
+	// `packages/ts-go-run-types/src/formats/string/`.
 	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/string"
 )

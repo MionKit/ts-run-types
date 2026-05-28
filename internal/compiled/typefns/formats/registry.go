@@ -7,7 +7,7 @@
 // Sibling of the JS-side runtime registry (packages/ts-go-run-types/src/
 // runtypes/formatRegistry.ts) — the two are kept in lock-step by
 // convention: every format ships a Go file under this subtree AND a
-// JS RunTypeFormat in `ts-go-type-formats`. Names must match.
+// JS format type under `@mionjs/ts-go-run-types/formats`. Names must match.
 package formats
 
 import (

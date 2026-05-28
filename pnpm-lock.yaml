@@ -51,16 +51,6 @@ importers:
         specifier: workspace:*
         version: link:../vite-plugin-runtypes
 
-  packages/ts-go-type-formats:
-    dependencies:
-      '@mionjs/ts-go-run-types':
-        specifier: workspace:*
-        version: link:../ts-go-run-types
-    devDependencies:
-      vite-plugin-runtypes:
-        specifier: workspace:*
-        version: link:../vite-plugin-runtypes
-
   packages/vite-plugin-runtypes:
     devDependencies:
       vite:

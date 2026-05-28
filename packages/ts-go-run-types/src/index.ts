@@ -24,11 +24,12 @@ if (_hot) {
 // helpers (e.g. typeErrors needs `mion::newRunTypeErr`).
 export {registerPureFnFactory} from './runtypes/pureFn.ts';
 
-// Type-format base machinery — the per-format types live in
-// `@mionjs/ts-go-type-formats`, but the brand alias + the mock registry
-// sit here so format packages can import them without pulling in the
-// whole ts-go-type-formats public surface. Validation is build-time
-// (Go); the runtime only needs the per-kind mock registry.
+// Type-format base machinery — the per-format types live under
+// `src/formats/` (the `@mionjs/ts-go-run-types/formats` subpath); the
+// brand alias + the mock registry sit here at the root so the format
+// modules can import them without a self-referential barrel cycle.
+// Validation is build-time (Go); the runtime only needs the per-kind
+// mock registry.
 export {type TypeFormat, type TypeFormatBase, type TypeFormatParams} from './runtypes/typeFormat.ts';
 export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
 export {registerMockingFunction, type MockFormatFn} from './mocking/mockRegistry.ts';
@@ -38,8 +39,8 @@ export {
   type FormatPatternArgs,
   type StringPatternArgs,
 } from './runtypes/formatPattern.ts';
-// Reflection-kind enum mirror. Re-exported so concrete formats in
-// `@mionjs/ts-go-type-formats` can declare `readonly kind = RunTypeKind.string`
+// Reflection-kind enum mirror. Re-exported so concrete formats under
+// `src/formats/` can declare `readonly kind = RunTypeKind.string`
 // without importing the internal module path.
 export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 

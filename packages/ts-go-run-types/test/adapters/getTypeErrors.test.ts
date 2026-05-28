@@ -13,75 +13,8 @@
 // suite at run time, so the file scales naturally as kinds land.
 
 import {afterEach, describe, expect, it} from 'vitest';
-import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.ts';
-
-function assertGetTypeErrors(c: ValidationCase): void {
-  if (!c.getTypeErrors) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
-
-  // factoryThrows — alwaysThrow factory; every variant throws on
-  // invocation. getExpectedErrors / samples are not consulted.
-  if (c.factoryThrows) {
-    expect(() => c.getTypeErrors!(), `${c.title} [static]: factory must throw`).toThrow();
-    if (c.getTypeErrorsReflect) expect(() => c.getTypeErrorsReflect(), `${c.title} [reflect]: factory must throw`).toThrow();
-    if (c.deserializeGetTypeErrors)
-      expect(() => c.deserializeGetTypeErrors!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
-    if (c.deserializeGetTypeErrorsReflect)
-      expect(() => c.deserializeGetTypeErrorsReflect!(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
-    return;
-  }
-
-  if (!c.getExpectedErrors) throw new Error(`case ${c.title}: missing getExpectedErrors thunk`);
-  const {valid, invalid} = c.getSamples();
-  const expected = c.getExpectedErrors();
-
-  if (expected.length !== invalid.length) {
-    throw new Error(
-      `case ${c.title}: getExpectedErrors length (${expected.length}) must match invalid samples (${invalid.length})`
-    );
-  }
-
-  // Static form: createGetTypeErrors<T>().
-  const getErrStatic = c.getTypeErrors();
-  valid.forEach((v, i) => {
-    expect(getErrStatic(v), `${c.title} [static]: valid[${i}] → no errors`).toEqual([]);
-  });
-  invalid.forEach((v, i) => {
-    expect(getErrStatic(v), `${c.title} [static]: invalid[${i}]`).toEqual(expected[i]);
-  });
-
-  // Reflect form: createGetTypeErrors(value). Optional.
-  if (c.getTypeErrorsReflect) {
-    const getErrReflect = c.getTypeErrorsReflect();
-    valid.forEach((v, i) => {
-      expect(getErrReflect(v), `${c.title} [reflect]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(getErrReflect(v), `${c.title} [reflect]: invalid[${i}]`).toEqual(expected[i]);
-    });
-  }
-
-  // Deserialize-static form: deserializeGetTypeErrors<T>().
-  if (c.deserializeGetTypeErrors) {
-    const deserializedStatic = c.deserializeGetTypeErrors();
-    valid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}]`).toEqual(expected[i]);
-    });
-  }
-
-  // Deserialize-reflect form: deserializeGetTypeErrors(value).
-  if (c.deserializeGetTypeErrorsReflect) {
-    const deserializedReflect = c.deserializeGetTypeErrorsReflect();
-    valid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}]`).toEqual(expected[i]);
-    });
-  }
-}
+import {VALIDATION_SUITE} from '../suites/validation-suite.ts';
+import {assertGetTypeErrors} from '../util/validationAsserts.ts';
 
 describe('getTypeErrors / ATOMIC', () => {
   let ranTests = 0;

@@ -12,7 +12,7 @@ import (
 )
 
 // A locally-declared TypeFormat alias produces the same brand
-// intersection the published `@mionjs/ts-go-type-formats` one does —
+// intersection the published `@mionjs/ts-go-run-types/formats` one does —
 // the scanner recognises it structurally (the two sentinel properties),
 // not by import source. Lets these tests stay self-contained.
 const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> = Base & {
