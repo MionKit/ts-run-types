@@ -43,7 +43,7 @@ const (
 	SkeletonUnknownKeysToUndefinedWire = "unknownKeysToUndefinedWireCache.ts"
 	SkeletonToBinary                   = "toBinaryCache.ts"
 	SkeletonFromBinary                 = "fromBinaryCache.ts"
-	SkeletonFormat                     = "formatCache.ts"
+	SkeletonFormatTransform            = "formatTransformCache.ts"
 	SkeletonPureFns                    = "pureFnsCache.ts"
 )
 

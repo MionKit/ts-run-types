@@ -102,8 +102,8 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_fb_",
 		Tag:       "fb",
 	},
-	"format": {
-		Name:      "formatModule",
+	"formatTransform": {
+		Name:      "formatTransformModule",
 		VarPrefix: "g_fmt_",
 		Tag:       "fmt",
 	},
