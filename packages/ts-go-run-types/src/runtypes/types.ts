@@ -9,6 +9,7 @@
 // Only the symbols `rtUtils.ts` actually reaches are kept here.
 
 import type {RTUtils} from './rtUtils.ts';
+import type {FormatAnnotation} from './formatAnnotation.ts';
 // Per-family fn signatures are imported (type-only, no runtime cycle) from
 // the modules that own them so the cache-entry typedefs below stay a single
 // source of truth.
@@ -87,6 +88,9 @@ export interface RunType {
   safeUnionChildren?: RunType[];
   unionDiscriminators?: unknown;
   decorators?: unknown;
+  // Populated for a TypeFormat-branded primitive. Drives mock
+  // generation (mockSamples) + format-formatter lookup at runtime.
+  formatAnnotation?: FormatAnnotation;
   typeArguments?: RunType[];
   arguments?: RunType[];
   extendsArguments?: RunType[];
