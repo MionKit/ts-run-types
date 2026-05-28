@@ -130,3 +130,122 @@ export const cpf_isDateString_DM = registerPureFnFactory('mionFormats', 'isDateS
     return parts.length === 2 && isDate(undefined, parts[1], parts[0]);
   };
 });
+
+// ############### Time pure fns ###############
+//
+// Leaf validators (isHours / isMinutes / isSeconds) validate a single
+// numeric segment. The composite validators build up from there:
+// isSecondsWithMs → isSeconds; isTimeZone → isHours+isMinutes;
+// isTimeString_ISO → isHours+isMinutes+isSecondsWithMs;
+// isTimeString_ISO_TZ → isTimeString_ISO+isTimeZone; etc. Each
+// dependency is reached via utl.getPureFn so the Go extractor records
+// the full transitive graph.
+
+type SegmentFn = (segment: string) => boolean;
+
+export const cpf_isHours = registerPureFnFactory('mionFormats', 'isHours', function () {
+  return function _is_h(hours: string): boolean {
+    if (!hours.length || hours.length > 2) return false;
+    const n = Number(hours);
+    if (isNaN(n)) return false;
+    return n >= 0 && n <= 23;
+  };
+});
+
+export const cpf_isMinutes = registerPureFnFactory('mionFormats', 'isMinutes', function () {
+  return function _is_m(mins: string): boolean {
+    if (!mins.length || mins.length > 2) return false;
+    const n = Number(mins);
+    if (isNaN(n)) return false;
+    return n >= 0 && n <= 59;
+  };
+});
+
+export const cpf_isSeconds = registerPureFnFactory('mionFormats', 'isSeconds', function () {
+  return function _is_s(secs: string): boolean {
+    if (!secs.length || secs.length > 2) return false;
+    const n = Number(secs);
+    if (isNaN(n)) return false;
+    return n >= 0 && n <= 59;
+  };
+});
+
+export const cpf_isSecondsWithMs = registerPureFnFactory('mionFormats', 'isSecondsWithMs', function (utl: RTUtils) {
+  const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
+  return function _is_s_ms(secsAndMs: string): boolean {
+    const parts = secsAndMs.split('.');
+    if (parts.length > 2) return false;
+    if (!isS(parts[0])) return false;
+    const ms = parts[1];
+    if (ms) {
+      if (ms.length !== 3) return false;
+      const n = Number(ms);
+      if (isNaN(n) || n < 0 || n > 999) return false;
+    }
+    return true;
+  };
+});
+
+export const cpf_isTimeZone = registerPureFnFactory('mionFormats', 'isTimeZone', function (utl: RTUtils) {
+  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+  return function _is_tz(timeZone: string): boolean {
+    if (timeZone === 'Z' || timeZone === 'z') return true;
+    const parts = timeZone.split(':');
+    return parts.length === 2 && isH(parts[0]) && isM(parts[1]);
+  };
+});
+
+export const cpf_isTimeString_ISO = registerPureFnFactory('mionFormats', 'isTimeString_ISO', function (utl: RTUtils) {
+  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+  const isSms = utl.getPureFn('mionFormats::isSecondsWithMs') as SegmentFn;
+  return function _is_iso(value: string): boolean {
+    const parts = value.split(':');
+    return parts.length === 3 && isH(parts[0]) && isM(parts[1]) && isSms(parts[2]);
+  };
+});
+
+export const cpf_isTimeString_ISO_TZ = registerPureFnFactory('mionFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils) {
+  const isTime = utl.getPureFn('mionFormats::isTimeString_ISO') as SegmentFn;
+  const isTZ = utl.getPureFn('mionFormats::isTimeZone') as SegmentFn;
+  return function _is_iso_tz(value: string): boolean {
+    const isZ = value.endsWith('Z') || value.endsWith('z');
+    const isPositiveTZ = isZ || value.indexOf('+') !== -1;
+    const isNegativeTZ = isZ || value.indexOf('-') !== -1;
+    if (!isZ && !isPositiveTZ && !isNegativeTZ) return false;
+    const timeAndTz = isZ
+      ? [value.substring(0, value.length - 1), 'Z']
+      : value.split(isPositiveTZ ? '+' : '-');
+    if (timeAndTz.length !== 2) return false;
+    return isTime(timeAndTz[0]) && isTZ(timeAndTz[1]);
+  };
+});
+
+export const cpf_isTimeString_HHmmss = registerPureFnFactory('mionFormats', 'isTimeString_HHmmss', function (utl: RTUtils) {
+  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+  const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
+  return function _is_hhmmss(value: string): boolean {
+    const parts = value.split(':');
+    return parts.length === 3 && isH(parts[0]) && isM(parts[1]) && isS(parts[2]);
+  };
+});
+
+export const cpf_isTimeString_HHmm = registerPureFnFactory('mionFormats', 'isTimeString_HHmm', function (utl: RTUtils) {
+  const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
+  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+  return function _is_hhmm(value: string): boolean {
+    const parts = value.split(':');
+    return parts.length === 2 && isH(parts[0]) && isM(parts[1]);
+  };
+});
+
+export const cpf_isTimeString_mmss = registerPureFnFactory('mionFormats', 'isTimeString_mmss', function (utl: RTUtils) {
+  const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
+  const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
+  return function _is_mmss(value: string): boolean {
+    const parts = value.split(':');
+    return parts.length === 2 && isM(parts[0]) && isS(parts[1]);
+  };
+});

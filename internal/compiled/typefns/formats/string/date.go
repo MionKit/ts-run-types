@@ -69,7 +69,7 @@ func (dateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl s
 	if !ok {
 		return ""
 	}
-	alias := registerDateDependency(ctx, fnName)
+	alias := pureFnAlias(ctx, fnName)
 	return alias + "(" + vλl + ")"
 }
 
@@ -85,7 +85,7 @@ func (dateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, v�
 	if !ok {
 		return ""
 	}
-	alias := registerDateDependency(ctx, fnName)
+	alias := pureFnAlias(ctx, fnName)
 	call := alias + "(" + vλl + ")"
 	pathLiteral := "['format']"
 	if pathExpr != "" {
@@ -93,18 +93,4 @@ func (dateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, v�
 	}
 	return "if (!(" + call + ")) " +
 		errorsArr + ".push({name:'date',formatPath:" + pathLiteral + ",val:" + strconv.Quote(format) + "});"
-}
-
-// registerDateDependency wires the format-specific pure fn into the
-// factory and returns its JS alias. The base cpf_isDateString the
-// wrapper calls internally is pulled in transitively by the pure-fn
-// extractor when it scans the wrapper's factory body — no need to
-// declare it here.
-func registerDateDependency(ctx formats.EmitContext, fnName string) string {
-	ctx.AddPureFnDependency("mionFormats", fnName, typeFormatsPureFnFilePath)
-	alias := "cpf_" + fnName
-	if !ctx.HasContextItem(alias) {
-		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
-	}
-	return alias
 }
