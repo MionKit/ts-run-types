@@ -17,6 +17,10 @@ import (
 	"github.com/microsoft/typescript-go/shim/tspath"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
+	// Blank-import the format-emitter aggregator so every concrete
+	// format (stringFormat, uuid, …) registers with the formats
+	// registry before the resolver starts handing out RunTypes.
+	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/all"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"

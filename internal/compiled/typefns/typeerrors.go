@@ -156,18 +156,43 @@ func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expected
 	// after the base-kind check. Only spliced when (a) a format emitter
 	// is registered, (b) the emitter's check returns a non-empty
 	// statement, (c) the base output is a statement body (CodeS). The
-	// format error path runs only when the base check did NOT already
-	// push an error — same convention as the JS-side
-	// getCallJitFormatErr wrapper.
+	// format check runs only when the base predicate's type-mismatch
+	// branch did NOT fire — we guard with the base's positive
+	// predicate so format errors only surface for values of the right
+	// underlying kind. `pth` is the runtime path argument the
+	// typeErrors validator receives; format errors push relative to
+	// that, mirroring mion's getCallJitFormatErr behaviour.
 	if base.Type == CodeS && rt != nil && rt.FormatAnnotation != nil {
 		if emitter, ok := formats.LookupForRunType(rt); ok {
-			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, ctx.AccessPathLiteral(""), "er")
+			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er")
 			if check != "" {
-				base.Code = base.Code + " else { " + check + " }"
+				guard := baseKindGuard(rt.Kind, ctx.Vλl)
+				if guard == "" {
+					base.Code = base.Code + ";" + check
+				} else {
+					base.Code = base.Code + ";if (" + guard + ") {" + check + "}"
+				}
 			}
 		}
 	}
 	return base
+}
+
+// baseKindGuard returns a JS expression that's true when vλl matches
+// the base kind, used as the gate around format-specific error checks
+// so they don't run on type-mismatched values. Returns "" when no
+// guard applies (no format emitter should ever land on an unkinded
+// node, but keep this defensive).
+func baseKindGuard(kind protocol.ReflectionKind, vλl string) string {
+	switch kind {
+	case protocol.KindString:
+		return "typeof " + vλl + " === 'string'"
+	case protocol.KindNumber:
+		return "Number.isFinite(" + vλl + ")"
+	case protocol.KindBigInt:
+		return "typeof " + vλl + " === 'bigint'"
+	}
+	return ""
 }
 
 func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
