@@ -16,6 +16,34 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
+// EmitContext is the narrow surface format emitters use to declare
+// dependencies on pure-fn bodies and hoist `const` declarations into
+// the RT factory prologue. Subset of the typefns EmitContext;
+// typefns.EmitContext satisfies this interface by structural typing
+// so the host emitters pass their own ctx through unchanged. Defined
+// here (not in typefns) to keep the format-emitter packages free of
+// cross-package cycles.
+type EmitContext interface {
+	// AddPureFnDependency records a (namespace, fnName, filePath)
+	// triple the emitted body will reach via
+	// `utl.getPureFn('<ns>::<fnName>')`. The resolver threads the
+	// path through to the JS-side cache so the pure fn body lives at
+	// the right import location.
+	AddPureFnDependency(namespace, fnName, filePath string)
+
+	// HasContextItem reports whether a hoisted-declaration key has
+	// already been set in the current factory's prologue. Used to
+	// dedupe pure-fn alias declarations when multiple emit sites in
+	// the same factory reference the same pure fn.
+	HasContextItem(key string) bool
+
+	// SetContextItem hoists `value` (a JS statement) into the
+	// factory's prologue under the supplied key. The renderer emits
+	// `value` once per factory, regardless of how many emit sites
+	// reference it.
+	SetContextItem(key, value string)
+}
+
 // Emitter is the per-format hook surface. A format implements as many
 // of the optional methods as make sense (`""` from a method means "no
 // format-specific behaviour — fall back to the base-kind emit"). Name
@@ -33,17 +61,18 @@ type Emitter interface {
 
 	// EmitIsTypeCheck returns a JS expression (no `return`) evaluating
 	// to true when `vλl` satisfies the format constraints in
-	// annotation.Params. Empty string means "no additional check
-	// beyond the base-kind validator" — the host emitter then leaves
-	// its output unchanged.
-	EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string) string
+	// annotation.Params. ctx lets the emitter declare pure-fn
+	// dependencies + hoist alias declarations into the factory's
+	// prologue. Empty return means "no additional check beyond the
+	// base-kind validator".
+	EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx EmitContext) string
 
 	// EmitTypeErrorsCheck returns a JS statement that, when executed,
 	// pushes a TypeFormatError onto the errors array (named
 	// errorsArr) for `vλl` at `pathExpr` if the value fails this
-	// format. Empty string means "no format-specific error — the
+	// format. Empty return means "no format-specific error — the
 	// caller's base-kind error path is sufficient".
-	EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string) string
+	EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx EmitContext) string
 }
 
 var (

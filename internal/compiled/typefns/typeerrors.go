@@ -164,7 +164,7 @@ func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expected
 	// that, mirroring mion's getCallJitFormatErr behaviour.
 	if base.Type == CodeS && rt != nil && rt.FormatAnnotation != nil {
 		if emitter, ok := formats.LookupForRunType(rt); ok {
-			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er")
+			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er", ctx)
 			if check != "" {
 				guard := baseKindGuard(rt.Kind, ctx.Vλl)
 				if guard == "" {
