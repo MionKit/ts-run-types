@@ -13,6 +13,8 @@ import type {
   FormatStringDate,
   FormatAlpha,
   FormatNumeric,
+  FormatLowercase,
+  FormatUppercase,
 } from '@mionjs/ts-go-type-formats';
 import '../../src/index.ts';
 
@@ -59,5 +61,23 @@ describe('createMockType — format round-trips (mock output passes isType)', ()
     const mockNum = createMockType<FormatNumeric>();
     const isNum = createIsType<FormatNumeric>();
     for (let i = 0; i < 20; i++) expect(isNum(mockNum() as string)).toBe(true);
+  });
+});
+
+describe('createMockType — value transform applied after mock', () => {
+  it('FormatLowercase mock is lowercased', () => {
+    const mock = createMockType<FormatLowercase>();
+    for (let i = 0; i < 20; i++) {
+      const value = mock() as string;
+      expect(value).toBe(value.toLowerCase());
+    }
+  });
+
+  it('FormatUppercase mock is uppercased', () => {
+    const mock = createMockType<FormatUppercase>();
+    for (let i = 0; i < 20; i++) {
+      const value = mock() as string;
+      expect(value).toBe(value.toUpperCase());
+    }
   });
 });

@@ -12,7 +12,8 @@ import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../runtypes/types.ts';
 import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
 import type {RunTypeKindValue} from '../runTypeKind.ts';
-import {getRunTypeFormat} from '../runtypes/formatRegistry.ts';
+import {getMockingFunction} from './mockRegistry.ts';
+import {getRTUtils} from '../runtypes/rtUtils.ts';
 import {
   mockAny,
   mockBigInt,
@@ -37,10 +38,34 @@ export function mockRunType(runType: RunType, options: RunTypeMockOptions, stack
     const nestLevel = countOccurrences(stack, runType);
     if (nestLevel > baseMockOpts.maxMockRecursion) return undefined;
     const decayed = nestLevel > 1 ? decayOptionsForNesting(options, nestLevel) : options;
-    return mockSwitch(runType, decayed, stack);
+    let mocked = mockSwitch(runType, decayed, stack);
+    // Apply the format value-transform (lowercase / uppercase / capitalize
+    // / trim; domain / ip / url lowercasing) so the mock is the canonical
+    // formatted value — mion mockType.ts:48. The transform is the
+    // `formatTransform` RT fn compiled for this type; noop when the format
+    // declares no transform.
+    if (runType.formatAnnotation && mocked !== undefined) {
+      const transform = lookupFormatTransform(runType.id);
+      if (transform) mocked = transform(mocked);
+    }
+    return mocked;
   } finally {
     stack.pop();
   }
+}
+
+// FORMAT_TRANSFORM_PREFIX is the cache-key prefix the formatTransform RT
+// family registers under — mirrors the Go CacheModule tag "fmt"
+// (internal/constants/constants.go). The compiled transform for a type
+// is `getRT('fmt_' + id)`.
+const FORMAT_TRANSFORM_PREFIX = 'fmt_';
+
+/** Resolve the compiled formatTransform fn for a type id, or undefined
+ *  when the format declares no transform (noop) or no entry exists. **/
+function lookupFormatTransform(id: string): ((value: unknown) => unknown) | undefined {
+  const entry = getRTUtils().getRT(FORMAT_TRANSFORM_PREFIX + id);
+  if (!entry || entry.isNoop || !entry.fn) return undefined;
+  return entry.fn as (value: unknown) => unknown;
 }
 
 /** Count how many times `target` appears in `stack` by reference identity.
@@ -89,13 +114,16 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
   const mOps = options.mock as MockOptions;
   const kind = runType.kind as number;
 
-  // TypeFormat brand: a registered formatter knows how to produce a
-  // value that satisfies the format (drawing from mockSamples for
-  // pattern formats — a regex can't be reversed). Falls through to the
-  // kind-default when no formatter is registered.
+  // TypeFormat brand: the kind's registered mock fn produces a value
+  // satisfying the format (drawing from mockSamples for pattern formats —
+  // a regex can't be reversed). Returns undefined to fall through to the
+  // kind-default (e.g. an unknown format name).
   if (runType.formatAnnotation) {
-    const typeFormat = getRunTypeFormat(kind as RunTypeKindValue, runType.formatAnnotation);
-    if (typeFormat) return typeFormat._mock(runType.formatAnnotation);
+    const mockFn = getMockingFunction(kind as RunTypeKindValue);
+    if (mockFn) {
+      const mocked = mockFn(runType.formatAnnotation);
+      if (mocked !== undefined) return mocked;
+    }
   }
 
   switch (kind) {
