@@ -31,6 +31,18 @@ export interface StringParams {
   // length — fail when value.length !== length. Mutually exclusive
   // with maxLength / minLength (enforced by validateParams).
   length?: number;
+  // charClass — restrict to a unicode character class. Backs the
+  // FormatAlpha / FormatAlphaNumeric / FormatNumeric default formats
+  // (see defaultStringFormats.runtype.ts). Validated by the
+  // cpf_isCharClass pure fn.
+  charClass?: 'alpha' | 'alphanumeric' | 'numeric';
+  // Transformer flags — applied only by a `format` pass, NOT by
+  // isType / typeErrors validation. Carried here so the
+  // FormatLowercase / FormatUppercase / FormatCapitalize aliases are
+  // type-clean and a future format-transform RT fn can read them.
+  lowercase?: boolean;
+  uppercase?: boolean;
+  capitalize?: boolean;
 }
 
 // FormatString — the branded string alias users put in their type
