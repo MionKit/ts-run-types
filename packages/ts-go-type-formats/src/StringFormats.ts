@@ -21,6 +21,7 @@ import './string/time.runtype.ts';
 import './string/dateTime.runtype.ts';
 import './string/ip.runtype.ts';
 import './string/domain.runtype.ts';
+import './string/email.runtype.ts';
 
 // Type aliases — public consumer-facing surface. Concrete classes
 // (StringRunTypeFormat, ...) intentionally NOT re-exported: users
@@ -47,3 +48,4 @@ export type {
   FormatDomainStrict,
   FormatParams_Domain,
 } from './string/domain.runtype.ts';
+export type {FormatEmail, FormatEmailPunycode, FormatEmailStrict, FormatParams_Email} from './string/email.runtype.ts';

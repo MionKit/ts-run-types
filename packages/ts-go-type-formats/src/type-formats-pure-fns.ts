@@ -374,3 +374,29 @@ export const cpf_isDomain = registerPureFnFactory('mionFormats', 'isDomain', fun
     return true;
   };
 });
+
+// ############### Email pure fns ###############
+//
+// Same AOT divergence as domain: variant selects a baked-in regex
+// rather than carrying a raw RegExp. 'standard' mirrors mion's
+// EMAIL_PATTERN, 'punycode' its EMAIL_PATTERN_PUNYCODE. Length bounds
+// (default 7..254) layer on top.
+
+interface FormatParams_Email {
+  variant?: 'standard' | 'punycode';
+  maxLength?: number;
+  minLength?: number;
+}
+
+export const cpf_isEmail = registerPureFnFactory('mionFormats', 'isEmail', function () {
+  const STANDARD = /^[^\s@]{1,64}@(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/;
+  const PUNYCODE = /^[^\s@]{1,64}@(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z0-9-]{2,63}$/;
+  return function _is_email(value: string, params: FormatParams_Email): boolean {
+    if (typeof value !== 'string') return false;
+    const maxLength = params.maxLength ?? 254;
+    const minLength = params.minLength ?? 7;
+    if (value.length > maxLength || value.length < minLength) return false;
+    const regexp = params.variant === 'punycode' ? PUNYCODE : STANDARD;
+    return regexp.test(value);
+  };
+});
