@@ -337,3 +337,40 @@ export const cpf_isIPV6 = registerPureFnFactory('mionFormats', 'isIPV6', functio
     return true;
   };
 });
+
+// ############### Domain pure fns ###############
+//
+// AOT divergence from mion: mion passes a raw RegExp in params.pattern,
+// which can't survive a TS-type → wire-protocol round-trip (there are
+// no regex literals at the type level). Instead the variant is selected
+// by a string param and the matching regex is baked into the pure fn.
+// The three variants mirror mion's DOMAIN_PATTERN / *_UNICODE /
+// *_PUNYCODE. Length + part-count constraints layer on top.
+
+interface FormatParams_Domain {
+  variant?: 'standard' | 'unicode' | 'punycode';
+  maxLength?: number;
+  minLength?: number;
+  maxParts?: number;
+  minParts?: number;
+}
+
+export const cpf_isDomain = registerPureFnFactory('mionFormats', 'isDomain', function () {
+  const STANDARD = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/;
+  const UNICODE = /^(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+[a-zA-Z]{2,63}$/u;
+  const PUNYCODE = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z0-9-]{2,63}$/;
+  return function _is_domain(value: string, params: FormatParams_Domain): boolean {
+    if (typeof value !== 'string') return false;
+    const maxLength = params.maxLength ?? 253;
+    const minLength = params.minLength ?? 5;
+    if (value.length > maxLength || value.length < minLength) return false;
+    const regexp = params.variant === 'unicode' ? UNICODE : params.variant === 'punycode' ? PUNYCODE : STANDARD;
+    if (!regexp.test(value)) return false;
+    if (params.maxParts !== undefined || params.minParts !== undefined) {
+      const parts = value.split('.').length;
+      if (params.maxParts !== undefined && parts > params.maxParts) return false;
+      if (params.minParts !== undefined && parts < params.minParts) return false;
+    }
+    return true;
+  };
+});
