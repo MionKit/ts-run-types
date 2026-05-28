@@ -35,7 +35,11 @@ export type TypeFormatParams = Record<string, unknown>;
 export type TypeFormat<
   Base extends TypeFormatBase,
   Name extends string,
-  Params extends TypeFormatParams,
+  // `object`, not Record<string, unknown>: interface-typed params
+  // (StringParams, FormatParams_Date, …) have no index signature and so
+  // don't satisfy Record<string, unknown>. `object` accepts them while
+  // still excluding primitives.
+  Params extends object,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   BrandName extends string = never,
 > = Base & {
