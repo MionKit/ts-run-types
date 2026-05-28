@@ -3,7 +3,7 @@
 
 import {describe, expect, it} from 'vitest';
 import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
-import type {FormatEmail, FormatEmailPunycode} from '@mionjs/ts-go-type-formats';
+import type {FormatEmail, FormatEmailPunycode, FormatEmailStrict} from '@mionjs/ts-go-type-formats';
 import '../../src/index.ts';
 
 describe('FormatEmail — standard', () => {
@@ -37,6 +37,36 @@ describe('FormatEmailPunycode', () => {
     expect(isPuny('john@example.xn--fiqs8s')).toBe(true);
     const isStandard = createIsType<FormatEmail>();
     expect(isStandard('john@example.xn--fiqs8s')).toBe(false);
+  });
+});
+
+describe('FormatEmailStrict — localPart + domain decomposition', () => {
+  it('accepts canonical addresses', () => {
+    const isStrict = createIsType<FormatEmailStrict>();
+    expect(isStrict('john@example.com')).toBe(true);
+    expect(isStrict('jane.doe@mion.io')).toBe(true); // dot allowed in local part
+  });
+
+  it('rejects aliasing / structural chars in the local part', () => {
+    const isStrict = createIsType<FormatEmailStrict>();
+    expect(isStrict('a+b@x.com')).toBe(false); // '+' disallowed (aliasing)
+    expect(isStrict('a b@example.com')).toBe(false); // space disallowed
+    expect(isStrict('john@@example.com')).toBe(false); // '@' lands in local part
+  });
+
+  it('rejects when the domain half is invalid', () => {
+    const isStrict = createIsType<FormatEmailStrict>();
+    expect(isStrict('john@bad_domain.com')).toBe(false); // underscore in label
+    expect(isStrict('john@example')).toBe(false); // no tld → single part
+    expect(isStrict('no-at-symbol')).toBe(false);
+  });
+
+  it('pushes a TypeFormatError for a disallowed local-part char', () => {
+    const collect = createGetTypeErrors<FormatEmailStrict>();
+    const errors = collect('a+b@example.com');
+    const formatErr = errors.find((entry) => entry.format?.name === 'email')?.format;
+    expect(formatErr).toBeDefined();
+    expect(formatErr?.val).toBe('Invalid characters in email local part');
   });
 });
 
