@@ -68,7 +68,7 @@ describe('FormatAlpha — typeErrors diagnostics', () => {
     const errors = collect('abc123');
     const formatErr = errors.find((entry) => entry.format?.name === 'stringFormat')?.format;
     expect(formatErr).toBeDefined();
-    expect(formatErr?.val).toBe('pattern');
+    expect(formatErr?.val).toBe('Invalid pattern');
   });
 
   it('valid alpha yields no errors', () => {
