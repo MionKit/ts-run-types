@@ -1,0 +1,52 @@
+{
+  "name": "@mionjs/ts-go-type-formats",
+  "version": "0.1.0",
+  "description": "Type-format library for ts-go-run-types — branded primitives (FormatString, FormatUUIDv4, FormatEmail, FormatStringDate, ...) whose validators/serializers compile through the same Go-side AOT pipeline as the rest of @mionjs/ts-go-run-types.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./StringFormats": {
+      "source": "./src/StringFormats.ts",
+      "types": "./dist/StringFormats.d.ts",
+      "import": "./dist/StringFormats.js",
+      "require": "./dist/StringFormats.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mionkit/ts-run-types.git",
+    "directory": "packages/ts-go-type-formats"
+  },
+  "scripts": {
+    "build": "tsc --build tsconfig.json",
+    "pretest": "pnpm --filter vite-plugin-runtypes run build",
+    "test": "vitest run",
+    "dev:test": "vitest watch",
+    "lint": "eslint src",
+    "format": "prettier --write 'src/**/*.ts'",
+    "clean": "rimraf dist .coverage tsconfig.tsbuildinfo",
+    "fresh-start": "pnpm run clean && rimraf node_modules"
+  },
+  "dependencies": {
+    "@mionjs/ts-go-run-types": "workspace:*"
+  },
+  "devDependencies": {
+    "vite-plugin-runtypes": "workspace:*"
+  }
+}
