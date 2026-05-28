@@ -74,9 +74,132 @@ func literalParamsFromType(typeChecker *checker.Checker, paramsType *checker.Typ
 	}
 	out := make(map[string]any, len(properties))
 	for _, symbol := range properties {
+		// A regex-typed param (`val: typeof SOME_REGEX`) erases to the
+		// bare `RegExp` shape in the resolved type, so we first try to
+		// recover the literal source+flags from the param's DECLARATION
+		// AST. Only when that fails do we fall back to the resolved type.
+		if source, flags, ok := regexpLiteralFromSymbol(typeChecker, symbol); ok {
+			out[symbol.Name] = RegexpParam{Source: source, Flags: flags}
+			continue
+		}
 		out[symbol.Name] = literalValueFromType(typeChecker, typeChecker.GetTypeOfSymbol(symbol))
 	}
 	return out
+}
+
+// RegexpParam is the recovered literal value of a regex-typed format
+// param (`pattern: {val: typeof SOME_REGEX}`). Carries the source +
+// flags split out of the regex literal text so the emitter can rebuild
+// `new RegExp(source, flags)` — the actual pattern, not the erased
+// `RegExp` interface shape. JSON-marshals to `{source, flags}` for the
+// wire.
+type RegexpParam struct {
+	Source string `json:"source"`
+	Flags  string `json:"flags"`
+}
+
+// regexpLiteralFromSymbol recovers a regex literal's source+flags from a
+// format-param symbol by walking its DECLARATION AST rather than its
+// resolved type (which has erased the value to the bare `RegExp`
+// shape). Mirrors the resolver's traceRegexLiteral
+// (internal/resolver/scan.go) but enters from a property's type node:
+//
+//	val: typeof DOMAIN_PATTERN   (PropertySignature → TypeQuery)
+//	  → DOMAIN_PATTERN           (Identifier → const VariableDeclaration)
+//	    → /…/i                   (RegularExpressionLiteral initializer)
+//
+// Returns ok=false for any param that isn't traceable to a regex
+// literal — callers then fall back to the resolved-type extraction.
+func regexpLiteralFromSymbol(typeChecker *checker.Checker, symbol *ast.Symbol) (string, string, bool) {
+	if symbol == nil {
+		return "", "", false
+	}
+	for _, declaration := range symbol.Declarations {
+		if declaration == nil {
+			continue
+		}
+		typeNode := declaration.Type()
+		if typeNode == nil {
+			continue
+		}
+		if source, flags, ok := traceRegexpTypeNode(typeChecker, typeNode, 0); ok {
+			return source, flags, true
+		}
+	}
+	return "", "", false
+}
+
+// traceRegexpTypeNode handles the TYPE-position entry: a `typeof X`
+// query. (TypeScript has no regex literal types, so a `typeof` over a
+// regex const is the only way a regex reaches a type position.)
+func traceRegexpTypeNode(typeChecker *checker.Checker, node *ast.Node, depth int) (string, string, bool) {
+	if node == nil || depth > 16 {
+		return "", "", false
+	}
+	if node.Kind == ast.KindTypeQuery {
+		typeQuery := node.AsTypeQueryNode()
+		if typeQuery == nil {
+			return "", "", false
+		}
+		return traceRegexpExpr(typeChecker, typeQuery.ExprName, depth+1)
+	}
+	return "", "", false
+}
+
+// traceRegexpExpr handles the EXPRESSION-position trace: a regex
+// literal directly, or a const identifier resolved to its initializer.
+// Mirrors the unwrap/identifier/const logic in scan.go's
+// traceRegexLiteral.
+func traceRegexpExpr(typeChecker *checker.Checker, node *ast.Node, depth int) (string, string, bool) {
+	if node == nil || depth > 16 {
+		return "", "", false
+	}
+	switch node.Kind {
+	case ast.KindRegularExpressionLiteral:
+		literal := node.AsRegularExpressionLiteral()
+		if literal == nil {
+			return "", "", false
+		}
+		source, flags := splitRegexpLiteralText(literal.Text)
+		return source, flags, true
+	case ast.KindIdentifier:
+		symbol := typeChecker.GetSymbolAtLocation(node)
+		if symbol == nil {
+			return "", "", false
+		}
+		for _, declaration := range symbol.Declarations {
+			if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
+				continue
+			}
+			// Only `const` bindings are traceable: let/var can be reassigned,
+			// so the initializer no longer pins the value.
+			parent := declaration.Parent
+			if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
+				continue
+			}
+			variableDeclaration := declaration.AsVariableDeclaration()
+			if variableDeclaration == nil || variableDeclaration.Initializer == nil {
+				continue
+			}
+			return traceRegexpExpr(typeChecker, variableDeclaration.Initializer, depth+1)
+		}
+	}
+	return "", "", false
+}
+
+// splitRegexpLiteralText splits "/abc/i" into source ("abc") and flags
+// ("i"). Copy of scan.go's splitRegexLiteralText — kept local to avoid a
+// resolver→typeid import edge for a four-line helper.
+func splitRegexpLiteralText(text string) (source, flags string) {
+	if !strings.HasPrefix(text, "/") {
+		return text, ""
+	}
+	body := text[1:]
+	lastSlash := strings.LastIndex(body, "/")
+	if lastSlash < 0 {
+		return body, ""
+	}
+	return body[:lastSlash], body[lastSlash+1:]
 }
 
 // literalValueFromType extracts a Go value from a literal-typed *checker.Type.
@@ -180,6 +303,11 @@ func canonicalLiteralValue(value any) string {
 			return string(bytes)
 		}
 		return fmt.Sprintf("%v", typed)
+	case RegexpParam:
+		// The recovered pattern participates in the structural id, so two
+		// different regexes (or the same source with different flags) hash
+		// to distinct cache entries.
+		return "re:" + strconv.Quote(typed.Source) + ":" + strconv.Quote(typed.Flags)
 	case map[string]any:
 		return canonicalLiteralMap(typed)
 	case []any:
