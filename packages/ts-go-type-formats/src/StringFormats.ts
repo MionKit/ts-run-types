@@ -19,6 +19,7 @@ import './string/uuid.runtype.ts';
 import './string/date.runtype.ts';
 import './string/time.runtype.ts';
 import './string/dateTime.runtype.ts';
+import './string/ip.runtype.ts';
 
 // Type aliases — public consumer-facing surface. Concrete classes
 // (StringRunTypeFormat, ...) intentionally NOT re-exported: users
@@ -29,3 +30,12 @@ export type {FormatUUIDv4, FormatUUIDv7, FormatParams_UUID} from './string/uuid.
 export type {FormatStringDate, FormatParams_Date, DateFmt} from './string/date.runtype.ts';
 export type {FormatStringTime, FormatParams_Time, TimeFmt} from './string/time.runtype.ts';
 export type {FormatStringDateTime, FormatParams_DateTime} from './string/dateTime.runtype.ts';
+export type {
+  FormatIP,
+  FormatIPv4,
+  FormatIPv6,
+  FormatIPWithPort,
+  FormatIPv4WithPort,
+  FormatIPv6WithPort,
+  FormatParams_IP,
+} from './string/ip.runtype.ts';
