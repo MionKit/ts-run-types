@@ -3,7 +3,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -55,4 +55,4 @@ export class URLRunTypeFormat extends BaseRunTypeFormat<FormatParams_Url> {
   validateParams(): void {}
 }
 
-registerFormatter(new URLRunTypeFormat());
+registerTypeFormat(new URLRunTypeFormat());

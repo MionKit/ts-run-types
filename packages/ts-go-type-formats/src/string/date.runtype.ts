@@ -6,7 +6,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -82,4 +82,4 @@ function maxDaysInMonth(year: number, month: number): number {
   return 31;
 }
 
-registerFormatter(new DateStringRunTypeFormat());
+registerTypeFormat(new DateStringRunTypeFormat());

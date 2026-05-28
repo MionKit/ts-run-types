@@ -11,7 +11,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -145,4 +145,4 @@ function randomString(length: number): string {
 // formatter with the runtime registry. Consumers that only want the
 // type alias (`import type {FormatString}`) get the registration
 // transparently via the value-level type re-export in StringFormats.ts.
-registerFormatter(new StringRunTypeFormat());
+registerTypeFormat(new StringRunTypeFormat());

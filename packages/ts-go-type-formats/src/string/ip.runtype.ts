@@ -5,7 +5,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -56,4 +56,4 @@ function mockIpV6(params: FormatParams_IP): string {
   return Array.from({length: 8}, () => Math.floor(Math.random() * 0xffff).toString(16)).join(':');
 }
 
-registerFormatter(new IPRunTypeFormat());
+registerTypeFormat(new IPRunTypeFormat());

@@ -8,7 +8,7 @@
 
 import {
   BaseRunTypeFormat,
-  registerFormatter,
+  registerTypeFormat,
   RunTypeKind,
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
@@ -61,4 +61,4 @@ export class DomainRunTypeFormat extends BaseRunTypeFormat<FormatParams_Domain> 
   validateParams(): void {}
 }
 
-registerFormatter(new DomainRunTypeFormat());
+registerTypeFormat(new DomainRunTypeFormat());

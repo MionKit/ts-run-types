@@ -55,34 +55,34 @@ function key(entry: RegistryKey): string {
   return `${entry.kind}:${entry.name}`;
 }
 
-// registerFormatter adds a format instance to the runtime registry.
-// Intended to be called from the module that defines each format
-// (e.g. uuid.runtype.ts) at module load. Re-registering the same
-// (kind, name) pair throws — drift between two implementations of
+// registerTypeFormat adds a TypeFormat instance to the runtime
+// registry. Intended to be called from the module that defines each
+// format (e.g. uuid.runtype.ts) at module load. Re-registering the
+// same (kind, name) pair throws — drift between two implementations of
 // the same format is a bug, not a fallback path.
-export function registerFormatter(formatter: BaseRunTypeFormat): void {
-  const lookupKey = key({kind: formatter.kind, name: formatter.name});
+export function registerTypeFormat(typeFormat: BaseRunTypeFormat): void {
+  const lookupKey = key({kind: typeFormat.kind, name: typeFormat.name});
   if (registry.has(lookupKey)) {
-    throw new Error(`registerFormatter: duplicate formatter for ${formatter.name}`);
+    throw new Error(`registerTypeFormat: duplicate format for ${typeFormat.name}`);
   }
-  registry.set(lookupKey, formatter);
+  registry.set(lookupKey, typeFormat);
 }
 
-// getFormatterFromCache returns the registered formatter for
-// (kind, name), or undefined when no formatter exists. Missing
-// entries are a graceful no-op — the runtime falls through to the
-// kind-default behaviour, same forward-compat lever as the Go side.
-export function getFormatterFromCache(kind: RunTypeKindValue, name: string): BaseRunTypeFormat | undefined {
+// getTypeFormatFromCache returns the registered TypeFormat for
+// (kind, name), or undefined when none exists. Missing entries are a
+// graceful no-op — the runtime falls through to the kind-default
+// behaviour, same forward-compat lever as the Go side.
+export function getTypeFormatFromCache(kind: RunTypeKindValue, name: string): BaseRunTypeFormat | undefined {
   return registry.get(key({kind, name}));
 }
 
 // getRunTypeFormat is a convenience wrapper keyed off the
 // FormatAnnotation directly. Returns undefined when annotation is
-// missing or no formatter is registered.
+// missing or no format is registered.
 export function getRunTypeFormat(
   kind: RunTypeKindValue,
   annotation: FormatAnnotation | undefined,
 ): BaseRunTypeFormat | undefined {
   if (!annotation) return undefined;
-  return getFormatterFromCache(kind, annotation.name);
+  return getTypeFormatFromCache(kind, annotation.name);
 }
