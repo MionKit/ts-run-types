@@ -36,6 +36,10 @@ export {
   getFormatterFromCache,
   getRunTypeFormat,
 } from './runtypes/formatRegistry.ts';
+// Reflection-kind enum mirror. Re-exported so concrete formats in
+// `@mionjs/ts-go-type-formats` can declare `readonly kind = RunTypeKind.string`
+// without importing the internal module path.
+export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 
 // JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
 // level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
