@@ -5,7 +5,6 @@
 package string
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -88,21 +87,22 @@ func lengthConditions(params map[string]any, vλl string) []string {
 	return conditions
 }
 
-// lengthErrorStatements returns the `if (fail) er.push(...)` statements
-// for whichever length bounds are set.
-func lengthErrorStatements(params map[string]any, vλl, pathExpr, errorsArr string) []string {
+// lengthErrorStatements returns the `if (fail) cpf_formatErr(...)`
+// statements for whichever length bounds are set. fmtName tags the
+// emitted format error (stringFormat / domain / email / url …).
+func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string) []string {
 	var statements []string
 	if value, ok := readNumberParam(params, "maxLength"); ok {
 		statements = append(statements,
-			"if ("+vλl+".length > "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "maxLength", formatNumber(value)))
+			"if ("+vλl+".length > "+formatNumber(value)+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "maxLength", formatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "minLength"); ok {
 		statements = append(statements,
-			"if ("+vλl+".length < "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "minLength", formatNumber(value)))
+			"if ("+vλl+".length < "+formatNumber(value)+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "minLength", formatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "length"); ok {
 		statements = append(statements,
-			"if ("+vλl+".length !== "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "length", formatNumber(value)))
+			"if ("+vλl+".length !== "+formatNumber(value)+") "+formatErrCall(ctx, pathExpr, errorsArr, "string", fmtName, "length", formatNumber(value)))
 	}
 	return statements
 }
@@ -124,11 +124,11 @@ func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnota
 	if len(params) == 0 {
 		return ""
 	}
-	statements := lengthErrorStatements(params, vλl, pathExpr, errorsArr)
+	statements := lengthErrorStatements(ctx, params, vλl, pathExpr, errorsArr, formatName)
 	if source, flags, ok := recoverPattern(params); ok {
 		test := emitPatternTest(ctx, source, flags, vλl)
 		statements = append(statements,
-			"if (!("+test+")) "+pushFormatError(errorsArr, pathExpr, "pattern", "'pattern'"))
+			"if (!("+test+")) "+formatErrCall(ctx, pathExpr, errorsArr, "string", formatName, "pattern", "'pattern'"))
 	}
 	return strings.Join(statements, ";")
 }
@@ -170,25 +170,4 @@ func formatNumber(value float64) string {
 		return strconv.FormatInt(int64(value), 10)
 	}
 	return strconv.FormatFloat(value, 'g', -1, 64)
-}
-
-// pushFormatError emits the per-param er.push(...) call. Two
-// considerations:
-//   - The formatPath is `[...basePath, '<param>']`. pathExpr is
-//     either a runtime variable name (`pth`) or a static JS
-//     array-literal expression; both compose cleanly inside the
-//     spread.
-//   - The error name is the canonical format name (`stringFormat`);
-//     the JS-side TypeFormatError consumer reads it for the
-//     "expected <name>" message.
-func pushFormatError(errorsArr, pathExpr, paramName string, paramValue string) string {
-	pathSegment := strconv.Quote(paramName)
-	pathLiteral := "[" + pathSegment + "]"
-	if pathExpr != "" {
-		pathLiteral = "[..." + pathExpr + "," + pathSegment + "]"
-	}
-	return fmt.Sprintf(
-		"%s.push({name:'%s',formatPath:%s,val:%s});",
-		errorsArr, formatName, pathLiteral, paramValue,
-	)
 }

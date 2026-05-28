@@ -51,6 +51,7 @@ export {
   createGetTypeErrors,
   type GetTypeErrorsFn,
   type RunTypeError,
+  type TypeFormatError,
   type RunTypeErrorPathSegment,
   createHasUnknownKeys,
   type HasUnknownKeysFn,

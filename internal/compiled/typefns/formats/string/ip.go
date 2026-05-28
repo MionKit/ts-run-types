@@ -75,10 +75,6 @@ func (ipEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl
 	if version == "4" || version == "6" {
 		versionLiteral = version
 	}
-	pathLiteral := "['version']"
-	if pathExpr != "" {
-		pathLiteral = "[..." + pathExpr + ",'version']"
-	}
 	return "if (!(" + check + ")) " +
-		errorsArr + ".push({name:'ip',formatPath:" + pathLiteral + ",val:" + versionLiteral + "});"
+		formatErrCall(ctx, pathExpr, errorsArr, "string", "ip", "version", versionLiteral)
 }

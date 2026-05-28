@@ -62,9 +62,7 @@ describe('FormatStringDate — typeErrors diagnostics', () => {
   it('invalid date pushes a TypeFormatError naming the format', () => {
     const collect = createGetTypeErrors<FormatStringDate>();
     const errors = collect('2023-02-29');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'date') as
-      | {name: string; val: unknown}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'date')?.format;
     expect(formatErr).toBeDefined();
     expect(formatErr?.val).toBe('ISO');
   });

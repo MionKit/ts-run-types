@@ -56,9 +56,7 @@ describe('FormatString — typeErrors diagnostics', () => {
     const collect = createGetTypeErrors<FormatString<{maxLength: 3}>>();
     const errors = collect('toolong');
     expect(errors.length).toBeGreaterThan(0);
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'stringFormat') as
-      | {name: string; val: unknown; formatPath?: unknown[]}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'stringFormat')?.format;
     expect(formatErr).toBeDefined();
     expect(formatErr?.val).toBe(3);
   });

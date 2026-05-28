@@ -30,9 +30,7 @@ describe('FormatDomain — typeErrors diagnostics', () => {
   it('invalid domain pushes a TypeFormatError named domain', () => {
     const collect = createGetTypeErrors<FormatDomain>();
     const errors = collect('not-a-domain');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'domain') as
-      | {name: string}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'domain')?.format;
     expect(formatErr).toBeDefined();
   });
 

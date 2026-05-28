@@ -45,9 +45,7 @@ describe('FormatUrl — typeErrors diagnostics', () => {
   it('invalid URL pushes a TypeFormatError named url', () => {
     const collect = createGetTypeErrors<FormatUrl>();
     const errors = collect('not-a-url');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'url') as
-      | {name: string}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'url')?.format;
     expect(formatErr).toBeDefined();
   });
 

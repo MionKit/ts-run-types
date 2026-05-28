@@ -91,6 +91,13 @@ export class StringRunTypeFormat extends BaseRunTypeFormat<StringParams> {
     const patternSamples = (params.pattern as {mockSamples?: readonly string[]} | undefined)?.mockSamples;
     const sample = pickSample(params.mockSamples ?? patternSamples);
     if (sample !== undefined) return sample;
+    // A pattern with no samples can't be reversed into a valid value —
+    // the random fallback would fail the pattern. Fail loudly rather
+    // than hand back invalid data (registerFormatPattern requires
+    // samples; this guards the raw type-first `FormatString<{pattern}>`).
+    if (params.pattern !== undefined) {
+      throw new Error('StringFormat: a `pattern` requires `mockSamples` to mock — none provided.');
+    }
     return randomString(pickMockLength(params));
   }
 
