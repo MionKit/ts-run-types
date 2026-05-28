@@ -32,7 +32,12 @@ export {registerPureFnFactory} from './runtypes/pureFn.ts';
 export {type TypeFormat, type TypeFormatBase, type TypeFormatParams} from './runtypes/typeFormat.ts';
 export {type FormatAnnotation} from './runtypes/formatAnnotation.ts';
 export {registerMockingFunction, type MockFormatFn} from './mocking/mockRegistry.ts';
-export {registerFormatPattern, type FormatPattern, type FormatPatternArgs} from './runtypes/formatPattern.ts';
+export {
+  registerFormatPattern,
+  type FormatPattern,
+  type FormatPatternArgs,
+  type StringPatternArgs,
+} from './runtypes/formatPattern.ts';
 // Reflection-kind enum mirror. Re-exported so concrete formats in
 // `@mionjs/ts-go-type-formats` can declare `readonly kind = RunTypeKind.string`
 // without importing the internal module path.

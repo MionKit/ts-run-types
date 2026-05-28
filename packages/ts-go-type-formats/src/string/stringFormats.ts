@@ -10,6 +10,25 @@
 
 import {TypeFormat} from '@mionjs/ts-go-run-types';
 import type {FormatPattern} from '@mionjs/ts-go-run-types';
+// Built-in regex patterns — value import so the format types below can
+// reference them by `typeof`. The Go scanner recovers {source, flags,
+// mockSamples} from each const's literal type. Defined + sample-validated
+// in ./string-patterns.ts.
+import {
+  ALPHA_PATTERN,
+  ALPHANUMERIC_PATTERN,
+  NUMERIC_PATTERN,
+  DOMAIN_PATTERN,
+  DOMAIN_UNICODE_PATTERN,
+  DOMAIN_PUNYCODE_PATTERN,
+  DOMAIN_NAME_PATTERN,
+  DOMAIN_TLD_PATTERN,
+  EMAIL_PATTERN,
+  EMAIL_PUNYCODE_PATTERN,
+  URL_PATTERN,
+  URL_HTTP_PATTERN,
+  URL_FILE_PATTERN,
+} from './string-patterns.ts';
 
 // ─────────────────────────── StringFormat ───────────────────────────
 
@@ -95,32 +114,17 @@ export type FormatString<P extends StringParams = {}, BrandName extends string =
 
 // Default string formats — Alpha / AlphaNumeric / Numeric (char-class
 // patterns) and the Lowercase / Uppercase / Capitalize transformers.
-// Alpha/AlphaNumeric/Numeric are TypeFormat directly so their inline
-// string-literal pattern doesn't widen the public StringParams['pattern']
-// (registerFormatPattern-only) surface.
-type ALPHA_SRC = '^[\\p{L}]+$';
-type ALPHANUMERIC_SRC = '^[\\p{L}\\p{N}]+$';
-type NUMERIC_SRC = '^[\\p{N}]+$';
-
+// Alpha/AlphaNumeric/Numeric reference the registered char-class patterns
+// by `typeof` (see ./string-patterns.ts).
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-export type FormatAlpha<P extends StringParams = {}> = TypeFormat<
-  string,
-  'stringFormat',
-  P & {pattern: {source: ALPHA_SRC; flags: 'u'}; mockSamples: ['abc', 'Hello', 'World']},
-  never
->;
+export type FormatAlpha<P extends StringParams = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
 export type FormatAlphaNumeric<P extends StringParams = {}> = TypeFormat<
   string,
   'stringFormat',
-  P & {pattern: {source: ALPHANUMERIC_SRC; flags: 'u'}; mockSamples: ['abc123', 'Test42', 'XYZ0']},
+  P & {pattern: typeof ALPHANUMERIC_PATTERN},
   never
 >;
-export type FormatNumeric<P extends StringParams = {}> = TypeFormat<
-  string,
-  'stringFormat',
-  P & {pattern: {source: NUMERIC_SRC; flags: 'u'}; mockSamples: ['123', '007', '42']},
-  never
->;
+export type FormatNumeric<P extends StringParams = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof NUMERIC_PATTERN}, never>;
 export type FormatLowercase<P extends StringParams = {}> = FormatString<P & {lowercase: true}>;
 export type FormatUppercase<P extends StringParams = {}> = FormatString<P & {uppercase: true}>;
 export type FormatCapitalize<P extends StringParams = {}> = FormatString<P & {capitalize: true}>;
@@ -210,11 +214,6 @@ export type FormatIPv6WithPort = FormatIP<{version: 6; allowLocalHost: true; all
 
 // ────────────────────────────── Domain ──────────────────────────────
 
-type DOMAIN_SRC = '^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,63}$';
-type DOMAIN_UNICODE_SRC = '^(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?\\.)+[a-zA-Z]{2,63}$';
-type DOMAIN_PUNYCODE_SRC = '^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z0-9-]{2,63}$';
-type DOMAIN_SAMPLES = ['mion.io', 'example.com', 'mionkit.io', 'sub.example.co.uk', 'wiki.org'];
-
 // DomainPartParams — the sub-validators a `names` label or the `tld`
 // accepts (mion's Omit<StringValidators, 'length'|'allowedChars'|'disallowedChars'>).
 export interface DomainPartParams {
@@ -242,51 +241,35 @@ export interface FormatParams_Domain {
 export type FormatDomain = TypeFormat<
   string,
   'domain',
-  {pattern: {source: DOMAIN_SRC; flags: ''}; mockSamples: DOMAIN_SAMPLES; maxLength: 253; minLength: 5},
+  {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5},
   'domain'
 >;
 export type FormatDomainUnicode = TypeFormat<
   string,
   'domain',
-  {pattern: {source: DOMAIN_UNICODE_SRC; flags: 'u'}; mockSamples: DOMAIN_SAMPLES; maxLength: 253; minLength: 5},
+  {pattern: typeof DOMAIN_UNICODE_PATTERN; maxLength: 253; minLength: 5},
   'domain'
 >;
 export type FormatDomainPunycode = TypeFormat<
   string,
   'domain',
-  {pattern: {source: DOMAIN_PUNYCODE_SRC; flags: ''}; mockSamples: ['xn--e1afmkfd.xn--p1ai', 'example.com']; maxLength: 253; minLength: 5},
+  {pattern: typeof DOMAIN_PUNYCODE_PATTERN; maxLength: 253; minLength: 5},
   'domain'
 >;
 
-type STRICT_NAME_SRC = '^[a-zA-Z0-9-]+$';
-type STRICT_TLD_SRC = '^[a-zA-Z]+(\\.[a-zA-Z]+)?$';
 export type DEFAULT_STRICT_DOMAIN_PARAMS = {
   maxParts: 6;
   minParts: 2;
   maxLength: 253;
   minLength: 5;
-  names: {
-    maxLength: 63;
-    minLength: 2;
-    pattern: {source: STRICT_NAME_SRC; flags: ''};
-    mockSamples: ['domain', 'mion', 'example', 'wiki', 'mionkit'];
-  };
-  tld: {
-    maxLength: 12;
-    minLength: 2;
-    pattern: {source: STRICT_TLD_SRC; flags: ''};
-    mockSamples: ['com', 'org', 'net', 'io'];
-  };
+  names: {maxLength: 63; minLength: 2; pattern: typeof DOMAIN_NAME_PATTERN};
+  tld: {maxLength: 12; minLength: 2; pattern: typeof DOMAIN_TLD_PATTERN};
 };
 // FormatDomainStrict — ≤6 labels, ≥2 parts, no hyphen-edge labels,
 // alphabetical tld.
 export type FormatDomainStrict = TypeFormat<string, 'domain', DEFAULT_STRICT_DOMAIN_PARAMS, 'domain'>;
 
 // ─────────────────────────────── Email ──────────────────────────────
-
-type EMAIL_SRC = '^[^\\s@]{1,64}@(?:[a-zA-Z0-9-]{1,63}\\.)+[a-zA-Z]{2,63}$';
-type EMAIL_PUNYCODE_SRC = '^[^\\s@]{1,64}@(?:[a-zA-Z0-9-]{1,63}\\.)+[a-zA-Z0-9-]{2,63}$';
-type EMAIL_SAMPLES = ['john@example.com', 'jane.doe@mion.io', 'contact@test.org'];
 
 // FormatParams_Email — pattern path, or localPart + domain decomposition.
 export interface FormatParams_Email {
@@ -301,13 +284,13 @@ export interface FormatParams_Email {
 export type FormatEmail = TypeFormat<
   string,
   'email',
-  {pattern: {source: EMAIL_SRC; flags: ''}; mockSamples: EMAIL_SAMPLES; maxLength: 254; minLength: 7},
+  {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7},
   'email'
 >;
 export type FormatEmailPunycode = TypeFormat<
   string,
   'email',
-  {pattern: {source: EMAIL_PUNYCODE_SRC; flags: ''}; mockSamples: ['john@example.xn--fiqs8s']; maxLength: 254; minLength: 7},
+  {pattern: typeof EMAIL_PUNYCODE_PATTERN; maxLength: 254; minLength: 7},
   'email'
 >;
 
@@ -330,34 +313,11 @@ export type FormatEmailStrict = TypeFormat<string, 'email', DEFAULT_STRICT_EMAIL
 
 // ──────────────────────────────── URL ───────────────────────────────
 
-type URL_SRC = '^(?:https?|ftps?|wss?):\\/\\/[^\\s/$.?#-][^\\s]*$';
-type URL_HTTP_SRC = '^https?:\\/\\/[^\\s/$.?#-][^\\s]*$';
-type URL_FILE_SRC = '^file:\\/\\/\\/?(?:[a-zA-Z]:)?[^\\s/$.?#-][^\\s]*$';
-
 export interface FormatParams_Url {
   pattern?: {source: string; flags?: string} | {val: RegExp};
   mockSamples?: readonly string[];
 }
 
-export type FormatUrl = TypeFormat<
-  string,
-  'url',
-  {
-    pattern: {source: URL_SRC; flags: 'i'};
-    mockSamples: ['https://example.com', 'http://mion.io/path', 'ftp://files.example.org'];
-    maxLength: 2048;
-  },
-  'url'
->;
-export type FormatUrlHttp = TypeFormat<
-  string,
-  'url',
-  {pattern: {source: URL_HTTP_SRC; flags: 'i'}; mockSamples: ['https://example.com', 'http://mion.io/a/b']; maxLength: 2048},
-  'url'
->;
-export type FormatUrlFile = TypeFormat<
-  string,
-  'url',
-  {pattern: {source: URL_FILE_SRC; flags: 'i'}; mockSamples: ['file:///etc/hosts', 'file://C:/Users/test/file.txt']; maxLength: 2048},
-  'url'
->;
+export type FormatUrl = TypeFormat<string, 'url', {pattern: typeof URL_PATTERN; maxLength: 2048}, 'url'>;
+export type FormatUrlHttp = TypeFormat<string, 'url', {pattern: typeof URL_HTTP_PATTERN; maxLength: 2048}, 'url'>;
+export type FormatUrlFile = TypeFormat<string, 'url', {pattern: typeof URL_FILE_PATTERN; maxLength: 2048}, 'url'>;

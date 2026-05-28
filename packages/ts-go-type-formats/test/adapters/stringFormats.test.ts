@@ -817,6 +817,21 @@ describe('registerFormatPattern — mock round-trip', () => {
   });
 });
 
+// {source, flags} overload — same recovery (from the string literals in
+// the call AST) as the /regex/ form.
+const hex = registerFormatPattern({source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef', '0042']});
+type Hex = FormatString<{pattern: typeof hex}>;
+
+describe('registerFormatPattern — {source, flags} overload', () => {
+  it('recovers source+flags passed as string literals', () => {
+    const isHex = createIsType<Hex>();
+    expect(isHex('0042')).toBe(true);
+    expect(isHex('DEADbeef')).toBe(true); // `i` flag folds case
+    expect(isHex('xyz')).toBe(false);
+    expect(isHex('')).toBe(false);
+  });
+});
+
 describe('registerFormatPattern — registration-time sample validation (real engine)', () => {
   it('throws when a mockSample does not match its own regexp', () => {
     expect(() =>

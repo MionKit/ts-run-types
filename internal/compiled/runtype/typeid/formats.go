@@ -120,6 +120,21 @@ func formatPatternFromSymbol(typeChecker *checker.Checker, symbol *ast.Symbol) (
 	return nil, false
 }
 
+// resolveImportAlias follows import-alias symbols to the original
+// declaration's symbol, so `typeof importedConst` resolves to the const
+// (whose declaration carries the initializer) rather than the import
+// specifier. Bounded against pathological alias chains.
+func resolveImportAlias(typeChecker *checker.Checker, symbol *ast.Symbol) *ast.Symbol {
+	for i := 0; i < 16 && symbol != nil && symbol.Flags&ast.SymbolFlagsAlias != 0; i++ {
+		next := checker.Checker_getImmediateAliasedSymbol(typeChecker, symbol)
+		if next == nil || next == symbol {
+			break
+		}
+		symbol = next
+	}
+	return symbol
+}
+
 // constInitializerOf resolves an identifier to the initializer of the
 // `const` it names. Returns nil for non-identifiers, non-const
 // bindings, or initializer-less declarations (a `declare const` in a
@@ -132,6 +147,11 @@ func constInitializerOf(typeChecker *checker.Checker, node *ast.Node) *ast.Node 
 	if symbol == nil {
 		return nil
 	}
+	// `typeof importedConst` resolves to the import-alias symbol whose
+	// declaration is the import specifier, not the const — follow the
+	// alias to the original (e.g. a pattern const in string-patterns.ts
+	// referenced from stringFormats.ts).
+	symbol = resolveImportAlias(typeChecker, symbol)
 	for _, declaration := range symbol.Declarations {
 		if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
 			continue
@@ -180,6 +200,16 @@ func formatPatternFromCall(typeChecker *checker.Checker, call *ast.Node) (map[st
 			if source, flags, ok := traceRegexpExpr(typeChecker, assignment.Initializer, 0); ok {
 				out["source"] = source
 				out["flags"] = flags
+			}
+		case "source":
+			// The {source, flags} overload of registerFormatPattern — both
+			// passed as string literals at the call site.
+			if value, ok := stringLiteralValue(assignment.Initializer); ok {
+				out["source"] = value
+			}
+		case "flags":
+			if value, ok := stringLiteralValue(assignment.Initializer); ok {
+				out["flags"] = value
 			}
 		case "mockSamples":
 			if samples := stringArrayLiteral(assignment.Initializer); len(samples) > 0 {
@@ -256,6 +286,7 @@ func traceRegexpExpr(typeChecker *checker.Checker, node *ast.Node, depth int) (s
 		if symbol == nil {
 			return "", "", false
 		}
+		symbol = resolveImportAlias(typeChecker, symbol)
 		for _, declaration := range symbol.Declarations {
 			if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
 				continue
