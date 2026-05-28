@@ -1,7 +1,5 @@
-// Email format — FormatEmail and the strict / punycode variants. AOT
-// divergence noted in email.go: a variant selects the baked-in regex.
-// isType / typeErrors emit lives in
-// internal/compiled/typefns/formats/string/email.go.
+// Email format — FormatEmail and the punycode variant. Pattern-based;
+// see domain.runtype.ts for the shape rationale.
 
 import {
   BaseRunTypeFormat,
@@ -10,42 +8,45 @@ import {
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
 import type {FormatAnnotation} from '@mionjs/ts-go-run-types';
+import {pickSample} from './stringFormat.runtype.ts';
+
+// Mirror mion's EMAIL_PATTERN / EMAIL_PATTERN_PUNYCODE.
+type EMAIL_SRC = '^[^\\s@]{1,64}@(?:[a-zA-Z0-9-]{1,63}\\.)+[a-zA-Z]{2,63}$';
+type EMAIL_PUNYCODE_SRC = '^[^\\s@]{1,64}@(?:[a-zA-Z0-9-]{1,63}\\.)+[a-zA-Z0-9-]{2,63}$';
+
+type EMAIL_SAMPLES = ['john@example.com', 'jane.doe@mion.io', 'contact@test.org'];
 
 export interface FormatParams_Email {
-  variant?: 'standard' | 'punycode';
-  maxLength?: number;
-  minLength?: number;
+  pattern?: {source: string; flags?: string} | {val: RegExp};
+  mockSamples?: readonly string[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type FormatEmail<P extends FormatParams_Email = {}> = TypeFormat<string, 'email', P, 'email'>;
-export type FormatEmailPunycode = FormatEmail<{variant: 'punycode'}>;
-// Strict caps the overall length tighter than the spec maximum.
-export type FormatEmailStrict = FormatEmail<{maxLength: 254; minLength: 7}>;
-
-const SAMPLE_NAMES = ['john', 'jane', 'admin', 'hello', 'contact', 'user'];
-const SAMPLE_DOMAINS = ['example.com', 'mion.io', 'test.org', 'mail.net'];
+export type FormatEmail = TypeFormat<
+  string,
+  'email',
+  {pattern: {source: EMAIL_SRC; flags: ''}; mockSamples: EMAIL_SAMPLES; maxLength: 254; minLength: 7},
+  'email'
+>;
+export type FormatEmailPunycode = TypeFormat<
+  string,
+  'email',
+  {pattern: {source: EMAIL_PUNYCODE_SRC; flags: ''}; mockSamples: ['john@example.xn--fiqs8s']; maxLength: 254; minLength: 7},
+  'email'
+>;
+// Strict is an alias of the default standard email today; kept as a
+// distinct public name for forward-compat (tighter rules may land).
+export type FormatEmailStrict = FormatEmail;
 
 export class EmailRunTypeFormat extends BaseRunTypeFormat<FormatParams_Email> {
   static readonly id = 'email' as const;
   readonly name = EmailRunTypeFormat.id;
   readonly kind = RunTypeKind.string;
 
-  _mock(_annotation: FormatAnnotation<FormatParams_Email>): string {
-    const name = SAMPLE_NAMES[Math.floor(Math.random() * SAMPLE_NAMES.length)];
-    const domain = SAMPLE_DOMAINS[Math.floor(Math.random() * SAMPLE_DOMAINS.length)];
-    return `${name}@${domain}`;
+  _mock(annotation: FormatAnnotation<FormatParams_Email>): string {
+    return pickSample(annotation.params?.mockSamples) ?? 'john@example.com';
   }
 
-  validateParams(annotation: FormatAnnotation<FormatParams_Email>): void {
-    const params = annotation.params ?? {};
-    if (params.maxLength !== undefined && params.maxLength > 254) {
-      throw new Error('Email maxLength cannot be greater than 254');
-    }
-    if (params.minLength !== undefined && params.minLength < 7) {
-      throw new Error('Email minLength cannot be less than 7');
-    }
-  }
+  validateParams(): void {}
 }
 
 registerFormatter(new EmailRunTypeFormat());

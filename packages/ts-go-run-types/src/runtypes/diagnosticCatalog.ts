@@ -451,6 +451,18 @@ Fix — narrow the type to the actual shape you expect:
   -  const errors = createGetTypeErrors<unknown>()(value);
 +  const errors = createGetTypeErrors<User>()(value);`,
   },
+
+  // Format mockSample contradicts its own pattern (Error)
+  FMT001: {
+    headline: 'Format mockSample `{0}` does not match its pattern `{1}` — mocking would produce an invalid value.',
+    detail: `Every regex-based format ships \`mockSamples\` so the mock generator has
+canonical valid values to draw from (a regex can't be reversed into a
+value). A sample that fails its own pattern means \`createMockType\`
+would emit data the matching validator rejects.
+
+Fix — correct the sample so it satisfies the pattern, or fix the
+pattern if the sample is the intended shape.`,
+  },
 };
 
 function dropFunctionProp(family: string, verb: string): DiagnosticEntry {

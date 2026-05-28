@@ -42,6 +42,17 @@ type EmitContext interface {
 	// `value` once per factory, regardless of how many emit sites
 	// reference it.
 	SetContextItem(key, value string)
+
+	// EmitDiagnostic records a build-time diagnostic against every call
+	// site referencing the current root RunType. Used by format
+	// emitters to surface e.g. a mockSample that doesn't match its own
+	// pattern. Deduped per-code per-walk by the walker.
+	EmitDiagnostic(code string, args ...string)
+
+	// NextLocalVar returns a fresh, collision-free local identifier with
+	// the given prefix — used to hoist a `const re_N = new RegExp(...)`
+	// into the factory prologue (mirrors the template-literal emitter).
+	NextLocalVar(prefix string) string
 }
 
 // Emitter is the per-format hook surface. A format implements as many

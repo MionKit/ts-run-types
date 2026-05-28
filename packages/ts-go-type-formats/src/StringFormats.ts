@@ -49,7 +49,6 @@ export type {
   FormatDomain,
   FormatDomainUnicode,
   FormatDomainPunycode,
-  FormatDomainStrict,
   FormatParams_Domain,
 } from './string/domain.runtype.ts';
 export type {FormatEmail, FormatEmailPunycode, FormatEmailStrict, FormatParams_Email} from './string/email.runtype.ts';
