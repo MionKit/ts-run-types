@@ -16,6 +16,7 @@
 // block.
 import './string/stringFormat.runtype.ts';
 import './string/uuid.runtype.ts';
+import './string/date.runtype.ts';
 
 // Type aliases — public consumer-facing surface. Concrete classes
 // (StringRunTypeFormat, ...) intentionally NOT re-exported: users
@@ -23,3 +24,4 @@ import './string/uuid.runtype.ts';
 // instances themselves.
 export type {FormatString, StringParams} from './string/stringFormat.runtype.ts';
 export type {FormatUUIDv4, FormatUUIDv7, FormatParams_UUID} from './string/uuid.runtype.ts';
+export type {FormatStringDate, FormatParams_Date, DateFmt} from './string/date.runtype.ts';
