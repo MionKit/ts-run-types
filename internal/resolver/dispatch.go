@@ -48,6 +48,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		addedUnknownKeysToUndefinedWire := addedRunTypes && typefns.AnyUnknownKeysToUndefinedWireSupported(added)
 		addedToBinary := addedRunTypes && typefns.AnyToBinarySupported(added)
 		addedFromBinary := addedRunTypes && typefns.AnyFromBinarySupported(added)
+		addedFormat := addedRunTypes && typefns.AnyFormatSupported(added)
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
@@ -81,6 +82,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			AddedUnknownKeysToUndefinedWire: addedUnknownKeysToUndefinedWire,
 			AddedToBinary:                   addedToBinary,
 			AddedFromBinary:                 addedFromBinary,
+			AddedFormat:                     addedFormat,
 			AddedPureFns:                    addedPureFns,
 			Diagnostics:                     combinedDiagnostics,
 		}
@@ -99,12 +101,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantUnknownKeysToUndefinedWire := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
 		wantToBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindToBinary)
 		wantFromBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
+		wantFormat := wantsCache(request.IncludeCacheSources, protocol.CacheKindFormat)
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		anyCache := wantRunType || wantIsType || wantTypeErrors || wantPrepareForJson || wantRestoreFromJson ||
 			wantStringifyJson || wantPrepareForJsonSafe || wantPrepareForJsonSafePreserve ||
 			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors ||
 			wantUnknownKeysToUndefined || wantUnknownKeysToUndefinedWire ||
-			wantToBinary || wantFromBinary || wantPureFns
+			wantToBinary || wantFromBinary || wantFormat || wantPureFns
 		if request.IncludeRunTypes || anyCache {
 			scoped := resolver.scopedDump(request.Files)
 			if request.IncludeRunTypes {
@@ -215,6 +218,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				}
 				response.FromBinaryCacheSource = rendered
 			}
+			if wantFormat {
+				rendered, err := renderFormatModule(scoped, rtOpts)
+				if err != nil {
+					return protocol.Response{Error: err.Error()}
+				}
+				response.FormatCacheSource = rendered
+			}
 			if wantPureFns {
 				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, pureFnEntries, true)
 				if pureFnsErr != nil {
@@ -276,6 +286,7 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		wantUnknownKeysToUndefinedWire := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
 		wantToBinary := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindToBinary)
 		wantFromBinary := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
+		wantFormat := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindFormat)
 		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
 		if wantRunType {
 			rendered, renderErr := renderRunTypesModule(fullDump)
@@ -381,6 +392,13 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 				return protocol.Response{Error: err.Error()}
 			}
 			response.FromBinaryCacheSource = rendered
+		}
+		if wantFormat {
+			rendered, err := renderFormatModule(fullDump, rtOpts)
+			if err != nil {
+				return protocol.Response{Error: err.Error()}
+			}
+			response.FormatCacheSource = rendered
 		}
 		if wantPureFns {
 			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, nil, false)

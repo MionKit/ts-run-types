@@ -244,6 +244,7 @@ export type CacheKind =
   | 'unknownKeysToUndefinedWire'
   | 'toBinary'
   | 'fromBinary'
+  | 'format'
   | 'pureFns'
   | 'all';
 
@@ -307,6 +308,9 @@ export interface Response {
   // matching emitter.
   addedToBinary?: boolean;
   addedFromBinary?: boolean;
+  // Sibling of addedIsType for the `format` transform family — true when
+  // a newly-interned RunType carries a value-transforming format.
+  addedFormat?: boolean;
   addedPureFns?: boolean;
   sites?: Site[];
   // Replacements is the byte-range rewrite list the Vite plugin
@@ -363,6 +367,9 @@ export interface Response {
   // shape, same consumer pattern.
   toBinaryCacheSource?: string;
   fromBinaryCacheSource?: string;
+  // Sibling of isTypeCacheSource for the `format` transform family
+  // (createFormat<T>). Same factory shape, same consumer pattern.
+  formatCacheSource?: string;
   // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go
   // binary extracted from every `registerPureFnFactory(<ns>, <fnName>,
   // <factory>)` call. Body is a sequence of `factory(key, bodyHash,

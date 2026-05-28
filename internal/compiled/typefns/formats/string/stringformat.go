@@ -255,6 +255,42 @@ func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 	return statements
 }
 
+// EmitFormatTransform implements formats.FormatTransformer — the value
+// mutation applied by the `format` RT-fn. Chains the active transformer
+// flags in mion's order (stringFormat.runtype.ts:44-51): trim, lowercase,
+// uppercase, capitalize. Returns "" when none are set (identity). replace
+// / replaceAll are not yet plumbed through StringParams — a follow-up.
+func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+	if annotation == nil {
+		return ""
+	}
+	params := annotation.Params
+	expr := vλl
+	if boolParam(params, "trim") {
+		expr += ".trim()"
+	}
+	if boolParam(params, "lowercase") {
+		expr += ".toLowerCase()"
+	}
+	if boolParam(params, "uppercase") {
+		expr += ".toUpperCase()"
+	}
+	if boolParam(params, "capitalize") {
+		expr = "(" + expr + ".charAt(0).toUpperCase() + " + expr + ".slice(1))"
+	}
+	if expr == vλl {
+		return ""
+	}
+	return expr
+}
+
+// boolParam reads a boolean transformer flag (trim / lowercase / …),
+// defaulting to false when absent or non-bool.
+func boolParam(params map[string]any, key string) bool {
+	value, _ := params[key].(bool)
+	return value
+}
+
 // readNumberParam extracts a numeric param value. Returns (0, false)
 // when the key is absent or carries a non-numeric value. Accepts
 // float64 (the canonical JSON-decoded representation), int variants,

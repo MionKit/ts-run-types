@@ -101,10 +101,11 @@ export interface StringParams {
   // is set; each sample is validated against the pattern at build time
   // (diagnostic FMT001 on mismatch).
   mockSamples?: readonly string[];
-  // Transformer flags — applied only by a `format` pass, NOT by
-  // isType / typeErrors validation. Carried here so the
-  // FormatLowercase / FormatUppercase / FormatCapitalize aliases are
-  // type-clean and a future format-transform RT fn can read them.
+  // Transformer flags — applied only by the `format` RT-fn
+  // (createFormat<T>), NOT by isType / typeErrors validation. Carried
+  // here so the FormatLowercase / FormatUppercase / FormatCapitalize
+  // aliases are type-clean and the Go-side format emitter can read them.
+  trim?: boolean;
   lowercase?: boolean;
   uppercase?: boolean;
   capitalize?: boolean;
