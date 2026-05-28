@@ -13,9 +13,9 @@
 import {describe, expect, it} from 'vitest';
 import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
 import type {FormatString} from '@mionjs/ts-go-type-formats';
-// Side-effect: registers the StringRunTypeFormat with the runtime
-// formatRegistry. Direct import of the .runtype.ts module guarantees
-// load-order regardless of test-runner caching.
+// Side-effect: registers the string-format mock fn with the runtime
+// mock registry. Importing the package entry guarantees registration
+// regardless of test-runner caching.
 import '../../src/index.ts';
 
 describe('FormatString — length constraints', () => {
