@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -149,7 +150,27 @@ func (TypeErrorsEmitter) ReturnName() string {
 // Unsupported kinds emit CodeNS — the walker latches the signal and
 // the renderer drops the factory entirely. Same contract as
 // IsTypeEmitter.
-func (TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
+func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
+	base := e.emitKindDefault(rt, ctx, expectedCType)
+	// Format annotations append a format-specific error-push statement
+	// after the base-kind check. Only spliced when (a) a format emitter
+	// is registered, (b) the emitter's check returns a non-empty
+	// statement, (c) the base output is a statement body (CodeS). The
+	// format error path runs only when the base check did NOT already
+	// push an error — same convention as the JS-side
+	// getCallJitFormatErr wrapper.
+	if base.Type == CodeS && rt != nil && rt.FormatAnnotation != nil {
+		if emitter, ok := formats.LookupForRunType(rt); ok {
+			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, ctx.AccessPathLiteral(""), "er")
+			if check != "" {
+				base.Code = base.Code + " else { " + check + " }"
+			}
+		}
+	}
+	return base
+}
+
+func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}

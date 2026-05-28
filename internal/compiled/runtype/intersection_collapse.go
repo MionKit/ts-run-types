@@ -85,7 +85,11 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 	}
 
 	// Primitive (or literal) × object literals: brand case. Keep the
-	// primitive, attach each object literal as a decorator.
+	// primitive, attach each object literal as a decorator — unless the
+	// object literal is recognised as a TypeFormat brand, in which case
+	// it is lifted onto node.FormatAnnotation and skipped from the
+	// Decorators array. Recognition is structural (presence of the two
+	// sentinel properties); see typeid.FormatAnnotationFromType.
 	primary := primitiveMember
 	if literalMember != nil {
 		primary = literalMember
@@ -93,6 +97,10 @@ func (cache *Cache) collapseIntersection(tsType *checker.Type, node *protocol.Ru
 	if primary != nil && len(objectMembers) > 0 {
 		cache.projectPrimitiveInto(primary, node)
 		for _, objectMember := range objectMembers {
+			if annotation := typeid.FormatAnnotationFromType(cache.typeChecker, objectMember); annotation != nil {
+				node.FormatAnnotation = annotation
+				continue
+			}
 			node.Decorators = append(node.Decorators, cache.Serialize(objectMember))
 		}
 		return

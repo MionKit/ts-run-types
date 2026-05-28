@@ -82,11 +82,25 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 	if primary != nil && len(objectMembers) > 0 {
 		primaryID := computer.Compute(primary)
 		brandIDs := make([]string, 0, len(objectMembers))
+		var formatKey string
 		for _, objectMember := range objectMembers {
+			// Format brands are lifted out of Decorators on the serialize
+			// side; here we mirror the lift in the ID so two intersections
+			// that differ only in their format brand still hash distinctly.
+			// Canonical params (sorted keys, recursed) make order-of-keys
+			// in `{maxLength: 10}` irrelevant to the cache key.
+			if annotation := FormatAnnotationFromType(computer.typeChecker, objectMember); annotation != nil {
+				formatKey += FormatAnnotationStructuralKey(annotation)
+				continue
+			}
 			brandIDs = append(brandIDs, computer.Compute(objectMember))
 		}
 		sort.Strings(brandIDs)
-		return primaryID + "&{" + strings.Join(brandIDs, ",") + "}"
+		result := primaryID
+		if len(brandIDs) > 0 {
+			result += "&{" + strings.Join(brandIDs, ",") + "}"
+		}
+		return result + formatKey
 	}
 
 	if primary != nil {
