@@ -29,7 +29,7 @@ export interface ResolverClientOptions {
   // emits the inline `createRTFn` closure on every RT entry; when
   // false (default) the entry carries only the body `code` string and
   // the JS side reconstructs the factory via `new Function`.
-  emitCreateRTFn?: boolean;
+  emitCacheFunctions?: boolean;
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -280,7 +280,7 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.inlineSources) args.push('--inline-sources-stdin');
     if (opts.serverMode) args.push('--inline-server');
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir);
-    if (opts.emitCreateRTFn) args.push('--emit-create-rt-fn');
+    if (opts.emitCacheFunctions) args.push('--emit-create-rt-fn');
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');

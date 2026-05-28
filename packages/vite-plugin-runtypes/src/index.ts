@@ -19,7 +19,14 @@ export interface PluginOptions {
   // disallow dynamic code construction (Cloudflare WorkerD, sandboxed
   // iframes, CSP without `unsafe-eval`). Test setups also enable this
   // so suites can cover both materialisation paths on every case.
-  emitCreateRTFn?: boolean;
+  emitCacheFunctions?: boolean;
+  // On-disk RT artifact cache location. Default (undefined) wires the
+  // cache to `<cwd>/node_modules/.cache/ts-go-run-types`. Pass an
+  // explicit string to redirect to a custom directory. Pass `false`
+  // to disable caching entirely — used by the marker package's own
+  // vitest config to keep test runs from populating the project tree
+  // with cache artifacts.
+  cacheDir?: string | false;
 }
 
 // MARKER_MODULE is the fixed package every marker brand is declared in.
@@ -74,7 +81,7 @@ export default function runtypes(options: PluginOptions) {
     // plugin saw code after esbuild stripped type syntax, every offset
     // would land past the new EOF. enforce: 'pre' guarantees the
     // resolver sees the raw .ts file.
-    enforce: 'pre',
+    enforce: 'pre' as const,
 
     configResolved(this: any, cfg: {root: string}) {
       cwdAbs = path.resolve(options.cwd ?? cfg.root);
@@ -82,11 +89,15 @@ export default function runtypes(options: PluginOptions) {
       // artifacts that a project's standard `clean` workflow already
       // knows to wipe (npm / pnpm both nuke it under common cleanup
       // recipes). Per-fingerprint subdirs live underneath so distinct
-      // build configurations stay isolated.
-      const cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
+      // build configurations stay isolated. `cacheDir: false` disables
+      // the cache so the resolver runs without touching disk.
+      let cacheDir: string | undefined;
+      if (options.cacheDir === false) cacheDir = undefined;
+      else if (typeof options.cacheDir === 'string') cacheDir = options.cacheDir;
+      else cacheDir = path.join(cwdAbs, 'node_modules', '.cache', 'ts-go-run-types');
       resolver = new ResolverClient(options.binary, cwdAbs, options.tsconfig ?? 'tsconfig.json', {
         cacheDir,
-        emitCreateRTFn: options.emitCreateRTFn ?? false,
+        emitCacheFunctions: options.emitCacheFunctions ?? false,
       });
     },
 

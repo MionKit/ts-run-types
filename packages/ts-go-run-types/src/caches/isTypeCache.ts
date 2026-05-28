@@ -30,7 +30,7 @@ export function initCache(rtUtils) {
   //     createRTFn=undefined, undefined, undefined). `createRTFn` is
   //     undefined by default; `materializeRTFn` rebuilds via
   //     `new Function('utl', code)`. The `--emit-create-rt-fn` flag (Vite
-  //     plugin's `emitCreateRTFn: true`) opts back into eager closure
+  //     plugin's `emitCacheFunctions: true`) opts back into eager closure
   //     emission for runtimes that disallow dynamic code construction.
   //   - Noop: short-form `init(rtFnHash, typeName, undefined, true)`. `fn` is
   //     pre-populated with the family identity (`() => true` for isType).

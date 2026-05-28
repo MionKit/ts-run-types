@@ -256,13 +256,13 @@ export const _ = getRunTypeId<User>();
         includeCacheSources: ['isType'],
       });
       const inlineOnBody = inlineOn.isTypeCacheSource ?? '';
-      // The default shared client runs with emitCreateRTFn=true so
+      // The default shared client runs with emitCacheFunctions=true so
       // we get the inline factory here as a baseline.
       expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(/function g_it_[A-Za-z0-9]+\(utl\)/);
     });
 
     // Spin up a one-shot client with the production default
-    // (emitCreateRTFn omitted → false) and assert the smaller shape.
+    // (emitCacheFunctions omitted → false) and assert the smaller shape.
     const {ResolverClient} = await import('../src/resolver-client.ts');
     const path = await import('node:path');
     const ROOT = path.resolve(__dirname, '../../..');
