@@ -66,12 +66,8 @@ func (uuidEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vÎ
 	}
 	aliasKey := pureFnAlias(ctx, "isUUID")
 	call := aliasKey + "(" + vÎ»l + ",{version:" + strconv.Quote(version) + "})"
-	pathLiteral := "['version']"
-	if pathExpr != "" {
-		pathLiteral = "[..." + pathExpr + ",'version']"
-	}
 	return "if (!(" + call + ")) " +
-		errorsArr + ".push({name:'uuid',formatPath:" + pathLiteral + ",val:" + strconv.Quote(version) + "});"
+		formatErrCall(ctx, pathExpr, errorsArr, "string", "uuid", "version", strconv.Quote(version))
 }
 
 // readVersion accepts a stringified or numeric version param and

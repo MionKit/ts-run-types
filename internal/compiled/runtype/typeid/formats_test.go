@@ -185,3 +185,57 @@ func TestFormatAnnotation_StructuralKey_Canonicalises(t *testing.T) {
 		t.Fatalf("nil annotation must yield empty key")
 	}
 }
+
+// TestFormatAnnotation_SamplesExcludedFromKey pins that mockSamples and
+// message — mock/diagnostic metadata, not validation behaviour — are
+// excluded from the structural key, so validation-equivalent formats
+// dedup to one cache entry (mion's defaultIgnoreFormatProps rule).
+func TestFormatAnnotation_SamplesExcludedFromKey(t *testing.T) {
+	withSamples := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"maxLength": 10.0, "mockSamples": []any{"a", "b"}, "message": "too long"},
+	})
+	bare := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"maxLength": 10.0},
+	})
+	if withSamples != bare {
+		t.Fatalf("mockSamples/message must not affect the key: %q vs %q", withSamples, bare)
+	}
+	// Excluded at nested depth too (FormatPattern form nests them in `pattern`).
+	nested := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"pattern": map[string]any{"source": "^x$", "flags": "", "mockSamples": []any{"x"}}},
+	})
+	nestedNoSamples := typeid.FormatAnnotationStructuralKey(&protocol.FormatAnnotation{
+		Name:   "stringFormat",
+		Params: map[string]any{"pattern": map[string]any{"source": "^x$", "flags": ""}},
+	})
+	if nested != nestedNoSamples {
+		t.Fatalf("nested mockSamples must not affect the key: %q vs %q", nested, nestedNoSamples)
+	}
+	// Sanity: a real validation param (maxLength) still differentiates.
+	if bare == nestedNoSamples {
+		t.Fatalf("different validation params must still differ")
+	}
+}
+
+// TestFormatAnnotation_SamplesDedupEndToEnd confirms the exclusion holds
+// through the full scan → structural id (not just the key fn).
+func TestFormatAnnotation_SamplesDedupEndToEnd(t *testing.T) {
+	a := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type T = TypeFormat<string, 'stringFormat', {maxLength: 10; mockSamples: ['a', 'b']}>;
+getRunTypeId<T>();
+`)
+	b := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type T = TypeFormat<string, 'stringFormat', {maxLength: 10; mockSamples: ['x', 'y', 'z']}>;
+getRunTypeId<T>();
+`)
+	if a.ID != b.ID {
+		t.Fatalf("formats differing only in mockSamples must share one id; got %q vs %q", a.ID, b.ID)
+	}
+}

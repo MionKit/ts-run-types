@@ -40,9 +40,7 @@ describe('FormatStringDateTime — typeErrors diagnostics', () => {
   it('missing split char reports the splitChar param', () => {
     const collect = createGetTypeErrors<FormatStringDateTime>();
     const errors = collect('2024-02-29 12:30:45Z');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'dateTime') as
-      | {name: string; formatPath?: unknown[]}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'dateTime')?.format;
     expect(formatErr).toBeDefined();
     expect(formatErr?.formatPath?.[formatErr.formatPath.length - 1]).toBe('splitChar');
   });

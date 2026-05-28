@@ -44,9 +44,7 @@ describe('FormatEmail — typeErrors diagnostics', () => {
   it('invalid email pushes a TypeFormatError named email', () => {
     const collect = createGetTypeErrors<FormatEmail>();
     const errors = collect('not-an-email');
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'email') as
-      | {name: string}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'email')?.format;
     expect(formatErr).toBeDefined();
   });
 

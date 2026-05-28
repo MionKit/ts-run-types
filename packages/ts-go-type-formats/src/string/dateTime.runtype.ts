@@ -59,13 +59,26 @@ export class DateTimeRunTypeFormat extends BaseRunTypeFormat<FormatParams_DateTi
   }
 }
 
+// maxDaysInMonth — leap-year-aware day cap (local copy; this module
+// stays free of cross-format runtime imports).
+function maxDaysInMonth(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  if (month === 4 || month === 6 || month === 9 || month === 11) return 30;
+  return 31;
+}
+
 // Lightweight local mockers — independent of the date/time runtype
 // classes so this module stays free of cross-format runtime imports
 // (the format types are imported `type`-only above).
 function mockDate(format: DateFmt): string {
-  const year = String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0');
-  const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
-  const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+  const yy = Math.floor(Math.random() * 9999) + 1;
+  const mm = Math.floor(Math.random() * 12) + 1;
+  // Day bounded by the actual month length (leap-year aware) so mocks
+  // can produce 29/30/31, not just 1-28.
+  const dd = Math.floor(Math.random() * maxDaysInMonth(yy, mm)) + 1;
+  const year = String(yy).padStart(4, '0');
+  const month = String(mm).padStart(2, '0');
+  const day = String(dd).padStart(2, '0');
   switch (format) {
     case 'DD-MM-YYYY':
       return `${day}-${month}-${year}`;

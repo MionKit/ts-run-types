@@ -45,9 +45,7 @@ describe('FormatUUID — typeErrors diagnostics', () => {
     const collect = createGetTypeErrors<FormatUUIDv4>();
     const errors = collect('not-a-uuid');
     expect(errors.length).toBeGreaterThan(0);
-    const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'uuid') as
-      | {name: string; val: unknown}
-      | undefined;
+    const formatErr = errors.find((entry) => entry.format?.name === 'uuid')?.format;
     expect(formatErr).toBeDefined();
     expect(formatErr?.val).toBe('4');
   });

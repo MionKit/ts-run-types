@@ -100,18 +100,15 @@ func (dateTimeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation
 	dateAlias := pureFnAlias(ctx, dateFn)
 	timeAlias := pureFnAlias(ctx, timeFn)
 	split := strconv.Quote(splitChar)
-	pathOf := func(segment string) string {
-		if pathExpr == "" {
-			return "['" + segment + "']"
-		}
-		return "[..." + pathExpr + ",'" + segment + "']"
+	errFor := func(paramName string) string {
+		return formatErrCall(ctx, pathExpr, errorsArr, "string", "dateTime", paramName, split)
 	}
 	// Statement block: locate the split, error on absence, else validate
 	// each half independently so a bad date AND a bad time both surface.
 	return "const dtSplit=" + vλl + ".indexOf(" + split + ");" +
-		"if (dtSplit===-1) " + errorsArr + ".push({name:'dateTime',formatPath:" + pathOf("splitChar") + ",val:" + split + "});" +
+		"if (dtSplit===-1) " + errFor("splitChar") + ";" +
 		"else {" +
-		"if (!(" + dateAlias + "(" + vλl + ".substring(0,dtSplit)))) " + errorsArr + ".push({name:'dateTime',formatPath:" + pathOf("date") + ",val:" + split + "});" +
-		"if (!(" + timeAlias + "(" + vλl + ".substring(dtSplit+1)))) " + errorsArr + ".push({name:'dateTime',formatPath:" + pathOf("time") + ",val:" + split + "});" +
+		"if (!(" + dateAlias + "(" + vλl + ".substring(0,dtSplit)))) " + errFor("date") + ";" +
+		"if (!(" + timeAlias + "(" + vλl + ".substring(dtSplit+1)))) " + errFor("time") + ";" +
 		"}"
 }

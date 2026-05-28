@@ -84,15 +84,11 @@ func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnno
 	if annotation == nil {
 		return ""
 	}
-	statements := lengthErrorStatements(annotation.Params, vλl, pathExpr, errorsArr)
+	statements := lengthErrorStatements(ctx, annotation.Params, vλl, pathExpr, errorsArr, name)
 	if source, flags, ok := recoverPattern(annotation.Params); ok {
 		test := emitPatternTest(ctx, source, flags, vλl)
-		pathLiteral := "['" + name + "']"
-		if pathExpr != "" {
-			pathLiteral = "[..." + pathExpr + ",'" + name + "']"
-		}
 		statements = append(statements,
-			"if (!("+test+")) "+errorsArr+".push({name:'"+name+"',formatPath:"+pathLiteral+",val:'"+name+"'});")
+			"if (!("+test+")) "+formatErrCall(ctx, pathExpr, errorsArr, "string", name, "pattern", "'pattern'"))
 	}
 	return strings.Join(statements, ";")
 }

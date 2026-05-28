@@ -75,10 +75,6 @@ func (timeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vÎ
 	}
 	alias := pureFnAlias(ctx, fnName)
 	call := alias + "(" + vÎ»l + ")"
-	pathLiteral := "['format']"
-	if pathExpr != "" {
-		pathLiteral = "[..." + pathExpr + ",'format']"
-	}
 	return "if (!(" + call + ")) " +
-		errorsArr + ".push({name:'time',formatPath:" + pathLiteral + ",val:" + strconv.Quote(format) + "});"
+		formatErrCall(ctx, pathExpr, errorsArr, "string", "time", "format", strconv.Quote(format))
 }

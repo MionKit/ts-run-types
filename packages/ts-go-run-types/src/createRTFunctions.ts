@@ -45,9 +45,22 @@ export type IsTypeFn = (value: unknown) => boolean;
 /** Mirror of mion's RunTypeError shape. Map / Set emitters add
  *  `{key, index, failed: 'mapKey' | 'mapValue'}` path segments. **/
 export type RunTypeErrorPathSegment = string | number | object;
+
+/** Format-specific error detail attached to a RunTypeError when a
+ *  TypeFormat constraint (pattern, length, version, …) fails. `name`
+ *  is the format name (e.g. 'stringFormat', 'uuid'); `formatPath`
+ *  locates the failing param; `val` is the param value/marker. **/
+export interface TypeFormatError {
+  name: string;
+  val: RunTypeErrorPathSegment | boolean | bigint | (RunTypeErrorPathSegment | boolean | bigint)[];
+  formatPath: (string | number)[];
+}
+
 export interface RunTypeError {
   path: RunTypeErrorPathSegment[];
   expected: string;
+  /** Present when a TypeFormat constraint failed (emitted via cpf_formatErr). */
+  format?: TypeFormatError;
 }
 
 /** Validator returned by `createGetTypeErrors<T>()`. Caller-optional `path`
