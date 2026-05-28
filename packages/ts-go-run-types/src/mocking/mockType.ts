@@ -11,6 +11,7 @@
 import type {MockOptions, RunTypeMockOptions} from './mockTypes.ts';
 import type {RunType} from '../runtypes/types.ts';
 import {RunTypeKind, RunTypeSubKind} from '../runTypeKind.ts';
+import type {RunTypeKindValue} from '../runTypeKind.ts';
 import {getRunTypeFormat} from '../runtypes/formatRegistry.ts';
 import {
   mockAny,
@@ -93,8 +94,8 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
   // pattern formats — a regex can't be reversed). Falls through to the
   // kind-default when no formatter is registered.
   if (runType.formatAnnotation) {
-    const formatter = getRunTypeFormat(kind, runType.formatAnnotation);
-    if (formatter) return formatter._mock(runType.formatAnnotation);
+    const typeFormat = getRunTypeFormat(kind as RunTypeKindValue, runType.formatAnnotation);
+    if (typeFormat) return typeFormat._mock(runType.formatAnnotation);
   }
 
   switch (kind) {

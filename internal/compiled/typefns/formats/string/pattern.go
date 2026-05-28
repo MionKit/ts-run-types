@@ -4,20 +4,17 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mionkit/ts-run-types/internal/compiled/runtype/typeid"
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
 // recoverPattern extracts a regex source+flags from a format's `pattern`
-// param. Two accepted shapes, both producing the same result:
-//   - {source: '…', flags: '…'} — string literals (the .d.ts-safe form
-//     the built-in formats use).
-//   - {val: typeof SOME_REGEX}  — recovered from the declaration AST by
-//     the typeid scanner (a user's own regex const).
-//
-// Returns ok=false when there is no usable pattern param.
+// param. The param is always a resolved literal object {source, flags,
+// …} — produced either by registerFormatPattern (user formats, recovered
+// from the call AST by the typeid scanner) or by an inline string-literal
+// source (the built-in formats, .d.ts-safe). Returns ok=false when there
+// is no usable pattern param.
 func recoverPattern(params map[string]any) (source, flags string, ok bool) {
 	raw, present := params["pattern"]
 	if !present {
@@ -27,16 +24,12 @@ func recoverPattern(params map[string]any) (source, flags string, ok bool) {
 	if !isMap {
 		return "", "", false
 	}
-	// typeof-recovered form: val is a typeid.RegexpParam.
-	if regexpParam, isRegexp := pattern["val"].(typeid.RegexpParam); isRegexp {
-		return regexpParam.Source, regexpParam.Flags, true
+	src, isString := pattern["source"].(string)
+	if !isString {
+		return "", "", false
 	}
-	// string-literal form: explicit source (+ optional flags).
-	if src, isString := pattern["source"].(string); isString {
-		flagStr, _ := pattern["flags"].(string)
-		return src, flagStr, true
-	}
-	return "", "", false
+	flagStr, _ := pattern["flags"].(string)
+	return src, flagStr, true
 }
 
 // recoverSamples extracts the mockSamples as a list of strings. Looks

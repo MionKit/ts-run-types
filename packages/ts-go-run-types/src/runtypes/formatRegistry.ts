@@ -18,7 +18,7 @@ import type {FormatAnnotation} from './formatAnnotation.ts';
 // live in `@mionjs/ts-go-type-formats`. The JIT-emit methods (mion
 // has emitIsType / emitTypeErrors on this class) are intentionally
 // absent here — they live in the Go binary now.
-export abstract class BaseRunTypeFormat<Params extends Record<string, unknown> = Record<string, unknown>> {
+export abstract class BaseRunTypeFormat<Params extends object = Record<string, unknown>> {
   // Canonical format name. Matches the FormatAnnotation.name carried
   // on the wire. Must equal the name registered on the Go side.
   abstract readonly name: string;
@@ -60,12 +60,16 @@ function key(entry: RegistryKey): string {
 // format (e.g. uuid.runtype.ts) at module load. Re-registering the
 // same (kind, name) pair throws — drift between two implementations of
 // the same format is a bug, not a fallback path.
-export function registerTypeFormat(typeFormat: BaseRunTypeFormat): void {
+// Generic over the concrete params so a format with narrow params
+// (BaseRunTypeFormat<FormatParams_Date>) is accepted — the registry is
+// heterogeneous, so entries are stored under the default-params base
+// (the `_mock` param is contravariant, hence the bridging cast).
+export function registerTypeFormat<Params extends object>(typeFormat: BaseRunTypeFormat<Params>): void {
   const lookupKey = key({kind: typeFormat.kind, name: typeFormat.name});
   if (registry.has(lookupKey)) {
     throw new Error(`registerTypeFormat: duplicate format for ${typeFormat.name}`);
   }
-  registry.set(lookupKey, typeFormat);
+  registry.set(lookupKey, typeFormat as unknown as BaseRunTypeFormat);
 }
 
 // getTypeFormatFromCache returns the registered TypeFormat for

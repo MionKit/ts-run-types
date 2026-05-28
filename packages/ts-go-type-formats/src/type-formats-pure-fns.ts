@@ -29,7 +29,7 @@ type IsDateStringFn = (year: string | undefined, month: string, day?: string) =>
 // positions + version digit at slot 14 + hex character class on
 // every other slot. Matches the runtime behaviour of the canonical
 // UUIDv4 / UUIDv7 patterns without pulling in a regex engine.
-export const cpf_isUUID = registerPureFnFactory('mionFormats', 'isUUID', function () {
+registerPureFnFactory('mionFormats', 'isUUID', function () {
   return function _isUUID(value: string, params: FormatParams_UUID): boolean {
     if (typeof value !== 'string' || value.length !== 36) return false;
     for (let i = 0; i < 36; i++) {
@@ -57,7 +57,7 @@ export const cpf_isUUID = registerPureFnFactory('mionFormats', 'isUUID', functio
 // — the Go-side pure-fn extractor records that as a transitive
 // dependency so the base fn ships in the cache alongside the wrapper.
 
-export const cpf_isDateString = registerPureFnFactory('mionFormats', 'isDateString', function () {
+registerPureFnFactory('mionFormats', 'isDateString', function () {
   return function _isDateString(year: string | undefined, month: string, day?: string): boolean {
     let y: number | undefined;
     if (year) {
@@ -83,7 +83,7 @@ export const cpf_isDateString = registerPureFnFactory('mionFormats', 'isDateStri
   };
 });
 
-export const cpf_isDateString_YMD = registerPureFnFactory('mionFormats', 'isDateString_YMD', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isDateString_YMD', function (utl: RTUtils) {
   const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
   return function _is_ymd(value: string): boolean {
     const parts = value.split('-');
@@ -91,7 +91,7 @@ export const cpf_isDateString_YMD = registerPureFnFactory('mionFormats', 'isDate
   };
 });
 
-export const cpf_isDateString_DMY = registerPureFnFactory('mionFormats', 'isDateString_DMY', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isDateString_DMY', function (utl: RTUtils) {
   const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
   return function _is_dmy(value: string): boolean {
     const parts = value.split('-');
@@ -99,7 +99,7 @@ export const cpf_isDateString_DMY = registerPureFnFactory('mionFormats', 'isDate
   };
 });
 
-export const cpf_isDateString_MDY = registerPureFnFactory('mionFormats', 'isDateString_MDY', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isDateString_MDY', function (utl: RTUtils) {
   const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
   return function _is_mdy(value: string): boolean {
     const parts = value.split('-');
@@ -107,7 +107,7 @@ export const cpf_isDateString_MDY = registerPureFnFactory('mionFormats', 'isDate
   };
 });
 
-export const cpf_isDateString_YM = registerPureFnFactory('mionFormats', 'isDateString_YM', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isDateString_YM', function (utl: RTUtils) {
   const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
   return function _is_ym(value: string): boolean {
     const parts = value.split('-');
@@ -115,7 +115,7 @@ export const cpf_isDateString_YM = registerPureFnFactory('mionFormats', 'isDateS
   };
 });
 
-export const cpf_isDateString_MD = registerPureFnFactory('mionFormats', 'isDateString_MD', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isDateString_MD', function (utl: RTUtils) {
   const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
   return function _is_md(value: string): boolean {
     const parts = value.split('-');
@@ -123,7 +123,7 @@ export const cpf_isDateString_MD = registerPureFnFactory('mionFormats', 'isDateS
   };
 });
 
-export const cpf_isDateString_DM = registerPureFnFactory('mionFormats', 'isDateString_DM', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isDateString_DM', function (utl: RTUtils) {
   const isDate = utl.getPureFn('mionFormats::isDateString') as IsDateStringFn;
   return function _is_dm(value: string): boolean {
     const parts = value.split('-');
@@ -143,7 +143,7 @@ export const cpf_isDateString_DM = registerPureFnFactory('mionFormats', 'isDateS
 
 type SegmentFn = (segment: string) => boolean;
 
-export const cpf_isHours = registerPureFnFactory('mionFormats', 'isHours', function () {
+registerPureFnFactory('mionFormats', 'isHours', function () {
   return function _is_h(hours: string): boolean {
     if (!hours.length || hours.length > 2) return false;
     const n = Number(hours);
@@ -152,7 +152,7 @@ export const cpf_isHours = registerPureFnFactory('mionFormats', 'isHours', funct
   };
 });
 
-export const cpf_isMinutes = registerPureFnFactory('mionFormats', 'isMinutes', function () {
+registerPureFnFactory('mionFormats', 'isMinutes', function () {
   return function _is_m(mins: string): boolean {
     if (!mins.length || mins.length > 2) return false;
     const n = Number(mins);
@@ -161,7 +161,7 @@ export const cpf_isMinutes = registerPureFnFactory('mionFormats', 'isMinutes', f
   };
 });
 
-export const cpf_isSeconds = registerPureFnFactory('mionFormats', 'isSeconds', function () {
+registerPureFnFactory('mionFormats', 'isSeconds', function () {
   return function _is_s(secs: string): boolean {
     if (!secs.length || secs.length > 2) return false;
     const n = Number(secs);
@@ -170,7 +170,7 @@ export const cpf_isSeconds = registerPureFnFactory('mionFormats', 'isSeconds', f
   };
 });
 
-export const cpf_isSecondsWithMs = registerPureFnFactory('mionFormats', 'isSecondsWithMs', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isSecondsWithMs', function (utl: RTUtils) {
   const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
   return function _is_s_ms(secsAndMs: string): boolean {
     const parts = secsAndMs.split('.');
@@ -186,7 +186,7 @@ export const cpf_isSecondsWithMs = registerPureFnFactory('mionFormats', 'isSecon
   };
 });
 
-export const cpf_isTimeZone = registerPureFnFactory('mionFormats', 'isTimeZone', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isTimeZone', function (utl: RTUtils) {
   const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
   return function _is_tz(timeZone: string): boolean {
@@ -196,7 +196,7 @@ export const cpf_isTimeZone = registerPureFnFactory('mionFormats', 'isTimeZone',
   };
 });
 
-export const cpf_isTimeString_ISO = registerPureFnFactory('mionFormats', 'isTimeString_ISO', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isTimeString_ISO', function (utl: RTUtils) {
   const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
   const isSms = utl.getPureFn('mionFormats::isSecondsWithMs') as SegmentFn;
@@ -206,7 +206,7 @@ export const cpf_isTimeString_ISO = registerPureFnFactory('mionFormats', 'isTime
   };
 });
 
-export const cpf_isTimeString_ISO_TZ = registerPureFnFactory('mionFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isTimeString_ISO_TZ', function (utl: RTUtils) {
   const isTime = utl.getPureFn('mionFormats::isTimeString_ISO') as SegmentFn;
   const isTZ = utl.getPureFn('mionFormats::isTimeZone') as SegmentFn;
   return function _is_iso_tz(value: string): boolean {
@@ -222,7 +222,7 @@ export const cpf_isTimeString_ISO_TZ = registerPureFnFactory('mionFormats', 'isT
   };
 });
 
-export const cpf_isTimeString_HHmmss = registerPureFnFactory('mionFormats', 'isTimeString_HHmmss', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isTimeString_HHmmss', function (utl: RTUtils) {
   const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
   const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
@@ -232,7 +232,7 @@ export const cpf_isTimeString_HHmmss = registerPureFnFactory('mionFormats', 'isT
   };
 });
 
-export const cpf_isTimeString_HHmm = registerPureFnFactory('mionFormats', 'isTimeString_HHmm', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isTimeString_HHmm', function (utl: RTUtils) {
   const isH = utl.getPureFn('mionFormats::isHours') as SegmentFn;
   const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
   return function _is_hhmm(value: string): boolean {
@@ -241,7 +241,7 @@ export const cpf_isTimeString_HHmm = registerPureFnFactory('mionFormats', 'isTim
   };
 });
 
-export const cpf_isTimeString_mmss = registerPureFnFactory('mionFormats', 'isTimeString_mmss', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isTimeString_mmss', function (utl: RTUtils) {
   const isM = utl.getPureFn('mionFormats::isMinutes') as SegmentFn;
   const isS = utl.getPureFn('mionFormats::isSeconds') as SegmentFn;
   return function _is_mmss(value: string): boolean {
@@ -264,7 +264,7 @@ interface FormatParams_IP {
 
 type IsIpFn = (ip: string, params: FormatParams_IP) => boolean;
 
-export const cpf_isLocalHost = registerPureFnFactory('mionFormats', 'isLocalHost', function () {
+registerPureFnFactory('mionFormats', 'isLocalHost', function () {
   const lhr = /^localhost$/i;
   return function _is_local_host(ip: string, params: FormatParams_IP): boolean {
     if (params.version === 4) return lhr.test(ip) || ip === '127:0:0:1';
@@ -273,7 +273,7 @@ export const cpf_isLocalHost = registerPureFnFactory('mionFormats', 'isLocalHost
   };
 });
 
-export const cpf_isIPV4 = registerPureFnFactory('mionFormats', 'isIPV4', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isIPV4', function (utl: RTUtils) {
   const isLocalHost = utl.getPureFn('mionFormats::isLocalHost') as IsIpFn;
   function getAddress(ip: string, params: FormatParams_IP): false | string {
     if (!params.allowPort) return ip;
@@ -301,7 +301,7 @@ export const cpf_isIPV4 = registerPureFnFactory('mionFormats', 'isIPV4', functio
   };
 });
 
-export const cpf_isIPV6 = registerPureFnFactory('mionFormats', 'isIPV6', function (utl: RTUtils) {
+registerPureFnFactory('mionFormats', 'isIPV6', function (utl: RTUtils) {
   const isLocalHost = utl.getPureFn('mionFormats::isLocalHost') as IsIpFn;
   const ipv6PortRegexp = /^\[([^\]]+)\](?::(\d+))?$/;
   function getAddress(ip: string, params: FormatParams_IP): false | string {

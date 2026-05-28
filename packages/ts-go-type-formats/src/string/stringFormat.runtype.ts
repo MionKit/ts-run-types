@@ -17,20 +17,19 @@ import {
 } from '@mionjs/ts-go-run-types';
 import type {FormatAnnotation, FormatPattern} from '@mionjs/ts-go-run-types';
 
-// PatternParam — the regex a string format validates against. Three
-// authoring shapes, all recovered to the same {source, flags} on the
-// Go side:
-//   - typeof registerFormatPattern(...)  the recommended user form: a
-//                          FormatPattern whose samples are validated by
-//                          the real JS engine at registration.
-//   - {source, flags}      string literals — .d.ts-safe; what the
-//                          built-in formats (domain/email/url/alpha…)
-//                          use, since a published .d.ts can't carry a
-//                          regex VALUE.
-//   - {val: typeof REGEX}  a user's own raw regex const — recovered
-//                          from the declaration AST (source/flags only,
-//                          no samples).
-export type PatternParam = FormatPattern | {source: string; flags?: string} | {val: RegExp};
+// PatternParam — the regex a string format validates against. The one
+// user-facing way to supply a pattern is `registerFormatPattern(...)`,
+// whose result (a FormatPattern) goes here:
+//
+//   const slug = registerFormatPattern({regexp: /^[a-z-]+$/, mockSamples: ['a-b']});
+//   type Slug = FormatString<{pattern: typeof slug}>;
+//
+// (The built-in formats encode their pattern as an inline string-literal
+// `{source, flags}` object instead — necessary because a published
+// .d.ts can't carry a regex VALUE for `typeof` recovery — but that form
+// is internal to this package, defined via TypeFormat directly so it
+// doesn't widen the public StringParams surface.)
+export type PatternParam = FormatPattern;
 
 // StringParams — the wire-serialisable params shape for FormatString.
 export interface StringParams {
