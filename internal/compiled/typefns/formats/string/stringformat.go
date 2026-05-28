@@ -52,7 +52,7 @@ func (stringFormatEmitter) Kind() protocol.ReflectionKind {
 // keeps its base-kind check as the only validator. Order matches
 // mion's emitIsType conditional list so future maintainers can
 // cross-reference without confusion.
-func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -70,6 +70,10 @@ func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation
 	if value, ok := readNumberParam(params, "length"); ok {
 		conditions = append(conditions, vλl+".length === "+formatNumber(value))
 	}
+	if class, ok := readStringParam(params, "charClass"); ok {
+		alias := pureFnAlias(ctx, "isCharClass")
+		conditions = append(conditions, alias+"("+vλl+",'"+class+"')")
+	}
 	return strings.Join(conditions, " && ")
 }
 
@@ -82,7 +86,7 @@ func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation
 // Matches mion's emitIsTypeErrors output (modulo the wrapper-shape
 // param unwrap) so the JS-side runtime sees the same diagnostics
 // regardless of which compiler produced the validator.
-func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
+func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -106,7 +110,26 @@ func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnota
 			"if ("+vλl+".length !== "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "length", formatNumber(value)),
 		)
 	}
+	if class, ok := readStringParam(params, "charClass"); ok {
+		alias := pureFnAlias(ctx, "isCharClass")
+		statements = append(statements,
+			"if (!("+alias+"("+vλl+",'"+class+"'))) "+pushFormatError(errorsArr, pathExpr, "charClass", "'"+class+"'"),
+		)
+	}
 	return strings.Join(statements, ";")
+}
+
+// readStringParam extracts a string param value. Returns ("", false)
+// when the key is absent or non-string.
+func readStringParam(params map[string]any, key string) (string, bool) {
+	raw, ok := params[key]
+	if !ok {
+		return "", false
+	}
+	if value, isString := raw.(string); isString && value != "" {
+		return value, true
+	}
+	return "", false
 }
 
 // readNumberParam extracts a numeric param value. Returns (0, false)

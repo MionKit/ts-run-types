@@ -23,6 +23,9 @@ import './string/ip.runtype.ts';
 import './string/domain.runtype.ts';
 import './string/email.runtype.ts';
 import './string/url.runtype.ts';
+// defaultStringFormats has no runtype class of its own (all aliases
+// resolve to FormatString), so it's a type-only re-export — no
+// side-effect import needed.
 
 // Type aliases — public consumer-facing surface. Concrete classes
 // (StringRunTypeFormat, ...) intentionally NOT re-exported: users
@@ -51,3 +54,11 @@ export type {
 } from './string/domain.runtype.ts';
 export type {FormatEmail, FormatEmailPunycode, FormatEmailStrict, FormatParams_Email} from './string/email.runtype.ts';
 export type {FormatUrl, FormatUrlHttp, FormatUrlFile, FormatParams_Url} from './string/url.runtype.ts';
+export type {
+  FormatAlpha,
+  FormatAlphaNumeric,
+  FormatNumeric,
+  FormatLowercase,
+  FormatUppercase,
+  FormatCapitalize,
+} from './string/defaultStringFormats.runtype.ts';

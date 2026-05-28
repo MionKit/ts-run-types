@@ -426,3 +426,23 @@ export const cpf_isUrl = registerPureFnFactory('mionFormats', 'isUrl', function 
     return regexp.test(value);
   };
 });
+
+// ############### Char-class pure fn ###############
+//
+// Backs FormatAlpha / FormatAlphaNumeric / FormatNumeric. The class is
+// selected by the `charClass` param (mion uses the equivalent
+// ALPHA_REGEX / ALPHANUMERIC_REGEX / NUMERIC_REGEX with unicode
+// property escapes). Baked into a pure fn so the cache module stays
+// free of JSON-escaped regex literals.
+
+export const cpf_isCharClass = registerPureFnFactory('mionFormats', 'isCharClass', function () {
+  const ALPHA = /^[\p{L}]+$/u;
+  const ALPHANUMERIC = /^[\p{L}\p{N}]+$/u;
+  const NUMERIC = /^[\p{N}]+$/u;
+  return function _is_char_class(value: string, charClass: string): boolean {
+    if (typeof value !== 'string') return false;
+    if (charClass === 'alpha') return ALPHA.test(value);
+    if (charClass === 'numeric') return NUMERIC.test(value);
+    return ALPHANUMERIC.test(value);
+  };
+});
