@@ -123,11 +123,11 @@ func renderPrepareForJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (st
 	})
 }
 
-// renderFormatModule emits the `format` cache module — the value-transform
-// family (createFormat<T>). Backed by typefns.FormatEmitter.
-func renderFormatModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderFormatModule", func(w io.Writer) error {
-		return typefns.FormatModule(w, dump, opts)
+// renderFormatTransformModule emits the `format` cache module — the value-transform
+// family (createFormatTransform<T>). Backed by typefns.FormatTransformEmitter.
+func renderFormatTransformModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	return renderToString("renderFormatTransformModule", func(w io.Writer) error {
+		return typefns.FormatTransformModule(w, dump, opts)
 	})
 }
 

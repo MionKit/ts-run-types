@@ -183,12 +183,12 @@ func FromBinaryModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) err
 	return RenderFnModule(writer, dump, settings, FromBinaryEmitter{}, innerPrefix(settings), cachetpl.SkeletonFromBinary, opts)
 }
 
-// FormatModule writes the runtime artifact for the `format` cache
-// module — the value-transform family (createFormat<T>). Same structure
+// FormatTransformModule writes the runtime artifact for the `format` cache
+// module — the value-transform family (createFormatTransform<T>). Same structure
 // as every other per-fn module: skeleton + generated factories.
-func FormatModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
-	settings := constants.CacheModules["format"]
-	return RenderFnModule(writer, dump, settings, FormatEmitter{}, innerPrefix(settings), cachetpl.SkeletonFormat, opts)
+func FormatTransformModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
+	settings := constants.CacheModules["formatTransform"]
+	return RenderFnModule(writer, dump, settings, FormatTransformEmitter{}, innerPrefix(settings), cachetpl.SkeletonFormatTransform, opts)
 }
 
 // RenderFnModule is the fn-agnostic module renderer. Emits one
