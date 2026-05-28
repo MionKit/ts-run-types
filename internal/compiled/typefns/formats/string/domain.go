@@ -44,6 +44,12 @@ func (domainEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, 
 	return namedPatternErrors(ctx, annotation, vλl, pathExpr, errorsArr, "domain")
 }
 
+// EmitFormatTransform lowercases the domain (mion domain.runtype.ts:229
+// — all domains are case-insensitive, canonicalised to lower case).
+func (domainEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+	return vλl + ".toLowerCase()"
+}
+
 // domainHasNames reports whether the decomposition path applies — i.e.
 // the params carry a `names` sub-format object (names/tld come together,
 // mion validateParams enforces it).

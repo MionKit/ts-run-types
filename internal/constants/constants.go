@@ -102,6 +102,11 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_fb_",
 		Tag:       "fb",
 	},
+	"format": {
+		Name:      "formatModule",
+		VarPrefix: "g_fmt_",
+		Tag:       "fmt",
+	},
 	"pureFns": {
 		Name:      "pureFnsModule",
 		VarPrefix: "",

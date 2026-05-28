@@ -34,7 +34,7 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		Lookup:          resolver.cache,
 		DiagSink:        sink,
 		ProvenanceSites: provenance,
-		EmitCreateRTFn: resolver.opts.EmitCreateRTFn,
+		EmitCreateRTFn:  resolver.opts.EmitCreateRTFn,
 	}
 }
 
@@ -120,6 +120,14 @@ func renderTypeErrorsModule(dump protocol.Dump, opts typefns.RenderOpts) (string
 func renderPrepareForJsonModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
 	return renderToString("renderPrepareForJsonModule", func(w io.Writer) error {
 		return typefns.PrepareForJsonModule(w, dump, opts)
+	})
+}
+
+// renderFormatModule emits the `format` cache module — the value-transform
+// family (createFormat<T>). Backed by typefns.FormatEmitter.
+func renderFormatModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	return renderToString("renderFormatModule", func(w io.Writer) error {
+		return typefns.FormatModule(w, dump, opts)
 	})
 }
 
