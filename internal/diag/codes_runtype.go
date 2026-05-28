@@ -125,6 +125,15 @@ const (
 	CodeFBSymbolKeyedDropped  = "FB013"
 )
 
+// Format family — TypeFormat (pattern / mockSample) build-time checks.
+const (
+	// CodeFMTSampleMismatch — a declared mockSample does not match the
+	// format's own pattern. Error severity: the sample is supposed to be
+	// a canonical valid value, so a mismatch is always a type-definition
+	// bug. Args: [sample, pattern-source].
+	CodeFMTSampleMismatch = "FMT001"
+)
+
 // Unknown-keys family — no root throws today; only child drops.
 const (
 	CodeHUKFunctionPropDropped = "HUK010"
@@ -171,4 +180,8 @@ func init() {
 	// without realising the runtime is no longer enforcing the schema.
 	register(Definition{Code: CodeTERootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "typeErrors root any/unknown — identity fallback"})
 	register(Definition{Code: CodeISRootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "isType root any/unknown — identity fallback"})
+
+	// Format-family — a mockSample that contradicts its own pattern is a
+	// type-definition bug; surface it as an error.
+	register(Definition{Code: CodeFMTSampleMismatch, Family: FamilyRunType, Severity: SeverityError, Title: "format mockSample does not match pattern"})
 }

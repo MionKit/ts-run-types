@@ -1,6 +1,5 @@
-// URL format — FormatUrl and the http / file variants. AOT divergence
-// noted in url.go: a variant selects the baked-in regex. isType /
-// typeErrors emit lives in internal/compiled/typefns/formats/string/url.go.
+// URL format — FormatUrl and the http / file variants. Pattern-based;
+// see domain.runtype.ts for the shape rationale.
 
 import {
   BaseRunTypeFormat,
@@ -9,20 +8,40 @@ import {
   TypeFormat,
 } from '@mionjs/ts-go-run-types';
 import type {FormatAnnotation} from '@mionjs/ts-go-run-types';
+import {pickSample} from './stringFormat.runtype.ts';
+
+// Mirror mion's URL_REGEXP / URL_HTTP_REGEXP / URL_FILE_REGEXP.
+type URL_SRC = '^(?:https?|ftps?|wss?):\\/\\/[^\\s/$.?#-][^\\s]*$';
+type URL_HTTP_SRC = '^https?:\\/\\/[^\\s/$.?#-][^\\s]*$';
+type URL_FILE_SRC = '^file:\\/\\/\\/?(?:[a-zA-Z]:)?[^\\s/$.?#-][^\\s]*$';
 
 export interface FormatParams_Url {
-  variant?: 'standard' | 'http' | 'file';
-  maxLength?: number;
-  minLength?: number;
+  pattern?: {source: string; flags?: string} | {val: RegExp};
+  mockSamples?: readonly string[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type FormatUrl<P extends FormatParams_Url = {}> = TypeFormat<string, 'url', P, 'url'>;
-export type FormatUrlHttp = FormatUrl<{variant: 'http'}>;
-export type FormatUrlFile = FormatUrl<{variant: 'file'}>;
-
-const HTTP_SAMPLES = ['https://example.com', 'http://mion.io/path', 'https://sub.test.org/a/b'];
-const FILE_SAMPLES = ['file:///etc/hosts', 'file://C:/Users/test/file.txt'];
+export type FormatUrl = TypeFormat<
+  string,
+  'url',
+  {
+    pattern: {source: URL_SRC; flags: 'i'};
+    mockSamples: ['https://example.com', 'http://mion.io/path', 'ftp://files.example.org'];
+    maxLength: 2048;
+  },
+  'url'
+>;
+export type FormatUrlHttp = TypeFormat<
+  string,
+  'url',
+  {pattern: {source: URL_HTTP_SRC; flags: 'i'}; mockSamples: ['https://example.com', 'http://mion.io/a/b']; maxLength: 2048},
+  'url'
+>;
+export type FormatUrlFile = TypeFormat<
+  string,
+  'url',
+  {pattern: {source: URL_FILE_SRC; flags: 'i'}; mockSamples: ['file:///etc/hosts', 'file://C:/Users/test/file.txt']; maxLength: 2048},
+  'url'
+>;
 
 export class URLRunTypeFormat extends BaseRunTypeFormat<FormatParams_Url> {
   static readonly id = 'url' as const;
@@ -30,20 +49,10 @@ export class URLRunTypeFormat extends BaseRunTypeFormat<FormatParams_Url> {
   readonly kind = RunTypeKind.string;
 
   _mock(annotation: FormatAnnotation<FormatParams_Url>): string {
-    const variant = annotation.params?.variant ?? 'standard';
-    const pool = variant === 'file' ? FILE_SAMPLES : HTTP_SAMPLES;
-    return pool[Math.floor(Math.random() * pool.length)];
+    return pickSample(annotation.params?.mockSamples) ?? 'https://example.com';
   }
 
-  validateParams(annotation: FormatAnnotation<FormatParams_Url>): void {
-    const params = annotation.params ?? {};
-    if (params.maxLength !== undefined && params.maxLength > 2048) {
-      throw new Error('URL maxLength cannot be greater than 2048');
-    }
-    if (params.minLength !== undefined && params.minLength < 5) {
-      throw new Error('URL minLength cannot be less than 5');
-    }
-  }
+  validateParams(): void {}
 }
 
 registerFormatter(new URLRunTypeFormat());

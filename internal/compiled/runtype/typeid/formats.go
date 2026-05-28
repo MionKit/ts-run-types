@@ -231,6 +231,17 @@ func literalValueFromType(typeChecker *checker.Checker, tsType *checker.Type) an
 	case flags&checker.TypeFlagsBigIntLiteral != 0:
 		return typeChecker.TypeToString(tsType)
 	case flags&checker.TypeFlagsObject != 0:
+		// Tuple literal (e.g. mockSamples: ['a','b','c']) → []any of the
+		// element values. Checked before the object-recursion branch since
+		// a tuple is also flagged TypeFlagsObject.
+		if checker.IsTupleType(tsType) {
+			elements := typeChecker.GetTypeArguments(tsType)
+			out := make([]any, 0, len(elements))
+			for _, element := range elements {
+				out = append(out, literalValueFromType(typeChecker, element))
+			}
+			return out
+		}
 		// Nested object literal — recurse. Returns nil for empty objects so the
 		// canonicalised key stays compact (`k=null` rather than `k={}`).
 		return literalParamsFromType(typeChecker, tsType)

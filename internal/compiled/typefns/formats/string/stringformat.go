@@ -60,6 +60,21 @@ func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation
 	if len(params) == 0 {
 		return ""
 	}
+	conditions := lengthConditions(params, vλl)
+	// A `pattern` param adds a regex test (and triggers build-time
+	// mockSample validation). Backs FormatAlpha / FormatNumeric and any
+	// user FormatString carrying a pattern.
+	if source, flags, ok := recoverPattern(params); ok {
+		validateSamples(ctx, source, flags, recoverSamples(params))
+		conditions = append(conditions, emitPatternTest(ctx, source, flags, vλl))
+	}
+	return strings.Join(conditions, " && ")
+}
+
+// lengthConditions returns the JS boolean expressions for whichever of
+// maxLength / minLength / length are set. Shared by the stringFormat
+// emitter and the named-pattern (domain/email/url) emitters.
+func lengthConditions(params map[string]any, vλl string) []string {
 	var conditions []string
 	if value, ok := readNumberParam(params, "maxLength"); ok {
 		conditions = append(conditions, vλl+".length <= "+formatNumber(value))
@@ -70,11 +85,26 @@ func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation
 	if value, ok := readNumberParam(params, "length"); ok {
 		conditions = append(conditions, vλl+".length === "+formatNumber(value))
 	}
-	if class, ok := readStringParam(params, "charClass"); ok {
-		alias := pureFnAlias(ctx, "isCharClass")
-		conditions = append(conditions, alias+"("+vλl+",'"+class+"')")
+	return conditions
+}
+
+// lengthErrorStatements returns the `if (fail) er.push(...)` statements
+// for whichever length bounds are set.
+func lengthErrorStatements(params map[string]any, vλl, pathExpr, errorsArr string) []string {
+	var statements []string
+	if value, ok := readNumberParam(params, "maxLength"); ok {
+		statements = append(statements,
+			"if ("+vλl+".length > "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "maxLength", formatNumber(value)))
 	}
-	return strings.Join(conditions, " && ")
+	if value, ok := readNumberParam(params, "minLength"); ok {
+		statements = append(statements,
+			"if ("+vλl+".length < "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "minLength", formatNumber(value)))
+	}
+	if value, ok := readNumberParam(params, "length"); ok {
+		statements = append(statements,
+			"if ("+vλl+".length !== "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "length", formatNumber(value)))
+	}
+	return statements
 }
 
 // EmitTypeErrorsCheck emits one `if (failed) er.push(…)` statement
@@ -94,42 +124,13 @@ func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnota
 	if len(params) == 0 {
 		return ""
 	}
-	var statements []string
-	if value, ok := readNumberParam(params, "maxLength"); ok {
+	statements := lengthErrorStatements(params, vλl, pathExpr, errorsArr)
+	if source, flags, ok := recoverPattern(params); ok {
+		test := emitPatternTest(ctx, source, flags, vλl)
 		statements = append(statements,
-			"if ("+vλl+".length > "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "maxLength", formatNumber(value)),
-		)
-	}
-	if value, ok := readNumberParam(params, "minLength"); ok {
-		statements = append(statements,
-			"if ("+vλl+".length < "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "minLength", formatNumber(value)),
-		)
-	}
-	if value, ok := readNumberParam(params, "length"); ok {
-		statements = append(statements,
-			"if ("+vλl+".length !== "+formatNumber(value)+") "+pushFormatError(errorsArr, pathExpr, "length", formatNumber(value)),
-		)
-	}
-	if class, ok := readStringParam(params, "charClass"); ok {
-		alias := pureFnAlias(ctx, "isCharClass")
-		statements = append(statements,
-			"if (!("+alias+"("+vλl+",'"+class+"'))) "+pushFormatError(errorsArr, pathExpr, "charClass", "'"+class+"'"),
-		)
+			"if (!("+test+")) "+pushFormatError(errorsArr, pathExpr, "pattern", "'pattern'"))
 	}
 	return strings.Join(statements, ";")
-}
-
-// readStringParam extracts a string param value. Returns ("", false)
-// when the key is absent or non-string.
-func readStringParam(params map[string]any, key string) (string, bool) {
-	raw, ok := params[key]
-	if !ok {
-		return "", false
-	}
-	if value, isString := raw.(string); isString && value != "" {
-		return value, true
-	}
-	return "", false
 }
 
 // readNumberParam extracts a numeric param value. Returns (0, false)

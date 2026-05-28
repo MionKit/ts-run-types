@@ -63,14 +63,14 @@ describe('FormatLowercase — transformer-only (validates as plain string)', () 
 });
 
 describe('FormatAlpha — typeErrors diagnostics', () => {
-  it('non-alpha pushes a charClass TypeFormatError', () => {
+  it('non-alpha pushes a pattern TypeFormatError', () => {
     const collect = createGetTypeErrors<FormatAlpha>();
     const errors = collect('abc123');
     const formatErr = errors.find((entry) => 'name' in entry && entry.name === 'stringFormat') as
       | {name: string; val: unknown}
       | undefined;
     expect(formatErr).toBeDefined();
-    expect(formatErr?.val).toBe('alpha');
+    expect(formatErr?.val).toBe('pattern');
   });
 
   it('valid alpha yields no errors', () => {

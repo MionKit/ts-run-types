@@ -17,12 +17,19 @@ import {
 } from '@mionjs/ts-go-run-types';
 import type {FormatAnnotation} from '@mionjs/ts-go-run-types';
 
+// PatternParam — the regex a string format validates against. Two
+// authoring shapes, both recovered to the same source+flags on the Go
+// side:
+//   - {source, flags}      string literals — .d.ts-safe; what the
+//                          built-in formats (domain/email/url/alpha…)
+//                          use, since a published .d.ts can't carry a
+//                          regex VALUE.
+//   - {val: typeof REGEX}  a user's own regex const — recovered from
+//                          the declaration AST (works when the const's
+//                          source is visible to the compiler).
+export type PatternParam = {source: string; flags?: string} | {val: RegExp};
+
 // StringParams — the wire-serialisable params shape for FormatString.
-// Phase 2 ships the length-bound parameters; the JSON-incompatible
-// fields (pattern: RegExp, replace: {searchValue: RegExp, ...}) and
-// the array-literal-typed fields (allowedValues / disallowedValues)
-// land in subsequent phases. Documented per-field so future
-// additions slot in cleanly.
 export interface StringParams {
   // maxLength — fail when value.length > maxLength.
   maxLength?: number;
@@ -31,11 +38,14 @@ export interface StringParams {
   // length — fail when value.length !== length. Mutually exclusive
   // with maxLength / minLength (enforced by validateParams).
   length?: number;
-  // charClass — restrict to a unicode character class. Backs the
-  // FormatAlpha / FormatAlphaNumeric / FormatNumeric default formats
-  // (see defaultStringFormats.runtype.ts). Validated by the
-  // cpf_isCharClass pure fn.
-  charClass?: 'alpha' | 'alphanumeric' | 'numeric';
+  // pattern — a regex the value must match. Backs FormatAlpha /
+  // FormatNumeric and any user FormatString carrying a pattern.
+  pattern?: PatternParam;
+  // mockSamples — canonical valid values for the mock generator (a
+  // regex can't be reversed into a value). REQUIRED whenever `pattern`
+  // is set; each sample is validated against the pattern at build time
+  // (diagnostic FMT001 on mismatch).
+  mockSamples?: readonly string[];
   // Transformer flags — applied only by a `format` pass, NOT by
   // isType / typeErrors validation. Carried here so the
   // FormatLowercase / FormatUppercase / FormatCapitalize aliases are
@@ -68,14 +78,15 @@ export class StringRunTypeFormat extends BaseRunTypeFormat<StringParams> {
   readonly name = StringRunTypeFormat.id;
   readonly kind = RunTypeKind.string;
 
-  // _mock returns a random string of the bounded length. The
-  // emit-side validator never observes _mock output (it runs at
-  // build time); _mock only matters for `createMockType`, used in
-  // tests and tooling.
+  // _mock draws from mockSamples when present (the only safe source
+  // for a pattern-constrained format — a regex can't be reversed),
+  // else generates a random string of the bounded length. Runs only
+  // under createMockType, never during validation.
   _mock(annotation: FormatAnnotation<StringParams>): string {
     const params = annotation.params ?? {};
-    const length = pickMockLength(params);
-    return randomString(length);
+    const sample = pickSample(params.mockSamples);
+    if (sample !== undefined) return sample;
+    return randomString(pickMockLength(params));
   }
 
   // validateParams asserts the cross-param invariants mion's
@@ -97,6 +108,13 @@ export class StringRunTypeFormat extends BaseRunTypeFormat<StringParams> {
       throw new Error('StringFormat: `maxLength` cannot be less than `minLength`');
     }
   }
+}
+
+// pickSample returns a random entry from a non-empty samples list, or
+// undefined when there are none. Shared by every sample-backed format.
+export function pickSample(samples: readonly string[] | undefined): string | undefined {
+  if (!samples || samples.length === 0) return undefined;
+  return samples[Math.floor(Math.random() * samples.length)];
 }
 
 function pickMockLength(params: StringParams): number {
