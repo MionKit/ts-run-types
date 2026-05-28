@@ -70,6 +70,18 @@ func nestedFormat(params map[string]any, key, fallback string) string {
 	return fallback
 }
 
+// ValidateParams checks the nested date/time `format` params resolve to
+// supported layouts (dateTimeParts returns ok=false otherwise).
+func (dateTimeEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	if _, _, _, ok := dateTimeParts(annotation.Params); !ok {
+		return []string{"FormatStringDateTime: unknown date or time `format`"}
+	}
+	return nil
+}
+
 func (dateTimeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""

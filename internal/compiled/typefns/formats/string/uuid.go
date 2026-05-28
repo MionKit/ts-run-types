@@ -70,6 +70,22 @@ func (uuidEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vÎ
 		formatErrCall(ctx, pathExpr, errorsArr, "string", "uuid", "version", strconv.Quote(version))
 }
 
+// ValidateParams ports mion's UUID validateParams: the version must be
+// '4' or '7' when present.
+func (uuidEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	if _, present := annotation.Params["version"]; !present {
+		return nil
+	}
+	version, ok := readVersion(annotation.Params)
+	if !ok || (version != "4" && version != "7") {
+		return []string{"FormatUUID: `version` must be '4' or '7'"}
+	}
+	return nil
+}
+
 // readVersion accepts a stringified or numeric version param and
 // returns its string form. UUIDs ship with '4' / '7' but we keep the
 // readers loose so future version additions don't require a Go

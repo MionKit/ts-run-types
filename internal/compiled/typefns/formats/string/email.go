@@ -114,3 +114,24 @@ func emailErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExpr
 	b.WriteString("}")
 	return b.String()
 }
+
+// ValidateParams ports mion's EmailRunTypeFormat.validateParams
+// (email.runtype.ts:152-187): pattern is mutually exclusive with the
+// localPart/domain decomposition, and maxLength stays in range.
+func (emailEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	params := annotation.Params
+	var errs []string
+	_, hasLocalPart := params["localPart"].(map[string]any)
+	_, hasDomain := params["domain"].(map[string]any)
+	_, hasPattern := params["pattern"]
+	if hasPattern && (hasLocalPart || hasDomain) {
+		errs = append(errs, "FormatEmail: cannot combine `pattern` with `localPart`/`domain`")
+	}
+	if value, ok := readNumberParam(params, "maxLength"); ok && value > 254 {
+		errs = append(errs, "FormatEmail: `maxLength` cannot be greater than 254")
+	}
+	return errs
+}
