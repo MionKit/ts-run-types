@@ -15,9 +15,11 @@
 // formatRegistry at module load. Subsequent phases append to this
 // block.
 import './string/stringFormat.runtype.ts';
+import './string/uuid.runtype.ts';
 
 // Type aliases — public consumer-facing surface. Concrete classes
 // (StringRunTypeFormat, ...) intentionally NOT re-exported: users
 // hold the format types, never construct the runtype-format
 // instances themselves.
 export type {FormatString, StringParams} from './string/stringFormat.runtype.ts';
+export type {FormatUUIDv4, FormatUUIDv7, FormatParams_UUID} from './string/uuid.runtype.ts';

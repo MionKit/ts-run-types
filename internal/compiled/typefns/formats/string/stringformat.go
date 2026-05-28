@@ -52,7 +52,7 @@ func (stringFormatEmitter) Kind() protocol.ReflectionKind {
 // keeps its base-kind check as the only validator. Order matches
 // mion's emitIsType conditional list so future maintainers can
 // cross-reference without confusion.
-func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string) string {
+func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -82,7 +82,7 @@ func (stringFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation
 // Matches mion's emitIsTypeErrors output (modulo the wrapper-shape
 // param unwrap) so the JS-side runtime sees the same diagnostics
 // regardless of which compiler produced the validator.
-func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string) string {
+func (stringFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
