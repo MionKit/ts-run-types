@@ -20,74 +20,8 @@
 // labels keyed off the case name, not the type signature.
 
 import {afterEach, describe, expect, it} from 'vitest';
-import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.ts';
-
-function assertIsType(c: ValidationCase): void {
-  if (!c.isType) throw new Error(`case ${c.title}: missing isType thunk`);
-
-  // factoryThrows — the Go pipeline rendered the runtype's factory as
-  // alwaysThrow (root-unsupported kinds like `symbol`). Every variant
-  // throws on invocation; nothing further to validate.
-  if (c.factoryThrows) {
-    expect(() => c.isType!(), `${c.title} [static]: factory must throw`).toThrow();
-    if (c.isTypeReflect) expect(() => c.isTypeReflect(), `${c.title} [reflect]: factory must throw`).toThrow();
-    if (c.deserializeIsType)
-      expect(() => c.deserializeIsType!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
-    if (c.deserializeIsTypeReflect)
-      expect(() => c.deserializeIsTypeReflect!(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
-    return;
-  }
-
-  const {valid, invalid} = c.getSamples();
-
-  // Static form: createIsType<T>().
-  const isTypeStatic = c.isType();
-  valid.forEach((v, i) => {
-    expect(isTypeStatic(v), `${c.title} [static]: valid[${i}] should pass`).toBe(true);
-  });
-  invalid.forEach((v, i) => {
-    expect(isTypeStatic(v), `${c.title} [static]: invalid[${i}] should fail`).toBe(false);
-  });
-
-  // Reflect form: createIsType(value). Optional — cases that omit
-  // `isTypeReflect` (typically because of a documented divergence with
-  // the static form) skip the second pass.
-  if (c.isTypeReflect) {
-    const isTypeReflect = c.isTypeReflect();
-    valid.forEach((v, i) => {
-      expect(isTypeReflect(v), `${c.title} [reflect]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(isTypeReflect(v), `${c.title} [reflect]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
-
-  // Deserialize-static form: deserializeIsType<T>() rebuilds the
-  // validator from the serialized RTCompiledFnData.code body via
-  // `new Function('utl', code)(rtUtils)` — verifies that the
-  // over-the-wire round-trip produces an equivalent validator.
-  if (c.deserializeIsType) {
-    const deserializedStatic = c.deserializeIsType();
-    valid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
-
-  // Deserialize-reflect form: same as above but T inferred from a
-  // runtime value's declared type.
-  if (c.deserializeIsTypeReflect) {
-    const deserializedReflect = c.deserializeIsTypeReflect();
-    valid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
-}
+import {VALIDATION_SUITE} from '../suites/validation-suite.ts';
+import {assertIsType} from '../util/validationAsserts.ts';
 
 describe('isType / ATOMIC', () => {
   let ranTests = 0;

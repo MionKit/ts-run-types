@@ -1,7 +1,8 @@
 // TypeFormat is the brand marker for runtype-format types
 // (FormatString, FormatUUIDv4, FormatEmail, …). Concrete format types
-// live in `@mionjs/ts-go-type-formats`; this module just provides the
-// alias and the runtime registry plumbing they import.
+// live under `src/formats/` (the `@mionjs/ts-go-run-types/formats`
+// subpath); this module just provides the alias and the runtime registry
+// plumbing they import.
 //
 // The shape mirrors mion's `TypeFormat<Base, Name, Params, BrandName>`
 // (packages/run-types/src/lib/formats.runtype.ts) but uses a plain

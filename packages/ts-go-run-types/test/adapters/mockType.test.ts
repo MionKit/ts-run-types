@@ -20,71 +20,8 @@
 // remaining describe blocks as the walker grows.
 
 import {afterEach, describe, expect, it} from 'vitest';
-import {VALIDATION_SUITE, type ValidationCase} from '../suites/validation-suite.ts';
-
-/** Number of values to draw per case. Larger = better coverage; smaller
- *  = faster CI. 20 is enough to surface most random-pool drift bugs
- *  without bloating test runtimes. **/
-const MOCK_ITERATIONS = 20;
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? `${v}n` : typeof v === 'symbol' ? v.toString() : v));
-  } catch {
-    return String(value);
-  }
-}
-
-function assertMockType(c: ValidationCase): void {
-  if (!c.mockType) throw new Error(`case ${c.title}: missing mockType thunk`);
-
-  // factoryThrows — the isType / getTypeErrors factories are
-  // alwaysThrow for this kind (root-unsupported), but the mock walker
-  // doesn't go through the RT cache. It still produces a value (a
-  // mocked symbol, function, etc.); we just can't isType-check it
-  // since the paired validator throws on construction. Run the mock
-  // fn so we still verify no error escapes the generator, then bail.
-  const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
-
-  if (expectMode === 'throw') {
-    const mockFn = c.mockType();
-    expect(() => mockFn(), `${c.title} [static]: mock fn should throw`).toThrow();
-    if (c.mockTypeReflect) {
-      const mockFnReflect = c.mockTypeReflect();
-      expect(() => mockFnReflect(), `${c.title} [reflect]: mock fn should throw`).toThrow();
-    }
-    return;
-  }
-
-  if (expectMode !== 'skip' && !c.isType) {
-    throw new Error(`case ${c.title}: mockType needs paired isType thunk to validate`);
-  }
-
-  const runPass = (mockFn: () => unknown, label: string): void => {
-    // expectMode === 'skip' means we exercise the mock generator but
-    // can't validate output — either because the kind has no isType
-    // semantic (functions) or because the paired isType factory is
-    // alwaysThrow (root symbol). Either way, skip the isType call so
-    // it doesn't blow up the test.
-    if (expectMode === 'skip') {
-      for (let i = 0; i < MOCK_ITERATIONS; i++) mockFn();
-      return;
-    }
-    const isValid = c.isType!();
-    for (let i = 0; i < MOCK_ITERATIONS; i++) {
-      const generated = mockFn();
-      const ok = isValid(generated);
-      if (!ok) {
-        throw new Error(
-          `${c.title} [${label}]: iteration ${i} — generated value did not pass isType. value=${safeStringify(generated)}`
-        );
-      }
-    }
-  };
-
-  runPass(c.mockType(), 'static');
-  if (c.mockTypeReflect) runPass(c.mockTypeReflect(), 'reflect');
-}
+import {VALIDATION_SUITE} from '../suites/validation-suite.ts';
+import {assertMockType} from '../util/validationAsserts.ts';
 
 describe('mockType / ATOMIC', () => {
   let ranTests = 0;

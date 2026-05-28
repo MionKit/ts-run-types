@@ -13,7 +13,7 @@ import (
 )
 
 // stringFormatEmitter implements the format with name "stringFormat" —
-// FormatString<P> in `@mionjs/ts-go-type-formats`. Mirrors mion's
+// FormatString<P> in `@mionjs/ts-go-run-types/formats`. Mirrors mion's
 // StringRunTypeFormat (packages/type-formats/src/string/stringFormat.runtype.ts)
 // but extracts literal params from the wire-format FormatAnnotation
 // instead of mion's deepkit-decoded `{val, mockSamples, …}` wrapper

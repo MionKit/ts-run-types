@@ -5,8 +5,9 @@
 // convention). The value-transform (lowercase/trim) is applied by the
 // mock walker AFTER this returns, so these produce the base valid value.
 
-import {registerMockingFunction, RunTypeKind} from '@mionjs/ts-go-run-types';
-import type {FormatAnnotation} from '@mionjs/ts-go-run-types';
+import {registerMockingFunction} from './mockRegistry.ts';
+import {RunTypeKind} from '../runTypeKind.ts';
+import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import type {
   DateFmt,
   FormatParams_Date,
@@ -19,7 +20,7 @@ import type {
   Samples,
   StringParams,
   TimeFmt,
-} from './stringFormats.ts';
+} from '../formats/string/stringFormats.ts';
 
 // mockStringFormat dispatches on the format name. Returns undefined for
 // an unrecognised name so the mock walker falls back to the kind-default
@@ -59,7 +60,7 @@ function mockStringParams(params: StringParams): string {
   const sample = pickSample(
     params.mockSamples ??
       (params.pattern as {mockSamples?: readonly string[]} | undefined)?.mockSamples ??
-      toSampleList(params.disallowedValues?.mockSamples),
+      toSampleList(params.disallowedValues?.mockSamples)
   );
   if (sample !== undefined) return sample;
   const charSet = params.allowedChars?.val ?? asCharString(params.disallowedChars?.mockSamples);
@@ -131,12 +132,16 @@ function randomUUIDv4(): string {
 }
 
 function randomUUIDv7(): string {
-  const timeHex = Date.now().toString(16).padStart(12, '0');
-  let tail = '';
-  for (let i = 0; i < 16; i++) tail += Math.floor(Math.random() * 16).toString(16);
-  const hex = (timeHex + '7' + tail).slice(0, 32);
-  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
-  const full = hex.slice(0, 16) + variant + hex.slice(17);
+  // 32 hex nibbles: 48-bit ms timestamp (12) + version '7' (1) +
+  // rand_a (3) + variant nibble (1) + rand_b (15).
+  const timeHex = Date.now().toString(16).padStart(12, '0').slice(-12);
+  const randHex = (count: number): string => {
+    let out = '';
+    for (let i = 0; i < count; i++) out += Math.floor(Math.random() * 16).toString(16);
+    return out;
+  };
+  const variant = ((Math.floor(Math.random() * 16) & 0x3) | 0x8).toString(16);
+  const full = timeHex + '7' + randHex(3) + variant + randHex(15);
   return `${full.slice(0, 8)}-${full.slice(8, 12)}-${full.slice(12, 16)}-${full.slice(16, 20)}-${full.slice(20, 32)}`;
 }
 

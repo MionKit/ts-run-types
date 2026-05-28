@@ -8,8 +8,8 @@
 // import keeps each brand alias's reflection metadata reachable for tsgo
 // (mion documents the same constraint).
 
-import {TypeFormat} from '@mionjs/ts-go-run-types';
-import type {FormatPattern} from '@mionjs/ts-go-run-types';
+import {TypeFormat} from '../../runtypes/typeFormat.ts';
+import type {FormatPattern} from '../../runtypes/formatPattern.ts';
 // Built-in regex patterns — value import so the format types below can
 // reference them by `typeof`. The Go scanner recovers {source, flags,
 // mockSamples} from each const's literal type. Defined + sample-validated
@@ -117,14 +117,24 @@ export type FormatString<P extends StringParams = {}, BrandName extends string =
 // Alpha/AlphaNumeric/Numeric reference the registered char-class patterns
 // by `typeof` (see ./string-patterns.ts).
 /* eslint-disable @typescript-eslint/no-empty-object-type */
-export type FormatAlpha<P extends StringParams = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
+export type FormatAlpha<P extends StringParams = {}> = TypeFormat<
+  string,
+  'stringFormat',
+  P & {pattern: typeof ALPHA_PATTERN},
+  never
+>;
 export type FormatAlphaNumeric<P extends StringParams = {}> = TypeFormat<
   string,
   'stringFormat',
   P & {pattern: typeof ALPHANUMERIC_PATTERN},
   never
 >;
-export type FormatNumeric<P extends StringParams = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof NUMERIC_PATTERN}, never>;
+export type FormatNumeric<P extends StringParams = {}> = TypeFormat<
+  string,
+  'stringFormat',
+  P & {pattern: typeof NUMERIC_PATTERN},
+  never
+>;
 export type FormatLowercase<P extends StringParams = {}> = FormatString<P & {lowercase: true}>;
 export type FormatUppercase<P extends StringParams = {}> = FormatString<P & {uppercase: true}>;
 export type FormatCapitalize<P extends StringParams = {}> = FormatString<P & {capitalize: true}>;
@@ -145,25 +155,11 @@ export interface FormatParams_Date {
   format: DateFmt;
 }
 export type DEFAULT_DATE_PARAMS = {format: 'ISO'};
-export type FormatStringDate<P extends Partial<FormatParams_Date> = DEFAULT_DATE_PARAMS> = TypeFormat<
-  string,
-  'date',
-  P,
-  'date'
->;
+export type FormatStringDate<P extends Partial<FormatParams_Date> = DEFAULT_DATE_PARAMS> = TypeFormat<string, 'date', P, 'date'>;
 
 // ─────────────────────────────── Time ───────────────────────────────
 
-export type TimeFmt =
-  | 'ISO'
-  | 'HH:mm:ss[.mmm]TZ'
-  | 'HH:mm:ss[.mmm]'
-  | 'HH:mm:ss'
-  | 'HH:mm'
-  | 'mm:ss'
-  | 'HH'
-  | 'mm'
-  | 'ss';
+export type TimeFmt = 'ISO' | 'HH:mm:ss[.mmm]TZ' | 'HH:mm:ss[.mmm]' | 'HH:mm:ss' | 'HH:mm' | 'mm:ss' | 'HH' | 'mm' | 'ss';
 export interface FormatParams_Time {
   format: TimeFmt;
 }
@@ -238,12 +234,7 @@ export interface FormatParams_Domain {
   tld?: DomainPartParams;
 }
 
-export type FormatDomain = TypeFormat<
-  string,
-  'domain',
-  {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5},
-  'domain'
->;
+export type FormatDomain = TypeFormat<string, 'domain', {pattern: typeof DOMAIN_PATTERN; maxLength: 253; minLength: 5}, 'domain'>;
 export type FormatDomainUnicode = TypeFormat<
   string,
   'domain',
@@ -281,12 +272,7 @@ export interface FormatParams_Email {
   domain?: FormatParams_Domain;
 }
 
-export type FormatEmail = TypeFormat<
-  string,
-  'email',
-  {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7},
-  'email'
->;
+export type FormatEmail = TypeFormat<string, 'email', {pattern: typeof EMAIL_PATTERN; maxLength: 254; minLength: 7}, 'email'>;
 export type FormatEmailPunycode = TypeFormat<
   string,
   'email',
