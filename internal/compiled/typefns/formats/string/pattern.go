@@ -39,15 +39,21 @@ func recoverPattern(params map[string]any) (source, flags string, ok bool) {
 	return "", "", false
 }
 
-// recoverSamples extracts the mockSamples param as a list of strings.
-// Accepts both the array form (`['a','b']` → []any) and the single
-// allowed-chars string form (`'abc…'`), the latter returned as a
-// one-element slice. Non-string entries are skipped.
+// recoverSamples extracts the mockSamples as a list of strings. Looks
+// inside the pattern object first (the FormatPattern form, where samples
+// live with the regex they validate), then falls back to a top-level
+// mockSamples (the built-in string-source form). Accepts both the array
+// form and a single allowed-chars string.
 func recoverSamples(params map[string]any) []string {
-	raw, present := params["mockSamples"]
-	if !present {
-		return nil
+	if pattern, ok := params["pattern"].(map[string]any); ok {
+		if samples := samplesFromValue(pattern["mockSamples"]); samples != nil {
+			return samples
+		}
 	}
+	return samplesFromValue(params["mockSamples"])
+}
+
+func samplesFromValue(raw any) []string {
 	switch typed := raw.(type) {
 	case []any:
 		out := make([]string, 0, len(typed))
