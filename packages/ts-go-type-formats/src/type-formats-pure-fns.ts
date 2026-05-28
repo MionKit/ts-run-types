@@ -400,3 +400,29 @@ export const cpf_isEmail = registerPureFnFactory('mionFormats', 'isEmail', funct
     return regexp.test(value);
   };
 });
+
+// ############### URL pure fns ###############
+//
+// Same AOT divergence: variant selects a baked-in regex. 'standard'
+// mirrors mion's URL_REGEXP (http/ftp/ws schemes), 'http' its
+// URL_HTTP_REGEXP, 'file' its URL_FILE_REGEXP.
+
+interface FormatParams_Url {
+  variant?: 'standard' | 'http' | 'file';
+  maxLength?: number;
+  minLength?: number;
+}
+
+export const cpf_isUrl = registerPureFnFactory('mionFormats', 'isUrl', function () {
+  const STANDARD = /^(?:https?|ftps?|wss?):\/\/[^\s/$.?#-][^\s]*$/i;
+  const HTTP = /^https?:\/\/[^\s/$.?#-][^\s]*$/i;
+  const FILE = /^file:\/\/\/?(?:[a-zA-Z]:)?[^\s/$.?#-][^\s]*$/i;
+  return function _is_url(value: string, params: FormatParams_Url): boolean {
+    if (typeof value !== 'string') return false;
+    const maxLength = params.maxLength ?? 2048;
+    const minLength = params.minLength ?? 5;
+    if (value.length > maxLength || value.length < minLength) return false;
+    const regexp = params.variant === 'http' ? HTTP : params.variant === 'file' ? FILE : STANDARD;
+    return regexp.test(value);
+  };
+});
