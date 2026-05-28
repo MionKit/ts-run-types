@@ -45,6 +45,21 @@ func timeFormatPureFn(format string) (string, bool) {
 	return "", false
 }
 
+// ValidateParams checks the `format` param names a supported time layout.
+func (timeEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	format, ok := readFormat(annotation.Params)
+	if !ok {
+		return []string{"FormatStringTime: `format` must be a string"}
+	}
+	if _, known := timeFormatPureFn(format); !known {
+		return []string{"FormatStringTime: unknown `format` " + strconv.Quote(format)}
+	}
+	return nil
+}
+
 func (timeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""

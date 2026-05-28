@@ -130,6 +130,15 @@ function rootThrow(verb: string, detail: string, suffix = ''): DiagnosticEntry {
 }
 
 export const DIAGNOSTIC_CATALOG: Record<string, DiagnosticEntry> = {
+  // ────────────────────── Format family (FMT) ──────────────────────
+
+  FMT001: {
+    headline: 'TypeFormat mockSample "{0}" does not match its pattern /{1}/ — fix the sample or the pattern.',
+  },
+  FMT002: {
+    headline: 'Invalid type-format params — {0}',
+  },
+
   // ────────────────────── Marker family (MKR) ──────────────────────
 
   MKR001: {

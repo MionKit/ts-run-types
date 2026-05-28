@@ -291,6 +291,66 @@ func boolParam(params map[string]any, key string) bool {
 	return value
 }
 
+// ValidateParams ports mion's StringRunTypeFormat.validateParams
+// (stringFormat.runtype.ts:167-237) to the build-time AOT path: length
+// mutual-exclusivity, bound ordering, value-set caps, single-complex-param,
+// and the disallowed* mockSamples requirement. Returns one message per
+// violation (surfaced as CodeFMTInvalidParams).
+func (stringFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	params := annotation.Params
+	var errs []string
+	_, hasLength := readNumberParam(params, "length")
+	maxLen, hasMax := readNumberParam(params, "maxLength")
+	minLen, hasMin := readNumberParam(params, "minLength")
+	if hasLength && (hasMax || hasMin) {
+		errs = append(errs, "StringFormat: `length` cannot be combined with `maxLength` or `minLength`")
+	}
+	if hasMax && hasMin && maxLen < minLen {
+		errs = append(errs, "StringFormat: `maxLength` cannot be less than `minLength`")
+	}
+	if vals, _, ok := readValuesParam(params, "allowedValues"); ok && len(vals) > 100 {
+		errs = append(errs, "StringFormat: `allowedValues` cannot have more than 100 values")
+	}
+	if vals, _, ok := readValuesParam(params, "disallowedValues"); ok && len(vals) > 100 {
+		errs = append(errs, "StringFormat: `disallowedValues` cannot have more than 100 values")
+	}
+	complexCount := 0
+	for _, key := range []string{"pattern", "allowedChars", "disallowedChars", "allowedValues", "disallowedValues"} {
+		if _, present := params[key]; present {
+			complexCount++
+		}
+	}
+	if complexCount > 1 {
+		errs = append(errs, "StringFormat: only one of [pattern, allowedChars, disallowedChars, allowedValues, disallowedValues] can be used at once")
+	}
+	if _, present := params["disallowedChars"]; present && !paramHasMockSamples(params, "disallowedChars") {
+		errs = append(errs, "StringFormat: `disallowedChars` requires `mockSamples`")
+	}
+	if _, present := params["disallowedValues"]; present && !paramHasMockSamples(params, "disallowedValues") {
+		errs = append(errs, "StringFormat: `disallowedValues` requires `mockSamples`")
+	}
+	return errs
+}
+
+// paramHasMockSamples reports whether a complex param object carries a
+// non-empty `mockSamples` (a char-set string or an array of samples).
+func paramHasMockSamples(params map[string]any, key string) bool {
+	obj, ok := params[key].(map[string]any)
+	if !ok {
+		return false
+	}
+	switch samples := obj["mockSamples"].(type) {
+	case string:
+		return samples != ""
+	case []any:
+		return len(samples) > 0
+	}
+	return false
+}
+
 // readNumberParam extracts a numeric param value. Returns (0, false)
 // when the key is absent or carries a non-numeric value. Accepts
 // float64 (the canonical JSON-decoded representation), int variants,

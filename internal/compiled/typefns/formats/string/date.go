@@ -57,6 +57,21 @@ func readFormat(params map[string]any) (string, bool) {
 	return "", false
 }
 
+// ValidateParams checks the `format` param names a supported date layout.
+func (dateEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	format, ok := readFormat(annotation.Params)
+	if !ok {
+		return []string{"FormatStringDate: `format` must be a string"}
+	}
+	if _, known := dateFormatPureFn(format); !known {
+		return []string{"FormatStringDate: unknown `format` " + strconv.Quote(format)}
+	}
+	return nil
+}
+
 func (dateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
