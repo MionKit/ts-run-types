@@ -120,10 +120,22 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       §7 = consolidated cross-cutting backlog (themes A wire-compat / B test-coverage / C latent-opt / D by-design).
 
 === AUDIT COMPLETE: all 10 items + Phase-0 doc de-staling done, verified, committed & pushed. ===
-Headline cross-cutting findings (for final summary): A) wire-compat divergences from mion — mapValue/mapVal (items 03+04),
-flat-union [-1,merged] layout (05+06), object 'objectLiteral'/'object', Set segment, checkNonRTProps rename; B) test gaps —
-29 formatGetTypeErrors + 42 formatMockType it.todo, no JS reflection-shape suite; C) latent opts — IsCircular/Inlined/
-Description never populated, strictTypes/noLiterals; D) by-design — live-JS drops, Promise-thenable, allParamsOptional/paramsSlice.
+
+=== USER REVIEW DONE → docs/audit/ACTION-ITEMS.md (tasks T1-T7 + T1b/T6b, awaiting approval). ===
+Confirmed BY-DESIGN (closed): isType/getTypeErrors data-only refactor (Promise-thenable, symbol/fn/nonSer drop+throw);
+union flattening [-1,merged] is an IMPROVEMENT (serialization-only; isType checks union members individually);
+strictTypes not needed (was union-only); error-segment renames OK (just document); description/default-literal/
+infer/typeParameter omissions; allParamsOptional/paramsSlice unported.
+ACTIONS for approval: T1 populate IsCircular + inline-unless-circular (T1b drop dead Inlined field);
+T2 generic decorators/brand metadata (subsumes number Brand) — needs syntax+semantics decision;
+T3 array-elem non-ser → throw (consistency, confirm); T4 Set error-path {key,index} info parity
+(cpf_safeIterableKey exists, used for Map not Set) + document segment renames; T5 drop dead isFnParams;
+T6 string-format mock+transform+activate it.todo (T6b confirm extend to number/bigint);
+T7 NEW custom class ser/deser registry by class name — needs API decisions (4 open questions).
+
+Historical cross-cutting backlog (now triaged into ACTION-ITEMS): A) wire-compat divergences — mapValue/mapVal,
+flat-union (→by-design), object expected, Set segment (→T4), checkNonRTProps; B) test gaps — 29 formatGetTypeErrors
++ 42 formatMockType it.todo (→T6/T6b); C) latent opts — IsCircular (→T1)/Inlined (→T1b)/Description; D) by-design — closed.
 
 ### Verification checklist when each lands (then commit per-item + push):
 - normalize "## 3. Per-kind / per-feature comparison" header; confirm 7 sections.
