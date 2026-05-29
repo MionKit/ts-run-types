@@ -51,13 +51,13 @@ function assertFormatGetTypeErrors(c: FormatValidationCase): void {
   });
 }
 
-describe('format getTypeErrors / STRING_FORMAT', () => {
+describe('format getTypeErrors', () => {
   let ranTests = 0;
   afterEach(() => {
     ranTests++;
   });
 
-  const cases = Object.values(FORMAT_VALIDATION_SUITE.STRING_FORMAT);
+  const cases = Object.values(FORMAT_VALIDATION_SUITE).flatMap((bucket) => Object.values(bucket));
   for (const c of cases) {
     if (c.getTypeErrors) {
       it(c.title, () => assertFormatGetTypeErrors(c));
@@ -66,7 +66,7 @@ describe('format getTypeErrors / STRING_FORMAT', () => {
     }
   }
 
-  it('all STRING_FORMAT getTypeErrors tests ran', () => {
+  it('all getTypeErrors tests ran', () => {
     expect(ranTests).toBe(cases.filter((c) => c.getTypeErrors).length);
   });
 });

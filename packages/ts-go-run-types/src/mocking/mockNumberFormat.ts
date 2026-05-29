@@ -1,0 +1,64 @@
+// Mock entry point for the number format family. Registered for
+// ReflectionKind.number via `registerMockingFunction`; the mock walker
+// calls it with the FormatAnnotation only when the runtype is branded,
+// and a `undefined` return defers to the kind-default `mockNumber`.
+// Ports mion's NumberRunTypeFormat._mock (numberFormat.runtype.ts:193-232)
+// as a pure function (the project's class→switch convention).
+import {RunTypeKind} from '../runTypeKind.ts';
+import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
+import {registerMockingFunction} from './mockRegistry.ts';
+import type {NumberParams} from '../formats/numberFormats.ts';
+
+const mockNumberFormat = (annotation: FormatAnnotation): unknown => {
+  if (annotation.name !== 'numberFormat') return undefined;
+  return mockNumberParams((annotation.params ?? {}) as NumberParams);
+};
+
+registerMockingFunction(RunTypeKind.number, mockNumberFormat);
+
+// mockNumberParams returns a number satisfying every constraint, so the
+// mock round-trips through isType. Mirrors mion's _mock exactly.
+function mockNumberParams(params: NumberParams): number {
+  let min = params.min !== undefined ? numVal(params.min) : -99999;
+  let max = params.max !== undefined ? numVal(params.max) : 99999;
+
+  // Adjust for exclusive bounds (epsilon depends on integer vs float).
+  if (params.gt !== undefined) {
+    const epsilon = params.float ? 0.01 : 1;
+    min = Math.max(min, numVal(params.gt) + epsilon);
+  }
+  if (params.lt !== undefined) {
+    const epsilon = params.float ? 0.01 : 1;
+    max = Math.min(max, numVal(params.lt) - epsilon);
+  }
+
+  let result: number;
+  if (params.integer) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    result = randomInt(min, max);
+  } else {
+    result = min + Math.random() * (max - min);
+  }
+
+  // Snap down to the largest multiple of multipleOf that is <= result.
+  if (params.multipleOf !== undefined) {
+    const multipleOf = numVal(params.multipleOf);
+    result = Math.floor(result / multipleOf) * multipleOf;
+  }
+  return result;
+}
+
+// numVal unwraps the `{val, …}` meta-object form (mion's paramVal); the
+// public NumberParams type is plain `number`, but the wire may carry a
+// meta object.
+function numVal(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (value !== null && typeof value === 'object' && 'val' in value) return numVal((value as {val: unknown}).val);
+  return Number(value);
+}
+
+// randomInt returns an inclusive random integer in [min, max].
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}

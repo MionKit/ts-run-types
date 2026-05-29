@@ -14,17 +14,17 @@ function assertFormatTransform(c: FormatTransformCase): void {
   });
 }
 
-describe('format transform / STRING_FORMAT', () => {
+describe('format transform', () => {
   let ranTests = 0;
   afterEach(() => {
     ranTests++;
   });
 
-  for (const c of Object.values(FORMAT_TRANSFORM_SUITE.STRING_FORMAT)) {
+  for (const c of Object.values(FORMAT_TRANSFORM_SUITE).flatMap((bucket) => Object.values(bucket))) {
     it(c.title, () => assertFormatTransform(c));
   }
 
-  it('all STRING_FORMAT transform tests ran', () => {
-    expect(ranTests).toBe(Object.keys(FORMAT_TRANSFORM_SUITE.STRING_FORMAT).length);
+  it('all transform tests ran', () => {
+    expect(ranTests).toBe(Object.values(FORMAT_TRANSFORM_SUITE).reduce((total, bucket) => total + Object.keys(bucket).length, 0));
   });
 });

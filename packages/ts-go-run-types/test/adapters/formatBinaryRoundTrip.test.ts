@@ -8,17 +8,19 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {FORMAT_SERIALIZATION_SUITE} from '../suites/format-serialization-suite.ts';
 import {runBinaryRoundTripCase as runCase} from '../util/serializationAsserts.ts';
 
-describe('format binary round-trip / STRING_FORMAT', () => {
+describe('format binary round-trip', () => {
   let ranTests = 0;
   afterEach(() => {
     ranTests++;
   });
 
-  for (const c of Object.values(FORMAT_SERIALIZATION_SUITE.STRING_FORMAT)) {
+  for (const c of Object.values(FORMAT_SERIALIZATION_SUITE).flatMap((bucket) => Object.values(bucket))) {
     it(c.title, () => runCase(c));
   }
 
-  it('all STRING_FORMAT binary round-trip tests ran', () => {
-    expect(ranTests).toBe(Object.keys(FORMAT_SERIALIZATION_SUITE.STRING_FORMAT).length);
+  it('all binary round-trip tests ran', () => {
+    expect(ranTests).toBe(
+      Object.values(FORMAT_SERIALIZATION_SUITE).reduce((total, bucket) => total + Object.keys(bucket).length, 0)
+    );
   });
 });
