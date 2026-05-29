@@ -89,7 +89,10 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       (suite blesses port name); object kind `expected:'objectLiteral'` vs mion `'object'` (typeerrors.go:285/640);
       Set item bare index vs mion {key,index}; 29 it.todo in formatGetTypeErrors (headline). Core te well covered
       (165 it, 0 todo); union one-error + accumulate-all semantics match. emitIsTypeErrors = FORMAT combined emit.
-- [~] 04 unknown-keys family (huk/suk/uke/uku/ukuw)→ IN FLIGHT (opus agent)
+- [x] 04 unknown-keys → docs/audit/04-unknown-keys.md ⚠️ ported-with-gaps. VERIFIED: option
+      checkNonRTProps (port) vs checkNonJitProps (mion) rename (shared.go:202 vs interface.ts:285);
+      uke Map-value path 'mapValue' vs 'mapVal' (same root as #03). By-design: known-keys sort;
+      union merged-allowlist is a correctness FIX over mion; ukuw peels [-1,merged] wrapper. 45 it, 0 todo.
 - [~] 05 JSON serialization (pj/pjs/pjsp/sj/rj)    → IN FLIGHT (opus agent)
 - [~] 06 binary serialization (tb/fb)              → IN FLIGHT (opus agent)
 - [~] 07 string type-format                        → IN FLIGHT (opus agent)
