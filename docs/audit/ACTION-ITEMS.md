@@ -1,14 +1,26 @@
 # Audit follow-up — action items (for review)
 
-> **Date:** 2026-05-29 · **Status:** proposed — awaiting your review before any code change.
+> **Date:** 2026-05-29 · being implemented on `claude/practical-lamport-lSRis` (PR #55).
 >
 > Derived from your review of the [port audit](00-overview.md) (docs/audit/01–10) plus the
 > design decisions you confirmed. Each task below is something you flagged as **needing action**.
 > Decisions you confirmed as *by-design / no action* are collected in the last section so the
 > corresponding audit findings are explicitly closed.
 >
-> Each task: **What & why · Scope (files) · Acceptance criteria · Open questions**. Nothing here is
-> implemented yet — review and tell me which to do (and answer the open questions).
+> Each task: **What & why · Scope (files) · Acceptance criteria · Open questions**.
+
+## Implementation status
+
+- [x] **T9** — stale comments + residual stale docs removed.
+- [x] **T5** — dead `isFnParams` binary abstraction dropped (binary round-trip 129/129).
+- [x] **T1 / T1b** — `IsCircular` populated + surfaced in the cache (repurposed the dead
+      `inlined` slot #13 → `isCircular`); dead `Inlined` field removed. Go + JS suites green.
+- [ ] **T4** — Set error-path `{key,index}` locator info.
+- [ ] **T3** — array-element non-serializable → throw (consistency).
+- [ ] **T2** — `decorators` → `typeMeta` rename + surface generic intersection metadata.
+- [ ] **T8** — reflection-shape JS test suite.
+- [ ] **T6** — string-format mock generators + transforms + activate `it.todo`s.
+- [ ] **T7** — custom class serializer/deserializer registry (needs your 4 API answers).
 
 ---
 

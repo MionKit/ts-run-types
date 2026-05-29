@@ -181,7 +181,7 @@ func TestKnownFieldsCovered(t *testing.T) {
 		Visibility:  intPtr(2),
 		IsSafeName:  true,
 		Position:    intPtr(7),
-		Inlined:     true,
+		IsCircular:  true,
 		Flags:       []string{"f1"},
 		Description: "D",
 		DefaultVal:  "DEF",
