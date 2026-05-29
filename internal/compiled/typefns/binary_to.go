@@ -605,18 +605,12 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 	if len(rt.Children) == 0 {
 		return RTCode{Code: "", Type: CodeS}
 	}
-	// isFnParams stays false: ts-go-run-types intentionally does NOT
-	// surface mion's SubKindParams on the protocol. Every other RT
-	// generator (isType / getTypeErrors / prepareForJson / restoreFromJson
-	// / stringifyJson / …) treats `Parameters<typeof fn>` as a plain
-	// tuple; adding the subkind for binary alone would create asymmetric
-	// dispatch across the RT family. See `docs/ROADMAP.md` →
-	// "Binary serialization — function-params router conveniences" for
-	// the full rationale and the migration path (caller-driven option
-	// rather than protocol-level subkind) if we ever surface mion's
-	// all-optional + paramsSlice behaviours.
-	isFnParams := false
-
+	// Function params are treated as a plain tuple: a member is optional
+	// iff its own `optional` flag is set, exactly like every other tuple.
+	// There is no SubKindParams on the protocol — mion's router-only
+	// all-optional / paramsSlice conveniences are intentionally not ported
+	// (see docs/ROADMAP.md → "Binary serialization — function-params router
+	// conveniences").
 	var required, optional, rest []*protocol.RunType
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
@@ -625,7 +619,7 @@ func emitTupleToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser str
 		}
 		if isRestTupleMember(resolved) {
 			rest = append(rest, child)
-		} else if isFnParams || resolved.Optional {
+		} else if resolved.Optional {
 			optional = append(optional, child)
 		} else {
 			required = append(required, child)
