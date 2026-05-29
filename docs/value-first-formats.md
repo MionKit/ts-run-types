@@ -1,17 +1,30 @@
 # Value-first format & constraint definitions
 
-> **Status: shipped for string / number / date — including inline `/regex/`.**
+> **Status: shipped for every LEAF format — including inline `/regex/`.**
 > The value-first authoring surface — `defineObject({…})` + the `ModelType<typeof
-Model>` type mapping — ships today for flat string / number / native-`Date`
-> models over the **type channel** (`createIsType<ModelType<…>>()`), via
+Model>` type mapping — ships today for flat models over the **type channel**
+> (`createIsType<ModelType<…>>()`), via
 > [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts).
+> Field discriminators cover all leaf formats: `string` / `number` / `date` /
+> `bigint` / `boolean`, plus the 6 orderable `temporal` types (`instant`,
+> `zonedDateTime`, `plainDate`, `plainTime`, `plainDateTime`, `plainYearMonth`).
 > Most of it needed **no new Go engine**: `ModelType<…>` resolves to the same
 > branded `TypeFormat` types the type-first surface already reflects. Regex
 > (`pattern: /…/`) needed one small additive Go change — recovering the literal
 > from the property declaration the type system preserves — **not** a separate
-> value-AST front-end. What's still parked: a value call form (`Model.isType(x)`)
-> and the object/array/union/named-format discriminators. See "Spike results"
-> for what the de-risking experiment found.
+> value-AST front-end.
+>
+> **Deliberate boundary** (this is what keeps it from becoming a worse
+> Zod/TypeBox): the value DSL owns **leaf formats only**. **Composition** —
+> array, union, tuple, nullable, nesting — stays in the type channel, where it
+> composes for free: `ModelType<typeof M>[]`, `ModelType<typeof A> | null`, and
+> `{x: ModelType<typeof M>}` all reflect + validate today with **no new API**. A
+> *property-level* composition DSL (`{type: 'array', of: …}`) is **not** pursued
+> — it would reinvent the TS type system as values and requires a recursive
+> `infer`, a checker-perf cost we explicitly avoid. What's still parked: a value
+> call form (`Model.isType(x)`). `PlainMonthDay` / `Duration` have no format
+> family (no ordering ⇒ no min/max), so they are outside this surface too. See
+> "Spike results" for what the de-risking experiment found.
 
 ## The question
 
