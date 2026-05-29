@@ -46,6 +46,8 @@ This mirrors mion's `getRTChildren` filter — the only "skip" in the upstream l
 | `KindSymbol`                                                                | Runtime identity not round-trippable; not comparable across realms | `XX005`                      |
 | Future kinds without an emit                                                | Walker falls through                                               | (unregistered → silent skip) |
 
+> **`KindPromise` is validation-supported — the one exception in this table.** `isType` / `getTypeErrors` (`IT` / `TE`) do **not** throw on `Promise<T>`; they validate it structurally as a thenable (`typeof v === 'object' && v !== null && typeof v.then === 'function'`) because a Promise is a real runtime value with a checkable shape (a caller who wants the resolved value uses `Awaited<P>`, which tsgo resolves to `T`). Only the **serialization** families (`PJ` / `PJS` / `PJP` / `RJ` / `SJ` / `TB` / `FB`) treat `Promise` as unsupported and throw, because the async value can't be sampled synchronously. `KindSymbol` and `KindFunction`/`KindMethod` remain unsupported for **all** families including validation.
+
 `XX` is the per-family prefix. Each RT function family has its own:
 
 - `PJ` — prepareForJson
