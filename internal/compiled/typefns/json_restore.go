@@ -176,7 +176,8 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		case protocol.SubKindDate:
 			return RTCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
 		case protocol.SubKindNone:
-			return emitObjectRestoreFromJson(rt, ctx, v)
+			structural := emitObjectRestoreFromJson(rt, ctx, v)
+			return wrapRestoreWithClassSerializer(rt, ctx, v, structural)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableRestoreFromJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:

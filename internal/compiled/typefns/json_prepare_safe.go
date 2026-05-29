@@ -149,7 +149,8 @@ func (PrepareForJsonSafeEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ 
 		case protocol.SubKindDate:
 			return RTCode{Code: v + ".toISOString()", Type: CodeE}
 		case protocol.SubKindNone:
-			return emitObjectPrepareForJsonSafe(rt, ctx, v)
+			structural := emitObjectPrepareForJsonSafe(rt, ctx, v)
+			return wrapSafeWithClassSerializer(rt, ctx, v, structural)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJsonSafe(rt, ctx, v)
 		case protocol.SubKindNonSerializable:

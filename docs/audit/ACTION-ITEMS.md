@@ -20,7 +20,9 @@
 - [x] **T2** — `decorators` → `typeMeta` (Go + JS + vite-plugin + wire tag + footer); dead number `Brand` field removed; generic `atomic & {obj}` metadata surfaced as opaque `typeMeta` (structural-id already folds it idempotently). Formats untouched.
 - [x] **T8** — reflection-shape suite (`vite-plugin-runtypes/test/reflectionShape.test.ts`, 20 tests): isCircular, typeMeta, discriminated union, Map/Set subKind+args, enum, tuple flags, class heritage, template literal, bigint/regexp literal rehydration. Also fixed the vite-plugin RunType type (inlined→isCircular, +subKind, −brand).
 - [x] **T6** — string-format mocks + transforms: **31 mock + 29 getTypeErrors STRING `it.todo`s → 0** (all activated, passing); email-lowercase + StringFormat `replace`/`replaceAll` transforms added. 60 tests activated; full suite 1367 pass / 11 todo / 0 fail. (T6b: the 11 remaining todos are NUMBER/BIGINT — awaiting your go-ahead to extend.)
-- [ ] **T7** — custom class serializer/deserializer registry. **API decisions received:** serialize↔JSON-ready data; unregistered user class → warn + plain-object fallback; JSON+binary families only; builtins not overridable. Implementing next.
+- [x] **T7** — custom class serializer/deserializer registry (`registerClassSerializer(name, {serialize, deserialize})`). Consulted by JSON (`pj`/`pjs`/`pjsp`/`rj`/`sj`) + binary (`tb`/`fb`) for plain user classes (`SubKindNone`): registered → custom serialize↔JSON-ready-data / deserialize (binary reuses the string encoder over `JSON.stringify`); unregistered → structural plain-object fallback + `CLS001` build-time Warning. isType/getTypeErrors + builtins untouched. New round-trip suite (7 tests). Full suite 1374 pass / 11 todo / 0 fail.
+
+**All planned tasks done.** Remaining optional: **T6b** (extend mock/test activation to the 11 NUMBER/BIGINT format `it.todo`s) — awaiting your go-ahead.
 
 ---
 

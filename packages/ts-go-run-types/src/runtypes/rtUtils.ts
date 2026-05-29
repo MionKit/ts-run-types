@@ -21,6 +21,8 @@ import type {
   Mutable,
 } from './types.ts';
 import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
+import {getClassSerializer as getClassSerializerImpl} from './classSerializerRegistry.ts';
+import type {ClassSerializer} from './classSerializerRegistry.ts';
 import type {CompTimeArgs} from '../markers.ts';
 
 /**
@@ -158,6 +160,13 @@ const rtUtils = {
   },
   alwaysThrowFactory(code: string, siteHint?: string): () => never {
     return alwaysThrowFactoryImpl(code, siteHint);
+  },
+  // Custom user-class (de)serializer lookup. Emitted factory bodies for
+  // plain user classes (KindClass + SubKindNone) call this; a registered
+  // handler routes (de)serialization through it, otherwise the factory
+  // uses its structural fallback. See classSerializerRegistry.ts.
+  getClassSerializer(className: string): ClassSerializer | undefined {
+    return getClassSerializerImpl(className);
   },
 };
 
