@@ -105,9 +105,14 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       formatGetTypeErrors 29 it.todo (all STRING), formatMockType 42 it.todo (31 str/6 num/5 big). Real Low gaps:
       URL domain/ip sub-validation + FormatUrlSocialMedia not ported; StringFormat replace/replaceAll + email lowercase
       transform missing; FMT002 only emitted from isType arm. isType/transform/serialization/binary adapters fully wired.
-- [~] 08 number type-format                        → IN FLIGHT (opus agent)
-- [~] 09 bigint type-format                         → IN FLIGHT (opus agent)
-- [ ] 10 forgotten functionality sweep            → docs/audit/10-forgotten-functionality.md (launch AFTER 04-09; cross-references all)
+- [x] 08 number format → docs/audit/08-number-format.md ✅ fully ported. VERIFIED: number-format BINARY
+      serialization emitters PORTED (numberformat.go:128 EmitToBinary narrowest setUint8/16/setInt8/32; spliced via
+      binaryToOverride when FormatAnnotation present, binary_to.go:141/191). JSON identity on BOTH sides (by design).
+      Test gaps: 6 mockType it.todo (NUMBER); JS binary round-trip thinner than mion defaultNumberBinary.spec.
+- [x] 09 bigint format → docs/audit/09-bigint-format.md ✅ fully ported. VERIFIED: bigint-format BINARY emitters
+      PORTED (bigintformat.go:109 setBigInt64/setBigUint64 8-byte). JSON serialization absent on BOTH (mion has none →
+      plain bigint path is correct parity). Test gaps: 5 mockType it.todo (BIGINT); no FormatBigPositive/NegativeInt test cases.
+- [ ] 10 forgotten functionality sweep            → docs/audit/10-forgotten-functionality.md (launch NOW; cross-references all)
 
 ### Verification checklist when each lands (then commit per-item + push):
 - normalize "## 3. Per-kind / per-feature comparison" header; confirm 7 sections.
