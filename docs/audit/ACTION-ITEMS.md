@@ -25,15 +25,23 @@
 
 ---
 
-## T2 — Generalise brands into a generic `decorators` metadata mechanism
+## T2 — Surface the intersection-metadata mechanism + rename `decorators` → `typeMeta`
 
-- **Source:** audit items 01 §5#9 (`Brand`) + 10 (general decorators). Your call: *"brand is the only one we might be missing — would that go into the decorators field, like a generic functionality not only brands? … branded types is a concept only to store metadata; we have type-formats already but this should be a more generic mechanism."*
-- **What & why:** today only **format** brands are recognised (`TypeFormat<…>` → `FormatAnnotation`); the generic number `Brand` field is never set, and arbitrary brand objects (metadata-only intersections like `number & Brand<'currency','USD'>`) are dropped. Implement a **general brand scanner** that lifts *any* metadata brand into `RunType.Decorators` (the field already exists, populated only from collapsed intersections today), exposed to consumers as plain data. Type-formats become a *specialisation* of this mechanism; the dedicated number `Brand` field is then redundant (fold into `decorators`).
-- **Scope:** `internal/compiled/runtype/typeid/formats.go` (generalise the brand-lift beyond the format name+params shape) or a sibling `decorators.go`; `internal/compiled/runtype/serialize.go` (populate `Decorators`); fold params into the structural id idempotently; JS exposure in `runtypes/types.ts`; deprecate/remove the unused `Brand *int` field.
-- **Acceptance:** `type Money = number & Brand<'currency', 'USD'>` surfaces `{currency:'USD'}` (or chosen shape) in `decorators`; existing format brands keep working unchanged; same brand ⇒ same structural hash (idempotent); new fixtures + tests.
-- **Open questions:**
-  1. What's the **authoring syntax** for a generic brand? Reuse the existing `Brand<Name, Meta>` alias, a new `Decorator<…>`, or comment-pragma?
-  2. Should `decorators` be **opaque metadata** (passed through untouched) or also drive validation/serialization hooks (like formats do)? I'd propose opaque-by-default, with formats remaining the validating specialisation.
+- **Source:** audit items 01 §5#9 (`Brand`) + 10 (general decorators), refined in review.
+- **Concept (confirmed):** this is deepkit's "type decorator" / branded-type pattern — a **type-level metadata intersection** (`Base & { meta }`), **not** TS `@decorator` syntax. The mechanism is **already half-built**: `intersection_collapse.go:88–104` collapses `atomic & { obj }` to the atomic kind and lifts the surviving object literal into `RunType.Decorators`. Formats are the *specialised* branded case (sentinel keys `__rtFormatName`/`__rtFormatParams` → lifted to `FormatAnnotation` instead). So this task is **surface + rename + idempotent-hash**, not build-from-scratch.
+- **What & why:**
+  1. **Rename the field `decorators` → `typeMeta`** end-to-end (Go `RunType.Decorators` → `TypeMeta`; JSON wire tag `decorators` → `typeMeta`; footer renderer; JS `RunType.decorators` → `typeMeta`) — "decorators" collides with JS `@decorator`s.
+  2. **Keep the no-marker behaviour:** any object literal surviving an `atomic & { obj }` collapse is lifted to `typeMeta` (current logic) — no brand marker required.
+  3. **Expose as plain metadata** (resolved literal object), not only as serialized `RunType` nodes, so consumers read `{ currency: 'USD' }` directly.
+  4. **Fold `typeMeta` into the structural id idempotently** so `number & { currency: 'USD' }` caches stably regardless of key order.
+  5. **Retire the dead number `Brand *int` field** — a branded number is just a `typeMeta` entry.
+- **Scope:** `internal/protocol/protocol.go` (`Decorators` → `TypeMeta`, json tag, drop `Brand`), `internal/compiled/runtype/intersection_collapse.go` (lift + comments), `internal/compiled/runtype/serialize.go`, `internal/compiled/runtype/typeid/intersection_collapse.go` (idempotent hash), `internal/compiled/runtype/module.go` (footer field name), `packages/ts-go-run-types/src/runtypes/types.ts` (`decorators` → `typeMeta`), and the audit docs referencing the `decorators` field. Formats untouched (still `FormatAnnotation`).
+- **Acceptance:** `type Money = number & { currency: 'USD' }` projects kind=`number` with `typeMeta` carrying `{ currency: 'USD' }` as plain data; existing format brands unchanged; same metadata ⇒ same hash; the field is named `typeMeta` everywhere (no `decorators`/`Brand` remnants); fixtures + tests (generic metadata + format-still-works).
+- **Resolved decisions (from review):**
+  1. **No marker** — lift *any* `atomic & { obj }` (keep current behaviour).
+  2. **Rename `decorators` → `typeMeta`** (avoid JS `@decorator` confusion).
+  3. **`typeMeta` is opaque metadata** (passed through; formats stay the validating specialisation).
+  4. **TS `@decorator` (`@serializable`/`@component`) capture is OUT OF SCOPE** for now — separate future task if ever wanted.
 
 ---
 
@@ -111,12 +119,21 @@ These were flagged by the audit but you've confirmed them as intentional; record
 - **`allParamsOptional` / `paramsSlice`** binary router conveniences stay **unported** (router-layer). T5 removes the leftover seam.
 - **Reflection-shape omissions** are deliberate: `description` omitted; `default` literal-only (no runtime capacity); `infer`/`typeParameter`/standalone `enumMember`/standalone `rest` not projected (resolved/stubbed); live-JS-value fields (`function`/`classType`/`enum`/`TypeInfer.set`) never captured. ⇒ Audit 01 §4/§5 → closed (except `IsCircular` = T1 and `Brand`→`decorators` = T2).
 
-## Optional / not explicitly requested (your call)
+## T8 — Reflection-shape JS test suite (approved)
 
-- **Reflection-shape JS test suite** (audit 01 follow-up #1): there's no dedicated JS suite asserting `runTypesCache` entry shapes (coverage is incidental via round-trips). Low value if Go projection tests are trusted — listed for completeness.
-- **Delete stale test comments** in `validation-suite.ts` (the "every case is `it.todo`" / template-literal notes that no longer apply). Cosmetic.
+- **Source:** audit item 01 follow-up #1. Your call: *"yes please add a reflection test suite."*
+- **What & why:** no dedicated JS suite asserts the emitted `runTypesCache` entry *shapes* — coverage is incidental via isType/serialization round-trips, and `runtypes.test.ts` only tests the marker helper. Add a suite that drives the cache and asserts the projected `RunType` shape for representative kinds: literal bigint/symbol/regexp footer rehydration, union `safeUnionChildren` + `unionDiscriminators`, intersection-collapse `typeMeta` (post-T2), Map/Set subKind args, class heritage (`extends`/`implements`/`arguments`), tuple-member flags (optional/rest), enum `values`/`indexType`, template-literal projection.
+- **Scope:** new shape-assertion suite following the existing `vite-plugin-runtypes/test/collections.test.ts` pattern (which already asserts emitted `RunType` fields off the materialised `virtual:runtypes-cache`), or a marker-package `test/reflectionShape.test.ts`.
+- **Acceptance:** ≥1 assertion per representative kind against the actual cache entry; suite green; fails if projection shape regresses.
+
+## T9 — Delete stale test comments + remaining stale docs (approved — doing now)
+
+- **Source:** audit items 01/02 + your call: *"yes please delete stale test comments and any stale documentation in roadmap, or architecture."*
+- **What & why:** remove stale `it.todo`/"every case is it.todo"/template-literal comments in `validation-suite.ts` (~lines 1473-1476, 6954-6956) that describe states no longer true; sweep `docs/ROADMAP.md` + `docs/ARCHITECTURE.md` for residual stale claims the Phase-0 pass missed (hard test counts like "201/201", contradicted out-of-scope lists, lingering old paths).
+- **Scope:** `packages/ts-go-run-types/test/suites/validation-suite.ts` (comments only — no behavioural change), `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`.
+- **Acceptance:** no misleading "todo/not-implemented" comments for shipped features; ROADMAP/ARCHITECTURE free of contradicted claims; suites still green (comment-only edits).
 
 ---
 
 ### Suggested order (if you approve)
-T5 (trivial cleanup) → T1 (inlining win) → T4 (Set path, infra exists) → T3 (consistency) → T6 (string-format tests/mocks) → T2 (generic decorators) → T7 (class serialization — largest, needs API decisions). T2 and T7 are the two that need your design answers before I start.
+T9 + T5 (cleanups — T9 doing now) → T1 (inlining win) → T4 (Set path, infra exists) → T3 (consistency) → T8 (reflection suite) → T6 (string-format tests/mocks) → T2 (`typeMeta` rename + surface) → T7 (class serialization — largest). **T7 is the only task still needing your design answers** (its 4 open questions); T2 is now resolved.

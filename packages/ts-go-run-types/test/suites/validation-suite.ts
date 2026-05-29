@@ -1470,11 +1470,6 @@ export const VALIDATION_SUITE = {
   // packages/run-types/src/rtCompilers/serialization-suite.ts that affects
   // isType behavior.
   //
-  // Cases whose element kind isn't yet implemented in the Go port
-  // (object literal / union / tuple / non-Date class / circular) omit
-  // the `isType` thunk; the adapter renders them as `it.todo` so the
-  // sample payloads survive intact for activation when each kind lands.
-  //
   // Adapters out of scope for this suite (each has its own test file):
   //   - mock          → mion array.spec.ts "mock" / "mock CircularArray"
   //   - hasUnknownKeys / strip / undefined / visitUnknownKeyErrors
@@ -6948,14 +6943,10 @@ export const VALIDATION_SUITE = {
   // packages/run-types/src/nodes/collection/templateLiteral.spec.ts.
   //
   // Mion's emit compiles the template-literal type into a JS RegExp at
-  // build time and calls `regex.test(v)`. Our port needs both
-  // serializer-side projection (TypeFlagsTemplateLiteral; extract
-  // literal text segments + placeholder kinds) and emit-side regex
-  // composition. Today the serializer projects template literal types
-  // as `KindUnknown` with the literal text in `typeName`, so neither
-  // half exists yet — every case is `it.todo`. Sample payloads carry
-  // over verbatim from mion so activation lands without per-case
-  // research.
+  // build time and calls `regex.test(v)`. The port mirrors this: the
+  // serializer projects `KindTemplateLiteral` (literal text segments +
+  // placeholder kinds) and `emitTemplateLiteralIsType` composes the
+  // anchored regex. All cases below are fully wired (not `it.todo`).
   TEMPLATE_LITERAL: {
     url_with_number_id: {
       title: 'Template literal URL with a number placeholder',

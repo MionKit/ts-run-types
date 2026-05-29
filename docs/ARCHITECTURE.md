@@ -194,7 +194,7 @@ The protocol's `RunType` is the canonical mion runtypes reflection-shape discrim
 
 - **Numeric `ReflectionKind`** is declared in a stable order (never=0, any=1, …, callSignature=35) so the integer values are wire-safe across releases. Sentinel `-1` is reserved for ref slots.
 - **Container shape**: `KindObjectLiteral.children` is an array of `KindPropertySignature`/`KindMethodSignature`/`KindIndexSignature`/`KindCallSignature` nodes; `KindFunction.parameters` is an array of `KindParameter` nodes; tuple elements are wrapped as `KindTupleMember`.
-- **Annotations carried**: `id`, `typeName`, `typeArguments`, `optional`, `readonly`, `abstract`, `static`, `inlined`, `flags`, `description`, `default` (literal-only), `classRef` (provenance for v0.3 lazy-import).
+- **Annotations carried**: `id`, `typeName`, `typeArguments`, `optional`, `readonly`, `abstract`, `static`, `flags`, `default` (literal-only), `classRef` (builtin provenance for lazy-import). Declared in the protocol but **not yet populated**: `inlined`, `isCircular`, `description`, number `brand` — tracked in [docs/audit/ACTION-ITEMS.md](audit/ACTION-ITEMS.md) (T1 populates `isCircular`; T2 folds brands into `typeMeta`).
 - **Knotted output**: the runtime artifact pre-resolves cycles and wires `parent` references via direct assignment, so `cache[RUNTYPES_VAR_PREFIX + id]` is a drop-in source of `RunType` objects for the user's runtypes RT — no adapter layer needed.
 
 Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
@@ -311,7 +311,7 @@ git submodule update --init --recursive
 go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 
 # Go test suite — covers atomic reflection kinds + scanFiles detection over the
-# F1–F17 fixtures:
+# fixture suite:
 go test ./internal/...
 
 # JS test suites — spawn the real Go binary and assert the full round-trip:
