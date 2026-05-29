@@ -192,6 +192,7 @@ func propertyKeyText(name *ast.Node) string {
 //   - ParenthesizedExpression `(…)` → drop outer parens (the `() => ({…})`
 //     pattern wrapping an object literal).
 //   - Plain expression body → take as-is.
+//
 // In all cases, dedent and strip leading/trailing blank lines.
 func extractBodyText(sourceText string, body *ast.Node) string {
 	raw := strings.TrimSpace(sourceText[body.Pos():body.End()])

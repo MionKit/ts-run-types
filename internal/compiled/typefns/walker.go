@@ -158,7 +158,7 @@ type Walker struct {
 	// triple for the Go-side integrity check; at emission time the
 	// emitter projects each entry to "<namespace>::<fnName>" so the
 	// JS wire shape is unchanged.
-	RTDependencies    []string
+	RTDependencies     []string
 	PureFnDependencies []protocol.PureFnDep
 	// IsUnsupported flips to true the first time compileNode sees a
 	// CodeNS sentinel anywhere in the traversal. Once set it stays
@@ -269,12 +269,12 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	return &Walker{
 		RootType:           rt,
 		FnName:             fnName,
-		RTFnHash:          rtFnHash,
+		RTFnHash:           rtFnHash,
 		Emitter:            emitter,
 		PreserveExtras:     preserveExtras,
 		Vλl:                args[0].Name,
 		ContextItems:       newOrderedItems(),
-		RTDependencies:    []string{},
+		RTDependencies:     []string{},
 		PureFnDependencies: []protocol.PureFnDep{},
 		localVarCounters:   map[string]int{},
 	}

@@ -111,7 +111,7 @@ func newRTStore(opts Options) *disk.Store {
 	fp := disk.Fingerprint(disk.FingerprintInputs{
 		HashLength:        opts.HashLength,
 		LiteralHashLength: opts.LiteralHashLength,
-		EmitCreateRTFn:   opts.EmitCreateRTFn,
+		EmitCreateRTFn:    opts.EmitCreateRTFn,
 	})
 	return disk.New(opts.CacheDir, fp)
 }
@@ -149,7 +149,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
-		rtStore:     newRTStore(opts),
+		rtStore:      newRTStore(opts),
 	}, nil
 }
 
@@ -166,7 +166,7 @@ func NewServer(opts Options) *Resolver {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
-		rtStore:     newRTStore(opts),
+		rtStore:      newRTStore(opts),
 	}
 }
 

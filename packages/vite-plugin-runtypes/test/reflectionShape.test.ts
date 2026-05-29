@@ -23,8 +23,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(next!.child?.id).toBe(root.id);
   }
   const circularSrc = `interface C { val: number; next?: C }`;
-  runTest('isCircular: self-referential object [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${circularSrc}\ngetRunTypeId<C>();\n`}, async (s) => assertIsCircular(await evalCacheFor(s)));
-  runTest('isCircular: self-referential object [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${circularSrc}\ndeclare const value: C;\nreflectRunTypeId(value);\n`}, async (s) => assertIsCircular(await evalCacheFor(s)));
+  runTest(
+    'isCircular: self-referential object [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${circularSrc}\ngetRunTypeId<C>();\n`},
+    async (s) => assertIsCircular(await evalCacheFor(s))
+  );
+  runTest(
+    'isCircular: self-referential object [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${circularSrc}\ndeclare const value: C;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertIsCircular(await evalCacheFor(s))
+  );
 
   // ---- typeMeta (T2) — atomic & { metadata } surfaces opaque metadata -------
   function assertTypeMeta(cache: Cache) {
@@ -41,8 +51,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(currency!.child?.literal).toBe('USD');
   }
   const moneySrc = `type Money = number & {currency: 'USD'};`;
-  runTest('typeMeta: number & {currency} [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${moneySrc}\ngetRunTypeId<Money>();\n`}, async (s) => assertTypeMeta(await evalCacheFor(s)));
-  runTest('typeMeta: number & {currency} [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${moneySrc}\ndeclare const value: Money;\nreflectRunTypeId(value);\n`}, async (s) => assertTypeMeta(await evalCacheFor(s)));
+  runTest(
+    'typeMeta: number & {currency} [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${moneySrc}\ngetRunTypeId<Money>();\n`},
+    async (s) => assertTypeMeta(await evalCacheFor(s))
+  );
+  runTest(
+    'typeMeta: number & {currency} [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${moneySrc}\ndeclare const value: Money;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertTypeMeta(await evalCacheFor(s))
+  );
 
   // ---- union — children + safeUnionChildren + discriminators ----------------
   function assertDiscriminatedUnion(cache: Cache) {
@@ -58,8 +78,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(discNames.every((n) => n === 'type')).toBe(true);
   }
   const unionSrc = `type U = {type: 'a'; x: number} | {type: 'b'; y: string};`;
-  runTest('union: discriminated [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${unionSrc}\ngetRunTypeId<U>();\n`}, async (s) => assertDiscriminatedUnion(await evalCacheFor(s)));
-  runTest('union: discriminated [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${unionSrc}\ndeclare const value: U;\nreflectRunTypeId(value);\n`}, async (s) => assertDiscriminatedUnion(await evalCacheFor(s)));
+  runTest(
+    'union: discriminated [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${unionSrc}\ngetRunTypeId<U>();\n`},
+    async (s) => assertDiscriminatedUnion(await evalCacheFor(s))
+  );
+  runTest(
+    'union: discriminated [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${unionSrc}\ndeclare const value: U;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertDiscriminatedUnion(await evalCacheFor(s))
+  );
 
   // ---- Map — KindClass + subKind + key/value arguments ----------------------
   function assertMap(cache: Cache) {
@@ -68,8 +98,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(root.subKind).toBeGreaterThan(0); // map subKind is set
     expect(root.arguments?.length).toBe(2); // key + value
   }
-  runTest('native: Map<string,number> [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<Map<string, number>>();\n`}, async (s) => assertMap(await evalCacheFor(s)));
-  runTest('native: Map<string,number> [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: Map<string, number>;\nreflectRunTypeId(value);\n`}, async (s) => assertMap(await evalCacheFor(s)));
+  runTest(
+    'native: Map<string,number> [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<Map<string, number>>();\n`},
+    async (s) => assertMap(await evalCacheFor(s))
+  );
+  runTest(
+    'native: Map<string,number> [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: Map<string, number>;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertMap(await evalCacheFor(s))
+  );
 
   // ---- Set — KindClass + subKind + single item argument ---------------------
   function assertSet(cache: Cache) {
@@ -78,8 +118,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(root.subKind).toBeGreaterThan(0); // set subKind is set
     expect(root.arguments?.length).toBe(1); // item
   }
-  runTest('native: Set<string> [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<Set<string>>();\n`}, async (s) => assertSet(await evalCacheFor(s)));
-  runTest('native: Set<string> [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: Set<string>;\nreflectRunTypeId(value);\n`}, async (s) => assertSet(await evalCacheFor(s)));
+  runTest(
+    'native: Set<string> [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<Set<string>>();\n`},
+    async (s) => assertSet(await evalCacheFor(s))
+  );
+  runTest(
+    'native: Set<string> [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: Set<string>;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertSet(await evalCacheFor(s))
+  );
 
   // ---- enum — values + indexType --------------------------------------------
   function assertEnum(cache: Cache) {
@@ -89,8 +139,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(root.indexType).toBeDefined();
   }
   const enumSrc = `enum E { A, B }`;
-  runTest('enum: numeric [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${enumSrc}\ngetRunTypeId<E>();\n`}, async (s) => assertEnum(await evalCacheFor(s)));
-  runTest('enum: numeric [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${enumSrc}\ndeclare const value: E;\nreflectRunTypeId(value);\n`}, async (s) => assertEnum(await evalCacheFor(s)));
+  runTest(
+    'enum: numeric [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${enumSrc}\ngetRunTypeId<E>();\n`},
+    async (s) => assertEnum(await evalCacheFor(s))
+  );
+  runTest(
+    'enum: numeric [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${enumSrc}\ndeclare const value: E;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertEnum(await evalCacheFor(s))
+  );
 
   // ---- tuple — member position + optional / rest flags ----------------------
   function assertTuple(cache: Cache) {
@@ -102,8 +162,18 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(root.children![1].optional).toBe(true); // number?
     expect(root.children![2].flags).toContain('rest'); // ...boolean[]
   }
-  runTest('tuple: [string, number?, ...boolean[]] [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<[string, number?, ...boolean[]]>();\n`}, async (s) => assertTuple(await evalCacheFor(s)));
-  runTest('tuple: [string, number?, ...boolean[]] [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: [string, number?, ...boolean[]];\nreflectRunTypeId(value);\n`}, async (s) => assertTuple(await evalCacheFor(s)));
+  runTest(
+    'tuple: [string, number?, ...boolean[]] [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<[string, number?, ...boolean[]]>();\n`},
+    async (s) => assertTuple(await evalCacheFor(s))
+  );
+  runTest(
+    'tuple: [string, number?, ...boolean[]] [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: [string, number?, ...boolean[]];\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertTuple(await evalCacheFor(s))
+  );
 
   // ---- class heritage — extends chain ---------------------------------------
   function assertHeritage(cache: Cache) {
@@ -117,32 +187,61 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     expect(names).toContain('a'); // inherited member, flattened in
   }
   const heritageSrc = `class A { a = 0 }\nclass B extends A { b = 0 }`;
-  runTest('class heritage: B extends A [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${heritageSrc}\ngetRunTypeId<B>();\n`}, async (s) => assertHeritage(await evalCacheFor(s)));
-  runTest('class heritage: B extends A [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${heritageSrc}\ndeclare const value: B;\nreflectRunTypeId(value);\n`}, async (s) => assertHeritage(await evalCacheFor(s)));
+  runTest(
+    'class heritage: B extends A [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${heritageSrc}\ngetRunTypeId<B>();\n`},
+    async (s) => assertHeritage(await evalCacheFor(s))
+  );
+  runTest(
+    'class heritage: B extends A [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${heritageSrc}\ndeclare const value: B;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertHeritage(await evalCacheFor(s))
+  );
 
   // ---- template literal — projected as KindTemplateLiteral ------------------
   function assertTemplateLiteral(cache: Cache) {
     const root = getTypeFor(cache, 'm.ts');
     expect(root.kind).toBe(ReflectionKind.templateLiteral);
   }
-  runTest('templateLiteral: `api/${number}` [static]', {'m.ts': "import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<`api/${number}`>();\n"}, async (s) => assertTemplateLiteral(await evalCacheFor(s)));
-  runTest('templateLiteral: `api/${number}` [reflect]', {'m.ts': "import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: `api/${number}`;\nreflectRunTypeId(value);\n"}, async (s) => assertTemplateLiteral(await evalCacheFor(s)));
+  runTest(
+    'templateLiteral: `api/${number}` [static]',
+    {'m.ts': "import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<`api/${number}`>();\n"},
+    async (s) => assertTemplateLiteral(await evalCacheFor(s))
+  );
+  runTest(
+    'templateLiteral: `api/${number}` [reflect]',
+    {
+      'm.ts':
+        "import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\ndeclare const value: `api/${number}`;\nreflectRunTypeId(value);\n",
+    },
+    async (s) => assertTemplateLiteral(await evalCacheFor(s))
+  );
 
   // ---- literal rehydration — bigint (static) & regexp (reflect) -------------
   // Single-form: generic inference widens these literals in the other form
   // (a `const v = 1n` widens to `bigint`; a regexp literal is AST-traced only
   // from the reflect call expression). See docs/atomic-types.md.
-  runTest('literal: bigint 1n rehydrates to BigInt [static]', {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<1n>();\n`}, async (s) => {
-    const root = getTypeFor(await evalCacheFor(s), 'm.ts');
-    expect(root.kind).toBe(ReflectionKind.literal);
-    expect(typeof root.literal).toBe('bigint');
-    expect(root.literal).toBe(1n);
-  });
-  runTest('literal: regexp /ab+c/gi rehydrates to RegExp [reflect]', {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\nreflectRunTypeId(/ab+c/gi);\n`}, async (s) => {
-    const root = getTypeFor(await evalCacheFor(s), 'm.ts');
-    expect(root.kind).toBe(ReflectionKind.literal);
-    expect(root.literal instanceof RegExp).toBe(true);
-    expect((root.literal as RegExp).source).toBe('ab+c');
-    expect((root.literal as RegExp).flags).toBe('gi');
-  });
+  runTest(
+    'literal: bigint 1n rehydrates to BigInt [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<1n>();\n`},
+    async (s) => {
+      const root = getTypeFor(await evalCacheFor(s), 'm.ts');
+      expect(root.kind).toBe(ReflectionKind.literal);
+      expect(typeof root.literal).toBe('bigint');
+      expect(root.literal).toBe(1n);
+    }
+  );
+  runTest(
+    'literal: regexp /ab+c/gi rehydrates to RegExp [reflect]',
+    {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\nreflectRunTypeId(/ab+c/gi);\n`},
+    async (s) => {
+      const root = getTypeFor(await evalCacheFor(s), 'm.ts');
+      expect(root.kind).toBe(ReflectionKind.literal);
+      expect(root.literal instanceof RegExp).toBe(true);
+      expect((root.literal as RegExp).source).toBe('ab+c');
+      expect((root.literal as RegExp).flags).toBe('gi');
+    }
+  );
 });
