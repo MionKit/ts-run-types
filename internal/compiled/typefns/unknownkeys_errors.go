@@ -465,10 +465,9 @@ func emitMapUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 }
 
 // emitSetUnknownKeyErrors mirrors the same Iterable.ts emit on the Set
-// side. Path segment shape mirrors mion's SetKeyRunType — a plain
-// index for now (mion's set.ts doesn't override getStaticPathLiteral
-// like Map does, so the path falls back to the bare index from the
-// loop counter).
+// side. Path segment is {key: safe(item), index} — mion's set.ts DOES
+// override getStaticPathLiteral (it returns the safe item value + the
+// loop index), so the failing item is locatable for an unordered Set.
 func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	if itemType == nil {
@@ -476,8 +475,9 @@ func emitSetUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext, v string) R
 	}
 	itemVar := ctx.NextLocalVar("item")
 	idxVar := ctx.NextLocalVar("i")
+	safeKey := mapSafeKeyContextItem(ctx)
 	ctx.SetChildAccessor(itemVar)
-	ctx.SetChildPathLiteral(idxVar)
+	ctx.SetChildPathLiteral("{key:" + safeKey + "(" + itemVar + "),index:" + idxVar + "}")
 	itemRT := ctx.CompileChild(itemType, CodeS)
 	ctx.SetChildAccessor("")
 	ctx.SetChildPathLiteral("")

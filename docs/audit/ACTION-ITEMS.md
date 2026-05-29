@@ -15,7 +15,7 @@
 - [x] **T5** — dead `isFnParams` binary abstraction dropped (binary round-trip 129/129).
 - [x] **T1 / T1b** — `IsCircular` populated + surfaced in the cache (repurposed the dead
       `inlined` slot #13 → `isCircular`); dead `Inlined` field removed. Go + JS suites green.
-- [ ] **T4** — Set error-path `{key,index}` locator info.
+- [x] **T4** — Set error-path now `{key: safe(item), index}` (getTypeErrors + unknownKeyErrors); wrong "set.ts doesn't override" comment fixed.
 - [ ] **T3** — array-element non-serializable → throw (consistency).
 - [ ] **T2** — `decorators` → `typeMeta` rename + surface generic intersection metadata.
 - [ ] **T8** — reflection-shape JS test suite.
