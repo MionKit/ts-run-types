@@ -110,7 +110,7 @@ Cache entry shape:
 
 ### Literal form — `KindLiteral{regexp: {source, flags}}`
 
-Produced when the resolver **traces the call site back to a regex literal**. The emitter (`internal/emit/runtypes_module.go`) renders this as `new RegExp("…", "…")` at runtime, so consumers see a real `RegExp` instance.
+Produced when the resolver **traces the call site back to a regex literal**. The emitter (`internal/compiled/runtype/module.go`) renders this as `new RegExp("…", "…")` at runtime, so consumers see a real `RegExp` instance.
 
 ```ts
 reflectRunTypeId(/abc/i); // direct literal

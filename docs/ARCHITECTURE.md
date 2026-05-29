@@ -106,13 +106,18 @@ A call inside a generic body where the marker's `T` is the wrapper's own free ty
 ```
 cmd/ts-go-run-types/                CLI entry point
 internal/program/                tsconfig + VFS bootstrap
-internal/walker/                 position → AST node finder + call iterator
-internal/marker/                 InjectRunTypeId<T> sentinel detection
-internal/resolver/               scanFiles + dump dispatch
-internal/serialize/              *checker.Type → protocol.RunType (dedup by id)
+internal/resolver/               scanFiles + dump dispatch; AST call-walk (walk.go + scan.go)
+internal/marker/                 InjectRunTypeId<T> sentinel detection (name + module check)
+internal/compiled/runtype/       *checker.Type → protocol.RunType projection + JSON/TS renderers + typeid/
+internal/compiled/typefns/       per-fn AOT emitters (isType, typeErrors, JSON, binary, formats, …)
+internal/compiled/purefns/       pure-fn helpers emitted inline
 internal/protocol/               stdio JSON request/response types
+internal/constants/              cross-package constants, mirrored to TS via cmd/gen-ts-constants
+internal/diag/                   diagnostic codes (codes_runtype.go, codes_*.go)
+internal/cache/                  cache module helpers
+internal/cachetpl/               cache skeleton splice (splice.go)
 internal/testfixtures/           fixture .ts + shared tsconfig
-packages/runtypes/               @mionjs/ts-go-run-types — marker type + getRunTypeId/reflectRunTypeId
+packages/ts-go-run-types/        @mionjs/ts-go-run-types — marker type + getRunTypeId/reflectRunTypeId
 packages/vite-plugin-runtypes/   JS side — drives scanFiles, patches calls
 third_party/tsgolint/            git submodule — shim layer into typescript-go
 docs/                            this file
@@ -128,23 +133,9 @@ Wraps the [`oxc-project/tsgolint`](https://github.com/oxc-project/tsgolint) shim
 
 `NewInferred` is a second constructor that skips tsconfig for one-shot queries on loose files.
 
-### internal/walker
-
-- `NodeAt(sf, pos)` — deepest `*ast.Node` whose `[Pos, End)` contains `pos`.
-- `CallExpressionAt(sf, pos)` — walks up from `NodeAt` until it finds a `KindCallExpression`.
-- `ForEachCallExpression(sf, cb)` — depth-first visitor over every CallExpression in a source file. Used by the resolver's `scanFiles` op.
-
-### internal/marker
-
-`Detect(t *checker.Type, opts Options) (typeArg, ok)` — given the type of a function's trailing parameter, returns whether it matches the configured marker (name + declaring-module check) and extracts the single type argument `T`. `IsFreeTypeParameter(t)` filters out calls inside generic bodies.
-
-### internal/serialize
-
-`Cache` interns `*checker.Type` → stable hash id (e.g. `abc123`). `Cache.AssignID(t)` is the public entry point used by the marker scanner; `Cache.Serialize(t)` returns a `KindRef` sentinel pointing at the cached entry. Recursion is broken by reserving the id before descending. Structural dedup means two distinct AST types that share the same shape end up with the same id.
-
 ### internal/resolver
 
-Dispatches two operations:
+Owns both the AST call-walk and op dispatch. `walk.go` contains `NodeAt`, `CallExpressionAt`, and `ForEachCallExpression` (depth-first visitor over every `CallExpression` in a source file). `scan.go` handles the `scanFiles` op logic. Dispatches two operations:
 
 | op          | semantics                                                                                                                                                                       |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -157,18 +148,19 @@ Dispatches two operations:
 
 **Function-call argument warning.** The resolver flags `createIsType(getX())` (and any other reflect-form marker call with a `CallExpression` argument) as an anti-pattern: the function is invoked at runtime purely so the type checker can infer `T` from its return type, even though the value is discarded. The validator still works, but the recommended replacement is the static form using `ReturnType<typeof fn>`. The warning surfaces on the response's `markerDiagnostics` channel and the Vite plugin re-emits it through `this.warn` in canonical `tsc --pretty=false` format so VS Code's `$tsc` problem matcher picks it up.
 
+### internal/marker
+
+`Detect(t *checker.Type, opts Options) (typeArg, ok)` — given the type of a function's trailing parameter, returns whether it matches the configured marker (name + declaring-module check) and extracts the single type argument `T`. `IsFreeTypeParameter(t)` filters out calls inside generic bodies.
+
+### internal/compiled/runtype
+
+The `runtype` serializer (`internal/compiled/runtype/serialize.go`) interns `*checker.Type` → stable hash id (e.g. `abc123`). `AssignID(t)` is the public entry point used by the marker scanner; `Serialize(t)` returns a `KindRef` sentinel pointing at the cached entry. Recursion is broken by reserving the id before descending. Structural dedup means two distinct AST types that share the same shape end up with the same id. The `module.go` file renders both output formats (JSON dump and the self-wired TS module). The `typeid/` subdirectory holds the structural-id computation.
+
 ### internal/protocol
 
 Pure struct definitions shared between the Go resolver and the TS plugin. Stdio protocol is newline-delimited JSON; one `Request` in, one `Response` out, EOF terminates. The daemon mode wraps a Unix-socket accept loop around the same handler, one client at a time.
 
-### internal/emit
-
-Two output formats share the same in-memory `protocol.Dump`:
-
-- **`json.go`** — pretty-printed JSON. Child RunType slots stay as `{kind: -1, id: "<hash>"}` ref sentinels. Suitable for inspection, debugging, cross-language consumers, CI snapshot tests.
-- **`runtypes_module.go`** — the **runtime artifact**. Emits a self-contained ESM module: every type is declared as a top-level `export const t_<hash>` carrying scalar fields, then a footer block fills in reference-bearing slots (`child`, `return`, `parameters`, `children`, `parent`) by direct assignment. The variable prefix and module name come from `internal/constants/constants.go` (mirrored to TS via `cmd/gen-ts-constants`). Consumers `import * as cache from "virtual:runtypes-cache"` and access entries via `cache[RUNTYPES_VAR_PREFIX + id]` — no Map lookup, no rehydration step. A future transformer can rewrite this to direct `import {t_<hash>}` named imports for tree-shaking.
-
-### packages/runtypes (`@mionjs/ts-go-run-types`)
+### packages/ts-go-run-types (`@mionjs/ts-go-run-types`)
 
 Public marker package. Exports:
 
@@ -212,7 +204,7 @@ Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 - `bigint` literal values → string with `flags: ["bigint"]` (consumer parses with `BigInt(…)`).
 - `parent` not in JSON; the `.ts` artifact wires it. JSON-only consumers re-knot themselves.
 
-Out of scope for v0.2: `templateLiteral`, `infer`, decorators (`MinLength<5>`-style), `TypeNumberBrand`, runtime-only fields (`function`, `classType`, `enum`). All have v0.3+ workaround proposals in the roadmap. Regex literals are now produced via AST-trace from `const`-bound regex initializers — see [atomic-types.md § RegExp](./atomic-types.md#regexp).
+Implemented: `templateLiteral` (regex-compile at RT-build time), number/bigint type-formats (Go: `internal/compiled/typefns/formats/numeric/`; JS: `packages/ts-go-run-types/src/formats/`). Still deferred: `infer`, general-purpose decorators (`MinLength<5>`-style beyond the format brand scanner), runtime-only fields (`function`, `classType`, `enum`). Regex literals are now produced via AST-trace from `const`-bound regex initializers — see [atomic-types.md § RegExp](./atomic-types.md#regexp).
 
 See also the per-kind references:
 
@@ -228,8 +220,8 @@ The wire format keeps these slots small via the `KindRef = -1` sentinel: every c
 
 Cycles close at two layers without special-case code:
 
-- **Serializer**: [`serialize.Cache.assignID`](../internal/serialize/serialize.go) reserves the id and inserts a placeholder cache entry **before** projecting the type's children. A recursive walk that re-enters the same `*checker.Type` hits the `byPtr` lookup and gets back the reserved id immediately — no infinite recursion, no second projection.
-- **Emit**: the runtime artifact ([`internal/emit/runtypes_module.go`](../internal/emit/runtypes_module.go)) declares every type as a scalar-only `export const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.child = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors. The Vite plugin reads the rendered module string from the resolver's `dump` response — there's no JS-side renderer to mirror.
+- **Serializer**: the `runtype` serializer in [`internal/compiled/runtype/serialize.go`](../internal/compiled/runtype/serialize.go) reserves the id and inserts a placeholder cache entry **before** projecting the type's children. A recursive walk that re-enters the same `*checker.Type` hits the `byPtr` lookup and gets back the reserved id immediately — no infinite recursion, no second projection.
+- **Emit**: the runtime artifact ([`internal/compiled/runtype/module.go`](../internal/compiled/runtype/module.go)) declares every type as a scalar-only `export const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.child = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors. The Vite plugin reads the rendered module string from the resolver's `dump` response — there's no JS-side renderer to mirror.
 
 Callers walking a member type's child ref can ask the resolver for the canonical RunType via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned RunType's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
 
@@ -299,7 +291,7 @@ So when [`internal/program/program.go`](../internal/program/) writes `import "gi
 
 A handful of upstream `internal` symbols that tsgolint _wants_ to alias are themselves unexported (lowercase) in typescript-go. For those, [`third_party/tsgolint/patches/*.patch`](../third_party/tsgolint/patches/) apply small visibility lifts to the nested typescript-go submodule (e.g. uppercase a method name, or expose a constructor). The bootstrap step (`git am --3way --no-gpg-sign ../patches/*.patch`) applies them on a fresh checkout.
 
-[DEVS.md → Patching tsgolint's typescript-go](../DEVS.md#patching-tsgolints-typescript-go) documents how to add a new patch.
+[CONTRIBUTORS.md → Patching tsgolint's typescript-go](../CONTRIBUTORS.md#patching-tsgolints-typescript-go) documents how to add a new patch.
 
 ### Maintenance model
 
@@ -323,8 +315,8 @@ go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 go test ./internal/...
 
 # JS test suites — spawn the real Go binary and assert the full round-trip:
-pnpm -C packages/runtypes install
-pnpm -C packages/runtypes test
+pnpm -C packages/ts-go-run-types install
+pnpm -C packages/ts-go-run-types test
 pnpm -C packages/vite-plugin-runtypes install
 pnpm -C packages/vite-plugin-runtypes test
 ```
