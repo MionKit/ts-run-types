@@ -122,7 +122,9 @@ into the plan file covering:
   separately).
 - Whether this is the FIRST non-validator port (and therefore
   triggers the `validation-suite.ts` → `rt-suite.ts` rename — see
-  step 8)
+  step 8; note: the rt-suite rename did not stick in the current tree —
+  the active suites are `validation-suite.ts` + `serialization-suite.ts`
+  + format suites; a further rename is a separate decision)
 - The verification commands from step 14, including the round-trip
   assertion for each serializer pair.
 
@@ -259,8 +261,14 @@ validation:
 - Export `VALIDATION_SUITE` → `RT_SUITE`
 - Update imports in `test/adapters/*.test.ts`
 
+**Note**: The rt-suite rename did not stick in the current tree. The
+active suites are `validation-suite.ts` (isType/getTypeErrors) +
+`serialization-suite.ts` (JSON families) + format suites. If the
+rename is desirable, confirm with the user first — it is not a
+prerequisite for adding new RT families.
+
 Subsequent ports just add new optional thunks to the existing
-`RTCase` interface — no further renames needed.
+interface — no further renames needed.
 
 ## Step 10 — Per-case thunks in the suite
 
@@ -428,8 +436,8 @@ pnpm run pre-publish-test
 - `internal/resolver/render.go`
 
 **JS adapter templates:**
-- `packages/ts-go-run-types/src/createIsType.ts`
-- `packages/ts-go-run-types/src/createGetTypeErrors.ts`
+- `packages/ts-go-run-types/src/createRTFunctions.ts` (exports `createIsType`, `createGetTypeErrors`, `createJsonEncoder`, `createJsonDecoder`, and format helpers)
+- `packages/ts-go-run-types/src/createBinary.ts` (exports `createBinaryEncoder`, `createBinaryDecoder`)
 
 **Cache skeletons:**
 - `packages/ts-go-run-types/src/caches/isTypeCache.ts`
@@ -444,7 +452,7 @@ pnpm run pre-publish-test
 - `packages/vite-plugin-runtypes/src/protocol.ts`
 
 **Test suite + adapters:**
-- `packages/ts-go-run-types/test/suites/validation-suite.ts`
-  (or `rt-suite.ts` post-rename)
+- `packages/ts-go-run-types/test/suites/validation-suite.ts` (isType/getTypeErrors)
+- `packages/ts-go-run-types/test/suites/serialization-suite.ts` (JSON families)
 - `packages/ts-go-run-types/test/adapters/isType.test.ts`
 - `packages/ts-go-run-types/test/adapters/getTypeErrors.test.ts`
