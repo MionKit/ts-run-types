@@ -74,8 +74,11 @@ skills (createRTFunctions consolidation; rt-suite/validation-suite naming).
 NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are CORRECT (not stale).
 
 ## List items → docs (status)
-- [ ] Phase 0 docs de-staled
-- [ ] 01 runTypes emission (reflection AST cache)  → docs/audit/01-runtypes-emission.md
+- [x] Phase 0 docs de-staled (committed: stale tokens clean, ROADMAP/ARCH/port-status updated)
+- [x] 01 runTypes emission → docs/audit/01-runtypes-emission.md ⚠️ ported-with-(by-design)-gaps.
+      VERIFIED: Inlined/IsCircular/Description/Brand declared but NEVER assigned (grep empty);
+      intersection collapsed (serialize.go:607); kind numbering parity 0-35. Follow-ups: add JS
+      reflection-shape suite; populate IsCircular→inline-unless-circular; Inlined; Description(JSDoc).
 - [ ] 02 isType                                    → docs/audit/02-istype.md
 - [ ] 03 getTypeErrors                             → docs/audit/03-gettypeerrors.md
 - [ ] 04 unknown-keys family (huk/suk/uke/uku/ukuw)→ docs/audit/04-unknown-keys.md
