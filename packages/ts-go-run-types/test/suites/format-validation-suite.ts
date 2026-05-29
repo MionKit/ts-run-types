@@ -23,6 +23,16 @@ import {createIsType, createGetTypeErrors, createMockType, registerFormatPattern
 import type {ValidationCase} from './validation-suite.ts';
 import '@mionjs/ts-go-run-types/formats';
 import type {
+  FormatNumber,
+  FormatInteger,
+  FormatFloat,
+  FormatInt8,
+  FormatUInt8,
+  FormatBigInt,
+  FormatBigInt64,
+  FormatBigUInt64,
+} from '@mionjs/ts-go-run-types/formats';
+import type {
   FormatString,
   FormatAlpha,
   FormatAlphaNumeric,
@@ -86,7 +96,11 @@ type Hex = FormatString<{pattern: typeof hex}>;
 const V4 = '9f1b8c2e-3d4a-4b5c-8d6e-1f2a3b4c5d6e'; // version nibble = 4
 const V7 = '018f1b8c-2e3d-7b5c-8d6e-1f2a3b4c5d6e'; // version nibble = 7
 
-export const FORMAT_VALIDATION_SUITE: {STRING_FORMAT: Record<string, FormatValidationCase>} = {
+export const FORMAT_VALIDATION_SUITE: {
+  STRING_FORMAT: Record<string, FormatValidationCase>;
+  NUMBER_FORMAT: Record<string, FormatValidationCase>;
+  BIGINT_FORMAT: Record<string, FormatValidationCase>;
+} = {
   STRING_FORMAT: {
     // ─────────────────────────── FormatString ───────────────────────
     string_maxLength: {
@@ -401,6 +415,193 @@ export const FORMAT_VALIDATION_SUITE: {STRING_FORMAT: Record<string, FormatValid
       title: 'registerFormatPattern — {source, flags} overload (case-insensitive)',
       isType: () => createIsType<Hex>(),
       getSamples: () => ({valid: ['0042', 'DEADbeef'], invalid: ['xyz', '']}),
+    },
+  },
+  NUMBER_FORMAT: {
+    number_max: {
+      title: 'FormatNumber<{max: 100}> — inclusive upper bound',
+      isType: () => createIsType<FormatNumber<{max: 100}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumber<{max: 100}>>(),
+      getSamples: () => ({valid: [100, 0, -50], invalid: [101, '5']}),
+      expectedFormatErrors: () => [{name: 'numberFormat', val: 100, formatPathTail: 'max'}, null],
+    },
+    number_min: {
+      title: 'FormatNumber<{min: 0}> — inclusive lower bound',
+      isType: () => createIsType<FormatNumber<{min: 0}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumber<{min: 0}>>(),
+      getSamples: () => ({valid: [0, 1, 9999], invalid: [-1]}),
+      expectedFormatErrors: () => [{name: 'numberFormat', val: 0, formatPathTail: 'min'}],
+    },
+    number_lt: {
+      title: 'FormatNumber<{lt: 10}> — exclusive upper bound',
+      isType: () => createIsType<FormatNumber<{lt: 10}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumber<{lt: 10}>>(),
+      getSamples: () => ({valid: [9, 0, -100], invalid: [10, 11]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: 10, formatPathTail: 'lt'},
+        {name: 'numberFormat', val: 10, formatPathTail: 'lt'},
+      ],
+    },
+    number_gt: {
+      title: 'FormatNumber<{gt: 0}> — exclusive lower bound',
+      isType: () => createIsType<FormatNumber<{gt: 0}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumber<{gt: 0}>>(),
+      getSamples: () => ({valid: [1, 100], invalid: [0, -1]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: 0, formatPathTail: 'gt'},
+        {name: 'numberFormat', val: 0, formatPathTail: 'gt'},
+      ],
+    },
+    number_integer: {
+      title: 'FormatInteger — whole numbers only',
+      isType: () => createIsType<FormatInteger>(),
+      getTypeErrors: () => createGetTypeErrors<FormatInteger>(),
+      mockType: () => createMockType<FormatInteger>(),
+      getSamples: () => ({valid: [0, 1, -1, 42], invalid: [1.5, 3.14]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: true, formatPathTail: 'integer'},
+        {name: 'numberFormat', val: true, formatPathTail: 'integer'},
+      ],
+    },
+    number_float: {
+      title: 'FormatFloat — non-integer only',
+      isType: () => createIsType<FormatFloat>(),
+      getTypeErrors: () => createGetTypeErrors<FormatFloat>(),
+      getSamples: () => ({valid: [1.5, -0.5, 3.14], invalid: [1, 0, -2]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: true, formatPathTail: 'float'},
+        {name: 'numberFormat', val: true, formatPathTail: 'float'},
+        {name: 'numberFormat', val: true, formatPathTail: 'float'},
+      ],
+    },
+    number_multipleOf: {
+      title: 'FormatNumber<{multipleOf: 5}> — divisible by 5',
+      isType: () => createIsType<FormatNumber<{multipleOf: 5}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumber<{multipleOf: 5}>>(),
+      getSamples: () => ({valid: [0, 5, 10, -15], invalid: [3, 7]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: 5, formatPathTail: 'multipleOf'},
+        {name: 'numberFormat', val: 5, formatPathTail: 'multipleOf'},
+      ],
+    },
+    number_combined: {
+      title: 'FormatNumber<{min:0; max:100; integer:true; multipleOf:5}> — all constraints',
+      isType: () => createIsType<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+      mockType: () => createMockType<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+      getSamples: () => ({valid: [0, 5, 50, 100], invalid: [-5, 105, 7, 2.5]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', formatPathTail: 'min'},
+        {name: 'numberFormat', formatPathTail: 'max'},
+        {name: 'numberFormat', formatPathTail: 'multipleOf'},
+        {name: 'numberFormat', formatPathTail: 'integer'},
+      ],
+    },
+    number_int8: {
+      title: 'FormatInt8 — signed 8-bit range',
+      isType: () => createIsType<FormatInt8>(),
+      getTypeErrors: () => createGetTypeErrors<FormatInt8>(),
+      mockType: () => createMockType<FormatInt8>(),
+      getSamples: () => ({valid: [-128, 0, 127], invalid: [128, -129, 1.5]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: 127, formatPathTail: 'max'},
+        {name: 'numberFormat', val: -128, formatPathTail: 'min'},
+        {name: 'numberFormat', val: true, formatPathTail: 'integer'},
+      ],
+    },
+    number_uint8: {
+      title: 'FormatUInt8 — unsigned 8-bit range',
+      isType: () => createIsType<FormatUInt8>(),
+      getTypeErrors: () => createGetTypeErrors<FormatUInt8>(),
+      mockType: () => createMockType<FormatUInt8>(),
+      getSamples: () => ({valid: [0, 128, 255], invalid: [256, -1]}),
+      expectedFormatErrors: () => [
+        {name: 'numberFormat', val: 255, formatPathTail: 'max'},
+        {name: 'numberFormat', val: 0, formatPathTail: 'min'},
+      ],
+    },
+  },
+  BIGINT_FORMAT: {
+    bigint_max: {
+      title: 'FormatBigInt<{max: 100n}> — inclusive upper bound',
+      isType: () => createIsType<FormatBigInt<{max: 100n}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt<{max: 100n}>>(),
+      getSamples: () => ({valid: [100n, 0n, -50n], invalid: [101n, 5]}),
+      expectedFormatErrors: () => [{name: 'bigintFormat', val: 100n, formatPathTail: 'max'}, null],
+    },
+    bigint_min: {
+      title: 'FormatBigInt<{min: 0n}> — inclusive lower bound',
+      isType: () => createIsType<FormatBigInt<{min: 0n}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt<{min: 0n}>>(),
+      getSamples: () => ({valid: [0n, 1n, 9999n], invalid: [-1n]}),
+      expectedFormatErrors: () => [{name: 'bigintFormat', val: 0n, formatPathTail: 'min'}],
+    },
+    bigint_lt: {
+      title: 'FormatBigInt<{lt: 10n}> — exclusive upper bound',
+      isType: () => createIsType<FormatBigInt<{lt: 10n}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt<{lt: 10n}>>(),
+      getSamples: () => ({valid: [9n, -5n], invalid: [10n, 11n]}),
+      expectedFormatErrors: () => [
+        {name: 'bigintFormat', val: 10n, formatPathTail: 'lt'},
+        {name: 'bigintFormat', val: 10n, formatPathTail: 'lt'},
+      ],
+    },
+    bigint_gt: {
+      title: 'FormatBigInt<{gt: 0n}> — exclusive lower bound',
+      isType: () => createIsType<FormatBigInt<{gt: 0n}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt<{gt: 0n}>>(),
+      getSamples: () => ({valid: [1n, 100n], invalid: [0n, -1n]}),
+      expectedFormatErrors: () => [
+        {name: 'bigintFormat', val: 0n, formatPathTail: 'gt'},
+        {name: 'bigintFormat', val: 0n, formatPathTail: 'gt'},
+      ],
+    },
+    bigint_multipleOf: {
+      title: 'FormatBigInt<{multipleOf: 5n}> — divisible by 5',
+      isType: () => createIsType<FormatBigInt<{multipleOf: 5n}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt<{multipleOf: 5n}>>(),
+      getSamples: () => ({valid: [0n, 5n, -15n], invalid: [3n, 7n]}),
+      expectedFormatErrors: () => [
+        {name: 'bigintFormat', val: 5n, formatPathTail: 'multipleOf'},
+        {name: 'bigintFormat', val: 5n, formatPathTail: 'multipleOf'},
+      ],
+    },
+    bigint_combined: {
+      title: 'FormatBigInt<{min:0n; max:1000n; multipleOf:10n}> — all constraints',
+      isType: () => createIsType<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+      mockType: () => createMockType<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+      getSamples: () => ({valid: [0n, 10n, 1000n], invalid: [-10n, 1010n, 7n]}),
+      expectedFormatErrors: () => [
+        {name: 'bigintFormat', formatPathTail: 'min'},
+        {name: 'bigintFormat', formatPathTail: 'max'},
+        {name: 'bigintFormat', formatPathTail: 'multipleOf'},
+      ],
+    },
+    bigint_int64: {
+      title: 'FormatBigInt64 — full signed 64-bit range',
+      isType: () => createIsType<FormatBigInt64>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigInt64>(),
+      mockType: () => createMockType<FormatBigInt64>(),
+      getSamples: () => ({
+        valid: [-9223372036854775808n, 0n, 9223372036854775807n],
+        invalid: [9223372036854775808n, -9223372036854775809n],
+      }),
+      expectedFormatErrors: () => [
+        {name: 'bigintFormat', val: 9223372036854775807n, formatPathTail: 'max'},
+        {name: 'bigintFormat', val: -9223372036854775808n, formatPathTail: 'min'},
+      ],
+    },
+    bigint_uint64: {
+      title: 'FormatBigUInt64 — full unsigned 64-bit range',
+      isType: () => createIsType<FormatBigUInt64>(),
+      getTypeErrors: () => createGetTypeErrors<FormatBigUInt64>(),
+      mockType: () => createMockType<FormatBigUInt64>(),
+      getSamples: () => ({valid: [0n, 18446744073709551615n], invalid: [18446744073709551616n, -1n]}),
+      expectedFormatErrors: () => [
+        {name: 'bigintFormat', val: 18446744073709551615n, formatPathTail: 'max'},
+        {name: 'bigintFormat', val: 0n, formatPathTail: 'min'},
+      ],
     },
   },
 };

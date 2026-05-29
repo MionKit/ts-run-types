@@ -11,13 +11,13 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {FORMAT_VALIDATION_SUITE} from '../suites/format-validation-suite.ts';
 import {assertMockType} from '../util/validationAsserts.ts';
 
-describe('format mockType / STRING_FORMAT', () => {
+describe('format mockType', () => {
   let ranTests = 0;
   afterEach(() => {
     ranTests++;
   });
 
-  const cases = Object.values(FORMAT_VALIDATION_SUITE.STRING_FORMAT);
+  const cases = Object.values(FORMAT_VALIDATION_SUITE).flatMap((bucket) => Object.values(bucket));
   for (const c of cases) {
     if (c.mockType) {
       it(c.title, () => assertMockType(c));
@@ -26,7 +26,7 @@ describe('format mockType / STRING_FORMAT', () => {
     }
   }
 
-  it('all STRING_FORMAT mockType tests ran', () => {
+  it('all mockType tests ran', () => {
     expect(ranTests).toBe(cases.filter((c) => c.mockType).length);
   });
 });

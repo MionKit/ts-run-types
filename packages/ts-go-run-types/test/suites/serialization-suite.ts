@@ -167,6 +167,14 @@ export interface SerializationCase {
    *  JSON.stringify rejects but binary encodes natively. Falls back
    *  to `getTestData` when unset. **/
   getBinaryTestData?: () => {values: unknown[]; deserializedValues?: unknown[]};
+
+  /** Optional expected encoded byte length per value, index-parallel to
+   *  the resolved binary test-data `values`. When present, the binary
+   *  adapter asserts `encode(value).byteLength === size[i]` — this is what
+   *  locks in the format binary optimization (number int8→1, int16→2,
+   *  …float64→8; bigint 64-bit→8). Omit for variable-length encodings
+   *  (string-fallback bigint, objects, arrays). **/
+  getBinaryByteSizes?: () => number[];
 }
 
 // Re-exports so the binary adapter (and any future suite consumer) can

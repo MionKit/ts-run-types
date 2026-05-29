@@ -14,10 +14,15 @@ import './string/string-formats-pure-fns.ts';
 // Side-effect: registers the single string-format mock fn (mockStringFormat)
 // with the runtime mock registry.
 import '../mocking/mockStringFormat.ts';
+// Side-effect: registers the number / bigint format mock fns for
+// ReflectionKind.number / .bigint (constraint-respecting mock values).
+import '../mocking/mockNumberFormat.ts';
+import '../mocking/mockBigIntFormat.ts';
 // Side-effect: registerFormatPattern validates each built-in pattern's
 // mockSamples against its regex at load.
 import './string/string-patterns.ts';
 
-// Re-export the full string-format type surface. Number / BigInt format
-// families will land in subsequent phases.
+// Re-export the full type surface of every format family.
 export type * from './string/stringFormats.ts';
+export type * from './numberFormats.ts';
+export type * from './bigintFormats.ts';

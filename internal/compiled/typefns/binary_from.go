@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -60,6 +61,26 @@ func (FromBinaryEmitter) ReturnName() string {
 	return "ret"
 }
 
+// binaryFromOverride returns a format-specific binary-decode EXPRESSION
+// (RHS of `ret = …`) when rt carries a FormatAnnotation whose emitter
+// implements formats.BinaryDecoder and yields a non-empty body, else "".
+// Empty = keep the host's base-kind arm. Byte-symmetric counterpart to
+// binaryToOverride.
+func binaryFromOverride(rt *protocol.RunType, des string, ctx *EmitContext) string {
+	if rt == nil || rt.FormatAnnotation == nil {
+		return ""
+	}
+	emitter, ok := formats.LookupForRunType(rt)
+	if !ok {
+		return ""
+	}
+	decoder, ok := emitter.(formats.BinaryDecoder)
+	if !ok {
+		return ""
+	}
+	return decoder.EmitFromBinary(rt.FormatAnnotation, des, ctx)
+}
+
 func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeS}
@@ -91,14 +112,26 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		// (`index += 8`) still runs as part of the call's argument
 		// evaluation. Mirrors mion's binary/fromBinary.ts:59 emit.
 		// Equivalent to `ret = getFloat64(des.index, 1); des.index += 8`
-		// but one statement instead of two.
-		return RTCode{Code: ret + " = " + des + ".view.getFloat64(" + des + ".index, 1, (" + des + ".index += 8))", Type: CodeS}
+		// but one statement instead of two. A numberFormat brand may
+		// decode 1/2/4 bytes instead — byte-symmetric with its encode.
+		expr := des + ".view.getFloat64(" + des + ".index, 1, (" + des + ".index += 8))"
+		if override := binaryFromOverride(rt, des, ctx); override != "" {
+			expr = override
+		}
+		return RTCode{Code: ret + " = " + expr, Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
 		return RTCode{Code: ret + " = " + des + ".desString()", Type: CodeS}
 
 	case protocol.KindBigInt:
-		return RTCode{Code: ret + " = BigInt(" + des + ".desString())", Type: CodeS}
+		// A bigintFormat brand whose min/max fit 64-bit decodes 8 bytes
+		// via getBigInt64/getBigUint64 — byte-symmetric with its encode.
+		// Empty override = keep the string base arm.
+		expr := "BigInt(" + des + ".desString())"
+		if override := binaryFromOverride(rt, des, ctx); override != "" {
+			expr = override
+		}
+		return RTCode{Code: ret + " = " + expr, Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
 		// Same comma-expression pattern as KindNull — mion

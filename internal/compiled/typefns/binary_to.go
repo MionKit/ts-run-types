@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -29,7 +30,7 @@ import (
 //   - any/unknown/object:     serString(JSON.stringify(v))
 //   - regexp:                 serString(source); serString(flags)
 //   - enum:                   serEnum(v)  [uint32 type, value]
-//   - symbol:                 serString(v.description || '')
+//   - symbol:                 serString(v.description || ”)
 //   - array/rest:             [uint32 length, items...]
 //   - indexSignature:         [uint32 count, (key, value)*]
 //   - objectLiteral:          required props in order, then optional bitmap + values
@@ -131,6 +132,27 @@ func (ToBinaryEmitter) ReturnName() string {
 	return "Ser"
 }
 
+// binaryToOverride returns a format-specific binary-encode STATEMENT when
+// rt carries a FormatAnnotation whose emitter implements
+// formats.BinaryEncoder and yields a non-empty body, else "". Empty =
+// keep the host's base-kind arm (mion's `{code: undefined}` → run-types
+// default). Mirrors the optional-interface type-assert pattern in
+// formattransform.go:nodeFormatTransform.
+func binaryToOverride(rt *protocol.RunType, v, ser string, ctx *EmitContext) string {
+	if rt == nil || rt.FormatAnnotation == nil {
+		return ""
+	}
+	emitter, ok := formats.LookupForRunType(rt)
+	if !ok {
+		return ""
+	}
+	encoder, ok := emitter.(formats.BinaryEncoder)
+	if !ok {
+		return ""
+	}
+	return encoder.EmitToBinary(rt.FormatAnnotation, v, ser, ctx)
+}
+
 // Emit dispatches the per-kind switch. Each arm mirrors mion's
 // emitToBinary switch (binary/toBinary.ts:35-405).
 //
@@ -162,8 +184,14 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 
 	case protocol.KindNumber:
 		// mion:binary/toBinary.ts:56 —
-		// `view.setFloat64(index, v, 1, (index += 8))`.
-		return RTCode{Code: ser + ".view.setFloat64(" + ser + ".index, " + v + ", 1, (" + ser + ".index += 8))", Type: CodeS}
+		// `view.setFloat64(index, v, 1, (index += 8))`. A numberFormat
+		// brand may pack the value into 1/2/4 bytes (int8/16/32) — see
+		// formats/numeric. Empty override = keep the float64 base arm.
+		code := ser + ".view.setFloat64(" + ser + ".index, " + v + ", 1, (" + ser + ".index += 8))"
+		if override := binaryToOverride(rt, v, ser, ctx); override != "" {
+			code = override
+		}
+		return RTCode{Code: code, Type: CodeS}
 
 	case protocol.KindString, protocol.KindTemplateLiteral:
 		// mion:binary/toBinary.ts:59,85 — `serString(v)`.
@@ -172,7 +200,14 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 	case protocol.KindBigInt:
 		// mion:binary/toBinary.ts:62 — `serString(v.toString(), true)`.
 		// `true` flag bypasses the string cache (bigints rarely repeat).
-		return RTCode{Code: ser + ".serString(" + v + ".toString(), true)", Type: CodeS}
+		// A bigintFormat brand whose min/max fit signed/unsigned 64-bit
+		// packs into 8 bytes via setBigInt64/setBigUint64 — see
+		// formats/numeric. Empty override = keep the string base arm.
+		code := ser + ".serString(" + v + ".toString(), true)"
+		if override := binaryToOverride(rt, v, ser, ctx); override != "" {
+			code = override
+		}
+		return RTCode{Code: code, Type: CodeS}
 
 	case protocol.KindUndefined, protocol.KindVoid:
 		// mion:binary/toBinary.ts:66 — `view.setUint8(index++, 1)`.
