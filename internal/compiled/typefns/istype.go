@@ -373,19 +373,17 @@ func (IsTypeEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ C
 		//   - child empty + noIsArrayCheck → `""` (the whole check
 		//     evaporates — mion `{code: undefined}`).
 		//   - child empty + no noIsArrayCheck → bare `Array.isArray(v)`.
-		// A third path handles non-serializable element types
-		// (Symbol, Function) — mion throws at RT-compile time with
-		// "Arrays can not have non serializable types"
-		// (nodes/member/array.ts:148). We mirror the runtime-observable
-		// effect with an always-false `return false` validator; any
-		// caller invoking it gets a hard rejection, same as mion's
-		// throw at the next layer up.
+		// A non-serializable element type (Symbol, Function) propagates
+		// CodeNS via the child compile below: the element's arm returns
+		// CodeNS (latching the element as the unsupported leaf), and the
+		// `childRT.Type == CodeNS` check propagates it upward. Array element
+		// is a positional (non-property) position, so the CodeNS rises to
+		// the root → alwaysThrow factory (mion throws at RT-compile,
+		// nodes/member/array.ts:148; unified rule, T3), consistent with
+		// tuple slots / union members. As a *property* child the parent
+		// absorbs it (drops the property with a Warning).
 		if rt.Child == nil {
 			return RTCode{Code: "", Type: CodeE}
-		}
-		resolvedChild := ctx.ResolveRef(rt.Child)
-		if resolvedChild != nil && isNonSerializableElementKind(resolvedChild.Kind) {
-			return RTCode{Code: "return false", Type: CodeRB}
 		}
 		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
 		iVar := ctx.NextLocalVar("i")
@@ -1418,19 +1416,6 @@ func isFunctionLikeKind(kind protocol.ReflectionKind) bool {
 		return true
 	}
 	return false
-}
-
-// isNonSerializableElementKind reports whether kind would trip
-// mion's `child.skipRT(comp)` check inside an array's emitIsType
-// (nodes/member/array.ts:148: "Arrays can not have non serializable
-// types"). KindSymbol joins the function-flavoured kinds — mion's
-// symbol.ts overrides skipRT to return true for the same reason
-// (symbols can't be JSON-serialized or round-tripped through RT).
-func isNonSerializableElementKind(kind protocol.ReflectionKind) bool {
-	if kind == protocol.KindSymbol {
-		return true
-	}
-	return isFunctionLikeKind(kind)
 }
 
 // isSymbolKeyedIndexSig reports whether a KindIndexSignature has a
