@@ -237,6 +237,8 @@ Documented divergence; not a bug.
 
 ### 5. ~~Union encoding strictly `[memberIndex, value]`, no shortcut~~ — RESOLVED
 
+> **⚠️ Correction (2026-05-29 audit):** the `unionMemberNeedsTuple` / `peekMemberIsNoop` / `peekedNoops` machinery described below **no longer exists in the codebase** (verified by grep). It was superseded by the **flat-union layout** (`internal/compiled/typefns/union_flat*.go` — `FlatLayout` / `AtomicNeedsTuple`), which merges object arms into a single `[-1, mergedObject]` (JSON) / `0xFF`-sentinel (binary) envelope and uses an all-or-nothing atomic wrap rather than a per-member skip. That layout round-trips internally but is **NOT mion-wire-compatible** (mion keeps each member as its own `[memberIndex, value]`). See [`docs/audit/05-json-serialization.md`](audit/05-json-serialization.md) §5 and [`docs/audit/06-binary-serialization.md`](audit/06-binary-serialization.md) §1 for the current behaviour. The historical text below is retained for archaeology only.
+
 **Closed by**: per-member `skipEncode + needsTupleEncoding` port.
 The shared `unionMemberNeedsTuple(member, ctx)` helper in
 `internal/compiled/typefns/json_prepare.go` is now the single source of
@@ -632,6 +634,8 @@ they're easy to find when revisiting wire-shape / payload-size
 work.
 
 ### ~~Union per-member skip-encode (`skipEncode + needsTupleEncoding`)~~ — DONE
+
+> **⚠️ Correction (2026-05-29 audit):** superseded by the flat-union layout — see the correction note in deviation #5 above and `docs/audit/05-json-serialization.md`. The per-member `skipEncode`/`needsTupleEncoding` described here is not the shipped behaviour.
 
 Ported. See deviation #5 above for the consolidated changelog and
 implementation notes. Summary:

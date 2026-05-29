@@ -93,9 +93,18 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       checkNonRTProps (port) vs checkNonJitProps (mion) rename (shared.go:202 vs interface.ts:285);
       uke Map-value path 'mapValue' vs 'mapVal' (same root as #03). By-design: known-keys sort;
       union merged-allowlist is a correctness FIX over mion; ukuw peels [-1,merged] wrapper. 45 it, 0 todo.
-- [~] 05 JSON serialization (pj/pjs/pjsp/sj/rj)    → IN FLIGHT (opus agent)
-- [~] 06 binary serialization (tb/fb)              → IN FLIGHT (opus agent)
-- [~] 07 string type-format                        → IN FLIGHT (opus agent)
+- [x] 05 JSON → docs/audit/05-json-serialization.md ⚠️ HIGH: union wire NOT mion-compatible.
+      VERIFIED: unionMemberNeedsTuple/peekMemberIsNoop ABSENT (grep empty); replaced by FLAT-UNION
+      layout (union_flat_layout.go AtomicNeedsTuple all-or-nothing + [-1,merged] envelope). pj/rj/sj
+      atomic+collection faithful; new pjs/pjsp clone correct; option→tag matrix right. → port-status.md §5 corrected.
+- [x] 06 binary → docs/audit/06-binary-serialization.md ⚠️ gaps all by-design/Low. VERIFIED:
+      isFnParams=false (binary_to.go:618) → allParamsOptional/paramsSlice NOT ported (12 mion cases, matches ROADMAP);
+      object-union flat 0xFF envelope (union_flat_binary.go) NOT mion-wire-compatible; user-class→plain object decode.
+      129 round-trip cases, 0 todo. (note: encoderModes/decoderSafeMode tests are JSON not binary.)
+- [x] 07 string format → docs/audit/07-string-format.md ⚠️ gaps mostly test coverage. VERIFIED counts:
+      formatGetTypeErrors 29 it.todo (all STRING), formatMockType 42 it.todo (31 str/6 num/5 big). Real Low gaps:
+      URL domain/ip sub-validation + FormatUrlSocialMedia not ported; StringFormat replace/replaceAll + email lowercase
+      transform missing; FMT002 only emitted from isType arm. isType/transform/serialization/binary adapters fully wired.
 - [~] 08 number type-format                        → IN FLIGHT (opus agent)
 - [~] 09 bigint type-format                         → IN FLIGHT (opus agent)
 - [ ] 10 forgotten functionality sweep            → docs/audit/10-forgotten-functionality.md (launch AFTER 04-09; cross-references all)
