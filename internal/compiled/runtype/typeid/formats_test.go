@@ -88,8 +88,8 @@ getRunTypeId<FixtureFormat>();
 	if got, ok := root.FormatAnnotation.Params["tag"]; !ok || got != float64(1) {
 		t.Fatalf("expected params.tag == 1, got %v (ok=%v)", got, ok)
 	}
-	if len(root.Decorators) != 0 {
-		t.Fatalf("format brand must NOT appear in Decorators, got %d entries", len(root.Decorators))
+	if len(root.TypeMeta) != 0 {
+		t.Fatalf("format brand must NOT appear in TypeMeta, got %d entries", len(root.TypeMeta))
 	}
 }
 

@@ -17,7 +17,7 @@
       `inlined` slot #13 → `isCircular`); dead `Inlined` field removed. Go + JS suites green.
 - [x] **T4** — Set error-path now `{key: safe(item), index}` (getTypeErrors + unknownKeyErrors); wrong "set.ts doesn't override" comment fixed.
 - [x] **T3** — non-serializable array element now propagates `CodeNS` → alwaysThrow (removed the redundant `return false`/unconditional-error carve-out in istype + typeErrors; leaf now latches correctly).
-- [ ] **T2** — `decorators` → `typeMeta` rename + surface generic intersection metadata.
+- [x] **T2** — `decorators` → `typeMeta` (Go + JS + vite-plugin + wire tag + footer); dead number `Brand` field removed; generic `atomic & {obj}` metadata surfaced as opaque `typeMeta` (structural-id already folds it idempotently). Formats untouched.
 - [ ] **T8** — reflection-shape JS test suite.
 - [ ] **T6** — string-format mock generators + transforms + activate `it.todo`s.
 - [ ] **T7** — custom class serializer/deserializer registry (needs your 4 API answers).

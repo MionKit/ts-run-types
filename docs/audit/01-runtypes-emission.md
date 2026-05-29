@@ -84,7 +84,7 @@ mion kind numbering (deepkit, `constants.kind.ts`) and ts-go numbering (`protoco
 | `index` / `child` | `index` / `type` | `Index` / `Child` | ✅ | protocol.go:171–174 |
 | `unionDiscriminators` | `FlattenedProp[]` | `UnionDiscriminators` (ref-only) | ✅ minimal | §4 — strictly-new field only |
 | `safeUnionChildren` | sort output (transient) | `SafeUnionChildren` | ✅ | union_safeorder.go:38 |
-| `decorators` | `decorators` | `Decorators` | ✅ brand objects | format brands lifted out → `FormatAnnotation` |
+| `decorators` | `decorators` | `TypeMeta` | ✅ brand objects | format brands lifted out → `FormatAnnotation` |
 | `formatAnnotation` | `FormatAnnotation` | `FormatAnnotation{Name,Params}` | ✅ | folded into structural id (typeid/formats.go:379) |
 | `extendsArguments`/`implements`/`arguments`/`extends` | deepkit class fields + iface extends | same names | ✅ | serialize.go:908–921, 855–858; heritage.go |
 | `isSafeName` | `isSafeName` helper | `IsSafeName` | ✅ | safename.go (regex, minus mion's numeric-key short-circuit) |
@@ -112,7 +112,7 @@ Two intentional divergences (enum disambiguation, readonly suffix, and the cycle
 
 ## 4. Intentional deviations (by design)
 
-1. **Intersections collapsed in Go** — `KindIntersection`(24) never reaches the wire. `internal/compiled/runtype/intersection_collapse.go` reduces `string & {__brand}` → primitive + `Decorators`, object×object → merged `KindObjectLiteral`, incompatible → `KindNever`. Mion keeps a live `IntersectionRunType`. Rationale: tsgo already eagerly collapses most intersections, and `GetTypeArguments` crashes on intersection types (collapse comment lines 116–121). Structural-id side mirrored (`typeid/intersection_collapse.go`).
+1. **Intersections collapsed in Go** — `KindIntersection`(24) never reaches the wire. `internal/compiled/runtype/intersection_collapse.go` reduces `string & {__brand}` → primitive + `TypeMeta`, object×object → merged `KindObjectLiteral`, incompatible → `KindNever`. Mion keeps a live `IntersectionRunType`. Rationale: tsgo already eagerly collapses most intersections, and `GetTypeArguments` crashes on intersection types (collapse comment lines 116–121). Structural-id side mirrored (`typeid/intersection_collapse.go`).
 
 2. **Live-JS-value fields never captured** (`docs/ROADMAP.md:37–44`, verified): `TypeFunction.function`, `TypeClass.classType`, `TypeEnum.enum`, non-literal `default`, `TypeInfer.set`, `RTContainer`. Structural shape (signature, members, `values`) is emitted instead. For builtins, `ClassRef.Builtin` lets the footer wire `t.classType = globalThis.<Name>` (module.go:280–282) with zero runtime imports; **user-class constructor wiring is explicitly not planned** (ROADMAP:40) — `ClassRef.Name`/`Module` are recorded but the footer never emits an import for them.
 

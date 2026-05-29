@@ -118,7 +118,7 @@ func PopulateFamily(runType *RunType) {
 	PopulateFamily(runType.Child)
 	PopulateFamily(runType.Index)
 	PopulateFamily(runType.IndexT)
-	for _, decorator := range runType.Decorators {
+	for _, decorator := range runType.TypeMeta {
 		PopulateFamily(decorator)
 	}
 	for _, safeChild := range runType.SafeUnionChildren {

@@ -77,7 +77,7 @@ export function initCache(rtUtils) {
       children: undefined,
       safeUnionChildren: undefined,
       unionDiscriminators: undefined,
-      decorators: undefined,
+      typeMeta: undefined,
       typeArguments: undefined,
       arguments: undefined,
       extendsArguments: undefined,

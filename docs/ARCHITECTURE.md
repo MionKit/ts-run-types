@@ -204,7 +204,7 @@ Lossy mappings are recorded in [docs/ROADMAP.md](./ROADMAP.md). Highlights:
 - `bigint` literal values → string with `flags: ["bigint"]` (consumer parses with `BigInt(…)`).
 - `parent` not in JSON; the `.ts` artifact wires it. JSON-only consumers re-knot themselves.
 
-Implemented: `templateLiteral` (regex-compile at RT-build time), number/bigint type-formats (Go: `internal/compiled/typefns/formats/numeric/`; JS: `packages/ts-go-run-types/src/formats/`). Still deferred: `infer`, general-purpose decorators (`MinLength<5>`-style beyond the format brand scanner), runtime-only fields (`function`, `classType`, `enum`). Regex literals are now produced via AST-trace from `const`-bound regex initializers — see [atomic-types.md § RegExp](./atomic-types.md#regexp).
+Implemented: `templateLiteral` (regex-compile at RT-build time), number/bigint type-formats (Go: `internal/compiled/typefns/formats/numeric/`; JS: `packages/ts-go-run-types/src/formats/`). Generic type-metadata is surfaced via `typeMeta` (any `atomic & { obj }` intersection; renamed from `decorators`). Still deferred: `infer`, TS `@decorator`-syntax capture, validating constraint decorators (`MinLength<5>`-style beyond the format brand scanner), runtime-only fields (`function`, `classType`, `enum`). Regex literals are now produced via AST-trace from `const`-bound regex initializers — see [atomic-types.md § RegExp](./atomic-types.md#regexp).
 
 See also the per-kind references:
 
