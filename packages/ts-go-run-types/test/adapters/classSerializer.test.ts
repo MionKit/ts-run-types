@@ -27,7 +27,11 @@ import {
 } from '@mionjs/ts-go-run-types';
 // Registry isolation helpers live next to the registry; not part of the
 // public barrel (tests reach in directly).
-import {clearClassSerializers} from '../../src/runtypes/classSerializerRegistry.ts';
+import {
+  clearClassSerializers,
+  unregisterClassSerializer,
+  getClassSerializer,
+} from '../../src/runtypes/classSerializerRegistry.ts';
 
 // A single class definition reused across thunks. Declaring it at module
 // scope (not inside each thunk) keeps `instanceof` identity stable across
@@ -192,5 +196,111 @@ describe('classSerializer / registry isolation', () => {
     expect(decoded).not.toBeInstanceOf(Foo);
     expect(decoded.x).toBe(1);
     expect(decoded.label).toBe('one');
+  });
+
+  it('unregisterClassSerializer removes one entry, leaving others intact', () => {
+    // Register Foo + a second class; unregister only Foo. Foo reverts to
+    // structural fallback while the other serializer keeps working.
+    registerFoo();
+    registerClassSerializer<Foo>('Other', {serialize: (v) => v, deserialize: (d) => d as Foo});
+    unregisterClassSerializer('Foo');
+
+    const encode = createJsonEncoder<Foo>();
+    const decode = createJsonDecoder<Foo>();
+    const decoded = decode(encode(new Foo(2, 'two')) as string) as Foo;
+    // Foo lookup is gone -> structural fallback (plain object).
+    expect(decoded).not.toBeInstanceOf(Foo);
+    expect(decoded.x).toBe(2);
+    // The untouched 'Other' registration is still present.
+    expect(getClassSerializer('Other')).toBeDefined();
+    expect(getClassSerializer('Foo')).toBeUndefined();
+  });
+
+  it('re-registering the same name overwrites the prior handler (last wins)', () => {
+    // First handler tags the instance; the second (final) one wins.
+    registerClassSerializer<Foo>('Foo', {
+      serialize: (f) => ({x: f.x, label: 'FIRST'}),
+      deserialize: (d) => new Foo((d as Foo).x, 'FIRST'),
+    });
+    registerFoo(); // overwrites with the round-tripping handler
+
+    const decoded = createJsonDecoder<Foo>()(createJsonEncoder<Foo>()(new Foo(3, 'kept')) as string) as Foo;
+    expect(decoded).toBeInstanceOf(Foo);
+    expect(decoded.label).toBe('kept');
+  });
+
+  it('registerClassSerializer rejects an empty class name', () => {
+    expect(() => registerClassSerializer('', {serialize: (v) => v, deserialize: (d) => d})).toThrow();
+  });
+});
+
+// Nested + collection positions: the registry branch is emitted wherever a
+// plain user class node appears, not only at the root. These prove a custom
+// serializer fires for a class held as an object property and as an array
+// element, through both the JSON and binary families.
+
+class Point {
+  constructor(
+    public x: number,
+    public y: number
+  ) {}
+  mag(): number {
+    return Math.hypot(this.x, this.y);
+  }
+}
+
+interface Shape {
+  name: string;
+  origin: Point;
+}
+
+function registerPoint(): void {
+  registerClassSerializer<Point>('Point', {
+    serialize: (p) => ({x: p.x, label: 'pt', y: p.y}),
+    deserialize: (d) => {
+      const data = d as {x: number; y: number};
+      return new Point(data.x, data.y);
+    },
+  });
+}
+
+describe('classSerializer / nested class as an object property', () => {
+  it('JSON — a registered class held as a property reconstructs a real instance', () => {
+    registerPoint();
+    const encode = createJsonEncoder<Shape>();
+    const decode = createJsonDecoder<Shape>();
+
+    const input: Shape = {name: 'box', origin: new Point(3, 4)};
+    const decoded = decode(encode(input) as string);
+    expect(decoded.name).toBe('box');
+    expect(decoded.origin).toBeInstanceOf(Point);
+    expect(decoded.origin.mag()).toBe(5);
+  });
+
+  it('binary — a registered class held as a property reconstructs a real instance', () => {
+    registerPoint();
+    const encode = createBinaryEncoder<Shape>();
+    const decode = createBinaryDecoder<Shape>();
+
+    const input: Shape = {name: 'box', origin: new Point(6, 8)};
+    const decoded = decode(encode(input));
+    expect(decoded.name).toBe('box');
+    expect(decoded.origin).toBeInstanceOf(Point);
+    expect(decoded.origin.mag()).toBe(10);
+  });
+});
+
+describe('classSerializer / class as an array element', () => {
+  it('JSON — every registered class in an array reconstructs a real instance', () => {
+    registerPoint();
+    const encode = createJsonEncoder<Point[]>();
+    const decode = createJsonDecoder<Point[]>();
+
+    const input = [new Point(1, 0), new Point(0, 1)];
+    const decoded = decode(encode(input) as string);
+    expect(decoded).toHaveLength(2);
+    for (const point of decoded) expect(point).toBeInstanceOf(Point);
+    expect(decoded[0].x).toBe(1);
+    expect(decoded[1].y).toBe(1);
   });
 });

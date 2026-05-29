@@ -64,4 +64,4 @@ export interface RunTypeMockOptions {
 export type MockTypeFn<T = unknown> = (options?: DeepPartial<RunTypeMockOptions>) => T;
 
 /** Recursive Partial — every object branch becomes optional. **/
-export type DeepPartial<T> = T extends object ? (T extends ReadonlyArray<infer _> ? T : {[K in keyof T]?: DeepPartial<T[K]>}) : T;
+export type DeepPartial<T> = T extends object ? (T extends ReadonlyArray<unknown> ? T : {[K in keyof T]?: DeepPartial<T[K]>}) : T;
