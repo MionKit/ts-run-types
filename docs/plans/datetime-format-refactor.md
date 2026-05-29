@@ -238,9 +238,25 @@ No work — confirmed Date serialisation is already handled by the default seria
 
 For **every** new scenario, write **two** tests: `getRunTypeId<T>()`/`createIsType<T>()` (static) and a `reflectRunTypeId(value)` (reflection) form, and at least one paired hash-equivalence assertion per suite.
 
+### ⭐ ESSENTIAL — param-validation coverage (must-have, not optional)
+
+These are the **core acceptance tests** for this feature and MUST exist before the work is considered done. For **date**, **time**, **dateTime**, AND **native Date**, cover the full matrix below — for **both** absolute and relative (`now±P`) bounds:
+
+1. **Same-format-only enforcement (the key rule):**
+   - **date** format with a **time component** in a relative bound (e.g. `min:'now+PT1H'`, `min:'now+P0DT5M'`) → **must emit `FMT002`**.
+   - **time** format with a **date component** in a relative bound (e.g. `max:'now+P1D'`, `max:'now-P1Y'`) → **must emit `FMT002`**.
+   - **date** format with an **absolute literal in the wrong layout** (e.g. a `YYYY-MM-DD` field given `min:'08:30'` or `min:'2020-01-01T00:00'`) → **must emit `FMT002`**.
+   - **time** format with an absolute **date** literal (e.g. an `HH:mm` field given `min:'2020-01-01'`) → **must emit `FMT002`**.
+   - **dateTime** / **native Date**: both component kinds accepted → these same inputs must **NOT** emit a diagnostic (positive control proving the restriction is per-kind, not blanket).
+2. **Valid bounds do NOT emit** (negative control for every kind): date+date-components, time+time-components, absolute literal in the correct layout, and bare `now`.
+3. **Malformed bound value** → `FMT002`: invalid calendar/time literal (`'2020-13-01'`, `'25:00'`), malformed duration (`'now+P'`, `'now+1Y'` missing `P`, `'nowP1Y'`).
+4. **min > max** for two absolute bounds in the same layout → `FMT002`. (Relative-vs-anything ordering is not statically checkable → assert it is **skipped**, not falsely flagged.)
+
+Implement these as a **table-driven** Go test (one row per matrix cell, asserting presence/absence of `FMT002` and ideally the message substring) in a new `internal/resolver/datetime_bound_validation_test.go`, plus direct unit tests on `bounds.go` (`parseRelative`, `validateBound`, `validateMinMax`) covering the same matrix at the function level. The Go binary is the source of truth for validation, so the Go layer is where these essential tests live; the JS adapter tests below mirror the runtime behaviour but the diagnostics matrix is asserted Go-side.
+
 ### Go (`internal/`)
 - New/extended fixtures under `internal/testfixtures/` for: date min/max absolute, date min/max relative, time min/max, dateTime min/max, native Date min/max, and **invalid** cases (cross-kind duration, bad literal, min>max).
-- Extend `internal/resolver/format_param_validation_test.go` to assert the new `FMT002`/`FMT003` diagnostics fire for each invalid case, and do NOT fire for valid ones.
+- Extend `internal/resolver/format_param_validation_test.go` (or the new `datetime_bound_validation_test.go`) to assert the new `FMT002` diagnostics fire for each invalid case, and do NOT fire for valid ones — see the **ESSENTIAL** matrix above.
 - Bound-parser unit tests for `bounds.go` (component-restriction matrix: date×time-component → error, etc.).
 
 ### JS (`packages/ts-go-run-types/test/`)
