@@ -257,9 +257,9 @@ func stringErrorStatements(ctx formats.EmitContext, params map[string]any, vλl,
 
 // EmitFormatTransform implements formats.FormatTransformer — the value
 // mutation applied by the `format` RT-fn. Chains the active transformer
-// flags in mion's order (stringFormat.runtype.ts:44-51): trim, lowercase,
-// uppercase, capitalize. Returns "" when none are set (identity). replace
-// / replaceAll are not yet plumbed through StringParams — a follow-up.
+// operations in mion's order (stringFormat.runtype.ts:44-51): trim,
+// replace, replaceAll, lowercase, uppercase, capitalize. Returns "" when
+// none are set (identity).
 func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
 	if annotation == nil {
 		return ""
@@ -268,6 +268,12 @@ func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnota
 	expr := vλl
 	if boolParam(params, "trim") {
 		expr += ".trim()"
+	}
+	if search, replace, ok := readReplaceParam(params, "replace"); ok {
+		expr += ".replace(" + search + ", " + replace + ")"
+	}
+	if search, replace, ok := readReplaceParam(params, "replaceAll"); ok {
+		expr += ".replaceAll(" + search + ", " + replace + ")"
 	}
 	if boolParam(params, "lowercase") {
 		expr += ".toLowerCase()"
@@ -282,6 +288,24 @@ func (stringFormatEmitter) EmitFormatTransform(annotation *protocol.FormatAnnota
 		return ""
 	}
 	return expr
+}
+
+// readReplaceParam reads a replace / replaceAll param ({searchValue,
+// replaceValue}) and returns both as quoted JS string literals. Returns
+// ok=false when the key is absent or malformed (so the transform skips
+// it). String literals match mion's intent — its emitFormat interpolates
+// the raw values, which only works for already-quoted literals.
+func readReplaceParam(params map[string]any, key string) (search, replace string, ok bool) {
+	obj, isObj := params[key].(map[string]any)
+	if !isObj {
+		return "", "", false
+	}
+	searchValue, hasSearch := obj["searchValue"].(string)
+	replaceValue, hasReplace := obj["replaceValue"].(string)
+	if !hasSearch || !hasReplace {
+		return "", "", false
+	}
+	return strconv.Quote(searchValue), strconv.Quote(replaceValue), true
 }
 
 // boolParam reads a boolean transformer flag (trim / lowercase / …),

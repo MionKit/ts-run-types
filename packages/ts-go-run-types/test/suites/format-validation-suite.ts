@@ -107,74 +107,103 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatString maxLength — bounds the upper length',
       isType: () => createIsType<FormatString<{maxLength: 5}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatString<{maxLength: 5}>>(),
+      mockType: () => createMockType<FormatString<{maxLength: 5}>>(),
       getSamples: () => ({valid: ['', 'hello'], invalid: ['hello!', 42]}),
       expectedFormatErrors: () => [{name: 'stringFormat', val: 5}, null],
     },
     string_minLength: {
       title: 'FormatString minLength — bounds the lower length',
       isType: () => createIsType<FormatString<{minLength: 3}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{minLength: 3}>>(),
+      mockType: () => createMockType<FormatString<{minLength: 3}>>(),
       getSamples: () => ({valid: ['abc', 'abcd'], invalid: ['ab', '']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 3}, {name: 'stringFormat', val: 3}],
     },
     string_length: {
       title: 'FormatString length — exact length only',
       isType: () => createIsType<FormatString<{length: 4}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{length: 4}>>(),
+      mockType: () => createMockType<FormatString<{length: 4}>>(),
       getSamples: () => ({valid: ['abcd'], invalid: ['abc', 'abcde']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 4}, {name: 'stringFormat', val: 4}],
     },
     string_range: {
       title: 'FormatString minLength + maxLength — bounds both ends',
       isType: () => createIsType<FormatString<{minLength: 2; maxLength: 4}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{minLength: 2; maxLength: 4}>>(),
+      mockType: () => createMockType<FormatString<{minLength: 2; maxLength: 4}>>(),
       getSamples: () => ({valid: ['ab', 'abcd'], invalid: ['a', 'abcde']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 2}, {name: 'stringFormat', val: 4}],
     },
     string_allowedChars: {
       title: 'FormatString allowedChars — only the allowed set passes',
       isType: () => createIsType<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
+      mockType: () => createMockType<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
       getSamples: () => ({valid: ['deadbeef', '0042'], invalid: ['xyz', 'dead beef', '']}),
       expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}, null, null],
     },
     string_allowedChars_ignoreCase: {
       title: 'FormatString allowedChars ignoreCase — folds case',
       isType: () => createIsType<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
+      mockType: () => createMockType<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
       getSamples: () => ({valid: ['ABC', 'aAbBcC'], invalid: ['abcd']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}],
     },
     string_allowedChars_literal: {
       title: 'FormatString allowedChars — regex-special chars treated literally',
       isType: () => createIsType<FormatString<{allowedChars: {val: '.-'}}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{allowedChars: {val: '.-'}}>>(),
+      mockType: () => createMockType<FormatString<{allowedChars: {val: '.-'}}>>(),
       getSamples: () => ({valid: ['...---'], invalid: ['a']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}],
     },
     string_disallowedChars: {
       title: 'FormatString disallowedChars — rejects any disallowed char',
       isType: () => createIsType<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
       mockType: () => createMockType<FormatString<{disallowedChars: {val: '!@#'; mockSamples: 'abc'}}>>(),
       getSamples: () => ({valid: ['hello'], invalid: ['hi!', 'a@b']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid characters'}, {name: 'stringFormat', val: 'Invalid characters'}],
     },
     string_allowedValues: {
       title: 'FormatString allowedValues — enum-like exact match',
       isType: () => createIsType<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
+      mockType: () => createMockType<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
       getSamples: () => ({valid: ['red', 'blue'], invalid: ['yellow', 'RED', 'redgreen']}),
       expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, null, null],
     },
     string_allowedValues_ignoreCase: {
       title: 'FormatString allowedValues ignoreCase — folds case across the set',
       isType: () => createIsType<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+      mockType: () => createMockType<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
       getSamples: () => ({valid: ['RED', 'Green'], invalid: ['blue']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}],
     },
     string_allowedValues_escaped: {
       title: 'FormatString allowedValues — regex-special chars matched literally',
       isType: () => createIsType<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
+      mockType: () => createMockType<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
       getSamples: () => ({valid: ['a.b', 'c+d'], invalid: ['axb', 'ccd']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, {name: 'stringFormat', val: 'Invalid value'}],
     },
     string_disallowedValues: {
       title: 'FormatString disallowedValues — rejects the listed values',
       isType: () => createIsType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
       mockType: () => createMockType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
       getSamples: () => ({valid: ['alice'], invalid: ['admin', 'root']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}, {name: 'stringFormat', val: 'Invalid value'}],
     },
     string_customErrorMessage: {
       title: 'FormatString allowedValues — custom errorMessage surfaces as format.val',
       isType: () => createIsType<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+      mockType: () => createMockType<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
       getSamples: () => ({valid: ['a', 'b'], invalid: ['c']}),
       expectedFormatErrors: () => [{name: 'stringFormat', val: 'pick a or b'}],
     },
@@ -191,25 +220,34 @@ export const FORMAT_VALIDATION_SUITE: {
     alphaNumeric: {
       title: 'FormatAlphaNumeric — letters and digits',
       isType: () => createIsType<FormatAlphaNumeric>(),
+      getTypeErrors: () => createGetTypeErrors<FormatAlphaNumeric>(),
       mockType: () => createMockType<FormatAlphaNumeric>(),
       getSamples: () => ({valid: ['abc123', 'ABC', '123'], invalid: ['a-b', 'a b']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, {name: 'stringFormat', val: 'Invalid pattern'}],
     },
     numeric: {
       title: 'FormatNumeric — digits only',
       isType: () => createIsType<FormatNumeric>(),
+      getTypeErrors: () => createGetTypeErrors<FormatNumeric>(),
       mockType: () => createMockType<FormatNumeric>(),
       getSamples: () => ({valid: ['12345', '007'], invalid: ['12.3', '12a']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, {name: 'stringFormat', val: 'Invalid pattern'}],
     },
     alpha_withLength: {
       title: 'FormatAlpha with maxLength — char class plus length bound',
       isType: () => createIsType<FormatAlpha<{maxLength: 3}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatAlpha<{maxLength: 3}>>(),
+      mockType: () => createMockType<FormatAlpha<{maxLength: 3}>>(),
       getSamples: () => ({valid: ['abc'], invalid: ['abcd', 'a1']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 3}, {name: 'stringFormat', val: 'Invalid pattern'}],
     },
     lowercase_validate: {
       title: 'FormatLowercase — transformer-only, validates as a plain string',
       isType: () => createIsType<FormatLowercase>(),
+      getTypeErrors: () => createGetTypeErrors<FormatLowercase>(),
       mockType: () => createMockType<FormatLowercase>(),
       getSamples: () => ({valid: ['already lower', 'HasUpper'], invalid: [42]}),
+      expectedFormatErrors: () => [null],
     },
 
     // ─────────────────────────────── UUID ───────────────────────────
@@ -224,8 +262,10 @@ export const FORMAT_VALIDATION_SUITE: {
     uuidv7: {
       title: 'FormatUUIDv7 — accepts v7, rejects v4',
       isType: () => createIsType<FormatUUIDv7>(),
+      getTypeErrors: () => createGetTypeErrors<FormatUUIDv7>(),
       mockType: () => createMockType<FormatUUIDv7>(),
       getSamples: () => ({valid: [V7], invalid: [V4]}),
+      expectedFormatErrors: () => [{name: 'uuid', val: '7'}],
     },
 
     // ─────────────────────────────── Date ───────────────────────────
@@ -243,39 +283,55 @@ export const FORMAT_VALIDATION_SUITE: {
     date_DMY: {
       title: 'FormatStringDate — DD-MM-YYYY layout',
       isType: () => createIsType<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
+      mockType: () => createMockType<FormatStringDate<{format: 'DD-MM-YYYY'}>>(),
       getSamples: () => ({valid: ['29-02-2024'], invalid: ['2024-02-29', '31-04-2024']}),
+      expectedFormatErrors: () => [{name: 'date', val: 'DD-MM-YYYY'}, {name: 'date', val: 'DD-MM-YYYY'}],
     },
     date_YM: {
       title: 'FormatStringDate — YYYY-MM layout (no day)',
       isType: () => createIsType<FormatStringDate<{format: 'YYYY-MM'}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'YYYY-MM'}>>(),
+      mockType: () => createMockType<FormatStringDate<{format: 'YYYY-MM'}>>(),
       getSamples: () => ({valid: ['2024-02'], invalid: ['2024-13', '2024-02-29']}),
+      expectedFormatErrors: () => [{name: 'date', val: 'YYYY-MM'}, {name: 'date', val: 'YYYY-MM'}],
     },
     date_MD: {
       title: 'FormatStringDate — MM-DD layout (no year)',
       isType: () => createIsType<FormatStringDate<{format: 'MM-DD'}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'MM-DD'}>>(),
+      mockType: () => createMockType<FormatStringDate<{format: 'MM-DD'}>>(),
       getSamples: () => ({valid: ['02-29'], invalid: ['13-01']}),
+      expectedFormatErrors: () => [{name: 'date', val: 'MM-DD'}],
     },
 
     // ─────────────────────────────── Time ───────────────────────────
     time_iso: {
       title: 'FormatStringTime — ISO (default, tz-aware)',
       isType: () => createIsType<FormatStringTime>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringTime>(),
+      mockType: () => createMockType<FormatStringTime>(),
       getSamples: () => ({
         valid: ['12:30:45Z', '12:30:45.123Z', '12:30:45+05:30', '00:00:00-08:00'],
         invalid: ['12:30:45', '24:00:00Z', '12:60:00Z'],
       }),
+      expectedFormatErrors: () => [{name: 'time', val: 'ISO'}, {name: 'time', val: 'ISO'}, {name: 'time', val: 'ISO'}],
     },
     time_HHmmss: {
       title: 'FormatStringTime — HH:mm:ss fixed layout',
       isType: () => createIsType<FormatStringTime<{format: 'HH:mm:ss'}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm:ss'}>>(),
+      mockType: () => createMockType<FormatStringTime<{format: 'HH:mm:ss'}>>(),
       getSamples: () => ({valid: ['23:59:59'], invalid: ['99:99:99', '23:59', '24:00:00']}),
       expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss'}, null, null],
     },
     time_HHmmss_ms: {
       title: 'FormatStringTime — HH:mm:ss[.mmm] optional milliseconds',
       isType: () => createIsType<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+      getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
+      mockType: () => createMockType<FormatStringTime<{format: 'HH:mm:ss[.mmm]'}>>(),
       getSamples: () => ({valid: ['12:30:45', '12:30:45.999'], invalid: ['12:30:45.9999']}),
+      expectedFormatErrors: () => [{name: 'time', val: 'HH:mm:ss[.mmm]'}],
     },
 
     // ───────────────────────────── DateTime ─────────────────────────
@@ -283,6 +339,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatStringDateTime — default (ISO date T ISO time)',
       isType: () => createIsType<FormatStringDateTime>(),
       getTypeErrors: () => createGetTypeErrors<FormatStringDateTime>(),
+      mockType: () => createMockType<FormatStringDateTime>(),
       getSamples: () => ({
         valid: ['2024-02-29T12:30:45Z', '2026-05-28T00:00:00.500+02:00'],
         invalid: ['2024-02-29 12:30:45Z', '2023-02-29T12:30:45Z', '2024-02-29T25:30:45Z', 'not-a-datetime'],
@@ -292,10 +349,18 @@ export const FORMAT_VALIDATION_SUITE: {
     dateTime_custom: {
       title: 'FormatStringDateTime — custom nested layouts + splitChar',
       isType: () => createIsType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+      getTypeErrors: () =>
+        createGetTypeErrors<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+      mockType: () => createMockType<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
       getSamples: () => ({
         valid: ['29-02-2024 23:59'],
         invalid: ['2024-02-29 23:59', '29-02-2024T23:59', '29-02-2024 24:00'],
       }),
+      expectedFormatErrors: () => [
+        {name: 'dateTime', formatPathTail: 'date'},
+        {name: 'dateTime', formatPathTail: 'splitChar'},
+        {name: 'dateTime', formatPathTail: 'time'},
+      ],
     },
 
     // ──────────────────────────────── IP ────────────────────────────
@@ -303,6 +368,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatIPv4 — dotted-quad addresses',
       isType: () => createIsType<FormatIPv4>(),
       getTypeErrors: () => createGetTypeErrors<FormatIPv4>(),
+      mockType: () => createMockType<FormatIPv4>(),
       getSamples: () => ({
         valid: ['192.168.0.1', '0.0.0.0', '255.255.255.255'],
         invalid: ['999.999.999.999', '256.0.0.1', '1.2.3', '::1'],
@@ -312,22 +378,34 @@ export const FORMAT_VALIDATION_SUITE: {
     ipv6: {
       title: 'FormatIPv6 — colon-separated, loopback allowed',
       isType: () => createIsType<FormatIPv6>(),
+      getTypeErrors: () => createGetTypeErrors<FormatIPv6>(),
+      mockType: () => createMockType<FormatIPv6>(),
       getSamples: () => ({valid: ['2001:db8:0:0:0:0:0:1', '::1', 'fe80::1'], invalid: ['192.168.0.1', '12345::1']}),
+      expectedFormatErrors: () => [{name: 'ip', val: 6}, {name: 'ip', val: 6}],
     },
     ip_any: {
       title: 'FormatIP — accepts both v4 and v6',
       isType: () => createIsType<FormatIP>(),
+      getTypeErrors: () => createGetTypeErrors<FormatIP>(),
+      mockType: () => createMockType<FormatIP>(),
       getSamples: () => ({valid: ['10.0.0.1', '2001:db8::1'], invalid: ['definitely not an ip']}),
+      expectedFormatErrors: () => [{name: 'ip', val: 'any'}],
     },
     ipv4_port: {
       title: 'FormatIPv4WithPort — v4 with port',
       isType: () => createIsType<FormatIPv4WithPort>(),
+      getTypeErrors: () => createGetTypeErrors<FormatIPv4WithPort>(),
+      mockType: () => createMockType<FormatIPv4WithPort>(),
       getSamples: () => ({valid: ['192.168.0.1:8080'], invalid: ['192.168.0.1:70000']}),
+      expectedFormatErrors: () => [{name: 'ip', val: 4}],
     },
     ipv6_port: {
       title: 'FormatIPv6WithPort — v6 with bracketed port',
       isType: () => createIsType<FormatIPv6WithPort>(),
+      getTypeErrors: () => createGetTypeErrors<FormatIPv6WithPort>(),
+      mockType: () => createMockType<FormatIPv6WithPort>(),
       getSamples: () => ({valid: ['[2001:db8::1]:443'], invalid: ['[2001:db8::1]:99999']}),
+      expectedFormatErrors: () => [{name: 'ip', val: 6}],
     },
 
     // ────────────────────────────── Domain ──────────────────────────
@@ -346,6 +424,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge',
       isType: () => createIsType<FormatDomainStrict>(),
       getTypeErrors: () => createGetTypeErrors<FormatDomainStrict>(),
+      mockType: () => createMockType<FormatDomainStrict>(),
       getSamples: () => ({
         valid: ['mion.io', 'sub.example.com', 'aa.bb.cc.dd.ee.com'],
         invalid: ['-bad.com', 'aa.bb.cc.dd.ee.ff.com', 'example.123', 'ex_ample.com', 'localhost'],
@@ -368,12 +447,16 @@ export const FORMAT_VALIDATION_SUITE: {
     emailPunycode: {
       title: 'FormatEmailPunycode — accepts punycode-tld domains',
       isType: () => createIsType<FormatEmailPunycode>(),
+      getTypeErrors: () => createGetTypeErrors<FormatEmailPunycode>(),
+      mockType: () => createMockType<FormatEmailPunycode>(),
       getSamples: () => ({valid: ['john@example.xn--fiqs8s'], invalid: ['not-an-email']}),
+      expectedFormatErrors: () => [{name: 'email'}],
     },
     emailStrict: {
       title: 'FormatEmailStrict — localPart + domain decomposition',
       isType: () => createIsType<FormatEmailStrict>(),
       getTypeErrors: () => createGetTypeErrors<FormatEmailStrict>(),
+      mockType: () => createMockType<FormatEmailStrict>(),
       getSamples: () => ({
         valid: ['john@example.com', 'jane.doe@mion.io'],
         invalid: ['a+b@x.com', 'a b@example.com', 'john@@example.com', 'john@bad_domain.com', 'no-at-symbol'],
@@ -396,25 +479,44 @@ export const FORMAT_VALIDATION_SUITE: {
     urlHttp: {
       title: 'FormatUrlHttp — http(s) only',
       isType: () => createIsType<FormatUrlHttp>(),
+      getTypeErrors: () => createGetTypeErrors<FormatUrlHttp>(),
+      mockType: () => createMockType<FormatUrlHttp>(),
       getSamples: () => ({valid: ['https://example.com', 'http://example.com'], invalid: ['ftp://example.com']}),
+      expectedFormatErrors: () => [{name: 'url'}],
     },
     urlFile: {
       title: 'FormatUrlFile — file URLs',
       isType: () => createIsType<FormatUrlFile>(),
+      getTypeErrors: () => createGetTypeErrors<FormatUrlFile>(),
+      mockType: () => createMockType<FormatUrlFile>(),
       getSamples: () => ({valid: ['file:///etc/hosts'], invalid: ['https://example.com']}),
+      expectedFormatErrors: () => [{name: 'url'}],
     },
 
     // ─────────────────────── registerFormatPattern ──────────────────
     pattern_slug: {
       title: 'registerFormatPattern — slug regex recovered from the call site',
       isType: () => createIsType<Slug>(),
+      getTypeErrors: () => createGetTypeErrors<Slug>(),
       mockType: () => createMockType<Slug>(),
       getSamples: () => ({valid: ['my-slug', 'a-b-c'], invalid: ['Has Capitals', 'UPPER', 'has space', '']}),
+      // `pattern`'s custom message lives under the key-excluded `message`
+      // field, so the emitter uses the static default 'Invalid pattern'
+      // (shared.go messageLiteral special-cases pattern for cache identity).
+      expectedFormatErrors: () => [
+        {name: 'stringFormat', val: 'Invalid pattern'},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+        {name: 'stringFormat', val: 'Invalid pattern'},
+      ],
     },
     pattern_hex: {
       title: 'registerFormatPattern — {source, flags} overload (case-insensitive)',
       isType: () => createIsType<Hex>(),
+      getTypeErrors: () => createGetTypeErrors<Hex>(),
+      mockType: () => createMockType<Hex>(),
       getSamples: () => ({valid: ['0042', 'DEADbeef'], invalid: ['xyz', '']}),
+      expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid pattern'}, {name: 'stringFormat', val: 'Invalid pattern'}],
     },
   },
   NUMBER_FORMAT: {

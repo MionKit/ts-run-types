@@ -74,50 +74,57 @@ describe('format getTypeErrors / STRING_FORMAT', () => {
   });
 
   it('FormatString maxLength — bounds the upper length', () => assertFormatGetTypeErrors(STRING.string_maxLength));
-  it.todo('FormatString minLength — bounds the lower length');
-  it.todo('FormatString length — exact length only');
-  it.todo('FormatString minLength + maxLength — bounds both ends');
+  it('FormatString minLength — bounds the lower length', () => assertFormatGetTypeErrors(STRING.string_minLength));
+  it('FormatString length — exact length only', () => assertFormatGetTypeErrors(STRING.string_length));
+  it('FormatString minLength + maxLength — bounds both ends', () => assertFormatGetTypeErrors(STRING.string_range));
   it('FormatString allowedChars — only the allowed set passes', () => assertFormatGetTypeErrors(STRING.string_allowedChars));
-  it.todo('FormatString allowedChars ignoreCase — folds case');
-  it.todo('FormatString allowedChars — regex-special chars treated literally');
-  it.todo('FormatString disallowedChars — rejects any disallowed char');
+  it('FormatString allowedChars ignoreCase — folds case', () => assertFormatGetTypeErrors(STRING.string_allowedChars_ignoreCase));
+  it('FormatString allowedChars — regex-special chars treated literally', () =>
+    assertFormatGetTypeErrors(STRING.string_allowedChars_literal));
+  it('FormatString disallowedChars — rejects any disallowed char', () =>
+    assertFormatGetTypeErrors(STRING.string_disallowedChars));
   it('FormatString allowedValues — enum-like exact match', () => assertFormatGetTypeErrors(STRING.string_allowedValues));
-  it.todo('FormatString allowedValues ignoreCase — folds case across the set');
-  it.todo('FormatString allowedValues — regex-special chars matched literally');
-  it.todo('FormatString disallowedValues — rejects the listed values');
+  it('FormatString allowedValues ignoreCase — folds case across the set', () =>
+    assertFormatGetTypeErrors(STRING.string_allowedValues_ignoreCase));
+  it('FormatString allowedValues — regex-special chars matched literally', () =>
+    assertFormatGetTypeErrors(STRING.string_allowedValues_escaped));
+  it('FormatString disallowedValues — rejects the listed values', () =>
+    assertFormatGetTypeErrors(STRING.string_disallowedValues));
   it('FormatString allowedValues — custom errorMessage surfaces as format.val', () =>
     assertFormatGetTypeErrors(STRING.string_customErrorMessage));
   it('FormatAlpha — letters only', () => assertFormatGetTypeErrors(STRING.alpha));
-  it.todo('FormatAlphaNumeric — letters and digits');
-  it.todo('FormatNumeric — digits only');
-  it.todo('FormatAlpha with maxLength — char class plus length bound');
-  it.todo('FormatLowercase — transformer-only, validates as a plain string');
+  it('FormatAlphaNumeric — letters and digits', () => assertFormatGetTypeErrors(STRING.alphaNumeric));
+  it('FormatNumeric — digits only', () => assertFormatGetTypeErrors(STRING.numeric));
+  it('FormatAlpha with maxLength — char class plus length bound', () => assertFormatGetTypeErrors(STRING.alpha_withLength));
+  it('FormatLowercase — transformer-only, validates as a plain string', () =>
+    assertFormatGetTypeErrors(STRING.lowercase_validate));
   it('FormatUUIDv4 — accepts v4, rejects v7 and malformed', () => assertFormatGetTypeErrors(STRING.uuidv4));
-  it.todo('FormatUUIDv7 — accepts v7, rejects v4');
+  it('FormatUUIDv7 — accepts v7, rejects v4', () => assertFormatGetTypeErrors(STRING.uuidv7));
   it('FormatStringDate — ISO / YYYY-MM-DD (default)', () => assertFormatGetTypeErrors(STRING.date_iso));
-  it.todo('FormatStringDate — DD-MM-YYYY layout');
-  it.todo('FormatStringDate — YYYY-MM layout (no day)');
-  it.todo('FormatStringDate — MM-DD layout (no year)');
-  it.todo('FormatStringTime — ISO (default, tz-aware)');
+  it('FormatStringDate — DD-MM-YYYY layout', () => assertFormatGetTypeErrors(STRING.date_DMY));
+  it('FormatStringDate — YYYY-MM layout (no day)', () => assertFormatGetTypeErrors(STRING.date_YM));
+  it('FormatStringDate — MM-DD layout (no year)', () => assertFormatGetTypeErrors(STRING.date_MD));
+  it('FormatStringTime — ISO (default, tz-aware)', () => assertFormatGetTypeErrors(STRING.time_iso));
   it('FormatStringTime — HH:mm:ss fixed layout', () => assertFormatGetTypeErrors(STRING.time_HHmmss));
-  it.todo('FormatStringTime — HH:mm:ss[.mmm] optional milliseconds');
+  it('FormatStringTime — HH:mm:ss[.mmm] optional milliseconds', () => assertFormatGetTypeErrors(STRING.time_HHmmss_ms));
   it('FormatStringDateTime — default (ISO date T ISO time)', () => assertFormatGetTypeErrors(STRING.dateTime_default));
-  it.todo('FormatStringDateTime — custom nested layouts + splitChar');
+  it('FormatStringDateTime — custom nested layouts + splitChar', () => assertFormatGetTypeErrors(STRING.dateTime_custom));
   it('FormatIPv4 — dotted-quad addresses', () => assertFormatGetTypeErrors(STRING.ipv4));
-  it.todo('FormatIPv6 — colon-separated, loopback allowed');
-  it.todo('FormatIP — accepts both v4 and v6');
-  it.todo('FormatIPv4WithPort — v4 with port');
-  it.todo('FormatIPv6WithPort — v6 with bracketed port');
+  it('FormatIPv6 — colon-separated, loopback allowed', () => assertFormatGetTypeErrors(STRING.ipv6));
+  it('FormatIP — accepts both v4 and v6', () => assertFormatGetTypeErrors(STRING.ip_any));
+  it('FormatIPv4WithPort — v4 with port', () => assertFormatGetTypeErrors(STRING.ipv4_port));
+  it('FormatIPv6WithPort — v6 with bracketed port', () => assertFormatGetTypeErrors(STRING.ipv6_port));
   it('FormatDomain — standard', () => assertFormatGetTypeErrors(STRING.domain));
   it('FormatDomainStrict — names/tld decomposition, maxParts, hyphen-edge', () => assertFormatGetTypeErrors(STRING.domainStrict));
   it('FormatEmail — standard', () => assertFormatGetTypeErrors(STRING.email));
-  it.todo('FormatEmailPunycode — accepts punycode-tld domains');
+  it('FormatEmailPunycode — accepts punycode-tld domains', () => assertFormatGetTypeErrors(STRING.emailPunycode));
   it('FormatEmailStrict — localPart + domain decomposition', () => assertFormatGetTypeErrors(STRING.emailStrict));
   it('FormatUrl — standard (http/ftp/ws schemes)', () => assertFormatGetTypeErrors(STRING.url));
-  it.todo('FormatUrlHttp — http(s) only');
-  it.todo('FormatUrlFile — file URLs');
-  it.todo('registerFormatPattern — slug regex recovered from the call site');
-  it.todo('registerFormatPattern — {source, flags} overload (case-insensitive)');
+  it('FormatUrlHttp — http(s) only', () => assertFormatGetTypeErrors(STRING.urlHttp));
+  it('FormatUrlFile — file URLs', () => assertFormatGetTypeErrors(STRING.urlFile));
+  it('registerFormatPattern — slug regex recovered from the call site', () => assertFormatGetTypeErrors(STRING.pattern_slug));
+  it('registerFormatPattern — {source, flags} overload (case-insensitive)', () =>
+    assertFormatGetTypeErrors(STRING.pattern_hex));
 
   it('all STRING_FORMAT getTypeErrors tests ran', () => {
     expect(ranTests).toBe(withGetTypeErrors(STRING));
