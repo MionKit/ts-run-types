@@ -6,8 +6,9 @@ Model>` type mapping — ships today for flat models over the **type channel**
 > (`createIsType<ModelType<…>>()`), via
 > [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts).
 > Field discriminators cover all leaf formats: `string` / `number` / `date` /
-> `bigint` / `boolean`, plus the 6 orderable `temporal` types (`instant`,
-> `zonedDateTime`, `plainDate`, `plainTime`, `plainDateTime`, `plainYearMonth`).
+> `bigint` / `boolean`, plus the 6 orderable temporal types under a `T.`
+> namespace that mirrors the `Temporal.X` API (`T.instant`, `T.zonedDateTime`,
+> `T.plainDate`, `T.plainTime`, `T.plainDateTime`, `T.plainYearMonth`).
 > Most of it needed **no new Go engine**: `ModelType<…>` resolves to the same
 > branded `TypeFormat` types the type-first surface already reflects. Regex
 > (`pattern: /…/`) needed one small additive Go change — recovering the literal

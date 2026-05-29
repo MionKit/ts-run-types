@@ -138,19 +138,24 @@ export type BooleanFieldConfig = {type: 'boolean'} & FieldMeta & Forbid<never>;
 // the type's ISO form, or a relative `now±P` duration), so they forbid the
 // same non-bound param keys. `PlainMonthDay` / `Duration` have no format
 // family (no ordering) and are intentionally absent — see the import note.
+//
+// The discriminator is namespaced `T.<name>` (e.g. `{type: 'T.instant'}`) so
+// it reads as the `Temporal.X` it maps to and stays visually distinct from the
+// scalar discriminators. The Go side keys off the brand's `__rtFormatName`, not
+// this config tag, so the prefix is purely an authoring-side label.
 type TemporalConfig<Tag extends string> = {type: Tag} & FieldMeta & MinMax & Forbid<keyof MinMax>;
-/** A `Temporal.Instant` field. **/
-export type InstantFieldConfig = TemporalConfig<'instant'>;
-/** A `Temporal.ZonedDateTime` field. **/
-export type ZonedDateTimeFieldConfig = TemporalConfig<'zonedDateTime'>;
-/** A `Temporal.PlainDate` field. **/
-export type PlainDateFieldConfig = TemporalConfig<'plainDate'>;
-/** A `Temporal.PlainTime` field. **/
-export type PlainTimeFieldConfig = TemporalConfig<'plainTime'>;
-/** A `Temporal.PlainDateTime` field. **/
-export type PlainDateTimeFieldConfig = TemporalConfig<'plainDateTime'>;
-/** A `Temporal.PlainYearMonth` field. **/
-export type PlainYearMonthFieldConfig = TemporalConfig<'plainYearMonth'>;
+/** A `Temporal.Instant` field (`{type: 'T.instant'}`). **/
+export type InstantFieldConfig = TemporalConfig<'T.instant'>;
+/** A `Temporal.ZonedDateTime` field (`{type: 'T.zonedDateTime'}`). **/
+export type ZonedDateTimeFieldConfig = TemporalConfig<'T.zonedDateTime'>;
+/** A `Temporal.PlainDate` field (`{type: 'T.plainDate'}`). **/
+export type PlainDateFieldConfig = TemporalConfig<'T.plainDate'>;
+/** A `Temporal.PlainTime` field (`{type: 'T.plainTime'}`). **/
+export type PlainTimeFieldConfig = TemporalConfig<'T.plainTime'>;
+/** A `Temporal.PlainDateTime` field (`{type: 'T.plainDateTime'}`). **/
+export type PlainDateTimeFieldConfig = TemporalConfig<'T.plainDateTime'>;
+/** A `Temporal.PlainYearMonth` field (`{type: 'T.plainYearMonth'}`). **/
+export type PlainYearMonthFieldConfig = TemporalConfig<'T.plainYearMonth'>;
 
 /** The discriminated union of every supported field config. Extending this
  *  union with composition (object / array / union / tuple / nullable) is out
@@ -194,17 +199,17 @@ type TemporalParams<F> = Omit<F, 'type' | 'optional'>;
 /** Maps the 6 orderable temporal discriminators onto the `FormatTemporal*`
  *  aliases; returns `never` for non-temporal `F` so it composes as the
  *  fallthrough branch of `FieldType`. **/
-type TemporalFieldType<F> = F extends {type: 'instant'}
+type TemporalFieldType<F> = F extends {type: 'T.instant'}
   ? FormatTemporalInstant<TemporalParams<F>>
-  : F extends {type: 'zonedDateTime'}
+  : F extends {type: 'T.zonedDateTime'}
     ? FormatTemporalZonedDateTime<TemporalParams<F>>
-    : F extends {type: 'plainDate'}
+    : F extends {type: 'T.plainDate'}
       ? FormatTemporalPlainDate<TemporalParams<F>>
-      : F extends {type: 'plainTime'}
+      : F extends {type: 'T.plainTime'}
         ? FormatTemporalPlainTime<TemporalParams<F>>
-        : F extends {type: 'plainDateTime'}
+        : F extends {type: 'T.plainDateTime'}
           ? FormatTemporalPlainDateTime<TemporalParams<F>>
-          : F extends {type: 'plainYearMonth'}
+          : F extends {type: 'T.plainYearMonth'}
             ? FormatTemporalPlainYearMonth<TemporalParams<F>>
             : never;
 
