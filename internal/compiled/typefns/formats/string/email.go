@@ -115,6 +115,12 @@ func emailErrorsBlockFor(ctx formats.EmitContext, params map[string]any, valExpr
 	return b.String()
 }
 
+// EmitFormatTransform lowercases the email (mion email.runtype.ts:148 —
+// emails are case-insensitive, so the canonical form is lower case).
+func (emailEmitter) EmitFormatTransform(_ *protocol.FormatAnnotation, vλl string, _ formats.EmitContext) string {
+	return vλl + ".toLowerCase()"
+}
+
 // ValidateParams ports mion's EmailRunTypeFormat.validateParams
 // (email.runtype.ts:152-187): pattern is mutually exclusive with the
 // localPart/domain decomposition, and maxLength stays in range.

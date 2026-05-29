@@ -16,6 +16,7 @@ import type {
   FormatUppercase,
   FormatCapitalize,
   FormatUUIDv4,
+  FormatEmail,
   FormatInteger,
   FormatInt8,
   FormatNumber,
@@ -60,6 +61,30 @@ export const FORMAT_TRANSFORM_SUITE: {
       title: 'FormatString trim — trims surrounding whitespace',
       formatTransform: () => createFormatTransform<FormatString<{trim: true}>>(),
       getCases: () => [{input: '  padded  ', expected: 'padded'}],
+    },
+    replace: {
+      title: 'FormatString replace — replaces the first match only',
+      formatTransform: () => createFormatTransform<FormatString<{replace: {searchValue: 'a'; replaceValue: 'X'}}>>(),
+      getCases: () => [
+        {input: 'banana', expected: 'bXnana'},
+        {input: 'no-match', expected: 'no-mXtch'},
+      ],
+    },
+    replaceAll: {
+      title: 'FormatString replaceAll — replaces every match',
+      formatTransform: () => createFormatTransform<FormatString<{replaceAll: {searchValue: 'a'; replaceValue: 'X'}}>>(),
+      getCases: () => [
+        {input: 'banana', expected: 'bXnXnX'},
+        {input: 'aaa', expected: 'XXX'},
+      ],
+    },
+    email_lowercase: {
+      title: 'FormatEmail — lowercases the value (case-insensitive emails)',
+      formatTransform: () => createFormatTransform<FormatEmail>(),
+      getCases: () => [
+        {input: 'John@Example.COM', expected: 'john@example.com'},
+        {input: 'already@lower.io', expected: 'already@lower.io'},
+      ],
     },
     identity_plain_string: {
       title: 'plain string — passes through unchanged',

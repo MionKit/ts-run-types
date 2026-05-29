@@ -99,6 +99,12 @@ export interface StringParams {
   lowercase?: boolean;
   uppercase?: boolean;
   capitalize?: boolean;
+  // String replacement transforms (mion's StringTransformers): the value
+  // has `searchValue` replaced with `replaceValue` (first match for
+  // `replace`, every match for `replaceAll`). Applied before the
+  // case/trim formatters, matching mion's emitFormat order.
+  replace?: {searchValue: string; replaceValue: string};
+  replaceAll?: {searchValue: string; replaceValue: string};
 }
 
 // FormatString — the branded string alias users annotate with:
