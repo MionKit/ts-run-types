@@ -89,13 +89,22 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
       (suite blesses port name); object kind `expected:'objectLiteral'` vs mion `'object'` (typeerrors.go:285/640);
       Set item bare index vs mion {key,index}; 29 it.todo in formatGetTypeErrors (headline). Core te well covered
       (165 it, 0 todo); union one-error + accumulate-all semantics match. emitIsTypeErrors = FORMAT combined emit.
-- [ ] 04 unknown-keys family (huk/suk/uke/uku/ukuw)→ docs/audit/04-unknown-keys.md
-- [ ] 05 JSON serialization (pj/pjs/pjsp/sj/rj)    → docs/audit/05-json-serialization.md
-- [ ] 06 binary serialization (tb/fb)              → docs/audit/06-binary-serialization.md
-- [ ] 07 string type-format                        → docs/audit/07-string-format.md
-- [ ] 08 number type-format                        → docs/audit/08-number-format.md
-- [ ] 09 bigint type-format                         → docs/audit/09-bigint-format.md
-- [ ] 10 forgotten functionality sweep            → docs/audit/10-forgotten-functionality.md
+- [~] 04 unknown-keys family (huk/suk/uke/uku/ukuw)→ IN FLIGHT (opus agent)
+- [~] 05 JSON serialization (pj/pjs/pjsp/sj/rj)    → IN FLIGHT (opus agent)
+- [~] 06 binary serialization (tb/fb)              → IN FLIGHT (opus agent)
+- [~] 07 string type-format                        → IN FLIGHT (opus agent)
+- [~] 08 number type-format                        → IN FLIGHT (opus agent)
+- [~] 09 bigint type-format                         → IN FLIGHT (opus agent)
+- [ ] 10 forgotten functionality sweep            → docs/audit/10-forgotten-functionality.md (launch AFTER 04-09; cross-references all)
+
+### Verification checklist when each lands (then commit per-item + push):
+- normalize "## 3. Per-kind / per-feature comparison" header; confirm 7 sections.
+- spot-check the top ❌/High claim via grep (don't re-read whole doc).
+- 04: known-keys sort divergence; ukuw wire wrapper; Map/Set per-elem; symbol-idx skip.
+- 05: pj=mutate/passthrough vs sj=direct/strip vs rj; NEW pjs/pjsp clone (no mion equiv); union skipEncode.
+- 06: allParamsOptional/paramsSlice NOT ported (isFnParams=false); DataView opts; per-kind parity.
+- 07/08/09: format it.todo counts (formatGetTypeErrors ~29, formatMockType ~42); for 08/09 the KEY q:
+  are number/bigint-format SERIALIZATION emitters ported or fallback to plain number/bigint?
 
 ## Reference: mion emit vocabulary + test inventory + env results
 
