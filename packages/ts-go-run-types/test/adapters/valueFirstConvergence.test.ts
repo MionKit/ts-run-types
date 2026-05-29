@@ -1,6 +1,6 @@
 // Value-first ⇄ type-first convergence — the JS analog of the Go-side
 // `TestAtomic_FormEquivalence`. Asserts that a `ModelType<typeof Model>`
-// derived from a `define({...})` config resolves to the SAME precompiled
+// derived from a `defineObject({...})` config resolves to the SAME precompiled
 // validator (same structural id → same cached factory identity) as the
 // hand-written type-first `{field: Format*<P>}` equivalent.
 //
@@ -15,11 +15,11 @@
 
 import {describe, expect, it} from 'vitest';
 import {createIsType} from '@mionjs/ts-go-run-types';
-import {define, type ModelType} from '@mionjs/ts-go-run-types/define';
+import {defineObject, type ModelType} from '@mionjs/ts-go-run-types/define';
 import type {FormatString, FormatNumber, FormatDate} from '@mionjs/ts-go-run-types/formats';
 import '@mionjs/ts-go-run-types/formats';
 
-const StringFirst = define({
+const StringFirst = defineObject({
   short: {type: 'string', maxLength: 5},
   long: {type: 'string', minLength: 3},
   pick: {type: 'string', allowedValues: {val: ['a', 'b']}},
@@ -30,23 +30,23 @@ type StringFirstTF = {
   pick: FormatString<{allowedValues: {val: ['a', 'b']}}>;
 };
 
-const NumberFirst = define({
+const NumberFirst = defineObject({
   bounded: {type: 'number', min: 0, max: 10},
   whole: {type: 'number', integer: true},
 });
 type NumberFirstTF = {bounded: FormatNumber<{min: 0; max: 10}>; whole: FormatNumber<{integer: true}>};
 
-const DateFirst = define({past: {type: 'date', max: 'now'}});
+const DateFirst = defineObject({past: {type: 'date', max: 'now'}});
 type DateFirstTF = {past: FormatDate<{max: 'now'}>};
 
 // An inline value-channel regex converges with the type-first {source,flags}
 // form for the same pattern — the Go scanner recovers identical {source,flags}
 // from either authoring path.
-const RegexFirst = define({slug: {type: 'string', pattern: /^[a-z-]+$/}});
+const RegexFirst = defineObject({slug: {type: 'string', pattern: /^[a-z-]+$/}});
 type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: ''}}>};
 
 // An `optional: true` field converges with a type-first optional property.
-const OptionalFirst = define({req: {type: 'string', maxLength: 5}, opt: {type: 'number', min: 0, optional: true}});
+const OptionalFirst = defineObject({req: {type: 'string', maxLength: 5}, opt: {type: 'number', min: 0, optional: true}});
 type OptionalFirstTF = {req: FormatString<{maxLength: 5}>; opt?: FormatNumber<{min: 0}>};
 
 describe('value-first / convergence with type-first', () => {
