@@ -221,7 +221,8 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 			// one JSON.stringify call.
 			return RTCode{Code: "'\"'+" + v + ".toJSON()+'\"'", Type: CodeE}
 		case protocol.SubKindNone:
-			return emitObjectStringifyJson(rt, ctx, v)
+			structural := emitObjectStringifyJson(rt, ctx, v)
+			return wrapStringifyWithClassSerializer(rt, ctx, v, structural)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterableStringifyJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:

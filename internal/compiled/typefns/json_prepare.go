@@ -220,7 +220,8 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		case protocol.SubKindDate:
 			return RTCode{Code: "", Type: CodeS}
 		case protocol.SubKindNone:
-			return emitObjectPrepareForJson(rt, ctx, v)
+			structural := emitObjectPrepareForJson(rt, ctx, v)
+			return wrapPrepareWithClassSerializer(rt, ctx, v, structural)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJson(rt, ctx, v)
 		case protocol.SubKindNonSerializable:

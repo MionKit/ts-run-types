@@ -281,7 +281,8 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		case protocol.SubKindNonSerializable:
 			return RTCode{Code: "", Type: CodeNS}
 		case protocol.SubKindNone:
-			return emitObjectToBinary(rt, ctx, v, ser)
+			structural := emitObjectToBinary(rt, ctx, v, ser)
+			return wrapToBinaryWithClassSerializer(rt, ctx, v, ser, structural)
 		}
 		return RTCode{Code: "", Type: CodeNS}
 
