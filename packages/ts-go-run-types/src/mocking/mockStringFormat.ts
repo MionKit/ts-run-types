@@ -67,9 +67,7 @@ function mockStringParams(params: StringParams): string {
   // must not pick a 5-char sample).
   const sample = pickSample(
     filterSamplesByLength(
-      params.mockSamples ??
-        patternSampleList(params.pattern) ??
-        toSampleList(params.disallowedValues?.mockSamples),
+      params.mockSamples ?? patternSampleList(params.pattern) ?? toSampleList(params.disallowedValues?.mockSamples),
       params
     )
   );
@@ -94,10 +92,7 @@ function patternSampleList(pattern: PatternParam | undefined): readonly string[]
 // (length / minLength / maxLength). Returns the original list when no
 // bound applies, and falls back to the unfiltered list if filtering
 // would leave nothing to pick from.
-function filterSamplesByLength(
-  samples: readonly string[] | undefined,
-  params: StringParams
-): readonly string[] | undefined {
+function filterSamplesByLength(samples: readonly string[] | undefined, params: StringParams): readonly string[] | undefined {
   if (!samples || samples.length === 0) return samples;
   if (params.length === undefined && params.minLength === undefined && params.maxLength === undefined) return samples;
   const kept = samples.filter((sample) => {

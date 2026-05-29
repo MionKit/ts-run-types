@@ -75,7 +75,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // scope map. The map drives the per-request projection that
 // scopedDump uses for IncludeRunTypes / IncludeCacheSources.
 //
-// BOUNDED-SCOPE INVARIANT
+// # BOUNDED-SCOPE INVARIANT
 //
 // The scanner walks CallExpression AST nodes ONLY and assigns typeids
 // ONLY for marker call arguments (cache.AssignID is invoked exclusively

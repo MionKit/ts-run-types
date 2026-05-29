@@ -74,7 +74,7 @@ export function registerFormatPattern(args: CompTimeArgs<FormatPatternArgs> | Co
     if (!tester.test(sample)) {
       throw new Error(
         `registerFormatPattern: mockSample ${JSON.stringify(sample)} does not match /${source}/${flags}` +
-          (message ? ` — ${message}` : ''),
+          (message ? ` — ${message}` : '')
       );
     }
   }
