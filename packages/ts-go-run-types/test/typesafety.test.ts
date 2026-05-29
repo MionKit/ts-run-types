@@ -117,6 +117,18 @@ function assertionsValueFirstDefine(): void {
   });
   void _okRegex;
 
+  // `optional: true` is a per-field meta flag accepted on every field family
+  // (it is not a format param, so the exclusive-union negation leaves it alone).
+  const _okOptional = define({
+    s: {type: 'string', maxLength: 5, optional: true},
+    n: {type: 'number', min: 0, optional: true},
+    d: {type: 'date', max: 'now', optional: true},
+  });
+  void _okOptional;
+
+  // @ts-expect-error — `optional` is boolean; a non-boolean value errors.
+  define({s: {type: 'string', optional: 'yes'}});
+
   // @ts-expect-error — `pattern` is a string-only param, so the exclusive-union
   // negation forbids it on a number field.
   define({age: {type: 'number', pattern: /^[0-9]+$/}});

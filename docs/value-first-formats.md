@@ -289,7 +289,14 @@ survives for Drizzle/OpenAPI), and `ModelType<C>` maps each field through
 type-first `FormatString`/`FormatNumber`/`FormatDate`. The existing brand
 scanner (`internal/compiled/runtype/typeid/formats.go`) lifts it unchanged.
 Flat fields, and **nested value-first models composed inside a parent object**,
-both reflect + validate correctly.
+both reflect + validate correctly. **Optional properties** are supported via a
+per-field `optional: true` flag (`{type: 'string', optional: true}` →
+`key?: FormatString<…>`): `ModelType` splits the keys into required/optional
+groups and intersects (TypeScript can't apply `?` per-key in one homomorphic
+map). The flag is a meta field — stripped from the params, kept out of the
+exclusive-union negation — and an optional value-first field converges with a
+type-first `key?:`. (A string-key `'name?'` marker à la ArkType was rejected: it
+needs a template-literal `infer` in the mapped type, which taxes the checker.)
 
 **Convergence holds (the dual-front-end requirement).** A value-first model and
 the hand-written type-first equivalent resolve to the **same structural id → the

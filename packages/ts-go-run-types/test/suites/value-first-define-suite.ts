@@ -82,6 +82,14 @@ const DateModel = define({
 const ProfileModel = define({name: {type: 'string', maxLength: 5}});
 const SettingsModel = define({theme: {type: 'string', allowedValues: {val: ['light', 'dark']}}});
 
+// `optional: true` makes a property optional (`key?:`) in the derived model —
+// the key may be absent; when present it still validates.
+const OptionalModel = define({
+  id: {type: 'string', length: 4}, // required
+  nick: {type: 'string', maxLength: 8, optional: true}, // optional
+  age: {type: 'number', min: 0, optional: true}, // optional
+});
+
 // Regex through the VALUE channel — the three `pattern` forms a value-first
 // string field accepts. The Go scanner recovers {source, flags} from the
 // literal the property declaration preserves (no `typeof` needed).
@@ -339,6 +347,33 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         {slug: 'NOT a slug!', digits: '123', hex: 'deadBEEF'}, // slug: spaces/caps
         {slug: 'ok-slug', digits: '12x', hex: 'deadBEEF'}, // digits: non-digit
         {slug: 'ok-slug', digits: '123', hex: 'xyz'}, // hex: non-hex
+      ],
+    }),
+  },
+
+  optional_fields: {
+    title: 'optional — `optional: true` fields may be absent; present ones validate',
+    isType: () => createIsType<ModelType<typeof OptionalModel>>(),
+    isTypeReflect: () => {
+      const v = {id: 'AB12'} as unknown as ModelType<typeof OptionalModel>;
+      return createIsType(v);
+    },
+    deserializeIsType: () => deserializeIsType<ModelType<typeof OptionalModel>>(),
+    deserializeIsTypeReflect: () => {
+      const v = {id: 'AB12'} as unknown as ModelType<typeof OptionalModel>;
+      return deserializeIsType(v);
+    },
+    getTypeErrors: () => createGetTypeErrors<ModelType<typeof OptionalModel>>(),
+    getSamples: () => ({
+      valid: [
+        {id: 'AB12'}, // both optionals absent
+        {id: 'WXYZ', nick: 'hi', age: 30}, // both present + valid
+        {id: 'AB12', age: 0}, // one present
+      ],
+      invalid: [
+        {nick: 'hi'}, // id (required) missing
+        {id: 'AB12', nick: 'wayTooLong'}, // present optional violates maxLength
+        {id: 'AB12', age: -1}, // present optional violates min
       ],
     }),
   },

@@ -76,21 +76,31 @@ type AllParamKeys = keyof StringFamilyParams | keyof NumberParams | keyof Format
 // Forbids every param key NOT in `OwnKeys` by typing it optional-`never`.
 type Forbid<OwnKeys extends PropertyKey> = Partial<Record<Exclude<AllParamKeys, OwnKeys>, never>>;
 
+// `FieldMeta` — per-field flags that are NOT format params: shared by every
+// field family, stripped before the params reach the brand, and (deliberately)
+// kept out of `AllParamKeys` so the exclusive-union negation neither forbids
+// nor mistakes them for params. `optional: true` makes the property optional
+// (`key?:`) in the derived model — the key MAY be absent, matching the `?`
+// modifier (not `T | undefined`).
+type FieldMeta = {optional?: boolean};
+
 /** A string field: the `string` discriminator plus the value-channel
  *  `FormatString` params (minLength / maxLength / length / allowedChars /
  *  disallowedChars / allowedValues / disallowedValues / mockSamples / the
- *  transform flags). Forbids number/date-only params. **/
-export type StringFieldConfig = {type: 'string'} & StringFamilyParams & Forbid<keyof StringFamilyParams>;
+ *  transform flags) plus `optional`. Forbids number/date-only params. **/
+export type StringFieldConfig = {type: 'string'} & FieldMeta & StringFamilyParams & Forbid<keyof StringFamilyParams>;
 
 /** A number field: the `number` discriminator plus every `FormatNumber` param
- *  (min / max / lt / gt / integer / float / multipleOf). Forbids string-only
- *  params (date's min/max/lt/gt overlap number's, so they aren't forbidden). **/
-export type NumberFieldConfig = {type: 'number'} & NumberParams & Forbid<keyof NumberParams>;
+ *  (min / max / lt / gt / integer / float / multipleOf) plus `optional`.
+ *  Forbids string-only params (date's min/max/lt/gt overlap number's, so they
+ *  aren't forbidden). **/
+export type NumberFieldConfig = {type: 'number'} & FieldMeta & NumberParams & Forbid<keyof NumberParams>;
 
 /** A native-`Date` field: the `date` discriminator plus the `FormatDate`
- *  min/max bounds (absolute ISO literal or relative `now±P…`). Forbids
- *  string-only params and the number-only `integer`/`float`/`multipleOf`. **/
-export type DateFieldConfig = {type: 'date'} & FormatParams_NativeDate & Forbid<keyof FormatParams_NativeDate>;
+ *  min/max bounds (absolute ISO literal or relative `now±P…`) plus `optional`.
+ *  Forbids string-only params and the number-only `integer`/`float`/
+ *  `multipleOf`. **/
+export type DateFieldConfig = {type: 'date'} & FieldMeta & FormatParams_NativeDate & Forbid<keyof FormatParams_NativeDate>;
 
 /** The discriminated union of every supported field config. Extending this
  *  union (object / array / union / named formats) is the Option-B follow-up
@@ -102,34 +112,43 @@ export type ModelConfig = Record<string, FieldConfig>;
 
 // ────────────────────────── Discriminator map ───────────────────────
 //
-// `Omit<F, 'type'>` strips the discriminator before it becomes the
-// `__rtFormatParams` payload, so the params the Go scanner reads are clean
-// (`{maxLength: 50}`, never `{type: 'string', maxLength: 50}`). Mapping
-// through `TypeFormat` directly (its `Params` constraint is just `object`)
-// sidesteps the per-family param-constraint proof while producing a type
-// byte-for-byte identical to `FormatString` / `FormatNumber` / `FormatDate`.
+// `Omit<F, 'type' | 'optional'>` strips the discriminator AND the `optional`
+// meta flag before the rest becomes the `__rtFormatParams` payload, so the
+// params the Go scanner reads are clean (`{maxLength: 50}`, never
+// `{type: 'string', optional: true, maxLength: 50}`). Mapping through
+// `TypeFormat` directly (its `Params` constraint is just `object`) sidesteps
+// the per-family param-constraint proof while producing a type byte-for-byte
+// identical to `FormatString` / `FormatNumber` / `FormatDate`.
 
 /** Maps one field config to its branded format type via a conditional lookup
  *  on the `type` discriminator. **/
 type FieldType<F extends FieldConfig> = F extends {type: 'string'}
-  ? TypeFormat<string, 'stringFormat', Omit<F, 'type'>>
+  ? TypeFormat<string, 'stringFormat', Omit<F, 'type' | 'optional'>>
   : F extends {type: 'number'}
-    ? TypeFormat<number, 'numberFormat', Omit<F, 'type'>>
+    ? TypeFormat<number, 'numberFormat', Omit<F, 'type' | 'optional'>>
     : F extends {type: 'date'}
-      ? TypeFormat<Date, 'nativeDate', Omit<F, 'type'>>
+      ? TypeFormat<Date, 'nativeDate', Omit<F, 'type' | 'optional'>>
       : never;
 
 /** The type a value-first model represents — a flat mapped type over the
- *  config keys, each value resolved through `FieldType`. Feed it to any RT
+ *  config keys, each value resolved through `FieldType`.  Feed it to any RT
  *  factory: `createIsType<ModelType<typeof UserModel>>()`.
  *
- *  `-readonly` strips the `readonly` the `define<const C>` capture stamps on
- *  every config property. Without it the derived properties would be
- *  `readonly` and diverge from the canonical (mutable) type-first form
- *  `{name: FormatString<…>}` at the structural-id level — the underlying
- *  format type is already identical, only the property modifier differed. **/
+ *  Two key-groups, intersected: fields flagged `optional: true` become
+ *  optional properties (`key?:`), the rest required. TypeScript can't apply
+ *  the `?` modifier per-key in a single homomorphic map, so the split is the
+ *  standard way to do it — and it stays a flat O(keys) map (no template-literal
+ *  `infer`, which would tax the checker). `-readonly` strips the `readonly` the
+ *  `define<const C>` capture stamps on every config property; without it the
+ *  derived properties would diverge from the canonical (mutable) type-first
+ *  form at the structural-id level (the format type itself is already
+ *  identical, only the modifier differed). An all-required model leaves the
+ *  optional group empty (`… & {}`), which tsgo collapses, so it still converges
+ *  with the plain type-first object. **/
 export type ModelType<C extends ModelConfig> = {
-  -readonly [K in keyof C]: FieldType<C[K]>;
+  -readonly [K in keyof C as C[K] extends {optional: true} ? never : K]: FieldType<C[K]>;
+} & {
+  -readonly [K in keyof C as C[K] extends {optional: true} ? K : never]?: FieldType<C[K]>;
 };
 
 // ───────────────────────────── define() ─────────────────────────────
