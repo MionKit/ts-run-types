@@ -87,7 +87,7 @@ export interface RunType {
   children?: RunType[];
   safeUnionChildren?: RunType[];
   unionDiscriminators?: unknown;
-  decorators?: unknown;
+  typeMeta?: unknown;
   // Populated for a TypeFormat-branded primitive. Drives mock
   // generation (mockSamples) + format-formatter lookup at runtime.
   formatAnnotation?: FormatAnnotation;

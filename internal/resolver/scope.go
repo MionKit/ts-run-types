@@ -82,12 +82,12 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 				walk(parent.ID)
 			}
 		}
-		// Decorators — surviving object-literal types from a collapsed
+		// TypeMeta — surviving object-literal types from a collapsed
 		// `primitive & {brand}` intersection. Reachable from the
 		// branded primitive node, not from any structural slot, so the
 		// walker has to follow them explicitly or the brand object
 		// disappears from the per-file projection.
-		for _, decorator := range node.Decorators {
+		for _, decorator := range node.TypeMeta {
 			if decorator != nil {
 				walk(decorator.ID)
 			}

@@ -27,7 +27,7 @@ const (
 // two sentinel properties (formatNameProp / formatParamsProp) and returns
 // the canonical FormatAnnotation if both are present and well-formed.
 // Returns nil when the input is not a format brand — callers route those
-// through the normal Decorators path.
+// through the normal TypeMeta path.
 func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type) *protocol.FormatAnnotation {
 	if tsType == nil || typeChecker == nil {
 		return nil

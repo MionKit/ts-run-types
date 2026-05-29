@@ -246,8 +246,8 @@ func writeFooter(buffer *strings.Builder, runType *protocol.RunType) {
 	}
 	// decorators — surviving object-literal types from a collapsed
 	// `primitive & {brand}` intersection.
-	if len(runType.Decorators) > 0 {
-		buffer.WriteString(fmt.Sprintf("%s.decorators = [%s];\n", name, joinRefs(runType.Decorators)))
+	if len(runType.TypeMeta) > 0 {
+		buffer.WriteString(fmt.Sprintf("%s.typeMeta = [%s];\n", name, joinRefs(runType.TypeMeta)))
 	}
 	// formatAnnotation — name + params for a TypeFormat brand. Emitted
 	// as a JSON object literal (valid JS); the runtime reads it for
