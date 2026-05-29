@@ -41,6 +41,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design, and th
 - [docs/member-types.md](docs/member-types.md) — single-typed members: `Array`, `Property`, `Method`.
 - [docs/collection-types.md](docs/collection-types.md) — multi-typed containers: tuples, unions, intersections, promises, functions, object literals, classes, recursive types.
 
+For the family-by-family comparison against the original `@mionjs/run-types` / `@mionjs/type-formats` (what's ported, where we deliberately diverge, mismatches, missed optimisations, and test-coverage gaps), see the **port audit** in [docs/audit/](docs/audit/00-overview.md).
+
 ### Data flow
 
 - **Types are deduplicated twice.** [internal/compiled/runtype/](internal/compiled/runtype/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
