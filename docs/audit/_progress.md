@@ -112,7 +112,18 @@ NOTE: `cmd/gen-ts-constants` + `internal/diag/codes_runtype.go` references are C
 - [x] 09 bigint format → docs/audit/09-bigint-format.md ✅ fully ported. VERIFIED: bigint-format BINARY emitters
       PORTED (bigintformat.go:109 setBigInt64/setBigUint64 8-byte). JSON serialization absent on BOTH (mion has none →
       plain bigint path is correct parity). Test gaps: 5 mockType it.todo (BIGINT); no FormatBigPositive/NegativeInt test cases.
-- [ ] 10 forgotten functionality sweep            → docs/audit/10-forgotten-functionality.md (launch NOW; cross-references all)
+- [x] 10 forgotten functionality → docs/audit/10-forgotten-functionality.md ✅ NO forgotten runtime RT family.
+      VERIFIED: createMockType is a COMPLETE per-kind port (mockType.ts 50 RunTypeKind arms; mockType.test.ts 163 it, 0 todo)
+      — mocking REFUTED as a gap; only per-format mock gens partial (owned by 07-09). equalsHelpers = test helper only
+      (imported only by *.spec.ts). toJsCode→relocated to Go module.go. RunType JIT methods (getFamily/getJitHash/
+      createJitFunction) dropped by design (no runtime JIT). microbenchs/xyz-Template dropped. DataView = real port.
+      §7 = consolidated cross-cutting backlog (themes A wire-compat / B test-coverage / C latent-opt / D by-design).
+
+=== AUDIT COMPLETE: all 10 items + Phase-0 doc de-staling done, verified, committed & pushed. ===
+Headline cross-cutting findings (for final summary): A) wire-compat divergences from mion — mapValue/mapVal (items 03+04),
+flat-union [-1,merged] layout (05+06), object 'objectLiteral'/'object', Set segment, checkNonRTProps rename; B) test gaps —
+29 formatGetTypeErrors + 42 formatMockType it.todo, no JS reflection-shape suite; C) latent opts — IsCircular/Inlined/
+Description never populated, strictTypes/noLiterals; D) by-design — live-JS drops, Promise-thenable, allParamsOptional/paramsSlice.
 
 ### Verification checklist when each lands (then commit per-item + push):
 - normalize "## 3. Per-kind / per-feature comparison" header; confirm 7 sections.
