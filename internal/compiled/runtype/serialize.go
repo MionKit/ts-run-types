@@ -91,6 +91,18 @@ type Cache struct {
 	literals    *hashid.Dict
 	typeChecker *checker.Checker
 	idComputer  *typeid.Computer
+
+	// inProgress tracks wire ids whose projectType call is currently on the
+	// stack. A back-edge to an in-progress id (reached via byPtr or
+	// byStructural) means that node appears inside its own subtree — i.e. it
+	// is circular.
+	inProgress map[string]bool
+
+	// circularIDs records ids detected as circular during projection. The
+	// flag is applied to the canonical node after projectType returns (the
+	// reserved placeholder created in assignID is overwritten, so IsCircular
+	// must be set on the final node, not the placeholder).
+	circularIDs map[string]bool
 }
 
 // NewCache constructs an empty Cache bound to the supplied checker.
@@ -106,6 +118,8 @@ func NewCache(typeChecker *checker.Checker, opts Options) *Cache {
 		literals:     hashid.New(),
 		typeChecker:  typeChecker,
 		idComputer:   typeid.New(typeChecker),
+		inProgress:   make(map[string]bool),
+		circularIDs:  make(map[string]bool),
 	}
 }
 
@@ -125,6 +139,8 @@ func (cache *Cache) Clear() {
 	cache.fileTypeIDs = make(map[string]map[string]struct{})
 	cache.dict = hashid.New()
 	cache.literals = hashid.New()
+	cache.inProgress = make(map[string]bool)
+	cache.circularIDs = make(map[string]bool)
 }
 
 // Rebind points the cache at a new checker. Called after a Program swap so
@@ -425,12 +441,18 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 		return cache.internEmpty(protocol.KindUnknown, "nilType")
 	}
 	if id, ok := cache.byPtr[tsType]; ok {
+		if cache.inProgress[id] {
+			cache.circularIDs[id] = true
+		}
 		return id
 	}
 
 	structural := cache.idComputer.Compute(tsType)
 	if id, ok := cache.byStructural[structural]; ok {
 		cache.byPtr[tsType] = id
+		if cache.inProgress[id] {
+			cache.circularIDs[id] = true
+		}
 		return id
 	}
 
@@ -456,7 +478,15 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 	cache.nodes[id] = &protocol.RunType{ID: id, Kind: typeid.KindOf(cache.typeChecker, tsType)}
 	cache.insertOrder = append(cache.insertOrder, id)
 
+	// Mark this id in-progress so a back-edge during projection (a child that
+	// resolves back to this same id) flags it circular. Applied to the final
+	// node, since the placeholder above is overwritten on the next line.
+	cache.inProgress[id] = true
 	node := cache.projectType(tsType, id)
+	delete(cache.inProgress, id)
+	if cache.circularIDs[id] && node != nil {
+		node.IsCircular = true
+	}
 	cache.nodes[id] = node
 	return id
 }

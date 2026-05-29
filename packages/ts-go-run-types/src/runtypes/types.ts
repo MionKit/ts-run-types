@@ -73,7 +73,7 @@ export interface RunType {
   visibility?: unknown;
   isSafeName?: unknown;
   position?: unknown;
-  inlined?: unknown;
+  isCircular?: boolean;
   flags?: unknown;
   description?: unknown;
   defaultVal?: unknown;

@@ -66,6 +66,11 @@ func assertF29CircularObject(t *testing.T, r *resolver.Resolver, root *protocol.
 	if got := countByID(types, rootID); got != 1 {
 		t.Fatalf("expected Circular to appear exactly once in cache, got %d", got)
 	}
+	// Circular references itself via `c?: Circular`, so the serializer's
+	// back-edge detection must flag the canonical node (T1).
+	if !root.IsCircular {
+		t.Fatalf("expected Circular root to have IsCircular=true (self-referential via 'c')")
+	}
 
 	nMember := findMember(types, root, "n")
 	if nMember == nil || deref(types, nMember.Child).Kind != protocol.KindNumber {
