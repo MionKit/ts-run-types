@@ -7422,14 +7422,14 @@ export const VALIDATION_SUITE = {
         [{path: [], expected: 'set'}],
         [{path: [], expected: 'set'}],
         [{path: [], expected: 'set'}],
-        // wrongType: Set with item 1 (number not string). Path is
-        // the item index 0.
-        [{path: [0], expected: 'string'}],
+        // wrongType: Set with item 1 (number not string). Set path is
+        // {key: safe(item), index} — mion set.ts parity (T4); safe(1)=1.
+        [{path: [{key: 1, index: 0}], expected: 'string'}],
         [{path: [], expected: 'set'}],
         [{path: [], expected: 'set'}],
         [{path: [], expected: 'set'}],
-        // nullElement: Set with item null (not string).
-        [{path: [0], expected: 'string'}],
+        // nullElement: Set with item null (not string); safe(null)=null.
+        [{path: [{key: null, index: 0}], expected: 'string'}],
       ],
     },
 
