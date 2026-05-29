@@ -2327,11 +2327,11 @@ export const VALIDATION_SUITE = {
     },
 
     symbol_array: {
-      title: 'Array of symbols (non-serializable — always rejected)',
+      title: 'Array of symbols (non-serializable — factory throws)',
       description:
-        'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148). Mion throws at RT compile time for prepareForJson/restoreFromJson; isType emits an always-false validator (we mirror the same).',
+        'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148): mion throws at RT-compile. The port propagates CodeNS from the symbol element to the root, rendering an alwaysThrow factory (T3), so createIsType<symbol[]>() / createGetTypeErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
       isTypeNotes:
-        'TS DIVERGENCE: Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, etc.) ALWAYS fail. The validator emits `return false`. Use a different shape if you need to carry symbol-like data.',
+        'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
       isType: () => createIsType<symbol[]>(),
       deserializeIsType: () => deserializeIsType<symbol[]>(),
       isTypeReflect: () => {
@@ -2357,24 +2357,12 @@ export const VALIDATION_SUITE = {
         const v: symbol[] = [];
         return createMockType(v);
       },
-      // isType for symbol[] emits `return false` — non-serializable
-      // element type. The mock can still construct an array of
-      // symbols, but it'll never satisfy the always-false validator.
+      // isType/getTypeErrors throw at factory creation (alwaysThrow). The
+      // mock can still construct an array of symbols, but there is no
+      // validator to check it against.
       mockTypeExpect: 'skip',
-      getSamples: () => ({
-        valid: [],
-        invalid: [[Symbol('a')], [], 'not array', null, [42]],
-      }),
-      // Non-serializable element type → typeErrors emits an
-      // unconditional `[{expected: 'array'}]` error for every input
-      // (mirrors the always-fail isType behaviour for this shape).
-      getExpectedErrors: () => [
-        [{path: [], expected: 'array'}],
-        [{path: [], expected: 'array'}],
-        [{path: [], expected: 'array'}],
-        [{path: [], expected: 'array'}],
-        [{path: [], expected: 'array'}],
-      ],
+      factoryThrows: true,
+      getSamples: () => ({valid: [], invalid: []}),
     },
 
     readonly_string_array: {

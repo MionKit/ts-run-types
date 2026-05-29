@@ -16,7 +16,7 @@
 - [x] **T1 / T1b** — `IsCircular` populated + surfaced in the cache (repurposed the dead
       `inlined` slot #13 → `isCircular`); dead `Inlined` field removed. Go + JS suites green.
 - [x] **T4** — Set error-path now `{key: safe(item), index}` (getTypeErrors + unknownKeyErrors); wrong "set.ts doesn't override" comment fixed.
-- [ ] **T3** — array-element non-serializable → throw (consistency).
+- [x] **T3** — non-serializable array element now propagates `CodeNS` → alwaysThrow (removed the redundant `return false`/unconditional-error carve-out in istype + typeErrors; leaf now latches correctly).
 - [ ] **T2** — `decorators` → `typeMeta` rename + surface generic intersection metadata.
 - [ ] **T8** — reflection-shape JS test suite.
 - [ ] **T6** — string-format mock generators + transforms + activate `it.todo`s.
