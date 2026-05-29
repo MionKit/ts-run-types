@@ -1,14 +1,17 @@
 # Value-first format & constraint definitions
 
 > **Status: shipped for every LEAF format — including inline `/regex/`.**
-> The value-first authoring surface — `defineObject({…})` + the `ModelType<typeof
-Model>` type mapping — ships today for flat models over the **type channel**
+> The value-first authoring surface — a Zod/TypeBox-style BUILDER API
+> (`object({ name: string({maxLength: 50}) })`) + the `ModelType<typeof Model>`
+> type mapping — ships today for flat models over the **type channel**
 > (`createIsType<ModelType<…>>()`), via
 > [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts).
-> Field discriminators cover all leaf formats: `string` / `number` / `date` /
-> `bigint` / `boolean`, plus the 6 orderable temporal types under a `T.`
-> namespace that mirrors the `Temporal.X` API (`T.instant`, `T.zonedDateTime`,
-> `T.plainDate`, `T.plainTime`, `T.plainDateTime`, `T.plainYearMonth`).
+> Per-type builders cover all leaf formats: `string()` / `number()` / `date()` /
+> `bigint()` / `boolean()`, plus the 6 orderable temporal types under a lowercase
+> `temporal` namespace mirroring the `Temporal.X` API (`temporal.instant()`,
+> `temporal.zonedDateTime()`, `temporal.plainDate()`, `temporal.plainTime()`,
+> `temporal.plainDateTime()`, `temporal.plainYearMonth()`). `optional(builder)`
+> wraps any field to make it `key?:`.
 > Most of it needed **no new Go engine**: `ModelType<…>` resolves to the same
 > branded `TypeFormat` types the type-first surface already reflects. Regex
 > (`pattern: /…/`) needed one small additive Go change — recovering the literal
@@ -20,7 +23,7 @@ Model>` type mapping — ships today for flat models over the **type channel**
 > array, union, tuple, nullable, nesting — stays in the type channel, where it
 > composes for free: `ModelType<typeof M>[]`, `ModelType<typeof A> | null`, and
 > `{x: ModelType<typeof M>}` all reflect + validate today with **no new API**. A
-> *property-level* composition DSL (`{type: 'array', of: …}`) is **not** pursued
+> _property-level_ composition DSL (`{type: 'array', of: …}`) is **not** pursued
 > — it would reinvent the TS type system as values and requires a recursive
 > `infer`, a checker-perf cost we explicitly avoid. What's still parked: a value
 > call form (`Model.isType(x)`). `PlainMonthDay` / `Duration` have no format
@@ -40,11 +43,13 @@ Formats and constraints can be expressed two ways:
   };
   const isUser = createIsType<User>();
   ```
-- **Value-first** — a runtime config object the type is derived from:
+- **Value-first** — compose per-type builders; the type is derived from the model:
   ```ts
-  const UserModel = defineObject({
-    name: {type: 'string', minLength: 1, maxLength: 50},
-    age: {type: 'number', min: 0, max: 120},
+  import {object, string, number, optional} from '@mionjs/ts-go-run-types/define';
+  const UserModel = object({
+    name: string({minLength: 1, maxLength: 50}),
+    age: number({min: 0, max: 120}),
+    nick: optional(string({maxLength: 50})),
   });
   type User = ModelType<typeof UserModel>;
   ```
@@ -92,26 +97,32 @@ type-perf tax. That is a genuine "why this over Zod", not a me-too.
 
 ## The discriminator insight: mapping, not inference
 
-A `type` discriminator (`'string' | 'number' | 'date' | …`) on each field means
-we do **not** need Zod-style structural inference, and we use **no TS `infer`**.
-The output type is a flat conditional lookup keyed on the literal:
+Each builder returns a field config `{type, optional?, formatParams}` carrying a
+`type` discriminator (`'string' | 'number' | … | 'temporal.instant' | …`). The
+output type is a flat conditional lookup keyed on the literal — **no TS `infer`**,
+no Zod-style structural inference:
 
 ```ts
 type FieldType<F> = F extends {type: 'string'}
-  ? FormatString<Omit<F, 'type'>> // string & {brand}
+  ? TypeFormat<string, 'stringFormat', ParamsOf<F>> // string & {brand}
   : F extends {type: 'number'}
-    ? FormatNumber<Omit<F, 'type'>>
+    ? TypeFormat<number, 'numberFormat', ParamsOf<F>>
     : F extends {type: 'date'}
-      ? FormatDate<Omit<F, 'type'>>
-      : never;
+      ? TypeFormat<Date, 'nativeDate', ParamsOf<F>>
+      : /* …bigint, boolean, the 6 temporal.* … */ never;
 
-type ModelType<C> = {-readonly [K in keyof C]: FieldType<C[K]>};
+type ParamsOf<F extends {formatParams: unknown}> = F['formatParams']; // indexed access, not infer
+type ModelType<C> = {-readonly [K in keyof C]: FieldType<C[K]>}; // (required/optional split elided)
 ```
 
-(`-readonly` strips the `readonly` the `defineObject<const C>` capture stamps on each
-property, so a value-first model and the hand-written type-first form share one
-structural id — see "Spike results". `Omit<F, 'type'>` drops the discriminator
-before it becomes the brand's params.)
+Two `infer`-free moves do all the work: each **builder** uses a `const` generic
+to capture its params narrowly (`string<const P>(p: P): {type:'string'; formatParams: P}`),
+and `ParamsOf<F>` reads them back out by **indexed access** on a _known_ key
+(`formatParams`). `infer` would only be needed to pattern-match an _unknown_
+shape (the recursive `{type:'array', of: infer E}` case we rule out). (`-readonly`
+strips the `readonly` the `object<const C>` capture stamps on each property, so a
+value-first model and the hand-written type-first form share one structural id —
+see "Spike results".)
 
 This is cheap, native TS:
 
@@ -121,10 +132,10 @@ This is cheap, native TS:
   unions, not flat key maps).
 
 This **defuses the main risk** of a value-first surface (Zod-style type-perf).
-The only literal-capture needed is one `const` generic — `defineObject<const C>(c: C)`
-— so `{maxLength: 50}` stays narrow enough to brand as `FormatString<{maxLength:
-50}>`. That's TS narrowing an _argument_ (which it always does), not the heavy
-output-computation kind.
+The only literal-capture needed is the `const` generic on each builder (and on
+`object<const C>`) — so `{maxLength: 50}` stays narrow enough to brand as
+`FormatString<{maxLength: 50}>`. That's TS narrowing an _argument_ (which it
+always does), not the heavy output-computation kind.
 
 Two residual nuances:
 
@@ -145,7 +156,7 @@ This is _the_ decision under every version of the idea.
   the _type_ — but see below: the value declaration behind that erased type is
   still reachable, so even regex is recoverable on this path. _This is the
   shipped path._
-- **Reflect the config value's AST** (the Go binary traces the `defineObject({…})`
+- **Reflect the config value's AST** (the Go binary traces the `object({…})`
   call and reads the literals directly): the fork's "other" branch — a separate
   value-AST front-end. It would be needed for a _value call form_
   (`Model.isType(x)`) where there's no type to reflect, but it turned out **not**
@@ -178,7 +189,7 @@ reflect an _existing_ `User`, not re-declare it.
 ```
 type-first:   createIsType<User>()            ─┐
                                                 ├─→  RunType graph  ─→  isType / typeErrors / mock emitters
-value-first:  defineObject({...}) + ModelType<...>  ─┘     (one engine, shared dedup + structural ids)
+value-first:  object({...}) + ModelType<...>  ─┘     (one engine, shared dedup + structural ids)
 ```
 
 Both lower to the **same** RunType graph and the **same** emitters; only the
@@ -228,7 +239,7 @@ thin adapter rather than a second validator.
    `createIsType(UserModel)`), so there's a new call form + a keying path
    (hash off the config content the scanner already reads).
 3. **A plugin nuance.** Unlike `registerPureFnFactory` (whose factory the plugin
-   nulls out), the `defineObject()` config must **survive at runtime** intact — Drizzle
+   nulls out), the `object()` config must **survive at runtime** intact — Drizzle
    needs it. So it's a "scan-and-keep" rewrite rule, not "scan-and-strip".
 
 ## Known drawback: params duplication, and the fix
@@ -284,7 +295,7 @@ validator" from "which mock data", which is the right separation anyway.
 
 The smallest spike that proves the whole thesis at once:
 
-> Hand-write `defineObject` + `ModelType` for `string`/`number`/`date` discriminators,
+> Hand-write `object` + `ModelType` for `string`/`number`/`date` discriminators,
 > point `createIsType<ModelType<typeof model>>()` at flat / nested / regex
 > models, and check: (a) does the Go binary reflect it correctly, (b) compile
 > time + error quality, (c) what happens to the inline regex — which concretely
@@ -297,47 +308,53 @@ This spike is **done** — it shipped as Option A. Results below.
 Implemented in
 [`packages/ts-go-run-types/src/define/`](../packages/ts-go-run-types/src/define/define.ts);
 covered by `test/adapters/valueFirst{IsType,Convergence}.test.ts` and the
-`defineObject` cases in `test/typesafety.test.ts`.
+`object`/builder cases in `test/typesafety.test.ts`.
+
+> **API note:** the spike was first built as an inline discriminated-config
+> (`defineObject({ name: {type:'string', maxLength:50} })`) and later refactored
+> to the Zod/TypeBox-style builder API (`object({ name: string({maxLength:50}) })`).
+> The findings below are unchanged by that refactor — convergence, regex, and the
+> leaf boundary all hold identically; only the authoring syntax changed. Where
+> the historical text says "exclusive union" / "`Forbid<>`" (finding b) or
+> "`optional: true` flag", read the builder equivalents: per-builder param typing
+> and the `optional(...)` wrapper. See the "discriminator insight" section above
+> for the current shape.
 
 **(a) The Go binary reflects `ModelType<…>` correctly — with zero Go changes.**
-`defineObject<const C>(config)` is a runtime identity returning the config (so it
-survives for Drizzle/OpenAPI), and `ModelType<C>` maps each field through
-`TypeFormat<Base, Name, Omit<F,'type'>>` — structurally identical to the
+Each builder (and `object<const C>`) is a runtime identity returning the plain
+config (so it survives for Drizzle/OpenAPI), and `ModelType<C>` maps each field
+through `TypeFormat<Base, Name, ParamsOf<F>>` — structurally identical to the
 type-first `FormatString`/`FormatNumber`/`FormatDate`. The existing brand
 scanner (`internal/compiled/runtype/typeid/formats.go`) lifts it unchanged.
 Flat fields, and **nested value-first models composed inside a parent object**,
-both reflect + validate correctly. **Optional properties** are supported via a
-per-field `optional: true` flag (`{type: 'string', optional: true}` →
-`key?: FormatString<…>`): `ModelType` splits the keys into required/optional
-groups and intersects (TypeScript can't apply `?` per-key in one homomorphic
-map). The flag is a meta field — stripped from the params, kept out of the
-exclusive-union negation — and an optional value-first field converges with a
-type-first `key?:`. (A string-key `'name?'` marker à la ArkType was rejected: it
-needs a template-literal `infer` in the mapped type, which taxes the checker.)
+both reflect + validate correctly. **Optional properties** come from the
+`optional(builder)` wrapper, which sets `optional: true` on the field; `ModelType`
+splits the keys into required/optional groups and intersects (TypeScript can't
+apply `?` per-key in one homomorphic map). An optional value-first field
+converges with a type-first `key?:`. (A string-key `'name?'` marker à la ArkType
+was rejected: it needs a template-literal `infer` in the mapped type, which taxes
+the checker.)
 
 **Convergence holds (the dual-front-end requirement).** A value-first model and
 the hand-written type-first equivalent resolve to the **same structural id → the
 same cached validator** (`createIsType<ModelType<…>>() === createIsType<TypeFirst>()`).
-The one wrinkle: the `defineObject<const C>` capture stamps `readonly` on every config
+The one wrinkle: the `object<const C>` capture stamps `readonly` on every config
 property, which propagates to the mapped type and diverges the property node's
 id from the (mutable) type-first form — the _format type itself was already
 identical_. `ModelType`'s `-readonly` modifier strips it, restoring convergence.
-This answers the "how is a `defineObject()`'d model keyed" open decision: by the same
+This answers the "how is a value-first model keyed" open decision: by the same
 structural id as the type-first shape, so the dual surface is **not** a
 duplication source.
 
-**(b) Error quality: good — discriminator AND param mismatches caught locally.**
-An _unknown discriminator_ (`{type: 'boolean'}`) is rejected on the `type` field
-(`TS2322`). Cross-family param leakage (`{type: 'number', maxLength: 5}`) is
-_also_ caught — but only after a fix. By default TypeScript's excess-property
-check against a union is lenient (it allows any key present in _some_ member, so
-`maxLength`, valid for the string member, slips onto a number field). The field
-configs are therefore an **exclusive union**: each member forbids the keys it
-doesn't own by typing them optional-`never`
-(`& Partial<Record<Exclude<AllParamKeys, OwnKeys>, never>>`), so a foreign key
-errors locally on the offending field. The negation is optional-`never`, so it
-never leaks into the `const`-captured value type or `ModelType`. (`min`/`max`/
-`gt`/`lt` are shared by number _and_ date, so they're correctly allowed on both.)
+**(b) Error quality: good — bad params caught locally at the builder call.**
+Each builder types its own params argument (`number(params?: NumberParams)`), so
+cross-family misuse (`number({maxLength: 5})`) errors right at the `number(...)`
+call — `maxLength` isn't a `NumberParams` key. This replaced the inline-config
+era's exclusive-union `Forbid<>` machinery (which existed only because a plain
+discriminated-union object literal let TS's lenient excess-property check pass a
+foreign key); per-builder typing makes that machinery unnecessary, so it was
+deleted. (`min`/`max`/`gt`/`lt` are shared by the number, date, bigint and
+temporal param interfaces, so they're correctly accepted on each.)
 
 **(c) Inline `/regex/` works — recovered from the value declaration the type
 system preserves.** This was the surprise. A regex _value_ can't ride the type

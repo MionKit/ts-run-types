@@ -1,28 +1,33 @@
-// Value-first model definitions — a discriminator-keyed config surface that
-// derives the equivalent type-first format types via plain TYPE MAPPING (no
-// TS `infer`). Write a runtime config object:
+// Value-first model definitions — a Zod/TypeBox-style BUILDER API that derives
+// the equivalent type-first format types via plain TYPE MAPPING (no TS
+// `infer`). Author a model by composing per-type builders:
 //
-//   const UserModel = defineObject({
-//     name: {type: 'string', minLength: 1, maxLength: 50},
-//     age:  {type: 'number', min: 0, max: 120},
-//     born: {type: 'date', max: 'now'},
+//   import {object, string, number, boolean, optional, temporal} from '@mionjs/ts-go-run-types/define';
+//
+//   const UserModel = object({
+//     name:   string({minLength: 1, maxLength: 50}),
+//     age:    number({min: 0, max: 120}),
+//     active: boolean(),
+//     nick:   optional(string({maxLength: 50})),
+//     bornAt: temporal.instant({max: 'now'}),
 //   });
 //   type User = ModelType<typeof UserModel>;
 //   const isUser = createIsType<User>();
 //
-// `ModelType<C>` maps each field config onto the SAME branded format type the
-// type-first surface produces (`FormatString` / `FormatNumber` / `FormatDate`
-// all lower to `TypeFormat<Base, Name, Params>`). Because the output is
-// structurally identical to the hand-written type-first form, the Go scanner
+// Each builder is a runtime identity that returns a plain field-config object
+// `{type, optional?, formatParams}` — plain data so the model survives in the
+// bundle (Drizzle / form builders / OpenAPI read it), `const`-narrowed so the
+// literal params (`{maxLength: 50}`) stay narrow enough to brand. `ModelType<C>`
+// maps each field onto the SAME branded format type the type-first surface
+// produces (`FormatString` / `FormatNumber` / …), so the Go scanner
 // (internal/compiled/runtype/typeid/formats.go) reflects it unchanged and both
-// front-ends converge on the same structural id — no second engine, just a
-// thinner authoring door.
+// front-ends converge on the same structural id — one engine, two front doors.
 //
-// Mechanism note: this is NOT inference. `FieldType` is an O(1) conditional
-// lookup on the `type` discriminator literal, and `ModelType` is a flat mapped
-// type over the keys — cheap native TS, none of Zod's "type instantiation is
-// excessively deep" tax, because the Go binary (not the type system) is the
-// validation engine here.
+// No `infer`, no Zod-style "type instantiation is excessively deep" tax: each
+// builder types its own params arg (so cross-family misuse like
+// `number({maxLength: 5})` errors at the call), and the mapping reads each
+// field's params by INDEXED ACCESS `F['formatParams']` — a known key, not a
+// pattern-match. The Go binary, not the type system, is the validation engine.
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps the brand alias's reflection metadata reachable for tsgo, the
@@ -39,10 +44,10 @@ import type {FormatPattern} from '../runtypes/formatPattern.ts';
 // alias TYPES — not naming `Temporal.*` directly — keeps the Temporal lib
 // coupling inside temporalFormats.ts: a value-first temporal field still
 // requires `ESNext.Temporal` in the consumer's `lib` (the same scan-time
-// TMP001 rule as the type-first Temporal formats), but the core `define`
-// module never references the Temporal global. `PlainMonthDay` / `Duration`
-// have no format family (no ordering ⇒ no min/max), so they are outside the
-// format-helper surface — same boundary that excludes object/array/union.
+// TMP001 rule as the type-first Temporal formats), but this module never
+// references the Temporal global. `PlainMonthDay` / `Duration` have no format
+// family (no ordering ⇒ no min/max), so they are outside the surface — the
+// same leaf-only boundary that excludes object/array/union composition.
 import type {
   FormatTemporalInstant,
   FormatTemporalZonedDateTime,
@@ -52,22 +57,7 @@ import type {
   FormatTemporalPlainYearMonth,
 } from '../formats/datetime/temporalFormats.ts';
 
-// ─────────────────────────── Field configs ──────────────────────────
-//
-// Each field config is a discriminated member: the `type` literal tag plus
-// the exact param shape the matching format already validates. Reusing the
-// published param interfaces means the value-first config and the type-first
-// `Format*<P>` params stay in lockstep — one definition, two front doors.
-//
-// The members are an EXCLUSIVE union: each one explicitly forbids the param
-// keys it doesn't own (typed `never`). Without this, TypeScript's
-// excess-property check against a plain union is lenient — it allows any key
-// present in *some* member — so `{type: 'number', maxLength: 5}` would compile
-// (`maxLength` is valid for the string member) and the misplaced param would
-// silently no-op. The `Forbid<…>` intersection turns that into a local error
-// on the offending field. The forbidden keys are optional `never`, so omitting
-// them is fine and the `const`-captured value type carries only the keys the
-// author actually wrote (the negation never leaks into `ModelType`).
+// ─────────────────────────────── Params ─────────────────────────────
 
 // `ValuePattern` — the regex forms a value-first string field accepts. The
 // regex rides the VALUE channel, not the type channel: the Go scanner recovers
@@ -85,81 +75,50 @@ type ValuePattern = RegExp | FormatPattern | {source: string; flags?: string};
 // `StringFamilyParams` — the string params a value-first field accepts. Same as
 // `StringParams` but `pattern` is re-typed to the value-channel `ValuePattern`
 // forms above (instead of the type-first `FormatPattern`-only `PatternParam`).
-type StringFamilyParams = Omit<StringParams, 'pattern'> & {pattern?: ValuePattern};
+export type StringFamilyParams = Omit<StringParams, 'pattern'> & {pattern?: ValuePattern};
 
-// Every param key across all field families — the universe the per-member
-// negation subtracts from. `bigint` reuses number's key NAMES (its bounds are
-// bigint-valued, distinguished by the value type), `boolean` carries no
-// params, and the temporal `MinMax` bound keys (min/max/gt/lt) are already a
-// subset of number/date — so none of the added families extend this set.
-type AllParamKeys = keyof StringFamilyParams | keyof NumberParams | keyof FormatParams_NativeDate;
-
-// Forbids every param key NOT in `OwnKeys` by typing it optional-`never`.
-type Forbid<OwnKeys extends PropertyKey> = Partial<Record<Exclude<AllParamKeys, OwnKeys>, never>>;
-
-// `FieldMeta` — per-field flags that are NOT format params: shared by every
-// field family, stripped before the params reach the brand, and (deliberately)
-// kept out of `AllParamKeys` so the exclusive-union negation neither forbids
-// nor mistakes them for params. `optional: true` makes the property optional
-// (`key?:`) in the derived model — the key MAY be absent, matching the `?`
-// modifier (not `T | undefined`).
-type FieldMeta = {optional?: boolean};
-
-/** A string field: the `string` discriminator plus the value-channel
- *  `FormatString` params (minLength / maxLength / length / allowedChars /
- *  disallowedChars / allowedValues / disallowedValues / mockSamples / the
- *  transform flags) plus `optional`. Forbids number/date-only params. **/
-export type StringFieldConfig = {type: 'string'} & FieldMeta & StringFamilyParams & Forbid<keyof StringFamilyParams>;
-
-/** A number field: the `number` discriminator plus every `FormatNumber` param
- *  (min / max / lt / gt / integer / float / multipleOf) plus `optional`.
- *  Forbids string-only params (date's min/max/lt/gt overlap number's, so they
- *  aren't forbidden). **/
-export type NumberFieldConfig = {type: 'number'} & FieldMeta & NumberParams & Forbid<keyof NumberParams>;
-
-/** A native-`Date` field: the `date` discriminator plus the `FormatDate`
- *  min/max bounds (absolute ISO literal or relative `now±P…`) plus `optional`.
- *  Forbids string-only params and the number-only `integer`/`float`/
- *  `multipleOf`. **/
-export type DateFieldConfig = {type: 'date'} & FieldMeta & FormatParams_NativeDate & Forbid<keyof FormatParams_NativeDate>;
-
-/** A bigint field: the `bigint` discriminator plus every `FormatBigInt` param
- *  (min / max / lt / gt / multipleOf, all `bigint`-valued) plus `optional`.
- *  Forbids string-only params; shares min/max/lt/gt KEY NAMES with number (the
- *  value type disambiguates). **/
-export type BigIntFieldConfig = {type: 'bigint'} & FieldMeta & BigIntParams & Forbid<keyof BigIntParams>;
-
-/** A boolean field: the `boolean` discriminator only — booleans carry no
- *  format params, so `Forbid<never>` rejects every param key. **/
-export type BooleanFieldConfig = {type: 'boolean'} & FieldMeta & Forbid<never>;
-
-// Temporal field configs — one per orderable `Temporal.X` FORMAT type. All
-// share the `MinMax` bounds (string-valued: an absolute Temporal literal in
-// the type's ISO form, or a relative `now±P` duration), so they forbid the
-// same non-bound param keys. `PlainMonthDay` / `Duration` have no format
-// family (no ordering) and are intentionally absent — see the import note.
+// ─────────────────────────── Field configs ──────────────────────────
 //
-// The discriminator is namespaced `T.<name>` (e.g. `{type: 'T.instant'}`) so
-// it reads as the `Temporal.X` it maps to and stays visually distinct from the
-// scalar discriminators. The Go side keys off the brand's `__rtFormatName`, not
-// this config tag, so the prefix is purely an authoring-side label.
-type TemporalConfig<Tag extends string> = {type: Tag} & FieldMeta & MinMax & Forbid<keyof MinMax>;
-/** A `Temporal.Instant` field (`{type: 'T.instant'}`). **/
-export type InstantFieldConfig = TemporalConfig<'T.instant'>;
-/** A `Temporal.ZonedDateTime` field (`{type: 'T.zonedDateTime'}`). **/
-export type ZonedDateTimeFieldConfig = TemporalConfig<'T.zonedDateTime'>;
-/** A `Temporal.PlainDate` field (`{type: 'T.plainDate'}`). **/
-export type PlainDateFieldConfig = TemporalConfig<'T.plainDate'>;
-/** A `Temporal.PlainTime` field (`{type: 'T.plainTime'}`). **/
-export type PlainTimeFieldConfig = TemporalConfig<'T.plainTime'>;
-/** A `Temporal.PlainDateTime` field (`{type: 'T.plainDateTime'}`). **/
-export type PlainDateTimeFieldConfig = TemporalConfig<'T.plainDateTime'>;
-/** A `Temporal.PlainYearMonth` field (`{type: 'T.plainYearMonth'}`). **/
-export type PlainYearMonthFieldConfig = TemporalConfig<'T.plainYearMonth'>;
+// A field config is the plain object a builder returns: the `type`
+// discriminator, an optional `optional` flag, and the `formatParams` object
+// (always present — builders default it to `{}` — so the type mapping reads it
+// by indexed access uniformly across every family). There is NO exclusive-union
+// `Forbid<>` machinery: each builder types its own params arg, so a misplaced
+// param (`number({maxLength: 5})`) is rejected at the builder call itself.
 
-/** The discriminated union of every supported field config. Extending this
- *  union with composition (object / array / union / tuple / nullable) is out
- *  of scope by design — those compose for free in the type channel; see
+/** A `string` field — `formatParams` is the value-channel `FormatString` set. **/
+export type StringFieldConfig = {type: 'string'; optional?: true; formatParams: StringFamilyParams};
+/** A `number` field. **/
+export type NumberFieldConfig = {type: 'number'; optional?: true; formatParams: NumberParams};
+/** A native-`Date` field (min/max bounds: absolute ISO literal or `now±P…`). **/
+export type DateFieldConfig = {type: 'date'; optional?: true; formatParams: FormatParams_NativeDate};
+/** A `bigint` field (bigint-valued bounds). **/
+export type BigIntFieldConfig = {type: 'bigint'; optional?: true; formatParams: BigIntParams};
+/** A `boolean` field — carries no params (`formatParams: {}`). **/
+export type BooleanFieldConfig = {type: 'boolean'; optional?: true; formatParams: Record<string, never>};
+
+// Temporal field configs — one per orderable `Temporal.X` FORMAT type, all
+// sharing the `MinMax` bounds. The `temporal.<name>` discriminator mirrors the
+// `temporal.instant(...)` builder (and the `Temporal.X` API). The Go side keys
+// off the brand's `__rtFormatName`, not this tag, so the prefix is an
+// authoring-side label only.
+type TemporalFieldConfig<Tag extends string> = {type: Tag; optional?: true; formatParams: MinMax};
+/** A `Temporal.Instant` field. **/
+export type InstantFieldConfig = TemporalFieldConfig<'temporal.instant'>;
+/** A `Temporal.ZonedDateTime` field. **/
+export type ZonedDateTimeFieldConfig = TemporalFieldConfig<'temporal.zonedDateTime'>;
+/** A `Temporal.PlainDate` field. **/
+export type PlainDateFieldConfig = TemporalFieldConfig<'temporal.plainDate'>;
+/** A `Temporal.PlainTime` field. **/
+export type PlainTimeFieldConfig = TemporalFieldConfig<'temporal.plainTime'>;
+/** A `Temporal.PlainDateTime` field. **/
+export type PlainDateTimeFieldConfig = TemporalFieldConfig<'temporal.plainDateTime'>;
+/** A `Temporal.PlainYearMonth` field. **/
+export type PlainYearMonthFieldConfig = TemporalFieldConfig<'temporal.plainYearMonth'>;
+
+/** The discriminated union of every supported field config. Extending it with
+ *  composition (object / array / union / tuple / nullable) is out of scope by
+ *  design — those compose for free in the type channel; see
  *  docs/value-first-formats.md. **/
 export type FieldConfig =
   | StringFieldConfig
@@ -177,87 +136,150 @@ export type FieldConfig =
 /** A whole model: a flat record of named field configs. **/
 export type ModelConfig = Record<string, FieldConfig>;
 
+// ───────────────────────────── Builders ─────────────────────────────
+//
+// Each builder is a runtime identity returning the plain field object. The
+// `const` type parameter on the params is the ONLY narrowing mechanism (same
+// as the old `defineObject<const C>`): it keeps `{maxLength: 50}` as `50`, not
+// `number`, so the literal survives into the brand. The params arg is typed to
+// the family's own interface, so cross-family misuse errors right here.
+
+/** A string field builder. **/
+export function string<const P extends StringFamilyParams = Record<string, never>>(
+  formatParams: P = {} as P
+): {type: 'string'; formatParams: P} {
+  return {type: 'string', formatParams};
+}
+
+/** A number field builder. **/
+export function number<const P extends NumberParams = Record<string, never>>(
+  formatParams: P = {} as P
+): {type: 'number'; formatParams: P} {
+  return {type: 'number', formatParams};
+}
+
+/** A bigint field builder. **/
+export function bigint<const P extends BigIntParams = Record<string, never>>(
+  formatParams: P = {} as P
+): {type: 'bigint'; formatParams: P} {
+  return {type: 'bigint', formatParams};
+}
+
+/** A native-`Date` field builder. **/
+export function date<const P extends FormatParams_NativeDate = Record<string, never>>(
+  formatParams: P = {} as P
+): {type: 'date'; formatParams: P} {
+  return {type: 'date', formatParams};
+}
+
+/** A boolean field builder — no params. **/
+export function boolean(): {type: 'boolean'; formatParams: Record<string, never>} {
+  return {type: 'boolean', formatParams: {}};
+}
+
+// `temporalBuilder` — shared factory for the 6 temporal builders below. Each
+// fixes its `temporal.<name>` discriminator and accepts the `MinMax` bounds.
+function temporalBuilder<Tag extends string>(tag: Tag) {
+  return <const P extends MinMax = Record<string, never>>(formatParams: P = {} as P): {type: Tag; formatParams: P} => ({
+    type: tag,
+    formatParams,
+  });
+}
+
+/** Temporal field builders, namespaced to mirror the `Temporal.X` API
+ *  (lowercase, to differentiate from the native `Temporal` global). **/
+export const temporal = {
+  instant: temporalBuilder('temporal.instant'),
+  zonedDateTime: temporalBuilder('temporal.zonedDateTime'),
+  plainDate: temporalBuilder('temporal.plainDate'),
+  plainTime: temporalBuilder('temporal.plainTime'),
+  plainDateTime: temporalBuilder('temporal.plainDateTime'),
+  plainYearMonth: temporalBuilder('temporal.plainYearMonth'),
+};
+
+/** Marks a field optional — the wrapped property becomes `key?:` in the
+ *  derived model (the key MAY be absent, matching the `?` modifier, NOT
+ *  `T | undefined`). A composable modifier (Zod/TypeBox style) that preserves
+ *  the field's static type and keeps it plain data. **/
+export function optional<const F extends FieldConfig>(field: F): F & {optional: true} {
+  return {...field, optional: true};
+}
+
 // ────────────────────────── Discriminator map ───────────────────────
 //
-// `Omit<F, 'type' | 'optional'>` strips the discriminator AND the `optional`
-// meta flag before the rest becomes the `__rtFormatParams` payload, so the
-// params the Go scanner reads are clean (`{maxLength: 50}`, never
-// `{type: 'string', optional: true, maxLength: 50}`). Mapping through
-// `TypeFormat` directly (its `Params` constraint is just `object`) sidesteps
-// the per-family param-constraint proof while producing a type byte-for-byte
-// identical to `FormatString` / `FormatNumber` / `FormatDate`.
-
-// Strips the discriminator + `optional` meta flag, leaving ONLY the bounds the
-// field actually declared. Do NOT intersect the full `MinMax` interface here —
-// that would inject `min?/max?/gt?/lt?: string | undefined` for the unset
-// bounds, and the scanner would read those as the literal type-string
-// `"string | undefined"` and emit a broken `Temporal.X.compare(value,
-// "string | undefined")`. The `FormatTemporal*` alias's own
-// `P extends MinMax = MinMax` already supplies the constraint.
-type TemporalParams<F> = Omit<F, 'type' | 'optional'>;
+// `ParamsOf<F>` (indexed access, NOT `infer`) pulls the params object a builder
+// stored, and `TypeFormat<Base, Name, Params>` re-brands it — producing a type
+// byte-for-byte identical to `FormatString` / `FormatNumber` / etc., so a
+// builder-authored model converges on the same structural id as the
+// hand-written type-first form. The helper's own `extends {formatParams:
+// unknown}` constraint is what lets the bare indexed access typecheck (a
+// generic `F extends FieldConfig` alone doesn't surface the key to `F[...]`).
+type ParamsOf<F extends {formatParams: unknown}> = F['formatParams'];
 
 /** Maps the 6 orderable temporal discriminators onto the `FormatTemporal*`
  *  aliases; returns `never` for non-temporal `F` so it composes as the
- *  fallthrough branch of `FieldType`. **/
-type TemporalFieldType<F> = F extends {type: 'T.instant'}
-  ? FormatTemporalInstant<TemporalParams<F>>
-  : F extends {type: 'T.zonedDateTime'}
-    ? FormatTemporalZonedDateTime<TemporalParams<F>>
-    : F extends {type: 'T.plainDate'}
-      ? FormatTemporalPlainDate<TemporalParams<F>>
-      : F extends {type: 'T.plainTime'}
-        ? FormatTemporalPlainTime<TemporalParams<F>>
-        : F extends {type: 'T.plainDateTime'}
-          ? FormatTemporalPlainDateTime<TemporalParams<F>>
-          : F extends {type: 'T.plainYearMonth'}
-            ? FormatTemporalPlainYearMonth<TemporalParams<F>>
+ *  fallthrough branch of `FieldType`. Passes `ParamsOf<F>` straight through —
+ *  do NOT intersect `& MinMax` here: that re-injects the interface's optional
+ *  `min?/max?/gt?/lt?: string | undefined`, and the scanner would read an unset
+ *  bound as the literal type-string `"string | undefined"` and emit a broken
+ *  `Temporal.X.compare(value, "string | undefined")`. The builder's own
+ *  `P extends MinMax` already constrained the params at the call site. **/
+type TemporalFieldType<F extends FieldConfig> = F extends {type: 'temporal.instant'}
+  ? FormatTemporalInstant<ParamsOf<F>>
+  : F extends {type: 'temporal.zonedDateTime'}
+    ? FormatTemporalZonedDateTime<ParamsOf<F>>
+    : F extends {type: 'temporal.plainDate'}
+      ? FormatTemporalPlainDate<ParamsOf<F>>
+      : F extends {type: 'temporal.plainTime'}
+        ? FormatTemporalPlainTime<ParamsOf<F>>
+        : F extends {type: 'temporal.plainDateTime'}
+          ? FormatTemporalPlainDateTime<ParamsOf<F>>
+          : F extends {type: 'temporal.plainYearMonth'}
+            ? FormatTemporalPlainYearMonth<ParamsOf<F>>
             : never;
 
 /** Maps one field config to its branded format type via a conditional lookup
  *  on the `type` discriminator. Scalars resolve directly; the temporal
  *  discriminators fall through to `TemporalFieldType`. **/
 type FieldType<F extends FieldConfig> = F extends {type: 'string'}
-  ? TypeFormat<string, 'stringFormat', Omit<F, 'type' | 'optional'>>
+  ? TypeFormat<string, 'stringFormat', ParamsOf<F>>
   : F extends {type: 'number'}
-    ? TypeFormat<number, 'numberFormat', Omit<F, 'type' | 'optional'>>
+    ? TypeFormat<number, 'numberFormat', ParamsOf<F>>
     : F extends {type: 'date'}
-      ? TypeFormat<Date, 'nativeDate', Omit<F, 'type' | 'optional'>>
+      ? TypeFormat<Date, 'nativeDate', ParamsOf<F>>
       : F extends {type: 'bigint'}
-        ? TypeFormat<bigint, 'bigintFormat', Omit<F, 'type' | 'optional'>>
+        ? TypeFormat<bigint, 'bigintFormat', ParamsOf<F>>
         : F extends {type: 'boolean'}
           ? boolean
           : TemporalFieldType<F>;
 
 /** The type a value-first model represents — a flat mapped type over the
- *  config keys, each value resolved through `FieldType`.  Feed it to any RT
+ *  config keys, each value resolved through `FieldType`. Feed it to any RT
  *  factory: `createIsType<ModelType<typeof UserModel>>()`.
  *
- *  Two key-groups, intersected: fields flagged `optional: true` become
- *  optional properties (`key?:`), the rest required. TypeScript can't apply
- *  the `?` modifier per-key in a single homomorphic map, so the split is the
- *  standard way to do it — and it stays a flat O(keys) map (no template-literal
- *  `infer`, which would tax the checker). `-readonly` strips the `readonly` the
- *  `defineObject<const C>` capture stamps on every config property; without it the
- *  derived properties would diverge from the canonical (mutable) type-first
- *  form at the structural-id level (the format type itself is already
- *  identical, only the modifier differed). An all-required model leaves the
- *  optional group empty (`… & {}`), which tsgo collapses, so it still converges
- *  with the plain type-first object. **/
+ *  Two key-groups, intersected: fields wrapped in `optional(...)` (carrying
+ *  `optional: true`) become optional properties (`key?:`), the rest required.
+ *  TypeScript can't apply the `?` modifier per-key in a single homomorphic map,
+ *  so the split is the standard way to do it — and it stays a flat O(keys) map.
+ *  `-readonly` strips the `readonly` the `object<const C>` capture stamps on
+ *  every config property; without it the derived properties would diverge from
+ *  the canonical (mutable) type-first form at the structural-id level (the
+ *  format type itself is already identical, only the modifier differed). An
+ *  all-required model leaves the optional group empty (`… & {}`), which tsgo
+ *  collapses, so it still converges with the plain type-first object. **/
 export type ModelType<C extends ModelConfig> = {
   -readonly [K in keyof C as C[K] extends {optional: true} ? never : K]: FieldType<C[K]>;
 } & {
   -readonly [K in keyof C as C[K] extends {optional: true} ? K : never]?: FieldType<C[K]>;
 };
 
-// ───────────────────────────── defineObject() ─────────────────────────────
+// ─────────────────────────────── object() ───────────────────────────
 
-/** Identity at runtime — returns the config object unchanged so it survives
- *  in the bundle (Drizzle / form builders / OpenAPI generators can read it as
- *  plain data). The `const` type parameter captures literals narrowly (so
- *  `{maxLength: 50}` stays `50`, not `number`) and `extends ModelConfig`
- *  validates the config shape at the authoring site, surfacing a local
- *  discriminated-union mismatch on a bad field instead of a deep generic
- *  error downstream. **/
-export function defineObject<const C extends ModelConfig>(config: C): C {
+/** Assembles a model from named field builders. Identity at runtime — returns
+ *  the config object unchanged so it survives in the bundle (Drizzle / form
+ *  builders / OpenAPI read it as plain data). The `const` type parameter
+ *  captures the composed builder objects narrowly so each field's `formatParams`
+ *  literals stay narrow enough to brand. **/
+export function object<const C extends ModelConfig>(config: C): C {
   return config;
 }
