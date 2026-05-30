@@ -2921,6 +2921,7 @@ export const VALIDATION_SUITE = {
         'If you need to verify a function is actually callable, do it outside isType.',
       ],
       isType: () => createIsType<{name: string; cb: () => any}>(),
+      isTypeSchema: () => createIsTypeFor(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
       deserializeIsType: () => deserializeIsType<{name: string; cb: () => any}>(),
       isTypeReflect: () => {
         const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
@@ -2931,6 +2932,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{name: string; cb: () => any}>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({name: RT.string(), cb: RT.func([], RT.any())})),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{name: string; cb: () => any}>(),
       getTypeErrorsReflect: () => {
         const v: {name: string; cb: () => any} = {name: 'x', cb: () => null};
@@ -3625,6 +3627,7 @@ export const VALIDATION_SUITE = {
         'Parameter types and return type are NOT verified at runtime. If you need a specific call shape, validate at the call boundary.',
       ],
       isType: () => createIsType<() => void>(),
+      isTypeSchema: () => createIsTypeFor(RT.func()),
       deserializeIsType: () => deserializeIsType<() => void>(),
       isTypeReflect: () => {
         const v: () => void = () => {};
@@ -3635,6 +3638,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<() => void>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.func()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<() => void>(),
       getTypeErrorsReflect: () => {
         const v: () => void = () => {};
@@ -5470,6 +5474,7 @@ export const VALIDATION_SUITE = {
         'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
       ],
       isType: () => createIsType<[number, () => any]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number(), RT.func([], RT.any())])),
       deserializeIsType: () => deserializeIsType<[number, () => any]>(),
       isTypeReflect: () => {
         const v: [number, () => any] = [3, () => null];
@@ -5480,6 +5485,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[number, () => any]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number(), RT.func([], RT.any())])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, () => any]>(),
       getTypeErrorsReflect: () => {
         const v: [number, () => any] = [3, () => null];
