@@ -123,3 +123,32 @@ func TestValidateMinMax_Ordering(t *testing.T) {
 		t.Fatalf("expected ordering skipped, got %+v", errs)
 	}
 }
+
+// TestValidateMinMax_LtGtOrdering covers the exclusive bounds (gt/lt) and
+// every lower-vs-upper ordering pair: gt>lt, min>lt, gt>max all error;
+// combining all four in order is fine (no exclusivity).
+func TestValidateMinMax_LtGtOrdering(t *testing.T) {
+	cases := []struct {
+		name    string
+		params  map[string]any
+		wantErr bool
+	}{
+		{"gt < lt ok", map[string]any{"gt": "2020-01-01", "lt": "2020-06-01"}, false},
+		{"gt > lt err", map[string]any{"gt": "2020-06-01", "lt": "2020-01-01"}, true},
+		{"gt == lt err", map[string]any{"gt": "2020-01-01", "lt": "2020-01-01"}, false}, // equal isn't "greater than"
+		{"min > lt err", map[string]any{"min": "2020-06-01", "lt": "2020-01-01"}, true},
+		{"gt > max err", map[string]any{"gt": "2020-06-01", "max": "2020-01-01"}, true},
+		{"all four in order ok", map[string]any{"min": "2020-01-01", "gt": "2020-02-01", "lt": "2020-11-01", "max": "2020-12-01"}, false},
+		{"gt invalid literal err", map[string]any{"gt": "08:30"}, true},
+		{"lt relative date-only ok", map[string]any{"lt": "now+P1Y"}, false},
+		{"lt relative time-on-date err", map[string]any{"lt": "now+PT1H"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := validateMinMax(tc.params, dateKind, "YYYY-MM-DD")
+			if (len(errs) > 0) != tc.wantErr {
+				t.Fatalf("got %+v wantErr %v", errs, tc.wantErr)
+			}
+		})
+	}
+}

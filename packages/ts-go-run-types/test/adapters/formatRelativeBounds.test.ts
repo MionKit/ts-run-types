@@ -13,7 +13,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {createIsType, createMockType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
-import type {FormatStringDate, FormatStringTime} from '@mionjs/ts-go-run-types/formats';
+import type {FormatStringDate, FormatStringTime, FormatStringDateTime, FormatDate} from '@mionjs/ts-go-run-types/formats';
 
 // Pin "now" to 2026-06-15T12:00:00Z for every test.
 const NOW = Date.UTC(2026, 5, 15, 12, 0, 0);
@@ -98,6 +98,101 @@ describe('relative bounds — mock respects them (every generated value is valid
   it('FormatStringDate absolute bounds — mock stays in range', () => {
     const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
     const mock = createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+});
+
+// Exclusive bounds (gt/lt) — the strict twins of min/max. gt/lt EXCLUDE the
+// bound value itself (`>`/`<`), where min/max include it (`>=`/`<=`). They
+// combine freely with each other and with min/max (no exclusivity).
+describe('exclusive date/time bounds (gt/lt)', () => {
+  it('FormatStringDate gt — excludes the bound day, accepts the next', () => {
+    const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'}>>();
+    expect(isType('2020-01-01')).toBe(false); // equal to gt — excluded
+    expect(isType('2020-01-02')).toBe(true);
+    expect(isType('2019-12-31')).toBe(false);
+  });
+
+  it('FormatStringDate lt — excludes the bound day, accepts the prior', () => {
+    const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; lt: '2020-12-31'}>>();
+    expect(isType('2020-12-31')).toBe(false); // equal to lt — excluded
+    expect(isType('2020-12-30')).toBe(true);
+  });
+
+  it('FormatStringTime gt/lt window — strict on both edges', () => {
+    const isType = createIsType<FormatStringTime<{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}>>();
+    expect(isType('08:00')).toBe(false);
+    expect(isType('17:00')).toBe(false);
+    expect(isType('08:01')).toBe(true);
+    expect(isType('16:59')).toBe(true);
+  });
+
+  it('FormatStringDate min + lt combine (inclusive lower, exclusive upper)', () => {
+    const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; lt: '2020-01-03'}>>();
+    expect(isType('2020-01-01')).toBe(true); // min inclusive
+    expect(isType('2020-01-02')).toBe(true);
+    expect(isType('2020-01-03')).toBe(false); // lt exclusive
+    expect(isType('2019-12-31')).toBe(false);
+  });
+
+  it('FormatDate (native) gt/lt — strict on both epoch edges', () => {
+    const isType = createIsType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2020-01-01T00:00:02'}>>();
+    expect(isType(new Date('2020-01-01T00:00:00Z'))).toBe(false);
+    expect(isType(new Date('2020-01-01T00:00:02Z'))).toBe(false);
+    expect(isType(new Date('2020-01-01T00:00:01Z'))).toBe(true);
+  });
+});
+
+describe('exclusive bounds — mock respects them (every generated value is valid)', () => {
+  const ITERATIONS = 50;
+
+  it('FormatStringDate gt/lt — mock stays strictly inside', () => {
+    const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'; lt: '2020-12-31'}>>();
+    const mock = createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'; lt: '2020-12-31'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('FormatStringTime gt/lt — mock stays strictly inside', () => {
+    const isType = createIsType<FormatStringTime<{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}>>();
+    const mock = createMockType<FormatStringTime<{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('FormatStringDateTime gt/lt — mock stays strictly inside', () => {
+    const isType = createIsType<
+      FormatStringDateTime<{
+        date: {format: 'YYYY-MM-DD'};
+        time: {format: 'HH:mm:ss'};
+        gt: '2020-01-01T08:00:00';
+        lt: '2020-12-31T17:00:00';
+      }>
+    >();
+    const mock = createMockType<
+      FormatStringDateTime<{
+        date: {format: 'YYYY-MM-DD'};
+        time: {format: 'HH:mm:ss'};
+        gt: '2020-01-01T08:00:00';
+        lt: '2020-12-31T17:00:00';
+      }>
+    >();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('FormatDate (native) gt/lt — mock stays strictly inside', () => {
+    const isType = createIsType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();
+    const mock = createMockType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();
     for (let i = 0; i < ITERATIONS; i++) {
       const value = mock();
       expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);

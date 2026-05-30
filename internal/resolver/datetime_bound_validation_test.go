@@ -75,6 +75,19 @@ func TestDateTimeBounds_Matrix(t *testing.T) {
 		{"rel_missing_P", "date", `{format: 'YYYY-MM-DD'; min: 'now+1Y'}`, true, "valid relative"},
 		{"rel_no_sign", "date", `{format: 'YYYY-MM-DD'; min: 'nowP1Y'}`, true, "valid relative"},
 		{"rel_empty_P", "date", `{format: 'YYYY-MM-DD'; min: 'now+P'}`, true, "valid relative"},
+
+		// ── exclusive bounds gt/lt: same validation surface as min/max ──
+		{"date_gt_lt_ok", "date", `{format: 'YYYY-MM-DD'; gt: '2020-01-01'; lt: '2020-12-31'}`, false, ""},
+		{"date_gt_gt_lt", "date", `{format: 'YYYY-MM-DD'; gt: '2020-06-01'; lt: '2020-01-01'}`, true, "greater than"},
+		{"date_min_gt_lt", "date", `{format: 'YYYY-MM-DD'; min: '2020-06-01'; lt: '2020-01-01'}`, true, "greater than"},
+		{"date_gt_gt_max", "date", `{format: 'YYYY-MM-DD'; gt: '2020-06-01'; max: '2020-01-01'}`, true, "greater than"},
+		{"date_all_four_ok", "date", `{format: 'YYYY-MM-DD'; min: '2020-01-01'; gt: '2020-02-01'; lt: '2020-11-01'; max: '2020-12-01'}`, false, ""},
+		{"date_gt_wrong_layout", "date", `{format: 'YYYY-MM-DD'; gt: '08:30'}`, true, "valid"},
+		{"date_gt_rel_date_ok", "date", `{format: 'YYYY-MM-DD'; gt: 'now-P1Y'}`, false, ""},
+		{"date_lt_rel_time_rejected", "date", `{format: 'YYYY-MM-DD'; lt: 'now+PT1H'}`, true, "time components"},
+		{"time_gt_lt_ok", "time", `{format: 'HH:mm'; gt: '08:00'; lt: '17:00'}`, false, ""},
+		{"time_lt_rel_date_rejected", "time", `{format: 'HH:mm'; lt: 'now+P1D'}`, true, "date components"},
+		{"datetime_gt_lt_ok", "dateTime", `{date: {format: 'YYYY-MM-DD'}; time: {format: 'HH:mm'}; gt: '2020-01-01T08:00'; lt: '2020-12-31T17:00'}`, false, ""},
 	}
 
 	for _, tc := range cases {

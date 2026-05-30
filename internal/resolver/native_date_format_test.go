@@ -80,6 +80,19 @@ func TestNativeDate_IsTypeEmitsBoundCheck(t *testing.T) {
 	}
 }
 
+// TestNativeDate_IsTypeEmitsExclusiveBoundCheck locks the exclusive
+// operators: gt emits `>` and lt emits `<` over the Date's getTime() (vs
+// the inclusive `>=`/`<=` for min/max).
+func TestNativeDate_IsTypeEmitsExclusiveBoundCheck(t *testing.T) {
+	source, _, _ := scanNativeDate(t, `{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T00:00:00'}`)
+	if !strings.Contains(source, ".getTime() > ") {
+		t.Fatalf("expected exclusive `> ` for gt in isType, got:\n%s", source)
+	}
+	if !strings.Contains(source, ".getTime() < ") {
+		t.Fatalf("expected exclusive `< ` for lt in isType, got:\n%s", source)
+	}
+}
+
 // TestNativeDate_RunTypeCacheCarriesFormatAnnotation locks in that the
 // reflection cache module (virtual:runtypes-cache, what reflectRunTypeId /
 // getRunTypeId consumers read) stores `formatAnnotation` on the
@@ -159,6 +172,9 @@ func TestNativeDate_ParamValidation(t *testing.T) {
 		{"bare now ok", `{max: 'now'}`, false},
 		{"malformed duration", `{min: 'now+P'}`, true},
 		{"bad absolute literal", `{min: 'not-a-date'}`, true},
+		{"gt/lt exclusive ok", `{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}`, false},
+		{"gt > lt rejected", `{gt: '2020-12-31T00:00:00'; lt: '2020-01-01T00:00:00'}`, true},
+		{"all four ok", `{min: '2020-01-01T00:00:00'; gt: '2020-02-01T00:00:00'; lt: '2020-11-01T00:00:00'; max: '2020-12-01T00:00:00'}`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

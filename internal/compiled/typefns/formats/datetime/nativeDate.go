@@ -1,8 +1,6 @@
 package datetime
 
 import (
-	"strconv"
-
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -55,53 +53,13 @@ func (nativeDateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotati
 	if annotation == nil {
 		return ""
 	}
-	minExpr, hasMin := boundExpr(ctx, annotation.Params, "min", dateTimeKind, "T")
-	maxExpr, hasMax := boundExpr(ctx, annotation.Params, "max", dateTimeKind, "T")
-	if !hasMin && !hasMax {
-		return ""
-	}
-	valueKey := vλl + ".getTime()"
-	var stmts string
-	appendStmt := func(s string) {
-		if stmts == "" {
-			stmts = s
-		} else {
-			stmts = stmts + ";" + s
-		}
-	}
-	if hasMin {
-		minVal, _ := stringParam(annotation.Params, "min")
-		appendStmt("if (!(" + valueKey + " >= " + minExpr + ")) " +
-			formatErrCall(pathExpr, errorsArr, "Date", "nativeDate", "min", strconv.Quote(minVal)))
-	}
-	if hasMax {
-		maxVal, _ := stringParam(annotation.Params, "max")
-		appendStmt("if (!(" + valueKey + " <= " + maxExpr + ")) " +
-			formatErrCall(pathExpr, errorsArr, "Date", "nativeDate", "max", strconv.Quote(maxVal)))
-	}
-	return stmts
+	// The value key is the Date's epoch ms directly (no string parsing);
+	// the shared key-based helper emits one error per failed bound.
+	return boundTypeErrorChecksFromKey(ctx, annotation.Params, vλl+".getTime()", pathExpr, errorsArr, "Date", "nativeDate", dateTimeKind, "T")
 }
 
-// nativeDateBoundChecks builds the AND-able min/max expression over a
+// nativeDateBoundChecks builds the AND-able min/max/gt/lt expression over a
 // Date value's getTime(). Returns "" when no bound is set.
 func nativeDateBoundChecks(ctx formats.EmitContext, params map[string]any, vλl string) string {
-	minExpr, hasMin := boundExpr(ctx, params, "min", dateTimeKind, "T")
-	maxExpr, hasMax := boundExpr(ctx, params, "max", dateTimeKind, "T")
-	if !hasMin && !hasMax {
-		return ""
-	}
-	valueKey := vλl + ".getTime()"
-	var checks string
-	if hasMin {
-		checks = "(" + valueKey + " >= " + minExpr + ")"
-	}
-	if hasMax {
-		maxCheck := "(" + valueKey + " <= " + maxExpr + ")"
-		if checks == "" {
-			checks = maxCheck
-		} else {
-			checks = checks + " && " + maxCheck
-		}
-	}
-	return checks
+	return boundIsTypeChecksFromKey(ctx, params, vλl+".getTime()", dateTimeKind, "T")
 }

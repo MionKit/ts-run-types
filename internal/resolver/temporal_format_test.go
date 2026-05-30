@@ -57,6 +57,21 @@ func TestTemporalFormat_EmitsCompareCheck(t *testing.T) {
 	}
 }
 
+// TestTemporalFormat_EmitsExclusiveCompareCheck locks the exclusive bounds:
+// gt compares `> 0` and lt compares `< 0` (vs `>= 0`/`<= 0` for min/max).
+func TestTemporalFormat_EmitsExclusiveCompareCheck(t *testing.T) {
+	src, diags := scanTemporalFormat(t, "PlainDate", "temporalPlainDate", `{gt: '2020-01-01'; lt: '2020-12-31'}`)
+	if len(diags) != 0 {
+		t.Fatalf("valid bounds diagnosed: %+v", diags)
+	}
+	if !strings.Contains(src, `Temporal.PlainDate.from("2020-01-01")) > 0`) {
+		t.Fatalf("expected exclusive `> 0` for gt, got:\n%s", src)
+	}
+	if !strings.Contains(src, `Temporal.PlainDate.from("2020-12-31")) < 0`) {
+		t.Fatalf("expected exclusive `< 0` for lt, got:\n%s", src)
+	}
+}
+
 func TestTemporalFormat_RelativeBoundEmitsNow(t *testing.T) {
 	src, diags := scanTemporalFormat(t, "PlainDate", "temporalPlainDate", `{min: 'now-P1Y'}`)
 	if len(diags) != 0 {
@@ -91,6 +106,10 @@ func TestTemporalFormat_ParamValidation(t *testing.T) {
 		{"malformed duration", "PlainDate", "temporalPlainDate", `{min: 'now+P'}`, true, "valid relative"},
 		// absolute literal: not validated Go-side (runtime from()).
 		{"absolute not diagnosed", "PlainDate", "temporalPlainDate", `{min: 'whatever-runtime-checks'}`, false, ""},
+		// exclusive bounds gt/lt: same per-type component restriction as min/max.
+		{"gt/lt relative ok", "PlainDate", "temporalPlainDate", `{gt: 'now-P1Y'; lt: 'now+P1Y'}`, false, ""},
+		{"lt relative time rejected on date", "PlainDate", "temporalPlainDate", `{lt: 'now+PT1H'}`, true, "time components"},
+		{"instant gt relative date rejected", "Instant", "temporalInstant", `{gt: 'now+P1D'}`, true, "date components"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
