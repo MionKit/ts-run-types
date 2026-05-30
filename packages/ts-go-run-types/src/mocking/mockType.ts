@@ -27,6 +27,7 @@ import {
   randomItem,
 } from './mockUtils.ts';
 import {stringCharSet} from './constants.mock.ts';
+import {mockBoundedNativeDate} from './mockDateTimeBounds.ts';
 
 /** Public entry. Tracks descent via `stack`, applies probability/length decay
  *  based on re-entry count (cycle detector via reference identity — the
@@ -168,7 +169,16 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       // Disambiguate via `subKind`. User-defined classes fall through to
       // the objectLiteral builder (isType matches structurally).
       const subKind = runType.subKind as number | undefined;
-      if (subKind === RunTypeSubKind.date) return mockDate(mOps.minDate, mOps.maxDate);
+      if (subKind === RunTypeSubKind.date) {
+        // FormatDate<{min,max}> brands a Date with bounds; honor them so the
+        // mock re-passes isType. Falls back to the global mock-option range
+        // when the type carries no nativeDate format annotation.
+        const dateParams = runType.formatAnnotation?.name === 'nativeDate' ? runType.formatAnnotation.params : undefined;
+        if (dateParams && (dateParams.min !== undefined || dateParams.max !== undefined)) {
+          return mockBoundedNativeDate(dateParams.min as string | undefined, dateParams.max as string | undefined);
+        }
+        return mockDate(mOps.minDate, mOps.maxDate);
+      }
       if (subKind === RunTypeSubKind.map) return mockMap(runType, options, stack);
       if (subKind === RunTypeSubKind.set) return mockSet(runType, options, stack);
       if (subKind === RunTypeSubKind.nonSerializable) {

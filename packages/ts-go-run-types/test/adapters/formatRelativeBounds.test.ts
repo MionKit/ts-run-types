@@ -11,7 +11,7 @@
 // covered by the Go resolver fixtures, so we keep one form here.
 
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {createIsType} from '@mionjs/ts-go-run-types';
+import {createIsType, createMockType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
 import type {FormatStringDate, FormatStringTime} from '@mionjs/ts-go-run-types/formats';
 
@@ -71,5 +71,36 @@ describe('relative time bounds (now±P, time components only)', () => {
     const isType = createIsType<FormatStringTime<{format: 'HH:mm'; max: 'now+PT2H'}>>();
     expect(isType('14:00')).toBe(true);
     expect(isType('14:01')).toBe(false);
+  });
+});
+
+describe('relative bounds — mock respects them (every generated value is valid)', () => {
+  const ITERATIONS = 50;
+
+  it('FormatStringDate min:now-P1Y max:now+P1M — mock stays in range', () => {
+    const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: 'now-P1Y'; max: 'now+P1M'}>>();
+    const mock = createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; min: 'now-P1Y'; max: 'now+P1M'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('FormatStringTime min:now-PT1H max:now+PT2H — mock stays in range', () => {
+    const isType = createIsType<FormatStringTime<{format: 'HH:mm'; min: 'now-PT1H'; max: 'now+PT2H'}>>();
+    const mock = createMockType<FormatStringTime<{format: 'HH:mm'; min: 'now-PT1H'; max: 'now+PT2H'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('FormatStringDate absolute bounds — mock stays in range', () => {
+    const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
+    const mock = createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
   });
 });
