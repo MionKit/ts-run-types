@@ -1,4 +1,4 @@
-package string
+package datetime
 
 import (
 	"strconv"
@@ -8,9 +8,8 @@ import (
 )
 
 // timeEmitter implements the format named "time" — FormatStringTime<P>.
-// The `format` param selects one of eight time-parsing pure fns.
-// Mirrors mion's TimeStringRunTypeFormat.getFormatPureFn dispatch
-// (packages/type-formats/src/string/time.runtype.ts).
+// The `format` param selects one of eight time-parsing pure fns; min/max
+// bounds compare ms-of-day. Moved here from the string package.
 type timeEmitter struct{}
 
 func init() {
@@ -20,9 +19,7 @@ func init() {
 func (timeEmitter) Name() string                  { return "time" }
 func (timeEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-// timeFormatPureFn maps a `format` param value to its validating pure
-// fn. The ISO / [.mmm]TZ variants share the timezone-aware validator;
-// the bare HH / mm / ss variants reuse the leaf segment validators.
+// timeFormatPureFn maps a `format` param value to its validating pure fn.
 func timeFormatPureFn(format string) (string, bool) {
 	switch format {
 	case "ISO", "HH:mm:ss[.mmm]TZ":
@@ -45,7 +42,9 @@ func timeFormatPureFn(format string) (string, bool) {
 	return "", false
 }
 
-// ValidateParams checks the `format` param names a supported time layout.
+// ValidateParams checks the `format` layout is supported and validates
+// the optional min/max bounds (absolute literal in the layout, or a
+// relative `now±P…` using only time components).
 func (timeEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
@@ -57,7 +56,7 @@ func (timeEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []strin
 	if _, known := timeFormatPureFn(format); !known {
 		return []string{"FormatStringTime: unknown `format` " + strconv.Quote(format)}
 	}
-	return nil
+	return validateMinMax(annotation.Params, timeKind, format)
 }
 
 func (timeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
@@ -73,7 +72,11 @@ func (timeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl s
 		return ""
 	}
 	alias := pureFnAlias(ctx, fnName)
-	return alias + "(" + vλl + ")"
+	check := alias + "(" + vλl + ")"
+	if bounds := boundIsTypeChecks(ctx, annotation.Params, vλl, timeKind, format); bounds != "" {
+		check = check + " && " + bounds
+	}
+	return check
 }
 
 func (timeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
@@ -90,6 +93,10 @@ func (timeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, v�
 	}
 	alias := pureFnAlias(ctx, fnName)
 	call := alias + "(" + vλl + ")"
-	return "if (!(" + call + ")) " +
-		formatErrCall(ctx, pathExpr, errorsArr, "string", "time", "format", strconv.Quote(format))
+	stmt := "if (!(" + call + ")) " +
+		formatErrCall(pathExpr, errorsArr, "string", "time", "format", strconv.Quote(format))
+	if bounds := boundTypeErrorChecks(ctx, annotation.Params, vλl, pathExpr, errorsArr, "time", timeKind, format); bounds != "" {
+		stmt = stmt + ";" + bounds
+	}
+	return stmt
 }

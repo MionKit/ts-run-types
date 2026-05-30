@@ -9,20 +9,22 @@ import {registerMockingFunction} from './mockRegistry.ts';
 import {RunTypeKind} from '../runTypeKind.ts';
 import type {FormatAnnotation} from '../runtypes/formatAnnotation.ts';
 import type {
-  DateFmt,
-  FormatParams_Date,
-  FormatParams_DateTime,
   FormatParams_Domain,
   FormatParams_Email,
   FormatParams_IP,
-  FormatParams_Time,
   FormatParams_UUID,
   FormatParams_Url,
   PatternParam,
   Samples,
   StringParams,
-  TimeFmt,
 } from '../formats/string/stringFormats.ts';
+import type {
+  DateFmt,
+  FormatParams_Date,
+  FormatParams_DateTime,
+  FormatParams_Time,
+  TimeFmt,
+} from '../formats/datetime/stringDateTimeFormats.ts';
 
 // mockStringFormat dispatches on the format name. Returns undefined for
 // an unrecognised name so the mock walker falls back to the kind-default

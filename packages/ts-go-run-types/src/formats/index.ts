@@ -11,6 +11,9 @@
 // must already hold. Importing this for its side effect first keeps the
 // ordering robust regardless of bundler tree-shaking.
 import './string/string-formats-pure-fns.ts';
+// Side-effect: registers the date / time pure fns (moved out of the
+// string pure-fns file) plus the bound-comparison + relative-now fns.
+import './datetime/dateTime-pure-fns.ts';
 // Side-effect: registers the single string-format mock fn (mockStringFormat)
 // with the runtime mock registry.
 import '../mocking/mockStringFormat.ts';
@@ -24,5 +27,7 @@ import './string/string-patterns.ts';
 
 // Re-export the full type surface of every format family.
 export type * from './string/stringFormats.ts';
+export type * from './datetime/dateTimeParams.ts';
+export type * from './datetime/stringDateTimeFormats.ts';
 export type * from './numberFormats.ts';
 export type * from './bigintFormats.ts';

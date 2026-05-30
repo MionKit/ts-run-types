@@ -1,4 +1,4 @@
-package string
+package datetime
 
 import (
 	"strconv"
@@ -7,11 +7,13 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// dateEmitter implements the format named "date" — FormatStringDate<P>
-// in `@mionjs/ts-go-run-types/formats`. The `format` param selects one of
-// six date-parsing pure fns (cpf_isDateString_YMD / _DMY / _MDY / _YM
-// / _MD / _DM). Mirrors mion's DateStringRunTypeFormat.getFormatPureFn
-// dispatch (packages/type-formats/src/string/date.runtype.ts).
+// dateEmitter implements the format named "date" — FormatStringDate<P>.
+// The `format` param selects one of six date-parsing pure fns
+// (cpf_isDateString_YMD / _DMY / _MDY / _YM / _MD / _DM); optional
+// min/max bounds AND a comparison against a baked epoch-ms (absolute) or
+// cpf_relativeNowKey (relative) value. Moved here from the string
+// package so it can share bounds.go / literals.go with the time,
+// dateTime and native-Date emitters.
 type dateEmitter struct{}
 
 func init() {
@@ -21,10 +23,8 @@ func init() {
 func (dateEmitter) Name() string                  { return "date" }
 func (dateEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-// dateFormatPureFn maps a `format` param value to the pure-fn name
-// that validates it. Returns ("", false) for an unrecognised format —
-// the emitter then no-ops and the JS-side validateParams surfaces the
-// misconfiguration at build time.
+// dateFormatPureFn maps a `format` param value to the validating pure-fn
+// name. Returns ("", false) for an unrecognised format.
 func dateFormatPureFn(format string) (string, bool) {
 	switch format {
 	case "ISO", "YYYY-MM-DD":
@@ -44,8 +44,7 @@ func dateFormatPureFn(format string) (string, bool) {
 }
 
 // readFormat extracts the `format` string param, defaulting to "ISO"
-// when absent (mion's DEFAULT_DATE_PARAMS). Returns ("", false) only
-// when the param is present but non-string.
+// when absent. Returns ("", false) only when present but non-string.
 func readFormat(params map[string]any) (string, bool) {
 	raw, ok := params["format"]
 	if !ok {
@@ -57,7 +56,10 @@ func readFormat(params map[string]any) (string, bool) {
 	return "", false
 }
 
-// ValidateParams checks the `format` param names a supported date layout.
+// ValidateParams checks the `format` layout is supported and validates
+// the optional min/max bounds (absolute literal in the layout, or a
+// relative `now±P…` using only date components; min<=max when both
+// absolute). Surfaced as CodeFMTInvalidParams.
 func (dateEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
@@ -69,7 +71,7 @@ func (dateEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []strin
 	if _, known := dateFormatPureFn(format); !known {
 		return []string{"FormatStringDate: unknown `format` " + strconv.Quote(format)}
 	}
-	return nil
+	return validateMinMax(annotation.Params, dateKind, format)
 }
 
 func (dateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
@@ -85,7 +87,11 @@ func (dateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl s
 		return ""
 	}
 	alias := pureFnAlias(ctx, fnName)
-	return alias + "(" + vλl + ")"
+	check := alias + "(" + vλl + ")"
+	if bounds := boundIsTypeChecks(ctx, annotation.Params, vλl, dateKind, format); bounds != "" {
+		check = check + " && " + bounds
+	}
+	return check
 }
 
 func (dateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
@@ -102,6 +108,10 @@ func (dateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, v�
 	}
 	alias := pureFnAlias(ctx, fnName)
 	call := alias + "(" + vλl + ")"
-	return "if (!(" + call + ")) " +
-		formatErrCall(ctx, pathExpr, errorsArr, "string", "date", "format", strconv.Quote(format))
+	stmt := "if (!(" + call + ")) " +
+		formatErrCall(pathExpr, errorsArr, "string", "date", "format", strconv.Quote(format))
+	if bounds := boundTypeErrorChecks(ctx, annotation.Params, vλl, pathExpr, errorsArr, "date", dateKind, format); bounds != "" {
+		stmt = stmt + ";" + bounds
+	}
+	return stmt
 }
