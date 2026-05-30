@@ -32,6 +32,95 @@ declare const TextDecoder: {
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+// ── Temporal binary packing ──
+//
+// The Temporal types with a fixed, ISO-representable layout are packed as
+// integers instead of the wide toJSON() string (the most space-inefficient
+// binary encoding possible). The value shapes are declared structurally and
+// the runtime constructors reached through a loosely-typed global, so this
+// file stays independent of whether the consuming tsconfig's `lib` declares
+// the Temporal types — real Temporal (native Node 26+ or the test polyfill)
+// backs them at runtime.
+//
+// Layouts (little-endian, encode order == decode order):
+//   Instant         int64 seconds + int32 sub-second nanoseconds (12 B)
+//   PlainTime       u8 hour/minute/second + u16 ms/us/ns (9 B)
+//   PlainDate       u8 isoDisc, (iso) i32 year + u8 month + u8 day
+//                               (non-iso) serString(toJSON())
+//   PlainDateTime   u8 isoDisc, (iso) date + time, (non-iso) string
+//   PlainYearMonth  u8 isoDisc, (iso) i32 year + u8 month, (non-iso) string
+//
+// PlainDate/PlainDateTime/PlainYearMonth carry a 1-byte ISO-calendar
+// discriminator so a non-ISO calendar (Hebrew, Islamic, …) round-trips
+// losslessly via the string fallback without forcing every value onto the
+// wide encoding.
+const NANOS_PER_SECOND = 1_000_000_000n;
+const ISO_CALENDAR = 'iso8601';
+
+interface InstantValue {
+  epochNanoseconds: bigint;
+}
+interface PlainTimeValue {
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+  microsecond: number;
+  nanosecond: number;
+}
+interface CalendarValue {
+  calendarId: string;
+  toJSON(): string;
+}
+interface PlainDateValue extends CalendarValue {
+  year: number;
+  month: number;
+  day: number;
+}
+interface PlainDateTimeValue extends CalendarValue, PlainTimeValue {
+  year: number;
+  month: number;
+  day: number;
+}
+interface PlainYearMonthValue extends CalendarValue {
+  year: number;
+  month: number;
+}
+
+// Temporal constructors used to rebuild values on decode — only the
+// statics/constructors the packer calls.
+interface TemporalConstructors {
+  Instant: {fromEpochNanoseconds(ns: bigint): unknown};
+  PlainTime: new (
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    microsecond: number,
+    nanosecond: number
+  ) => unknown;
+  PlainDate: {from(iso: string): unknown; new (year: number, month: number, day: number): unknown};
+  PlainDateTime: {
+    from(iso: string): unknown;
+    new (
+      year: number,
+      month: number,
+      day: number,
+      hour: number,
+      minute: number,
+      second: number,
+      millisecond: number,
+      microsecond: number,
+      nanosecond: number
+    ): unknown;
+  };
+  PlainYearMonth: {from(iso: string): unknown; new (year: number, month: number): unknown};
+}
+
+// lazy global accessor — resolved per call so module load order (the test
+// setup installs the polyfill global before any test) never matters
+const temporalRuntime = (): TemporalConstructors => (globalThis as unknown as {Temporal: TemporalConstructors}).Temporal;
+
 /** Tagged ArrayBuffer with the SharedArrayBuffer carve-out. **/
 export type StrictArrayBuffer = ArrayBuffer & {__brand?: 'StrictArrayBuffer'};
 
@@ -92,6 +181,11 @@ export interface DataViewSerializer {
   serFloat64(n: number): void;
   serEnum(n: number | string): void;
   setBitMask(bitMaskIndex: number, bitIndex: number): void;
+  serTemporalInstant(value: InstantValue): void;
+  serTemporalPlainTime(value: PlainTimeValue): void;
+  serTemporalPlainDate(value: PlainDateValue): void;
+  serTemporalPlainDateTime(value: PlainDateTimeValue): void;
+  serTemporalPlainYearMonth(value: PlainYearMonthValue): void;
 }
 
 /** Public interface implemented by DataViewDeserializerImpl. **/
@@ -109,6 +203,11 @@ export interface DataViewDeserializer {
   desSafePropName(): string;
   desFloat64(): number;
   desEnum(): number | string;
+  desTemporalInstant(): unknown;
+  desTemporalPlainTime(): unknown;
+  desTemporalPlainDate(): unknown;
+  desTemporalPlainDateTime(): unknown;
+  desTemporalPlainYearMonth(): unknown;
 }
 
 /** Optional args for `createDataViewSerializer`. `size` is an explicit
@@ -270,6 +369,61 @@ class DataViewSerializerImpl implements DataViewSerializer {
     const newBitmask = this.view.getUint8(bitMaskIndex) | (1 << bitIndex);
     this.view.setUint8(bitMaskIndex, newBitmask);
   }
+  serTemporalInstant(value: InstantValue): void {
+    // BigInt / and % both truncate toward zero, so the (possibly negative)
+    // remainder recombines exactly: seconds * 1e9 + subNs === epochNanoseconds.
+    this.view.setBigInt64(this.index, value.epochNanoseconds / NANOS_PER_SECOND, LE);
+    this.index += 8;
+    this.view.setInt32(this.index, Number(value.epochNanoseconds % NANOS_PER_SECOND), LE);
+    this.index += 4;
+  }
+  serTemporalPlainTime(value: PlainTimeValue): void {
+    this.writePlainTimeFields(value);
+  }
+  serTemporalPlainDate(value: PlainDateValue): void {
+    if (value.calendarId !== ISO_CALENDAR) return this.serNonIsoFallback(value);
+    this.serByte(1);
+    this.writePlainDateFields(value);
+  }
+  serTemporalPlainDateTime(value: PlainDateTimeValue): void {
+    if (value.calendarId !== ISO_CALENDAR) return this.serNonIsoFallback(value);
+    this.serByte(1);
+    this.writePlainDateFields(value);
+    this.writePlainTimeFields(value);
+  }
+  serTemporalPlainYearMonth(value: PlainYearMonthValue): void {
+    if (value.calendarId !== ISO_CALENDAR) return this.serNonIsoFallback(value);
+    this.serByte(1);
+    this.view.setInt32(this.index, value.year, LE);
+    this.index += 4;
+    this.serByte(value.month);
+  }
+  /** non-ISO calendar: 0 disc + the lossless toJSON() string **/
+  private serNonIsoFallback(value: CalendarValue): void {
+    this.serByte(0);
+    this.serString(value.toJSON());
+  }
+  private serByte(value: number): void {
+    this.view.setUint8(this.index, value);
+    this.index += 1;
+  }
+  private writePlainDateFields(value: {year: number; month: number; day: number}): void {
+    this.view.setInt32(this.index, value.year, LE);
+    this.index += 4;
+    this.serByte(value.month);
+    this.serByte(value.day);
+  }
+  private writePlainTimeFields(value: PlainTimeValue): void {
+    this.serByte(value.hour);
+    this.serByte(value.minute);
+    this.serByte(value.second);
+    this.view.setUint16(this.index, value.millisecond, LE);
+    this.index += 2;
+    this.view.setUint16(this.index, value.microsecond, LE);
+    this.index += 2;
+    this.view.setUint16(this.index, value.nanosecond, LE);
+    this.index += 2;
+  }
 }
 
 class DataViewDeserializerImpl implements DataViewDeserializer {
@@ -334,5 +488,56 @@ class DataViewDeserializerImpl implements DataViewDeserializer {
       return value;
     }
     return this.desString();
+  }
+  desTemporalInstant(): unknown {
+    const seconds = this.view.getBigInt64(this.index, LE);
+    this.index += 8;
+    const subNs = this.view.getInt32(this.index, LE);
+    this.index += 4;
+    return temporalRuntime().Instant.fromEpochNanoseconds(seconds * NANOS_PER_SECOND + BigInt(subNs));
+  }
+  desTemporalPlainTime(): unknown {
+    const PlainTime = temporalRuntime().PlainTime;
+    return new PlainTime(this.desByte(), this.desByte(), this.desByte(), this.desU16(), this.desU16(), this.desU16());
+  }
+  desTemporalPlainDate(): unknown {
+    const Ctor = temporalRuntime().PlainDate;
+    if (this.desByte() !== 1) return Ctor.from(this.desString());
+    return new Ctor(this.desI32(), this.desByte(), this.desByte());
+  }
+  desTemporalPlainDateTime(): unknown {
+    const Ctor = temporalRuntime().PlainDateTime;
+    if (this.desByte() !== 1) return Ctor.from(this.desString());
+    return new Ctor(
+      this.desI32(),
+      this.desByte(),
+      this.desByte(),
+      this.desByte(),
+      this.desByte(),
+      this.desByte(),
+      this.desU16(),
+      this.desU16(),
+      this.desU16()
+    );
+  }
+  desTemporalPlainYearMonth(): unknown {
+    const Ctor = temporalRuntime().PlainYearMonth;
+    if (this.desByte() !== 1) return Ctor.from(this.desString());
+    return new Ctor(this.desI32(), this.desByte());
+  }
+  private desByte(): number {
+    const value = this.view.getUint8(this.index);
+    this.index += 1;
+    return value;
+  }
+  private desU16(): number {
+    const value = this.view.getUint16(this.index, LE);
+    this.index += 2;
+    return value;
+  }
+  private desI32(): number {
+    const value = this.view.getInt32(this.index, LE);
+    this.index += 4;
+    return value;
   }
 }
