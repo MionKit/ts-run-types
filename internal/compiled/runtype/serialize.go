@@ -769,6 +769,14 @@ func (cache *Cache) projectObjectType(tsType *checker.Type, node *protocol.RunTy
 		}
 	}
 
+	// Builtin Temporal types (namespace members) promote to KindClass the
+	// same way Date/Map/Set do — projectClass reads the registry for the
+	// SubKind + ClassRef. Checked first since they're namespace-qualified.
+	if _, ok := typeid.TemporalInfoForType(tsType); ok {
+		cache.projectClass(tsType, node)
+		return
+	}
+
 	if symbol := tsType.Symbol(); symbol != nil {
 		switch symbol.Name {
 		case "Promise":
@@ -891,6 +899,16 @@ func (cache *Cache) projectObjectLiteral(tsType *checker.Type, node *protocol.Ru
 
 func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 	node.Kind = protocol.KindClass
+	// Builtin Temporal types: stamp the registry SubKind + qualified
+	// ClassRef.Builtin ("Temporal.PlainDate" → globalThis.Temporal.PlainDate).
+	// Done before the symbol-name switch since the bare name ("PlainDate")
+	// alone is ambiguous — TemporalInfoForType gates on the namespace.
+	if info, ok := typeid.TemporalInfoForType(tsType); ok {
+		node.TypeName = info.Name
+		node.SubKind = info.SubKind
+		node.ClassRef = &protocol.ClassRef{Builtin: info.Builtin}
+		return
+	}
 	var symbolName string
 	if symbol := tsType.Symbol(); symbol != nil {
 		symbolName = symbol.Name
