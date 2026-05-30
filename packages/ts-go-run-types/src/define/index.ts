@@ -52,7 +52,7 @@ export {
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record`.
 // Each returns the generic `RunType<…>` for the composed type; child schemas
 // nest freely (the outer composer's marker reflects the whole shape).
-export {array, tuple, union, intersection, record, type MapTuple} from './compose.ts';
+export {array, tuple, union, intersection, record, map, set, promise, type MapTuple} from './compose.ts';
 
 // Universal reflectors — `runType<T>()` (static) / `reflectRunType(value)`
 // (inferred). The escape hatch for any TS type with no dedicated builder
