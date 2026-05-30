@@ -158,7 +158,7 @@ func (computer *Computer) splitBuiltinClassBrandID(objectMembers []*checker.Type
 			formatKey += FormatAnnotationStructuralKey(annotation)
 			continue
 		}
-		if symbol := member.Symbol(); symbol != nil && builtinClassNamesID[symbol.Name] {
+		if computer.isBuiltinClassMemberID(member) {
 			if classMember != nil {
 				return nil, "", false // two builtin classes — ambiguous
 			}
@@ -169,6 +169,17 @@ func (computer *Computer) splitBuiltinClassBrandID(objectMembers []*checker.Type
 		return nil, "", false
 	}
 	return classMember, formatKey, true
+}
+
+// isBuiltinClassMemberID is the id-side mirror of the serialize-side
+// isBuiltinClassMember: a brandable builtin class is a top-level
+// Date/Map/Set/RegExp OR a namespace-qualified Temporal type.
+func (computer *Computer) isBuiltinClassMemberID(member *checker.Type) bool {
+	if _, ok := TemporalInfoForType(member); ok {
+		return true
+	}
+	symbol := member.Symbol()
+	return symbol != nil && builtinClassNamesID[symbol.Name]
 }
 
 func isLiteralFlags(flags checker.TypeFlags) bool {
