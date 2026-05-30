@@ -72,5 +72,17 @@
 - **test overlay**: needs a real Temporal ambient `.d.ts` (a fuller version of
   the spike's minimal one) so fixtures resolve the types.
 
+## Status (live)
+- ✅ Phase 0 spike; SubKinds + JS mirror; protocol/temporal.go registry +
+  typeid.TemporalInfoForType; scanner wiring (4 sites); all RT-fn emitter arms;
+  JS mock builders + polyfill; Go scan/emit tests + JS runtime tests (20).
+- ☐ Docs (ROADMAP rows), remove tracker, open PR.
+- ☐ Phase 2 (Temporal FORMAT family w/ min/max) — OPTIONAL per spec; deferred.
+
 ## Open questions for the user (report at end)
-- (record here)
+- **Temporal format family (min/max bounds)** — spec Phase 2. Plain-type support
+  (validate/serialize/mock all 8) is complete; a `FormatTemporalX<{min,max}>`
+  family (like FormatDate, via Temporal.<T>.compare + Temporal.Now) is deferred.
+- **Binary = string encoding** (toJSON/from), lossless for all 8; typed packing
+  is a future optimization (spec Phase 3).
+- **temporal-polyfill** added as a test-only devDependency (Node<26 sandbox).
