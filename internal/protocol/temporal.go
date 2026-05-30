@@ -1,5 +1,7 @@
 package protocol
 
+import "sort"
+
 // temporal.go is the single source of truth for the builtin Temporal types.
 // Every scanner / id / emitter site consults this table instead of
 // hard-coding type-name switches, so adding or changing a Temporal type is a
@@ -23,24 +25,52 @@ type TemporalInfo struct {
 	Builtin string
 	// HasCompare reports whether the type ships a static `compare(a, b)`
 	// (every Temporal type except PlainMonthDay). Drives whether min/max
-	// bound support is possible for a future Temporal format family.
+	// bound support is possible for the Temporal format family.
 	HasCompare bool
 	// IsDuration flags Temporal.Duration — a length, not a point in time:
 	// no ordering against "now", no min/max bound semantics.
 	IsDuration bool
+
+	// ── FormatTemporalX<{min,max}> family metadata ──
+
+	// Orderable reports whether the type supports min/max bound constraints —
+	// every type with a static `compare` except Duration (a length, not an
+	// instant). PlainMonthDay is excluded (no compare).
+	Orderable bool
+	// FormatName is the FormatAnnotation.Name the FormatTemporalX<P> brand
+	// carries (and the emitter registers under), e.g. "temporalPlainDate".
+	// Empty for non-orderable types.
+	FormatName string
+	// NowExpr is the JS expression yielding the current instant AS this type,
+	// for evaluating relative `now±P` bounds — e.g.
+	// "Temporal.Now.plainDateISO()". Empty for non-orderable types.
+	NowExpr string
+	// RelComponentKind restricts which ISO-8601 duration components a relative
+	// bound may use, mirroring the string date/time rule: "date" → Y/M/W/D,
+	// "time" → T-section H/M/S, "dateTime" → both. (A Temporal.Duration with
+	// an out-of-kind component throws in `.add()` at runtime — e.g. an Instant
+	// can't add calendar units — so we reject those at build time.) Empty for
+	// non-orderable types.
+	RelComponentKind string
 }
 
 // temporalTypes is the registry, keyed by bare type name. Order is the
 // canonical declaration order used by tests + docs.
 var temporalTypes = map[string]TemporalInfo{
-	"Instant":        {Name: "Instant", SubKind: SubKindTemporalInstant, Builtin: "Temporal.Instant", HasCompare: true},
-	"ZonedDateTime":  {Name: "ZonedDateTime", SubKind: SubKindTemporalZonedDateTime, Builtin: "Temporal.ZonedDateTime", HasCompare: true},
-	"PlainDate":      {Name: "PlainDate", SubKind: SubKindTemporalPlainDate, Builtin: "Temporal.PlainDate", HasCompare: true},
-	"PlainTime":      {Name: "PlainTime", SubKind: SubKindTemporalPlainTime, Builtin: "Temporal.PlainTime", HasCompare: true},
-	"PlainDateTime":  {Name: "PlainDateTime", SubKind: SubKindTemporalPlainDateTime, Builtin: "Temporal.PlainDateTime", HasCompare: true},
-	"PlainYearMonth": {Name: "PlainYearMonth", SubKind: SubKindTemporalPlainYearMonth, Builtin: "Temporal.PlainYearMonth", HasCompare: true},
-	"PlainMonthDay":  {Name: "PlainMonthDay", SubKind: SubKindTemporalPlainMonthDay, Builtin: "Temporal.PlainMonthDay", HasCompare: false},
-	"Duration":       {Name: "Duration", SubKind: SubKindTemporalDuration, Builtin: "Temporal.Duration", HasCompare: true, IsDuration: true},
+	"Instant": {Name: "Instant", SubKind: SubKindTemporalInstant, Builtin: "Temporal.Instant", HasCompare: true,
+		Orderable: true, FormatName: "temporalInstant", NowExpr: "Temporal.Now.instant()", RelComponentKind: "time"},
+	"ZonedDateTime": {Name: "ZonedDateTime", SubKind: SubKindTemporalZonedDateTime, Builtin: "Temporal.ZonedDateTime", HasCompare: true,
+		Orderable: true, FormatName: "temporalZonedDateTime", NowExpr: "Temporal.Now.zonedDateTimeISO()", RelComponentKind: "dateTime"},
+	"PlainDate": {Name: "PlainDate", SubKind: SubKindTemporalPlainDate, Builtin: "Temporal.PlainDate", HasCompare: true,
+		Orderable: true, FormatName: "temporalPlainDate", NowExpr: "Temporal.Now.plainDateISO()", RelComponentKind: "date"},
+	"PlainTime": {Name: "PlainTime", SubKind: SubKindTemporalPlainTime, Builtin: "Temporal.PlainTime", HasCompare: true,
+		Orderable: true, FormatName: "temporalPlainTime", NowExpr: "Temporal.Now.plainTimeISO()", RelComponentKind: "time"},
+	"PlainDateTime": {Name: "PlainDateTime", SubKind: SubKindTemporalPlainDateTime, Builtin: "Temporal.PlainDateTime", HasCompare: true,
+		Orderable: true, FormatName: "temporalPlainDateTime", NowExpr: "Temporal.Now.plainDateTimeISO()", RelComponentKind: "dateTime"},
+	"PlainYearMonth": {Name: "PlainYearMonth", SubKind: SubKindTemporalPlainYearMonth, Builtin: "Temporal.PlainYearMonth", HasCompare: true,
+		Orderable: true, FormatName: "temporalPlainYearMonth", NowExpr: "Temporal.Now.plainDateISO().toPlainYearMonth()", RelComponentKind: "date"},
+	"PlainMonthDay": {Name: "PlainMonthDay", SubKind: SubKindTemporalPlainMonthDay, Builtin: "Temporal.PlainMonthDay", HasCompare: false},
+	"Duration":      {Name: "Duration", SubKind: SubKindTemporalDuration, Builtin: "Temporal.Duration", HasCompare: true, IsDuration: true},
 }
 
 // temporalBySubKind is the reverse lookup (SubKind → info), built once.
@@ -70,4 +100,37 @@ func TemporalInfoBySubKind(subKind ReflectionSubKind) (TemporalInfo, bool) {
 func IsTemporalSubKind(subKind ReflectionSubKind) bool {
 	_, ok := temporalBySubKind[subKind]
 	return ok
+}
+
+// temporalByFormatName is the reverse lookup (FormatName → info) for the
+// orderable Temporal types, built once.
+var temporalByFormatName = func() map[string]TemporalInfo {
+	out := make(map[string]TemporalInfo)
+	for _, info := range temporalTypes {
+		if info.Orderable {
+			out[info.FormatName] = info
+		}
+	}
+	return out
+}()
+
+// TemporalInfoByFormatName returns the orderable Temporal entry for a
+// FormatAnnotation.Name (e.g. "temporalPlainDate"), or ok=false.
+func TemporalInfoByFormatName(formatName string) (TemporalInfo, bool) {
+	info, ok := temporalByFormatName[formatName]
+	return info, ok
+}
+
+// OrderableTemporalInfos returns every Temporal type that supports min/max
+// bounds, sorted by SubKind. Used by the format emitter to register one
+// emitter per orderable type.
+func OrderableTemporalInfos() []TemporalInfo {
+	out := make([]TemporalInfo, 0, len(temporalTypes))
+	for _, info := range temporalTypes {
+		if info.Orderable {
+			out = append(out, info)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SubKind < out[j].SubKind })
+	return out
 }

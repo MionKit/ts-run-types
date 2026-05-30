@@ -166,7 +166,7 @@ func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expected
 		if emitter, ok := formats.LookupForRunType(rt); ok {
 			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er", ctx)
 			if check != "" {
-				guard := baseKindGuard(rt.Kind, ctx.Vλl)
+				guard := baseKindGuard(rt, ctx.Vλl)
 				if guard == "" {
 					base.Code = base.Code + ";" + check
 				} else {
@@ -183,8 +183,11 @@ func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expected
 // so they don't run on type-mismatched values. Returns "" when no
 // guard applies (no format emitter should ever land on an unkinded
 // node, but keep this defensive).
-func baseKindGuard(kind protocol.ReflectionKind, vλl string) string {
-	switch kind {
+func baseKindGuard(rt *protocol.RunType, vλl string) string {
+	if rt == nil {
+		return ""
+	}
+	switch rt.Kind {
 	case protocol.KindString:
 		return "typeof " + vλl + " === 'string'"
 	case protocol.KindNumber:
@@ -192,6 +195,12 @@ func baseKindGuard(kind protocol.ReflectionKind, vλl string) string {
 	case protocol.KindBigInt:
 		return "typeof " + vλl + " === 'bigint'"
 	case protocol.KindClass:
+		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+			// A Temporal compare() throws on a non-Temporal value — gate the
+			// bound check on instanceof so a wrong-type value yields a clean
+			// base-kind error instead of throwing.
+			return vλl + " instanceof " + info.Builtin
+		}
 		// Native Date format (KindClass + SubKindDate): guard the min/max
 		// bound check so it only runs on a valid Date — `.getTime()` on a
 		// non-Date would throw instead of pushing a clean error.

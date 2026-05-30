@@ -1,0 +1,141 @@
+package datetime
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-run-types/internal/protocol"
+)
+
+// temporalFormatEmitter implements the FormatTemporalX<{min,max}> family —
+// min/max bound constraints over the orderable builtin Temporal types (every
+// type with a static `compare` except Duration, a length). ONE emitter is
+// registered per orderable type (init below), each carrying its
+// protocol.TemporalInfo so it knows its qualified constructor
+// (`Temporal.PlainDate`), its `Temporal.Now.*` accessor, and which duration
+// components a relative `now±P` bound may use.
+//
+// Unlike the string date/time formats — which had to invent a numeric key
+// scale because `Date` only compares via getTime() — every orderable Temporal
+// type has a uniform static `compare`, so a bound check is simply
+// `Temporal.X.compare(v, bound) >= 0` (min) / `<= 0` (max). The bound is an
+// absolute Temporal literal (`Temporal.X.from('…')`, validated at runtime by
+// from()) or a relative `now±P…` evaluated against `Temporal.Now.*` +
+// `Temporal.Duration.from`.
+type temporalFormatEmitter struct {
+	info protocol.TemporalInfo
+}
+
+func init() {
+	for _, info := range protocol.OrderableTemporalInfos() {
+		formats.Register(temporalFormatEmitter{info: info})
+	}
+}
+
+func (e temporalFormatEmitter) Name() string                  { return e.info.FormatName }
+func (e temporalFormatEmitter) Kind() protocol.ReflectionKind { return protocol.KindClass }
+
+// relBoundKind maps the registry's RelComponentKind string to the shared
+// boundKind so relative bounds reuse the string-date component restriction.
+func (e temporalFormatEmitter) relBoundKind() boundKind {
+	switch e.info.RelComponentKind {
+	case "time":
+		return timeKind
+	case "dateTime":
+		return dateTimeKind
+	default:
+		return dateKind
+	}
+}
+
+// ValidateParams validates the relative `now±P…` bounds: grammar + the
+// per-type duration-component restriction (e.g. an Instant bound may only use
+// time components — calendar units throw in `.add()` at runtime; a PlainDate
+// bound only date components). Absolute literals are NOT parsed here —
+// Temporal's grammar is rich (tz + calendar annotations) and
+// `Temporal.X.from(...)` validates them when the cache module loads, throwing
+// loudly on a malformed literal.
+func (e temporalFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
+	if annotation == nil {
+		return nil
+	}
+	var errs []string
+	for _, key := range []string{"min", "max"} {
+		bound, ok := stringParam(annotation.Params, key)
+		if !ok || bound == "" {
+			continue
+		}
+		parsed, isRelative, relErr := parseRelative(bound)
+		if !isRelative {
+			continue // absolute literal — validated at runtime by from()
+		}
+		if relErr != "" {
+			errs = append(errs, "Format"+temporalTitle(e.info)+": `"+key+"` "+strconv.Quote(bound)+
+				" is not a valid relative bound — "+relErr)
+			continue
+		}
+		errs = append(errs, restrictComponents(parsed, key, e.relBoundKind())...)
+	}
+	return errs
+}
+
+// temporalTitle renders the user-facing format name for diagnostics, e.g.
+// "TemporalPlainDate".
+func temporalTitle(info protocol.TemporalInfo) string {
+	return "Temporal" + info.Name
+}
+
+// temporalBoundExpr renders the JS expression a bound compares against: an
+// absolute `Temporal.X.from('lit')` or a relative
+// `Temporal.Now.X()[.add|.subtract](Temporal.Duration.from('P…'))`.
+func (e temporalFormatEmitter) temporalBoundExpr(bound string) string {
+	if !strings.HasPrefix(bound, "now") {
+		return e.info.Builtin + ".from(" + strconv.Quote(bound) + ")"
+	}
+	rest := bound[len("now"):]
+	if rest == "" {
+		return e.info.NowExpr // bare `now`
+	}
+	op := "add"
+	if rest[0] == '-' {
+		op = "subtract"
+	}
+	duration := rest[1:]
+	return e.info.NowExpr + "." + op + "(Temporal.Duration.from(" + strconv.Quote(duration) + "))"
+}
+
+// boundCompare builds `Temporal.X.compare(v, <bound>) <op> 0`.
+func (e temporalFormatEmitter) boundCompare(vλl, bound, op string) string {
+	return e.info.Builtin + ".compare(" + vλl + ", " + e.temporalBoundExpr(bound) + ") " + op + " 0"
+}
+
+func (e temporalFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+	if annotation == nil {
+		return ""
+	}
+	var checks []string
+	if minBound, ok := stringParam(annotation.Params, "min"); ok && minBound != "" {
+		checks = append(checks, "("+e.boundCompare(vλl, minBound, ">=")+")")
+	}
+	if maxBound, ok := stringParam(annotation.Params, "max"); ok && maxBound != "" {
+		checks = append(checks, "("+e.boundCompare(vλl, maxBound, "<=")+")")
+	}
+	return strings.Join(checks, " && ")
+}
+
+func (e temporalFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+	if annotation == nil {
+		return ""
+	}
+	var stmts []string
+	if minBound, ok := stringParam(annotation.Params, "min"); ok && minBound != "" {
+		stmts = append(stmts, "if (!("+e.boundCompare(vλl, minBound, ">=")+")) "+
+			formatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, "min", strconv.Quote(minBound)))
+	}
+	if maxBound, ok := stringParam(annotation.Params, "max"); ok && maxBound != "" {
+		stmts = append(stmts, "if (!("+e.boundCompare(vλl, maxBound, "<=")+")) "+
+			formatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, "max", strconv.Quote(maxBound)))
+	}
+	return strings.Join(stmts, ";")
+}
