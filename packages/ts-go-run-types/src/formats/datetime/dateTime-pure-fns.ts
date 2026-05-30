@@ -337,15 +337,22 @@ registerPureFnFactory('mionFormats', 'relativeNowKey', function () {
       }
       return ms;
     }
-    if (spec === 'now') return now.getTime();
-    const sign = spec[3] === '-' ? -1 : 1;
-    const d = parseDuration(spec.substring(4));
     const result = new Date(now.getTime());
-    // Calendar-correct: apply Y/M via setUTCMonth (handles month length),
-    // then W/D and time components as fixed offsets.
-    result.setUTCFullYear(result.getUTCFullYear() + sign * d.years);
-    result.setUTCMonth(result.getUTCMonth() + sign * d.months);
-    result.setUTCDate(result.getUTCDate() + sign * (d.weeks * 7 + d.days));
-    return result.getTime() + sign * (d.hours * 3600000 + d.minutes * 60000 + d.seconds * 1000);
+    if (spec !== 'now') {
+      const sign = spec[3] === '-' ? -1 : 1;
+      const d = parseDuration(spec.substring(4));
+      // Calendar-correct: apply Y/M via setUTCMonth (handles month length),
+      // then W/D and time components as fixed offsets.
+      result.setUTCFullYear(result.getUTCFullYear() + sign * d.years);
+      result.setUTCMonth(result.getUTCMonth() + sign * d.months);
+      result.setUTCDate(result.getUTCDate() + sign * (d.weeks * 7 + d.days));
+      result.setTime(result.getTime() + sign * (d.hours * 3600000 + d.minutes * 60000 + d.seconds * 1000));
+    }
+    if (scale === 'epochDate') {
+      // Floor to UTC midnight so the bound is on the same scale as
+      // dateStrToMs (which builds dates at 00:00:00Z).
+      return Date.UTC(result.getUTCFullYear(), result.getUTCMonth(), result.getUTCDate(), 0, 0, 0, 0);
+    }
+    return result.getTime();
   };
 });
