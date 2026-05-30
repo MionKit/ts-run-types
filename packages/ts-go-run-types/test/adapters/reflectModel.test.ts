@@ -11,6 +11,7 @@
 // import (registers the format metadata the cache module reaches).
 
 import {describe, expect, it} from 'vitest';
+import type {TypeFromRT} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import type {FormatString, FormatNumber} from '@mionjs/ts-go-run-types/formats';
 import '@mionjs/ts-go-run-types/formats';
@@ -22,7 +23,7 @@ describe('value-first / reflectModel — RunType → typed model (Tier 3)', () =
       age: RT.number({min: 0}),
       active: RT.boolean(),
     });
-    const config = RT.reflectModel<typeof Model>();
+    const config = RT.reflectModel<TypeFromRT<typeof Model>>();
     expect(config).toEqual({
       name: {type: 'string', formatParams: {maxLength: 5}},
       age: {type: 'number', formatParams: {min: 0}},
@@ -36,7 +37,7 @@ describe('value-first / reflectModel — RunType → typed model (Tier 3)', () =
       age: RT.number({min: 0}),
       active: RT.boolean(),
     });
-    const probe = {name: 'x', age: 1, active: true} as unknown as typeof Model;
+    const probe = {name: 'x', age: 1, active: true} as unknown as TypeFromRT<typeof Model>;
     const config = RT.reflectModel(probe);
     expect(config).toEqual({
       name: {type: 'string', formatParams: {maxLength: 5}},
