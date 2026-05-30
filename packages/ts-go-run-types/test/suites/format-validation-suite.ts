@@ -342,9 +342,9 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatStringDate — absolute min/max bounds (inclusive)',
       isType: () => createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
-      // No mockType thunk: the mock generator has no min/max awareness yet
-      // and could emit an out-of-range date the bounded validator rejects.
-      // isType + getTypeErrors fully exercise the bound codegen.
+      // mockType must respect the bounds — assertMockType re-validates every
+      // generated value through isType, so an out-of-range mock would fail.
+      mockType: () => createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
       getSamples: () => ({
         valid: ['2020-01-01', '2020-06-15', '2020-12-31'],
         invalid: ['2019-12-31', '2021-01-01'],
@@ -391,6 +391,7 @@ export const FORMAT_VALIDATION_SUITE: {
       title: 'FormatStringTime — absolute min/max bounds (business hours)',
       isType: () => createIsType<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
       getTypeErrors: () => createGetTypeErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
+      mockType: () => createMockType<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
       getSamples: () => ({
         valid: ['09:00', '12:30', '17:00'],
         invalid: ['08:59', '17:01'],
@@ -444,6 +445,16 @@ export const FORMAT_VALIDATION_SUITE: {
         >(),
       getTypeErrors: () =>
         createGetTypeErrors<
+          FormatStringDateTime<{
+            date: {format: 'YYYY-MM-DD'};
+            time: {format: 'HH:mm:ss'};
+            splitChar: 'T';
+            min: '2020-01-01T00:00:00';
+            max: '2020-12-31T23:59:59';
+          }>
+        >(),
+      mockType: () =>
+        createMockType<
           FormatStringDateTime<{
             date: {format: 'YYYY-MM-DD'};
             time: {format: 'HH:mm:ss'};

@@ -9,7 +9,7 @@
 // is covered Go-side (native_date_format_test.go).
 
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
 import type {FormatDate} from '@mionjs/ts-go-run-types/formats';
 
@@ -66,5 +66,37 @@ describe('FormatDate — relative now±P bounds (date + time components)', () =>
     expect(isType(new Date(NOW))).toBe(true);
     expect(isType(new Date(NOW - 36 * 3600 * 1000))).toBe(true); // exactly the bound
     expect(isType(new Date(NOW - 36 * 3600 * 1000 - 1000))).toBe(false);
+  });
+});
+
+describe('FormatDate — mock respects bounds (every generated value is valid)', () => {
+  const ITERATIONS = 50;
+
+  it('absolute min/max — mock stays in range', () => {
+    const isType = createIsType<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    const mock = createMockType<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(value, `iteration ${i}`).toBeInstanceOf(Date);
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('relative max: now — mock never produces a future Date', () => {
+    const isType = createIsType<FormatDate<{max: 'now'}>>();
+    const mock = createMockType<FormatDate<{max: 'now'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
+  it('relative window now-P1Y .. now — mock stays inside', () => {
+    const isType = createIsType<FormatDate<{min: 'now-P1Y'; max: 'now'}>>();
+    const mock = createMockType<FormatDate<{min: 'now-P1Y'; max: 'now'}>>();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
   });
 });
