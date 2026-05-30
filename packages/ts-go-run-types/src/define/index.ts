@@ -32,6 +32,8 @@ export {
   never,
   voidType,
   voidType as void,
+  // Class instance builder — classType(MyClass) → RunType<InstanceType<…>>.
+  classType,
   // Property-modifier wrappers — `propMod({optional?, readonly?}, field)` and the
   // `optional(field)` shortcut for `propMod({optional: true}, field)`. The
   // modifiers live here + in `object`'s param, never in a `FieldConfig`.

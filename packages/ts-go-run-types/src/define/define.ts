@@ -251,6 +251,22 @@ export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
   return builderResult(id, {type: 'void', formatParams: {}});
 }
 
+/** A class builder — `classType(MyClass)` → `RunType<InstanceType<typeof
+ *  MyClass>>` (≡ `RunType<MyClass>`). Recovers the class's nominal instance type
+ *  off the constructor passed in, so it converges with the type-first
+ *  `createIsType<MyClass>()`. isType matches by SHAPE (data properties; methods
+ *  skipped), NOT `instanceof` — a plain object of the right shape passes. For a
+ *  GENERIC class the instance type can be pinned explicitly
+ *  (`classType<typeof Box, Box<number>>(Box)`); otherwise it defaults to the
+ *  unparameterised `InstanceType<C>`. The ctor rides the carrier (the runtime
+ *  keeps a real class reference). **/
+export function classType<
+  C extends abstract new (...args: any[]) => any,
+  Instance extends InstanceType<C> = InstanceType<C>,
+>(ctor: C, id?: InjectRunTypeId<Instance>): RunType<Instance> {
+  return builderResult(id, {type: 'class', ctor});
+}
+
 // `temporalBuilder` — shared factory for the 6 temporal builders below. Each
 // fixes its tag and returns the matching `FormatTemporal*<P>` via the local
 // tag→format lookup, so the 6 namespace call sites don't change.
