@@ -13,3 +13,16 @@
 // File kept so the wiring matches `packages/vite-plugin-runtypes/test/
 // setup.ts` and so future expansions (multiple test files needing
 // state isolation) drop in cleanly.
+
+// Temporal polyfill for the test runtime. Node < 26 has no global
+// `Temporal` (it shipped unflagged in Node 26 / ES2026); the sandbox runs
+// Node 22, so Temporal mock + serialization tests would otherwise throw at
+// `Temporal.PlainDate.from(...)`. Install the polyfill as the global so the
+// emitted runtime code (which references `Temporal.*` / `globalThis.Temporal`)
+// resolves. Production consumers on Node 26+ use the native global; this is a
+// test-only devDependency.
+import {Temporal} from 'temporal-polyfill';
+
+if (typeof (globalThis as {Temporal?: unknown}).Temporal === 'undefined') {
+  (globalThis as {Temporal?: unknown}).Temporal = Temporal;
+}
