@@ -43,11 +43,12 @@ type NumberFirstTF = {bounded: FormatNumber<{min: 0; max: 10}>; whole: FormatNum
 const DateFirst = RT.object({past: RT.date({max: 'now'})});
 type DateFirstTF = {past: FormatDate<{max: 'now'}>};
 
-// An inline value-channel regex converges with the type-first {source,flags}
-// form for the same pattern — the Go scanner recovers identical {source,flags}
-// from either authoring path.
-const RegexFirst = RT.object({slug: RT.string({pattern: /^[a-z-]+$/})});
-type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: ''}}>};
+// An inline value-channel pattern (a `{source, flags, mockSamples}` object)
+// converges with the type-first form for the same pattern — the Go scanner
+// recovers identical {source, flags} from either authoring path (mockSamples
+// don't affect the structural id, so the two sides need only match source/flags).
+const RegexFirst = RT.object({slug: RT.string({pattern: {source: '^[a-z-]+$', flags: '', mockSamples: ['a-b-c']}})});
+type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: ''; mockSamples: ['a-b-c']}}>};
 
 // An `RT.optional(...)` field converges with a type-first optional property.
 const OptionalFirst = RT.object({req: RT.string({maxLength: 5}), opt: RT.optional(RT.number({min: 0}))});
