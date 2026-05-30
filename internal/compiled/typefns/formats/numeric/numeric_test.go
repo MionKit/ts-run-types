@@ -152,8 +152,17 @@ func TestValidateParams(t *testing.T) {
 	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"integer": true, "float": true})); len(errs) == 0 {
 		t.Error("expected integer+float conflict")
 	}
-	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"min": 1.0, "gt": 2.0})); len(errs) == 0 {
-		t.Error("expected min+gt mutual-exclusivity error")
+	// min + gt may now COEXIST (no XOR) — matches the date families' "allow
+	// all combinations" rule. They simply AND at runtime.
+	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"min": 1.0, "gt": 2.0})); len(errs) != 0 {
+		t.Errorf("min+gt should coexist (no XOR), got %v", errs)
+	}
+	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"max": 10.0, "lt": 5.0})); len(errs) != 0 {
+		t.Errorf("max+lt should coexist (no XOR), got %v", errs)
+	}
+	// Inversion of a lower-vs-upper pair is still rejected.
+	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"gt": 5.0, "lt": 2.0})); len(errs) == 0 {
+		t.Error("expected gt>=lt ordering error")
 	}
 	if errs := number.ValidateParams(annotation(numberFormatName, map[string]any{"multipleOf": 2.5})); len(errs) == 0 {
 		t.Error("expected multipleOf-must-be-integer error")

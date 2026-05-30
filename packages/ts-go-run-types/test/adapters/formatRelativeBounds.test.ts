@@ -190,6 +190,32 @@ describe('exclusive bounds — mock respects them (every generated value is vali
     }
   });
 
+  // Coarse time layout (HH:mm — no seconds): the bound's time half is parsed
+  // as ISO, so the value carries fewer ':' segments than ISO; timeStrToMs
+  // must tolerate the missing segment (regression guard for that fix).
+  it('FormatStringDateTime gt/lt with HH:mm time — mock stays strictly inside', () => {
+    const isType = createIsType<
+      FormatStringDateTime<{
+        date: {format: 'YYYY-MM-DD'};
+        time: {format: 'HH:mm'};
+        gt: '2020-01-01T08:00';
+        lt: '2020-12-31T17:00';
+      }>
+    >();
+    const mock = createMockType<
+      FormatStringDateTime<{
+        date: {format: 'YYYY-MM-DD'};
+        time: {format: 'HH:mm'};
+        gt: '2020-01-01T08:00';
+        lt: '2020-12-31T17:00';
+      }>
+    >();
+    for (let i = 0; i < ITERATIONS; i++) {
+      const value = mock();
+      expect(isType(value), `iteration ${i}: ${String(value)}`).toBe(true);
+    }
+  });
+
   it('FormatDate (native) gt/lt — mock stays strictly inside', () => {
     const isType = createIsType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();
     const mock = createMockType<FormatDate<{gt: '2020-01-01T00:00:00'; lt: '2021-01-01T00:00:00'}>>();

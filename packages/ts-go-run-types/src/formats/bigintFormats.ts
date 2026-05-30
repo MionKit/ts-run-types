@@ -13,8 +13,10 @@ import {TypeFormat} from '../runtypes/typeFormat.ts';
 // ─────────────────────────── BigIntFormat ───────────────────────────
 
 // BigIntParams — the wire-serialisable params shape for FormatBigInt.
-// Cross-param invariants (min⊕gt, max⊕lt, multipleOf>0) are validated
-// build-time in Go. No integer/float distinction — bigints are integers.
+// Cross-param invariants (ordering min≤max / gt<lt, multipleOf>0) are
+// validated build-time in Go. min/max (inclusive) and gt/lt (exclusive) may
+// all coexist — they AND at runtime, no min⊕gt / max⊕lt exclusivity. No
+// integer/float distinction — bigints are integers.
 export interface BigIntParams {
   min?: bigint;
   max?: bigint;
