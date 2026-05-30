@@ -81,6 +81,11 @@ export interface RunType<T = unknown> {
   isSafeName?: unknown;
   position?: unknown;
   isCircular?: boolean;
+  /** True for the "non-data" kinds (function / method / call-signature /
+   *  symbol / never / non-serialisable class) the validators & serializers
+   *  ignore. The node is kept in the reflected tree so reflection stays
+   *  complete; only the node itself is flagged, never its children. */
+  notSupported?: boolean;
   flags?: unknown;
   description?: unknown;
   defaultVal?: unknown;

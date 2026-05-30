@@ -87,6 +87,11 @@ export interface RunType {
   typeName?: string;
   typeArguments?: RunType[];
   isCircular?: boolean;
+  // True for the "non-data" kinds (function / method / call-signature /
+  // symbol / never / non-serialisable class) the validators & serializers
+  // ignore. The node stays in the reflected tree so reflection is complete;
+  // only the node itself is flagged, never its children.
+  notSupported?: boolean;
 
   // TypeLiteral
   literal?: unknown;

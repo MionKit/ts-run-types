@@ -25,7 +25,7 @@ export function initCache(rtUtils) {
   function c(id) {
     return rtUtils.useRunType(id);
   }
-  // 19-arg positional shape — id + identification fields. Ref slots start
+  // 20-arg positional shape — id + identification fields. Ref slots start
   // as `undefined` and are patched by footer assignments.
   function rt(
     id,
@@ -46,7 +46,8 @@ export function initCache(rtUtils) {
     description,
     defaultVal,
     enumVal,
-    values
+    values,
+    notSupported
   ) {
     /** @type {RunType} */
     const entry = {
@@ -69,6 +70,7 @@ export function initCache(rtUtils) {
       defaultVal,
       enumVal,
       values,
+      notSupported,
       child: undefined,
       index: undefined,
       return: undefined,
