@@ -531,6 +531,7 @@ export const VALIDATION_SUITE = {
         const reg = /abc/i;
         return createIsType<typeof reg>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.regexp(/abc/i)),
       deserializeIsType: () => {
         const reg = /abc/i;
         return deserializeIsType<typeof reg>();
@@ -549,6 +550,7 @@ export const VALIDATION_SUITE = {
         const reg = /abc/i;
         return createGetTypeErrors<typeof reg>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.regexp(/abc/i)),
       deserializeGetTypeErrors: () => {
         const reg = /abc/i;
         return deserializeGetTypeErrors<typeof reg>();
@@ -588,6 +590,7 @@ export const VALIDATION_SUITE = {
         const reg2 = /['"]\/ \\ \//;
         return createIsType<typeof reg2>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.regexp(/['"]\/ \\ \//)),
       deserializeIsType: () => {
         const reg2 = /['"]\/ \\ \//;
         return deserializeIsType<typeof reg2>();
@@ -606,6 +609,7 @@ export const VALIDATION_SUITE = {
         const reg2 = /['"]\/ \\ \//;
         return createGetTypeErrors<typeof reg2>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.regexp(/['"]\/ \\ \//)),
       deserializeGetTypeErrors: () => {
         const reg2 = /['"]\/ \\ \//;
         return deserializeGetTypeErrors<typeof reg2>();
