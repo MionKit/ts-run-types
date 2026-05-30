@@ -642,6 +642,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
       isType: () => createIsType<true>(),
+      isTypeSchema: () => createIsTypeFor(RT.literal(true)),
       deserializeIsType: () => deserializeIsType<true>(),
       isTypeReflect: () => {
         const v = true as const;
@@ -652,6 +653,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<true>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(true)),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(),
       getTypeErrorsReflect: () => {
         const v = true as const;
@@ -833,6 +835,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
       isType: () => createIsType<null>(),
+      isTypeSchema: () => createIsTypeFor(RT.literal(null)),
       deserializeIsType: () => deserializeIsType<null>(),
       isTypeReflect: () => {
         const v: null = null;
@@ -843,6 +846,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<null>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(null)),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<null>(),
       getTypeErrorsReflect: () => {
         const v: null = null;
@@ -1561,6 +1565,7 @@ export const VALIDATION_SUITE = {
       title: 'Array of numbers (rejects Infinity / NaN per element)',
       description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
       isType: () => createIsType<number[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.number())),
       deserializeIsType: () => deserializeIsType<number[]>(),
       isTypeReflect: () => {
         const v: number[] = [];
@@ -1571,6 +1576,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<number[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.number())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<number[]>(),
       getTypeErrorsReflect: () => {
         const v: number[] = [];
@@ -1605,6 +1611,7 @@ export const VALIDATION_SUITE = {
     boolean_array: {
       title: 'Array of booleans',
       isType: () => createIsType<boolean[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.boolean())),
       deserializeIsType: () => deserializeIsType<boolean[]>(),
       isTypeReflect: () => {
         const v: boolean[] = [];
@@ -1615,6 +1622,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<boolean[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.boolean())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean[]>(),
       getTypeErrorsReflect: () => {
         const v: boolean[] = [];
@@ -1647,6 +1655,7 @@ export const VALIDATION_SUITE = {
     bigint_array: {
       title: 'Array of bigints',
       isType: () => createIsType<bigint[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.bigint())),
       deserializeIsType: () => deserializeIsType<bigint[]>(),
       isTypeReflect: () => {
         const v: bigint[] = [];
@@ -1657,6 +1666,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<bigint[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.bigint())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint[]>(),
       getTypeErrorsReflect: () => {
         const v: bigint[] = [];
@@ -1690,6 +1700,7 @@ export const VALIDATION_SUITE = {
       description: 'from mion serialization-suite ARRAYS.array_date',
       isTypeNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
       isType: () => createIsType<Date[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.date())),
       deserializeIsType: () => deserializeIsType<Date[]>(),
       isTypeReflect: () => {
         const v: Date[] = [];
@@ -1700,6 +1711,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<Date[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.date())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date[]>(),
       getTypeErrorsReflect: () => {
         const v: Date[] = [];
@@ -5066,6 +5078,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
       isType: () => createIsType<[number, ...string[]]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number()], RT.string())),
       deserializeIsType: () => deserializeIsType<[number, ...string[]]>(),
       isTypeReflect: () => {
         const v: [number, ...string[]] = [3];
@@ -5076,6 +5089,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[number, ...string[]]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number()], RT.string())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, ...string[]]>(),
       getTypeErrorsReflect: () => {
         const v: [number, ...string[]] = [3];
@@ -5827,6 +5841,10 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
       isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([RT.object({kind: RT.literal('a'), n: RT.number()}), RT.object({kind: RT.literal('b'), s: RT.string()})])
+        ),
       deserializeIsType: () => deserializeIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
       isTypeReflect: () => {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
@@ -5837,6 +5855,10 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([RT.object({kind: RT.literal('a'), n: RT.number()}), RT.object({kind: RT.literal('b'), s: RT.string()})])
+        ),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
       getTypeErrorsReflect: () => {
         const v: {kind: 'a'; n: number} | {kind: 'b'; s: string} = {kind: 'a', n: 1};
