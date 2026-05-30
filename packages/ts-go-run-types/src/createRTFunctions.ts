@@ -18,7 +18,7 @@ import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepare
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils} from './runtypes/rtUtils.ts';
 import {lookupRTFn} from './runtypes/rtUtils.ts';
-import type {AnyFn} from './runtypes/types.ts';
+import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
 
 // =============================================================================
@@ -224,6 +224,31 @@ export const createGetTypeErrors = createRTFunction<GetTypeErrorsFn>(
   'te',
   getTypeErrorsIdentity
 ) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
+
+// =============================================================================
+// Schema-form validators (value-first `define` builders).
+//
+// These take a `RunType` SCHEMA (the value a builder returns, e.g.
+// `string({maxLength: 5})`) rather than reflecting a type/value, so the markers
+// above (`createIsType` / `createGetTypeErrors`) stay untouched. They are PURE
+// RUNTIME: the build already emitted the per-family factory for the schema's
+// type (the binary emits one factory per cached RunType, regardless of which
+// marker reflected it — the builder's own `InjectRunTypeId` is enough), so we
+// just read the schema node's `id` and resolve `<prefix>_<id>` via lookupRTFn —
+// the same lookup `createRTFunction` performs with an injected id.
+// =============================================================================
+
+/** Builds the `isType` validator for a value-first RunType schema —
+ *  `createIsTypeFor(string({maxLength: 5}))`. **/
+export function createIsTypeFor<RT extends RunType>(schema: RT): IsTypeFn {
+  return lookupRTFn<IsTypeFn>('createIsTypeFor', 'it', schema.id, () => true);
+}
+
+/** Builds the `getTypeErrors` validator for a value-first RunType schema —
+ *  `createTypeErrorsFor(number({min: 0}))`. **/
+export function createTypeErrorsFor<RT extends RunType>(schema: RT): GetTypeErrorsFn {
+  return lookupRTFn<GetTypeErrorsFn>('createTypeErrorsFor', 'te', schema.id, getTypeErrorsIdentity);
+}
 
 export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <
   T,
