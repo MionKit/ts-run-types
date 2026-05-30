@@ -15,6 +15,8 @@
 import type {RunType} from './types.ts';
 
 /** The TS type a `RunType<T>` carries; identity for anything that isn't a
- *  `RunType`. `NonNullable` strips the `| undefined` the optional `__rtType`
- *  carrier adds. */
-export type TypeFromRT<RT> = RT extends RunType ? NonNullable<RT['__rtType']> : RT;
+ *  `RunType`. The carrier is `{t: T}`, so `NonNullable` strips the `| undefined`
+ *  the optional `?` adds to the WRAPPER and `['t']` reads `T` back — preserving an
+ *  intentional `null`/`undefined` `T` (which a bare-`T` carrier + `NonNullable`
+ *  would collapse to `never`). No `infer`. */
+export type TypeFromRT<RT> = RT extends RunType ? NonNullable<RT['__rtType']>['t'] : RT;

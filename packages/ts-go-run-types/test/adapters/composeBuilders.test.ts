@@ -15,7 +15,21 @@
 
 import {describe, expect, it} from 'vitest';
 import {createIsType, createIsTypeFor, createTypeErrorsFor} from '@mionjs/ts-go-run-types';
-import {array, tuple, union, intersection, record, object, string, number, boolean, literal, regexp, runType, reflectRunType} from '@mionjs/ts-go-run-types/define';
+import {
+  array,
+  tuple,
+  union,
+  intersection,
+  record,
+  object,
+  string,
+  number,
+  boolean,
+  literal,
+  regexp,
+  runType,
+  reflectRunType,
+} from '@mionjs/ts-go-run-types/define';
 import '@mionjs/ts-go-run-types/formats';
 
 describe('compose builders — array', () => {
@@ -171,6 +185,32 @@ describe('universal reflectors — runType / reflectRunType (both marker forms)'
     expect(isPartial({a: true})).toBe(true);
     expect(isPartial({})).toBe(true);
     expect(isPartial({a: 1})).toBe(false);
+  });
+});
+
+describe('compose builders — null member survives composition (TypeFromRT carrier)', () => {
+  // Regression: a bare-`T` carrier + `NonNullable` collapsed `literal(null)` to
+  // `never`, silently dropping the null arm/slot/prop from union/tuple/object.
+  it('union keeps the literal(null) arm and converges', () => {
+    const isBoolOrNull = createIsTypeFor(union([boolean(), literal(null)]));
+    expect(isBoolOrNull(true)).toBe(true);
+    expect(isBoolOrNull(null)).toBe(true);
+    expect(isBoolOrNull(undefined)).toBe(false);
+    expect(isBoolOrNull).toBe(createIsType<boolean | null>());
+  });
+
+  it('object keeps a null-typed property', () => {
+    const isObj = createIsTypeFor(object({a: literal(null), b: boolean()}));
+    expect(isObj({a: null, b: true})).toBe(true);
+    expect(isObj({a: undefined, b: true})).toBe(false);
+    expect(isObj).toBe(createIsType<{a: null; b: boolean}>());
+  });
+
+  it('tuple keeps a null slot', () => {
+    const isTup = createIsTypeFor(tuple([boolean(), literal(null)]));
+    expect(isTup([true, null])).toBe(true);
+    expect(isTup([true, undefined])).toBe(false);
+    expect(isTup).toBe(createIsType<[boolean, null]>());
   });
 });
 
