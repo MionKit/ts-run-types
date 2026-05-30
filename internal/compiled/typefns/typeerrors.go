@@ -79,7 +79,7 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		// Mion treats Promise<T> as a thenable check — the wrapped T
 		// isn't validated synchronously. Same as the isType emit.
@@ -329,6 +329,14 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 			// AND a valid date (rejects `new Date('not a date')`).
 			return RTCode{
 				Code: "if (!(" + v + " instanceof Date) || isNaN(" + v + ".getTime())) " + callRTErr(ctx, "date", ""),
+				Type: CodeS,
+			}
+		}
+		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+			// Temporal types: instanceof is sufficient (no invalid state).
+			// The expected-name carries the qualified type for clear errors.
+			return RTCode{
+				Code: "if (!(" + v + " instanceof " + info.Builtin + ")) " + callRTErr(ctx, info.Builtin, ""),
 				Type: CodeS,
 			}
 		}

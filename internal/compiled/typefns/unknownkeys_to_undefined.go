@@ -41,7 +41,7 @@ func (UnknownKeysToUndefinedEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindArray:
 		return rt.Child != nil
 	case protocol.KindTuple:

@@ -159,6 +159,11 @@ func jsonCompatRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 		return true
 
 	case protocol.KindClass:
+		if protocol.IsTemporalSubKind(rt.SubKind) {
+			// Temporal types serialize via toJSON() (a string), like Date —
+			// not raw-JSON-compatible, so a union containing one wraps.
+			return false
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate,
 			protocol.SubKindMap,

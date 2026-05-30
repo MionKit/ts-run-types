@@ -80,7 +80,7 @@ func (RestoreFromJsonEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		// Throws — same pattern as prepareForJson.
 		return true
@@ -172,6 +172,10 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 
 	case protocol.KindClass:
 		// Date is reconstructed from its ISO string via `new Date(v)`.
+		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+			// Rebuild from the canonical string via Temporal.<T>.from(v).
+			return RTCode{Code: v + " = " + info.Builtin + ".from(" + v + ")", Type: CodeE}
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			return RTCode{Code: v + " = new Date(" + v + ")", Type: CodeE}
