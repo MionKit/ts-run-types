@@ -129,6 +129,16 @@ function assertionsValueFirstDefine(): void {
   const _carrierLeak: FormatNumber<{min: 0}> = RT.optional(RT.number({min: 0}));
   void _carrierLeak;
 
+  // `ModelConfigOf<T>` is the inverse of `ModelType<C>` (the Tier-3 bridge): a
+  // branded model type round-trips through the config and back to itself. The
+  // two identity functions below compile only if the types are mutually
+  // assignable — `RoundTripModel` ⇄ `ModelType<ModelConfigOf<RoundTripModel>>`.
+  type RoundTripModel = {name: FormatString<{maxLength: 5}>; age: FormatNumber<{min: 0}>};
+  const _toConfigAndBack = (x: RoundTripModel): RT.ModelType<RT.ModelConfigOf<RoundTripModel>> => x;
+  const _backToModel = (x: RT.ModelType<RT.ModelConfigOf<RoundTripModel>>): RoundTripModel => x;
+  void _toConfigAndBack;
+  void _backToModel;
+
   // Cross-family param misuse is caught at the BUILDER CALL — each builder
   // types its own params arg, so the bad key errors locally (no exclusive-union
   // machinery needed). These replace the old inline-config leakage assertions.

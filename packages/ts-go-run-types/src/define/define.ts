@@ -337,6 +337,59 @@ export type ModelType<C extends ModelConfig> = {
   -readonly [K in keyof C as C[K] extends {optional: true} ? K : never]?: FieldType<C[K]>;
 };
 
+// ───────────── Type → config bridge (inverse of ModelType, Tier 3) ──────────
+//
+// `ModelConfigOf<T>` reads the brand off each field of a branded model type `T`
+// and recovers the discriminated `{type, formatParams}` config — the inverse of
+// `ModelType<C>`, so `ModelType<ModelConfigOf<T>>` round-trips to `T`. It is the
+// static, literal-precise half of `reflectModel<T>()` (define/reflectModel.ts):
+// the runtime walk over the RunType supplies the param VALUES (erased to a loose
+// type at runtime), this type supplies the precise SHAPE. Flat models only — a
+// nested object / array / union field has no `__rtFormat*` brand and resolves to
+// `never`, matching the leaf-only value-first scope.
+
+/** brand `__rtFormatName` → authoring `type` tag (inverse of the format-name
+ *  assignment `FieldFormatMap` makes). One arm per leaf format — a coupling
+ *  point kept in sync with the builders (mirrored at runtime by
+ *  `tagFromFormatName` in define/reflectModel.ts). **/
+type TagOf<N> = N extends 'stringFormat'
+  ? 'string'
+  : N extends 'numberFormat'
+    ? 'number'
+    : N extends 'bigintFormat'
+      ? 'bigint'
+      : N extends 'nativeDate'
+        ? 'date'
+        : N extends 'temporalInstant'
+          ? 'temporal.instant'
+          : N extends 'temporalZonedDateTime'
+            ? 'temporal.zonedDateTime'
+            : N extends 'temporalPlainDate'
+              ? 'temporal.plainDate'
+              : N extends 'temporalPlainTime'
+                ? 'temporal.plainTime'
+                : N extends 'temporalPlainDateTime'
+                  ? 'temporal.plainDateTime'
+                  : N extends 'temporalPlainYearMonth'
+                    ? 'temporal.plainYearMonth'
+                    : never;
+
+/** A single branded field type → its discriminated config. Reads the two
+ *  sentinel brand properties via `infer`; a plain `boolean` (no brand) maps to
+ *  the param-less boolean config. A non-leaf field resolves to `never`. **/
+type FieldConfigOf<F> = F extends {__rtFormatName: infer N extends string; __rtFormatParams: infer P extends object}
+  ? {type: TagOf<N>; formatParams: P}
+  : F extends boolean
+    ? {type: 'boolean'; formatParams: Record<string, never>}
+    : never;
+
+/** The discriminated `ModelConfig` a branded model type `T` came from — the
+ *  inverse of `ModelType<C>`. `-?` un-optionalises the mapped keys and
+ *  `NonNullable` strips the `| undefined` an `optional(...)` field's `?` adds, so
+ *  every field yields a concrete config entry (the `optional` flag itself is not
+ *  recovered — flat-model scope). **/
+export type ModelConfigOf<T> = {-readonly [K in keyof T]-?: FieldConfigOf<NonNullable<T[K]>>};
+
 // ─────────────────────────────── object() ───────────────────────────
 
 /** Assembles a model from named field builders. Does the work `ModelType<C>`
