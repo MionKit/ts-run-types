@@ -29,5 +29,6 @@ import './string/string-patterns.ts';
 export type * from './string/stringFormats.ts';
 export type * from './datetime/dateTimeParams.ts';
 export type * from './datetime/stringDateTimeFormats.ts';
+export type * from './datetime/dateFormats.ts';
 export type * from './numberFormats.ts';
 export type * from './bigintFormats.ts';
