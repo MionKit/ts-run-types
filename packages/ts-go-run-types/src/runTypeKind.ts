@@ -72,6 +72,14 @@ export const RunTypeSubKind = {
   map: 2002,
   set: 2003,
   nonSerializable: 2004,
+  temporalInstant: 2101,
+  temporalZonedDateTime: 2102,
+  temporalPlainDate: 2103,
+  temporalPlainTime: 2104,
+  temporalPlainDateTime: 2105,
+  temporalPlainYearMonth: 2106,
+  temporalPlainMonthDay: 2107,
+  temporalDuration: 2108,
 } as const;
 
 export type RunTypeSubKindName = keyof typeof RunTypeSubKind;

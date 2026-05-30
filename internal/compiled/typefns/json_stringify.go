@@ -82,7 +82,7 @@ func (StringifyJsonEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		return true
 	}
@@ -215,6 +215,10 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 		return emitObjectStringifyJson(rt, ctx, v)
 
 	case protocol.KindClass:
+		if protocol.IsTemporalSubKind(rt.SubKind) {
+			// Like Date: emit the quoted toJSON() string directly.
+			return RTCode{Code: "'\"'+" + v + ".toJSON()+'\"'", Type: CodeE}
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			// mion:stringifyJson.ts:405-406 — manually quoted to skip
