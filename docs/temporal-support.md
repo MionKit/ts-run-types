@@ -1,10 +1,11 @@
 # Temporal API support
 
-> **Status: implemented (core).** All eight [TC39 Temporal](https://tc39.es/proposal-temporal/)
-> types are validated, serialized (JSON + binary), and mockable. The min/max
-> `FormatTemporalX<{…}>` constraint family is a tracked follow-up (see §9).
-> The sections below were written as the design spec and remain accurate as
-> the design record.
+> **Status: implemented.** All eight [TC39 Temporal](https://tc39.es/proposal-temporal/)
+> types are validated, serialized (JSON + binary), and mockable, and the six
+> orderable types support min/max bounds via the `FormatTemporalX<{min,max}>`
+> family (opt-in subpath `@mionjs/ts-go-run-types/formats/temporal`). The
+> sections below were written as the design spec and remain accurate as the
+> design record.
 >
 > Companion docs: [ARCHITECTURE.md](./ARCHITECTURE.md) (execution model),
 > [ROADMAP.md](./ROADMAP.md) (scope), and the native-`Date` work in this repo

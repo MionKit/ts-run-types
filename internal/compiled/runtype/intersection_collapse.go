@@ -206,7 +206,7 @@ func splitBuiltinClassBrand(typeChecker *checker.Checker, objectMembers []*check
 			annotation = found
 			continue
 		}
-		if symbol := member.Symbol(); symbol != nil && builtinClassNames[symbol.Name] {
+		if isBuiltinClassMember(typeChecker, member) {
 			if classMember != nil {
 				return nil, nil // two builtin classes — ambiguous
 			}
@@ -214,6 +214,19 @@ func splitBuiltinClassBrand(typeChecker *checker.Checker, objectMembers []*check
 		}
 	}
 	return classMember, annotation
+}
+
+// isBuiltinClassMember reports whether member is a brandable builtin class —
+// a top-level Date/Map/Set/RegExp OR a namespace-qualified Temporal type
+// (FormatTemporalX<P> lowers to `Temporal.X & {brand}`). projectClass and the
+// id computer both already special-case these, so lifting the brand off them
+// produces the correct class node + FormatAnnotation.
+func isBuiltinClassMember(typeChecker *checker.Checker, member *checker.Type) bool {
+	if _, ok := typeid.TemporalInfoForType(member); ok {
+		return true
+	}
+	symbol := member.Symbol()
+	return symbol != nil && builtinClassNames[symbol.Name]
 }
 
 func isLiteralFlags(flags checker.TypeFlags) bool {
