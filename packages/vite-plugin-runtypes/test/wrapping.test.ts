@@ -230,6 +230,61 @@ maskedWrapper('noop');
     }
   );
 
+  // ---- 17g: nested-builder skip (value-first object/field pattern) -------
+  //
+  // A marker call nested inside another marker call's argument (the value-first
+  // `object({field: leaf()})` shape) is reflected by the enclosing marker, so
+  // the nested call's own id is redundant. The scanner skips it — only the
+  // outer marker emits a site. The walk is transparent through the object
+  // literal between them.
+
+  runTest(
+    '17g: field markers nested inside an enclosing model marker are skipped — outer site only',
+    {
+      '17g.ts': `import {type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+function model<T>(v: T, id?: InjectRunTypeId<T>): T { void id; return v; }
+function field<T>(v: T, id?: InjectRunTypeId<T>): T { void id; return v; }
+const m = model({name: field('x' as string), age: field(0 as number)});
+export {m};
+`,
+    },
+    async (sources) => {
+      await withInlineSources(
+        sources,
+        async ({client}) => {
+          const {sites} = await rewrite('17g.ts', sources['17g.ts'], client);
+          // model(...) is the only top-level marker; the two nested field(...)
+          // calls are enclosed by it and skipped.
+          expect(sites.length).toBe(1);
+        },
+        {reset: true}
+      );
+    }
+  );
+
+  runTest(
+    '17g control: the same field markers each emit a site when NOT nested',
+    {
+      '17g_control.ts': `import {type InjectRunTypeId} from '@mionjs/ts-go-run-types';
+function field<T>(v: T, id?: InjectRunTypeId<T>): T { void id; return v; }
+const a = field('x' as string);
+const b = field(0 as number);
+export {a, b};
+`,
+    },
+    async (sources) => {
+      await withInlineSources(
+        sources,
+        async ({client}) => {
+          const {sites} = await rewrite('17g_control.ts', sources['17g_control.ts'], client);
+          // Standalone field(...) calls are real markers — each gets a site.
+          expect(sites.length).toBe(2);
+        },
+        {reset: true}
+      );
+    }
+  );
+
   // ---- Pass-through wrappers — paired for both helpers --------------------
 
   runTest(

@@ -1,6 +1,6 @@
-// Value-first model definitions — a Zod/TypeBox-style BUILDER API that derives
-// the equivalent type-first format types via plain TYPE MAPPING (no TS
-// `infer`). Author a model by composing per-type builders:
+// Value-first model definitions — a Zod/TypeBox-style BUILDER API where each
+// builder RETURNS its branded format type directly (no type-mapping hop on the
+// forward path). Author a model by composing per-type builders:
 //
 //   import {object, string, number, boolean, optional, temporal} from '@mionjs/ts-go-run-types/define';
 //
@@ -37,6 +37,8 @@
 // same constraint the `formats/` files document.
 
 import {TypeFormat} from '../runtypes/typeFormat.ts';
+import {getRTUtils} from '../runtypes/rtUtils.ts';
+import type {InjectRunTypeId} from '../markers.ts';
 import type {StringParams} from '../formats/string/stringFormats.ts';
 import type {NumberParams, FormatNumber} from '../formats/numberFormats.ts';
 import type {BigIntParams, FormatBigInt} from '../formats/bigintFormats.ts';
@@ -147,11 +149,26 @@ export type ModelConfig = Record<string, FieldConfig>;
 // the brand. The params arg is typed to the family's own interface, so
 // cross-family misuse (`number({maxLength: 5})`) errors right at the call.
 //
-// Runtime (transitional, Tier 1): the body still returns the readable
-// `{type, formatParams}` object, only RETYPED to the brand — nothing reads it
-// across the type-lie yet. Tier 2 turns each builder into an injectable marker
-// whose body returns the live RunType node for the injected id (the same node
-// the type compiler produces), replacing the cast with that lookup.
+// Each builder is an INJECTABLE MARKER (Tier 2): the trailing
+// `id?: InjectRunTypeId<…>` is filled by vite-plugin-runtypes with the resolved
+// structural id, and the body returns the LIVE RunType node for it
+// (`getRunType(id)`) — the exact node the type compiler produces for the
+// equivalent written type. A builder nested inside `object(...)` is skipped by
+// the scanner (the enclosing marker reflects the whole shape), so it has no id
+// and returns the `{type, formatParams}` carrier the `object` call discards.
+
+/** Resolves the live RunType node for an injected marker id — the exact node
+ *  the type compiler produces for the builder's return type. With no id (the
+ *  builder is nested inside `object(...)`, so the scanner skipped it) or before
+ *  the cache module has loaded, it returns the `carrier` the enclosing `object`
+ *  discards. **/
+function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): T {
+  if (id !== undefined) {
+    const runType = getRTUtils().getRunType(id);
+    if (runType) return runType as unknown as T;
+  }
+  return carrier as T;
+}
 
 /** A string field builder. Returns `FormatString<P>` — written as the
  *  equivalent `TypeFormat<string, 'stringFormat', P>` because the `FormatString`
@@ -159,29 +176,39 @@ export type ModelConfig = Record<string, FieldConfig>;
  *  regex forms `StringFamilyParams` adds; the two are structurally identical, so
  *  convergence with the type-first `FormatString<P>` is preserved. **/
 export function string<const P extends StringFamilyParams = Record<string, never>>(
-  formatParams: P = {} as P
+  formatParams: P = {} as P,
+  id?: InjectRunTypeId<TypeFormat<string, 'stringFormat', P>>
 ): TypeFormat<string, 'stringFormat', P> {
-  return {type: 'string', formatParams} as unknown as TypeFormat<string, 'stringFormat', P>;
+  return builderResult(id, {type: 'string', formatParams});
 }
 
 /** A number field builder — returns the branded `FormatNumber`. **/
-export function number<const P extends NumberParams = Record<string, never>>(formatParams: P = {} as P): FormatNumber<P> {
-  return {type: 'number', formatParams} as unknown as FormatNumber<P>;
+export function number<const P extends NumberParams = Record<string, never>>(
+  formatParams: P = {} as P,
+  id?: InjectRunTypeId<FormatNumber<P>>
+): FormatNumber<P> {
+  return builderResult(id, {type: 'number', formatParams});
 }
 
 /** A bigint field builder — returns the branded `FormatBigInt`. **/
-export function bigint<const P extends BigIntParams = Record<string, never>>(formatParams: P = {} as P): FormatBigInt<P> {
-  return {type: 'bigint', formatParams} as unknown as FormatBigInt<P>;
+export function bigint<const P extends BigIntParams = Record<string, never>>(
+  formatParams: P = {} as P,
+  id?: InjectRunTypeId<FormatBigInt<P>>
+): FormatBigInt<P> {
+  return builderResult(id, {type: 'bigint', formatParams});
 }
 
 /** A native-`Date` field builder — returns the branded `FormatDate`. **/
-export function date<const P extends FormatParams_NativeDate = Record<string, never>>(formatParams: P = {} as P): FormatDate<P> {
-  return {type: 'date', formatParams} as unknown as FormatDate<P>;
+export function date<const P extends FormatParams_NativeDate = Record<string, never>>(
+  formatParams: P = {} as P,
+  id?: InjectRunTypeId<FormatDate<P>>
+): FormatDate<P> {
+  return builderResult(id, {type: 'date', formatParams});
 }
 
 /** A boolean field builder — no params, returns plain `boolean`. **/
-export function boolean(): boolean {
-  return {type: 'boolean', formatParams: {}} as unknown as boolean;
+export function boolean(id?: InjectRunTypeId<boolean>): boolean {
+  return builderResult(id, {type: 'boolean', formatParams: {}});
 }
 
 // `temporalBuilder` — shared factory for the 6 temporal builders below. Each
@@ -196,8 +223,10 @@ interface TemporalFormatByTag<P extends MinMax> {
   'temporal.plainYearMonth': FormatTemporalPlainYearMonth<P>;
 }
 function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag) {
-  return <const P extends MinMax = Record<string, never>>(formatParams: P = {} as P): TemporalFormatByTag<P>[Tag] =>
-    ({type: tag, formatParams}) as unknown as TemporalFormatByTag<P>[Tag];
+  return <const P extends MinMax = Record<string, never>>(
+    formatParams: P = {} as P,
+    id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
+  ): TemporalFormatByTag<P>[Tag] => builderResult(id, {type: tag, formatParams});
 }
 
 /** Temporal field builders, namespaced to mirror the `Temporal.X` API
@@ -222,6 +251,15 @@ export function optional<const F>(field: F): {readonly __opt: F} {
 
 /** Unwraps the `{__opt}` carrier back to the field's branded format type. **/
 type ValOf<F> = F extends {__opt: infer Inner} ? Inner : F;
+
+/** The model type `object(C)` produces — required keys keep their brand,
+ *  `{__opt}`-carried keys become optional and are unwrapped via `ValOf`. Shared
+ *  by `object`'s return type and its `InjectRunTypeId<…>` marker param. **/
+type ModelOf<C> = {
+  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? never : K]: C[K];
+} & {
+  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? K : never]?: ValOf<C[K]>;
+};
 
 // ──────────── Config↔type bridge (RETAINED, off the forward path) ───────────
 //
@@ -307,14 +345,10 @@ export type ModelType<C extends ModelConfig> = {
  *  `readonly`, and unwraps the carrier via `ValOf` — so `typeof object({...})`
  *  IS the model type, with no further mapping.
  *
- *  Runtime (transitional, Tier 1): identity (`config` cast). Tier 2 makes it an
- *  injectable marker returning the live composite RunType for the whole model. **/
-export function object<const C extends Record<string, unknown>>(
-  config: C
-): {
-  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? never : K]: C[K];
-} & {
-  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? K : never]?: ValOf<C[K]>;
-} {
-  return config as never;
+ *  An injectable marker (Tier 2): standalone it returns the live composite
+ *  RunType for the whole model (the same node the type compiler produces); the
+ *  nested field builders are skipped by the scanner and their carriers are
+ *  discarded here. **/
+export function object<const C extends Record<string, unknown>>(config: C, id?: InjectRunTypeId<ModelOf<C>>): ModelOf<C> {
+  return builderResult(id, config);
 }
