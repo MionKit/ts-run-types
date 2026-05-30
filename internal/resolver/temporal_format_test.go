@@ -110,6 +110,9 @@ func TestTemporalFormat_ParamValidation(t *testing.T) {
 		{"gt/lt relative ok", "PlainDate", "temporalPlainDate", `{gt: 'now-P1Y'; lt: 'now+P1Y'}`, false, ""},
 		{"lt relative time rejected on date", "PlainDate", "temporalPlainDate", `{lt: 'now+PT1H'}`, true, "time components"},
 		{"instant gt relative date rejected", "Instant", "temporalInstant", `{gt: 'now+P1D'}`, true, "date components"},
+		// inclusive⊕exclusive: a bound edge is one or the other.
+		{"min + gt rejected", "PlainDate", "temporalPlainDate", `{min: '2020-01-01'; gt: '2020-02-01'}`, true, "both `min` and `gt`"},
+		{"max + lt rejected", "PlainDate", "temporalPlainDate", `{max: '2020-12-01'; lt: '2020-11-01'}`, true, "both `max` and `lt`"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

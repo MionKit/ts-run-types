@@ -174,7 +174,9 @@ func TestNativeDate_ParamValidation(t *testing.T) {
 		{"bad absolute literal", `{min: 'not-a-date'}`, true},
 		{"gt/lt exclusive ok", `{gt: '2020-01-01T00:00:00'; lt: '2020-12-31T23:59:59'}`, false},
 		{"gt > lt rejected", `{gt: '2020-12-31T00:00:00'; lt: '2020-01-01T00:00:00'}`, true},
-		{"all four ok", `{min: '2020-01-01T00:00:00'; gt: '2020-02-01T00:00:00'; lt: '2020-11-01T00:00:00'; max: '2020-12-01T00:00:00'}`, false},
+		{"min + gt rejected (XOR)", `{min: '2020-01-01T00:00:00'; gt: '2020-02-01T00:00:00'}`, true},
+		{"max + lt rejected (XOR)", `{max: '2020-12-01T00:00:00'; lt: '2020-11-01T00:00:00'}`, true},
+		{"min + lt distinct edges ok", `{min: '2020-01-01T00:00:00'; lt: '2020-11-01T00:00:00'}`, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

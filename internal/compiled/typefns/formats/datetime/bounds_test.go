@@ -124,9 +124,10 @@ func TestValidateMinMax_Ordering(t *testing.T) {
 	}
 }
 
-// TestValidateMinMax_LtGtOrdering covers the exclusive bounds (gt/lt) and
-// every lower-vs-upper ordering pair: gt>lt, min>lt, gt>max all error;
-// combining all four in order is fine (no exclusivity).
+// TestValidateMinMax_LtGtOrdering covers the exclusive bounds (gt/lt): the
+// lower×upper ordering pairs (gt>lt, min>lt, gt>max all error) AND the
+// inclusive⊕exclusive mutual-exclusivity (min+gt, max+lt rejected — a bound
+// edge is one or the other, never both).
 func TestValidateMinMax_LtGtOrdering(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -138,7 +139,11 @@ func TestValidateMinMax_LtGtOrdering(t *testing.T) {
 		{"gt == lt err", map[string]any{"gt": "2020-01-01", "lt": "2020-01-01"}, false}, // equal isn't "greater than"
 		{"min > lt err", map[string]any{"min": "2020-06-01", "lt": "2020-01-01"}, true},
 		{"gt > max err", map[string]any{"gt": "2020-06-01", "max": "2020-01-01"}, true},
-		{"all four in order ok", map[string]any{"min": "2020-01-01", "gt": "2020-02-01", "lt": "2020-11-01", "max": "2020-12-01"}, false},
+		// inclusive⊕exclusive: a lower (or upper) edge can't be both.
+		{"min + gt rejected", map[string]any{"min": "2020-01-01", "gt": "2020-02-01"}, true},
+		{"max + lt rejected", map[string]any{"max": "2020-12-01", "lt": "2020-11-01"}, true},
+		{"min + lt ok (distinct edges)", map[string]any{"min": "2020-01-01", "lt": "2020-11-01"}, false},
+		{"gt + max ok (distinct edges)", map[string]any{"gt": "2020-02-01", "max": "2020-12-01"}, false},
 		{"gt invalid literal err", map[string]any{"gt": "08:30"}, true},
 		{"lt relative date-only ok", map[string]any{"lt": "now+P1Y"}, false},
 		{"lt relative time-on-date err", map[string]any{"lt": "now+PT1H"}, true},

@@ -234,11 +234,11 @@ func integerType(params map[string]any) integerKind {
 }
 
 // ValidateParams ports mion's NumberRunTypeFormat.validateParams
-// (numberFormat.runtype.ts:234-283) to the build-time AOT path, MINUS the
-// {min,gt}/{max,lt} mutual exclusivity (all four bounds may coexist — see
-// the note in the body). Returns one message per violation (surfaced as
-// CodeFMTInvalidParams). A `0` bound is falsy in mion and so escapes the
-// ordering checks — replicated here via the explicit non-zero guards.
+// (numberFormat.runtype.ts:234-283) to the build-time AOT path. Returns
+// one message per violation (surfaced as CodeFMTInvalidParams). The
+// `[x, y].filter(Boolean)` mutual-exclusivity / range checks are kept
+// mion-faithful: a `0` bound is falsy in mion and so escapes these
+// checks — replicated here via numberTruthy for byte-for-byte parity.
 func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []string {
 	if annotation == nil {
 		return nil
@@ -252,10 +252,17 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 		errs = append(errs, "NumberFormat: cannot specify both `integer` and `float`")
 	}
 
-	// NOTE: unlike mion, `min`/`gt` (and `max`/`lt`) are NOT mutually
-	// exclusive — all four bounds may coexist and simply AND at runtime,
-	// matching the date-format family's "allow all combinations" rule. Only
-	// inversion of a lower-vs-upper pair is rejected (below).
+	// A lower bound is EITHER inclusive (`min`) OR exclusive (`gt`), never
+	// both — they express the same edge two ways, so specifying both is
+	// always redundant (one silently dominates). Same for the upper bound
+	// (`max`/`lt`). Uniform across number / bigint / date families.
+	if numberTruthy(params, "min")+numberTruthy(params, "gt") > 1 {
+		errs = append(errs, "NumberFormat: cannot specify more than one of `min` or `gt`")
+	}
+	if numberTruthy(params, "max")+numberTruthy(params, "lt") > 1 {
+		errs = append(errs, "NumberFormat: cannot specify more than one of `max` or `lt`")
+	}
+
 	min, hasMin := readNumberParam(params, "min")
 	max, hasMax := readNumberParam(params, "max")
 	if hasMin && min != 0 && hasMax && max != 0 && min > max {
@@ -278,4 +285,13 @@ func (numberFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotation)
 		}
 	}
 	return errs
+}
+
+// numberTruthy returns 1 when the param is present AND its value is
+// non-zero (mion's `[…].filter(Boolean)` drops 0), else 0.
+func numberTruthy(params map[string]any, key string) int {
+	if value, ok := readNumberParam(params, key); ok && value != 0 {
+		return 1
+	}
+	return 0
 }

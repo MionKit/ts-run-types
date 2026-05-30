@@ -80,9 +80,10 @@ func valueKeyExpr(ctx formats.EmitContext, vλl string, kind boundKind, layout s
 
 // boundOps is the ordered set of bound params and the operator the value
 // must satisfy to PASS. min/max are inclusive (>= / <=); gt/lt are the
-// exclusive twins (> / <), mirroring the numeric format family. All four
-// AND together — a value annotated with several bounds must satisfy every
-// one (there is no min⊕gt / max⊕lt exclusivity; see ValidateParams).
+// exclusive twins (> / <), mirroring the numeric format family. Whatever
+// bounds survive validation AND together — at most one lower (min XOR gt)
+// and one upper (max XOR lt), since the same edge can't be both (rejected
+// in ValidateParams).
 var boundOps = []struct {
 	key string
 	op  string
