@@ -1,15 +1,18 @@
-# Value-first builders → RunType-construct / marker refactor (FUTURE)
+# Value-first builders → RunType-construct / marker refactor
 
-> **Status: proposed, NOT scheduled.** This documents a future refactor of the
-> `@mionjs/ts-go-run-types/define` package. Nothing here is implemented yet. The
-> scope is deliberately narrow: **port the existing `define` functions onto a
-> new authoring model** where each builder returns its branded format type
-> directly (and can optionally become an injectable marker), taking the
-> `FieldConfig` / `FieldFormatMap` / `ModelType` mapping layer off the _forward
-> authoring path_ (it is retained as a bidirectional bridge once the Tier-3
-> inverse is in scope — see [§ Tier 3](#tier-3--runtype--typed-model-reflectmodel-the-inverse-direction)).
-> No new format families, no composition (array/union/tuple) — those stay out of
-> scope exactly as today (see [value-first-formats.md](value-first-formats.md)).
+> **Status: IMPLEMENTED (Tiers 1–3).** This refactor of the
+> `@mionjs/ts-go-run-types/define` package has shipped: each builder returns its
+> branded format type directly (Tier 1), is an injectable marker that resolves to
+> the live RunType node (Tier 2), and the inverse `reflectModel<T>()` (Tier 3)
+> reconstructs a discriminated runtime model from the RunType. The
+> `FieldConfig` / `FieldFormatMap` / `ModelType` mapping layer is off the
+> _forward authoring path_ and retained as the bidirectional bridge
+> (`ModelType<C>` ⇄ `ModelConfigOf<T>` — see
+> [§ Tier 3](#tier-3--runtype--typed-model-reflectmodel-the-inverse-direction)).
+> No new format families, no composition (array/union/tuple) — those stayed out
+> of scope (see [value-first-formats.md](value-first-formats.md)). The text below
+> is the original design spec, kept as the rationale of record; the "FUTURE" /
+> "proposed" framing throughout predates the implementation.
 
 ## TL;DR
 
