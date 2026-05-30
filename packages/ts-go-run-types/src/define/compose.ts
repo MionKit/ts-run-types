@@ -126,10 +126,26 @@ export function intersection<A, B = unknown, C = unknown, D = unknown, E = unkno
   return builderResult(id, {type: 'intersection', children: [a, b, c, d, e, f, g, h]});
 }
 
-/** A record / string-index-signature builder — `record(number())` →
- *  `RunType<Record<string, number>>` (i.e. `{[k: string]: number}`). **/
-export function record<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Record<string, V>>): RunType<Record<string, V>> {
-  return builderResult(id, {type: 'record', child: valueSchema});
+/** A record / index-signature builder. Two forms:
+ *   - Value-only: `record(number())` → `RunType<Record<string, number>>`
+ *     (`{[k: string]: number}`) — the key defaults to `string`.
+ *   - Key + value: `record(templateLiteral(['api/', string()]), number())` → a
+ *     `Record` whose key is the template-literal pattern the key schema carries.
+ *     The key schema's type `K` (any `string | number` subtype, incl. a
+ *     template-literal pattern) becomes the index-signature key. **/
+export function record<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Record<string, V>>): RunType<Record<string, V>>;
+export function record<K extends string | number, V>(
+  keySchema: RunType<K>,
+  valueSchema: RunType<V>,
+  id?: InjectRunTypeId<Record<K, V>>
+): RunType<Record<K, V>>;
+export function record(arg1: RunType, arg2?: RunType | InjectRunTypeId<unknown>, arg3?: InjectRunTypeId<unknown>): RunType {
+  // A RunType OBJECT second arg is the (key, value) form; a string (injected id) or
+  // undefined is the value-only form (key defaults to string).
+  if (typeof arg2 === 'object' && arg2 !== null) {
+    return builderResult(arg3, {type: 'record', index: arg1, child: arg2 as RunType});
+  }
+  return builderResult(arg2 as InjectRunTypeId<unknown> | undefined, {type: 'record', child: arg1});
 }
 
 /** A `Map` builder — `map(string(), number())` → `RunType<Map<string, number>>`.
@@ -164,21 +180,49 @@ export function promise<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Promise
   return builderResult(id, {type: 'promise', child: valueSchema});
 }
 
-/** A function builder — `func()` → `RunType<() => void>`; `func([string(),
- *  number()], boolean())` → `RunType<(a: string, b: number) => boolean>`. The
- *  params list maps to the call signature via `MapTuple` (rest-tuple form, so
- *  `(...args: [string, number])` ≡ `(a: string, b: number)`); `ret` defaults to
- *  `void`. Function values aren't serialisable, so the validator a function
- *  lowers to depends on POSITION: a function-typed object property is skipped
- *  entirely, a function at a tuple slot must be `undefined`, and a top-level
- *  function passes a `typeof === 'function'` gate. The builder exists so those
- *  shapes can be authored value-first. **/
+/** A function builder. Two param forms:
+ *   - Array: `func([string(), number()], boolean())` →
+ *            `RunType<(a: string, b: number) => boolean>` — each element is a
+ *            positional param RunType, mapped via `MapTuple` (rest-tuple form, so
+ *            `(...args: [string, number])` ≡ `(a: string, b: number)`).
+ *   - Tuple: `func(tuple([number()], [string()]), date())` →
+ *            `RunType<(a: number, b?: string) => Date>` — a single params-TUPLE
+ *            RunType, so optional/rest params ride the `tuple()` builder.
+ *  `func()` → `RunType<() => void>`; `ret` defaults to `void`. Function values
+ *  aren't serialisable, so the validator a function lowers to depends on POSITION:
+ *  a function-typed object property is skipped entirely, a function at a tuple slot
+ *  must be `undefined`, and a top-level function passes a `typeof === 'function'`
+ *  gate. The builder exists so those shapes can be authored value-first. **/
 export function func<P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
   params?: readonly [...P],
   ret?: R,
   id?: InjectRunTypeId<(...args: MapTuple<P>) => TypeFromRT<R>>
-): RunType<(...args: MapTuple<P>) => TypeFromRT<R>> {
-  return builderResult(id, {type: 'function', parameters: params ?? [], return: ret});
+): RunType<(...args: MapTuple<P>) => TypeFromRT<R>>;
+export function func<T extends readonly unknown[], R extends RunType = RunType<void>>(
+  paramsTuple: RunType<T>,
+  ret?: R,
+  id?: InjectRunTypeId<(...args: T) => TypeFromRT<R>>
+): RunType<(...args: T) => TypeFromRT<R>>;
+export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType, id?: InjectRunTypeId<unknown>): RunType {
+  // An ARRAY first arg is the array form (a list of positional param RunTypes); a
+  // RunType OBJECT first arg is the tuple form (a single params-tuple RunType whose
+  // carried T is the param tuple — lets optional/rest params be authored via
+  // tuple()). The carrier `parameters` is not walked for root function schemas.
+  const parameters = Array.isArray(paramsOrTuple) ? paramsOrTuple : (paramsOrTuple ?? []);
+  return builderResult(id, {type: 'function', parameters, return: ret});
+}
+
+/** A `Parameters<F>` builder — `parameters(func([number(), boolean()], string()))`
+ *  → `RunType<[number, boolean]>`. Takes a function run-type and yields its
+ *  parameter tuple (exactly the tuple `Parameters<F>` denotes), so a function's
+ *  parameters can be validated as a first-class tuple. The function rides the
+ *  carrier; the brand `Parameters<F>` (an ordinary tuple type) drives the id and
+ *  reflects through the existing tuple path. **/
+export function parameters<F extends (...args: any[]) => any>(
+  fnRt: RunType<F>,
+  id?: InjectRunTypeId<Parameters<F>>
+): RunType<Parameters<F>> {
+  return builderResult(id, {type: 'parameters', child: fnRt});
 }
 
 /** A template-literal part: a string-literal segment or a `RunType` placeholder. **/

@@ -72,6 +72,7 @@ export {
   promise,
   lazy,
   func,
+  parameters,
   templateLiteral,
   type MapTuple,
   type TemplatePart,
