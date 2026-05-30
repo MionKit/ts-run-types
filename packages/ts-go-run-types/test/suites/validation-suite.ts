@@ -9588,6 +9588,13 @@ export const VALIDATION_SUITE = {
           | {kind: 'triangle'; base: number; height: number};
         return createIsType<Exclude<Shape, {kind: 'circle'}>>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.object({kind: RT.literal('square'), x: RT.number()}),
+            RT.object({kind: RT.literal('triangle'), base: RT.number(), height: RT.number()}),
+          ])
+        ),
       deserializeIsType: () => {
         type Shape =
           | {kind: 'circle'; radius: number}
@@ -10194,6 +10201,7 @@ export const VALIDATION_SUITE = {
         const config = {url: 'http://example.com', port: 8080};
         return createIsType<typeof config>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({url: RT.string(), port: RT.number()})),
       deserializeIsType: () => {
         const config = {url: 'http://example.com', port: 8080};
         return deserializeIsType<typeof config>();
@@ -10422,6 +10430,8 @@ export const VALIDATION_SUITE = {
         type Nullable<T> = {[K in keyof T]: T[K] | null};
         return createIsType<Nullable<Source>>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})),
       deserializeIsType: () => {
         interface Source {
           a: string;
@@ -10547,6 +10557,14 @@ export const VALIDATION_SUITE = {
         type UserForm = {[K in keyof User]: FieldFor<User[K]>};
         return createIsType<UserForm>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.object({
+            name: RT.object({kind: RT.literal('text'), value: RT.string()}),
+            age: RT.object({kind: RT.literal('number'), value: RT.number(), min: RT.optional(RT.number())}),
+            admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
+          })
+        ),
       deserializeIsType: () => {
         type FieldFor<T> = T extends string
           ? {kind: 'text'; value: string}
@@ -10773,6 +10791,7 @@ export const VALIDATION_SUITE = {
         type Wrap<T> = T extends any ? {w: T} : never;
         return createIsType<Wrap<string | number>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
       deserializeIsType: () => {
         type Wrap<T> = T extends any ? {w: T} : never;
         return deserializeIsType<Wrap<string | number>>();
@@ -10842,6 +10861,18 @@ export const VALIDATION_SUITE = {
         type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
         return createIsType<DeepPartial<Settings>>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.object({
+            display: RT.optional(
+              RT.object({
+                theme: RT.optional(RT.union([RT.literal('light'), RT.literal('dark')])),
+                brightness: RT.optional(RT.number()),
+              })
+            ),
+            audio: RT.optional(RT.object({volume: RT.optional(RT.number()), muted: RT.optional(RT.boolean())})),
+          })
+        ),
       deserializeIsType: () => {
         interface Settings {
           display: {theme: 'light' | 'dark'; brightness: number};
