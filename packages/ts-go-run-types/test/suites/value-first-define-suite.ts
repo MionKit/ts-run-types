@@ -3,18 +3,19 @@
 // (`@mionjs/ts-go-run-types/define`). Sibling of validation-suite.ts /
 // format-validation-suite.ts.
 //
-// Each model is authored with `defineObject({...})` and the validator is built from
-// `RT.ModelType<typeof Model>` through the SAME `createIsType` / createGetTypeErrors
-// path as the type-first surface — proving the value-first front-end lowers to
-// the identical RunType graph (convergence is asserted directly in
-// vite-plugin-runtypes/test/value-first.test.ts via same-hash equality).
+// Each model is authored with `RT.object({...})`; because each builder returns
+// its branded format type, `typeof Model` IS the model type and is fed straight
+// to `createIsType` / `createGetTypeErrors` — the SAME path as the type-first
+// surface, proving the value-first front-end lowers to the identical RunType
+// graph (same-hash convergence is asserted in
+// test/adapters/valueFirstConvergence.test.ts).
 //
 // Per the CLAUDE.md marker-coverage rule every case carries BOTH forms:
-//   - static  `createIsType<RT.ModelType<typeof Model>>()`
+//   - static  `createIsType<typeof Model>()`
 //   - reflect `createIsType(value)` where `value` is a runtime object whose
-//     declared type is `RT.ModelType<typeof Model>` (the format brand can't be
-//     constructed from a plain literal, so the value is cast — it is discarded
-//     at runtime, only its static type drives `T` inference).
+//     declared type is `typeof Model` (the format brand can't be constructed
+//     from a plain literal, so the value is cast — it is discarded at runtime,
+//     only its static type drives `T` inference).
 //
 // The bare `import '@mionjs/ts-go-run-types/define'` is type-only here; the
 // `import '@mionjs/ts-go-run-types/formats'` side-effect import is load-bearing
@@ -127,7 +128,7 @@ const NOW = Date.now();
 export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
   flat_mixed: {
     title: 'flat model — string/number/date constraints across many fields',
-    isType: () => createIsType<RT.ModelType<typeof UserModel>>(),
+    isType: () => createIsType<typeof UserModel>(),
     isTypeReflect: () => {
       const v = {
         username: 'alice',
@@ -139,10 +140,10 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         ratio: 1.5,
         level: 10,
         bornBefore: new Date(NOW - 1000),
-      } as unknown as RT.ModelType<typeof UserModel>;
+      } as unknown as typeof UserModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof UserModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof UserModel>(),
     deserializeIsTypeReflect: () => {
       const v = {
         username: 'alice',
@@ -154,10 +155,10 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         ratio: 1.5,
         level: 10,
         bornBefore: new Date(NOW - 1000),
-      } as unknown as RT.ModelType<typeof UserModel>;
+      } as unknown as typeof UserModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof UserModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof UserModel>(),
     getSamples: () => ({
       valid: [
         {
@@ -262,17 +263,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   string_features: {
     title: 'string fields — length / minLength / maxLength / allowedValues',
-    isType: () => createIsType<RT.ModelType<typeof StringModel>>(),
+    isType: () => createIsType<typeof StringModel>(),
     isTypeReflect: () => {
-      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as RT.ModelType<typeof StringModel>;
+      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as typeof StringModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof StringModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof StringModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as RT.ModelType<typeof StringModel>;
+      const v = {short: 'ab', long: 'abc', exact: 'ABCD', pick: 'red'} as unknown as typeof StringModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof StringModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof StringModel>(),
     getSamples: () => ({
       valid: [
         {short: '', long: 'abc', exact: 'ABCD', pick: 'red'},
@@ -289,21 +290,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   number_features: {
     title: 'number fields — bounds / exclusive / integer / float / multipleOf',
-    isType: () => createIsType<RT.ModelType<typeof NumberModel>>(),
+    isType: () => createIsType<typeof NumberModel>(),
     isTypeReflect: () => {
-      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as RT.ModelType<
-        typeof NumberModel
-      >;
+      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as typeof NumberModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof NumberModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof NumberModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as RT.ModelType<
-        typeof NumberModel
-      >;
+      const v = {bounded: 5, exclusive: 5, whole: 3, fractional: 1.5, divisible: 9} as unknown as typeof NumberModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof NumberModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof NumberModel>(),
     getSamples: () => ({
       valid: [
         {bounded: 0, exclusive: 1, whole: 3, fractional: 1.5, divisible: 0},
@@ -321,21 +318,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   date_bounds: {
     title: 'date fields — relative now bound + absolute window',
-    isType: () => createIsType<RT.ModelType<typeof DateModel>>(),
+    isType: () => createIsType<typeof DateModel>(),
     isTypeReflect: () => {
-      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as RT.ModelType<
-        typeof DateModel
-      >;
+      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as typeof DateModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof DateModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof DateModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as RT.ModelType<
-        typeof DateModel
-      >;
+      const v = {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')} as unknown as typeof DateModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof DateModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof DateModel>(),
     getSamples: () => ({
       valid: [
         {past: new Date(NOW - 1000), window: new Date('2025-06-01T00:00:00')},
@@ -351,17 +344,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   regex_patterns: {
     title: 'regex — inline /…/, {source,flags}, and registerFormatPattern, all via the value channel',
-    isType: () => createIsType<RT.ModelType<typeof RegexModel>>(),
+    isType: () => createIsType<typeof RegexModel>(),
     isTypeReflect: () => {
-      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as RT.ModelType<typeof RegexModel>;
+      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as typeof RegexModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof RegexModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof RegexModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as RT.ModelType<typeof RegexModel>;
+      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as typeof RegexModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof RegexModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof RegexModel>(),
     getSamples: () => ({
       valid: [
         {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'},
@@ -377,17 +370,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   optional_fields: {
     title: 'optional — `RT.optional(...)` fields may be absent; present ones validate',
-    isType: () => createIsType<RT.ModelType<typeof OptionalModel>>(),
+    isType: () => createIsType<typeof OptionalModel>(),
     isTypeReflect: () => {
-      const v = {id: 'AB12'} as unknown as RT.ModelType<typeof OptionalModel>;
+      const v = {id: 'AB12'} as unknown as typeof OptionalModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof OptionalModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof OptionalModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {id: 'AB12'} as unknown as RT.ModelType<typeof OptionalModel>;
+      const v = {id: 'AB12'} as unknown as typeof OptionalModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof OptionalModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof OptionalModel>(),
     getSamples: () => ({
       valid: [
         {id: 'AB12'}, // both optionals absent
@@ -404,17 +397,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   scalars: {
     title: 'scalars — boolean (no params) + bigint (bigint-valued bounds)',
-    isType: () => createIsType<RT.ModelType<typeof ScalarModel>>(),
+    isType: () => createIsType<typeof ScalarModel>(),
     isTypeReflect: () => {
-      const v = {active: true, count: 5n, even: 4n} as unknown as RT.ModelType<typeof ScalarModel>;
+      const v = {active: true, count: 5n, even: 4n} as unknown as typeof ScalarModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof ScalarModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof ScalarModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {active: true, count: 5n, even: 4n} as unknown as RT.ModelType<typeof ScalarModel>;
+      const v = {active: true, count: 5n, even: 4n} as unknown as typeof ScalarModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof ScalarModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof ScalarModel>(),
     getSamples: () => ({
       valid: [
         {active: true, count: 0n, even: 0n},
@@ -431,17 +424,17 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   temporal: {
     title: 'temporal — Instant (min bound) + optional PlainDate (max bound)',
-    isType: () => createIsType<RT.ModelType<typeof TemporalModel>>(),
+    isType: () => createIsType<typeof TemporalModel>(),
     isTypeReflect: () => {
-      const v = {at: Temporal.Now.instant()} as unknown as RT.ModelType<typeof TemporalModel>;
+      const v = {at: Temporal.Now.instant()} as unknown as typeof TemporalModel;
       return createIsType(v);
     },
-    deserializeIsType: () => deserializeIsType<RT.ModelType<typeof TemporalModel>>(),
+    deserializeIsType: () => deserializeIsType<typeof TemporalModel>(),
     deserializeIsTypeReflect: () => {
-      const v = {at: Temporal.Now.instant()} as unknown as RT.ModelType<typeof TemporalModel>;
+      const v = {at: Temporal.Now.instant()} as unknown as typeof TemporalModel;
       return deserializeIsType(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RT.ModelType<typeof TemporalModel>>(),
+    getTypeErrors: () => createGetTypeErrors<typeof TemporalModel>(),
     getSamples: () => ({
       valid: [
         {at: Temporal.Instant.from('2021-06-15T00:00:00Z')}, // after min, day absent
@@ -458,25 +451,23 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
 
   nested: {
     title: 'nested — value-first models composed inside a parent object',
-    isType: () => createIsType<{profile: RT.ModelType<typeof ProfileModel>; settings: RT.ModelType<typeof SettingsModel>}>(),
+    isType: () => createIsType<{profile: typeof ProfileModel; settings: typeof SettingsModel}>(),
     isTypeReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
-        profile: RT.ModelType<typeof ProfileModel>;
-        settings: RT.ModelType<typeof SettingsModel>;
+        profile: typeof ProfileModel;
+        settings: typeof SettingsModel;
       };
       return createIsType(v);
     },
-    deserializeIsType: () =>
-      deserializeIsType<{profile: RT.ModelType<typeof ProfileModel>; settings: RT.ModelType<typeof SettingsModel>}>(),
+    deserializeIsType: () => deserializeIsType<{profile: typeof ProfileModel; settings: typeof SettingsModel}>(),
     deserializeIsTypeReflect: () => {
       const v = {profile: {name: 'abc'}, settings: {theme: 'dark'}} as unknown as {
-        profile: RT.ModelType<typeof ProfileModel>;
-        settings: RT.ModelType<typeof SettingsModel>;
+        profile: typeof ProfileModel;
+        settings: typeof SettingsModel;
       };
       return deserializeIsType(v);
     },
-    getTypeErrors: () =>
-      createGetTypeErrors<{profile: RT.ModelType<typeof ProfileModel>; settings: RT.ModelType<typeof SettingsModel>}>(),
+    getTypeErrors: () => createGetTypeErrors<{profile: typeof ProfileModel; settings: typeof SettingsModel}>(),
     getSamples: () => ({
       valid: [
         {profile: {name: 'abc'}, settings: {theme: 'dark'}},

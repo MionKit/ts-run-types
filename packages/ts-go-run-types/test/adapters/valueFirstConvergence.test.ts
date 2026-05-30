@@ -1,8 +1,9 @@
 // Value-first ⇄ type-first convergence — the JS analog of the Go-side
-// `TestAtomic_FormEquivalence`. Asserts that a `RT.ModelType<typeof Model>`
-// derived from an `RT.object({...})` builder model resolves to the SAME precompiled
-// validator (same structural id → same cached factory identity) as the
-// hand-written type-first `{field: Format*<P>}` equivalent.
+// `TestAtomic_FormEquivalence`. Asserts that the branded `typeof Model` of an
+// `RT.object({...})` builder model resolves to the SAME precompiled validator
+// (same structural id → same cached factory identity) as the hand-written
+// type-first `{field: Format*<P>}` equivalent — builders return the brand, so
+// `typeof Model` needs no `ModelType<…>` mapping.
 //
 // `createIsType` returns the cached `RTCompiledFn` for a runtype id, so
 // `toBe` (reference identity) is a hash-equality assertion: two different
@@ -66,30 +67,30 @@ type TemporalFirstTF = {
 
 describe('value-first / convergence with type-first', () => {
   it('string model converges to the same validator', () => {
-    expect(createIsType<RT.ModelType<typeof StringFirst>>()).toBe(createIsType<StringFirstTF>());
+    expect(createIsType<typeof StringFirst>()).toBe(createIsType<StringFirstTF>());
   });
 
   it('number model converges to the same validator', () => {
-    expect(createIsType<RT.ModelType<typeof NumberFirst>>()).toBe(createIsType<NumberFirstTF>());
+    expect(createIsType<typeof NumberFirst>()).toBe(createIsType<NumberFirstTF>());
   });
 
   it('date model converges to the same validator', () => {
-    expect(createIsType<RT.ModelType<typeof DateFirst>>()).toBe(createIsType<DateFirstTF>());
+    expect(createIsType<typeof DateFirst>()).toBe(createIsType<DateFirstTF>());
   });
 
   it('inline regex converges with the type-first {source,flags} form', () => {
-    expect(createIsType<RT.ModelType<typeof RegexFirst>>()).toBe(createIsType<RegexFirstTF>());
+    expect(createIsType<typeof RegexFirst>()).toBe(createIsType<RegexFirstTF>());
   });
 
   it('optional field converges with a type-first optional property', () => {
-    expect(createIsType<RT.ModelType<typeof OptionalFirst>>()).toBe(createIsType<OptionalFirstTF>());
+    expect(createIsType<typeof OptionalFirst>()).toBe(createIsType<OptionalFirstTF>());
   });
 
   it('boolean + bigint fields converge with type-first', () => {
-    expect(createIsType<RT.ModelType<typeof ScalarFirst>>()).toBe(createIsType<ScalarFirstTF>());
+    expect(createIsType<typeof ScalarFirst>()).toBe(createIsType<ScalarFirstTF>());
   });
 
   it('temporal fields converge with type-first FormatTemporal*', () => {
-    expect(createIsType<RT.ModelType<typeof TemporalFirst>>()).toBe(createIsType<TemporalFirstTF>());
+    expect(createIsType<typeof TemporalFirst>()).toBe(createIsType<TemporalFirstTF>());
   });
 });

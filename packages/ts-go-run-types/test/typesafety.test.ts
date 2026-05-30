@@ -16,6 +16,7 @@
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
 import * as RT from '../src/define/index.ts';
+import type {FormatString, FormatNumber} from '../src/formats/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -104,6 +105,29 @@ function assertionsValueFirstDefine(): void {
     digits: RT.string({pattern: {source: '^[0-9]+$', flags: ''}}),
   });
   void _okRegex;
+
+  // Return type IS the branded format (not the old `{type, formatParams}`
+  // config). Builders return the brand directly, so `typeof Model` is the type.
+  const _s: FormatString<{maxLength: 5}> = RT.string({maxLength: 5});
+  const _n: FormatNumber<{min: 0}> = RT.number({min: 0});
+  const _b: boolean = RT.boolean();
+  void _s;
+  void _n;
+  void _b;
+
+  // @ts-expect-error — the result is the brand, NOT the old `{type, formatParams}`
+  // config object the first version returned.
+  const _notConfig: {type: 'string'; formatParams: {maxLength: 5}} = RT.string({maxLength: 5});
+  void _notConfig;
+
+  // A bare `optional(...)` outside `object` is well-defined — it yields the
+  // `{__opt}` carrier (which `object` unwraps). The carrier is NOT itself a
+  // usable format brand, so it can't leak into a reflected position.
+  const _carrier: {readonly __opt: FormatNumber<{min: 0}>} = RT.optional(RT.number({min: 0}));
+  void _carrier;
+  // @ts-expect-error — the `{__opt}` carrier is not assignable to the bare format.
+  const _carrierLeak: FormatNumber<{min: 0}> = RT.optional(RT.number({min: 0}));
+  void _carrierLeak;
 
   // Cross-family param misuse is caught at the BUILDER CALL — each builder
   // types its own params arg, so the bad key errors locally (no exclusive-union
