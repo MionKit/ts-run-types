@@ -2650,6 +2650,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<ReturnType<typeof makeUser>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({id: RT.number(), name: RT.string()})),
       deserializeIsType: () => {
         function makeUser(): {id: number; name: string} {
           return {id: 1, name: 'john'};
@@ -2662,6 +2663,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<ReturnType<typeof makeUser>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({id: RT.number(), name: RT.string()})),
       deserializeGetTypeErrors: () => {
         function makeUser(): {id: number; name: string} {
           return {id: 1, name: 'john'};
@@ -4623,6 +4625,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Child>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({a: RT.string(), b: RT.number()})),
       deserializeIsType: () => {
         interface Base {
           a: string;
@@ -4661,6 +4664,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Child>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({a: RT.string(), b: RT.number()})),
       deserializeGetTypeErrors: () => {
         interface Base {
           a: string;
@@ -10829,6 +10833,7 @@ export const VALIDATION_SUITE = {
         type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
         return createIsType<Prefixed<Source>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({user_id: RT.number(), user_name: RT.string()})),
       deserializeIsType: () => {
         interface Source {
           id: number;
@@ -10863,6 +10868,7 @@ export const VALIDATION_SUITE = {
         type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
         return createGetTypeErrors<Prefixed<Source>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({user_id: RT.number(), user_name: RT.string()})),
       deserializeGetTypeErrors: () => {
         interface Source {
           id: number;
@@ -10944,6 +10950,7 @@ export const VALIDATION_SUITE = {
         type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
         return createIsType<MongoForm<Source>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
       deserializeIsType: () => {
         interface Source {
           id: number;
@@ -10982,6 +10989,7 @@ export const VALIDATION_SUITE = {
         type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
         return createGetTypeErrors<MongoForm<Source>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
       deserializeGetTypeErrors: () => {
         interface Source {
           id: number;
@@ -11067,6 +11075,7 @@ export const VALIDATION_SUITE = {
         type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
         return createIsType<Public<Source>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({id: RT.number(), name: RT.string()})),
       deserializeIsType: () => {
         interface Source {
           id: number;
@@ -11105,6 +11114,7 @@ export const VALIDATION_SUITE = {
         type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
         return createGetTypeErrors<Public<Source>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({id: RT.number(), name: RT.string()})),
       deserializeGetTypeErrors: () => {
         interface Source {
           id: number;
