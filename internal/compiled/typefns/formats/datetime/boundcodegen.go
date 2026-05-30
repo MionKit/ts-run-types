@@ -78,61 +78,75 @@ func valueKeyExpr(ctx formats.EmitContext, vλl string, kind boundKind, layout s
 		timeAlias + "(" + vλl + ".substring(dtp+1),'ISO'))(" + vλl + ".indexOf(" + split + "))"
 }
 
-// boundIsTypeChecks returns the AND-able expression for the min/max
-// comparisons, or "" when neither bound is set. The value is converted
-// once per comparison (cheap; the JS engine can CSE identical calls).
+// boundOps is the ordered set of bound params and the operator the value
+// must satisfy to PASS. min/max are inclusive (>= / <=); gt/lt are the
+// exclusive twins (> / <), mirroring the numeric format family. All four
+// AND together — a value annotated with several bounds must satisfy every
+// one (there is no min⊕gt / max⊕lt exclusivity; see ValidateParams).
+var boundOps = []struct {
+	key string
+	op  string
+}{
+	{"min", ">="},
+	{"max", "<="},
+	{"gt", ">"},
+	{"lt", "<"},
+}
+
+// boundIsTypeChecks returns the AND-able expression for the min/max/gt/lt
+// comparisons, or "" when no bound is set. The value is converted once
+// (cheap; the JS engine can CSE identical calls).
 func boundIsTypeChecks(ctx formats.EmitContext, params map[string]any, vλl string, kind boundKind, layout string) string {
-	minExpr, hasMin := boundExpr(ctx, params, "min", kind, layout)
-	maxExpr, hasMax := boundExpr(ctx, params, "max", kind, layout)
-	if !hasMin && !hasMax {
-		return ""
-	}
-	valueKey := valueKeyExpr(ctx, vλl, kind, layout)
+	return boundIsTypeChecksFromKey(ctx, params, valueKeyExpr(ctx, vλl, kind, layout), kind, layout)
+}
+
+// boundIsTypeChecksFromKey is boundIsTypeChecks with a caller-supplied
+// value key expression — used by the native Date emitter, whose value key
+// is the Date's getTime() rather than a parsed string.
+func boundIsTypeChecksFromKey(ctx formats.EmitContext, params map[string]any, valueKey string, kind boundKind, layout string) string {
 	var checks string
-	if hasMin {
-		checks = "(" + valueKey + " >= " + minExpr + ")"
-	}
-	if hasMax {
-		maxCheck := "(" + valueKey + " <= " + maxExpr + ")"
+	for _, bound := range boundOps {
+		expr, has := boundExpr(ctx, params, bound.key, kind, layout)
+		if !has {
+			continue
+		}
+		check := "(" + valueKey + " " + bound.op + " " + expr + ")"
 		if checks == "" {
-			checks = maxCheck
+			checks = check
 		} else {
-			checks = checks + " && " + maxCheck
+			checks = checks + " && " + check
 		}
 	}
 	return checks
 }
 
-// boundTypeErrorChecks emits error-push statements (one per failed
-// bound), tagging formatPath ['min'] / ['max'].
+// boundTypeErrorChecks emits error-push statements (one per failed bound),
+// tagging formatPath ['min'] / ['max'] / ['gt'] / ['lt'].
 func boundTypeErrorChecks(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string, kind boundKind, layout string) string {
-	minExpr, hasMin := boundExpr(ctx, params, "min", kind, layout)
-	maxExpr, hasMax := boundExpr(ctx, params, "max", kind, layout)
-	if !hasMin && !hasMax {
-		return ""
-	}
-	valueKey := valueKeyExpr(ctx, vλl, kind, layout)
-	var stmts string
-	appendStmt := func(s string) {
-		if stmts == "" {
-			stmts = s
-		} else {
-			stmts = stmts + ";" + s
-		}
-	}
 	expected := "string"
 	if kind == dateTimeKind && fmtName == "nativeDate" {
 		expected = "Date"
 	}
-	if hasMin {
-		minVal, _ := stringParam(params, "min")
-		appendStmt("if (!(" + valueKey + " >= " + minExpr + ")) " +
-			formatErrCall(pathExpr, errorsArr, expected, fmtName, "min", strconv.Quote(minVal)))
-	}
-	if hasMax {
-		maxVal, _ := stringParam(params, "max")
-		appendStmt("if (!(" + valueKey + " <= " + maxExpr + ")) " +
-			formatErrCall(pathExpr, errorsArr, expected, fmtName, "max", strconv.Quote(maxVal)))
+	return boundTypeErrorChecksFromKey(ctx, params, valueKeyExpr(ctx, vλl, kind, layout), pathExpr, errorsArr, expected, fmtName, kind, layout)
+}
+
+// boundTypeErrorChecksFromKey is boundTypeErrorChecks with a
+// caller-supplied value key expression (native Date passes getTime()).
+func boundTypeErrorChecksFromKey(ctx formats.EmitContext, params map[string]any, valueKey, pathExpr, errorsArr, expected, fmtName string, kind boundKind, layout string) string {
+	var stmts string
+	for _, bound := range boundOps {
+		expr, has := boundExpr(ctx, params, bound.key, kind, layout)
+		if !has {
+			continue
+		}
+		boundVal, _ := stringParam(params, bound.key)
+		stmt := "if (!(" + valueKey + " " + bound.op + " " + expr + ")) " +
+			formatErrCall(pathExpr, errorsArr, expected, fmtName, bound.key, strconv.Quote(boundVal))
+		if stmts == "" {
+			stmts = stmt
+		} else {
+			stmts = stmts + ";" + stmt
+		}
 	}
 	return stmts
 }

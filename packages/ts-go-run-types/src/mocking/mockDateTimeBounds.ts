@@ -159,12 +159,14 @@ function timeLiteralToMs(value: string, layout: TimeFmt): number {
   const parts = body.split(':');
   if (layout === 'HH:mm') return Number(parts[0]) * MS_PER_HOUR + Number(parts[1]) * MS_PER_MIN;
   if (layout === 'mm:ss') return Number(parts[0]) * MS_PER_MIN + Number(parts[1]) * MS_PER_SEC;
-  // HH:mm:ss, HH:mm:ss[.mmm], ISO — three segments
-  const secParts = parts[2].split('.');
+  // HH:mm:ss, HH:mm:ss[.mmm], ISO — three segments. The seconds segment may
+  // be absent when a dateTime bound's time half uses a coarser layout (e.g.
+  // an 'HH:mm' time joined under a dateTime literal parsed leniently as ISO).
+  const secParts = (parts[2] ?? '').split('.');
   return (
     Number(parts[0]) * MS_PER_HOUR +
     Number(parts[1]) * MS_PER_MIN +
-    Number(secParts[0]) * MS_PER_SEC +
+    (secParts[0] ? Number(secParts[0]) : 0) * MS_PER_SEC +
     (secParts[1] ? Number(secParts[1]) : 0)
   );
 }
@@ -277,42 +279,97 @@ function timeMaxMs(layout: TimeFmt): number {
   }
 }
 
+// timeGridMs is the smallest representable step for a time layout — used as
+// the exclusive-bound nudge so a `gt`/`lt` bound excludes its own
+// grid-aligned value (e.g. `gt: '08:00'` on `HH:mm` starts at 08:01).
+function timeGridMs(layout: TimeFmt): number {
+  switch (layout) {
+    case 'HH':
+      return MS_PER_HOUR;
+    case 'mm':
+    case 'HH:mm':
+      return MS_PER_MIN;
+    case 'ss':
+    case 'mm:ss':
+    case 'HH:mm:ss':
+      return MS_PER_SEC;
+    default: // ISO / HH:mm:ss[.mmm](TZ) — millisecond resolution
+      return 1;
+  }
+}
+
+// ─────────────────────── bound set → inclusive range ───────────────────────
+// The four bounds (min/max inclusive, gt/lt exclusive) collapse to one
+// inclusive [lo, hi] key range. min/gt set the lower edge, max/lt the upper;
+// the exclusive twins are nudged inward by one `grid` step (the smallest
+// representable unit on the value's scale) so a strictly-greater/less bound
+// excludes its own key. The tightest edge wins when several are present.
+
+// MinMax-shaped bound inputs, already string|undefined.
+interface BoundInputs {
+  min?: string;
+  max?: string;
+  gt?: string;
+  lt?: string;
+}
+
+// resolveRange collapses the bound set to [lo, hi] inclusive keys. `resolve`
+// maps a bound string to its key on the scale; defaultLo/defaultHi back the
+// absent edges; grid is one representable step for the exclusive nudge.
+function resolveRange(
+  bounds: BoundInputs,
+  resolve: (bound: string) => number,
+  defaultLo: number,
+  defaultHi: number,
+  grid: number
+): {lo: number; hi: number} {
+  let lo = defaultLo;
+  let hi = defaultHi;
+  if (bounds.min !== undefined) lo = Math.max(lo, resolve(bounds.min));
+  if (bounds.gt !== undefined) lo = Math.max(lo, resolve(bounds.gt) + grid);
+  if (bounds.max !== undefined) hi = Math.min(hi, resolve(bounds.max));
+  if (bounds.lt !== undefined) hi = Math.min(hi, resolve(bounds.lt) - grid);
+  // Guard against an inverted range (a contradictory or relative-clock
+  // bound set) — collapse to the lower edge so randInt stays well-defined.
+  if (hi < lo) hi = lo;
+  return {lo, hi};
+}
+
 // ───────────────────────────── public builders ─────────────────────────────
 
-// mockBoundedDate returns a date string in `layout` within [min, max] (each
-// optional, absolute literal or relative now±P).
-export function mockBoundedDate(layout: DateFmt, min: string | undefined, max: string | undefined): string {
-  const minMs = min !== undefined ? resolveDateKey(min, layout) : DATE_MIN_MS;
-  const maxMs = max !== undefined ? resolveDateKey(max, layout) : DATE_MAX_MS;
-  const lo = Math.min(minMs, maxMs);
-  const hi = Math.max(minMs, maxMs);
+// mockBoundedDate returns a date string in `layout` within the bound set
+// (each bound optional, absolute literal or relative now±P).
+export function mockBoundedDate(layout: DateFmt, bounds: BoundInputs): string {
+  const {lo, hi} = resolveRange(bounds, (b) => resolveDateKey(b, layout), DATE_MIN_MS, DATE_MAX_MS, MS_PER_DAY);
   return formatDate(randInt(lo, hi), layout);
 }
 
-// mockBoundedTime returns a time string in `layout` within [min, max].
-export function mockBoundedTime(layout: TimeFmt, min: string | undefined, max: string | undefined): string {
-  const minMs = min !== undefined ? resolveTimeKey(min, layout) : 0;
-  const maxMs = max !== undefined ? resolveTimeKey(max, layout) : timeMaxMs(layout);
-  const lo = Math.min(minMs, maxMs);
-  const hi = Math.max(minMs, maxMs);
+// mockBoundedTime returns a time string in `layout` within the bound set.
+// The grid step is the layout's smallest representable unit so an exclusive
+// bound excludes its own grid-aligned value.
+export function mockBoundedTime(layout: TimeFmt, bounds: BoundInputs): string {
+  const grid = timeGridMs(layout);
+  const {lo, hi} = resolveRange(bounds, (b) => resolveTimeKey(b, layout), 0, timeMaxMs(layout), grid);
   return formatTime(randInt(lo, hi), layout);
 }
 
 // mockBoundedDateTime returns a dateTime string honoring the nested layouts,
-// splitChar, and top-level min/max bounds.
+// splitChar, and top-level min/max/gt/lt bounds.
 export function mockBoundedDateTime(params: Partial<FormatParams_DateTime>): string {
   const dateLayout = (params.date?.format ?? 'ISO') as DateFmt;
   const timeLayout = (params.time?.format ?? 'ISO') as TimeFmt;
   const splitChar = params.splitChar ?? 'T';
-  const min = params.min;
-  const max = params.max;
-  if (min === undefined && max === undefined) {
-    return `${mockBoundedDate(dateLayout, undefined, undefined)}${splitChar}${mockBoundedTime(timeLayout, undefined, undefined)}`;
+  const bounds: BoundInputs = {min: params.min, max: params.max, gt: params.gt, lt: params.lt};
+  if (bounds.min === undefined && bounds.max === undefined && bounds.gt === undefined && bounds.lt === undefined) {
+    return `${mockBoundedDate(dateLayout, {})}${splitChar}${mockBoundedTime(timeLayout, {})}`;
   }
-  const minMs = min !== undefined ? resolveEpochKey(min, splitChar) : DATE_MIN_MS;
-  const maxMs = max !== undefined ? resolveEpochKey(max, splitChar) : DATE_MAX_MS + timeMaxMs(timeLayout);
-  const lo = Math.min(minMs, maxMs);
-  const hi = Math.max(minMs, maxMs);
+  const {lo, hi} = resolveRange(
+    bounds,
+    (b) => resolveEpochKey(b, splitChar),
+    DATE_MIN_MS,
+    DATE_MAX_MS + timeMaxMs(timeLayout),
+    timeGridMs(timeLayout)
+  );
   const pick = randInt(lo, hi);
   // Split the picked instant into a UTC-midnight date part + the remaining
   // time-of-day, format each in its layout. Truncation to each layout grid is
@@ -323,12 +380,10 @@ export function mockBoundedDateTime(params: Partial<FormatParams_DateTime>): str
   return `${formatDate(dayMs, dateLayout)}${splitChar}${formatTime(timeOfDay, timeLayout)}`;
 }
 
-// mockBoundedNativeDate returns a Date within [min, max] for FormatDate. The
-// scale is full UTC epoch ms (no truncation needed — a Date holds the value).
-export function mockBoundedNativeDate(min: string | undefined, max: string | undefined): Date {
-  const minMs = min !== undefined ? resolveEpochKey(min, 'T') : DATE_MIN_MS;
-  const maxMs = max !== undefined ? resolveEpochKey(max, 'T') : Date.now();
-  const lo = Math.min(minMs, maxMs);
-  const hi = Math.max(minMs, maxMs);
+// mockBoundedNativeDate returns a Date within the bound set for FormatDate.
+// The scale is full UTC epoch ms; the exclusive grid step is 1 ms (a Date's
+// resolution).
+export function mockBoundedNativeDate(bounds: BoundInputs): Date {
+  const {lo, hi} = resolveRange(bounds, (b) => resolveEpochKey(b, 'T'), DATE_MIN_MS, Date.now(), 1);
   return new Date(randInt(lo, hi));
 }

@@ -193,32 +193,59 @@ func restrictComponents(parsed relativeDuration, paramName string, kind boundKin
 	return nil
 }
 
-// validateMinMax validates both bounds and, when both are absolute and
-// comparable, that min <= max. Relative-vs-anything ordering can't be
-// resolved statically (it depends on the runtime clock), so it is
-// skipped — each bound is still individually validated.
+// validateMinMax validates the min/max/gt/lt bounds individually and, when
+// a pair is both absolute and comparable, their ordering. min/max are
+// inclusive, gt/lt the exclusive twins; all four may coexist (no min⊕gt /
+// max⊕lt exclusivity — they simply AND at runtime). Ordering checked
+// statically: `min`/`gt` (lower) must not exceed `max`/`lt` (upper).
+// Relative-vs-anything ordering can't be resolved statically (it depends on
+// the runtime clock), so those pairs are skipped — each bound is still
+// individually validated.
 func validateMinMax(params map[string]any, kind boundKind, layout string) []string {
 	var errs []string
-	minStr, hasMin := stringParam(params, "min")
-	maxStr, hasMax := stringParam(params, "max")
-	if hasMin {
-		errs = append(errs, validateBound(minStr, "min", kind, layout)...)
+	for _, key := range []string{"min", "max", "gt", "lt"} {
+		if bound, has := stringParam(params, key); has {
+			errs = append(errs, validateBound(bound, key, kind, layout)...)
+		}
 	}
-	if hasMax {
-		errs = append(errs, validateBound(maxStr, "max", kind, layout)...)
+	if len(errs) != 0 {
+		return errs
 	}
-	if hasMin && hasMax && len(errs) == 0 {
-		if _, minRel, _ := parseRelative(minStr); !minRel {
-			if _, maxRel, _ := parseRelative(maxStr); !maxRel {
-				if minCmp, okMin := comparableLiteral(minStr, kind, layout); okMin {
-					if maxCmp, okMax := comparableLiteral(maxStr, kind, layout); okMax && minCmp > maxCmp {
-						errs = append(errs, prefix(kind)+": `min` "+strconv.Quote(minStr)+" cannot be greater than `max` "+strconv.Quote(maxStr))
-					}
-				}
+	// Lower bound (min or gt) must not exceed upper bound (max or lt).
+	lowerKeys := []string{"min", "gt"}
+	upperKeys := []string{"max", "lt"}
+	for _, lowerKey := range lowerKeys {
+		for _, upperKey := range upperKeys {
+			if msg := orderingErr(params, kind, layout, lowerKey, upperKey); msg != "" {
+				errs = append(errs, msg)
 			}
 		}
 	}
 	return errs
+}
+
+// orderingErr returns a "cannot be greater than" message when lowerKey and
+// upperKey are both present, both absolute literals, comparable, and the
+// lower exceeds the upper. Empty otherwise (absent, relative, or in order).
+func orderingErr(params map[string]any, kind boundKind, layout, lowerKey, upperKey string) string {
+	lowerStr, hasLower := stringParam(params, lowerKey)
+	upperStr, hasUpper := stringParam(params, upperKey)
+	if !hasLower || !hasUpper {
+		return ""
+	}
+	if _, lowerRel, _ := parseRelative(lowerStr); lowerRel {
+		return ""
+	}
+	if _, upperRel, _ := parseRelative(upperStr); upperRel {
+		return ""
+	}
+	lowerCmp, okLower := comparableLiteral(lowerStr, kind, layout)
+	upperCmp, okUpper := comparableLiteral(upperStr, kind, layout)
+	if !okLower || !okUpper || lowerCmp <= upperCmp {
+		return ""
+	}
+	return prefix(kind) + ": `" + lowerKey + "` " + strconv.Quote(lowerStr) +
+		" cannot be greater than `" + upperKey + "` " + strconv.Quote(upperStr)
 }
 
 func prefix(kind boundKind) string {

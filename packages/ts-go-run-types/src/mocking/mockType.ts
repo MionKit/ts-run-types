@@ -175,8 +175,19 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
         // mock re-passes isType. Falls back to the global mock-option range
         // when the type carries no nativeDate format annotation.
         const dateParams = runType.formatAnnotation?.name === 'nativeDate' ? runType.formatAnnotation.params : undefined;
-        if (dateParams && (dateParams.min !== undefined || dateParams.max !== undefined)) {
-          return mockBoundedNativeDate(dateParams.min as string | undefined, dateParams.max as string | undefined);
+        if (
+          dateParams &&
+          (dateParams.min !== undefined ||
+            dateParams.max !== undefined ||
+            dateParams.gt !== undefined ||
+            dateParams.lt !== undefined)
+        ) {
+          return mockBoundedNativeDate({
+            min: dateParams.min as string | undefined,
+            max: dateParams.max as string | undefined,
+            gt: dateParams.gt as string | undefined,
+            lt: dateParams.lt as string | undefined,
+          });
         }
         return mockDate(mOps.minDate, mOps.maxDate);
       }

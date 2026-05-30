@@ -61,7 +61,7 @@ func (e temporalFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotat
 		return nil
 	}
 	var errs []string
-	for _, key := range []string{"min", "max"} {
+	for _, key := range []string{"min", "max", "gt", "lt"} {
 		bound, ok := stringParam(annotation.Params, key)
 		if !ok || bound == "" {
 			continue
@@ -78,6 +78,19 @@ func (e temporalFormatEmitter) ValidateParams(annotation *protocol.FormatAnnotat
 		errs = append(errs, restrictComponents(parsed, key, e.relBoundKind())...)
 	}
 	return errs
+}
+
+// temporalBoundOps maps each bound param to the sign the static `compare`
+// result must satisfy to PASS: min `>= 0`, max `<= 0`, gt `> 0`, lt `< 0`.
+// All four AND together (no exclusivity — see the numeric/date families).
+var temporalBoundOps = []struct {
+	key string
+	op  string
+}{
+	{"min", ">="},
+	{"max", "<="},
+	{"gt", ">"},
+	{"lt", "<"},
 }
 
 // temporalTitle renders the user-facing format name for diagnostics, e.g.
@@ -115,11 +128,10 @@ func (e temporalFormatEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnota
 		return ""
 	}
 	var checks []string
-	if minBound, ok := stringParam(annotation.Params, "min"); ok && minBound != "" {
-		checks = append(checks, "("+e.boundCompare(vλl, minBound, ">=")+")")
-	}
-	if maxBound, ok := stringParam(annotation.Params, "max"); ok && maxBound != "" {
-		checks = append(checks, "("+e.boundCompare(vλl, maxBound, "<=")+")")
+	for _, bound := range temporalBoundOps {
+		if value, ok := stringParam(annotation.Params, bound.key); ok && value != "" {
+			checks = append(checks, "("+e.boundCompare(vλl, value, bound.op)+")")
+		}
 	}
 	return strings.Join(checks, " && ")
 }
@@ -129,13 +141,11 @@ func (e temporalFormatEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAn
 		return ""
 	}
 	var stmts []string
-	if minBound, ok := stringParam(annotation.Params, "min"); ok && minBound != "" {
-		stmts = append(stmts, "if (!("+e.boundCompare(vλl, minBound, ">=")+")) "+
-			formatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, "min", strconv.Quote(minBound)))
-	}
-	if maxBound, ok := stringParam(annotation.Params, "max"); ok && maxBound != "" {
-		stmts = append(stmts, "if (!("+e.boundCompare(vλl, maxBound, "<=")+")) "+
-			formatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, "max", strconv.Quote(maxBound)))
+	for _, bound := range temporalBoundOps {
+		if value, ok := stringParam(annotation.Params, bound.key); ok && value != "" {
+			stmts = append(stmts, "if (!("+e.boundCompare(vλl, value, bound.op)+")) "+
+				formatErrCall(pathExpr, errorsArr, e.info.Builtin, e.info.FormatName, bound.key, strconv.Quote(value)))
+		}
 	}
 	return strings.Join(stmts, ";")
 }
