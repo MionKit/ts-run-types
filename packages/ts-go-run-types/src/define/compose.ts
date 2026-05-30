@@ -104,6 +104,19 @@ export function set<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Set<V>>): R
   return builderResult(id, {type: 'set', child: valueSchema});
 }
 
+/** A lazy / recursive reference — defers a self-referential schema so a circular
+ *  type can name itself before its `const` is initialised:
+ *
+ *    interface Node { value: number; next: Node | null; }
+ *    const Node: RunType<Node> = object({value: number(), next: union([lazy(() => Node), literal(null)])});
+ *
+ *  Always nested inside another composer, so the scanner skips it (the enclosing
+ *  marker reflects the whole circular shape off its brand); the thunk exists only
+ *  to break the value-level self-reference cycle and to carry `T` for inference. **/
+export function lazy<T>(thunk: () => RunType<T>, id?: InjectRunTypeId<T>): RunType<T> {
+  return builderResult(id, {type: 'lazy', thunk});
+}
+
 /** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.
  *  Validates the thenable shape (the resolved value type is not checked at
  *  runtime — a pending promise's value isn't available synchronously). **/
