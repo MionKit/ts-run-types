@@ -27,6 +27,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsAcceptUnknown).toBe('function');
   expect(typeof assertionsValueFirstDefine).toBe('function');
   expect(typeof assertionsComposers).toBe('function');
+  expect(typeof assertionsNewBuilders).toBe('function');
 });
 
 // Runtime contract: the markers throw at runtime when no id is injected
@@ -242,4 +243,67 @@ function assertionsComposers(): void {
   // @ts-expect-error — the result is a `RunType<…>`, NOT the bare composed type.
   const _notBare: boolean[] = RT.array(RT.boolean());
   void _notBare;
+}
+
+function assertionsNewBuilders(): void {
+  // Top / bottom atomic builders carry exactly their kind.
+  const _any: RunType<any> = RT.any();
+  const _unk: RunType<unknown> = RT.unknown();
+  const _nev: RunType<never> = RT.never();
+  const _voi: RunType<void> = RT.void();
+  void _any;
+  void _unk;
+  void _nev;
+  void _voi;
+
+  // 3-arg tuple: the SECOND array is the trailing OPTIONAL elements
+  // (`Partial<MapTuple<O>>` → each `?`); a third RunType is the rest element.
+  const _tupOpt: RunType<[number, bigint?, boolean?]> = RT.tuple([RT.number()], [RT.bigint(), RT.boolean()]);
+  const _tupOptRest: RunType<[number, bigint?, ...string[]]> = RT.tuple([RT.number()], [RT.bigint()], RT.string());
+  void _tupOpt;
+  void _tupOptRest;
+
+  // func(): ret defaults to void. The wired cases use no typed params (function
+  // values lower per position); `func([], any())` is the `() => any` form that
+  // tuple_with_non_serializable and interface_with_method author. (A typed-param
+  // func carries each leaf's format brand on its param — fine for the scanner,
+  // but not asserted as plain primitives here.)
+  const _fn0: RunType<() => void> = RT.func();
+  const _fnAny: RunType<() => any> = RT.func([], RT.any());
+  void _fn0;
+  void _fnAny;
+
+  // classType(C): recovers the class's nominal instance type off the ctor.
+  class _Point {
+    x = 0;
+    y = 0;
+  }
+  const _cls: RunType<_Point> = RT.classType(_Point);
+  void _cls;
+
+  // regexp(/literal/): the TS type stays RegExp (source+flags precision is a
+  // scanner concern); regexp() with no arg is the same RegExp type.
+  const _reLit: RunType<RegExp> = RT.regexp(/abc/i);
+  void _reLit;
+
+  // templateLiteral: produces a REAL template-literal type that must converge
+  // with the PLAIN type-first `${number}`. The UNANNOTATED builder type is
+  // checked BOTH directions — the reverse (plain `number` → builder type) is the
+  // regression guard for the format-brand leak (`Unbrand`): a branded placeholder
+  // would reject plain `number` and fail here. A positive annotated assignment
+  // alone would NOT catch it (branded ⊆ plain).
+  const _tplBuilt = RT.templateLiteral(['api/user/', RT.number()]);
+  const _tplFwd = (x: TypeFromRT<typeof _tplBuilt>): `api/user/${number}` => x;
+  const _tplRev = (x: `api/user/${number}`): TypeFromRT<typeof _tplBuilt> => x;
+  void _tplBuilt;
+  void _tplFwd;
+  void _tplRev;
+
+  // Union + literal placeholders distribute exactly like the type-first form.
+  const _tplUni: RunType<`${'a' | 'b'}-${number}`> = RT.templateLiteral([
+    RT.union([RT.literal('a'), RT.literal('b')]),
+    '-',
+    RT.number(),
+  ]);
+  void _tplUni;
 }
