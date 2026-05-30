@@ -3685,6 +3685,8 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
       isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(RT.intersection(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
       deserializeIsType: () => deserializeIsType<{(a: number, b: boolean): string; extra: string}>(),
       isTypeReflect: () => {
         const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
@@ -3705,6 +3707,8 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(RT.intersection(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
       getTypeErrorsReflect: () => {
         const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
