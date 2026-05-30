@@ -9,6 +9,9 @@
 package all
 
 import (
+	// Date / time / dateTime / native-Date emitters. JS-side mirrors live
+	// under `packages/ts-go-run-types/src/formats/datetime/`.
+	_ "github.com/mionkit/ts-run-types/internal/compiled/typefns/formats/datetime"
 	// Numeric-family emitters (numberFormat + bigintFormat). JS-side
 	// mirrors live at `packages/ts-go-run-types/src/formats/numberFormats.ts`
 	// and `bigintFormats.ts`. One import registers both via their init()s.
