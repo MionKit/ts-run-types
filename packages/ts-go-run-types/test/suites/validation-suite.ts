@@ -6245,6 +6245,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
       isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.object({type: RT.literal('a'), prop: RT.boolean()}),
+            RT.object({type: RT.literal('b'), prop: RT.number()}),
+            RT.object({type: RT.literal('c'), prop: RT.string()}),
+          ])
+        ),
       deserializeIsType: () =>
         deserializeIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
       isTypeReflect: () => {
@@ -6263,6 +6271,14 @@ export const VALIDATION_SUITE = {
       },
       getTypeErrors: () =>
         createGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.object({type: RT.literal('a'), prop: RT.boolean()}),
+            RT.object({type: RT.literal('b'), prop: RT.number()}),
+            RT.object({type: RT.literal('c'), prop: RT.string()}),
+          ])
+        ),
       deserializeGetTypeErrors: () =>
         deserializeGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
       getTypeErrorsReflect: () => {
@@ -6322,6 +6338,17 @@ export const VALIDATION_SUITE = {
         "mion union.spec.ts 'Union Mixed' — arrays and objects in the same union; the OR-chain dispatches on shape (Array.isArray vs object typeof).",
       isType: () =>
         createIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.array(RT.string()),
+            RT.array(RT.number()),
+            RT.array(RT.boolean()),
+            RT.object({a: RT.string(), aa: RT.boolean()}),
+            RT.object({b: RT.number()}),
+            RT.object({c: RT.bigint(), aa: RT.literal('string')}),
+          ])
+        ),
       deserializeIsType: () =>
         deserializeIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
       isTypeReflect: () => {
@@ -6344,6 +6371,17 @@ export const VALIDATION_SUITE = {
         createGetTypeErrors<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
         >(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.array(RT.string()),
+            RT.array(RT.number()),
+            RT.array(RT.boolean()),
+            RT.object({a: RT.string(), aa: RT.boolean()}),
+            RT.object({b: RT.number()}),
+            RT.object({c: RT.bigint(), aa: RT.literal('string')}),
+          ])
+        ),
       deserializeGetTypeErrors: () =>
         deserializeGetTypeErrors<
           string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
@@ -6649,6 +6687,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<SmallObj | LargeObj>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
       deserializeIsType: () => {
         interface SmallObj {
           a: string;
@@ -6691,6 +6730,8 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<SmallObj | LargeObj>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
       deserializeGetTypeErrors: () => {
         interface SmallObj {
           a: string;
@@ -6779,6 +6820,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Tiny | Medium | Large>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.object({x: RT.string()}),
+            RT.object({x: RT.string(), y: RT.number()}),
+            RT.object({x: RT.string(), y: RT.number(), z: RT.boolean()}),
+          ])
+        ),
       deserializeIsType: () => {
         interface Tiny {
           x: string;
@@ -6841,6 +6890,14 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Tiny | Medium | Large>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.object({x: RT.string()}),
+            RT.object({x: RT.string(), y: RT.number()}),
+            RT.object({x: RT.string(), y: RT.number(), z: RT.boolean()}),
+          ])
+        ),
       deserializeGetTypeErrors: () => {
         interface Tiny {
           x: string;
@@ -6953,6 +7010,14 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Base | Extended | Unrelated>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.object({id: RT.string()}),
+            RT.object({id: RT.string(), name: RT.string()}),
+            RT.object({value: RT.number()}),
+          ])
+        ),
       deserializeIsType: () => {
         interface Base {
           id: string;
@@ -7007,6 +7072,14 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Base | Extended | Unrelated>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.object({id: RT.string()}),
+            RT.object({id: RT.string(), name: RT.string()}),
+            RT.object({value: RT.number()}),
+          ])
+        ),
       deserializeGetTypeErrors: () => {
         interface Base {
           id: string;
