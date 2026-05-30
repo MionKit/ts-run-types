@@ -20,6 +20,38 @@ const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
 }
 `
 
+// temporalDTS is a minimal ambient `Temporal` namespace so snippets can
+// reference Temporal.PlainDate etc. Mirrors the SHAPE of
+// internal/testfixtures/temporal.d.ts (interface X + const X: XConstructor).
+// Always overlaid by setupInline under the test cwd, like runtypesDTS.
+const temporalDTS = `declare namespace Temporal {
+  interface Instant { readonly epochMilliseconds: number; readonly epochNanoseconds: bigint; toJSON(): string; equals(o: Instant): boolean; }
+  interface InstantConstructor { from(item: Instant | string): Instant; fromEpochMilliseconds(ms: number): Instant; compare(a: Instant, b: Instant): number; prototype: Instant; }
+  const Instant: InstantConstructor;
+  interface ZonedDateTime { readonly epochNanoseconds: bigint; readonly timeZoneId: string; toJSON(): string; equals(o: ZonedDateTime | string): boolean; }
+  interface ZonedDateTimeConstructor { from(item: ZonedDateTime | string): ZonedDateTime; compare(a: ZonedDateTime, b: ZonedDateTime): number; prototype: ZonedDateTime; }
+  const ZonedDateTime: ZonedDateTimeConstructor;
+  interface PlainDate { readonly year: number; readonly month: number; readonly day: number; toJSON(): string; equals(o: PlainDate | string): boolean; }
+  interface PlainDateConstructor { from(item: PlainDate | string): PlainDate; compare(a: PlainDate, b: PlainDate): number; prototype: PlainDate; }
+  const PlainDate: PlainDateConstructor;
+  interface PlainTime { readonly hour: number; readonly minute: number; readonly second: number; toJSON(): string; equals(o: PlainTime | string): boolean; }
+  interface PlainTimeConstructor { from(item: PlainTime | string): PlainTime; compare(a: PlainTime, b: PlainTime): number; prototype: PlainTime; }
+  const PlainTime: PlainTimeConstructor;
+  interface PlainDateTime { readonly year: number; readonly month: number; readonly day: number; toJSON(): string; equals(o: PlainDateTime | string): boolean; }
+  interface PlainDateTimeConstructor { from(item: PlainDateTime | string): PlainDateTime; compare(a: PlainDateTime, b: PlainDateTime): number; prototype: PlainDateTime; }
+  const PlainDateTime: PlainDateTimeConstructor;
+  interface PlainYearMonth { readonly year: number; readonly month: number; toJSON(): string; equals(o: PlainYearMonth | string): boolean; }
+  interface PlainYearMonthConstructor { from(item: PlainYearMonth | string): PlainYearMonth; compare(a: PlainYearMonth, b: PlainYearMonth): number; prototype: PlainYearMonth; }
+  const PlainYearMonth: PlainYearMonthConstructor;
+  interface PlainMonthDay { readonly monthCode: string; readonly day: number; toJSON(): string; equals(o: PlainMonthDay | string): boolean; }
+  interface PlainMonthDayConstructor { from(item: PlainMonthDay | string): PlainMonthDay; prototype: PlainMonthDay; }
+  const PlainMonthDay: PlainMonthDayConstructor;
+  interface Duration { readonly years: number; readonly seconds: number; toJSON(): string; }
+  interface DurationConstructor { from(item: Duration | string): Duration; compare(a: Duration, b: Duration): number; prototype: Duration; }
+  const Duration: DurationConstructor;
+}
+`
+
 // setupInline builds a Resolver over an in-memory overlay of TypeScript
 // sources. Mirrors withInlineSources in helpers/inline.ts so Go tests can
 // keep their snippet right next to the assertions instead of jumping to a
@@ -32,6 +64,11 @@ func setupInline(t *testing.T, sources map[string]string) *resolver.Resolver {
 	if _, ok := sources["runtypes.d.ts"]; !ok {
 		abs := tspath.ResolvePath(cwd, "runtypes.d.ts")
 		overlay[abs] = runtypesDTS
+		fileNames = append(fileNames, abs)
+	}
+	if _, ok := sources["temporal.d.ts"]; !ok {
+		abs := tspath.ResolvePath(cwd, "temporal.d.ts")
+		overlay[abs] = temporalDTS
 		fileNames = append(fileNames, abs)
 	}
 	for rel, code := range sources {
