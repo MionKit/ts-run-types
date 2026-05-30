@@ -258,17 +258,16 @@ export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
   return builderResult(id, {type: 'void', formatParams: {}});
 }
 
-/** A class builder — `classType(MyClass)` → `RunType<InstanceType<typeof
- *  MyClass>>` (≡ `RunType<MyClass>`). Recovers the class's nominal instance type
- *  off the constructor passed in, so it converges with the type-first
- *  `createIsType<MyClass>()`. isType matches by SHAPE (data properties; methods
- *  skipped), NOT `instanceof` — a plain object of the right shape passes. For a
- *  GENERIC class the instance type can be pinned explicitly
- *  (`classType<typeof Box, Box<number>>(Box)`); otherwise it defaults to the
- *  unparameterised `InstanceType<C>`. The ctor rides the carrier (the runtime
- *  keeps a real class reference). **/
-export function classType<C extends abstract new (...args: any[]) => any, Instance extends InstanceType<C> = InstanceType<C>>(
-  ctor: C,
+/** A class builder — `classType(MyClass)` → `RunType<MyClass>`. `Instance` infers
+ *  directly from the constructor's instance type, so it converges with the
+ *  type-first `createIsType<MyClass>()`. isType matches by SHAPE (data properties;
+ *  methods skipped), NOT `instanceof` — a plain object of the right shape passes.
+ *  For a GENERIC class the instance type is pinned explicitly
+ *  (`classType<Box<number>>(Box)`); otherwise it infers the unparameterised
+ *  instance. The ctor rides the carrier (the runtime keeps a real class
+ *  reference). **/
+export function classType<Instance>(
+  ctor: abstract new (...args: any[]) => Instance,
   id?: InjectRunTypeId<Instance>
 ): RunType<Instance> {
   return builderResult(id, {type: 'class', ctor});
