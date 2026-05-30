@@ -9695,6 +9695,8 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(RT.object({name: RT.string(), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())})),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -9729,6 +9731,8 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(RT.object({name: RT.string(), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())})),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
@@ -9806,6 +9810,7 @@ export const VALIDATION_SUITE = {
       title: 'Omit<T, K> preserves optionality of remaining props',
       description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
       isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      isTypeSchema: () => createIsTypeFor(RT.object({b: RT.optional(RT.number()), c: RT.boolean()})),
       deserializeIsType: () => deserializeIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
       isTypeReflect: () => {
         const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
@@ -9816,6 +9821,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({b: RT.optional(RT.number()), c: RT.boolean()})),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
       getTypeErrorsReflect: () => {
         const v: Omit<{a: string; b?: number; c: boolean}, 'a'> = {c: true};
@@ -9863,6 +9869,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<keyof Person>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -9897,6 +9904,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<keyof Person>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
@@ -10034,6 +10042,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Person['name']>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.string()),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -10064,6 +10073,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Person['name']>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.string()),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
@@ -10122,6 +10132,7 @@ export const VALIDATION_SUITE = {
         type IsString<T> = T extends string ? boolean : number;
         return createIsType<IsString<'hello'>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.boolean()),
       deserializeIsType: () => {
         type IsString<T> = T extends string ? boolean : number;
         return deserializeIsType<IsString<'hello'>>();
@@ -10140,6 +10151,7 @@ export const VALIDATION_SUITE = {
         type IsString<T> = T extends string ? boolean : number;
         return createGetTypeErrors<IsString<'hello'>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.boolean()),
       deserializeGetTypeErrors: () => {
         type IsString<T> = T extends string ? boolean : number;
         return deserializeGetTypeErrors<IsString<'hello'>>();
