@@ -16,12 +16,20 @@ import (
 // the Date's getTime() directly (see nativeDate.go) and so does NOT use
 // these string converters.
 
-// scaleFor returns the relativeNowKey scale arg for a bound kind.
+// scaleFor returns the relativeNowKey scale arg for a bound kind. Date
+// values are floored to UTC midnight (dateStrToMs), so a date relative
+// bound must floor `now` to midnight too ('epochDate') — otherwise a
+// value exactly "now-P1Y" (midnight) would fall below a bound that still
+// carries the current time-of-day. dateTime keeps the full instant.
 func scaleFor(kind boundKind) string {
-	if kind == timeKind {
+	switch kind {
+	case timeKind:
 		return "'timeOfDay'"
+	case dateKind:
+		return "'epochDate'"
+	default:
+		return "'epoch'"
 	}
-	return "'epoch'"
 }
 
 // boundExpr renders the JS expression a bound compares against: a baked
