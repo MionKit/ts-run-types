@@ -216,42 +216,45 @@ export function optional<const F extends FieldConfig>(field: F): F & {optional: 
 // generic `F extends FieldConfig` alone doesn't surface the key to `F[...]`).
 type ParamsOf<F extends {formatParams: unknown}> = F['formatParams'];
 
-/** Maps the 6 orderable temporal discriminators onto the `FormatTemporal*`
- *  aliases; returns `never` for non-temporal `F` so it composes as the
- *  fallthrough branch of `FieldType`. Passes `ParamsOf<F>` straight through —
- *  do NOT intersect `& MinMax` here: that re-injects the interface's optional
- *  `min?/max?/gt?/lt?: string | undefined`, and the scanner would read an unset
- *  bound as the literal type-string `"string | undefined"` and emit a broken
- *  `Temporal.X.compare(value, "string | undefined")`. The builder's own
- *  `P extends MinMax` already constrained the params at the call site. **/
-type TemporalFieldType<F extends FieldConfig> = F extends {type: 'temporal.instant'}
-  ? FormatTemporalInstant<ParamsOf<F>>
-  : F extends {type: 'temporal.zonedDateTime'}
-    ? FormatTemporalZonedDateTime<ParamsOf<F>>
-    : F extends {type: 'temporal.plainDate'}
-      ? FormatTemporalPlainDate<ParamsOf<F>>
-      : F extends {type: 'temporal.plainTime'}
-        ? FormatTemporalPlainTime<ParamsOf<F>>
-        : F extends {type: 'temporal.plainDateTime'}
-          ? FormatTemporalPlainDateTime<ParamsOf<F>>
-          : F extends {type: 'temporal.plainYearMonth'}
-            ? FormatTemporalPlainYearMonth<ParamsOf<F>>
-            : never;
+/** The discriminator → format-type lookup, keyed by the `type` tag every field
+ *  config carries and parameterized by that field's params `P`. Each entry is
+ *  the SAME branded format type the type-first surface produces, so a
+ *  builder-authored field converges on the same structural id as the
+ *  hand-written `Format*<P>` form. This replaces a long `F extends {type:'x'} ?
+ *  … : …` ladder with a flat dictionary — add a leaf format by adding ONE line
+ *  here (plus its field config + builder), not another nested branch.
+ *
+ *  `P` is passed STRAIGHT THROUGH to every entry — in particular the temporal
+ *  rows must NOT intersect `& MinMax`: that would re-inject the interface's
+ *  optional `min?/max?/gt?/lt?: string | undefined`, and the scanner would read
+ *  an unset bound as the literal type-string `"string | undefined"` and emit a
+ *  broken `Temporal.X.compare(value, "string | undefined")`. Each builder's own
+ *  `P extends …` constraint already validated the params at the call site.
+ *  `boolean` ignores `P` (it carries none). **/
+interface FieldFormatMap<P extends object> {
+  string: TypeFormat<string, 'stringFormat', P>;
+  number: TypeFormat<number, 'numberFormat', P>;
+  date: TypeFormat<Date, 'nativeDate', P>;
+  bigint: TypeFormat<bigint, 'bigintFormat', P>;
+  boolean: boolean;
+  // The temporal aliases constrain their params to `MinMax<string>`, stricter
+  // than the `object` bound above (and incompatible with number's `min:
+  // number`), so each row self-guards `P extends MinMax`. The guard NARROWS, it
+  // does not intersect — `P` flows through unchanged, so no spurious
+  // `min?/max? : string | undefined` is injected (see the params note above).
+  'temporal.instant': P extends MinMax ? FormatTemporalInstant<P> : never;
+  'temporal.zonedDateTime': P extends MinMax ? FormatTemporalZonedDateTime<P> : never;
+  'temporal.plainDate': P extends MinMax ? FormatTemporalPlainDate<P> : never;
+  'temporal.plainTime': P extends MinMax ? FormatTemporalPlainTime<P> : never;
+  'temporal.plainDateTime': P extends MinMax ? FormatTemporalPlainDateTime<P> : never;
+  'temporal.plainYearMonth': P extends MinMax ? FormatTemporalPlainYearMonth<P> : never;
+}
 
-/** Maps one field config to its branded format type via a conditional lookup
- *  on the `type` discriminator. Scalars resolve directly; the temporal
- *  discriminators fall through to `TemporalFieldType`. **/
-type FieldType<F extends FieldConfig> = F extends {type: 'string'}
-  ? TypeFormat<string, 'stringFormat', ParamsOf<F>>
-  : F extends {type: 'number'}
-    ? TypeFormat<number, 'numberFormat', ParamsOf<F>>
-    : F extends {type: 'date'}
-      ? TypeFormat<Date, 'nativeDate', ParamsOf<F>>
-      : F extends {type: 'bigint'}
-        ? TypeFormat<bigint, 'bigintFormat', ParamsOf<F>>
-        : F extends {type: 'boolean'}
-          ? boolean
-          : TemporalFieldType<F>;
+/** Maps one field config to its branded format type by indexing
+ *  `FieldFormatMap` with the field's `type` tag and its own params. The
+ *  `F extends FieldConfig ? …` wrapper distributes over a union `F` (each member
+ *  resolves with ITS own params), matching the old per-branch conditional. **/
+type FieldType<F extends FieldConfig> = F extends FieldConfig ? FieldFormatMap<ParamsOf<F>>[F['type']] : never;
 
 /** The type a value-first model represents — a flat mapped type over the
  *  config keys, each value resolved through `FieldType`. Feed it to any RT
