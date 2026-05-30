@@ -107,6 +107,18 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 		return computer.Compute(primary)
 	}
 
+	// Builtin-class × brand (`FormatDate<P>` → `Date & {brand}`): mirror
+	// the serialize-side splitBuiltinClassBrand so the id reflects the
+	// node's REAL shape — a Date class node + a format key — NOT an object
+	// literal whose members include the __rtFormatName/__rtFormatParams
+	// sentinels. Without this the id would encode the brand props as
+	// properties (inconsistent with the projected KindClass/SubKindDate
+	// node, and divergent from how an atomic format's id keeps the brand
+	// out of the member set).
+	if classMember, formatKey, ok := computer.splitBuiltinClassBrandID(objectMembers); ok {
+		return computer.Compute(classMember) + formatKey
+	}
+
 	if len(objectMembers) > 0 {
 		// Object × object — the TS checker already merged properties on
 		// the intersection type. Hash the merged members directly rather
@@ -119,6 +131,44 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 	}
 
 	return strconv.Itoa(int(protocol.KindUnknown))
+}
+
+// builtinClassNamesID is the id-side mirror of the serialize-side
+// builtinClassNames (internal/compiled/runtype/intersection_collapse.go).
+// The two MUST list the same names so the structural id and the projected
+// node agree on which members are builtin-class bases.
+var builtinClassNamesID = map[string]bool{"Date": true, "Map": true, "Set": true, "RegExp": true}
+
+// splitBuiltinClassBrandID detects the `Builtin & {brand}` shape among an
+// intersection's object members: exactly one recognised builtin-class
+// member plus exactly one TypeFormat-brand member. Returns the class
+// member, the canonical format key (folded into the id so two brands that
+// differ only in params hash distinctly), and ok=true. Mirrors the
+// serialize-side splitBuiltinClassBrand — keep them in sync.
+func (computer *Computer) splitBuiltinClassBrandID(objectMembers []*checker.Type) (*checker.Type, string, bool) {
+	var classMember *checker.Type
+	var formatKey string
+	var brandCount int
+	for _, member := range objectMembers {
+		if annotation := FormatAnnotationFromType(computer.typeChecker, member); annotation != nil {
+			brandCount++
+			if brandCount > 1 {
+				return nil, "", false // two brands — not the shape we handle
+			}
+			formatKey += FormatAnnotationStructuralKey(annotation)
+			continue
+		}
+		if symbol := member.Symbol(); symbol != nil && builtinClassNamesID[symbol.Name] {
+			if classMember != nil {
+				return nil, "", false // two builtin classes — ambiguous
+			}
+			classMember = member
+		}
+	}
+	if classMember == nil || brandCount == 0 {
+		return nil, "", false
+	}
+	return classMember, formatKey, true
 }
 
 func isLiteralFlags(flags checker.TypeFlags) bool {
