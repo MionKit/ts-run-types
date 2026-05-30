@@ -193,20 +193,31 @@ func restrictComponents(parsed relativeDuration, paramName string, kind boundKin
 	return nil
 }
 
-// validateMinMax validates the min/max/gt/lt bounds individually and, when
-// a pair is both absolute and comparable, their ordering. min/max are
-// inclusive, gt/lt the exclusive twins; all four may coexist (no min⊕gt /
-// max⊕lt exclusivity — they simply AND at runtime). Ordering checked
-// statically: `min`/`gt` (lower) must not exceed `max`/`lt` (upper).
-// Relative-vs-anything ordering can't be resolved statically (it depends on
-// the runtime clock), so those pairs are skipped — each bound is still
-// individually validated.
+// validateMinMax validates the min/max/gt/lt bounds individually, enforces
+// that a lower (min/gt) and upper (max/lt) edge is inclusive OR exclusive
+// but never both, and — when a lower×upper pair is both absolute and
+// comparable — their ordering. min/max are inclusive, gt/lt the exclusive
+// twins. A lower edge specified twice (min AND gt) is always redundant (one
+// silently dominates), so it's rejected, mirroring the number/bigint
+// families. Ordering: `min`/`gt` (lower) must not exceed `max`/`lt`
+// (upper); relative-vs-anything ordering can't be resolved statically (it
+// depends on the runtime clock), so those pairs are skipped.
 func validateMinMax(params map[string]any, kind boundKind, layout string) []string {
 	var errs []string
 	for _, key := range []string{"min", "max", "gt", "lt"} {
 		if bound, has := stringParam(params, key); has {
 			errs = append(errs, validateBound(bound, key, kind, layout)...)
 		}
+	}
+	if len(errs) != 0 {
+		return errs
+	}
+	// A bound edge is inclusive OR exclusive, never both.
+	if hasBound(params, "min") && hasBound(params, "gt") {
+		errs = append(errs, prefix(kind)+": cannot specify both `min` and `gt` (a lower bound is inclusive or exclusive, not both)")
+	}
+	if hasBound(params, "max") && hasBound(params, "lt") {
+		errs = append(errs, prefix(kind)+": cannot specify both `max` and `lt` (an upper bound is inclusive or exclusive, not both)")
 	}
 	if len(errs) != 0 {
 		return errs
@@ -222,6 +233,12 @@ func validateMinMax(params map[string]any, kind boundKind, layout string) []stri
 		}
 	}
 	return errs
+}
+
+// hasBound reports whether a bound key is present with a non-empty string.
+func hasBound(params map[string]any, key string) bool {
+	bound, has := stringParam(params, key)
+	return has && bound != ""
 }
 
 // orderingErr returns a "cannot be greater than" message when lowerKey and

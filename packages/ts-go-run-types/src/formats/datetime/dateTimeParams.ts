@@ -28,11 +28,11 @@ export type DateTimeBound = string; // full datetime literal or RelativeNow
 
 // MinMax — the optional bound set every date-ish params interface mixes
 // in. `min`/`max` are INCLUSIVE (>= / <=); `gt`/`lt` are the EXCLUSIVE
-// twins (> / <), mirroring the numeric format family. All four are
-// optional and may be combined freely — a value must satisfy every bound
-// supplied (there is no min⊕gt / max⊕lt exclusivity). Go validates that a
-// lower bound (`min`/`gt`) doesn't exceed an upper bound (`max`/`lt`) when
-// both are absolute literals.
+// twins (> / <), mirroring the numeric format family. A lower bound is
+// EITHER inclusive (`min`) OR exclusive (`gt`), never both; likewise the
+// upper bound (`max`/`lt`) — specifying both ends of one edge is redundant
+// and Go rejects it at build time. Go also checks a lower bound doesn't
+// exceed an upper bound when both are absolute literals.
 export interface MinMax<Bound extends string = string> {
   min?: Bound;
   max?: Bound;

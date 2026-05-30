@@ -106,8 +106,10 @@ describe('relative bounds — mock respects them (every generated value is valid
 });
 
 // Exclusive bounds (gt/lt) — the strict twins of min/max. gt/lt EXCLUDE the
-// bound value itself (`>`/`<`), where min/max include it (`>=`/`<=`). They
-// combine freely with each other and with min/max (no exclusivity).
+// bound value itself (`>`/`<`), where min/max include it (`>=`/`<=`). A
+// lower edge is min OR gt and an upper edge is max OR lt (the same edge
+// can't be both — rejected build-time), but the two DISTINCT edges combine
+// freely, e.g. inclusive-lower `min` + exclusive-upper `lt`.
 describe('exclusive date/time bounds (gt/lt)', () => {
   it('FormatStringDate gt — excludes the bound day, accepts the next', () => {
     const isType = createIsType<FormatStringDate<{format: 'YYYY-MM-DD'; gt: '2020-01-01'}>>();
