@@ -224,7 +224,12 @@ registerPureFnFactory('mionFormats', 'isTimeString_mmss', function (utl: RTUtils
 registerPureFnFactory('mionFormats', 'dateStrToMs', function () {
   return function _date_to_ms(value: string, layout: string): number {
     const parts = value.split('-');
-    let year = 2000; // DEFAULT_FILL_YEAR — inlined (no outer capture allowed)
+    // Canonical fill for yearless layouts (MM-DD / DD-MM): a fixed year is
+    // required to build a comparable epoch, and it MUST match Go's
+    // defaultFillYear in literals.go. 2000 is chosen as a leap year so
+    // '02-29' is representable. (Literal, not an outer const — pure-fn
+    // factories can't capture outer-scope bindings.)
+    let year = 2000;
     let month = 1;
     let day = 1;
     switch (layout) {
