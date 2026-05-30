@@ -78,7 +78,7 @@ func (IsTypeEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		// Mion treats Promise<T> as a thenable check at the isType
 		// layer — the wrapped T isn't validated synchronously (the
@@ -296,6 +296,12 @@ func (IsTypeEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ C
 				Code: "(" + v + " instanceof Date && !isNaN(" + v + ".getTime()))",
 				Type: CodeE,
 			}
+		}
+		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+			// Temporal types are always-valid once constructed (no NaN-like
+			// state — `from` throws instead), so a bare instanceof suffices.
+			// Same atomic, class-encoded, leaf-emit pattern as Date.
+			return RTCode{Code: "(" + v + " instanceof " + info.Builtin + ")", Type: CodeE}
 		}
 		if rt.SubKind == protocol.SubKindMap {
 			return emitMapIsType(rt, ctx, v)

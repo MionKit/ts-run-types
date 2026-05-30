@@ -180,6 +180,11 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 		return emitObjectFromBinary(rt, ctx, ret, des)
 
 	case protocol.KindClass:
+		if info, ok := protocol.TemporalInfoBySubKind(rt.SubKind); ok {
+			// Byte-symmetric with binary_to: read the canonical string and
+			// rebuild via Temporal.<T>.from(...).
+			return RTCode{Code: ret + " = " + info.Builtin + ".from(" + des + ".desString())", Type: CodeS}
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			// Same comma-expression trick as KindNumber: the 3rd arg slot

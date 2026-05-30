@@ -109,7 +109,7 @@ func (PrepareForJsonEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		// mion:nodes/native/promise.ts:23 — emitPrepareForJson throws
 		// "RT compilation disabled for Non Serializable types.".
@@ -216,6 +216,10 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		// (Int8Array, WeakMap, …) throws — mion's
 		// NonSerializableRunType.emitPrepareForJson at
 		// nodes/native/nonSerializable.ts:24 raises the same message.
+		if protocol.IsTemporalSubKind(rt.SubKind) {
+			// Like Date: no-op — JSON.stringify invokes the type's toJSON().
+			return RTCode{Code: "", Type: CodeS}
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			return RTCode{Code: "", Type: CodeS}

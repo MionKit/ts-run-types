@@ -98,7 +98,7 @@ func (ToBinaryEmitter) Supports(rt *protocol.RunType) bool {
 			protocol.SubKindNonSerializable:
 			return true
 		}
-		return false
+		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		return true
 	}
@@ -271,6 +271,14 @@ func (ToBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType) 
 		return emitObjectToBinary(rt, ctx, v, ser)
 
 	case protocol.KindClass:
+		if protocol.IsTemporalSubKind(rt.SubKind) {
+			// Temporal types can't reuse Date's 8-byte float64 epoch:
+			// exact types are nanosecond BigInt (float64 ms loses
+			// precision) and plain types have no single epoch. Encode the
+			// canonical toJSON() string via the string primitive — lossless
+			// for all eight, byte-symmetric with the fromBinary arm.
+			return RTCode{Code: ser + ".serString(" + v + ".toJSON())", Type: CodeS}
+		}
 		switch rt.SubKind {
 		case protocol.SubKindDate:
 			// mion:binary/toBinary.ts:265 —
