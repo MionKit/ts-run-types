@@ -8797,6 +8797,10 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Partial<Person>>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())})
+        ),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -8831,6 +8835,10 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Partial<Person>>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())})
+        ),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
@@ -8919,6 +8927,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Required<MaybePerson>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()})),
       deserializeIsType: () => {
         interface MaybePerson {
           name?: string;
@@ -8953,6 +8962,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Required<MaybePerson>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()})),
       deserializeGetTypeErrors: () => {
         interface MaybePerson {
           name?: string;
@@ -9042,6 +9052,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Pick<Person, 'name' | 'createdAt'>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({name: RT.string(), createdAt: RT.date()})),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -9076,6 +9087,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Pick<Person, 'name' | 'createdAt'>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({name: RT.string(), createdAt: RT.date()})),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
@@ -9157,6 +9169,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Omit<Person, 'age'>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({name: RT.string(), createdAt: RT.date()})),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -9191,6 +9204,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Omit<Person, 'age'>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({name: RT.string(), createdAt: RT.date()})),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
@@ -9254,6 +9268,7 @@ export const VALIDATION_SUITE = {
       title: 'Exclude<U, X> on a string-literal union',
       description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.literal('name'), RT.literal('createdAt')])),
       deserializeIsType: () => deserializeIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
       isTypeReflect: () => {
         const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
@@ -9264,6 +9279,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal('name'), RT.literal('createdAt')])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
       getTypeErrorsReflect: () => {
         const v: Exclude<'name' | 'age' | 'createdAt', 'age'> = 'name';
@@ -9299,6 +9315,7 @@ export const VALIDATION_SUITE = {
       description:
         'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
       isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.literal('name'), RT.literal('createdAt')])),
       deserializeIsType: () => deserializeIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       isTypeReflect: () => {
         const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
@@ -9309,6 +9326,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal('name'), RT.literal('createdAt')])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
       getTypeErrorsReflect: () => {
         const v: Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'> = 'name';
@@ -9447,6 +9465,7 @@ export const VALIDATION_SUITE = {
       title: 'NonNullable<T> — strips null and undefined from a union',
       description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
       isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.string(), RT.number()])),
       deserializeIsType: () => deserializeIsType<NonNullable<string | number | null | undefined>>(),
       isTypeReflect: () => {
         const v: NonNullable<string | number | null | undefined> = 'hello';
@@ -9457,6 +9476,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<NonNullable<string | number | null | undefined>>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.string(), RT.number()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<NonNullable<string | number | null | undefined>>(),
       getTypeErrorsReflect: () => {
         const v: NonNullable<string | number | null | undefined> = 'hello';
@@ -9493,6 +9513,7 @@ export const VALIDATION_SUITE = {
         type Fn = (a: number, b: boolean) => Date;
         return createIsType<ReturnType<Fn>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.date()),
       deserializeIsType: () => {
         type Fn = (a: number, b: boolean) => Date;
         return deserializeIsType<ReturnType<Fn>>();
@@ -9511,6 +9532,7 @@ export const VALIDATION_SUITE = {
         type Fn = (a: number, b: boolean) => Date;
         return createGetTypeErrors<ReturnType<Fn>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.date()),
       deserializeGetTypeErrors: () => {
         type Fn = (a: number, b: boolean) => Date;
         return deserializeGetTypeErrors<ReturnType<Fn>>();
@@ -9561,6 +9583,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Readonly<Person>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.object({name: RT.string(), age: RT.number()})),
       deserializeIsType: () => {
         interface Person {
           name: string;
@@ -9591,6 +9614,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Readonly<Person>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({name: RT.string(), age: RT.number()})),
       deserializeGetTypeErrors: () => {
         interface Person {
           name: string;
