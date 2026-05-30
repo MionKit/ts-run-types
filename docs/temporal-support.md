@@ -1,13 +1,49 @@
-# Temporal API support (design spec & discovery)
+# Temporal API support
 
-> **Status: exploratory — NOT implemented.** This is a discovery + design
-> spec for adding [TC39 Temporal](https://tc39.es/proposal-temporal/) support
-> to ts-go-run-types. No code ships from this document. It enumerates exactly
-> what every RT-function family, the scanner, and the JS runtime would need.
+> **Status: implemented (core).** All eight [TC39 Temporal](https://tc39.es/proposal-temporal/)
+> types are validated, serialized (JSON + binary), and mockable. The min/max
+> `FormatTemporalX<{…}>` constraint family is a tracked follow-up (see §9).
+> The sections below were written as the design spec and remain accurate as
+> the design record.
 >
 > Companion docs: [ARCHITECTURE.md](./ARCHITECTURE.md) (execution model),
 > [ROADMAP.md](./ROADMAP.md) (scope), and the native-`Date` work in this repo
 > (the closest existing template — see §3).
+
+## 0. Requirement: the Temporal lib must be in your `tsconfig`
+
+Temporal support is **opt-in via your TypeScript `lib` configuration**. The
+Go scanner reads types through TypeScript's lib definitions, so it can only
+see `Temporal.PlainDate` as a real type when the Temporal namespace is loaded:
+
+```jsonc
+// tsconfig.json
+{
+  "compilerOptions": {
+    "lib": ["ES2023", "ESNext.Temporal"], // ← add ESNext.Temporal
+  },
+}
+```
+
+**If the Temporal lib is missing, `Temporal.*` resolves to `any`.** Rather than
+silently emit a validator that accepts any value, the scanner detects a
+`Temporal.<Name>` reference that degraded to `any` and raises a **build
+error**:
+
+```
+TMP001: Temporal type 'Temporal.PlainDate' resolved to 'any' — add
+"ESNext.Temporal" to compilerOptions.lib.
+```
+
+This makes the behaviour **defined**: either Temporal types are loaded and
+validate correctly, or you get a loud build error telling you how to enable
+them. There is no silent no-op. (When the lib IS loaded the guard costs
+nothing — it only inspects calls whose written `Temporal.*` syntax resolved
+to `any`.)
+
+At **runtime**, validating/serializing a Temporal value requires the host to
+provide the global `Temporal` object (native in Node 26+ and current
+browsers).
 
 ## 1. What Temporal is and why now
 
