@@ -1,17 +1,20 @@
-// Composer builders — `array` / `tuple` / `union` / `intersection` / `record`.
-// Each takes child `RunType` schemas and returns the generic `RunType<…>` for
-// the COMPOSED type, via the same trailing-`InjectRunTypeId` marker every
-// builder uses: the Go scanner reflects the whole composed type off the brand
-// (collapsing intersections, distributing unions, …) and the runtime returns
-// that reflected node. Nested child builders are skipped by the scanner — they
-// exist only to drive TS inference for the brand (see define.ts `builderResult`).
+// Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
+// `map` / `set` / `promise` / `lazy` / `func` / `templateLiteral`, plus the
+// `object` assembler and the `propMod` / `optional` property modifiers. Each
+// takes child `RunType` schemas and returns the generic `RunType<…>` for the
+// COMPOSED type, via the same trailing-`InjectRunTypeId` marker every builder
+// uses: the Go scanner reflects the whole composed type off the brand (collapsing
+// intersections, distributing unions, …) and the runtime returns that reflected
+// node. Nested child builders are skipped by the scanner — they exist only to
+// drive TS inference for the brand (see atomic.ts `builderResult`).
 //
 // No `infer` (per CLAUDE.md): `array`/`record` read their single child's `T`
 // directly; `tuple` maps the child tuple with a homomorphic mapped type
 // (`MapTuple`); `union` indexes that mapped tuple with `[number]` (→ a union,
-// `TypeFromRT` distributing over the members); `intersection` uses positional
-// type params (`A & B & …`) with `= unknown` defaults so omitted slots vanish
-// (`X & unknown = X`).
+// `Static` distributing over the members); `intersection` uses positional type
+// params (`A & B & …`) with `= unknown` defaults so omitted slots vanish
+// (`X & unknown = X`). The type-level helpers (`MapTuple`, `AssembleTemplate`,
+// `ObjectType`, …) all live in static.ts; this file is runtime-only.
 //
 // Child schema params are branded `CompTimeArgs<…>`: the children ride the
 // carrier only and are DISCARDED at runtime (the injected marker returns the
@@ -26,18 +29,10 @@
 // keeps the spread — its `[number]` index flattens to a member union regardless,
 // so the brand can't widen it.
 
-import {builderResult} from './define.ts';
+import {builderResult} from './atomic.ts';
 import type {RunType} from '../runtypes/types.ts';
-import type {TypeFromRT} from '../runtypes/typeFromRt.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-
-/** Maps a tuple of `RunType` schemas to the tuple of the types they carry —
- *  homomorphic over `keyof T`, so it preserves tuple length/order with no
- *  `infer`: `[RunType<A>, RunType<B>]` → `[A, B]`. The `-readonly` strips the
- *  `readonly` that `const T` inference adds at the variadic composer call sites
- *  (`tuple` / `func`), so a fixed-tuple return is mutable `[A, B]` and converges
- *  with the type-first tuple rather than a `readonly [A, B]`. **/
-export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: TypeFromRT<T[K]>};
+import type {Static, MapTuple, TemplatePart, AssembleTemplate, ObjectType, PropModifiers, PropModCarrier} from './static.ts';
 
 /** An array builder — `array(string())` → `RunType<string[]>`. **/
 export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]> {
@@ -115,7 +110,7 @@ export function tuple(
 
 /** A union builder — `union([string(), number()])` → `RunType<string |
  *  number>`. Array form, unlimited members: `MapTuple<T>[number]` is the union
- *  of the member types (`TypeFromRT` distributes over the indexed access). **/
+ *  of the member types (`Static` distributes over the indexed access). **/
 export function union<T extends readonly RunType[]>(
   members: CompTimeArgs<readonly [...T]>,
   id?: InjectRunTypeId<MapTuple<T>[number]>
@@ -223,13 +218,13 @@ export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRun
 export function func<const P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
   params?: CompTimeArgs<P>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<(...args: MapTuple<P>) => TypeFromRT<R>>
-): RunType<(...args: MapTuple<P>) => TypeFromRT<R>>;
+  id?: InjectRunTypeId<(...args: MapTuple<P>) => Static<R>>
+): RunType<(...args: MapTuple<P>) => Static<R>>;
 export function func<T extends readonly unknown[], R extends RunType = RunType<void>>(
   paramsTuple: CompTimeArgs<RunType<T>>,
   ret?: CompTimeArgs<R>,
-  id?: InjectRunTypeId<(...args: T) => TypeFromRT<R>>
-): RunType<(...args: T) => TypeFromRT<R>>;
+  id?: InjectRunTypeId<(...args: T) => Static<R>>
+): RunType<(...args: T) => Static<R>>;
 export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType, id?: InjectRunTypeId<unknown>): RunType {
   // An ARRAY first arg is the array form (a list of positional param RunTypes); a
   // RunType OBJECT first arg is the tuple form (a single params-tuple RunType whose
@@ -238,46 +233,6 @@ export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType
   const parameters = Array.isArray(paramsOrTuple) ? paramsOrTuple : (paramsOrTuple ?? []);
   return builderResult(id, {type: 'function', parameters, return: ret});
 }
-
-/** A template-literal part: a string-literal segment or a `RunType` placeholder. **/
-export type TemplatePart = string | RunType;
-
-/** The TS template-literal interpolation domain — what a `${…}` placeholder may
- *  hold. A `RunType` part contributes its carried `T` narrowed to this set; a
- *  string part contributes its own literal text. **/
-type Interpolatable = string | number | bigint | boolean | null | undefined;
-
-/** Strips a value-first leaf's FORMAT brand (`{__rtFormatName, __rtFormatParams}`
- *  carried by `number()`/`string()`/`bigint()`) back to its base primitive, so a
- *  placeholder converges with the type-first PLAIN `${number}` / `${string}` —
- *  otherwise the brand leaks into the template-literal type and the scanner
- *  reflects a different (permissive) shape. Literals and unions carry no brand and
- *  pass through unchanged, so `literal('a')` stays `'a'`. **/
-type Unbrand<X> = X extends {__rtFormatName: string; __rtFormatParams: object}
-  ? X extends string
-    ? string
-    : X extends number
-      ? number
-      : X extends bigint
-        ? bigint
-        : X & Interpolatable
-  : X & Interpolatable;
-type PartText<Part extends TemplatePart> = Part extends RunType ? Unbrand<TypeFromRT<Part>> : Part & Interpolatable;
-
-/** Folds a parts tuple into the template-literal type it denotes:
- *  `['api/user/', RunType<number>]` → `` `api/user/${number}` ``. Recursion over
- *  the FIXED parts tuple is what assembles the literal — the one spot a `infer`
- *  head/tail split is unavoidable (a mapped type can't JOIN into a template
- *  string). The parts tuple is bounded by the call site, so there's no
- *  deep-instantiation tax; a nested template-literal placeholder flattens
- *  transparently, and a union placeholder distributes — both matching how the
- *  type-first `` `…` `` form normalises, so the two converge on one structural id. **/
-export type AssembleTemplate<P extends readonly TemplatePart[]> = P extends readonly [
-  infer Head extends TemplatePart,
-  ...infer Tail extends readonly TemplatePart[],
-]
-  ? `${PartText<Head>}${AssembleTemplate<Tail>}`
-  : '';
 
 /** A template-literal builder — value-first authoring of a TS template-literal
  *  type from a parts array mixing string segments and `RunType` placeholders:
@@ -295,4 +250,51 @@ export function templateLiteral<const P extends readonly TemplatePart[]>(
   id?: InjectRunTypeId<AssembleTemplate<P>>
 ): RunType<AssembleTemplate<P>> {
   return builderResult(id, {type: 'templateLiteral', children: parts});
+}
+
+// ─────────────────── Object assembler + property modifiers ───────────
+//
+// `object(...)` composes leaf builders / composers into an object run-type;
+// `propMod` / `optional` wrap a field with a property MODIFIER (optional /
+// readonly) that `object`'s mapped type (`ObjectType<C>`, static.ts) applies. The
+// modifiers are a property-POSITION concern, NOT part of a field's identity, so
+// they ride a DISTINCT carrier (no brand intersection, which would corrupt the
+// `__rtFormatName` / `__rtFormatParams` sentinels); `object` unwraps it.
+
+/** Applies property modifiers to a field for use inside `object(...)`:
+ *  `propMod({optional: true}, string({maxLength: 5}))`, `propMod({readonly:
+ *  true}, number())`, or both. A bare `propMod(...)` is only meaningful as a
+ *  field inside `object(...)`. **/
+export function propMod<const M extends PropModifiers, const F>(
+  modifiers: CompTimeArgs<M>,
+  field: CompTimeArgs<F>
+): PropModCarrier<M, F> {
+  return {__propMod: modifiers, __field: field};
+}
+
+/** Shortcut for `propMod({optional: true}, field)` — marks a field optional
+ *  (`key?:`) inside `object(...)`. The common modifier gets a terse spelling;
+ *  reach for `propMod` for `readonly` or combinations. **/
+export function optional<const F>(field: CompTimeArgs<F>): PropModCarrier<{optional: true}, F> {
+  return propMod({optional: true}, field);
+}
+
+/** Assembles an object run-type from named field builders, building the object
+ *  type via `ObjectType<C>`: a bare field is a required + mutable property; a
+ *  `propMod({optional?, readonly?}, field)` wrapper places the key (`key?:` /
+ *  `readonly key:`). Strips the `const`-capture `readonly` from un-modified keys
+ *  and unwraps each field's `RunType<…>` to its type via `FieldOf`/`Static`, so
+ *  leaf builders AND composers (`array`/`tuple`/`union`/`record`/nested `object`)
+ *  nest freely.
+ *
+ *  Like every builder, `object` returns the generic `RunType<ObjectType<C>>`:
+ *  `typeof object({...})` is the run-type node, `Static<typeof …>` recovers the
+ *  object type, and the value drops straight into `createIsType(...)` or nests
+ *  inside another composer. The nested field builders are skipped by the scanner —
+ *  the enclosing `object` marker reflects the whole shape. **/
+export function object<const C extends Record<string, unknown>>(
+  config: CompTimeArgs<C>,
+  id?: InjectRunTypeId<ObjectType<C>>
+): RunType<ObjectType<C>> {
+  return builderResult<ObjectType<C>>(id, config);
 }

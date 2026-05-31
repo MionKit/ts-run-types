@@ -7,10 +7,10 @@ export {type InjectRunTypeId, type CompTimeArgs, type PureFunction, getRunTypeId
 export {getRTUtils, getRTFnCaches, type RTUtils} from './runtypes/rtUtils.ts';
 
 // The generic runtime type node + the helper that recovers the source TS type
-// a `RunType<T>` carries (`TypeFromRT<typeof schema>`). Both are part of the
-// value-first surface: builders return `RunType<T>`, `TypeFromRT` maps back.
+// a `RunType<T>` carries (`Static<typeof schema>`). Both are part of the
+// value-first surface: builders return `RunType<T>`, `Static` maps back.
 export {type RunType} from './runtypes/types.ts';
-export {type TypeFromRT} from './runtypes/typeFromRt.ts';
+export {type Static} from './schema/static.ts';
 
 // Populate the run-type registry from the precompiled cache module before any
 // consumer queries it. Idempotent — re-running overwrites entries by id.

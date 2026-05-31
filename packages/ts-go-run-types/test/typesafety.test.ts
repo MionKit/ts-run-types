@@ -15,8 +15,8 @@
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
-import type {RunType, TypeFromRT} from '../src/index.ts';
-import * as RT from '../src/define/index.ts';
+import type {RunType, Static} from '../src/index.ts';
+import * as RT from '../src/schema/index.ts';
 import type {FormatString, FormatNumber} from '../src/formats/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
@@ -130,11 +130,11 @@ function assertionsValueFirstDefine(): void {
   void _n;
   void _b;
 
-  // `TypeFromRT<…>` recovers the format type the RunType carries — both
+  // `Static<…>` recovers the format type the RunType carries — both
   // directions compile only if it resolves EXACTLY to `FormatString<P>` (the
   // no-`infer` indexed-access round-trip).
-  const _rtToFormat = (x: TypeFromRT<RunType<FormatString<{maxLength: 5}>>>): FormatString<{maxLength: 5}> => x;
-  const _formatToRt = (x: FormatString<{maxLength: 5}>): TypeFromRT<RunType<FormatString<{maxLength: 5}>>> => x;
+  const _rtToFormat = (x: Static<RunType<FormatString<{maxLength: 5}>>>): FormatString<{maxLength: 5}> => x;
+  const _formatToRt = (x: FormatString<{maxLength: 5}>): Static<RunType<FormatString<{maxLength: 5}>>> => x;
   void _rtToFormat;
   void _formatToRt;
 
@@ -150,16 +150,6 @@ function assertionsValueFirstDefine(): void {
   // @ts-expect-error — the modifier carrier is not assignable to the bare format.
   const _carrierLeak: FormatNumber<{min: 0}> = RT.optional(RT.number({min: 0}));
   void _carrierLeak;
-
-  // `ModelConfigOf<T>` is the inverse of `ModelType<C>` (the Tier-3 bridge): a
-  // branded model type round-trips through the config and back to itself. The
-  // two identity functions below compile only if the types are mutually
-  // assignable — `RoundTripModel` ⇄ `ModelType<ModelConfigOf<RoundTripModel>>`.
-  type RoundTripModel = {name: FormatString<{maxLength: 5}>; age: FormatNumber<{min: 0}>};
-  const _toConfigAndBack = (x: RoundTripModel): RT.ModelType<RT.ModelConfigOf<RoundTripModel>> => x;
-  const _backToModel = (x: RT.ModelType<RT.ModelConfigOf<RoundTripModel>>): RoundTripModel => x;
-  void _toConfigAndBack;
-  void _backToModel;
 
   // Cross-family param misuse is caught at the BUILDER CALL — each builder
   // types its own params arg, so the bad key errors locally (no exclusive-union
@@ -224,15 +214,8 @@ function assertionsComposers(): void {
   void _re;
   void _sym;
 
-  // Universal reflectors carry exactly `T` (static + reflection forms).
-  const _rt: RunType<Map<string, number>> = RT.runType<Map<string, number>>();
-  const _sample: boolean[] = [true];
-  const _rtRef: RunType<boolean[]> = RT.reflectRunType(_sample);
-  void _rt;
-  void _rtRef;
-
-  // `TypeFromRT<…>` round-trips a composed type back to its tuple form.
-  const _back = (x: TypeFromRT<RunType<[boolean, number]>>): [boolean, number] => x;
+  // `Static<…>` round-trips a composed type back to its tuple form.
+  const _back = (x: Static<RunType<[boolean, number]>>): [boolean, number] => x;
   void _back;
 
   // @ts-expect-error — `array` takes a RunType schema, not the bare builder fn.
@@ -348,8 +331,8 @@ function assertionsNewBuilders(): void {
   // would reject plain `number` and fail here. A positive annotated assignment
   // alone would NOT catch it (branded ⊆ plain).
   const _tplBuilt = RT.templateLiteral(['api/user/', RT.number()]);
-  const _tplFwd = (x: TypeFromRT<typeof _tplBuilt>): `api/user/${number}` => x;
-  const _tplRev = (x: `api/user/${number}`): TypeFromRT<typeof _tplBuilt> => x;
+  const _tplFwd = (x: Static<typeof _tplBuilt>): `api/user/${number}` => x;
+  const _tplRev = (x: `api/user/${number}`): Static<typeof _tplBuilt> => x;
   void _tplBuilt;
   void _tplFwd;
   void _tplRev;
@@ -383,28 +366,28 @@ function assertionsComposerExactInference(): void {
   // in the `CompTimeArgs` brand intersection — fails HERE loudly instead of
   // silently degrading the structural id the scanner reads off the brand.
   const _tup = RT.tuple([RT.boolean(), RT.number()]);
-  assertExact<TypeFromRT<typeof _tup>, [boolean, number]>(true);
+  assertExact<Static<typeof _tup>, [boolean, number]>(true);
 
   const _tupOpt = RT.tuple([RT.number()], [RT.boolean()]);
-  assertExact<TypeFromRT<typeof _tupOpt>, [number, boolean?]>(true);
+  assertExact<Static<typeof _tupOpt>, [number, boolean?]>(true);
 
   const _tupRest = RT.tuple([RT.number()], RT.string());
-  assertExact<TypeFromRT<typeof _tupRest>, [number, ...string[]]>(true);
+  assertExact<Static<typeof _tupRest>, [number, ...string[]]>(true);
 
   // func array-overload: the contravariance trap lives here — only an exact
   // check catches a widened param tuple.
   const _fn = RT.func([RT.string(), RT.number()], RT.boolean());
-  assertExact<TypeFromRT<typeof _fn>, (a: string, b: number) => boolean>(true);
+  assertExact<Static<typeof _fn>, (a: string, b: number) => boolean>(true);
 
   const _fn0 = RT.func();
-  assertExact<TypeFromRT<typeof _fn0>, () => void>(true);
+  assertExact<Static<typeof _fn0>, () => void>(true);
 
   // union keeps its spread `[...T]` (the `[number]` index flattens, so the brand
   // can't widen the member union) — pinned exact to lock that in.
   const _uni = RT.union([RT.boolean(), RT.literal('x')]);
-  assertExact<TypeFromRT<typeof _uni>, boolean | 'x'>(true);
+  assertExact<Static<typeof _uni>, boolean | 'x'>(true);
 
   // array: the simple-generic shape stays exact under the brand.
   const _arr = RT.array(RT.boolean());
-  assertExact<TypeFromRT<typeof _arr>, boolean[]>(true);
+  assertExact<Static<typeof _arr>, boolean[]>(true);
 }

@@ -1,0 +1,91 @@
+// Public entry for the `@mionjs/ts-go-run-types/schema` subpath — the value-first
+// authoring surface: the leaf/atomic field builders (`string` / `number` /
+// `boolean` / `bigint` / `date` / `temporal.*` / `literal` / `regexp` / …), the
+// composers (`object` / `array` / `tuple` / `union` / …) and the standard-library
+// utility builders. Each builder returns the generic `RunType<…>` node, so
+// `typeof object({...})` IS the run-type and `Static<typeof …>` recovers its type.
+// Opt-in lane: consumers who want pure type-first reflection never import this.
+
+// Leaf / atomic builders — scalars (`string` / `number` / `boolean` / `bigint` /
+// `date` / `temporal.*`), the atomic leaves (`literal` / `regexp` / `symbol`), the
+// top / bottom kinds (`any` / `unknown` / `never` / `void`; `voidType` aliased as
+// `void` for a natural `RT.void()`), and the class-instance builder.
+export {
+  string,
+  number,
+  boolean,
+  bigint,
+  date,
+  temporal,
+  literal,
+  regexp,
+  symbol,
+  any,
+  unknown,
+  never,
+  voidType,
+  voidType as void,
+  classType,
+} from './atomic.ts';
+
+// Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
+// `map` / `set` / `promise` / `lazy` / `func` / `templateLiteral`, the `object`
+// assembler, and the `propMod({optional?, readonly?}, field)` / `optional(field)`
+// property-modifier wrappers. Each returns the generic `RunType<…>`; child schemas
+// nest freely (the outer composer's marker reflects the whole shape).
+export {
+  object,
+  array,
+  tuple,
+  union,
+  intersection,
+  record,
+  map,
+  set,
+  promise,
+  lazy,
+  func,
+  templateLiteral,
+  propMod,
+  optional,
+} from './compose.ts';
+
+// Utility-type builders — Partial / Required / Pick / Omit / Exclude / Extract /
+// NonNullable / Readonly / ReturnType + Parameters. Each brands the RESOLVED
+// stdlib utility type; tsgo resolves it before the Go scanner computes the id, so
+// `createIsType(partial(model))` converges with `createIsType<Partial<T>>()`.
+// `readonlyType` is re-aliased as `readonly` for a natural `RT.readonly(model)`.
+export {
+  partial,
+  required,
+  pick,
+  omit,
+  exclude,
+  extract,
+  nonNullable,
+  readonlyType,
+  readonlyType as readonly,
+  returnType,
+  parameters,
+} from './utility.ts';
+
+// Type-level helpers the builders carry (all in static.ts).
+export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate} from './static.ts';
+
+// Populate the run-type registry. The value-first builders resolve live RunType
+// nodes from `runTypesCache` at runtime, so the `/schema` surface must initialise
+// it the same way the root entry (src/index.ts) does — otherwise a consumer
+// importing ONLY `/schema` gets an empty cache and the builders fall back to their
+// carriers. Idempotent: re-running overwrites entries by id, so importing both
+// root and `/schema` is safe.
+import {initCache as initRunTypesCache} from '../caches/runTypesCache.ts';
+import {getRTUtils as _getRTUtilsForInit} from '../runtypes/rtUtils.ts';
+initRunTypesCache(_getRTUtilsForInit());
+
+type _HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
+const _hot = (import.meta as unknown as {hot?: _HMR}).hot;
+if (_hot) {
+  _hot.accept('../caches/runTypesCache.ts', (newMod) => {
+    newMod?.initCache?.(_getRTUtilsForInit());
+  });
+}
