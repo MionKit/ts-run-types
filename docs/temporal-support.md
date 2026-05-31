@@ -398,7 +398,7 @@ adding Temporal.
   param-validation matrix if Phase 2 lands. Mirror
   `internal/resolver/native_date_format_test.go` and the serialization
   round-trip suites.
-- JS: mirror the Date entries in `packages/ts-go-run-types/test/suites/serialization-suite.ts`
+- JS: mirror the Date entries in `packages/ts-go-run-types/test/suites/serialization/`
   (the `date` case wires `unsafeEncoder`/`safeEncoder`/`safeDecoder`/
   `binaryEncoder`/`binaryDecoder` + `getTestData` with a `new Date(...)`) — add
   one analogous case per Temporal type with `getTestData: () => ({values:

@@ -5,7 +5,7 @@
 // and binary — with no copy-pasted assertion bodies.
 
 import {expect} from 'vitest';
-import type {SerializationCase} from '../suites/serialization-suite.ts';
+import type {SerializationCase} from '../suites/serialization/types.ts';
 import {deepCloneForRoundTrip, normalizeForComparison} from './equalsHelpers.ts';
 
 function safeStructuredClone(input: unknown): {ok: true; snapshot: unknown} | {ok: false} {
