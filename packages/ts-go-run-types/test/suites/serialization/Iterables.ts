@@ -4,13 +4,13 @@ import type {SerializationCase} from './types.ts';
 export const ITERABLES = {
   set_string: {
     title: 'Set<string>',
-    unsafeEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Set<string>>(),
     safeDirectEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Set<string>>(),
-    unsafeDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Set<string>>(),
     binaryDecoder: () => createBinaryDecoder<Set<string>>(),
     getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
@@ -25,7 +25,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface SmallObject {
@@ -35,7 +35,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface SmallObject {
@@ -45,7 +45,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface SmallObject {
@@ -85,7 +85,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Set<SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonDecoder<Set<SmallObject>>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface SmallObject {
@@ -135,7 +135,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -144,7 +144,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -153,7 +153,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -189,7 +189,7 @@ export const ITERABLES = {
         b: Set1;
         c: Set1;
       }
-      return createJsonDecoder<DeepWithSet>(undefined, {stripExtras: false});
+      return createJsonDecoder<DeepWithSet>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
@@ -223,13 +223,13 @@ export const ITERABLES = {
   },
   map_string_number: {
     title: 'Map<string, number>',
-    unsafeEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Map<string, number>>(),
     safeDirectEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Map<string, number>>(),
-    unsafeDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<string, number>>(),
     binaryDecoder: () => createBinaryDecoder<Map<string, number>>(),
     getTestData: () => ({
@@ -252,7 +252,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface SmallObject {
@@ -262,7 +262,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface SmallObject {
@@ -272,7 +272,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface SmallObject {
@@ -312,7 +312,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonDecoder<Map<string, SmallObject>>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface SmallObject {
@@ -363,7 +363,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface SmallObject {
@@ -373,7 +373,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface SmallObject {
@@ -383,7 +383,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface SmallObject {
@@ -423,7 +423,7 @@ export const ITERABLES = {
         prop4?: Date;
         prop5?: bigint;
       }
-      return createJsonDecoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonDecoder<Map<SmallObject, number>>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface SmallObject {
@@ -471,21 +471,21 @@ export const ITERABLES = {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface DeepWithMap {
@@ -513,7 +513,7 @@ export const ITERABLES = {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
-      return createJsonDecoder<DeepWithMap>(undefined, {stripExtras: false});
+      return createJsonDecoder<DeepWithMap>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface DeepWithMap {
@@ -543,13 +543,13 @@ export const ITERABLES = {
   },
   map_with_bigint_keys: {
     title: 'Map with bigint keys',
-    unsafeEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Map<bigint, number>>(),
     safeDirectEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Map<bigint, number>>(),
-    unsafeDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<bigint, number>>(),
     binaryDecoder: () => createBinaryDecoder<Map<bigint, number>>(),
     getTestData: () => ({
@@ -564,13 +564,13 @@ export const ITERABLES = {
   },
   map_with_date_values: {
     title: 'Map with Date values',
-    unsafeEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Map<string, Date>>(),
     safeDirectEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Map<string, Date>>(),
-    unsafeDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<string, Date>>(),
     binaryDecoder: () => createBinaryDecoder<Map<string, Date>>(),
     getTestData: () => ({

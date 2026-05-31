@@ -125,28 +125,27 @@ export type JsonEncoderFn = (value: unknown) => string | undefined;
 /** Parse function returned by `createJsonDecoder<T>()`. **/
 export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
 
-/** Caller-controlled options for `createJsonEncoder<T>()`. Two orthogonal axes:
+/** Caller-controlled `strategy` for `createJsonEncoder<T>()`. One enum folds the
+ *  walk mode and whether undeclared keys are stripped:
  *
- *  - `strategy`:
- *    - `'clone'` (default): walk the type, build a new value, hand to native
- *      `JSON.stringify`. Non-mutating, allocates per nested object literal.
- *    - `'mutate'`: walk `v`, transform leaves in place, hand to native
- *      `JSON.stringify`. Mutates the input, no clone allocation.
- *    - `'direct'`: single-pass `stringifyJson` RT. Never mutates, no clone
- *      allocation, slower on non-trivial shapes. Always strips extras.
- *
- *  - `stripExtras` (default `true`): whether undeclared keys are removed.
- *    Pinned to `true` for `strategy: 'direct'`.
+ *  - `'stripClone'` (default): walk the type, build a new value dropping
+ *    undeclared keys, hand to native `JSON.stringify`. Non-mutating.
+ *  - `'clone'`: same clone walk, but undeclared keys are PRESERVED on the wire.
+ *  - `'stripMutate'`: transform leaves in place dropping undeclared keys, then
+ *    `JSON.stringify`. Mutates the input, no clone allocation.
+ *  - `'mutate'`: same in-place transform, undeclared keys PRESERVED.
+ *  - `'direct'`: single-pass `stringifyJson` RT. Never mutates, no clone
+ *    allocation, slower on non-trivial shapes; always strips undeclared keys.
  */
-export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
+export type JsonEncoderStrategy = 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct';
+export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy};
 
-/** Caller-controlled options for `createJsonDecoder<T>()`. The decoder
- *  always allocates fresh via `JSON.parse`, so only the strip knob applies.
- *  When `stripExtras` is true (default), undeclared properties on the parsed
- *  wire value become `undefined` before restore walks the declared shape. **/
-export interface JsonDecoderOptions {
-  stripExtras?: boolean;
-}
+/** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
+ *  allocates fresh via `JSON.parse`, so the only axis is undeclared keys:
+ *  `'strip'` (default) sets them to `undefined` before restore walks the
+ *  declared shape; `'preserve'` passes them through untouched. **/
+export type JsonDecoderStrategy = 'strip' | 'preserve';
+export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
 
 // =============================================================================
 // Cache bootstrap
@@ -287,17 +286,16 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
 //
-// Each composes one or two underlying RT primitives based on runtime options.
-// Option fields (strategy / stripExtras) are NOT folded into the typeid, so
-// every encoder shape against the same `T` shares one type id; the runtime
-// picks the right family (`sj` / `pj` / `pjs` / `pjsp` + optional `uku`
-// compose) based on the caller's options.
+// Each composes one or two underlying RT primitives based on the runtime
+// `strategy`. The `strategy` is NOT folded into the typeid, so every encoder
+// shape against the same `T` shares one type id; the runtime picks the right
+// family (`sj` / `pj` / `pjs` / `pjsp` + optional `uku` compose) from it.
 // =============================================================================
 
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
-/** Returns a JSON encoder for `T`. Defaults: `strategy: 'clone',
- *  stripExtras: true`. See `JsonEncoderOptions` for the full matrix. **/
+/** Returns a JSON encoder for `T`. Default `strategy: 'stripClone'`. See
+ *  `JsonEncoderStrategy` for the full matrix. **/
 export function createJsonEncoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonEncoderOptions>,
@@ -309,33 +307,30 @@ export function createJsonEncoder<T>(
       'createJsonEncoder(): no id injected. vite-plugin-runtypes must be active for createJsonEncoder to dispatch to a precompiled factory.'
     );
   }
-  const strategy = options?.strategy ?? 'clone';
-  // `direct` is type-pinned to stripExtras: true (the RT walks the type and
-  // can't see undeclared keys).
-  const stripExtras = strategy === 'direct' ? true : ((options as {stripExtras?: boolean})?.stripExtras ?? true);
+  const strategy = options?.strategy ?? 'stripClone';
 
   if (strategy === 'direct') {
     return lookupRTFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
   }
 
+  // clone strategies — non-mutating. `pjs` strips undeclared keys; `pjsp` is the
+  // same clone codegen with a `...v` spread so undeclared keys survive.
+  if (strategy === 'stripClone') {
+    const prepareSafeFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
+    return (value) => JSON.stringify(prepareSafeFn(value));
+  }
   if (strategy === 'clone') {
-    if (stripExtras) {
-      const prepareSafeFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
-      return (value) => JSON.stringify(prepareSafeFn(value));
-    }
-    // pjsp = same clone codegen as pjs but with `...v` spread so undeclared
-    // keys survive.
     const prepareSafePreserveFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', id, identityValueFn);
     return (value) => JSON.stringify(prepareSafePreserveFn(value));
   }
 
-  // strategy === 'mutate'
+  // mutate strategies — transform declared leaves in place.
   const prepareFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
-  if (!stripExtras) {
+  if (strategy === 'mutate') {
     return (value) => JSON.stringify(prepareFn(value));
   }
-  // mutate + strip: uku sets undeclared keys to undefined, pj transforms
-  // declared leaves, then JSON.stringify skips undefined-valued keys naturally.
+  // stripMutate: uku sets undeclared keys to undefined, pj transforms declared
+  // leaves, then JSON.stringify skips undefined-valued keys naturally.
   const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', id, identityValueFn);
   return (value) => {
     ukuFn(value);
@@ -343,7 +338,7 @@ export function createJsonEncoder<T>(
   };
 }
 
-/** Returns a JSON decoder for `T`. Default `stripExtras: true` — undeclared
+/** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
  *  properties become `undefined` before restore walks the declared shape. **/
 export function createJsonDecoder<T>(
   val?: T,
@@ -356,13 +351,13 @@ export function createJsonDecoder<T>(
       'createJsonDecoder(): no id injected. vite-plugin-runtypes must be active for createJsonDecoder to dispatch to a precompiled factory.'
     );
   }
-  const stripExtras = options?.stripExtras ?? true;
+  const strategy = options?.strategy ?? 'strip';
   const restoreFn = lookupRTFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', id, identityValueFn);
-  if (!stripExtras) {
+  if (strategy === 'preserve') {
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
-  // ukuWire (not public uku): union-arm emit reaches into the flat-union wire
-  // wrapper `[-1, mergedObject]` instead of corrupting its `0`/`1` indices.
+  // strip — ukuWire (not public uku): union-arm emit reaches into the flat-union
+  // wire wrapper `[-1, mergedObject]` instead of corrupting its `0`/`1` indices.
   const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
   return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }

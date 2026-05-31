@@ -295,7 +295,7 @@ describe('createStringifyJson — no-mutation invariant (divergence from prepare
 
   test('prepareForJson DOES mutate the same input shape — contrast', () => {
     type T = {n: bigint};
-    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate', stripExtras: false});
+    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate'});
     const input: T = {n: 123n};
     prep(input);
     // contract contrast — prepareForJson rebinds the bigint to its
@@ -350,7 +350,7 @@ describe('createStringifyJson vs JSON.stringify(prepareForJson(v)) — parsed-eq
   test('parsed equality: simple object', () => {
     type T = {a: string; b: number};
     const sjs = createJsonEncoder<T>();
-    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate', stripExtras: false});
+    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate'});
     const input: T = {a: 'hello', b: 42};
     const fromSjs = JSON.parse(sjs(structuredClone(input))!);
     const fromPrep = JSON.parse(prep(structuredClone(input))!);
@@ -360,7 +360,7 @@ describe('createStringifyJson vs JSON.stringify(prepareForJson(v)) — parsed-eq
   test('parsed equality: object with bigint', () => {
     type T = {n: bigint; tag: string};
     const sjs = createJsonEncoder<T>();
-    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate', stripExtras: false});
+    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate'});
     const input: T = {n: 1234567890123456789n, tag: 'x'};
     const fromSjs = JSON.parse(sjs(structuredClone(input))!);
     const fromPrep = JSON.parse(prep(structuredClone(input))!);
@@ -370,7 +370,7 @@ describe('createStringifyJson vs JSON.stringify(prepareForJson(v)) — parsed-eq
   test('parsed equality: array of objects with Date + bigint', () => {
     type T = {at: Date; n: bigint}[];
     const sjs = createJsonEncoder<T>();
-    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate', stripExtras: false});
+    const prep = createJsonEncoder<T>(undefined, {strategy: 'mutate'});
     const d = new Date('2000-08-06T02:13:00.000Z');
     const input: T = [
       {at: d, n: 1n},
@@ -383,7 +383,7 @@ describe('createStringifyJson vs JSON.stringify(prepareForJson(v)) — parsed-eq
 
   test('parsed equality: Map<string, bigint>', () => {
     const safeEnc = createJsonEncoder<Map<string, bigint>>();
-    const unsafeEnc = createJsonEncoder<Map<string, bigint>>(undefined, {strategy: 'mutate', stripExtras: false});
+    const unsafeEnc = createJsonEncoder<Map<string, bigint>>(undefined, {strategy: 'mutate'});
     const m = new Map<string, bigint>([
       ['a', 1n],
       ['b', 2n],

@@ -5,7 +5,7 @@
 //
 // prepareForJsonSafePreserve cache module. Clone+preserve variant — every
 // cloned object literal is emitted as `{...v, declared: <transformed>}` so
-// undeclared keys survive. Powers `strategy: 'clone', stripExtras: false`.
+// undeclared keys survive. Powers the `clone` strategy (preserve extras).
 
 'use strict';
 
