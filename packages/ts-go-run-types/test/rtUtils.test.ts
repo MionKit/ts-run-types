@@ -7,16 +7,16 @@
 
 import {describe, it, expect} from 'vitest';
 import {getRTFnCaches, getRTUtils} from '../src/runtypes/rtUtils.ts';
-import type {RTFunctionsCache, PureFunctionsCache, RunType} from '../src/runtypes/types.ts';
+import type {TypesFunctionsCache, PureFunctionsCache, RunType} from '../src/runtypes/types.ts';
 
-const {rtFnsCache, pureFnsCache} = getRTFnCaches() as {rtFnsCache: RTFunctionsCache; pureFnsCache: PureFunctionsCache};
+const {rtFnsCache, pureFnsCache} = getRTFnCaches() as {rtFnsCache: TypesFunctionsCache; pureFnsCache: PureFunctionsCache};
 
 /**
  * Loads compiled RT and pure functions into the respective caches.
  * Both caches are flat single-key maps now; the helper merges without
  * overwriting existing entries.
  */
-function loadRTCachesCaches(caches: {rtFnsCache?: RTFunctionsCache; pureFnsCache?: PureFunctionsCache}) {
+function loadRTCachesCaches(caches: {rtFnsCache?: TypesFunctionsCache; pureFnsCache?: PureFunctionsCache}) {
   if (caches.rtFnsCache) {
     for (const [key, value] of Object.entries(caches.rtFnsCache)) {
       if (!(key in rtFnsCache)) {
@@ -35,7 +35,7 @@ function loadRTCachesCaches(caches: {rtFnsCache?: RTFunctionsCache; pureFnsCache
 
 describe('rtUtils', () => {
   it('should load compiled RT functions cache from cache data', () => {
-    const testRTCache: RTFunctionsCache = {
+    const testRTCache: TypesFunctionsCache = {
       testRTFn: {
         typeName: 'TestType',
         fnID: 'isType',
@@ -134,7 +134,7 @@ describe('rtUtils', () => {
   });
 
   it('should not overwrite existing cache entries', () => {
-    const firstCache: RTFunctionsCache = {
+    const firstCache: TypesFunctionsCache = {
       testFn1: {
         typeName: 'TestType1',
         fnID: 'isType',
@@ -149,7 +149,7 @@ describe('rtUtils', () => {
       },
     };
 
-    const secondCache: RTFunctionsCache = {
+    const secondCache: TypesFunctionsCache = {
       testFn1: {
         // Same key as first cache - should NOT overwrite
         typeName: 'TestType2',

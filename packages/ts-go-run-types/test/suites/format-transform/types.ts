@@ -5,6 +5,9 @@ import type {FormatTransformFn} from '@mionjs/ts-go-run-types';
  *  pairs the adapter feeds through it. **/
 export interface FormatTransformCase {
   title: string;
-  formatTransform: () => FormatTransformFn;
+  // `any` (not `unknown`): cases hold heterogeneous concrete returns
+  // (`FormatTransformFn<FormatInteger>`, `FormatTransformFn<{…}>`, …) and the
+  // fn is invariant in `T`, so only `any` accepts every case's thunk here.
+  formatTransform: () => FormatTransformFn<any>;
   getCases: () => Array<{input: unknown; expected: unknown}>;
 }

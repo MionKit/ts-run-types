@@ -48,6 +48,7 @@ declare namespace Temporal {
     readonly year: number;
     readonly month: number;
     readonly day: number;
+    readonly calendarId: string;
     toString(): string;
     toJSON(): string;
     equals(other: PlainDate | string): boolean;
@@ -84,6 +85,7 @@ declare namespace Temporal {
     readonly hour: number;
     readonly minute: number;
     readonly second: number;
+    readonly calendarId: string;
     toString(): string;
     toJSON(): string;
     equals(other: PlainDateTime | string): boolean;
@@ -138,4 +140,14 @@ declare namespace Temporal {
     prototype: Duration;
   }
   const Duration: DurationConstructor;
+
+  // `Temporal.Now` — wall-clock readers. Tests use these to build "current"
+  // sample instances; only the shapes the suites reference are declared.
+  const Now: {
+    instant(): Instant;
+    zonedDateTimeISO(timeZone?: string): ZonedDateTime;
+    plainDateISO(timeZone?: string): PlainDate;
+    plainTimeISO(timeZone?: string): PlainTime;
+    plainDateTimeISO(timeZone?: string): PlainDateTime;
+  };
 }
