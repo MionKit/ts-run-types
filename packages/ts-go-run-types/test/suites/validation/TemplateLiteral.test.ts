@@ -1,0 +1,12 @@
+// validation / TemplateLiteral — runs every TEMPLATE_LITERAL case through isType, getTypeErrors, and mockType.
+import {describe, it} from 'vitest';
+import {TEMPLATE_LITERAL} from './TemplateLiteral.ts';
+import {assertIsType, assertGetTypeErrors, assertMockType} from '../../util/validationAsserts.ts';
+
+describe('validation / TemplateLiteral', () => {
+  for (const c of Object.values(TEMPLATE_LITERAL)) {
+    it(`isType — ${c.title}`, () => assertIsType(c));
+    it(`getTypeErrors — ${c.title}`, () => assertGetTypeErrors(c));
+    it(`mockType — ${c.title}`, () => assertMockType(c));
+  }
+});
