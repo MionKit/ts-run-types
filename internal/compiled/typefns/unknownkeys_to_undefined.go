@@ -1,7 +1,6 @@
 package typefns
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -95,17 +94,17 @@ func (UnknownKeysToUndefinedEmitter) Emit(rt *protocol.RunType, ctx *EmitContext
 		case protocol.SubKindNone:
 			return emitObjectUnknownKeysToUndefined(rt, ctx)
 		case protocol.SubKindMap, protocol.SubKindSet:
-			return emitNativeIterableUnknownKeysToUndefined(rt, ctx, ctx.Vλl)
+			return emitNativeIterableUnknownKeys(rt, ctx, ctx.Vλl)
 		}
 		return RTCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
-		return emitPropertyUnknownKeysToUndefined(rt, ctx)
+		return emitPropertyUnknownKeys(rt, ctx)
 	case protocol.KindArray:
-		return emitArrayUnknownKeysToUndefined(rt, ctx)
+		return emitArrayUnknownKeys(rt, ctx)
 	case protocol.KindTuple:
 		return emitTupleUnknownKeysToUndefined(rt, ctx)
 	case protocol.KindTupleMember:
-		return emitTupleMemberUnknownKeysToUndefined(rt, ctx)
+		return emitTupleMemberUnknownKeys(rt, ctx)
 	case protocol.KindIndexSignature:
 		return emitIndexSignatureUnknownKeysToUndefined(rt, ctx)
 	case protocol.KindUnion:
@@ -162,63 +161,6 @@ func emitObjectUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RT
 	return RTCode{Code: combined, Type: CodeS}
 }
 
-func emitPropertyUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if rt.Child == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if isFunctionLikeKind(resolved.Kind) {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if resolved.IsStatic {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	v := ctx.Vλl
-	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
-	ctx.SetChildAccessor(accessor)
-	childRT := ctx.CompileChild(rt.Child, CodeS)
-	ctx.SetChildAccessor("")
-	if childRT.Type == CodeNS {
-		return RTCode{Code: "", Type: CodeNS}
-	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if rt.Optional {
-		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
-	}
-	return childRT
-}
-
-func emitArrayUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if rt.Child == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	v := ctx.Vλl
-	iVar := ctx.NextLocalVar("i")
-	ctx.SetChildAccessor(v + "[" + iVar + "]")
-	childRT := ctx.CompileChild(rt.Child, CodeS)
-	ctx.SetChildAccessor("")
-	if childRT.Type == CodeNS {
-		return RTCode{Code: "", Type: CodeNS}
-	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-	return RTCode{Code: body, Type: CodeS}
-}
-
 func emitTupleUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	// uku at a tuple node is a no-op. The per-position concat pattern
 	// blindly recurses into every child slot, which breaks on circular
@@ -232,49 +174,6 @@ func emitTupleUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTC
 	_ = rt
 	_ = ctx
 	return RTCode{Code: "", Type: CodeS}
-}
-
-func emitTupleMemberUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if rt.Child == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	v := ctx.Vλl
-	if isRestTupleMember(rt) {
-		iVar := ctx.NextLocalVar("i")
-		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		childRT := ctx.CompileChild(rt.Child, CodeS)
-		ctx.SetChildAccessor("")
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code == "" {
-			return RTCode{Code: "", Type: CodeS}
-		}
-		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-		return RTCode{Code: body, Type: CodeS}
-	}
-	idxLit := positionStr(rt)
-	accessor := v + "[" + idxLit + "]"
-	ctx.SetChildAccessor(accessor)
-	childRT := ctx.CompileChild(rt.Child, CodeS)
-	ctx.SetChildAccessor("")
-	if childRT.Type == CodeNS {
-		return RTCode{Code: "", Type: CodeNS}
-	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if rt.Optional {
-		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
-	}
-	return childRT
 }
 
 // emitIndexSignatureUnknownKeysToUndefined ports mion's
@@ -333,58 +232,6 @@ func emitIndexSignatureUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitCon
 		return RTCode{Code: "", Type: CodeS}
 	}
 	body := "for (const " + prop + " in " + v + ") {" + patternUndef + childRT.Code + "}"
-	return RTCode{Code: body, Type: CodeS}
-}
-
-// emitNativeIterableUnknownKeysToUndefined mirrors mion's
-// IterableRunType.emitUnknownKeysToUndefined (nodes/native/Iterable.ts:138-152).
-// Identical shape to the strip variant; the difference is the child's
-// per-key snippet (`v[k] = undefined` instead of `delete v[k]`), which
-// the recursing child emits itself.
-func emitNativeIterableUnknownKeysToUndefined(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	isMap := rt.SubKind == protocol.SubKindMap
-	ctorName := "Map"
-	if !isMap {
-		ctorName = "Set"
-	}
-
-	var innerTypes []*protocol.RunType
-	if isMap {
-		keyType, valueType := mapKeyValueTypes(rt, ctx)
-		innerTypes = []*protocol.RunType{keyType, valueType}
-	} else {
-		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
-	}
-
-	entryVar := ctx.NextLocalVar("e")
-	var childCodes []string
-	for i, innerType := range innerTypes {
-		if innerType == nil {
-			continue
-		}
-		accessor := entryVar
-		if isMap {
-			accessor = entryVar + "[" + strconv.Itoa(i) + "]"
-		}
-		ctx.SetChildAccessor(accessor)
-		childRT := ctx.CompileChild(innerType, CodeS)
-		ctx.SetChildAccessor("")
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code != "" {
-			childCodes = append(childCodes, childRT.Code)
-		}
-	}
-
-	if len(childCodes) == 0 {
-		return RTCode{Code: "", Type: CodeS}
-	}
-
-	body := "if (!(" + v + " instanceof " + ctorName + ")) return;" +
-		"for (const " + entryVar + " of " + v + ") {" +
-		strings.Join(childCodes, ";") +
-		"}"
 	return RTCode{Code: body, Type: CodeS}
 }
 
