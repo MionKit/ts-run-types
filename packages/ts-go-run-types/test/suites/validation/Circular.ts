@@ -68,6 +68,17 @@ export const CIRCULAR = {
       }
       return createGetTypeErrors<Circular>();
     },
+    getTypeErrorsSchema: () => {
+      const cir = RT.circular((self) =>
+        RT.object({
+          n: RT.number(),
+          s: RT.string(),
+          c: RT.optional(self),
+          d: RT.optional(RT.date()),
+        })
+      );
+      return createGetTypeErrors(cir);
+    },
     deserializeGetTypeErrors: () => {
       interface Circular {
         n: number;
@@ -177,6 +188,10 @@ export const CIRCULAR = {
     getTypeErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
       return createGetTypeErrors<CuArray>();
+    },
+    getTypeErrorsSchema: () => {
+      const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
+      return createGetTypeErrors(cu);
     },
     deserializeGetTypeErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -387,6 +402,10 @@ export const CIRCULAR = {
       }
       return createGetTypeErrors<CircularIndex>();
     },
+    getTypeErrorsSchema: () => {
+      const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
+      return createGetTypeErrors(ci);
+    },
     deserializeGetTypeErrors: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
@@ -495,6 +514,16 @@ export const CIRCULAR = {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       return createGetTypeErrors<CircularDeep>();
+    },
+    getTypeErrorsSchema: () => {
+      const cd = RT.circular((self) =>
+        RT.object({
+          deep1: RT.object({
+            deep2: RT.object({deep3: RT.object({deep4: RT.optional(self)})}),
+          }),
+        })
+      );
+      return createGetTypeErrors(cd);
     },
     deserializeGetTypeErrors: () => {
       interface CircularDeep {
@@ -649,6 +678,17 @@ export const CIRCULAR = {
         ciChild: ICircularDeep;
       }
       return createGetTypeErrors<RootNotCircular>();
+    },
+    getTypeErrorsSchema: () => {
+      const icd = RT.circular((self) =>
+        RT.object({
+          name: RT.string(),
+          big: RT.bigint(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+        })
+      );
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      return createGetTypeErrors(root);
     },
     deserializeGetTypeErrors: () => {
       interface ICircularDeep {
@@ -927,6 +967,33 @@ export const CIRCULAR = {
         ciDate: ICircularDate;
       }
       return createGetTypeErrors<RootCircular>();
+    },
+    getTypeErrorsSchema: () => {
+      const icd = RT.circular((self) =>
+        RT.object({
+          name: RT.string(),
+          big: RT.bigint(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+        })
+      );
+      const icDate = RT.circular((self) =>
+        RT.object({
+          date: RT.date(),
+          month: RT.number(),
+          year: RT.number(),
+          embedded: RT.optional(self),
+          deep: RT.optional(icd),
+        })
+      );
+      const root = RT.circular((self) =>
+        RT.object({
+          isRoot: RT.literal(true),
+          ciChild: icd,
+          ciRoort: RT.optional(self),
+          ciDate: icDate,
+        })
+      );
+      return createGetTypeErrors(root);
     },
     deserializeGetTypeErrors: () => {
       interface ICircularDeep {

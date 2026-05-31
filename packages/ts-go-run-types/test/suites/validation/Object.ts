@@ -566,6 +566,10 @@ export const OBJECT = {
       type ICircular = {name: string; child?: ICircular};
       return createGetTypeErrors<ICircular>();
     },
+    getTypeErrorsSchema: () => {
+      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      return createGetTypeErrors(ic);
+    },
     deserializeGetTypeErrors: () => {
       type ICircular = {name: string; child?: ICircular};
       return deserializeGetTypeErrors<ICircular>();
@@ -641,6 +645,10 @@ export const OBJECT = {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return createGetTypeErrors<ICircularArray>();
     },
+    getTypeErrorsSchema: () => {
+      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      return createGetTypeErrors(ica);
+    },
     deserializeGetTypeErrors: () => {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       return deserializeGetTypeErrors<ICircularArray>();
@@ -709,6 +717,15 @@ export const OBJECT = {
     getTypeErrors: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       return createGetTypeErrors<ICircularDeep>();
+    },
+    getTypeErrorsSchema: () => {
+      const icd = RT.circular((self) =>
+        RT.object({
+          name: RT.string(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+        })
+      );
+      return createGetTypeErrors(icd);
     },
     deserializeGetTypeErrors: () => {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
@@ -1541,6 +1558,22 @@ export const OBJECT = {
       }
       return createIsType<RpcError<'test-error'>>();
     },
+    // Generic class → pin the instance type explicitly on `classType` (the
+    // documented generic-class form), so it reflects `RpcError<'test-error'>`.
+    isTypeSchema: () => {
+      class RpcError<ErrType extends string> {
+        public readonly 'mion@isΣrrθr': true = true;
+        public readonly type: ErrType;
+        public readonly publicMessage: string;
+        public readonly id?: string;
+        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+          this.type = args.type;
+          this.publicMessage = args.publicMessage;
+          this.id = args.id;
+        }
+      }
+      return createIsType(RT.classType<RpcError<'test-error'>>(RpcError));
+    },
     deserializeIsType: () => {
       // Mirrors @mionjs/core's RpcError public shape:
       //   - `mion@isΣrrθr: true` brand (literal true)
@@ -1606,6 +1639,20 @@ export const OBJECT = {
         }
       }
       return createGetTypeErrors<RpcError<'test-error'>>();
+    },
+    getTypeErrorsSchema: () => {
+      class RpcError<ErrType extends string> {
+        public readonly 'mion@isΣrrθr': true = true;
+        public readonly type: ErrType;
+        public readonly publicMessage: string;
+        public readonly id?: string;
+        constructor(args: {type: ErrType; publicMessage: string; id?: string}) {
+          this.type = args.type;
+          this.publicMessage = args.publicMessage;
+          this.id = args.id;
+        }
+      }
+      return createGetTypeErrors(RT.classType<RpcError<'test-error'>>(RpcError));
     },
     deserializeGetTypeErrors: () => {
       class RpcError<ErrType extends string> {
@@ -2447,6 +2494,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[k: number]: string}>(),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[k: number]: string}>(),
     getTypeErrorsReflect: () => {
       const v: {[k: number]: string} = {};

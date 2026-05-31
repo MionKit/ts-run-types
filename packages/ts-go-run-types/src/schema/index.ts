@@ -71,6 +71,62 @@ export {
   parameters,
 } from './utility.ts';
 
+// Predefined STRING-format builders — one per named string format alias
+// (`email` / `uuidv4` / `ipv4` / `domain` / `url` / `alpha` / `numeric` /
+// `lowercase` / `stringDate` / `stringTime` / `stringDateTime` / …). Each carries
+// the concrete `Format*` alias, so it converges with the type-first surface.
+export {
+  alpha,
+  alphaNumeric,
+  numeric,
+  lowercase,
+  uppercase,
+  capitalize,
+  uuidv4,
+  uuidv7,
+  ip,
+  ipv4,
+  ipv6,
+  ipWithPort,
+  ipv4WithPort,
+  ipv6WithPort,
+  domain,
+  domainUnicode,
+  domainPunycode,
+  domainStrict,
+  email,
+  emailPunycode,
+  emailStrict,
+  url,
+  urlHttp,
+  urlFile,
+  stringDate,
+  stringTime,
+  stringDateTime,
+} from './stringFormats.ts';
+
+// Predefined NUMBER-format builders — `integer` / `float` / `positive` /
+// `negative` / `positiveInt` / `negativeInt` / `int8` / `int16` / `int32` /
+// `uint8` / `uint16` / `uint32`.
+export {
+  integer,
+  float,
+  positive,
+  negative,
+  positiveInt,
+  negativeInt,
+  int8,
+  int16,
+  int32,
+  uint8,
+  uint16,
+  uint32,
+} from './numberFormats.ts';
+
+// Predefined BIGINT-format builders — `bigPositive` / `bigNegative` /
+// `bigPositiveInt` / `bigNegativeInt` / `bigInt64` / `bigUInt64`.
+export {bigPositive, bigNegative, bigPositiveInt, bigNegativeInt, bigInt64, bigUInt64} from './bigintFormats.ts';
+
 // Type-level helpers the builders carry (all in static.ts).
 export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate} from './static.ts';
 

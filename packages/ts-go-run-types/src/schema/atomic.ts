@@ -55,6 +55,16 @@ export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: un
   return carrier as RunType<T>;
 }
 
+/** Builds a no-param preset builder for a FIXED named format `T` (e.g.
+ *  `FormatEmail`, `FormatInt8`). The returned function's only param is the injected
+ *  `InjectRunTypeId<T>` brand, so the scanner reflects `T` and the value-first id
+ *  matches the type-first alias. Used by the predefined-format builder files
+ *  (stringFormats.ts / numberFormats.ts / bigintFormats.ts); `tag` is the Go
+ *  format name, carried only on the fallback carrier. **/
+export function presetBuilder<T>(tag: string): (id?: InjectRunTypeId<T>) => RunType<T> {
+  return (id?: InjectRunTypeId<T>) => builderResult(id, {type: tag, formatParams: {}});
+}
+
 // ───────────────────────────── Leaf builders ────────────────────────
 //
 // Each parameterised leaf builder is TWO overloads: the no-params call returns
@@ -230,8 +240,20 @@ function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag
   return build as TemporalBuilderFn<Tag>;
 }
 
+/** A no-ordering temporal builder (`plainMonthDay` / `duration`). These have no
+ *  min/max semantics, so — unlike `temporalBuilder` — there is only the no-params
+ *  overload: it returns the raw instance type and converges with the type-first
+ *  `createIsType<Temporal.PlainMonthDay>()` / `<Temporal.Duration>()` form. **/
+function temporalInstanceBuilder<Tag extends 'temporal.plainMonthDay' | 'temporal.duration'>(
+  tag: Tag
+): (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => RunType<TemporalBaseByTag[Tag]> {
+  return (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>) => builderResult(id, {type: tag, formatParams: {}});
+}
+
 /** Temporal field builders, namespaced to mirror the `Temporal.X` API
- *  (lowercase, to differentiate from the native `Temporal` global). **/
+ *  (lowercase, to differentiate from the native `Temporal` global). The six
+ *  orderable types take optional min/max; `plainMonthDay` / `duration` are
+ *  no-param instance validators (no ordering — see temporalFormats.ts). **/
 export const temporal = {
   instant: temporalBuilder('temporal.instant'),
   zonedDateTime: temporalBuilder('temporal.zonedDateTime'),
@@ -239,4 +261,6 @@ export const temporal = {
   plainTime: temporalBuilder('temporal.plainTime'),
   plainDateTime: temporalBuilder('temporal.plainDateTime'),
   plainYearMonth: temporalBuilder('temporal.plainYearMonth'),
+  plainMonthDay: temporalInstanceBuilder('temporal.plainMonthDay'),
+  duration: temporalInstanceBuilder('temporal.duration'),
 };

@@ -1,12 +1,14 @@
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
 import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatBigInt, FormatBigInt64, FormatBigUInt64} from '@mionjs/ts-go-run-types/formats';
 
 export const BIGINT_FORMAT = {
   bigint_max: {
     title: 'FormatBigInt<{max: 100n}> — inclusive upper bound',
     isType: () => createIsType<FormatBigInt<{max: 100n}>>(),
+    isTypeSchema: () => createIsType(RT.bigint({max: 100n})),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt<{max: 100n}>>(),
     mockType: () => createMockType<FormatBigInt<{max: 100n}>>(),
     getSamples: () => ({valid: [100n, 0n, -50n], invalid: [101n, 5]}),
@@ -15,6 +17,7 @@ export const BIGINT_FORMAT = {
   bigint_min: {
     title: 'FormatBigInt<{min: 0n}> — inclusive lower bound',
     isType: () => createIsType<FormatBigInt<{min: 0n}>>(),
+    isTypeSchema: () => createIsType(RT.bigint({min: 0n})),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt<{min: 0n}>>(),
     mockType: () => createMockType<FormatBigInt<{min: 0n}>>(),
     getSamples: () => ({valid: [0n, 1n, 9999n], invalid: [-1n]}),
@@ -23,6 +26,7 @@ export const BIGINT_FORMAT = {
   bigint_lt: {
     title: 'FormatBigInt<{lt: 10n}> — exclusive upper bound',
     isType: () => createIsType<FormatBigInt<{lt: 10n}>>(),
+    isTypeSchema: () => createIsType(RT.bigint({lt: 10n})),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt<{lt: 10n}>>(),
     mockType: () => createMockType<FormatBigInt<{lt: 10n}>>(),
     getSamples: () => ({valid: [9n, -5n], invalid: [10n, 11n]}),
@@ -34,6 +38,7 @@ export const BIGINT_FORMAT = {
   bigint_gt: {
     title: 'FormatBigInt<{gt: 0n}> — exclusive lower bound',
     isType: () => createIsType<FormatBigInt<{gt: 0n}>>(),
+    isTypeSchema: () => createIsType(RT.bigint({gt: 0n})),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt<{gt: 0n}>>(),
     mockType: () => createMockType<FormatBigInt<{gt: 0n}>>(),
     getSamples: () => ({valid: [1n, 100n], invalid: [0n, -1n]}),
@@ -45,6 +50,7 @@ export const BIGINT_FORMAT = {
   bigint_multipleOf: {
     title: 'FormatBigInt<{multipleOf: 5n}> — divisible by 5',
     isType: () => createIsType<FormatBigInt<{multipleOf: 5n}>>(),
+    isTypeSchema: () => createIsType(RT.bigint({multipleOf: 5n})),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt<{multipleOf: 5n}>>(),
     mockType: () => createMockType<FormatBigInt<{multipleOf: 5n}>>(),
     getSamples: () => ({valid: [0n, 5n, -15n], invalid: [3n, 7n]}),
@@ -56,6 +62,7 @@ export const BIGINT_FORMAT = {
   bigint_combined: {
     title: 'FormatBigInt<{min:0n; max:1000n; multipleOf:10n}> — all constraints',
     isType: () => createIsType<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
+    isTypeSchema: () => createIsType(RT.bigint({min: 0n, max: 1000n, multipleOf: 10n})),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     mockType: () => createMockType<FormatBigInt<{min: 0n; max: 1000n; multipleOf: 10n}>>(),
     getSamples: () => ({valid: [0n, 10n, 1000n], invalid: [-10n, 1010n, 7n]}),
@@ -68,6 +75,7 @@ export const BIGINT_FORMAT = {
   bigint_int64: {
     title: 'FormatBigInt64 — full signed 64-bit range',
     isType: () => createIsType<FormatBigInt64>(),
+    isTypeSchema: () => createIsType(RT.bigInt64()),
     getTypeErrors: () => createGetTypeErrors<FormatBigInt64>(),
     mockType: () => createMockType<FormatBigInt64>(),
     getSamples: () => ({
@@ -82,6 +90,7 @@ export const BIGINT_FORMAT = {
   bigint_uint64: {
     title: 'FormatBigUInt64 — full unsigned 64-bit range',
     isType: () => createIsType<FormatBigUInt64>(),
+    isTypeSchema: () => createIsType(RT.bigUInt64()),
     getTypeErrors: () => createGetTypeErrors<FormatBigUInt64>(),
     mockType: () => createMockType<FormatBigUInt64>(),
     getSamples: () => ({valid: [0n, 18446744073709551615n], invalid: [18446744073709551616n, -1n]}),

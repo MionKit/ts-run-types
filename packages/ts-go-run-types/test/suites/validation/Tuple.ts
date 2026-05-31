@@ -311,10 +311,12 @@ export const TUPLE = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createIsType<TupleCircular>();
     },
-    // No isTypeSchema/getTypeErrorsSchema: a ROOT-level recursive tuple can't be
-    // authored value-first — `Recursive<[…, Self?]>` hits TS2589 (TS can't build a
-    // recursive tuple type via the mapping). Covered type-first here; the
-    // object→tuple cycle is covered value-first by CIRCULAR.object_with_tuple_prop.
+    // A ROOT-level recursive tuple can't be authored value-first — `Recursive<[…,
+    // Self?]>` hits TS2589 (TS can't build a recursive tuple type via the mapping).
+    // Covered type-first here; the object→tuple cycle is covered value-first by
+    // CIRCULAR.object_with_tuple_prop.
+    isTypeSchema: 'not-supported',
+    getTypeErrorsSchema: 'not-supported',
     deserializeIsType: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return deserializeIsType<TupleCircular>();
