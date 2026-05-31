@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -20,18 +20,14 @@ export const CIRCULAR = {
       return createIsType<Circular>();
     },
     isTypeSchema: () => {
-      interface Circular {
-        n: number;
-        s: string;
-        c?: Circular;
-        d?: Date;
-      }
-      const cir: RunType<Circular> = RT.object({
-        n: RT.number(),
-        s: RT.string(),
-        c: RT.optional(RT.lazy((): RunType<Circular> => cir)),
-        d: RT.optional(RT.date()),
-      });
+      const cir = RT.circular((self) =>
+        RT.object({
+          n: RT.number(),
+          s: RT.string(),
+          c: RT.optional(self),
+          d: RT.optional(RT.date()),
+        })
+      );
       return createIsType(cir);
     },
     deserializeIsType: () => {
@@ -157,8 +153,7 @@ export const CIRCULAR = {
     description:
       "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
     isTypeSchema: () => {
-      type CuArray = (CuArray | Date | number | string)[];
-      const cu: RunType<CuArray> = RT.array(RT.union([RT.lazy((): RunType<CuArray> => cu), RT.date(), RT.number(), RT.string()]));
+      const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
       return createIsType(cu);
     },
     isType: () => {
@@ -253,10 +248,7 @@ export const CIRCULAR = {
       return createIsType<CircularTuple>();
     },
     isTypeSchema: () => {
-      type CircularTuple = {tuple: [bigint, CircularTuple?]};
-      const ct: RunType<CircularTuple> = RT.object({
-        tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
-      });
+      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
       return createIsType(ct);
     },
     deserializeIsType: () => {
@@ -286,10 +278,7 @@ export const CIRCULAR = {
       return createGetTypeErrors<CircularTuple>();
     },
     getTypeErrorsSchema: () => {
-      type CircularTuple = {tuple: [bigint, CircularTuple?]};
-      const ct: RunType<CircularTuple> = RT.object({
-        tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
-      });
+      const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
       return createGetTypeErrors(ct);
     },
     deserializeGetTypeErrors: () => {
@@ -369,10 +358,7 @@ export const CIRCULAR = {
       return createIsType<CircularIndex>();
     },
     isTypeSchema: () => {
-      interface CircularIndex {
-        index: {[key: string]: CircularIndex};
-      }
-      const ci: RunType<CircularIndex> = RT.object({index: RT.record(RT.lazy((): RunType<CircularIndex> => ci))});
+      const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
       return createIsType(ci);
     },
     deserializeIsType: () => {
@@ -475,14 +461,13 @@ export const CIRCULAR = {
       return createIsType<CircularDeep>();
     },
     isTypeSchema: () => {
-      interface CircularDeep {
-        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
-      }
-      const cd: RunType<CircularDeep> = RT.object({
-        deep1: RT.object({
-          deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.lazy((): RunType<CircularDeep> => cd))})}),
-        }),
-      });
+      const cd = RT.circular((self) =>
+        RT.object({
+          deep1: RT.object({
+            deep2: RT.object({deep3: RT.object({deep4: RT.optional(self)})}),
+          }),
+        })
+      );
       return createIsType(cd);
     },
     deserializeIsType: () => {
@@ -597,21 +582,16 @@ export const CIRCULAR = {
       return createIsType<RootNotCircular>();
     },
     isTypeSchema: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface RootNotCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-      }
-      const icd: RunType<ICircularDeep> = RT.object({
-        name: RT.string(),
-        big: RT.bigint(),
-        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
-      });
-      const root: RunType<RootNotCircular> = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      // The recursive child is a `circular(...)`; the non-circular root is a plain
+      // schema referencing it — no hand-written types at all.
+      const icd = RT.circular((self) =>
+        RT.object({
+          name: RT.string(),
+          big: RT.bigint(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+        })
+      );
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
       return createIsType(root);
     },
     deserializeIsType: () => {
@@ -826,42 +806,32 @@ export const CIRCULAR = {
       return createIsType<RootCircular>();
     },
     isTypeSchema: () => {
-      interface ICircularDeep {
-        name: string;
-        big: bigint;
-        embedded: {hello: string; child?: ICircularDeep};
-      }
-      interface ICircularDate {
-        date: Date;
-        month: number;
-        year: number;
-        embedded?: ICircularDate;
-        deep?: ICircularDeep;
-      }
-      interface RootCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-        ciRoort?: RootCircular;
-        ciDate: ICircularDate;
-      }
-      const icd: RunType<ICircularDeep> = RT.object({
-        name: RT.string(),
-        big: RT.bigint(),
-        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
-      });
-      const icDate: RunType<ICircularDate> = RT.object({
-        date: RT.date(),
-        month: RT.number(),
-        year: RT.number(),
-        embedded: RT.optional(RT.lazy((): RunType<ICircularDate> => icDate)),
-        deep: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd)),
-      });
-      const root: RunType<RootCircular> = RT.object({
-        isRoot: RT.literal(true),
-        ciChild: icd,
-        ciRoort: RT.optional(RT.lazy((): RunType<RootCircular> => root)),
-        ciDate: icDate,
-      });
+      // Mutual recursion, no types: each type's OWN back-edge uses `self`;
+      // cross-references to an already-declared run-type are plain const refs.
+      const icd = RT.circular((self) =>
+        RT.object({
+          name: RT.string(),
+          big: RT.bigint(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+        })
+      );
+      const icDate = RT.circular((self) =>
+        RT.object({
+          date: RT.date(),
+          month: RT.number(),
+          year: RT.number(),
+          embedded: RT.optional(self),
+          deep: RT.optional(icd),
+        })
+      );
+      const root = RT.circular((self) =>
+        RT.object({
+          isRoot: RT.literal(true),
+          ciChild: icd,
+          ciRoort: RT.optional(self),
+          ciDate: icDate,
+        })
+      );
       return createIsType(root);
     },
     deserializeIsType: () => {

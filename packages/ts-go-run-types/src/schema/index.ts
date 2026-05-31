@@ -29,10 +29,11 @@ export {
 } from './atomic.ts';
 
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
-// `map` / `set` / `promise` / `lazy` / `func` / `templateLiteral`, the `object`
-// assembler, and the `propMod({optional?, readonly?}, field)` / `optional(field)`
-// property-modifier wrappers. Each returns the generic `RunType<…>`; child schemas
-// nest freely (the outer composer's marker reflects the whole shape).
+// `map` / `set` / `promise` / `func` / `templateLiteral`, the `object` assembler,
+// the `propMod({optional?, readonly?}, field)` / `optional(field)` property-modifier
+// wrappers, and the recursive-schema pair `circular((self) => …)` / `self()`. Each
+// returns the generic `RunType<…>`; child schemas nest freely (the outer composer's
+// marker reflects the whole shape).
 export {
   object,
   array,
@@ -43,7 +44,8 @@ export {
   map,
   set,
   promise,
-  lazy,
+  circular,
+  self,
   func,
   templateLiteral,
   propMod,
