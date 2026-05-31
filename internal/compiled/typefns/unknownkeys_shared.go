@@ -359,3 +359,31 @@ func siblingNamedSkipCode(idxSig *protocol.RunType, ctx *EmitContext, prop strin
 	}
 	return "if (" + ctxKey + ".has(" + prop + ")) continue;"
 }
+
+// unknownKeysChildrenCode collects each non-static, non-function child's
+// emitted code (CodeS) and joins with `;`. Shared by the object emit of the
+// strip / unknownKeyErrors / unknownKeysToUndefined families — the
+// child-filtering + compile loop is identical across all three.
+func unknownKeysChildrenCode(rt *protocol.RunType, ctx *EmitContext) string {
+	var parts []string
+	for _, child := range rt.Children {
+		resolved := ctx.ResolveRef(child)
+		if resolved == nil {
+			continue
+		}
+		if resolved.IsStatic {
+			continue
+		}
+		if isFunctionLikeKind(resolved.Kind) {
+			continue
+		}
+		childRT := ctx.CompileChild(child, CodeS)
+		if childRT.Type == CodeNS {
+			continue
+		}
+		if childRT.Code != "" {
+			parts = append(parts, childRT.Code)
+		}
+	}
+	return strings.Join(parts, ";")
+}
