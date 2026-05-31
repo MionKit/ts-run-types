@@ -1,7 +1,6 @@
 package typefns
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
@@ -427,14 +426,7 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 	}
 
 	if len(optional) > 0 {
-		bitmapLength := (len(optional) + 7) / 8
-		bitmapVar := ctx.NextLocalVar("bmI")
-		var bitmapInit string
-		if bitmapLength > 1 {
-			bitmapInit = "const " + bitmapVar + " = " + des + ".index;" + des + ".index += " + strconv.Itoa(bitmapLength)
-		} else {
-			bitmapInit = "const " + bitmapVar + " = " + des + ".index++"
-		}
+		bitmapInit, bitmapVar := readOptionalBitmapInit(ctx, des, len(optional), false)
 		parts = append(parts, bitmapInit)
 		for i, child := range optional {
 			resolved := ctx.ResolveRef(child)
@@ -452,9 +444,7 @@ func emitObjectFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des strin
 			if innerRT.Type == CodeNS {
 				return RTCode{Code: "", Type: CodeNS}
 			}
-			byteOffset := i / 8
-			bitIdx := i & 7
-			bitCheck := "(" + des + ".view.getUint8(" + bitmapVar + " + " + strconv.Itoa(byteOffset) + ") & " + strconv.Itoa(1<<bitIdx) + ")"
+			bitCheck := bitCheckExpr(des, bitmapVar, i)
 			body := innerRT.Code
 			if body == "" {
 				body = ""
@@ -497,14 +487,7 @@ func emitTupleFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 	}
 
 	if len(optional) > 0 {
-		bitmapLength := (len(optional) + 7) / 8
-		bitmapVar := ctx.NextLocalVar("tbmI")
-		var bitmapInit string
-		if bitmapLength > 1 {
-			bitmapInit = "const " + bitmapVar + " = " + des + ".index;" + des + ".index += " + strconv.Itoa(bitmapLength)
-		} else {
-			bitmapInit = "const " + bitmapVar + " = " + des + ".index++"
-		}
+		bitmapInit, bitmapVar := readOptionalBitmapInit(ctx, des, len(optional), true)
 		parts = append(parts, bitmapInit)
 		for i, child := range optional {
 			resolved := ctx.ResolveRef(child)
@@ -523,9 +506,7 @@ func emitTupleFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, des string
 			if innerRT.Type == CodeNS {
 				return RTCode{Code: "", Type: CodeNS}
 			}
-			byteOffset := i / 8
-			bitIdx := i & 7
-			bitCheck := "(" + des + ".view.getUint8(" + bitmapVar + " + " + strconv.Itoa(byteOffset) + ") & " + strconv.Itoa(1<<bitIdx) + ")"
+			bitCheck := bitCheckExpr(des, bitmapVar, i)
 			parts = append(parts, "if ("+bitCheck+") {"+innerRT.Code+"}")
 		}
 	}
