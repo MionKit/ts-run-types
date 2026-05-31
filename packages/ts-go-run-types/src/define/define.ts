@@ -3,18 +3,18 @@
 // the source type `T` it represents); `TypeFromRT<typeof X>` recovers `T`:
 //
 //   import {string, number, boolean, bigint, date, temporal} from '@mionjs/ts-go-run-types/define';
-//   import {createIsTypeFor, type TypeFromRT} from '@mionjs/ts-go-run-types';
+//   import {createIsType, type TypeFromRT} from '@mionjs/ts-go-run-types';
 //
 //   const Name = string({minLength: 1, maxLength: 50}); // RunType<FormatString<…>>
 //   type Name  = TypeFromRT<typeof Name>;               // FormatString<…>
-//   const isName = createIsTypeFor(Name);               // validator from the schema
+//   const isName = createIsType(Name);               // validator from the schema
 //
 // The leaf builder's carried `T` is sourced from the leaf reverse map
 // (leafTypes.ts) keyed by format name — the single place the format→type mapping
 // lives. The Go scanner reflects the SAME branded type off the builder's
 // `InjectRunTypeId<…>` brand as the type-first surface, so a value-first leaf and
 // the hand-written `Format*<P>` form converge on one structural id; the runtime
-// then resolves the same precompiled factory (see createIsTypeFor).
+// then resolves the same precompiled factory (see createIsType).
 //
 // `object(...)` composes leaf builders, but — unlike the leaves — it still
 // returns the PLAIN object type (`ObjectType<C>`), not `RunType<ObjectType<C>>`;
@@ -45,7 +45,8 @@ import type {TypeFromRT} from '../runtypes/typeFromRt.ts';
 // Temporal-lib coupling out of this module.
 import type {LeafType} from './leafTypes.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-import type {StringParams} from '../formats/string/stringFormats.ts';
+import type {StringParams, StringParamsValueFirst} from '../formats/string/stringFormats.ts';
+import type {StringPatternArgs} from '../runtypes/formatPattern.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
@@ -55,11 +56,13 @@ import type {TemporalBaseByFormatName} from '../formats/datetime/temporalFormats
 // ─────────────────────────────── Params ─────────────────────────────
 //
 // Value-first builders accept the type-first format params unchanged
-// (`StringParams`, `NumberParams`, … imported above). There is NO value-first
-// re-typing of `pattern`: a pattern must carry `mockSamples` (see `PatternParam`
-// in stringFormats.ts — a `FormatPattern` or an inline `{source, flags?,
-// mockSamples, …}`, never a bare `/regex/`), so `string` uses
-// `StringParams.pattern` as-is.
+// (`NumberParams`, `BigIntParams`, … imported above). The EXCEPTION is `string`,
+// which binds to `StringParamsValueFirst`: identical to `StringParams` except
+// `pattern` is the inline `{source, flags?, mockSamples}` literal ONLY, never the
+// opaque `FormatPattern` (`registerFormatPattern(...)`) value whose source/flags
+// erase to `string`. The inline form keeps the pattern literals IN the carried
+// `T`, so a schema validator reflected off `T` stays faithful. `regexp` mirrors
+// this with its own decomposed `{source, flags?, mockSamples}` brand.
 
 // ─────────────────────────── Field configs ──────────────────────────
 //
@@ -164,12 +167,12 @@ export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: un
 
 /** A string field builder. `string()` → `RunType<string>` (plain, converges with
  *  type-first `string`); `string({maxLength: 5})` → branded `RunType<FormatString<P>>`.
- *  The param type is `StringParams` (a `pattern` is a `FormatPattern` or an inline
- *  `{source, flags?, mockSamples, …}`, never a bare `/regex/`), so `P` satisfies
- *  `FormatString`'s own `StringParams` bound directly — no `TypeFormat<…>`
- *  workaround. **/
+ *  Params are `StringParamsValueFirst`: like `StringParams` but `pattern` is the
+ *  inline `{source, flags?, mockSamples, …}` literal ONLY — not the opaque
+ *  `FormatPattern` value (whose source/flags erase to `string`), so the reflected
+ *  `T` keeps the pattern literals and the value-first id stays faithful. **/
 export function string(id?: InjectRunTypeId<string>): RunType<string>;
-export function string<const P extends StringParams>(
+export function string<const P extends StringParamsValueFirst>(
   formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'stringFormat', P>>
 ): RunType<LeafType<'stringFormat', P>>;
@@ -239,24 +242,46 @@ export function literal<const V extends string | number | bigint | boolean | nul
   return builderResult(id, {type: 'literal', literal: value});
 }
 
+/** A `RegExp`-LITERAL brand: carries the regex source + flags as LITERAL TYPE
+ *  ARGS so the Go scanner recovers them off the TYPE (`RegexLiteralFromType`),
+ *  never the AST. `RegExp & {…}` so a branded value is still a `RegExp` at
+ *  runtime; `TypeFromRT` unwraps it like any other brand. **/
+export type RegexLiteralType<Source extends string, Flags extends string = ''> = RegExp & {
+  readonly __rtRegexSource: Source;
+  readonly __rtRegexFlags: Flags;
+};
+
+/** The flags literal carried by a decomposed regexp params object, defaulting to
+ *  `''` when `flags` is omitted (a flagless regex). **/
+type RegexFlagsOf<A extends StringPatternArgs> = A extends {flags: infer F extends string} ? F : '';
+
 /** A `RegExp` builder. Two forms:
  *   - `regexp()` → `RunType<RegExp>` — matches any `RegExp` instance.
- *   - `regexp(/abc/i)` → a `RegExp`-LITERAL run-type matched by source + flags
- *     (≡ the type-first `` createIsType<typeof reg>() `` where `const reg = /abc/i`).
- *  TS has no regex-literal type, so the literal can only come from the AST: the
- *  argument is `CompTimeArgs<RegExp>` (must be a literal at the call site, else a
- *  CTA diagnostic), and the marker scanner harvests its source + flags from the
- *  call's first argument exactly as it does for `typeof reg`. The pattern rides
- *  the carrier; convergence comes from the harvested id. Distinct from
- *  `string({pattern})`, which validates a STRING against a pattern. **/
-export function regexp(pattern?: CompTimeArgs<RegExp>, id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
-  return builderResult(id, {type: 'regexp', formatParams: {}, pattern});
+ *   - `regexp({source: 'abc', flags: 'i', mockSamples: ['abc']})` → a
+ *     `RegExp`-LITERAL run-type matched by source + flags (≡ the type-first
+ *     `` createIsType<typeof reg>() `` where `const reg = /abc/i`).
+ *  TS has no regex-literal type, so the decomposed form carries source + flags as
+ *  LITERAL TYPE ARGS on the `RegexLiteralType` brand (`const A` keeps them
+ *  literal); the scanner reads them off the type and routes to the SAME
+ *  `SerializeRegexLiteral` id the type-first `typeof reg` form produces, so the
+ *  two converge by construction. `mockSamples` (required, the `StringPatternArgs`
+ *  shape) feed the mock generator. Distinct from `string({pattern})`, which
+ *  validates a STRING against a pattern. **/
+export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp>;
+export function regexp<const A extends StringPatternArgs>(
+  pattern: CompTimeArgs<A>,
+  id?: InjectRunTypeId<RegexLiteralType<A['source'], RegexFlagsOf<A>>>
+): RunType<RegexLiteralType<A['source'], RegexFlagsOf<A>>>;
+export function regexp(patternOrId?: StringPatternArgs | InjectRunTypeId<RegExp>, id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
+  const injectedId = typeof patternOrId === 'string' ? patternOrId : id;
+  const pattern = typeof patternOrId === 'object' ? patternOrId : undefined;
+  return builderResult(injectedId, {type: 'regexp', formatParams: {}, pattern});
 }
 
 /** A `symbol` builder — `symbol()` → `RunType<symbol>`. Provided for
  *  composition/parity; symbol identity is not round-trippable, so the Go side
  *  emits an unsupported validator (docs/UNSUPPORTED-KINDS.md) — a standalone
- *  `createIsTypeFor(symbol())` throws the same way the type-first `symbol` case
+ *  `createIsType(symbol())` throws the same way the type-first `symbol` case
  *  does. **/
 export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
   return builderResult(id, {type: 'symbol', formatParams: {}});
@@ -561,7 +586,7 @@ export type ModelConfigOf<T> = {-readonly [K in keyof T]-?: FieldConfigOf<NonNul
  *
  *  Like every builder, `object` returns the generic `RunType<ObjectType<C>>`:
  *  `typeof object({...})` is the run-type node, `TypeFromRT<typeof …>` recovers
- *  the object type, and the value drops straight into `createIsTypeFor(...)` or
+ *  the object type, and the value drops straight into `createIsType(...)` or
  *  nests inside another composer. The nested field builders are skipped by the
  *  scanner — the enclosing `object` marker reflects the whole shape. **/
 export function object<const C extends Record<string, unknown>>(

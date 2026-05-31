@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createIsTypeFor, createTypeErrorsFor, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -13,7 +13,7 @@ export const TEMPLATE_LITERAL = {
       'The `${number}` placeholder expects digit-strings (`42`, `-7`, `3.14`) — NOT the words "NaN" or "Infinity" even though those are typeof "number" at the JS level.',
     ],
     isType: () => createIsType<`api/user/${number}`>(),
-    isTypeSchema: () => createIsTypeFor(RT.templateLiteral(['api/user/', RT.number()])),
+    isTypeSchema: () => createIsType(RT.templateLiteral(['api/user/', RT.number()])),
     deserializeIsType: () => deserializeIsType<`api/user/${number}`>(),
     isTypeReflect: () => {
       const v: `api/user/${number}` = 'api/user/42';
@@ -24,7 +24,7 @@ export const TEMPLATE_LITERAL = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<`api/user/${number}`>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.templateLiteral(['api/user/', RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.templateLiteral(['api/user/', RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<`api/user/${number}`>(),
     getTypeErrorsReflect: () => {
       const v: `api/user/${number}` = 'api/user/42';
@@ -72,8 +72,7 @@ export const TEMPLATE_LITERAL = {
     title: 'Template literal URL with multiple placeholders',
     description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
     isType: () => createIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
-    isTypeSchema: () =>
-      createIsTypeFor(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
+    isTypeSchema: () => createIsType(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
     deserializeIsType: () => deserializeIsType<`/api/v${number}/user/${string}/posts/${number}`>(),
     isTypeReflect: () => {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
@@ -85,7 +84,7 @@ export const TEMPLATE_LITERAL = {
     },
     getTypeErrors: () => createGetTypeErrors<`/api/v${number}/user/${string}/posts/${number}`>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
+      createGetTypeErrors(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<`/api/v${number}/user/${string}/posts/${number}`>(),
     getTypeErrorsReflect: () => {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';
@@ -122,7 +121,7 @@ export const TEMPLATE_LITERAL = {
     isTypeNotes:
       'A leading `${string}` placeholder matches the empty string too — `"/42"` is valid (no characters before the slash).',
     isType: () => createIsType<`${string}/${number}`>(),
-    isTypeSchema: () => createIsTypeFor(RT.templateLiteral([RT.string(), '/', RT.number()])),
+    isTypeSchema: () => createIsType(RT.templateLiteral([RT.string(), '/', RT.number()])),
     deserializeIsType: () => deserializeIsType<`${string}/${number}`>(),
     isTypeReflect: () => {
       const v: `${string}/${number}` = '/42';
@@ -133,7 +132,7 @@ export const TEMPLATE_LITERAL = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<`${string}/${number}`>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.templateLiteral([RT.string(), '/', RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.templateLiteral([RT.string(), '/', RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<`${string}/${number}`>(),
     getTypeErrorsReflect: () => {
       const v: `${string}/${number}` = '/42';
@@ -168,7 +167,7 @@ export const TEMPLATE_LITERAL = {
     description:
       "mion templateLiteral.spec.ts 'regex special chars in literal' — parens (and other regex metacharacters) in the literal segments must be escaped in the compiled regex.",
     isType: () => createIsType<`(${number})`>(),
-    isTypeSchema: () => createIsTypeFor(RT.templateLiteral(['(', RT.number(), ')'])),
+    isTypeSchema: () => createIsType(RT.templateLiteral(['(', RT.number(), ')'])),
     deserializeIsType: () => deserializeIsType<`(${number})`>(),
     isTypeReflect: () => {
       const v: `(${number})` = '(42)';
@@ -179,7 +178,7 @@ export const TEMPLATE_LITERAL = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<`(${number})`>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.templateLiteral(['(', RT.number(), ')'])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.templateLiteral(['(', RT.number(), ')'])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<`(${number})`>(),
     getTypeErrorsReflect: () => {
       const v: `(${number})` = '(42)';
@@ -216,7 +215,7 @@ export const TEMPLATE_LITERAL = {
     description:
       "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
     isType: () => createIsType<{url: `api/user/${number}`; method: string}>(),
-    isTypeSchema: () => createIsTypeFor(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+    isTypeSchema: () => createIsType(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
     deserializeIsType: () => deserializeIsType<{url: `api/user/${number}`; method: string}>(),
     isTypeReflect: () => {
       const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
@@ -228,7 +227,7 @@ export const TEMPLATE_LITERAL = {
     },
     getTypeErrors: () => createGetTypeErrors<{url: `api/user/${number}`; method: string}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+      createGetTypeErrors(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{url: `api/user/${number}`; method: string}>(),
     getTypeErrorsReflect: () => {
       const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
@@ -273,7 +272,7 @@ export const TEMPLATE_LITERAL = {
     isTypeNotes:
       'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
     isType: () => createIsType<{[key: `api/${string}`]: number}>(),
-    isTypeSchema: () => createIsTypeFor(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    isTypeSchema: () => createIsType(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
     deserializeIsType: () => deserializeIsType<{[key: `api/${string}`]: number}>(),
     isTypeReflect: () => {
       const v: {[key: `api/${string}`]: number} = {};
@@ -284,7 +283,7 @@ export const TEMPLATE_LITERAL = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[key: `api/${string}`]: number}>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: `api/${string}`]: number}>(),
     getTypeErrorsReflect: () => {
       const v: {[key: `api/${string}`]: number} = {};
@@ -323,7 +322,7 @@ export const TEMPLATE_LITERAL = {
     isTypeNotes:
       'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
     isType: () => createIsType<`${'a' | 'b'}-${number}`>(),
-    isTypeSchema: () => createIsTypeFor(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
+    isTypeSchema: () => createIsType(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
     deserializeIsType: () => deserializeIsType<`${'a' | 'b'}-${number}`>(),
     isTypeReflect: () => {
       const v: `${'a' | 'b'}-${number}` = 'a-42';
@@ -335,7 +334,7 @@ export const TEMPLATE_LITERAL = {
     },
     getTypeErrors: () => createGetTypeErrors<`${'a' | 'b'}-${number}`>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
+      createGetTypeErrors(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<`${'a' | 'b'}-${number}`>(),
     getTypeErrorsReflect: () => {
       const v: `${'a' | 'b'}-${number}` = 'a-42';

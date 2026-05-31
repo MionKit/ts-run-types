@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createIsTypeFor, createTypeErrorsFor, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -8,7 +8,7 @@ export const ATOMIC = {
     title: 'Any type — every value passes',
     isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
     isType: () => createIsType<any>(),
-    isTypeSchema: () => createIsTypeFor(RT.any()),
+    isTypeSchema: () => createIsType(RT.any()),
     deserializeIsType: () => deserializeIsType<any>(),
     isTypeReflect: () => {
       const v: any = null;
@@ -19,7 +19,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<any>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.any()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.any()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<any>(),
     getTypeErrorsReflect: () => {
       const v: any = null;
@@ -45,7 +45,7 @@ export const ATOMIC = {
     title: 'BigInt primitive',
     description: 'Infinity and -Infinity rejected (typeof gate)',
     isType: () => createIsType<bigint>(),
-    isTypeSchema: () => createIsTypeFor(RT.bigint()),
+    isTypeSchema: () => createIsType(RT.bigint()),
     deserializeIsType: () => deserializeIsType<bigint>(),
     isTypeReflect: () => {
       const v: bigint = 1n;
@@ -56,7 +56,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<bigint>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.bigint()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.bigint()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint>(),
     getTypeErrorsReflect: () => {
       const v: bigint = 1n;
@@ -91,7 +91,7 @@ export const ATOMIC = {
     isTypeNotes:
       'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
     isType: () => createIsType<boolean>(),
-    isTypeSchema: () => createIsTypeFor(RT.boolean()),
+    isTypeSchema: () => createIsType(RT.boolean()),
     deserializeIsType: () => deserializeIsType<boolean>(),
     isTypeReflect: () => {
       const v: boolean = true;
@@ -102,7 +102,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<boolean>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.boolean()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.boolean()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean>(),
     getTypeErrorsReflect: () => {
       const v: boolean = true;
@@ -139,7 +139,7 @@ export const ATOMIC = {
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
     ],
     isType: () => createIsType<Date>(),
-    isTypeSchema: () => createIsTypeFor(RT.date()),
+    isTypeSchema: () => createIsType(RT.date()),
     deserializeIsType: () => deserializeIsType<Date>(),
     isTypeReflect: () => {
       const v: Date = new Date();
@@ -150,7 +150,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Date>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.date()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.date()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date>(),
     getTypeErrorsReflect: () => {
       const v: Date = new Date();
@@ -187,7 +187,7 @@ export const ATOMIC = {
       }
       return createIsType<Color>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
+    isTypeSchema: () => createIsType(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
     deserializeIsType: () => {
       enum Color {
         Red,
@@ -222,7 +222,7 @@ export const ATOMIC = {
       }
       return createGetTypeErrors<Color>();
     },
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
     deserializeGetTypeErrors: () => {
       enum Color {
         Red,
@@ -294,7 +294,7 @@ export const ATOMIC = {
     title: 'Numeric literal type (strict equality)',
     isTypeNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
     isType: () => createIsType<2>(),
-    isTypeSchema: () => createIsTypeFor(RT.literal(2)),
+    isTypeSchema: () => createIsType(RT.literal(2)),
     deserializeIsType: () => deserializeIsType<2>(),
     isTypeReflect: () => {
       const v = 2 as const;
@@ -305,7 +305,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<2>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(2)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(2)),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(),
     getTypeErrorsReflect: () => {
       const v = 2 as const;
@@ -333,7 +333,7 @@ export const ATOMIC = {
     title: 'String literal type (case-sensitive)',
     isTypeNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
     isType: () => createIsType<'a'>(),
-    isTypeSchema: () => createIsTypeFor(RT.literal('a')),
+    isTypeSchema: () => createIsType(RT.literal('a')),
     deserializeIsType: () => deserializeIsType<'a'>(),
     isTypeReflect: () => {
       const v = 'a' as const;
@@ -344,7 +344,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<'a'>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal('a')),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal('a')),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<'a'>(),
     getTypeErrorsReflect: () => {
       const v = 'a' as const;
@@ -377,7 +377,7 @@ export const ATOMIC = {
       const reg = /abc/i;
       return createIsType<typeof reg>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.regexp(/abc/i)),
+    isTypeSchema: () => createIsType(RT.regexp({source: 'abc', flags: 'i', mockSamples: ['abc']})),
     deserializeIsType: () => {
       const reg = /abc/i;
       return deserializeIsType<typeof reg>();
@@ -396,7 +396,7 @@ export const ATOMIC = {
       const reg = /abc/i;
       return createGetTypeErrors<typeof reg>();
     },
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.regexp(/abc/i)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp({source: 'abc', flags: 'i', mockSamples: ['abc']})),
     deserializeGetTypeErrors: () => {
       const reg = /abc/i;
       return deserializeGetTypeErrors<typeof reg>();
@@ -436,7 +436,7 @@ export const ATOMIC = {
       const reg2 = /['"]\/ \\ \//;
       return createIsType<typeof reg2>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.regexp(/['"]\/ \\ \//)),
+    isTypeSchema: () => createIsType(RT.regexp({source: '[\'"]\\/ \\\\ \\/', mockSamples: ["'/ \\ /"]})),
     deserializeIsType: () => {
       const reg2 = /['"]\/ \\ \//;
       return deserializeIsType<typeof reg2>();
@@ -455,7 +455,7 @@ export const ATOMIC = {
       const reg2 = /['"]\/ \\ \//;
       return createGetTypeErrors<typeof reg2>();
     },
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.regexp(/['"]\/ \\ \//)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp({source: '[\'"]\\/ \\\\ \\/', mockSamples: ["'/ \\ /"]})),
     deserializeGetTypeErrors: () => {
       const reg2 = /['"]\/ \\ \//;
       return deserializeGetTypeErrors<typeof reg2>();
@@ -499,7 +499,7 @@ export const ATOMIC = {
     isTypeNotes:
       'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
     isType: () => createIsType<true>(),
-    isTypeSchema: () => createIsTypeFor(RT.literal(true)),
+    isTypeSchema: () => createIsType(RT.literal(true)),
     deserializeIsType: () => deserializeIsType<true>(),
     isTypeReflect: () => {
       const v = true as const;
@@ -510,7 +510,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<true>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(true)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(true)),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(),
     getTypeErrorsReflect: () => {
       const v = true as const;
@@ -538,7 +538,7 @@ export const ATOMIC = {
     title: 'BigInt literal type (only 1n)',
     isTypeNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
     isType: () => createIsType<1n>(),
-    isTypeSchema: () => createIsTypeFor(RT.literal(1n)),
+    isTypeSchema: () => createIsType(RT.literal(1n)),
     deserializeIsType: () => deserializeIsType<1n>(),
     isTypeReflect: () => {
       const v = 1n as const;
@@ -549,7 +549,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<1n>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(1n)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(1n)),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(),
     getTypeErrorsReflect: () => {
       const v = 1n as const;
@@ -645,7 +645,7 @@ export const ATOMIC = {
     title: 'Never — no value passes',
     isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
     isType: () => createIsType<never>(),
-    isTypeSchema: () => createIsTypeFor(RT.never()),
+    isTypeSchema: () => createIsType(RT.never()),
     deserializeIsType: () => deserializeIsType<never>(),
     isTypeReflect: () => {
       const v: never = null as never;
@@ -656,7 +656,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<never>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.never()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.never()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<never>(),
     getTypeErrorsReflect: () => {
       const v: never = null as never;
@@ -696,7 +696,7 @@ export const ATOMIC = {
     isTypeNotes:
       'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
     isType: () => createIsType<null>(),
-    isTypeSchema: () => createIsTypeFor(RT.literal(null)),
+    isTypeSchema: () => createIsType(RT.literal(null)),
     deserializeIsType: () => deserializeIsType<null>(),
     isTypeReflect: () => {
       const v: null = null;
@@ -707,7 +707,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<null>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(null)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(null)),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<null>(),
     getTypeErrorsReflect: () => {
       const v: null = null;
@@ -747,7 +747,7 @@ export const ATOMIC = {
       '`NaN`, `Infinity`, and `-Infinity` are rejected even though they pass `typeof === "number"`.',
     ],
     isType: () => createIsType<number>(),
-    isTypeSchema: () => createIsTypeFor(RT.number()),
+    isTypeSchema: () => createIsType(RT.number()),
     deserializeIsType: () => deserializeIsType<number>(),
     isTypeReflect: () => {
       const v: number = 42;
@@ -758,7 +758,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<number>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.number()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.number()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<number>(),
     getTypeErrorsReflect: () => {
       const v: number = 42;
@@ -839,7 +839,7 @@ export const ATOMIC = {
     title: 'RegExp instance',
     isTypeNotes: 'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
     isType: () => createIsType<RegExp>(),
-    isTypeSchema: () => createIsTypeFor(RT.regexp()),
+    isTypeSchema: () => createIsType(RT.regexp()),
     deserializeIsType: () => deserializeIsType<RegExp>(),
     isTypeReflect: () => {
       const v: RegExp = /abc/;
@@ -850,7 +850,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<RegExp>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.regexp()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<RegExp>(),
     // Reflect thunks omitted: `const v: RegExp = /abc/` narrows to the
     // literal-regex type T = /abc/, which produces `expected: 'literal'`
@@ -883,7 +883,7 @@ export const ATOMIC = {
     title: 'String primitive',
     isTypeNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
     isType: () => createIsType<string>(),
-    isTypeSchema: () => createIsTypeFor(RT.string()),
+    isTypeSchema: () => createIsType(RT.string()),
     deserializeIsType: () => deserializeIsType<string>(),
     isTypeReflect: () => {
       const v: string = 'hello';
@@ -894,7 +894,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.string()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string>(),
     getTypeErrorsReflect: () => {
       const v: string = 'hello';
@@ -959,7 +959,7 @@ export const ATOMIC = {
     description: 'undefined and null are distinct',
     isTypeNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
     isType: () => createIsType<undefined>(),
-    isTypeSchema: () => createIsTypeFor(RT.literal(undefined)),
+    isTypeSchema: () => createIsType(RT.literal(undefined)),
     deserializeIsType: () => deserializeIsType<undefined>(),
     isTypeReflect: () => {
       const v: undefined = undefined;
@@ -970,7 +970,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<undefined>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(undefined)),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(undefined)),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined>(),
     getTypeErrorsReflect: () => {
       const v: undefined = undefined;
@@ -1005,7 +1005,7 @@ export const ATOMIC = {
     title: 'Void — accepts undefined, rejects null',
     description: 'void accepts undefined (and bare function return); rejects null',
     isType: () => createIsType<void>(),
-    isTypeSchema: () => createIsTypeFor(RT.void()),
+    isTypeSchema: () => createIsType(RT.void()),
     deserializeIsType: () => deserializeIsType<void>(),
     isTypeReflect: () => {
       const v: void = undefined;
@@ -1016,7 +1016,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<void>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.void()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.void()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<void>(),
     getTypeErrorsReflect: () => {
       const v: void = undefined;
@@ -1055,7 +1055,7 @@ export const ATOMIC = {
     isTypeNotes:
       'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
     isType: () => createIsType<2>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsTypeFor(RT.number()),
+    isTypeSchema: () => createIsType(RT.number()),
     deserializeIsType: () => deserializeIsType<2>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = 2 as const;
@@ -1066,7 +1066,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<2>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.number()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.number()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = 2 as const;
@@ -1096,7 +1096,7 @@ export const ATOMIC = {
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
     isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsTypeFor(RT.string()),
+    isTypeSchema: () => createIsType(RT.string()),
     deserializeIsType: () => deserializeIsType<'a'>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = 'a' as const;
@@ -1107,7 +1107,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<'a'>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.string()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<'a'>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = 'a' as const;
@@ -1196,7 +1196,7 @@ export const ATOMIC = {
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
     isType: () => createIsType<true>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsTypeFor(RT.boolean()),
+    isTypeSchema: () => createIsType(RT.boolean()),
     deserializeIsType: () => deserializeIsType<true>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = true as const;
@@ -1207,7 +1207,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<true>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.boolean()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.boolean()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = true as const;
@@ -1238,7 +1238,7 @@ export const ATOMIC = {
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
     isType: () => createIsType<1n>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsTypeFor(RT.bigint()),
+    isTypeSchema: () => createIsType(RT.bigint()),
     deserializeIsType: () => deserializeIsType<1n>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = 1n as const;
@@ -1249,7 +1249,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<1n>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.bigint()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.bigint()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = 1n as const;
@@ -1337,7 +1337,7 @@ export const ATOMIC = {
     title: 'Unknown type — every value passes',
     isTypeNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
     isType: () => createIsType<unknown>(),
-    isTypeSchema: () => createIsTypeFor(RT.unknown()),
+    isTypeSchema: () => createIsType(RT.unknown()),
     deserializeIsType: () => deserializeIsType<unknown>(),
     isTypeReflect: () => {
       const v: unknown = null;
@@ -1348,7 +1348,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<unknown>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.unknown()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.unknown()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<unknown>(),
     getTypeErrorsReflect: () => {
       const v: unknown = null;

@@ -368,13 +368,6 @@ func traceIdentifier(typeChecker *checker.Checker, node *ast.Node, depth int, bu
 	return CheckLiteral(typeChecker, initializer, depth+1, builderCall)
 }
 
-// ResolveConstInitializer is the exported entry to the const-chain trace.
-// Used by the resolver's CompTimeRunType schema-reference resolution
-// (resolveToBuilderCall) so the const-trace logic lives in one place.
-func ResolveConstInitializer(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
-	return resolveConstInitializer(typeChecker, identifier)
-}
-
 // resolveConstInitializer returns the initializer expression of the
 // `const` variable declaration the identifier resolves to, or
 // (nil, false) when the identifier doesn't resolve, isn't a

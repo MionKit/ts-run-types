@@ -10,7 +10,7 @@
 //   3. The variant body actually changes behaviour: the `noLiterals`
 //      variant accepts the base kind beyond the exact literal; the
 //      `noIsArrayCheck` variant skips the leading `Array.isArray` guard.
-//   4. Schema-form (`createIsTypeFor`) converges with marker-form for
+//   4. Schema-form (`createIsType`) converges with marker-form for
 //      the same `T + options` — both go through `buildVariantKey` and
 //      resolve to a factory that exhibits the same behaviour.
 //
@@ -22,14 +22,7 @@
 // back to the identity validator.
 
 import {describe, expect, it} from 'vitest';
-import {
-  createIsType,
-  createIsTypeFor,
-  createGetTypeErrors,
-  createTypeErrorsFor,
-  getRunTypeId,
-  reflectRunTypeId,
-} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 
 describe('IsTypeOptions — type-id stays structural across option combinations', () => {
@@ -52,7 +45,7 @@ describe('IsTypeOptions — type-id stays structural across option combinations'
 });
 
 describe('IsTypeOptions — different option tuples dispatch to distinct cached factories', () => {
-  it('`createIsType<\'a\'>()` and `createIsType<\'a\'>(undefined, {noLiterals: true})` are different cached fns', () => {
+  it("`createIsType<'a'>()` and `createIsType<'a'>(undefined, {noLiterals: true})` are different cached fns", () => {
     expect(createIsType<'a'>()).not.toBe(createIsType<'a'>(undefined, {noLiterals: true}));
   });
 
@@ -68,7 +61,7 @@ describe('IsTypeOptions — different option tuples dispatch to distinct cached 
 });
 
 describe('IsTypeOptions — variant bodies actually differ in behaviour', () => {
-  it('plain `\'a\'` rejects `\'b\'`; `noLiterals` variant accepts every string', () => {
+  it("plain `'a'` rejects `'b'`; `noLiterals` variant accepts every string", () => {
     const plain = createIsType<'a'>();
     const variant = createIsType<'a'>(undefined, {noLiterals: true});
     expect(plain('a')).toBe(true);
@@ -119,14 +112,14 @@ describe('IsTypeOptions — getTypeErrors variant parity with isType', () => {
 describe('IsTypeOptions — schema-form ⇄ marker-form convergence', () => {
   it('plain schema-form and plain marker-form both reject `[42]` for `string[]`', () => {
     const marker = createIsType<string[]>();
-    const schema = createIsTypeFor(RT.array(RT.string()));
+    const schema = createIsType(RT.array(RT.string()));
     expect(marker([42])).toBe(false);
     expect(schema([42])).toBe(false);
   });
 
   it('schema-form `noIsArrayCheck` variant skips the guard, just like the marker form', () => {
     const marker = createIsType<string[]>(undefined, {noIsArrayCheck: true});
-    const schema = createIsTypeFor(RT.array(RT.string()), {noIsArrayCheck: true});
+    const schema = createIsType(RT.array(RT.string()), {noIsArrayCheck: true});
     // Both let a non-array slip past the guard…
     expect(marker(42)).toBe(true);
     expect(schema(42)).toBe(true);
@@ -137,7 +130,7 @@ describe('IsTypeOptions — schema-form ⇄ marker-form convergence', () => {
 
   it('schema-form `noIsArrayCheck` variant agrees with marker-form on getTypeErrors output', () => {
     const marker = createGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true});
-    const schema = createTypeErrorsFor(RT.array(RT.string()), {noIsArrayCheck: true});
+    const schema = createGetTypeErrors(RT.array(RT.string()), {noIsArrayCheck: true});
     expect(marker(42)).toEqual([]);
     expect(schema(42)).toEqual([]);
     expect(marker([42])).toEqual(schema([42]));

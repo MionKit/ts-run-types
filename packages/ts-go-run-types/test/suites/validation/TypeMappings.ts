@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createIsTypeFor, createTypeErrorsFor, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -16,7 +16,7 @@ export const TYPE_MAPPINGS = {
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       return createIsType<Prefixed<Source>>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.object({user_id: RT.number(), user_name: RT.string()})),
+    isTypeSchema: () => createIsType(RT.object({user_id: RT.number(), user_name: RT.string()})),
     deserializeIsType: () => {
       interface Source {
         id: number;
@@ -51,7 +51,7 @@ export const TYPE_MAPPINGS = {
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       return createGetTypeErrors<Prefixed<Source>>();
     },
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({user_id: RT.number(), user_name: RT.string()})),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({user_id: RT.number(), user_name: RT.string()})),
     deserializeGetTypeErrors: () => {
       interface Source {
         id: number;
@@ -133,7 +133,7 @@ export const TYPE_MAPPINGS = {
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       return createIsType<MongoForm<Source>>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
+    isTypeSchema: () => createIsType(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
     deserializeIsType: () => {
       interface Source {
         id: number;
@@ -172,7 +172,7 @@ export const TYPE_MAPPINGS = {
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       return createGetTypeErrors<MongoForm<Source>>();
     },
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
     deserializeGetTypeErrors: () => {
       interface Source {
         id: number;
@@ -258,7 +258,7 @@ export const TYPE_MAPPINGS = {
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       return createIsType<Public<Source>>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.object({id: RT.number(), name: RT.string()})),
+    isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
     deserializeIsType: () => {
       interface Source {
         id: number;
@@ -297,7 +297,7 @@ export const TYPE_MAPPINGS = {
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       return createGetTypeErrors<Public<Source>>();
     },
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.object({id: RT.number(), name: RT.string()})),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
     deserializeGetTypeErrors: () => {
       interface Source {
         id: number;

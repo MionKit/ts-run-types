@@ -41,11 +41,6 @@ const (
 	// KindPureFunction requires the argument to be an inline function
 	// definition that passes the purity rules.
 	KindPureFunction
-	// KindCompTimeRunType brands a `createXFor` schema parameter (a pure
-	// `RunType<T>` alias) whose argument must resolve, at build time, to a
-	// single value-first builder call — so its structural id is knowable
-	// statically. Drives demand-driven factory emission.
-	KindCompTimeRunType
 )
 
 // DefaultName is the symbol name the resolver looks for for the
@@ -58,10 +53,6 @@ const DefaultCompTimeArgsName = "CompTimeArgs"
 
 // DefaultPureFunctionName is the symbol name for the PureFunction brand.
 const DefaultPureFunctionName = "PureFunction"
-
-// DefaultCompTimeRunTypeName is the symbol name for the CompTimeRunType brand —
-// a pure `type CompTimeRunType<T> = RunType<T>` alias (no phantom brand).
-const DefaultCompTimeRunTypeName = "CompTimeRunType"
 
 // DefaultModule is the package the marker types must be declared in.
 const DefaultModule = "@mionjs/ts-go-run-types"
@@ -102,11 +93,6 @@ func DefaultSpecs() []Spec {
 		{Name: DefaultName, Module: DefaultModule, Kind: KindInjectRunTypeId, BrandProperty: BrandInjectRunTypeId},
 		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
-		// CompTimeRunType<T> = RunType<T> is a PURE alias (not an intersection),
-		// so it never distributes over a union and its alias symbol survives —
-		// detection is the alias-name path in matchAliasSpec alone. No
-		// BrandProperty fallback (and none exists on the type).
-		{Name: DefaultCompTimeRunTypeName, Module: DefaultModule, Kind: KindCompTimeRunType, BrandProperty: ""},
 	}
 }
 

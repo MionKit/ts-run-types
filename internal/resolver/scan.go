@@ -109,7 +109,6 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 			return nil, nil, err
 		}
 		fileStart := len(sites)
-		pendingStart := len(resolver.pendingSchema)
 		forEachCallExpression(sourceFile, func(call *ast.Node) bool {
 			site, diags, ok := resolver.scanCall(file, call)
 			if len(diags) > 0 {
@@ -121,18 +120,6 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 			}
 			return true
 		})
-		// Deferred schema-form (createXFor) demand resolution. nodeToID is now
-		// complete for this file, so each collected CompTimeRunType call
-		// resolves its schema reference to a builder id (map-hit → exact, else
-		// recomputed for a cross-module ref) and records a demand.
-		for _, pending := range resolver.pendingSchema[pendingStart:] {
-			demand, diags, ok := resolver.resolveSchemaDemand(file, pending)
-			diagnostics = append(diagnostics, diags...)
-			if ok {
-				resolver.demands = append(resolver.demands, demand)
-			}
-		}
-		resolver.pendingSchema = resolver.pendingSchema[:pendingStart]
 		resolver.recordFileIDs(file, sites[fileStart:])
 		if resolver.scannedFiles != nil {
 			resolver.scannedFiles[file] = struct{}{}
@@ -185,11 +172,6 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	var diagnostics []diag.Diagnostic
 	var injectionTypeArgument *checker.Type
 	var injectionMatched bool
-	// Schema-form (CompTimeRunType) capture: the schema argument and the
-	// sibling CompTimeArgs<IsTypeOptions> argument, resolved into a demand by
-	// the deferred pass in dispatchScanFiles (the inline builder isn't scanned
-	// until after this call). schemaArgNode != nil marks this a schema-form call.
-	var schemaArgNode, optionsArgNode *ast.Node
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -217,24 +199,9 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			if argumentNode == nil {
 				continue
 			}
-			// Candidate options arg for a schema-form call — only consumed
-			// when schemaArgNode is also set (a CompTimeRunType param present).
-			optionsArgNode = argumentNode
 			if diagnostic, ok := resolver.checkCompTimeArgs(file, argumentNode); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
-		case marker.KindCompTimeRunType:
-			// Free `T` = a generic wrapper body (the schema param's T is the
-			// wrapper's own type variable); skip, like MKR003 for
-			// InjectRunTypeId — no concrete id to demand until the wrapper is
-			// itself called.
-			if marker.IsFreeTypeParameter(typeArg) {
-				continue
-			}
-			if paramIndex >= argsCount {
-				continue
-			}
-			schemaArgNode = callExpression.Arguments.Nodes[paramIndex]
 		case marker.KindPureFunction:
 			if paramIndex >= argsCount {
 				continue
@@ -245,11 +212,6 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			}
 			diagnostics = append(diagnostics, resolver.checkPureFunction(file, argumentNode)...)
 		}
-	}
-	// Defer schema-form (createXFor) demand resolution: record the call now,
-	// resolve its builder id after the whole file is scanned (nodeToID complete).
-	if schemaArgNode != nil {
-		resolver.pendingSchema = append(resolver.pendingSchema, pendingSchemaCall{schemaArg: schemaArgNode, optionsArg: optionsArgNode, anchor: call})
 	}
 	if !injectionMatched {
 		return protocol.Site{}, diagnostics, false
@@ -332,7 +294,14 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// reflect-form args (property access, function calls, element
 		// access) don't go through const-binding CFA and don't exhibit
 		// the trap, so they fall through to the apparent-type path.
-		if annotated, ok := resolver.declaredTypeFromIdentifier(argZero); ok {
+		// Skip annotation honoring for the SCHEMA overload: when argZero is a
+		// RunType-typed const (`createIsType(schemaConst)` where
+		// `const schemaConst: RunType<T> = …`), the declared type is `RunType<T>`,
+		// but the injection's typeArgument is already the UNWRAPPED `T` (inferred
+		// from the schema overload's `RunType<T>` param). Overriding it with
+		// `RunType<T>` would validate against RunType's own shape, not `T` — and
+		// break recursive schemas bound to an annotated const.
+		if annotated, ok := resolver.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, resolver.markerModule()) {
 			typeArgument = annotated
 		}
 	}
@@ -366,45 +335,22 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
 	// `IsTypeVariantSuffix` helper in internal/constants.
 	id := ""
-	// Regex-literal harvest — TS has no regex-literal type, so the
-	// marker scanner reconstructs one from the AST when it can.
-	if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
+	// (1) Value-first regexp brand: source/flags ride as literal type args on the
+	// `RegexLiteralType<S,F>` brand — read them FROM THE TYPE (no AST), so a
+	// value-first `regexp({source, flags, …})` converges with type-first `typeof /…/`.
+	if source, flags, ok := typeid.RegexLiteralFromType(resolver.checker, typeArgument); ok {
 		id = resolver.cache.SerializeRegexLiteral(source, flags)
+	}
+	// (2) Legacy AST regex-literal harvest — TS has no regex-literal type, so for
+	// the type-first `typeof reg` / `getRunTypeId<typeof /…/>()` forms (T widened to
+	// `RegExp`, nothing in T) the scanner reconstructs source/flags from the AST.
+	if id == "" {
+		if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
+			id = resolver.cache.SerializeRegexLiteral(source, flags)
+		}
 	}
 	if id == "" {
 		id = resolver.cache.AssignID(typeArgument)
-	}
-	// SCHEMA-FORM OPTIONS: when this builder call is the slot-0 schema
-	// argument of an enclosing `createIsTypeFor` / `createTypeErrorsFor`
-	// whose `IsTypeOptions` literal carries options, fold those onto THIS
-	// builder's own Site. The schema form reads the schema's `.id` at
-	// runtime — this builder's id — so the emitter must materialise the
-	// variant factory under that id. Folding onto the existing injection
-	// Site (rather than a separate no-rewrite "EmitOnly" Site) keeps one
-	// Site per call: the BUILDER owns the id (correct for AST-harvested
-	// regex literals and recursive schemas, where the type alone can't
-	// reproduce the id), and the option set just rides along.
-	if schemaOptions, ok := resolver.schemaFormOptions(call); ok {
-		options.NoLiterals = options.NoLiterals || schemaOptions.NoLiterals
-		options.NoIsArrayCheck = options.NoIsArrayCheck || schemaOptions.NoIsArrayCheck
-	}
-	// Record this call node → id so a CompTimeRunType schema reference that
-	// resolves to this (builder) call recovers the SAME id the runtime reads
-	// off `schema.id` — correct for AST-harvested regex literals and
-	// recursively-interned schemas, where the type alone can't reproduce it.
-	//
-	// Classify the injection site: a NON-builder marker (createIsType<T>(),
-	// createJsonEncoder<T>(), getRunTypeId<T>(), user wrappers) marks its id
-	// USED — demand-gated emission then renders every family for it (current
-	// behavior). A BUILDER (returns RunType<…>) only interns + records its Site
-	// for rewriting; it is demanded only when a createXFor references it. This
-	// split is the whole saving: a never-validated `const s = RT.object({…})`
-	// emits no factory.
-	if id != "" {
-		resolver.nodeToID[call] = id
-		if !builders.IsBuilderCall(resolver.checker, resolver.markerModule(), call) {
-			resolver.demands = append(resolver.demands, protocol.Demand{File: file, ID: id, Options: options.Names()})
-		}
 	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
@@ -664,103 +610,6 @@ func (resolver *Resolver) checkCompTimeArgs(file string, argumentNode *ast.Node)
 	}
 }
 
-// schemaFormOptions returns the `IsTypeOptions` carried by an enclosing
-// `createIsTypeFor` / `createTypeErrorsFor` call when `call` is its slot-0
-// schema argument. The schema form reads the schema's `.id` at runtime
-// (this builder's id), so the options it passes must be folded onto this
-// builder's Site for the emitter to materialise the matching variant
-// factory under the same (now-converged) id. Returns `_, false` when
-// `call` is not the slot-0 schema argument of such a factory, or the
-// options arg is absent / not a literal.
-func (resolver *Resolver) schemaFormOptions(call *ast.Node) (isTypeOptions, bool) {
-	parent := call.Parent
-	if parent == nil || parent.Kind != ast.KindCallExpression {
-		return isTypeOptions{}, false
-	}
-	parentCall := parent.AsCallExpression()
-	if parentCall == nil || parentCall.Arguments == nil || len(parentCall.Arguments.Nodes) < 2 {
-		return isTypeOptions{}, false
-	}
-	if parentCall.Arguments.Nodes[0] != call {
-		// Builder is not at slot 0 of the parent — not a schema-form call
-		// (e.g. it's nested deeper inside an option literal).
-		return isTypeOptions{}, false
-	}
-	if !resolver.isSchemaFormFactory(parent) {
-		return isTypeOptions{}, false
-	}
-	optionsNode := parentCall.Arguments.Nodes[1]
-	if optionsNode == nil || optionsNode.Kind != ast.KindObjectLiteralExpression {
-		return isTypeOptions{}, false
-	}
-	return readIsTypeOptionsLiteral(optionsNode), true
-}
-
-// isSchemaFormFactory reports whether `call` resolves to `createIsTypeFor`
-// or `createTypeErrorsFor` exported from `@mionjs/ts-go-run-types`. The
-// check walks the resolved signature's declaration Symbol: name match +
-// declaration source file's package.json must carry the marker package's
-// name (same gate the `InjectRunTypeId` scanner uses).
-func (resolver *Resolver) isSchemaFormFactory(call *ast.Node) bool {
-	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
-	if signature == nil {
-		return false
-	}
-	declaration := checker.Signature_declaration(signature)
-	if declaration == nil {
-		return false
-	}
-	symbol := declaration.Symbol()
-	if symbol == nil {
-		return false
-	}
-	name := symbol.Name
-	if name != "createIsTypeFor" && name != "createTypeErrorsFor" {
-		return false
-	}
-	return marker.DeclaredInModule(symbol, marker.DefaultModule)
-}
-
-// readIsTypeOptionsLiteral parses an `IsTypeOptions` object literal node
-// into the resolver's internal Go struct. Mirrors the slot dispatch in
-// `extractIsTypeOptions` but takes the literal node directly (the caller
-// already located it).
-func readIsTypeOptionsLiteral(node *ast.Node) isTypeOptions {
-	var opts isTypeOptions
-	if node == nil || node.Kind != ast.KindObjectLiteralExpression {
-		return opts
-	}
-	objectLiteral := node.AsObjectLiteralExpression()
-	if objectLiteral == nil || objectLiteral.Properties == nil {
-		return opts
-	}
-	for _, property := range objectLiteral.Properties.Nodes {
-		if property == nil || property.Kind != ast.KindPropertyAssignment {
-			continue
-		}
-		propertyAssignment := property.AsPropertyAssignment()
-		if propertyAssignment == nil {
-			continue
-		}
-		nameNode := propertyAssignment.Name()
-		initializer := propertyAssignment.Initializer
-		if nameNode == nil || initializer == nil {
-			continue
-		}
-		switch nameNode.Text() {
-		case "noLiterals":
-			if initializer.Kind == ast.KindTrueKeyword {
-				opts.NoLiterals = true
-			}
-		case "noIsArrayCheck":
-			if initializer.Kind == ast.KindTrueKeyword {
-				opts.NoIsArrayCheck = true
-			}
-		}
-	}
-	return opts
-}
-
 // noopIsTypeOptionDiag builds a Warning diagnostic anchored at the
 // options-literal node (slot lastIndex-1) when present, falling back
 // to the whole call expression. Used by the no-op IsTypeOption check
@@ -805,93 +654,6 @@ func extractIsTypeOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *as
 	return callExpression.Arguments.Nodes[optionsIndex]
 }
 
-// pendingSchemaCall is a deferred schema-form (createXFor) call captured during
-// scanCall: schemaArg is the CompTimeRunType argument, optionsArg the sibling
-// CompTimeArgs<IsTypeOptions> argument (or nil), anchor the call (for the MKR006
-// diagnostic span). Resolved into a demand AFTER the file's call walk, once
-// nodeToID holds every builder id in the file.
-type pendingSchemaCall struct {
-	schemaArg  *ast.Node
-	optionsArg *ast.Node
-	anchor     *ast.Node
-}
-
-// resolveSchemaDemand turns a deferred schema-form call into a USED-id demand:
-// resolves the schema reference to its builder call, recovers that builder's id,
-// and folds any IsTypeOptions literal for the it/te variant fan-out. Returns a
-// MKR006 diagnostic when the schema can't be resolved to a static builder.
-func (resolver *Resolver) resolveSchemaDemand(file string, pending pendingSchemaCall) (protocol.Demand, []diag.Diagnostic, bool) {
-	builderCall, ok := resolver.resolveToBuilderCall(pending.schemaArg, 0)
-	if !ok {
-		if diagnostic, ok := resolver.schemaFormUnresolvedDiag(file, pending.anchor); ok {
-			return protocol.Demand{}, []diag.Diagnostic{diagnostic}, false
-		}
-		return protocol.Demand{}, nil, false
-	}
-	id, ok := resolver.builderIDForNode(builderCall)
-	if !ok {
-		return protocol.Demand{}, nil, false
-	}
-	var options []string
-	if pending.optionsArg != nil {
-		options = readIsTypeOptionsLiteral(pending.optionsArg).Names()
-	}
-	return protocol.Demand{File: file, ID: id, Options: options}, nil, true
-}
-
-// resolveToBuilderCall unwraps as/parens/satisfies, then returns the underlying
-// recognized value-first builder CALL node: a builder call returns itself; an
-// identifier resolves through its `const` initializer (crossing modules via the
-// symbol) and recurses; anything else (ternary, non-builder call, let/var)
-// fails. Depth-capped like traceRegexLiteral. Failure ⇒ MKR006.
-func (resolver *Resolver) resolveToBuilderCall(node *ast.Node, depth int) (*ast.Node, bool) {
-	if node == nil || depth > 16 {
-		return nil, false
-	}
-	for {
-		switch node.Kind {
-		case ast.KindAsExpression:
-			asExpression := node.AsAsExpression()
-			if asExpression == nil {
-				return nil, false
-			}
-			node = asExpression.Expression
-		case ast.KindParenthesizedExpression:
-			parenExpression := node.AsParenthesizedExpression()
-			if parenExpression == nil {
-				return nil, false
-			}
-			node = parenExpression.Expression
-		case ast.KindSatisfiesExpression:
-			satisfiesExpression := node.AsSatisfiesExpression()
-			if satisfiesExpression == nil {
-				return nil, false
-			}
-			node = satisfiesExpression.Expression
-		default:
-			goto unwrapped
-		}
-		if node == nil {
-			return nil, false
-		}
-	}
-unwrapped:
-	switch node.Kind {
-	case ast.KindCallExpression:
-		if builders.IsBuilderCall(resolver.checker, resolver.markerModule(), node) {
-			return node, true
-		}
-		return nil, false
-	case ast.KindIdentifier:
-		initializer, ok := comptimeargs.ResolveConstInitializer(resolver.checker, node)
-		if !ok {
-			return nil, false
-		}
-		return resolver.resolveToBuilderCall(initializer, depth+1)
-	}
-	return nil, false
-}
-
 // isBuilderCallPredicate returns the closure comptimeargs.CheckLiteral uses to
 // recognize a static schema-construction call (a value-first builder OR an
 // optional()/propMod() carrier) as a valid CompTimeArgs leaf — so a nested
@@ -902,52 +664,6 @@ func (resolver *Resolver) isBuilderCallPredicate() func(*ast.Node) bool {
 	return func(node *ast.Node) bool {
 		return builders.IsSchemaLeafCall(resolver.checker, module, node)
 	}
-}
-
-// builderIDForNode returns the structural id of a value-first builder call.
-// The nodeToID map-hit is exact and equals the runtime `schema.id`; the
-// cross-module fallback recomputes from the builder's resolved return type
-// RunType<T> (safe for structural types — a regex builder's id can't be
-// recovered from the type, but a regex schema reference is same-file in
-// practice, so it always map-hits).
-func (resolver *Resolver) builderIDForNode(builderCall *ast.Node) (string, bool) {
-	if builderCall == nil {
-		return "", false
-	}
-	if id, ok := resolver.nodeToID[builderCall]; ok {
-		return id, true
-	}
-	signature := checker.Checker_getResolvedSignature(resolver.checker, builderCall, nil, 0)
-	if signature == nil {
-		return "", false
-	}
-	returnType := checker.Checker_getReturnTypeOfSignature(resolver.checker, signature)
-	if returnType == nil {
-		return "", false
-	}
-	typeArguments := checker.Checker_getTypeArguments(resolver.checker, returnType)
-	if len(typeArguments) == 0 {
-		return "", false
-	}
-	return resolver.cache.AssignID(typeArguments[0]), true
-}
-
-// schemaFormUnresolvedDiag builds the MKR006 diagnostic anchored at a createXFor
-// call whose schema argument didn't resolve to a static builder.
-func (resolver *Resolver) schemaFormUnresolvedDiag(file string, anchor *ast.Node) (diag.Diagnostic, bool) {
-	if anchor == nil {
-		return diag.Diagnostic{}, false
-	}
-	sourceFile := ast.GetSourceFileOfNode(anchor)
-	if sourceFile == nil {
-		return diag.Diagnostic{}, false
-	}
-	startLine, startCol := scanLineCol(sourceFile, anchor.Pos())
-	endLine, endCol := scanLineCol(sourceFile, anchor.End())
-	return diag.New(
-		diag.CodeSchemaFormUnresolved,
-		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
-	), true
 }
 
 // traceRegexLiteral walks through AST wrappers, typeof references, and const
