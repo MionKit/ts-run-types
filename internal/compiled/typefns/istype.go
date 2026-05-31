@@ -259,7 +259,7 @@ func (IsTypeEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ C
 	case protocol.KindObject:
 		// mion:nodes/atomic/object.ts:13. Explicit null rejection despite
 		// JS `typeof null === 'object'` — bug-flavor case from object.spec.ts.
-		return RTCode{Code: "(typeof " + v + " === 'object' && " + v + " !== null)", Type: CodeE}
+		return RTCode{Code: objectGuard(v, ""), Type: CodeE}
 
 	case protocol.KindRegexp:
 		// mion:nodes/atomic/regexp.ts:13
@@ -778,7 +778,7 @@ func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 		// the OR-chain (slower but still correct). Mion strips them
 		// the same way; we do a textual strip because the object
 		// emit always starts with `(typeof <v> === 'object' && <v> !== null`.
-		objectGuard := "typeof " + v + " === 'object' && " + v + " !== null"
+		objGuard := "typeof " + v + " === 'object' && " + v + " !== null"
 		objClauseParts := make([]string, 0, len(objectChecks))
 		for _, oc := range objectChecks {
 			objClauseParts = append(objClauseParts, oc)
@@ -790,7 +790,7 @@ func emitUnionIsType(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 		// shape ends up with redundant guards in some cases too. The
 		// shared outer guard short-circuits null input before any
 		// child runs.
-		parts = append(parts, "("+objectGuard+" && ("+objChain+"))")
+		parts = append(parts, "("+objGuard+" && ("+objChain+"))")
 	}
 	if len(parts) == 0 {
 		return RTCode{Code: "false", Type: CodeE}

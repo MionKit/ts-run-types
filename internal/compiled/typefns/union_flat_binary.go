@@ -94,7 +94,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
 		guard := isTypeExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = "(typeof " + v + " === 'object' && " + v + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(v, isTypeExpr)
 		}
 		body := writeDiscriminator(ser, width, m.OriginalIndex)
 		if childRT.Code != "" {
@@ -211,7 +211,7 @@ func emitMergedPropToBinary(mp FlatMergedProp, accessor string, ctx *EmitContext
 		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
 		guard := isTypeExpr
 		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = "(typeof " + accessor + " === 'object' && " + accessor + " !== null && " + isTypeExpr + ")"
+			guard = objectGuard(accessor, isTypeExpr)
 		}
 		body := ser + ".view.setUint8(" + ser + ".index++, " + strconv.Itoa(i) + ")"
 		if jc.Code != "" {
