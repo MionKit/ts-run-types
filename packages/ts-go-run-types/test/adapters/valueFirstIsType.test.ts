@@ -39,6 +39,8 @@ describe('value-first define / isType + getTypeErrors', () => {
   it('date fields — relative now bound + absolute window', () => assertCase(VALUE_FIRST_SUITE.date_bounds));
   it('regex — inline /…/, {source,flags}, registerFormatPattern via the value channel', () =>
     assertCase(VALUE_FIRST_SUITE.regex_patterns));
+  it('optional — `optional: true` fields may be absent; present ones validate', () =>
+    assertCase(VALUE_FIRST_SUITE.optional_fields));
   it('nested — value-first models composed in a parent object', () => assertCase(VALUE_FIRST_SUITE.nested));
 
   it('all VALUE_FIRST_SUITE tests ran', () => {
