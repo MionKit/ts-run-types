@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -385,14 +385,15 @@ export const UNION = {
       'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
     isTypeNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
     isTypeSchema: () => {
-      type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      const uc: RunType<UnionC> = RT.union([
-        RT.date(),
-        RT.number(),
-        RT.string(),
-        RT.object({a: RT.optional(RT.lazy<typeof uc>(() => uc)), b: RT.optional(RT.string())}),
-        RT.array(RT.lazy<typeof uc>(() => uc)),
-      ]);
+      const uc = RT.circular((self) =>
+        RT.union([
+          RT.date(),
+          RT.number(),
+          RT.string(),
+          RT.object({a: RT.optional(self), b: RT.optional(RT.string())}),
+          RT.array(self),
+        ])
+      );
       return createIsType(uc);
     },
     isType: () => {

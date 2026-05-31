@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -311,14 +311,10 @@ export const TUPLE = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createIsType<TupleCircular>();
     },
-    isTypeSchema: () => {
-      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      const tc: RunType<TupleCircular> = RT.tuple(
-        [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
-        [RT.lazy<typeof tc>(() => tc)]
-      );
-      return createIsType(tc);
-    },
+    // No isTypeSchema/getTypeErrorsSchema: a ROOT-level recursive tuple can't be
+    // authored value-first — `Recursive<[…, Self?]>` hits TS2589 (TS can't build a
+    // recursive tuple type via the mapping). Covered type-first here; the
+    // object→tuple cycle is covered value-first by CIRCULAR.object_with_tuple_prop.
     deserializeIsType: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return deserializeIsType<TupleCircular>();
@@ -336,14 +332,6 @@ export const TUPLE = {
     getTypeErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createGetTypeErrors<TupleCircular>();
-    },
-    getTypeErrorsSchema: () => {
-      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      const tc: RunType<TupleCircular> = RT.tuple(
-        [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
-        [RT.lazy<typeof tc>(() => tc)]
-      );
-      return createGetTypeErrors(tc);
     },
     deserializeGetTypeErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
