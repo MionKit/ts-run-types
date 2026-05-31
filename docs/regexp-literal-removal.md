@@ -146,6 +146,55 @@ The **string-pattern format** is a different feature and is untouched:
 In short: **"validate a string against a regex" stays; "validate a value is a
 RegExp with a specific source/flags" goes.**
 
+### `FormatString<{pattern: typeof …}>` authoring is unaffected (verified)
+
+A natural worry: string formats are authored with `typeof`, so does removing the
+RegExp-literal feature break them? **No.** The canonical form keeps working
+untouched:
+
+```ts
+const slug = registerFormatPattern({regexp: /^[a-z0-9-]+$/, mockSamples: ['my-slug']});
+type Slug = FormatString<{pattern: typeof slug}>; //  ✓ unchanged
+```
+
+The reason: the `typeof` here does **not** reference a `RegExp`. The pattern slot
+(`PatternParam = FormatPattern | StringPatternArgs`,
+[`stringFormats.ts`](../packages/ts-go-run-types/src/formats/string/stringFormats.ts))
+never accepts a raw `RegExp` in the first place. The two things you can put behind
+`typeof` are both non-`RegExp`:
+
+- `slug` is a `registerFormatPattern(...)` result, whose type is the **opaque
+  `FormatPattern`** brand
+  ([`formatPattern.ts`](../packages/ts-go-run-types/src/runtypes/formatPattern.ts)) —
+  a `unique symbol`-branded interface, not `RegExp`. So `typeof slug` is
+  `FormatPattern`.
+- The built-in pattern consts referenced as `{pattern: typeof EMAIL_PATTERN}`
+  (`ALPHA_PATTERN`, `DOMAIN_PATTERN`, …) are inline `{source, flags, mockSamples}`
+  literals (the `StringPatternArgs` shape), again not `RegExp`.
+
+The Go recovery for **both** is `formatPatternFromSymbol`
+([`typeid/formats.go`](../internal/compiled/runtype/typeid/formats.go), case (a) →
+`formatPatternFromCall` → `traceRegexpExpr`) — the **format-annotation** path. It is
+completely independent of the regexp-INSTANCE harvest this doc proposes removing
+(`scan.go` `traceRegexLiteral`, `serialize.go` `SerializeRegexLiteral`,
+`typeid/formats.go` `RegexLiteralFromType`) and never goes through
+`SerializeRegexLiteral` or any `KindLiteral` regexp node.
+
+What was **never** valid — and so loses nothing — is `typeof` of a bare `RegExp`
+const in a pattern slot:
+
+```ts
+const re = /^[a-z]+$/;                            // typeof re === RegExp
+type Bad = FormatString<{pattern: typeof re}>;   // ✗ already a type error TODAY:
+//                                               //   RegExp ∉ FormatPattern | StringPatternArgs
+```
+
+You have always had to wrap the regex in `registerFormatPattern` (which validates
+the samples at load with the real JS engine). So if "using `typeof regexp`" meant
+`typeof slug` where `slug = registerFormatPattern({regexp: /…/, …})`, it is
+**unaffected**; if it meant `typeof` of a raw regex literal, that never compiled and
+removing the feature changes nothing.
+
 ## Behavioral impact
 
 - `createIsType<typeof /abc/i>()` becomes equivalent to `createIsType<RegExp>()`
