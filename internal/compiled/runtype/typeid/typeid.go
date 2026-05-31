@@ -193,11 +193,30 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 
 func (computer *Computer) objectID(tsType *checker.Type, kind protocol.ReflectionKind) string {
 	if checker.IsTupleType(tsType) {
-		// Tuple — bracket-delimited child list per mion's algorithm.
+		// Tuple — bracket-delimited child list per mion's algorithm, with each
+		// element's variadic FLAGS (rest / variadic) folded into the id. Mion
+		// RT-compiles per call so a rest tail and a fixed slot never share a
+		// runtime Type; our AOT cache is project-global, so without the flag a
+		// rest tuple `[number, ...string[]]` and a fixed tuple `[number, string]`
+		// both reduce to `Tuple[<number>,<string>]`, collide on a single cache
+		// slot, and the (nondeterministically chosen) winner gives one of them
+		// the wrong validator. Mirrors the flag handling in
+		// internal/compiled/runtype/serialize.go:projectTuple.
 		typeArguments := computer.typeChecker.GetTypeArguments(tsType)
-		ids := make([]string, len(typeArguments))
+		elementInfos := tsType.TargetTupleType().ElementInfos()
+		ids := make([]string, 0, len(typeArguments))
 		for i, typeArgument := range typeArguments {
-			ids[i] = computer.Compute(typeArgument)
+			child := computer.Compute(typeArgument)
+			if i < len(elementInfos) {
+				elementFlags := elementInfos[i].TupleElementFlags()
+				if elementFlags&checker.ElementFlagsRest != 0 {
+					child += "#rest"
+				}
+				if elementFlags&checker.ElementFlagsVariadic != 0 {
+					child += "#variadic"
+				}
+			}
+			ids = append(ids, child)
 		}
 		return collectionID(int(protocol.KindTuple), ids, true)
 	}
