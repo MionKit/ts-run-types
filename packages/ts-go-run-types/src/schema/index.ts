@@ -6,17 +6,15 @@
 // `typeof object({...})` IS the run-type and `Static<typeof …>` recovers its type.
 // Opt-in lane: consumers who want pure type-first reflection never import this.
 
-// Leaf / atomic builders — scalars (`string` / `number` / `boolean` / `bigint` /
-// `date` / `temporal.*`), the atomic leaves (`literal` / `regexp` / `symbol`), the
-// top / bottom kinds (`any` / `unknown` / `never` / `void`; `voidType` aliased as
-// `void` for a natural `RT.void()`), and the class-instance builder.
+// Leaf / atomic builders — scalars (`string` / `number` / `boolean` / `bigint`),
+// the atomic leaves (`literal` / `regexp` / `symbol`), the top / bottom kinds
+// (`any` / `unknown` / `never` / `void`; `voidType` aliased as `void` for a
+// natural `RT.void()`), and the class-instance builder.
 export {
   string,
   number,
   boolean,
   bigint,
-  date,
-  temporal,
   literal,
   regexp,
   symbol,
@@ -27,6 +25,11 @@ export {
   voidType as void,
   classType,
 } from './atomic.ts';
+
+// Date / time leaf builders — the native JS `Date` builder and the namespaced
+// `temporal.*` builders (the 8 TC39 `Temporal` types), grouped in datetime.ts so
+// the date/time family reads as a unit.
+export {date, temporal} from './datetime.ts';
 
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
 // `map` / `set` / `promise` / `func` / `templateLiteral`, the `object` assembler,
