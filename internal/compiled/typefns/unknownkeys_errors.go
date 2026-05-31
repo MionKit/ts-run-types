@@ -123,17 +123,7 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 func (UnknownKeyErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
-	args := ctx.Vλl + "," + pthArg + "," + errArg
-	var callCode string
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		callCode = ctx.walker.FnName + "(" + args + ")"
-	} else {
-		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-		}
-		callCode = childID + ".fn(" + args + ")"
-	}
+	callCode := ctx.emitDepCall(childID, ctx.Vλl+","+pthArg+","+errArg, "")
 	pathLit := ctx.AccessPathLiteral("")
 	pathLen := ctx.AccessPathLength("")
 	if pathLen == 0 {

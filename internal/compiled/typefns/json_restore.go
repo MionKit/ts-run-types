@@ -540,18 +540,7 @@ func emitNativeIterableRestoreFromJson(rt *protocol.RunType, ctx *EmitContext, v
 // to the outer caller. See PrepareForJsonEmitter.EmitDependencyCall
 // for the full rationale.
 func (RestoreFromJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	var call string
-	if isSelf {
-		call = ctx.walker.FnName + "(" + args + ")"
-	} else {
-		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-		}
-		call = childID + ".fn(" + args + ")"
-	}
-	return ctx.Vλl + " = " + call
+	return ctx.emitDepCall(childID, ctx.Vλl, ctx.Vλl)
 }
 
 // Finalize — same shape as PrepareForJsonEmitter.Finalize. Mirrors

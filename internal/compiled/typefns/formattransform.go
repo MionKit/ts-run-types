@@ -249,18 +249,7 @@ func emitTupleMemberFormat(rt *protocol.RunType, ctx *EmitContext, v string) RTC
 // mutates / rebinds its local `v`, so the caller captures the return:
 // `<vλl> = <childHash>.fn(<vλl>)`. Self-recursive calls drop `.fn`.
 func (FormatTransformEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	var call string
-	if isSelf {
-		call = ctx.walker.FnName + "(" + args + ")"
-	} else {
-		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-		}
-		call = childID + ".fn(" + args + ")"
-	}
-	return ctx.Vλl + " = " + call
+	return ctx.emitDepCall(childID, ctx.Vλl, ctx.Vλl)
 }
 
 // Finalize collapses an empty / identity body to `return v` + isNoop —

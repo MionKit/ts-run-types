@@ -115,15 +115,7 @@ func (UnknownKeysToUndefinedEmitter) Emit(rt *protocol.RunType, ctx *EmitContext
 }
 
 func (UnknownKeysToUndefinedEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	v := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		return ctx.walker.FnName + "(" + v + ")"
-	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + v + ")"
+	return ctx.emitDepCall(childID, ctx.Vλl, "")
 }
 
 func (UnknownKeysToUndefinedEmitter) Finalize(raw string) (string, bool) {
