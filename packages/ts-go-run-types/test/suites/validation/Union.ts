@@ -390,8 +390,8 @@ export const UNION = {
         RT.date(),
         RT.number(),
         RT.string(),
-        RT.object({a: RT.optional(RT.lazy((): RunType<UnionC> => uc)), b: RT.optional(RT.string())}),
-        RT.array(RT.lazy((): RunType<UnionC> => uc)),
+        RT.object({a: RT.optional(RT.lazy<typeof uc>(() => uc)), b: RT.optional(RT.string())}),
+        RT.array(RT.lazy<typeof uc>(() => uc)),
       ]);
       return createIsType(uc);
     },

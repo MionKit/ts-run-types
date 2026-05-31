@@ -315,7 +315,7 @@ export const TUPLE = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       const tc: RunType<TupleCircular> = RT.tuple(
         [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
-        [RT.lazy((): RunType<TupleCircular> => tc)]
+        [RT.lazy<typeof tc>(() => tc)]
       );
       return createIsType(tc);
     },
@@ -341,7 +341,7 @@ export const TUPLE = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       const tc: RunType<TupleCircular> = RT.tuple(
         [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
-        [RT.lazy((): RunType<TupleCircular> => tc)]
+        [RT.lazy<typeof tc>(() => tc)]
       );
       return createGetTypeErrors(tc);
     },
