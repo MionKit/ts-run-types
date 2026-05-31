@@ -105,13 +105,13 @@ func (UnknownKeyErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 		}
 		return RTCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
-		return emitPropertyUnknownKeyErrors(rt, ctx)
+		return emitPropertyUnknownKeys(rt, ctx, true)
 	case protocol.KindArray:
-		return emitArrayUnknownKeyErrors(rt, ctx)
+		return emitArrayUnknownKeys(rt, ctx, true)
 	case protocol.KindTuple:
 		return emitTupleUnknownKeyErrors(rt, ctx)
 	case protocol.KindTupleMember:
-		return emitTupleMemberUnknownKeyErrors(rt, ctx)
+		return emitTupleMemberUnknownKeys(rt, ctx, true)
 	case protocol.KindIndexSignature:
 		return emitIndexSignatureUnknownKeyErrors(rt, ctx)
 	case protocol.KindUnion:
@@ -182,67 +182,6 @@ func emitObjectUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: combined, Type: CodeS}
 }
 
-func emitPropertyUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if rt.Child == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if isFunctionLikeKind(resolved.Kind) {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if resolved.IsStatic {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	v := ctx.Vλl
-	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
-	ctx.SetChildAccessor(accessor)
-	ctx.SetChildPathLiteral(quoteJS(rt.Name))
-	childRT := ctx.CompileChild(rt.Child, CodeS)
-	ctx.SetChildAccessor("")
-	ctx.SetChildPathLiteral("")
-	if childRT.Type == CodeNS {
-		return RTCode{Code: "", Type: CodeNS}
-	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if rt.Optional {
-		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
-	}
-	return childRT
-}
-
-func emitArrayUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if rt.Child == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	v := ctx.Vλl
-	iVar := ctx.NextLocalVar("i")
-	ctx.SetChildAccessor(v + "[" + iVar + "]")
-	ctx.SetChildPathLiteral(iVar)
-	childRT := ctx.CompileChild(rt.Child, CodeS)
-	ctx.SetChildAccessor("")
-	ctx.SetChildPathLiteral("")
-	if childRT.Type == CodeNS {
-		return RTCode{Code: "", Type: CodeNS}
-	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	body := "for (let " + iVar + " = 0; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-	return RTCode{Code: body, Type: CodeS}
-}
-
 func emitTupleUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if len(rt.Children) == 0 {
 		return RTCode{Code: "", Type: CodeS}
@@ -261,53 +200,6 @@ func emitTupleUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 		return RTCode{Code: "", Type: CodeS}
 	}
 	return RTCode{Code: strings.Join(parts, ";"), Type: CodeS}
-}
-
-func emitTupleMemberUnknownKeyErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	if rt.Child == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	resolved := ctx.ResolveRef(rt.Child)
-	if resolved == nil {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if protocol.FamilyOf(resolved.Kind) == protocol.FamilyAtomic {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	v := ctx.Vλl
-	if isRestTupleMember(rt) {
-		iVar := ctx.NextLocalVar("i")
-		ctx.SetChildAccessor(v + "[" + iVar + "]")
-		ctx.SetChildPathLiteral(iVar)
-		childRT := ctx.CompileChild(rt.Child, CodeS)
-		ctx.SetChildAccessor("")
-		ctx.SetChildPathLiteral("")
-		if childRT.Type == CodeNS {
-			return RTCode{Code: "", Type: CodeNS}
-		}
-		if childRT.Code == "" {
-			return RTCode{Code: "", Type: CodeS}
-		}
-		body := "for (let " + iVar + " = " + positionStr(rt) + "; " + iVar + " < " + v + ".length; " + iVar + "++) {" + childRT.Code + "}"
-		return RTCode{Code: body, Type: CodeS}
-	}
-	idxLit := positionStr(rt)
-	accessor := v + "[" + idxLit + "]"
-	ctx.SetChildAccessor(accessor)
-	ctx.SetChildPathLiteral(idxLit)
-	childRT := ctx.CompileChild(rt.Child, CodeS)
-	ctx.SetChildAccessor("")
-	ctx.SetChildPathLiteral("")
-	if childRT.Type == CodeNS {
-		return RTCode{Code: "", Type: CodeNS}
-	}
-	if childRT.Code == "" {
-		return RTCode{Code: "", Type: CodeS}
-	}
-	if rt.Optional {
-		return RTCode{Code: "if (" + accessor + " !== undefined) {" + childRT.Code + "}", Type: CodeS}
-	}
-	return childRT
 }
 
 // emitIndexSignatureUnknownKeyErrors ports mion's

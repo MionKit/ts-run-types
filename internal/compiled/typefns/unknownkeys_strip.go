@@ -99,13 +99,13 @@ func (StripUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 		}
 		return RTCode{Code: "", Type: CodeS}
 	case protocol.KindProperty, protocol.KindPropertySignature:
-		return emitPropertyUnknownKeys(rt, ctx)
+		return emitPropertyUnknownKeys(rt, ctx, false)
 	case protocol.KindArray:
-		return emitArrayUnknownKeys(rt, ctx)
+		return emitArrayUnknownKeys(rt, ctx, false)
 	case protocol.KindTuple:
 		return emitTupleStripUnknownKeys(rt, ctx)
 	case protocol.KindTupleMember:
-		return emitTupleMemberUnknownKeys(rt, ctx)
+		return emitTupleMemberUnknownKeys(rt, ctx, false)
 	case protocol.KindIndexSignature:
 		return emitIndexSignatureStripUnknownKeys(rt, ctx)
 	case protocol.KindUnion:
