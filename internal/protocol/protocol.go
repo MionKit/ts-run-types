@@ -20,6 +20,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"io"
 
 	"github.com/mionkit/ts-run-types/internal/diag"
 )
@@ -569,6 +570,15 @@ type Dump struct {
 	Sites    []Site     `json:"sites"`
 }
 
+// WriteJSON writes the dump as pretty-printed JSON. Refs in child slots
+// stay as `{kind: -1, id: "<hash>"}` sentinels — the consumer is
+// responsible for re-knotting if it doesn't use the generated TS module.
+func (dump Dump) WriteJSON(writer io.Writer) error {
+	encoder := json.NewEncoder(writer)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(dump)
+}
+
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
 // dump responses (which don't resolve a single id) don't carry a misleading "".
 func (response Response) MarshalJSON() ([]byte, error) {
@@ -703,4 +713,18 @@ func (response Response) MarshalJSON() ([]byte, error) {
 		out["error"] = response.Error
 	}
 	return jsonMarshal(out)
+}
+
+// PureFnDep identifies a pure-function dependency of a RT-compiled
+// function. FilePath is the absolute path of the source file where
+// registerPureFnFactory(<Namespace>, <FunctionName>, ...) is invoked.
+// The walker uses FilePath at compile time to assert the dependency
+// actually exists in source (Go-side AST integrity check); it does
+// not reach the emitted JS — the wire shape stays the flat
+// "namespace::fnName" string array that the JS-side rtUtils
+// consumes today.
+type PureFnDep struct {
+	Namespace    string
+	FunctionName string
+	FilePath     string
 }
