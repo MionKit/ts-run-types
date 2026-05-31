@@ -1631,3 +1631,57 @@ createIsType<{a: string}>(undefined, {noIsArrayCheck: true});
 		t.Errorf("expected %s for {noIsArrayCheck:true} on non-array type, got: %+v", diag.CodeIsTypeOptionsNoArrayNoop, resp.Diagnostics)
 	}
 }
+
+// TestResolver_SchemaForm_ConvergesAndObservesOptions locks in the removal of
+// the EmitOnly schema-form workaround. The value-first schema form
+// (`createIsTypeFor(array(string()))`) must resolve to the SAME structural id
+// as the marker form (`createIsType<string[]>()`) — proving the no-params leaf
+// builders no longer brand their return, so the cache duplication is gone —
+// AND a schema-form options call must materialise its variant: the BUILDER
+// owns the id (it is the marker; `createIsTypeFor` is a plain runtime that
+// reads `schema.id`), and the enclosing `createIsTypeFor`'s options are FOLDED
+// onto that builder's own injection Site (no separate `Pos: 0` EmitOnly Site).
+func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export interface RunType<T = unknown> {id: string; readonly __rtType?: {t: T}}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createIsTypeFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): (v: unknown) => boolean;
+  export function string(id?: InjectRunTypeId<string>): RunType<string>;
+  export function array<T>(item: RunType<T>, id?: InjectRunTypeId<T[]>): RunType<T[]>;
+}
+`
+	const code = `import {createIsType, createIsTypeFor, array, string} from '@mionjs/ts-go-run-types';
+createIsType<string[]>();
+createIsTypeFor(array(string()));
+createIsTypeFor(array(string()), {noIsArrayCheck: true});
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	// One Site per call: the marker form, plus the slot-0 array builder of
+	// each schema form (its nested string() is skipped, createIsTypeFor is
+	// not a marker). No phantom EmitOnly site.
+	if len(resp.Sites) != 3 {
+		t.Fatalf("expected 3 Sites (one per call), got %d: %+v", len(resp.Sites), resp.Sites)
+	}
+	markerID := resp.Sites[0].ID
+	for i, s := range resp.Sites {
+		if s.ID != markerID {
+			t.Errorf("Site[%d].ID = %q, want %q — schema and marker forms must converge on one id", i, s.ID, markerID)
+		}
+		if s.Pos == 0 {
+			t.Errorf("Site[%d] has Pos 0 — every surviving Site must drive a real rewrite (no EmitOnly remnant)", i)
+		}
+	}
+	// The options bag on the enclosing createIsTypeFor is folded onto the
+	// builder's own Site (the id the schema form reads at runtime).
+	variant := resp.Sites[2]
+	if len(variant.Options) != 1 || variant.Options[0] != "noIsArrayCheck" {
+		t.Errorf("schema-form options not folded onto builder Site: Site[2].Options = %v, want [noIsArrayCheck]", variant.Options)
+	}
+}

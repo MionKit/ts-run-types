@@ -17,27 +17,27 @@ the **generated function**, not the **type**. Idempotency invariants:
 - Marker form and schema form converge on the same cached factory
   when they reach the same `(typeid, options)` pair.
 
-The first two are now fully enforced. The third is enforced
-post-hoc via the schema-form scan path (see §3) — but only because of
-a typeid mismatch that should be fixable upstream (see **TO REVISIT**
-in §3).
+The first two are now fully enforced. The third is also enforced
+directly: the earlier typeid mismatch (schema vs marker forms hashing
+differently) was fixed **at the source** — the leaf builders no longer
+brand their no-params return — so `createIsTypeFor(RT.array(RT.string()))`
+and `createIsType<string[]>()` resolve to one id. See
+[SCHEMA-FORM-TYPEID-CONVERGENCE.md](SCHEMA-FORM-TYPEID-CONVERGENCE.md)
+and §3 below.
 
 ## 1. `protocol.Site` extended
 
-[internal/protocol/protocol.go](../internal/protocol/protocol.go) — two
-new fields on the wire shape:
+[internal/protocol/protocol.go](../internal/protocol/protocol.go) — one
+new field on the wire shape:
 
 - **`Options []string`** — per-call-site `IsTypeOptions` tuple
   (sorted by registry order, true booleans only). Empty for calls
   without options.
-- **`EmitOnly bool`** — marks a Site that drives variant emission but
-  corresponds to NO source rewrite. The Vite-plugin rewriter filters
-  these out in [rewrite.ts](../packages/vite-plugin-runtypes/src/rewrite.ts);
-  the emitter consumes them like any other Site.
 
-**TO REVISIT:** `EmitOnly` exists solely to support the schema-form
-scan path. If §3's typeid mismatch is fixed at the source, the
-schema-form scan can go away — and with it, `EmitOnly`. See §3.
+> The short-lived `EmitOnly bool` field (a Site that drove variant
+> emission with no source rewrite, for the schema-form scan path) has
+> been **removed** — §3's typeid mismatch was fixed at the source, so the
+> schema form's options now ride on the builder's own Site instead.
 
 ## 2. Type id is options-independent
 
@@ -52,76 +52,40 @@ What's left is `cache.AssignID(typeArgument)` plus the structural
 regex-literal harvest. `SerializeArrayWithFlags` was deleted entirely
 from [serialize.go](../internal/compiled/runtype/serialize.go).
 
-## 3. Two scan paths feed `dump.Sites`
+## 3. Schema-form options ride on the builder's Site (DONE)
 
-**Primary path:** [`scanCall`](../internal/resolver/scan.go) — the
+**Primary (only) path:** [`scanCall`](../internal/resolver/scan.go) — the
 InjectRunTypeId-marker walk. `extractIsTypeOptions` populates
-`Site.Options`.
+`Site.Options` for the marker forms (`createIsType<T>(…, options)`).
 
-**Schema-form path (new):**
-[`schemaFormVariantSite`](../internal/resolver/scan.go) — after a
-successful `scanCall`, checks whether the call sits at slot 0 of an
-enclosing `createIsTypeFor` / `createTypeErrorsFor` whose options
-literal carries true booleans. If yes, emits a SECOND Site with:
+**Schema forms** (`createIsTypeFor(schema, options)` /
+`createTypeErrorsFor`) are NOT markers — they read `schema.id` at
+runtime. That id is owned by the **builder** call (`RT.array(…)`,
+`RT.regexp(/…/)`, `RT.object({…})`), which IS a marker and resolves the
+id — including the AST regex-literal harvest and recursive interning the
+type alone can't reproduce. To make a schema-form `options` call
+materialise its variant factory, [`scanCall`](../internal/resolver/scan.go)
+folds the enclosing factory's options onto **that builder's own Site**:
+[`schemaFormOptions`](../internal/resolver/scan.go) checks whether the
+builder sits at slot 0 of a `createIsTypeFor` / `createTypeErrorsFor`
+call ([`isSchemaFormFactory`](../internal/resolver/scan.go) +
+[`readIsTypeOptionsLiteral`](../internal/resolver/scan.go)) and ORs its
+option bits into the builder Site's `Options`. No second Site, no
+`EmitOnly`, no rewriter filter.
 
-- `ID = <builder's already-resolved id>`
-- `Options = <enclosing call's options>`
-- `EmitOnly = true`
+### Why the duplication is gone
 
-[`isSchemaFormFactory`](../internal/resolver/scan.go) detects the
-enclosing call via signature-declaration name match + package-name
-gate (same gate the InjectRunTypeId scanner uses).
-
-### Why this exists
-
-`RT.array(RT.string())` resolves to TS type `Array<FormatString<{}>>`
-(branded) while the marker form `createIsType<string[]>()` resolves to
-`string[]` (plain). The Go side respects TS structural identity — two
-different TS types, two different `cache.AssignID` results. So the
-schema-form factory and the marker-form factory live under
-**different cache keys**.
-
-For the plain case this is invisible — both validators behave
-identically on the same payloads, and the test suite passes because
-behaviour matches even when the cache identities differ.
-
-For the **variant** case it matters: the marker form's
-`{noIsArrayCheck: true}` emits `itNA_<markerID>` against the plain
-`string[]` id. The schema form's lookup, with the SAME option, builds
-`itNA_<schemaID>` against the branded id — which doesn't exist in the
-cache. The schema-form scan path emits the missing variant entry.
-
-### TO REVISIT
-
-**This whole scan path is a workaround for a typeid mismatch that
-should be fixable upstream.** The builder signature for `RT.string()`
-is:
-
-```ts
-export function string<const P extends StringParams = Record<string, never>>(
-  …,
-  id?: InjectRunTypeId<LeafType<'stringFormat', P>>,
-): RunType<LeafType<'stringFormat', P>>;
-```
-
-The `LeafType<'stringFormat', P>` brand is what gives the schema form
-its distinct typeid. If the builder's `T` was sharpened so that
-`RT.string()` (no params) returns a `RunType<string>` and only
-`RT.string({maxLength: 5})` returns the branded form — then `RT.array(
-RT.string())` would resolve to plain `string[]` and the schema form
-would land on the marker form's cache key directly. The schema-form
-scan path + `EmitOnly` Site mechanism would no longer be needed.
-
-If that refinement lands, **remove**:
-
-- `schemaFormVariantSite` and its helpers (`isSchemaFormFactory`,
-  `readIsTypeOptionsLiteral`) in
-  [scan.go](../internal/resolver/scan.go).
-- `Site.EmitOnly` field in
-  [protocol.go](../internal/protocol/protocol.go).
-- The `EmitOnly` filter in
-  [rewrite.ts](../packages/vite-plugin-runtypes/src/rewrite.ts).
-- The extra-Site append in `dispatchScanFiles`'s callback.
+`RT.string()` used to default its generic `P` to `Record<string, never>`,
+so it returned the branded `RunType<LeafType<'stringFormat', {}>>` and
+`RT.array(RT.string())` resolved to `Array<FormatString<{}>>` — a
+DIFFERENT structural id than the marker form's plain `string[]`. The leaf
+builders are now **overloaded** so the no-params call returns the plain
+base type (`RunType<string>`) and only the params-present call is branded.
+`RT.array(RT.string())` now resolves to plain `string[]`, so schema and
+marker forms share one id and one variant cache key directly — the old
+schema-form scan path (`schemaFormVariantSite` + `EmitOnly` + the
+rewriter filter) is gone. Full rationale + the builder list:
+[SCHEMA-FORM-TYPEID-CONVERGENCE.md](SCHEMA-FORM-TYPEID-CONVERGENCE.md).
 
 The variant fan-out itself (§4) is independent and stays.
 
@@ -236,11 +200,12 @@ is meaningful for a given T), so the diagnostic is the only signal.
 
 ## Open questions for future review
 
-1. **Schema-form scan path (§3).** Most impactful cleanup target.
-   Refine builder signatures so unparameterised builders return plain
-   `RunType<T>` instead of `RunType<LeafType<…, {}>>` — then the
-   schema-form scan path, `EmitOnly`, and the rewriter filter all
-   become removable.
+1. **Schema-form scan path (§3). DONE.** Builder signatures were
+   overloaded so unparameterised builders return plain `RunType<T>`
+   instead of `RunType<LeafType<…, {}>>`; the schema-form scan path, the
+   `EmitOnly` field, and the rewriter filter were all removed. Schema-form
+   options now fold onto the builder's own Site. See §3 and
+   [SCHEMA-FORM-TYPEID-CONVERGENCE.md](SCHEMA-FORM-TYPEID-CONVERGENCE.md).
 2. **Symbol-literal + noLiterals throw (§5).** Re-examine whether the
    explicit opt-in changes the design rationale enough to allow the
    variant body instead of throwing.

@@ -50,6 +50,7 @@ import type {NumberParams} from '../formats/numberFormats.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
+import type {TemporalBaseByFormatName} from '../formats/datetime/temporalFormats.ts';
 
 // ─────────────────────────────── Params ─────────────────────────────
 //
@@ -150,40 +151,74 @@ export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: un
   return carrier as RunType<T>;
 }
 
-/** A string field builder — returns the branded `FormatString`. The param type
- *  is `StringParams` (a `pattern` is a `FormatPattern` or an inline
+// Each parameterised leaf builder is TWO overloads: the no-params call returns
+// the PLAIN base type (`RunType<string>`), so a value-first leaf converges on
+// the SAME structural id as the type-first plain type and as a marker-form
+// `createIsType<string>()`; the params-present call returns the branded
+// `RunType<LeafType<…>>`. A single impl discriminates on the first arg — the
+// injected id (a string) lands at slot 0 for the no-params overload, at slot 1
+// for the params-present overload (the Go scanner derives each from the resolved
+// overload's signature). The branded default `P = Record<string, never>` is
+// GONE on purpose: defaulting it re-introduced the brand on `string()` and split
+// the cache (see docs/SCHEMA-FORM-TYPEID-CONVERGENCE.md).
+
+/** A string field builder. `string()` → `RunType<string>` (plain, converges with
+ *  type-first `string`); `string({maxLength: 5})` → branded `RunType<FormatString<P>>`.
+ *  The param type is `StringParams` (a `pattern` is a `FormatPattern` or an inline
  *  `{source, flags?, mockSamples, …}`, never a bare `/regex/`), so `P` satisfies
  *  `FormatString`'s own `StringParams` bound directly — no `TypeFormat<…>`
  *  workaround. **/
-export function string<const P extends StringParams = Record<string, never>>(
-  formatParams: P = {} as P,
+export function string(id?: InjectRunTypeId<string>): RunType<string>;
+export function string<const P extends StringParams>(
+  formatParams: P,
   id?: InjectRunTypeId<LeafType<'stringFormat', P>>
-): RunType<LeafType<'stringFormat', P>> {
-  return builderResult(id, {type: 'string', formatParams});
+): RunType<LeafType<'stringFormat', P>>;
+export function string(formatParamsOrId?: StringParams | InjectRunTypeId<string>, id?: InjectRunTypeId<string>): RunType<string> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'string', formatParams});
 }
 
-/** A number field builder — returns the branded `FormatNumber`. **/
-export function number<const P extends NumberParams = Record<string, never>>(
-  formatParams: P = {} as P,
+/** A number field builder. `number()` → `RunType<number>`; `number({min: 0})` →
+ *  branded `RunType<FormatNumber<P>>`. **/
+export function number(id?: InjectRunTypeId<number>): RunType<number>;
+export function number<const P extends NumberParams>(
+  formatParams: P,
   id?: InjectRunTypeId<LeafType<'numberFormat', P>>
-): RunType<LeafType<'numberFormat', P>> {
-  return builderResult(id, {type: 'number', formatParams});
+): RunType<LeafType<'numberFormat', P>>;
+export function number(formatParamsOrId?: NumberParams | InjectRunTypeId<number>, id?: InjectRunTypeId<number>): RunType<number> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'number', formatParams});
 }
 
-/** A bigint field builder — returns the branded `FormatBigInt`. **/
-export function bigint<const P extends BigIntParams = Record<string, never>>(
-  formatParams: P = {} as P,
+/** A bigint field builder. `bigint()` → `RunType<bigint>`; `bigint({min: 0n})` →
+ *  branded `RunType<FormatBigInt<P>>`. **/
+export function bigint(id?: InjectRunTypeId<bigint>): RunType<bigint>;
+export function bigint<const P extends BigIntParams>(
+  formatParams: P,
   id?: InjectRunTypeId<LeafType<'bigintFormat', P>>
-): RunType<LeafType<'bigintFormat', P>> {
-  return builderResult(id, {type: 'bigint', formatParams});
+): RunType<LeafType<'bigintFormat', P>>;
+export function bigint(formatParamsOrId?: BigIntParams | InjectRunTypeId<bigint>, id?: InjectRunTypeId<bigint>): RunType<bigint> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'bigint', formatParams});
 }
 
-/** A native-`Date` field builder — returns the branded `FormatDate`. **/
-export function date<const P extends FormatParams_NativeDate = Record<string, never>>(
-  formatParams: P = {} as P,
+/** A native-`Date` field builder. `date()` → `RunType<Date>`; `date({max: 'now'})`
+ *  → branded `RunType<FormatDate<P>>`. **/
+export function date(id?: InjectRunTypeId<Date>): RunType<Date>;
+export function date<const P extends FormatParams_NativeDate>(
+  formatParams: P,
   id?: InjectRunTypeId<LeafType<'nativeDate', P>>
-): RunType<LeafType<'nativeDate', P>> {
-  return builderResult(id, {type: 'date', formatParams});
+): RunType<LeafType<'nativeDate', P>>;
+export function date(
+  formatParamsOrId?: FormatParams_NativeDate | InjectRunTypeId<Date>,
+  id?: InjectRunTypeId<Date>
+): RunType<Date> {
+  const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+  return builderResult(injectedId, {type: 'date', formatParams});
 }
 
 /** A boolean builder — no params, no format brand (kind boolean). Returns
@@ -287,11 +322,37 @@ interface TemporalFormatByTag<P extends MinMax> {
   'temporal.plainDateTime': LeafType<'temporalPlainDateTime', P>;
   'temporal.plainYearMonth': LeafType<'temporalPlainYearMonth', P>;
 }
-function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag) {
-  return <const P extends MinMax = Record<string, never>>(
-    formatParams: P = {} as P,
+// Authoring tag → UNBRANDED base instance type — the no-params overload's return
+// (the params-present overload returns the branded `TemporalFormatByTag<P>[Tag]`).
+// Routed through `TemporalBaseByFormatName` so `Temporal.*` stays named only in
+// temporalFormats.ts, mirroring the `TemporalFormatByTag` rows above.
+interface TemporalBaseByTag {
+  'temporal.instant': TemporalBaseByFormatName['temporalInstant'];
+  'temporal.zonedDateTime': TemporalBaseByFormatName['temporalZonedDateTime'];
+  'temporal.plainDate': TemporalBaseByFormatName['temporalPlainDate'];
+  'temporal.plainTime': TemporalBaseByFormatName['temporalPlainTime'];
+  'temporal.plainDateTime': TemporalBaseByFormatName['temporalPlainDateTime'];
+  'temporal.plainYearMonth': TemporalBaseByFormatName['temporalPlainYearMonth'];
+}
+// Overloaded shape of each `temporal.<name>` builder — same no-params/plain ↔
+// params/branded split as the scalar leaves above.
+interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>> {
+  (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
+  <const P extends MinMax>(
+    formatParams: P,
     id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
-  ): RunType<TemporalFormatByTag<P>[Tag]> => builderResult(id, {type: tag, formatParams});
+  ): RunType<TemporalFormatByTag<P>[Tag]>;
+}
+function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag): TemporalBuilderFn<Tag> {
+  const build = (
+    formatParamsOrId?: MinMax | InjectRunTypeId<TemporalBaseByTag[Tag]>,
+    id?: InjectRunTypeId<TemporalBaseByTag[Tag]>
+  ): RunType<TemporalBaseByTag[Tag]> => {
+    const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
+    const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
+    return builderResult(injectedId, {type: tag, formatParams});
+  };
+  return build as TemporalBuilderFn<Tag>;
 }
 
 /** Temporal field builders, namespaced to mirror the `Temporal.X` API

@@ -63,3 +63,18 @@ export type FormatTemporalPlainYearMonth<P extends MinMax = MinMax> = Temporal.P
   readonly __rtFormatName: 'temporalPlainYearMonth';
   readonly __rtFormatParams: P;
 };
+
+// Unbranded base instance type per temporal format — the type a no-params
+// builder call (`temporal.instant()`) returns, so it converges with the
+// type-first `Temporal.Instant` id instead of carrying a `FormatTemporal*`
+// brand for empty params. Kept here beside the branded aliases so the
+// Temporal-lib coupling stays in this module (define.ts indexes this map by
+// authoring tag and never names `Temporal.*` directly).
+export interface TemporalBaseByFormatName {
+  temporalInstant: Temporal.Instant;
+  temporalZonedDateTime: Temporal.ZonedDateTime;
+  temporalPlainDate: Temporal.PlainDate;
+  temporalPlainTime: Temporal.PlainTime;
+  temporalPlainDateTime: Temporal.PlainDateTime;
+  temporalPlainYearMonth: Temporal.PlainYearMonth;
+}

@@ -1,5 +1,17 @@
 # Schema-form ⇄ marker-form typeid convergence
 
+> **Status: LANDED.** The overload-based builder fix below shipped, and the
+> `EmitOnly` schema-form workaround is gone. One nuance vs. the original
+> plan: the overloads alone don't replace the *options observation* the
+> workaround also did, and the **builder must keep owning the id** (regex
+> literals carry their `source`/`flags` only in the AST, and recursive
+> schemas intern through the builder — neither is reproducible from the
+> schema's TS type). So instead of deleting the schema-form scan path
+> outright, schema-form options are now **folded onto the builder's own
+> injection Site** (`schemaFormOptions` in scan.go); the `Site.EmitOnly`
+> field, the phantom no-rewrite Site, and the rewriter filter were removed.
+> See "Go-side amendments" §1 below for the as-built shape.
+
 ## Problem
 
 `createIsType<string[]>()` and `createIsTypeFor(RT.array(RT.string()))`
@@ -162,21 +174,31 @@ same structural id as their marker-form equivalent. No change needed:
 Once the builders converge, the following workarounds become dead
 code and should be removed.
 
-### 1. Schema-form scan path
+### 1. Schema-form scan path — folded onto the builder Site, not deleted
 
 [internal/resolver/scan.go](../internal/resolver/scan.go):
 
-- **Delete** `schemaFormVariantSite` — the helper that walks
-  `call.Parent` looking for an enclosing `createIsTypeFor` /
-  `createTypeErrorsFor` and emits an extra Site.
-- **Delete** `isSchemaFormFactory` — the signature-declaration
-  name-match helper.
-- **Delete** `readIsTypeOptionsLiteral` — the options-literal parser
-  the schema-form path used (the original `extractIsTypeOptions` on
-  the trailing-id call covers everything still needed).
-- **Remove** the extra-Site append block in
-  `dispatchScanFiles`'s callback (the `if extraSite, ok :=
-  resolver.schemaFormVariantSite(...)` arm).
+- **Replaced** `schemaFormVariantSite` with `schemaFormOptions`: rather
+  than emit a second `EmitOnly` Site, it returns the enclosing
+  `createIsTypeFor` / `createTypeErrorsFor` options, which `scanCall` ORs
+  onto the **builder's own** injection Site before returning it. The
+  builder owns the id (the only id correct for AST-harvested regex
+  literals and recursively-interned schemas); the option set just rides
+  along, so the emitter materialises the variant under the converged id.
+- **Kept** `isSchemaFormFactory` (resolved-signature name + package gate)
+  and `readIsTypeOptionsLiteral` (options-literal parser) — both are used
+  by `schemaFormOptions`.
+- **Removed** the extra-Site append block in `dispatchScanFiles`'s
+  callback — one Site per call again.
+
+> Why not delete outright (as first sketched): the overloads fix the
+> *id duplication*, but schema-form functions have no `InjectRunTypeId`
+> slot, so the scanner never sees their options on the normal path. The
+> fold is what lets a standalone `createIsTypeFor(schema, {opt})`
+> materialise its variant. Making `createIsTypeFor` itself a marker was
+> tried and rejected: deriving its id from the schema's *type* loses the
+> regex `source`/`flags` (type is just `RegExp`) and diverges on
+> recursive consts.
 
 ### 2. `Site.EmitOnly` field
 
