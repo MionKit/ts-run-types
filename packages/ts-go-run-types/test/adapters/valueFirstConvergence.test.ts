@@ -45,6 +45,10 @@ type DateFirstTF = {past: FormatDate<{max: 'now'}>};
 const RegexFirst = define({slug: {type: 'string', pattern: /^[a-z-]+$/}});
 type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: ''}}>};
 
+// An `optional: true` field converges with a type-first optional property.
+const OptionalFirst = define({req: {type: 'string', maxLength: 5}, opt: {type: 'number', min: 0, optional: true}});
+type OptionalFirstTF = {req: FormatString<{maxLength: 5}>; opt?: FormatNumber<{min: 0}>};
+
 describe('value-first / convergence with type-first', () => {
   it('string model converges to the same validator', () => {
     expect(createIsType<ModelType<typeof StringFirst>>()).toBe(createIsType<StringFirstTF>());
@@ -60,5 +64,9 @@ describe('value-first / convergence with type-first', () => {
 
   it('inline regex converges with the type-first {source,flags} form', () => {
     expect(createIsType<ModelType<typeof RegexFirst>>()).toBe(createIsType<RegexFirstTF>());
+  });
+
+  it('optional field converges with a type-first optional property', () => {
+    expect(createIsType<ModelType<typeof OptionalFirst>>()).toBe(createIsType<OptionalFirstTF>());
   });
 });
