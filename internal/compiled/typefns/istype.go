@@ -622,16 +622,6 @@ func tupleHasRest(rt *protocol.RunType, ctx *EmitContext) bool {
 	return false
 }
 
-// isRestTupleMember reports whether a resolved tuple-member RunType
-// carries the "rest" flag mion's projection sets on rest elements
-// (`[A, ...B[]]`). Mirrors mion's TupleMember.isRest() on the wire.
-func isRestTupleMember(rt *protocol.RunType) bool {
-	if rt == nil || rt.Kind != protocol.KindTupleMember {
-		return false
-	}
-	return hasFlag(rt.Flags, "rest")
-}
-
 // emitTupleMemberIsType handles KindTupleMember. Sets the element
 // accessor `v[<Position>]` on the current frame so the wrapped child
 // emit sees that as its Vλl, then applies the optional guard if the
@@ -711,16 +701,6 @@ func emitTupleMemberIsType(rt *protocol.RunType, ctx *EmitContext, v string) RTC
 		}
 	}
 	return RTCode{Code: "(" + childRT.Code + ")", Type: CodeE}
-}
-
-// positionStr returns the tuple element's index as a JS literal.
-// Falls back to "0" when Position is nil (defensive — shouldn't
-// happen for well-formed cache entries).
-func positionStr(rt *protocol.RunType) string {
-	if rt.Position == nil {
-		return "0"
-	}
-	return strconv.Itoa(*rt.Position)
 }
 
 // emitUnionIsType handles KindUnion. Walks the safe-ordered children
@@ -964,19 +944,6 @@ func iterableInnerTypes(rt *protocol.RunType, ctx *EmitContext) []*protocol.RunT
 	return []*protocol.RunType{setItemType(rt, ctx)}
 }
 
-// isObjectLikeKind reports whether kind's isType emit needs the
-// shared `typeof === 'object' && !== null` guard before it. Used by
-// the union emit to lift the guard out of the per-child checks.
-func isObjectLikeKind(kind protocol.ReflectionKind) bool {
-	switch kind {
-	case protocol.KindObjectLiteral, protocol.KindClass,
-		protocol.KindIndexSignature, protocol.KindArray,
-		protocol.KindTuple:
-		return true
-	}
-	return false
-}
-
 // emitTemplateLiteralIsType handles KindTemplateLiteral. Mirrors
 // mion's nodes/collection/templateLiteral.ts:emitIsType:
 //
@@ -1112,34 +1079,6 @@ func escapeRegex(s string) string {
 		}
 		b.WriteRune(r)
 	}
-	return b.String()
-}
-
-// quoteJSDouble produces a double-quoted JS string literal. Used for
-// the regex-source string we pass to `new RegExp(...)` — double
-// quotes avoid the escaping noise that single-quoting regex sources
-// produces (regexes are dense with backslashes already).
-func quoteJSDouble(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('"')
-	for _, r := range s {
-		switch r {
-		case '\\':
-			b.WriteString(`\\`)
-		case '"':
-			b.WriteString(`\"`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	b.WriteByte('"')
 	return b.String()
 }
 
@@ -1405,75 +1344,6 @@ func emitIndexSignatureIsType(rt *protocol.RunType, ctx *EmitContext, v string) 
 	}
 	body.WriteString("} return true")
 	return RTCode{Code: body.String(), Type: CodeRB}
-}
-
-// joinAnd composes parts into a JS `a && b && c` chain, filtering
-// empty entries the same way mion's `.filter(Boolean).join(' && ')`
-// pattern does.
-func joinAnd(parts []string) string {
-	out := parts[:0]
-	for _, part := range parts {
-		if part == "" {
-			continue
-		}
-		out = append(out, part)
-	}
-	return strings.Join(out, " && ")
-}
-
-// isFunctionLikeKind reports whether kind would emit a function-shape
-// check (or be skipped entirely as a property's wrapped child). Used
-// in two places: object-emit to drop method-shaped Children directly,
-// and property-emit to skip when the wrapped value is function-typed.
-func isFunctionLikeKind(kind protocol.ReflectionKind) bool {
-	switch kind {
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		return true
-	}
-	return false
-}
-
-// isSymbolKeyedIndexSig reports whether a KindIndexSignature has a
-// symbol-typed key (`{[k: symbol]: T}`). Mirrors mion's
-// IndexSignatureRunType.skipRT (indexProperty.ts:30-36), which
-// returns true for every RT fn except toJSCode (we don't emit a
-// toJSCode equivalent in this binary, so the skip applies
-// unconditionally for us). The for-in loop in our emits would never
-// enumerate a symbol-keyed property anyway (per JS semantics), so
-// skipping is observable parity with mion and elides dead emit.
-func isSymbolKeyedIndexSig(rt *protocol.RunType, ctx *EmitContext) bool {
-	if rt == nil || rt.Index == nil {
-		return false
-	}
-	indexResolved := ctx.ResolveRef(rt.Index)
-	return indexResolved != nil && indexResolved.Kind == protocol.KindSymbol
-}
-
-// propertyAccessor builds the JS subscript expression for `parent.name`
-// (safe identifier names) or `parent["name"]` (anything else). Mirrors
-// mion's RunType `useArrayAccessor` / `getChildVarName` split applied
-// to property names — protocol.IsSafeName captures the safe-name bit
-// at resolver time so the emit doesn't repeat the regex.
-func propertyAccessor(parent, name string, safe bool) string {
-	if safe && name != "" {
-		return parent + "." + name
-	}
-	return parent + "[" + quoteJS(name) + "]"
-}
-
-// hasFlag is a small membership helper for RunType.Flags. Used by
-// the noIsArrayCheck branch in the KindArray arm and by
-// isRestTupleMember; kept in this file because every caller lives
-// here. Promote to a shared util if a caller outside typefns ever
-// needs it.
-func hasFlag(flags []string, target string) bool {
-	for _, flag := range flags {
-		if flag == target {
-			return true
-		}
-	}
-	return false
 }
 
 // EmitDependencyCall returns the JS expression that invokes a
