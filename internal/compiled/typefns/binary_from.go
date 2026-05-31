@@ -599,13 +599,7 @@ func emitNativeIterableFromBinary(rt *protocol.RunType, ctx *EmitContext, ret, d
 		ctorName = "Set"
 	}
 
-	var innerTypes []*protocol.RunType
-	if isMap {
-		keyType, valueType := mapKeyValueTypes(rt, ctx)
-		innerTypes = []*protocol.RunType{keyType, valueType}
-	} else {
-		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
-	}
+	innerTypes := iterableInnerTypes(rt, ctx)
 
 	lenVar := ctx.NextLocalVar("mlen")
 	iVar := ctx.NextLocalVar("i")

@@ -756,13 +756,7 @@ func emitTupleMemberToBinary(rt *protocol.RunType, ctx *EmitContext, v string, s
 // child types' bytes (Map: key + value; Set: item).
 func emitNativeIterableToBinary(rt *protocol.RunType, ctx *EmitContext, v string, ser string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
-	var innerTypes []*protocol.RunType
-	if isMap {
-		keyType, valueType := mapKeyValueTypes(rt, ctx)
-		innerTypes = []*protocol.RunType{keyType, valueType}
-	} else {
-		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
-	}
+	innerTypes := iterableInnerTypes(rt, ctx)
 
 	entryVar := ctx.NextLocalVar("e")
 	var childCodes []string

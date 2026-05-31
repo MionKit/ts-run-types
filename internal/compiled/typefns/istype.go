@@ -954,6 +954,16 @@ func setItemType(rt *protocol.RunType, ctx *EmitContext) *protocol.RunType {
 	return wrapper.Child
 }
 
+// iterableInnerTypes returns the child RunType(s) to walk for a native
+// iterable: [key, value] for a Map (SubKindMap), [item] for a Set.
+func iterableInnerTypes(rt *protocol.RunType, ctx *EmitContext) []*protocol.RunType {
+	if rt.SubKind == protocol.SubKindMap {
+		keyType, valueType := mapKeyValueTypes(rt, ctx)
+		return []*protocol.RunType{keyType, valueType}
+	}
+	return []*protocol.RunType{setItemType(rt, ctx)}
+}
+
 // isObjectLikeKind reports whether kind's isType emit needs the
 // shared `typeof === 'object' && !== null` guard before it. Used by
 // the union emit to lift the guard out of the per-child checks.

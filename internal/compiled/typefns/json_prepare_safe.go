@@ -863,13 +863,7 @@ func emitMergedPropPrepareSafe(mp FlatMergedProp, accessor string, ctx *EmitCont
 // returns a NEW array of safe-form entries (no mutation of v).
 func emitNativeIterablePrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	isMap := rt.SubKind == protocol.SubKindMap
-	var innerTypes []*protocol.RunType
-	if isMap {
-		keyType, valueType := mapKeyValueTypes(rt, ctx)
-		innerTypes = []*protocol.RunType{keyType, valueType}
-	} else {
-		innerTypes = []*protocol.RunType{setItemType(rt, ctx)}
-	}
+	innerTypes := iterableInnerTypes(rt, ctx)
 	// Fast path: every inner type JSON-compatible → just Array.from(v).
 	allCompat := true
 	for _, t := range innerTypes {
