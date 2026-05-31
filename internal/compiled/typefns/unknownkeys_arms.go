@@ -14,7 +14,7 @@ import (
 // UnknownKeyErrors family threads path-literals and keeps its own copies; the
 // uku tuple arm is a documented no-op and stays in its own file.
 
-func emitPropertyUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
+func emitPropertyUnknownKeys(rt *protocol.RunType, ctx *EmitContext, trackPath bool) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -31,8 +31,14 @@ func emitPropertyUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	v := ctx.Vλl
 	accessor := propertyAccessor(v, rt.Name, rt.IsSafeName)
 	ctx.SetChildAccessor(accessor)
+	if trackPath {
+		ctx.SetChildPathLiteral(quoteJS(rt.Name))
+	}
 	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
+	if trackPath {
+		ctx.SetChildPathLiteral("")
+	}
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
@@ -47,7 +53,7 @@ func emitPropertyUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return childRT
 }
 
-func emitArrayUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
+func emitArrayUnknownKeys(rt *protocol.RunType, ctx *EmitContext, trackPath bool) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -61,8 +67,14 @@ func emitArrayUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	v := ctx.Vλl
 	iVar := ctx.NextLocalVar("i")
 	ctx.SetChildAccessor(v + "[" + iVar + "]")
+	if trackPath {
+		ctx.SetChildPathLiteral(iVar)
+	}
 	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
+	if trackPath {
+		ctx.SetChildPathLiteral("")
+	}
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
@@ -73,7 +85,7 @@ func emitArrayUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	return RTCode{Code: body, Type: CodeS}
 }
 
-func emitTupleMemberUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
+func emitTupleMemberUnknownKeys(rt *protocol.RunType, ctx *EmitContext, trackPath bool) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -88,8 +100,14 @@ func emitTupleMemberUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	if isRestTupleMember(rt) {
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
+		if trackPath {
+			ctx.SetChildPathLiteral(iVar)
+		}
 		childRT := ctx.CompileChild(rt.Child, CodeS)
 		ctx.SetChildAccessor("")
+		if trackPath {
+			ctx.SetChildPathLiteral("")
+		}
 		if childRT.Type == CodeNS {
 			return RTCode{Code: "", Type: CodeNS}
 		}
@@ -102,8 +120,14 @@ func emitTupleMemberUnknownKeys(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	idxLit := positionStr(rt)
 	accessor := v + "[" + idxLit + "]"
 	ctx.SetChildAccessor(accessor)
+	if trackPath {
+		ctx.SetChildPathLiteral(idxLit)
+	}
 	childRT := ctx.CompileChild(rt.Child, CodeS)
 	ctx.SetChildAccessor("")
+	if trackPath {
+		ctx.SetChildPathLiteral("")
+	}
 	if childRT.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
