@@ -223,18 +223,7 @@ func (FromBinaryEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeType
 // reassignment of `ret` propagates back to the parent's frame.
 func (FromBinaryEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	des := ctx.ArgName("dεs")
-	args := ctx.Vλl + ", " + des
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	var call string
-	if isSelf {
-		call = ctx.walker.FnName + "(" + args + ")"
-	} else {
-		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-		}
-		call = childID + ".fn(" + args + ")"
-	}
-	return ctx.Vλl + " = " + call
+	return ctx.emitDepCall(childID, ctx.Vλl+", "+des, ctx.Vλl)
 }
 
 // Finalize — empty bodies collapse to `return ret` + noop flag.

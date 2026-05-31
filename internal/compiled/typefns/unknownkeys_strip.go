@@ -116,15 +116,7 @@ func (StripUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Co
 }
 
 func (StripUnknownKeysEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	v := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		return ctx.walker.FnName + "(" + v + ")"
-	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + v + ")"
+	return ctx.emitDepCall(childID, ctx.Vλl, "")
 }
 
 // Finalize: empty body → noop ("return v", true).

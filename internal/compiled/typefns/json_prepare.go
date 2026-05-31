@@ -583,9 +583,7 @@ func emitTupleMemberPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v str
 // to be an empty object.
 func unionMemberIsTypeCheck(member *protocol.RunType, ctx *EmitContext, v string) string {
 	isTypeHash := constants.CacheModules["isType"].Tag + "_" + member.ID
-	if !ctx.HasContextItem(isTypeHash) {
-		ctx.SetContextItem(isTypeHash, "const "+isTypeHash+" = utl.getRT("+quoteJS(isTypeHash)+")")
-	}
+	ctx.registerRTLookup(isTypeHash)
 	base := "(" + isTypeHash + "?.fn(" + v + ") ?? true)"
 	gate := looseCheckGate(member, ctx, v)
 	if gate == "" {
@@ -724,18 +722,7 @@ func emitNativeIterablePrepareForJson(rt *protocol.RunType, ctx *EmitContext, v 
 // array emit treat dependency-call children identically to inline
 // atomic children. Self-recursive calls drop the `.fn` indirection.
 func (PrepareForJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	var call string
-	if isSelf {
-		call = ctx.walker.FnName + "(" + args + ")"
-	} else {
-		if !ctx.HasContextItem(childID) {
-			ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-		}
-		call = childID + ".fn(" + args + ")"
-	}
-	return ctx.Vλl + " = " + call
+	return ctx.emitDepCall(childID, ctx.Vλl, ctx.Vλl)
 }
 
 // Finalize matches mion's handleFunctionReturn for the

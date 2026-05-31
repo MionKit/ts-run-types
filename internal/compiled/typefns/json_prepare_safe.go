@@ -79,15 +79,7 @@ func (PrepareForJsonSafeEmitter) ReturnName() string {
 // (`<hash>.fn(v)`). The parent's safe-form composition consumes it
 // as an expression slot (e.g. `{inner: <hash>.fn(v.inner)}`).
 func (PrepareForJsonSafeEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		return ctx.walker.FnName + "(" + args + ")"
-	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + args + ")"
+	return ctx.emitDepCall(childID, ctx.Vλl, "")
 }
 
 // Finalize mirrors PrepareForJsonEmitter's: empty/identity bodies are

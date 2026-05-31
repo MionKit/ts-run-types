@@ -271,15 +271,7 @@ func (StringifyJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ CodeT
 // the parent embeds that string into the surrounding JSON shape.
 // Self-recursive calls drop the `.fn` indirection.
 func (StringifyJsonEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	args := ctx.Vλl
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		return ctx.walker.FnName + "(" + args + ")"
-	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + args + ")"
+	return ctx.emitDepCall(childID, ctx.Vλl, "")
 }
 
 // Finalize wraps the emitted body in `return …` for expression

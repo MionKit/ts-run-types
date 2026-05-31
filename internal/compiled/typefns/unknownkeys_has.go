@@ -156,17 +156,8 @@ func (HasUnknownKeysEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 // hasUnknownKeys factory. The call shape mirrors mion's: pass v + opts
 // through unchanged.
 func (HasUnknownKeysEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
-	v := ctx.Vλl
 	optsArg := ctx.ArgName("θpts")
-	args := v + "," + optsArg
-	isSelf := ctx.walker != nil && childID == ctx.walker.RTFnHash
-	if isSelf {
-		return ctx.walker.FnName + "(" + args + ")"
-	}
-	if !ctx.HasContextItem(childID) {
-		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
-	}
-	return childID + ".fn(" + args + ")"
+	return ctx.emitDepCall(childID, ctx.Vλl+","+optsArg, "")
 }
 
 // Finalize matches mion's handleFunctionReturn for hasUnknownKeys:
