@@ -286,23 +286,14 @@ func emitUnionFromBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, des stri
 
 		// Optional merged props — read bitmap, then decode set bits.
 		if len(optionalProps) > 0 {
-			bitmapLength := (len(optionalProps) + 7) / 8
-			bitmapVar := ctx.NextLocalVar("bmI")
-			var bitmapInit string
-			if bitmapLength > 1 {
-				bitmapInit = "const " + bitmapVar + " = " + des + ".index;" + des + ".index += " + strconv.Itoa(bitmapLength)
-			} else {
-				bitmapInit = "const " + bitmapVar + " = " + des + ".index++"
-			}
+			bitmapInit, bitmapVar := readOptionalBitmapInit(ctx, des, len(optionalProps), false)
 			parts = append(parts, bitmapInit)
 			for i, mp := range optionalProps {
 				accessor := v + "." + mp.Name
 				if !mp.IsSafeName {
 					accessor = v + "[" + quoteJS(mp.Name) + "]"
 				}
-				byteOffset := i / 8
-				bitIdx := i & 7
-				bitCheck := "(" + des + ".view.getUint8(" + bitmapVar + " + " + strconv.Itoa(byteOffset) + ") & " + strconv.Itoa(1<<bitIdx) + ")"
+				bitCheck := bitCheckExpr(des, bitmapVar, i)
 				propCode, ok := emitMergedPropFromBinary(mp, accessor, ctx, des)
 				if !ok {
 					return RTCode{Code: "", Type: CodeNS}
