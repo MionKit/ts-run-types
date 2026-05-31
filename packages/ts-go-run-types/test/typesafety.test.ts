@@ -15,6 +15,7 @@
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
+import {define} from '../src/define/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -22,6 +23,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsAcceptConcreteTypes).toBe('function');
   expect(typeof assertionsRejectAny).toBe('function');
   expect(typeof assertionsAcceptUnknown).toBe('function');
+  expect(typeof assertionsValueFirstDefine).toBe('function');
 });
 
 // Runtime contract: the markers throw at runtime when no id is injected
@@ -73,4 +75,30 @@ function assertionsAcceptUnknown(): void {
   // the marker. Should compile without a directive.
   const _unknownId = getRunTypeId<unknown>('mock-id' as any);
   void _unknownId;
+}
+
+function assertionsValueFirstDefine(): void {
+  // Valid value-first configs compile — no directive. Each field's params
+  // are checked against the matching format's param interface.
+  const _ok = define({
+    name: {type: 'string', minLength: 1, maxLength: 50},
+    age: {type: 'number', min: 0, max: 120, integer: true},
+    born: {type: 'date', max: 'now'},
+  });
+  void _ok;
+
+  // @ts-expect-error — an unknown discriminator is rejected locally on the
+  // offending field (TS2322 on `type`), not as a deep generic blowup. This
+  // is the discriminator-as-local-error property the value-first surface buys.
+  define({flag: {type: 'boolean'}});
+
+  // KNOWN GAP (docs/value-first-formats.md → finding b): a param valid for a
+  // DIFFERENT discriminator (`maxLength` is a string param, used here on a
+  // number field) is NOT rejected — TypeScript's excess-property check against
+  // a union allows any key present in some member. So the line below compiles
+  // (no @ts-expect-error). The misplaced param is harmlessly ignored by the
+  // number-format emitter at validation time; tightening this to a per-field
+  // error is the deferred "stricter validator" follow-up.
+  const _leak = define({age: {type: 'number', maxLength: 5}});
+  void _leak;
 }
