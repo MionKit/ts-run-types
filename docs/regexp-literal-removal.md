@@ -1,11 +1,13 @@
 # Removing the RegExp-literal type from the schema / type system
 
-> **Status: proposal / findings.** Investigation of what it takes to drop the
-> "RegExp-literal" feature (matching a value against a _specific_ regex
-> source+flags) from the type-definition system, and why it's worth doing. No code
-> has changed. The **string-pattern format** (`string({pattern, flags,
-> mockSamples})` / `registerFormatPattern`) is a SEPARATE feature and **stays** —
-> see [§ What is preserved](#what-is-preserved).
+> **Status: implemented.** The "RegExp-literal" feature (matching a value against a
+> _specific_ regex source+flags) has been removed from the type-definition system.
+> `RegExp` is now a single `KindRegexp` leaf and `typeof /abc/i` ≡ `typeof /xyz/` ≡
+> `RegExp` (one id — id ≡ f(T)). The sections below stand as the rationale + change
+> record. The **string-pattern format** (`string({pattern, flags, mockSamples})` /
+> `registerFormatPattern`) is a SEPARATE feature and **stays** — and, by decision,
+> `registerFormatPattern` still accepts a `{regexp: /…/}` literal at the call site
+> (recovered from the AST; see [§ What is preserved](#what-is-preserved)).
 
 ## TL;DR
 

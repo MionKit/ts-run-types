@@ -44,7 +44,6 @@ func TestIsJsonCompatible(t *testing.T) {
 	literalNum := &protocol.RunType{ID: "lnum", Kind: protocol.KindLiteral, Literal: 42.0}
 	literalBigint := &protocol.RunType{ID: "lbig", Kind: protocol.KindLiteral, Literal: "1", Flags: []string{"bigint"}}
 	literalSym := &protocol.RunType{ID: "lsym", Kind: protocol.KindLiteral, Literal: "x", Flags: []string{"symbol"}}
-	literalRegex := &protocol.RunType{ID: "lre", Kind: protocol.KindLiteral, Literal: map[string]any{"regexp": map[string]any{"pattern": "."}}}
 	date := &protocol.RunType{ID: "dat", Kind: protocol.KindClass, SubKind: protocol.SubKindDate}
 	mapT := &protocol.RunType{ID: "mp", Kind: protocol.KindClass, SubKind: protocol.SubKindMap}
 	setT := &protocol.RunType{ID: "st", Kind: protocol.KindClass, SubKind: protocol.SubKindSet}
@@ -88,7 +87,7 @@ func TestIsJsonCompatible(t *testing.T) {
 	all := []*protocol.RunType{
 		str, num, boolean, null, undef, voidT, bigint, symbol, regexp,
 		anyT, unknownT, objectT, enumT, templateLit,
-		literalStr, literalNum, literalBigint, literalSym, literalRegex,
+		literalStr, literalNum, literalBigint, literalSym,
 		date, mapT, setT, never, promise, function,
 		arrStr, arrDate,
 		propA, propB, propBDate, objCompat, objMixed,
@@ -118,7 +117,6 @@ func TestIsJsonCompatible(t *testing.T) {
 		{"primitive literal (number)", literalNum, true},
 		{"bigint literal", literalBigint, false},
 		{"symbol literal", literalSym, false},
-		{"regexp literal", literalRegex, false},
 		{"undefined", undef, false},
 		{"void", voidT, false},
 		{"bigint", bigint, false},
