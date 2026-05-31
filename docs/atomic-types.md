@@ -88,18 +88,15 @@ reflectRunTypeId(v);
 
 ## RegExp
 
-Two outcomes depending on whether the resolver can trace the marker call back to a regex-literal source expression.
+Always `KindRegexp` (`ClassRef.Builtin = "RegExp"`) — matches any `RegExp` instance.
 
-### Instance form — `KindRegexp` (`ClassRef.Builtin = "RegExp"`)
-
-Produced when **no regex literal is reachable** from the call site. Examples:
+TypeScript has **no literal type for `RegExp`**: `/abc/i` widens to `RegExp` even under `as const`. So there is deliberately no "specific source/flags" form — `typeof /abc/i`, `typeof /xyz/`, and `RegExp` are the same type and resolve to the same id (id ≡ f(T)). The regex literal is **not** harvested from the AST.
 
 ```ts
 getRunTypeId<RegExp>(); // explicit type
-declare const re: RegExp; // no initializer
-reflectRunTypeId(re);
-let re = /abc/i; // `let` — not traced
-reflectRunTypeId(re);
+const re = /abc/i;
+reflectRunTypeId(re); // any RegExp instance
+reflectRunTypeId(/abc/i); // also just RegExp — the literal is not harvested
 ```
 
 Cache entry shape:
@@ -108,33 +105,7 @@ Cache entry shape:
 {"kind": 12, "classRef": {"builtin": "RegExp"}}
 ```
 
-### Literal form — `KindLiteral{regexp: {source, flags}}`
-
-Produced when the resolver **traces the call site back to a regex literal**. The emitter (`internal/compiled/runtype/module.go`) renders this as `new RegExp("…", "…")` at runtime, so consumers see a real `RegExp` instance.
-
-```ts
-reflectRunTypeId(/abc/i); // direct literal
-reflectRunTypeId(/abc/i as const); // AsExpression — unwrapped
-const re = /abc/i;
-reflectRunTypeId(re); // const-binding trace
-getRunTypeId<typeof re>(); // static via typeof binding
-const a = /abc/i;
-const b = a;
-reflectRunTypeId(b); // chained const trace
-```
-
-Cache entry shape:
-
-```json
-{"kind": 13, "literal": {"regexp": {"source": "abc", "flags": "i"}}}
-```
-
-### Quirks
-
-- **`const` only.** `let`-bound regexes can be reassigned, so the initializer no longer determines the value at the call site. The trace skips non-`const` declarations.
-- **`as const` is unwrapped.** A regex literal has no narrower TypeScript type to narrow to, but `/abc/i as const` is still wrapped in an `AsExpression`. The trace peels one layer so the literal-form path fires identically.
-- **Chained `const` traces.** `const b = a;` where `a` is itself a `const`-bound regex literal resolves transitively.
-- **AST harvest, not type harvest.** TypeScript has no regex-literal type — `/abc/i` is typed `RegExp`. So the trace is a syntactic AST walk, not a checker query. This mirrors deepkit's compiler-transform approach. The same `unwrap → typeof → identifier-to-initializer` primitive is reusable for future "named type format" patterns.
+To validate a **string** against a regex pattern, use the string-format `pattern` (`string({pattern: {source, flags, mockSamples}})` / `FormatString<{pattern}>`) — a separate feature, see [value-first-formats.md](value-first-formats.md).
 
 ---
 

@@ -1416,19 +1416,6 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 		}
 	}
 
-	if entry, isMap := literal.(map[string]any); isMap {
-		if regexpEntry, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			// mion:literal.ts:90
-			source, _ := regexpEntry["source"].(string)
-			regFlags, _ := regexpEntry["flags"].(string)
-			return RTCode{
-				Code: v + " instanceof RegExp && " + v + ".source === " + quoteJS(source) +
-					" && " + v + ".flags === " + quoteJS(regFlags),
-				Type: CodeE,
-			}
-		}
-	}
-
 	lit, err := jsLiteralFromAny(literal)
 	if err != nil {
 		panic(fmt.Sprintf("typefns: isType literal emit: %v", err))
@@ -1444,7 +1431,7 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 //   - plain `it_<id>`     → `v === 'a'`        (literal-exact)
 //   - variant `itNL_<id>` → `typeof v === 'string'` (base-kind)
 //
-// Base-kind picked from `rt.Flags` markers (`bigint`/`symbol`/`regexp`)
+// Base-kind picked from `rt.Flags` markers (`bigint`/`symbol`)
 // or — when no marker is set — from the Go-side type of `rt.Literal`.
 // Boolean → `typeof v === 'boolean'`; number → `Number.isFinite(v)`
 // (mirrors the KindNumber arm, NaN/Infinity rejected like atomic
@@ -1463,11 +1450,6 @@ func emitLiteralBaseKind(rt *protocol.RunType, v string) RTCode {
 		// so the unsupported sentinel propagates to an alwaysThrow
 		// factory at the root. See the KindSymbol case above.
 		return RTCode{Code: "", Type: CodeNS}
-	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return RTCode{Code: "(" + v + " instanceof RegExp)", Type: CodeE}
-		}
 	}
 	switch rt.Literal.(type) {
 	case bool:

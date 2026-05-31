@@ -195,18 +195,13 @@ func cacheRef(id string) string {
 }
 
 // isFooterLiteral reports whether runType.Literal needs special construction
-// in the footer (bigint / symbol / regexp) rather than inline JSON.
+// in the footer (bigint / symbol) rather than inline JSON.
 func isFooterLiteral(runType *protocol.RunType) bool {
 	if runType.Literal == nil {
 		return false
 	}
 	for _, flag := range runType.Flags {
 		if flag == "bigint" || flag == "symbol" {
-			return true
-		}
-	}
-	if literalMap, ok := runType.Literal.(map[string]any); ok {
-		if _, hasRegexp := literalMap["regexp"]; hasRegexp {
 			return true
 		}
 	}
@@ -302,13 +297,6 @@ func footerLiteralExpr(runType *protocol.RunType) string {
 				}
 			}
 			return "Symbol()"
-		}
-	}
-	if literalMap, ok := runType.Literal.(map[string]any); ok {
-		if regexpRaw, ok := literalMap["regexp"].(map[string]any); ok {
-			source, _ := regexpRaw["source"].(string)
-			flags, _ := regexpRaw["flags"].(string)
-			return fmt.Sprintf("/%s/%s", source, flags)
 		}
 	}
 	return mustJSLiteral(runType.Literal)

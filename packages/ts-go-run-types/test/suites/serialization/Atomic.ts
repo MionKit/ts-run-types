@@ -361,44 +361,4 @@ export const ATOMIC = {
     binaryDecoder: () => createBinaryDecoder<true>(),
     getTestData: () => ({values: [true]}),
   },
-  literal_regexp: {
-    title: 'regexp literal',
-    mutateEncoder: () => {
-      const reg = /abc/;
-      return createJsonEncoder<typeof reg>(undefined, {strategy: 'mutate'});
-    },
-    cloneEncoder: () => {
-      const reg = /abc/;
-      return createJsonEncoder<typeof reg>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      const reg = /abc/;
-      return createJsonEncoder<typeof reg>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      const reg = /abc/;
-      return createJsonEncoder<typeof reg>();
-    },
-    directEncoder: () => {
-      const reg = /abc/;
-      return createJsonEncoder<typeof reg>(undefined, {strategy: 'direct'});
-    },
-    stripDecoder: () => {
-      const reg = /abc/;
-      return createJsonDecoder<typeof reg>();
-    },
-    preserveDecoder: () => {
-      const reg = /abc/;
-      return createJsonDecoder<typeof reg>(undefined, {strategy: 'preserve'});
-    },
-    binaryEncoder: () => {
-      const reg = /abc/;
-      return createBinaryEncoder<typeof reg>();
-    },
-    binaryDecoder: () => {
-      const reg = /abc/;
-      return createBinaryDecoder<typeof reg>();
-    },
-    getTestData: () => ({values: [/abc/]}),
-  },
 } as const satisfies Record<string, SerializationCase>;

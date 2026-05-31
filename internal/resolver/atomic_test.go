@@ -387,111 +387,37 @@ reflectRunTypeId(re);
 	}
 }
 
-func TestAtomic_LiteralRegexp_Reflect_DirectLiteral(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-reflectRunTypeId(/abc/i);
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, "abc", "i")
-}
-
-func TestAtomic_LiteralRegexp_Reflect_DirectLiteralAsConst(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-reflectRunTypeId(/abc/i as const);
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, "abc", "i")
-}
-
-func TestAtomic_LiteralRegexp_Reflect_ConstBinding(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-const re = /abc/i;
-reflectRunTypeId(re);
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, "abc", "i")
-}
-
-func TestAtomic_LiteralRegexp_Static_TypeofBinding(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-const re = /abc/i;
-getRunTypeId<typeof re>();
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, "abc", "i")
-}
-
-// Trace follows chained const bindings.
-func TestAtomic_LiteralRegexp_Reflect_ChainedConst(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-const a = /abc/i;
-const b = a;
-reflectRunTypeId(b);
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, "abc", "i")
-}
-
-// Cross-form hash equivalence: a direct-literal reflect call and a
-// typeof-binding static call with the same source+flags must share the same
-// cache id. Trace-based equivalent of TestAtomic_FormEquivalence.
-func TestAtomic_LiteralRegexp_FormEquivalence(t *testing.T) {
-	const reflectForm = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-reflectRunTypeId(/abc/i);
-`
-	const staticForm = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-const re = /abc/i;
-getRunTypeId<typeof re>();
-`
+// RegExp has no literal type in TS, so the regexp-literal feature was removed:
+// `typeof /abc/i`, `typeof /xyz/`, and `RegExp` are the SAME type and now resolve
+// to the SAME KindRegexp id (id ≡ f(T)). Paired reflection + static forms per the
+// marker-coverage rule.
+func TestAtomic_Regexp_LiteralConvergesWithAnyRegExp(t *testing.T) {
 	r := setupInline(t, map[string]string{
-		"reflect.ts": reflectForm,
-		"static.ts":  staticForm,
-	})
-	a := resolveFile(t, r, "reflect.ts")
-	b := resolveFile(t, r, "static.ts")
-	if a.ID != b.ID {
-		t.Fatalf("expected same hash for direct vs typeof regex literal, got %q vs %q", a.ID, b.ID)
-	}
-}
-
-// Multi-escape: a regex literal with several `\/` escapes must round-trip the
-// `\/` bytes into the cache entry's source verbatim (split-on-last-/ logic),
-// so the emitter can render it back as a literal `/.../flags` expression.
-func TestAtomic_LiteralRegexp_Reflect_MultiEscapedSlashes(t *testing.T) {
-	const code = `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
-reflectRunTypeId(/^https?:\/\/example\/path$/gi);
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, `^https?:\/\/example\/path$`, "gi")
-}
-
-func TestAtomic_LiteralRegexp_Static_MultiEscapedSlashes(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-const re = /^https?:\/\/example\/path$/gi;
+		"reflectAbc.ts": `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';
+reflectRunTypeId(/abc/i);
+`,
+		"staticAbc.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+const re = /abc/i;
 getRunTypeId<typeof re>();
-`
-	_, tn := resolveInline(t, code)
-	assertRegexLiteral(t, tn, `^https?:\/\/example\/path$`, "gi")
-}
-
-func assertRegexLiteral(t *testing.T, tn *protocol.RunType, wantSource, wantFlags string) {
-	t.Helper()
-	if tn.Kind != protocol.KindLiteral {
-		t.Fatalf("expected KindLiteral, got %d", tn.Kind)
+`,
+		"staticXyz.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+const re = /xyz/;
+getRunTypeId<typeof re>();
+`,
+		"staticRegExp.ts": `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<RegExp>();
+`,
+	})
+	reflectAbc := resolveFile(t, r, "reflectAbc.ts")
+	staticAbc := resolveFile(t, r, "staticAbc.ts")
+	staticXyz := resolveFile(t, r, "staticXyz.ts")
+	staticRegExp := resolveFile(t, r, "staticRegExp.ts")
+	if reflectAbc.Kind != protocol.KindRegexp {
+		t.Fatalf("expected reflectRunTypeId(/abc/i) → KindRegexp, got %d", reflectAbc.Kind)
 	}
-	m, ok := tn.Literal.(map[string]any)
-	if !ok {
-		t.Fatalf("expected literal to be a map, got %T", tn.Literal)
-	}
-	rx, ok := m["regexp"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected literal.regexp map, got %v", m["regexp"])
-	}
-	if rx["source"] != wantSource {
-		t.Fatalf("expected regex source=%q, got %v", wantSource, rx["source"])
-	}
-	if rx["flags"] != wantFlags {
-		t.Fatalf("expected regex flags=%q, got %v", wantFlags, rx["flags"])
+	if staticAbc.ID != staticRegExp.ID || staticXyz.ID != staticRegExp.ID || reflectAbc.ID != staticRegExp.ID {
+		t.Fatalf("regexp ids must converge to RegExp: reflect(/abc/i)=%q static(typeof /abc/i)=%q static(typeof /xyz/)=%q static(RegExp)=%q",
+			reflectAbc.ID, staticAbc.ID, staticXyz.ID, staticRegExp.ID)
 	}
 }
 

@@ -16,7 +16,6 @@
 import {TypeFormat} from '../runtypes/typeFormat.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-import type {StringPatternArgs} from '../runtypes/formatPattern.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
 import type {
   FormatTemporalInstant,
@@ -78,21 +77,6 @@ export type LeafFormatName = keyof LeafTypeByFormatName<Record<string, never>>;
 /** The branded leaf type for a format `Name` with params `P` — the builders'
  *  carried `RunType<…>` type and the type the scanner reflects off the brand. **/
 export type LeafType<Name extends LeafFormatName, P extends object> = LeafTypeByFormatName<P>[Name];
-
-// ─────────────────────────────── Regexp ─────────────────────────────
-
-/** A `RegExp`-LITERAL brand: carries the regex source + flags as LITERAL TYPE
- *  ARGS so the Go scanner recovers them off the TYPE (`RegexLiteralFromType`),
- *  never the AST. `RegExp & {…}` so a branded value is still a `RegExp` at
- *  runtime; `Static` unwraps it like any other brand. **/
-export type RegexLiteralType<Source extends string, Flags extends string = ''> = RegExp & {
-  readonly __rtRegexSource: Source;
-  readonly __rtRegexFlags: Flags;
-};
-
-/** The flags literal carried by a decomposed regexp params object, defaulting to
- *  `''` when `flags` is omitted (a flagless regex). **/
-export type RegexFlagsOf<A extends StringPatternArgs> = A extends {flags: infer F extends string} ? F : '';
 
 // ───────────────────────── Property modifiers ───────────────────────
 

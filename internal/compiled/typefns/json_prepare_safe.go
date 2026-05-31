@@ -212,8 +212,6 @@ func emitLiteralPrepareForJsonSafe(rt *protocol.RunType, v string) RTCode {
 		return RTCode{Code: v + ".toString()", Type: CodeE}
 	case litSymbol:
 		return RTCode{Code: "'Symbol:' + (" + v + ".description || '')", Type: CodeE}
-	case litRegExp:
-		return RTCode{Code: v + ".toString()", Type: CodeE}
 	}
 	return RTCode{Code: "", Type: CodeS}
 }
