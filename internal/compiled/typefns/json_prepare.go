@@ -329,20 +329,13 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 // Flags ("bigint", "symbol") and Literal shape (regexp envelope vs
 // primitive).
 func emitLiteralPrepareForJson(rt *protocol.RunType, v string) RTCode {
-	flagSet := make(map[string]bool, len(rt.Flags))
-	for _, flag := range rt.Flags {
-		flagSet[flag] = true
-	}
-	if flagSet["bigint"] {
+	switch literalFlavour(rt) {
+	case litBigInt:
 		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
-	}
-	if flagSet["symbol"] {
+	case litSymbol:
 		return RTCode{Code: v + " = 'Symbol:' + (" + v + ".description || '')", Type: CodeE}
-	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
-		}
+	case litRegExp:
+		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 	}
 	// Primitive literal (number / string / boolean / null) — noop.
 	return RTCode{Code: "", Type: CodeS}

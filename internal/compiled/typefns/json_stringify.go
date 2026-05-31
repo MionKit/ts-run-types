@@ -302,20 +302,13 @@ func (StringifyJsonEmitter) Finalize(raw string) (string, bool) {
 // literal kinds to their underlying primitive emit. We replicate
 // the dispatch inline based on the literal's Flags / shape.
 func emitLiteralStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	flagSet := make(map[string]bool, len(rt.Flags))
-	for _, flag := range rt.Flags {
-		flagSet[flag] = true
-	}
-	if flagSet["bigint"] {
+	switch literalFlavour(rt) {
+	case litBigInt:
 		return RTCode{Code: "'\"'+" + v + ".toString()+'\"'", Type: CodeE}
-	}
-	if flagSet["symbol"] {
+	case litSymbol:
 		return RTCode{Code: "JSON.stringify('Symbol:'+(" + v + ".description||''))", Type: CodeE}
-	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return RTCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
-		}
+	case litRegExp:
+		return RTCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
 	}
 	// Primitive literal (number / string / boolean / null) — defer
 	// to JSON.stringify, which handles each shape correctly. This

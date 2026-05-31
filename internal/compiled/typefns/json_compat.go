@@ -200,3 +200,39 @@ func objectChildrenCompat(children []*protocol.RunType, ctx *EmitContext, visite
 	}
 	return true
 }
+
+// litFlavour classifies a KindLiteral's serialization flavour. The JSON
+// emit families share this classification — bigint/symbol/regexp literals
+// carry a value transform, primitive literals (string/number/boolean/null)
+// are noop — and differ only in the per-family leaf op. Mirrors the
+// flag/Literal inspection in jsonCompatRecursive's KindLiteral arm.
+type litFlavour int
+
+const (
+	litPrimitive litFlavour = iota
+	litBigInt
+	litSymbol
+	litRegExp
+)
+
+// literalFlavour returns the litFlavour for a KindLiteral RunType. bigint
+// takes priority over symbol (matching the set-membership order the emitters
+// used), then a regexp-shaped Literal map, else primitive.
+func literalFlavour(rt *protocol.RunType) litFlavour {
+	flagSet := make(map[string]bool, len(rt.Flags))
+	for _, flag := range rt.Flags {
+		flagSet[flag] = true
+	}
+	if flagSet["bigint"] {
+		return litBigInt
+	}
+	if flagSet["symbol"] {
+		return litSymbol
+	}
+	if entry, isMap := rt.Literal.(map[string]any); isMap {
+		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
+			return litRegExp
+		}
+	}
+	return litPrimitive
+}

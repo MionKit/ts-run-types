@@ -267,21 +267,14 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 // the base kind's emit. Same flag-based dispatch as
 // emitLiteralPrepareForJson.
 func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) RTCode {
-	flagSet := make(map[string]bool, len(rt.Flags))
-	for _, flag := range rt.Flags {
-		flagSet[flag] = true
-	}
-	if flagSet["bigint"] {
+	switch literalFlavour(rt) {
+	case litBigInt:
 		return RTCode{Code: v + " = BigInt(" + v + ")", Type: CodeE}
-	}
-	if flagSet["symbol"] {
+	case litSymbol:
 		return RTCode{Code: v + " = Symbol(" + v + ".substring(7))", Type: CodeE}
-	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			expr := "(function(){const parts = " + v + ".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');})()"
-			return RTCode{Code: v + " = " + expr, Type: CodeE}
-		}
+	case litRegExp:
+		expr := "(function(){const parts = " + v + ".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');})()"
+		return RTCode{Code: v + " = " + expr, Type: CodeE}
 	}
 	// Primitive literal — noop.
 	return RTCode{Code: "", Type: CodeS}
