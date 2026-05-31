@@ -43,6 +43,12 @@
       "types": "./dist/formats/datetime/temporalFormats.d.ts",
       "import": "./dist/formats/datetime/temporalFormats.js",
       "require": "./dist/formats/datetime/temporalFormats.cjs"
+    },
+    "./define": {
+      "source": "./src/define/index.ts",
+      "types": "./dist/define/index.d.ts",
+      "import": "./dist/define/index.js",
+      "require": "./dist/define/index.cjs"
     }
   },
   "files": [
