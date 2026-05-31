@@ -47,6 +47,16 @@ export function normalizeForComparison(actual: any, expected: any): {actual: any
       expected: typeof expected === 'symbol' ? {__symDesc: expected.description ?? ''} : expected,
     };
   }
+  // Temporal instances have no enumerable own keys (data lives in internal
+  // slots / prototype getters), so the object branch below would reduce both
+  // sides to `{}` and pass trivially. Compare by canonical string instead,
+  // mirroring the symbol-by-description handling above.
+  if (isTemporalInstance(actual) || isTemporalInstance(expected)) {
+    return {
+      actual: isTemporalInstance(actual) ? {__temporal: actual.toString()} : actual,
+      expected: isTemporalInstance(expected) ? {__temporal: expected.toString()} : expected,
+    };
+  }
   // Handle arrays — normalize length to match the longer side.
   if (Array.isArray(actual) && Array.isArray(expected)) {
     const maxLength = Math.max(actual.length, expected.length);
@@ -103,6 +113,10 @@ export function deepCloneForRoundTrip(value: any): any {
   const t = typeof value;
   if (t === 'symbol' || t === 'function') return value;
   if (t !== 'object') return value;
+  // Temporal instances are immutable (no enumerable own keys); the generic
+  // object clone at the bottom would flatten them to `{}` and lose the value
+  // before the encoder sees them. Pass through unchanged, like symbols above.
+  if (isTemporalInstance(value)) return value;
   if (value instanceof Date) return new Date(value.getTime());
   if (value instanceof RegExp) return new RegExp(value.source, value.flags);
   if (value instanceof Map) {
@@ -119,4 +133,13 @@ export function deepCloneForRoundTrip(value: any): any {
   const out: any = {};
   for (const key of Object.keys(value)) out[key] = deepCloneForRoundTrip(value[key]);
   return out;
+}
+
+/** True for a TC39 `Temporal.*` instance. Detected via the well-known
+ *  `Symbol.toStringTag` (e.g. 'Temporal.PlainDate') so it covers all eight
+ *  types without importing the Temporal lib or enumerating them. **/
+export function isTemporalInstance(value: any): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  const tag = (value as {[Symbol.toStringTag]?: unknown})[Symbol.toStringTag];
+  return typeof tag === 'string' && tag.startsWith('Temporal.');
 }

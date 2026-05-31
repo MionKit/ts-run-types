@@ -19,6 +19,7 @@ import {NATIVE} from './Native.ts';
 import {CIRCULAR} from './Circular.ts';
 import {UTILITY} from './Utility.ts';
 import {TYPE_MAPPINGS} from './TypeMappings.ts';
+import {DATETIME} from './DateTime.ts';
 import type {ValidationCase} from './types.ts';
 
 export const VALIDATION_SUITE = {
@@ -32,6 +33,7 @@ export const VALIDATION_SUITE = {
   CIRCULAR,
   UTILITY,
   TYPE_MAPPINGS,
+  DATETIME,
 } as const satisfies {
   ATOMIC: Record<string, ValidationCase>;
   ARRAY: Record<string, ValidationCase>;
@@ -43,6 +45,7 @@ export const VALIDATION_SUITE = {
   CIRCULAR: Record<string, ValidationCase>;
   UTILITY: Record<string, ValidationCase>;
   TYPE_MAPPINGS: Record<string, ValidationCase>;
+  DATETIME: Record<string, ValidationCase>;
 };
 
 export * from './types.ts';
