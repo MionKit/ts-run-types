@@ -33,6 +33,16 @@ import {
   func,
   parameters,
   templateLiteral,
+  optional,
+  partial,
+  required,
+  pick,
+  omit,
+  exclude,
+  extract,
+  nonNullable,
+  readonly,
+  returnType,
 } from '@mionjs/ts-go-run-types/define';
 import type {RunType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
@@ -288,5 +298,72 @@ describe('compose builders — record key (string | number | template-literal)',
     expect(isApi({'api/users': 1})).toBe(false); // value must be boolean
     expect(isApi({nope: true})).toBe(false); // key must match the `api/${string}` pattern
     expect(isApi).toBe(createIsType<Record<`api/${string}`, boolean>>());
+  });
+});
+
+describe('utility builders — convergence with type-first', () => {
+  // Each utility builder brands the RESOLVED stdlib utility type, so `.toBe`
+  // (reference identity ⇒ same structural id) proves `createIsTypeFor(partial(model))`
+  // lands on the SAME cached factory as the type-first `createIsType<Partial<T>>()`.
+  // Brand-free kinds (boolean / literals) so the value-first id equals the BARE
+  // type-first id — a `string()`/`number()`/`date()` builder carries `FormatX<{}>`,
+  // which converges with `FormatX<{}>`, not the bare kind (see header).
+  it('partial(model) converges with Partial<T>', () => {
+    expect(createIsTypeFor(partial(object({a: boolean(), b: boolean()})))).toBe(
+      createIsType<Partial<{a: boolean; b: boolean}>>()
+    );
+  });
+
+  it('required(model) converges with Required<T>', () => {
+    expect(createIsTypeFor(required(object({a: optional(boolean()), b: optional(boolean())})))).toBe(
+      createIsType<Required<{a?: boolean; b?: boolean}>>()
+    );
+  });
+
+  it('pick(model, keys) converges with Pick<T, K>', () => {
+    expect(createIsTypeFor(pick(object({a: boolean(), b: boolean()}), ['a']))).toBe(
+      createIsType<Pick<{a: boolean; b: boolean}, 'a'>>()
+    );
+  });
+
+  it('omit(model, keys) converges with Omit<T, K>', () => {
+    expect(createIsTypeFor(omit(object({a: boolean(), b: boolean()}), ['a']))).toBe(
+      createIsType<Omit<{a: boolean; b: boolean}, 'a'>>()
+    );
+  });
+
+  it('exclude(union, removed) converges with Exclude<U, X>', () => {
+    expect(createIsTypeFor(exclude(union([literal('x'), literal('y'), literal('z')]), literal('y')))).toBe(
+      createIsType<Exclude<'x' | 'y' | 'z', 'y'>>()
+    );
+  });
+
+  it('extract(union, extracted) converges with Extract<U, X>', () => {
+    expect(createIsTypeFor(extract(union([literal('x'), literal('y'), literal('z')]), union([literal('x'), literal('z')])))).toBe(
+      createIsType<Extract<'x' | 'y' | 'z', 'x' | 'z'>>()
+    );
+  });
+
+  it('nonNullable(union) converges with NonNullable<T>', () => {
+    expect(createIsTypeFor(nonNullable(union([boolean(), literal(null), literal(undefined)])))).toBe(
+      createIsType<NonNullable<boolean | null | undefined>>()
+    );
+  });
+
+  it('readonly(model) converges with Readonly<T>', () => {
+    expect(createIsTypeFor(readonly(object({a: boolean(), b: boolean()})))).toBe(
+      createIsType<Readonly<{a: boolean; b: boolean}>>()
+    );
+  });
+
+  it('returnType(fn) converges with ReturnType<F>', () => {
+    expect(createIsTypeFor(returnType(func([boolean()], boolean())))).toBe(createIsType<ReturnType<(a: boolean) => boolean>>());
+  });
+
+  it('intersection(partial, required(pick)) converges (composite, mirrors intersection_with_required_override)', () => {
+    const model = () => object({a: boolean(), b: boolean()});
+    expect(createIsTypeFor(intersection(partial(model()), required(pick(model(), ['a']))))).toBe(
+      createIsType<Partial<{a: boolean; b: boolean}> & Required<Pick<{a: boolean; b: boolean}, 'a'>>>()
+    );
   });
 });
