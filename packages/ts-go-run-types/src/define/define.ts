@@ -32,6 +32,7 @@ import {TypeFormat} from '../runtypes/typeFormat.ts';
 import type {StringParams} from '../formats/string/stringFormats.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
+import type {FormatPattern} from '../runtypes/formatPattern.ts';
 
 // ─────────────────────────── Field configs ──────────────────────────
 //
@@ -39,38 +40,57 @@ import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
 // the exact param shape the matching format already validates. Reusing the
 // published param interfaces means the value-first config and the type-first
 // `Format*<P>` params stay in lockstep — one definition, two front doors.
+//
+// The members are an EXCLUSIVE union: each one explicitly forbids the param
+// keys it doesn't own (typed `never`). Without this, TypeScript's
+// excess-property check against a plain union is lenient — it allows any key
+// present in *some* member — so `{type: 'number', maxLength: 5}` would compile
+// (`maxLength` is valid for the string member) and the misplaced param would
+// silently no-op. The `Forbid<…>` intersection turns that into a local error
+// on the offending field. The forbidden keys are optional `never`, so omitting
+// them is fine and the `const`-captured value type carries only the keys the
+// author actually wrote (the negation never leaks into `ModelType`).
 
-/** A string field: the `string` discriminator plus the `FormatString` params
- *  that survive the value channel (minLength / maxLength / length /
- *  allowedChars / disallowedChars / allowedValues / disallowedValues /
- *  mockSamples / the transform flags).
- *
- *  `pattern` is intentionally OMITTED. A `FormatPattern` (from
- *  `registerFormatPattern`) is recovered Go-side by tracing a `typeof p`
- *  TypeQuery back to the const's `registerFormatPattern({regexp, …})` call.
- *  In a value config the property is written as a value (`pattern: slug`), so
- *  `define<const C>` captures its type as the structural `FormatPattern`
- *  interface — the `typeof` link is gone and the scanner can only read the
- *  interface's `flags: string` as a non-literal, emitting a broken
- *  `new RegExp(…, 'string')`. Regex therefore stays on the type-first surface
- *  (`FormatString<{pattern: typeof slug}>`) until the value-AST front-end
- *  (Option B in docs/value-first-formats.md) lands. Omitting it here turns a
- *  silent runtime break into a local compile error. **/
-export interface StringFieldConfig extends Omit<StringParams, 'pattern'> {
-  type: 'string';
-}
+// `ValuePattern` — the regex forms a value-first string field accepts. The
+// regex rides the VALUE channel, not the type channel: the Go scanner recovers
+// `{source, flags}` from the literal the property declaration preserves
+// (`formatPatternFromInitializer` in internal/compiled/runtype/typeid/formats.go).
+//   - `/…/`               an inline regex literal — full `/…/` syntax, the
+//                         recommended form;
+//   - `{source, flags?}`  the regex as string literals (handy when assembled);
+//   - `FormatPattern`     a `registerFormatPattern(...)` result — adds the
+//                         load-time sample check + `mockSamples` for the mock
+//                         generator (an inline `/…/` carries no samples, so
+//                         `createMockType` can't generate matching values for it).
+type ValuePattern = RegExp | FormatPattern | {source: string; flags?: string};
+
+// `StringFamilyParams` — the string params a value-first field accepts. Same as
+// `StringParams` but `pattern` is re-typed to the value-channel `ValuePattern`
+// forms above (instead of the type-first `FormatPattern`-only `PatternParam`).
+type StringFamilyParams = Omit<StringParams, 'pattern'> & {pattern?: ValuePattern};
+
+// Every param key across all field families — the universe the per-member
+// negation subtracts from.
+type AllParamKeys = keyof StringFamilyParams | keyof NumberParams | keyof FormatParams_NativeDate;
+
+// Forbids every param key NOT in `OwnKeys` by typing it optional-`never`.
+type Forbid<OwnKeys extends PropertyKey> = Partial<Record<Exclude<AllParamKeys, OwnKeys>, never>>;
+
+/** A string field: the `string` discriminator plus the value-channel
+ *  `FormatString` params (minLength / maxLength / length / allowedChars /
+ *  disallowedChars / allowedValues / disallowedValues / mockSamples / the
+ *  transform flags). Forbids number/date-only params. **/
+export type StringFieldConfig = {type: 'string'} & StringFamilyParams & Forbid<keyof StringFamilyParams>;
 
 /** A number field: the `number` discriminator plus every `FormatNumber` param
- *  (min / max / lt / gt / integer / float / multipleOf). **/
-export interface NumberFieldConfig extends NumberParams {
-  type: 'number';
-}
+ *  (min / max / lt / gt / integer / float / multipleOf). Forbids string-only
+ *  params (date's min/max/lt/gt overlap number's, so they aren't forbidden). **/
+export type NumberFieldConfig = {type: 'number'} & NumberParams & Forbid<keyof NumberParams>;
 
 /** A native-`Date` field: the `date` discriminator plus the `FormatDate`
- *  min/max bounds (absolute ISO literal or relative `now±P…`). **/
-export interface DateFieldConfig extends FormatParams_NativeDate {
-  type: 'date';
-}
+ *  min/max bounds (absolute ISO literal or relative `now±P…`). Forbids
+ *  string-only params and the number-only `integer`/`float`/`multipleOf`. **/
+export type DateFieldConfig = {type: 'date'} & FormatParams_NativeDate & Forbid<keyof FormatParams_NativeDate>;
 
 /** The discriminated union of every supported field config. Extending this
  *  union (object / array / union / named formats) is the Option-B follow-up

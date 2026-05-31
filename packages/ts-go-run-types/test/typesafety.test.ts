@@ -92,13 +92,32 @@ function assertionsValueFirstDefine(): void {
   // is the discriminator-as-local-error property the value-first surface buys.
   define({flag: {type: 'boolean'}});
 
-  // KNOWN GAP (docs/value-first-formats.md → finding b): a param valid for a
-  // DIFFERENT discriminator (`maxLength` is a string param, used here on a
-  // number field) is NOT rejected — TypeScript's excess-property check against
-  // a union allows any key present in some member. So the line below compiles
-  // (no @ts-expect-error). The misplaced param is harmlessly ignored by the
-  // number-format emitter at validation time; tightening this to a per-field
-  // error is the deferred "stricter validator" follow-up.
-  const _leak = define({age: {type: 'number', maxLength: 5}});
-  void _leak;
+  // @ts-expect-error — cross-family param leakage is caught: `maxLength` is a
+  // string-only param, so on a `number` field the exclusive-union negation
+  // types it `never` and assigning `5` errors locally (TS2322). Without the
+  // negation TypeScript's union excess-property check would let it through.
+  define({age: {type: 'number', maxLength: 5}});
+
+  // @ts-expect-error — symmetric case: `min` (number/date) on a string field.
+  define({name: {type: 'string', min: 0}});
+
+  // @ts-expect-error — `integer` (number-only) on a date field.
+  define({born: {type: 'date', integer: true}});
+
+  // Date sharing the number bounds is fine — `min`/`max`/`gt`/`lt` are valid
+  // for both number and date, so they are NOT forbidden on a date field.
+  const _okDate = define({born: {type: 'date', min: 'now', max: '2030-01-01T00:00:00'}});
+  void _okDate;
+
+  // A regex `pattern` is allowed on a string field in all three value-channel
+  // forms (inline /…/, {source, flags}, registerFormatPattern result).
+  const _okRegex = define({
+    slug: {type: 'string', pattern: /^[a-z-]+$/},
+    digits: {type: 'string', pattern: {source: '^[0-9]+$', flags: ''}},
+  });
+  void _okRegex;
+
+  // @ts-expect-error — `pattern` is a string-only param, so the exclusive-union
+  // negation forbids it on a number field.
+  define({age: {type: 'number', pattern: /^[0-9]+$/}});
 }

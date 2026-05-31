@@ -37,6 +37,8 @@ describe('value-first define / isType + getTypeErrors', () => {
   it('string fields — length / minLength / maxLength / allowedValues', () => assertCase(VALUE_FIRST_SUITE.string_features));
   it('number fields — bounds / exclusive / integer / float / multipleOf', () => assertCase(VALUE_FIRST_SUITE.number_features));
   it('date fields — relative now bound + absolute window', () => assertCase(VALUE_FIRST_SUITE.date_bounds));
+  it('regex — inline /…/, {source,flags}, registerFormatPattern via the value channel', () =>
+    assertCase(VALUE_FIRST_SUITE.regex_patterns));
   it('nested — value-first models composed in a parent object', () => assertCase(VALUE_FIRST_SUITE.nested));
 
   it('all VALUE_FIRST_SUITE tests ran', () => {

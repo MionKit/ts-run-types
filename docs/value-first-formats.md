@@ -1,16 +1,17 @@
 # Value-first format & constraint definitions
 
-> **Status: Option A shipped (string / number / date); Option B still
-> exploratory.** The value-first authoring surface — `define({…})` + the
-> `ModelType<typeof Model>` type mapping — ships today for flat string / number
-> / native-`Date` models over the **type channel**
-> (`createIsType<ModelType<…>>()`), via
+> **Status: shipped for string / number / date — including inline `/regex/`.**
+> The value-first authoring surface — `define({…})` + the `ModelType<typeof
+> Model>` type mapping — ships today for flat string / number / native-`Date`
+> models over the **type channel** (`createIsType<ModelType<…>>()`), via
 > [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts).
-> It needed **no new Go engine**: `ModelType<…>` resolves to the same branded
-> `TypeFormat` types the type-first surface already reflects. The value-AST
-> front-end (Option B — value call form, inline `/regex/`, object/array/union
-> discriminators) remains a future direction. See "Spike results" below for
-> what the de-risking experiment actually found.
+> Most of it needed **no new Go engine**: `ModelType<…>` resolves to the same
+> branded `TypeFormat` types the type-first surface already reflects. Regex
+> (`pattern: /…/`) needed one small additive Go change — recovering the literal
+> from the property declaration the type system preserves — **not** a separate
+> value-AST front-end. What's still parked: a value call form (`Model.isType(x)`)
+> and the object/array/union/named-format discriminators. See "Spike results"
+> for what the de-risking experiment found.
 
 ## The question
 
@@ -124,17 +125,23 @@ This is *the* decision under every version of the idea.
 
 - **Reflect the mapped type** (`createIsType<ModelType<typeof UserModel>>()`):
   works for every *literal* constraint (`maxLength` is captured via `const`
-  generics and lifted into the brand) — **but `pattern: /.../ ` erases to
-  `RegExp` in the type**, so the regex problem returns even here. *This is the
-  shipped path (Option A).*
+  generics and lifted into the brand). `pattern: /.../ ` erases to `RegExp` in
+  the *type* — but see below: the value declaration behind that erased type is
+  still reachable, so even regex is recoverable on this path. *This is the
+  shipped path.*
 - **Reflect the config value's AST** (the Go binary traces the `define({…})`
-  call and reads the literals directly): `/.../ ` is a visible literal at the
-  call site, so **the erasure problem dissolves entirely**. This is the
-  `registerFormatPattern` AST trace generalized from "one pattern" to "a whole
-  model".
+  call and reads the literals directly): the fork's "other" branch — a separate
+  value-AST front-end. It would be needed for a *value call form*
+  (`Model.isType(x)`) where there's no type to reflect, but it turned out **not**
+  to be needed for regex.
 
-So the value-first direction naturally pulls toward **value-AST scanning**, and
-that is the cleaner end state for exactly the cases that are clumsy today.
+The spike's surprise (see "Spike results → (c)"): the value-first direction did
+*not* need a separate value-AST scanner to fix regex. The homomorphic
+`Omit`/`Pick` mapped type behind `ModelType` **preserves each property's value
+declaration**, so the regex literal is reachable from the reflected type's
+`pattern` symbol — the existing format scanner just reads it from there. The
+type channel carries everything; one small additive read covers the one value
+(`/…/`) the type itself can't represent.
 
 ### The erasure thread (why regex is special, and why value-land fixes it)
 
@@ -295,35 +302,48 @@ This answers the "how is a `define()`'d model keyed" open decision: by the same
 structural id as the type-first shape, so the dual surface is **not** a
 duplication source.
 
-**(b) Error quality is mixed.** An *unknown discriminator* (`{type: 'boolean'}`)
-is rejected locally and readably (`TS2322` on the `type` field) — the
-discriminator-as-local-error win is real. **But cross-family param leakage is
-NOT caught**: `{type: 'number', maxLength: 5}` compiles, because TypeScript's
-excess-property check against a union allows any key present in *some* member
-(`maxLength` is valid for the string member). The misplaced param is harmlessly
-ignored by the number-format emitter at validation time, so this is a DX gap,
-not a runtime break. Tightening it (a per-field exclusive-union validator that
-forbids other members' keys) is a deferred follow-up; the spike deliberately
-does not over-engineer it.
+**(b) Error quality: good — discriminator AND param mismatches caught locally.**
+An *unknown discriminator* (`{type: 'boolean'}`) is rejected on the `type` field
+(`TS2322`). Cross-family param leakage (`{type: 'number', maxLength: 5}`) is
+*also* caught — but only after a fix. By default TypeScript's excess-property
+check against a union is lenient (it allows any key present in *some* member, so
+`maxLength`, valid for the string member, slips onto a number field). The field
+configs are therefore an **exclusive union**: each member forbids the keys it
+doesn't own by typing them optional-`never`
+(`& Partial<Record<Exclude<AllParamKeys, OwnKeys>, never>>`), so a foreign key
+errors locally on the offending field. The negation is optional-`never`, so it
+never leaks into the `const`-captured value type or `ModelType`. (`min`/`max`/
+`gt`/`lt` are shared by number *and* date, so they're correctly allowed on both.)
 
-**(c) Inline `/regex/` does not survive — and a value `pattern` is worse than
-"erased", it breaks.** Writing `pattern: slug` (where
-`slug = registerFormatPattern({…})`) in a value config makes `define<const C>`
-capture the property's type as the structural `FormatPattern` interface,
-**losing the `typeof slug` TypeQuery** that the Go AST-recovery
-(`formatPatternFromSymbol`) traces back to the `registerFormatPattern` call. The
-scanner then reads the interface's `flags: string` as a non-literal and emits a
-broken `new RegExp(…, 'string')`. So `pattern` is **omitted from the value-first
-string config** (`StringFieldConfig extends Omit<StringParams, 'pattern'>`),
-turning a silent runtime break into a local compile error. Regex stays on the
-type-first surface (`FormatString<{pattern: typeof slug}>`) — and this is
-precisely the case that **only the value-AST front-end (Option B) can fix**,
-since it would read the regex literal straight off the call site instead of
-through the erased type channel. The spike thus confirms Option B's value
-proposition without needing to build it yet.
+**(c) Inline `/regex/` works — recovered from the value declaration the type
+system preserves.** This was the surprise. A regex *value* can't ride the type
+channel (`/…/` erases to `RegExp`), but the homomorphic `Omit`/`Pick` mapped
+type behind `ModelType` **preserves the property's value declaration**. So even
+though the reflected `pattern` property's *type* is `RegExp`, its symbol's
+declaration is still the original `pattern: /…/` AST node. The format scanner
+(`formatPatternFromInitializer` in `internal/compiled/runtype/typeid/formats.go`)
+reads `{source, flags}` straight off that initializer. All three authoring forms
+work through the value channel:
 
-### What Option B would still add
+- `pattern: /^[a-z-]+$/` — an inline regex literal (full `/…/` syntax);
+- `pattern: {source: '^[a-z-]+$', flags: ''}` — the regex as string literals;
+- `pattern: slug` where `slug = registerFormatPattern({…})` — resolved by
+  following the identifier to its initializer call (this also recovers
+  `mockSamples`).
 
-Inline `/regex/` survival, a value call form (`Model.isType(x)` / a model
-method), a "scan-and-keep" rewrite, and the object/array/union/named-format
-discriminators. All deferred; the params-cache de-dup below is orthogonal.
+An inline value-channel regex **converges** with the type-first
+`FormatString<{pattern: {source, flags}}>` for the same pattern (identical
+recovered `{source, flags}` → one structural id). This is one small *additive*
+Go change to the existing format scanner — **not** the value-AST front-end the
+fork anticipated. The only thing an inline `/…/` lacks is `mockSamples`, so
+`createMockType` can't generate matching values for it (use the
+`registerFormatPattern` form, which carries samples, when you need mocks).
+
+### What's still parked (Option B proper)
+
+A **value call form** (`Model.isType(x)` / `createIsType(Model)` keyed off the
+runtime config) with its "scan-and-keep" rewrite, and the **object / array /
+union / named-format discriminators**. The params-cache de-dup below is
+orthogonal. Regex — the case the fork thought *only* a value-AST scan could
+reach — turned out to be reachable through the preserved declaration, so it is
+**no longer** an Option-B item.

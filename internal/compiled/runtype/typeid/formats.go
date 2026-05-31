@@ -97,24 +97,34 @@ func formatPatternFromSymbol(typeChecker *checker.Checker, symbol *ast.Symbol) (
 	if symbol == nil {
 		return nil, false
 	}
-	for _, declaration := range symbol.Declarations {
+	declarations := symbol.Declarations
+	if symbol.ValueDeclaration != nil {
+		declarations = append([]*ast.Node{symbol.ValueDeclaration}, declarations...)
+	}
+	for _, declaration := range declarations {
 		if declaration == nil {
 			continue
 		}
-		typeNode := declaration.Type()
-		if typeNode == nil || typeNode.Kind != ast.KindTypeQuery {
-			continue
+		// (a) type-first: `pattern: typeof p` — a TypeQuery type node whose
+		// referenced const is a registerFormatPattern({…}) call.
+		if typeNode := declaration.Type(); typeNode != nil && typeNode.Kind == ast.KindTypeQuery {
+			if typeQuery := typeNode.AsTypeQueryNode(); typeQuery != nil {
+				initializer := constInitializerOf(typeChecker, typeQuery.ExprName)
+				if initializer != nil && initializer.Kind == ast.KindCallExpression {
+					if pattern, ok := formatPatternFromCall(typeChecker, initializer); ok {
+						return pattern, true
+					}
+				}
+			}
 		}
-		typeQuery := typeNode.AsTypeQueryNode()
-		if typeQuery == nil {
-			continue
-		}
-		initializer := constInitializerOf(typeChecker, typeQuery.ExprName)
-		if initializer == nil || initializer.Kind != ast.KindCallExpression {
-			continue
-		}
-		if pattern, ok := formatPatternFromCall(typeChecker, initializer); ok {
-			return pattern, true
+		// (b) value-first: `pattern: /…/` | `{source,flags}` |
+		// `registerFormatPattern({…})` | `slug` — a value initializer the
+		// preserved property declaration still points at, even though the
+		// property's TYPE has erased to `RegExp`.
+		if initializer := propertyInitializer(declaration); initializer != nil {
+			if pattern, ok := formatPatternFromInitializer(typeChecker, initializer, 0); ok {
+				return pattern, true
+			}
 		}
 	}
 	return nil, false
@@ -179,6 +189,81 @@ func formatPatternFromCall(typeChecker *checker.Checker, call *ast.Node) (map[st
 		return nil, false
 	}
 	argument := callExpression.Arguments.Nodes[0]
+	if argument == nil || argument.Kind != ast.KindObjectLiteralExpression {
+		return nil, false
+	}
+	return formatPatternFromObjectLiteral(typeChecker, argument)
+}
+
+// unwrapExpr strips `as`/parenthesised wrappers off a value expression so
+// the recovery below sees the underlying literal / identifier / call.
+func unwrapExpr(node *ast.Node) *ast.Node {
+	for node != nil {
+		switch node.Kind {
+		case ast.KindAsExpression:
+			node = node.AsAsExpression().Expression
+		case ast.KindParenthesizedExpression:
+			node = node.AsParenthesizedExpression().Expression
+		default:
+			return node
+		}
+	}
+	return node
+}
+
+// propertyInitializer returns the value expression a property declaration
+// binds, or nil when the declaration has no value initializer (e.g. a
+// PropertySignature in a type). Lets the pattern recovery reach the value a
+// value-first config wrote (`pattern: /…/`) through the symbol declaration the
+// homomorphic Omit/Pick mapped type behind `ModelType` preserves.
+func propertyInitializer(declaration *ast.Node) *ast.Node {
+	switch declaration.Kind {
+	case ast.KindPropertyAssignment:
+		return declaration.AsPropertyAssignment().Initializer
+	case ast.KindPropertyDeclaration:
+		return declaration.AsPropertyDeclaration().Initializer
+	}
+	return nil
+}
+
+// formatPatternFromInitializer recovers a pattern bundle from a VALUE
+// expression — the form a value-first config uses. Handles the four shapes a
+// `pattern` field can carry:
+//   - `/…/`                              → regex literal → {source, flags}
+//   - `{source, flags, …}`               → object literal, read directly
+//   - `registerFormatPattern({…})`       → call → reuse the call reader
+//   - `slug` (an identifier for either)  → resolve the const, then recurse
+//
+// A regex's source can't ride the type channel (it erases to `RegExp`), but the
+// pattern symbol's declaration is the original value AST node, so the literal
+// is recoverable here even though the property's TYPE is `RegExp`.
+func formatPatternFromInitializer(typeChecker *checker.Checker, initializer *ast.Node, depth int) (map[string]any, bool) {
+	node := unwrapExpr(initializer)
+	if node == nil || depth > 16 {
+		return nil, false
+	}
+	switch node.Kind {
+	case ast.KindRegularExpressionLiteral:
+		if source, flags, ok := traceRegexpExpr(typeChecker, node, 0); ok {
+			return map[string]any{"source": source, "flags": flags}, true
+		}
+	case ast.KindObjectLiteralExpression:
+		return formatPatternFromObjectLiteral(typeChecker, node)
+	case ast.KindCallExpression:
+		return formatPatternFromCall(typeChecker, node)
+	case ast.KindIdentifier:
+		if next := constInitializerOf(typeChecker, node); next != nil {
+			return formatPatternFromInitializer(typeChecker, next, depth+1)
+		}
+	}
+	return nil, false
+}
+
+// formatPatternFromObjectLiteral reads the {regexp|source, flags, mockSamples,
+// message} fields from an object-literal node into a resolved pattern bundle.
+// Shared by the registerFormatPattern call reader and the value-first inline
+// `pattern: {source, flags}` form. Requires a recoverable `source`.
+func formatPatternFromObjectLiteral(typeChecker *checker.Checker, argument *ast.Node) (map[string]any, bool) {
 	if argument == nil || argument.Kind != ast.KindObjectLiteralExpression {
 		return nil, false
 	}

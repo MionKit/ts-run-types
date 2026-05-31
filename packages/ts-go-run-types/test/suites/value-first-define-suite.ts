@@ -20,7 +20,13 @@
 // `import '@mionjs/ts-go-run-types/formats'` side-effect import is load-bearing
 // (registers the format mock fns + pure-fns the emitted validators reach).
 
-import {createIsType, createGetTypeErrors, type IsTypeFn, type GetTypeErrorsFn} from '@mionjs/ts-go-run-types';
+import {
+  createIsType,
+  createGetTypeErrors,
+  registerFormatPattern,
+  type IsTypeFn,
+  type GetTypeErrorsFn,
+} from '@mionjs/ts-go-run-types';
 import {define, type ModelType} from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType} from '../util/deserializeRTFunctions.ts';
 import '@mionjs/ts-go-run-types/formats';
@@ -75,6 +81,16 @@ const DateModel = define({
 
 const ProfileModel = define({name: {type: 'string', maxLength: 5}});
 const SettingsModel = define({theme: {type: 'string', allowedValues: {val: ['light', 'dark']}}});
+
+// Regex through the VALUE channel — the three `pattern` forms a value-first
+// string field accepts. The Go scanner recovers {source, flags} from the
+// literal the property declaration preserves (no `typeof` needed).
+const hexPattern = registerFormatPattern({regexp: /^[0-9a-f]+$/i, mockSamples: ['DEADbeef']});
+const RegexModel = define({
+  slug: {type: 'string', pattern: /^[a-z0-9-]+$/}, // inline /…/ literal
+  digits: {type: 'string', pattern: {source: '^[0-9]+$', flags: ''}}, // {source,flags}
+  hex: {type: 'string', pattern: hexPattern}, // registerFormatPattern value
+});
 
 const NOW = Date.now();
 
@@ -297,6 +313,32 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         {past: new Date(NOW + 1_000_000), window: new Date('2025-06-01T00:00:00')}, // past in future
         {past: new Date(NOW - 1000), window: new Date('2019-01-01T00:00:00')}, // window before min
         {past: new Date(NOW - 1000), window: new Date('2031-01-01T00:00:00')}, // window after max
+      ],
+    }),
+  },
+
+  regex_patterns: {
+    title: 'regex — inline /…/, {source,flags}, and registerFormatPattern, all via the value channel',
+    isType: () => createIsType<ModelType<typeof RegexModel>>(),
+    isTypeReflect: () => {
+      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as ModelType<typeof RegexModel>;
+      return createIsType(v);
+    },
+    deserializeIsType: () => deserializeIsType<ModelType<typeof RegexModel>>(),
+    deserializeIsTypeReflect: () => {
+      const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as ModelType<typeof RegexModel>;
+      return deserializeIsType(v);
+    },
+    getTypeErrors: () => createGetTypeErrors<ModelType<typeof RegexModel>>(),
+    getSamples: () => ({
+      valid: [
+        {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'},
+        {slug: 'a-b-c-1', digits: '0', hex: '0042'},
+      ],
+      invalid: [
+        {slug: 'NOT a slug!', digits: '123', hex: 'deadBEEF'}, // slug: spaces/caps
+        {slug: 'ok-slug', digits: '12x', hex: 'deadBEEF'}, // digits: non-digit
+        {slug: 'ok-slug', digits: '123', hex: 'xyz'}, // hex: non-hex
       ],
     }),
   },
