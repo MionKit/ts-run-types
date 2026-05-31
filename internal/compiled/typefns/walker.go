@@ -129,6 +129,15 @@ type Walker struct {
 	// by buildSafeObjectLiteral to spread `...v` into the cloned object
 	// literal so undeclared keys survive the clone.
 	PreserveExtras bool
+	// VariantOptions carries the `IsTypeOptions` set (e.g. {"noLiterals":
+	// true}) for THIS walker only. The renderer fans the same RunType
+	// out across multiple walkers — one plain + one per option-tuple
+	// seen at any call site — so each emit produces a distinct cache
+	// entry keyed `<tag><variantSuffix>_<id>`. Root-scoped: child
+	// compiles dispatch through plain dep calls (`it_<childID>`) so the
+	// variant only changes the root's body. Empty when this walker
+	// emits the plain entry.
+	VariantOptions map[string]bool
 	// Vλl is the current value-accessor expression. Recomputed on
 	// every pushStack from the live stack of frames. For an atomic
 	// root it equals the first arg's Name (e.g. "v"); for a member

@@ -16,8 +16,7 @@ import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.t
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
-import {getRTUtils} from './runtypes/rtUtils.ts';
-import {lookupRTFn} from './runtypes/rtUtils.ts';
+import {buildVariantKey, getRTUtils, lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
 
@@ -25,19 +24,19 @@ import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
 // Type definitions
 // =============================================================================
 
-/** Subset of mion's RunTypeOptions that affects atomic-type isType validation.
+/** Subset of mion's RunTypeOptions that parameterises the generated
+ *  `isType` / `getTypeErrors` validators (NOT a property of the type itself).
  *  Pass an OBJECT LITERAL at the call site — the Go-side marker scanner reads
- *  the values at build time and bakes them into the validator's hash. **/
-export interface RunTypeOptions {
+ *  the values at build time and routes the call to a per-option variant of
+ *  the validator factory (same structural type id, distinct function id). **/
+export interface IsTypeOptions {
   /** Literal validators degrade to their base-type check
    *  (`literal 'a'` → any string, `literal 2` → any finite number). **/
   noLiterals?: boolean;
-  /** Skip the leading `Array.isArray(v)` guard on array validators. Folded
-   *  into the validator hash so `string[]` and `string[] + {noIsArrayCheck:true}`
-   *  resolve to distinct entries. **/
+  /** Skip the leading `Array.isArray(v)` guard on array validators.
+   *  The variant cache key changes (e.g. `it_<id>` → `itNA_<id>`) so
+   *  the same type id can serve both the guarded and unguarded factory. **/
   noIsArrayCheck?: boolean;
-  /** Reserved — not yet plumbed. **/
-  strictTypes?: boolean;
 }
 
 /** Validator function returned by `createIsType<T>()`. **/
@@ -175,28 +174,63 @@ initFormatTransformCache(_utils);
 // Private generic factories
 // =============================================================================
 
-/** Returns the per-id closure for a family. Falls back to `identityFn` when
- *  the runtype is registered but its Go-side factory collapsed to a noop. **/
-function createRTFunction<F extends AnyFn>(
+/** Resolves the per-id closure for `prefix + variantSuffix + '_' + id`,
+ *  shared by both `createRTFunction` shapes below. Falls back to
+ *  `identityFn` when the runtype is registered but its Go-side
+ *  factory collapsed to a noop; throws when the runtype is missing
+ *  entirely. **/
+function resolveRTEntry<F extends AnyFn>(
+  fnName: string,
+  prefix: string,
+  identityFn: F,
+  id: string | undefined,
+  options: Record<string, unknown> | undefined
+): F {
+  if (id === undefined) {
+    throw new Error(
+      `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
+    );
+  }
+  const utils = getRTUtils();
+  const key = buildVariantKey(prefix, id, options);
+  const entry = utils.getRT(key);
+  if (entry) return entry.fn as F;
+  if (utils.hasRunType(id)) return identityFn;
+  throw new Error(
+    `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
+  );
+}
+
+/** Returns the per-id closure for a family that honours `IsTypeOptions`
+ *  — currently `createIsType` and `createGetTypeErrors`. The `options`
+ *  slot drives the variant cache-key suffix so the same structural id
+ *  can serve multiple factories (plain `it_<id>`, `itNL_<id>`,
+ *  `itNA_<id>`, …). **/
+function createRTFunctionWithOptions<F extends AnyFn>(
   fnName: string,
   prefix: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, id?: string) => F {
   return (val, options, id) => {
     void val;
-    void options;
-    if (id === undefined) {
-      throw new Error(
-        `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
-      );
-    }
-    const utils = getRTUtils();
-    const entry = utils.getRT(prefix + '_' + id);
-    if (entry) return entry.fn as F;
-    if (utils.hasRunType(id)) return identityFn;
-    throw new Error(
-      `${fnName}(): no RTCompiledFn entry for "${id}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
-    );
+    return resolveRTEntry(fnName, prefix, identityFn, id, options as Record<string, unknown> | undefined);
+  };
+}
+
+/** Returns the per-id closure for a family that does NOT honour
+ *  `IsTypeOptions` — every non-validator factory (`createHasUnknownKeys`,
+ *  `createStripUnknownKeys`, `createUnknownKeyErrors`,
+ *  `createUnknownKeysToUndefined`, `createFormatTransform`). The
+ *  injected id sits at slot 1; the cache key is the plain
+ *  `<prefix>_<id>`. **/
+function createRTFunction<F extends AnyFn>(
+  fnName: string,
+  prefix: string,
+  identityFn: F
+): (val?: unknown, id?: string) => F {
+  return (val, id) => {
+    void val;
+    return resolveRTEntry(fnName, prefix, identityFn, id, undefined);
   };
 }
 
@@ -212,17 +246,17 @@ const identityValueFn = (v: unknown) => v;
 const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
 const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 
-export const createIsType = createRTFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
+export const createIsType = createRTFunctionWithOptions<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
   val?: T,
-  options?: CompTimeArgs<RunTypeOptions>,
+  options?: CompTimeArgs<IsTypeOptions>,
   id?: InjectRunTypeId<T>
 ) => IsTypeFn;
 
-export const createGetTypeErrors = createRTFunction<GetTypeErrorsFn>(
+export const createGetTypeErrors = createRTFunctionWithOptions<GetTypeErrorsFn>(
   'createGetTypeErrors',
   'te',
   getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
+) as unknown as <T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
 
 // =============================================================================
 // Schema-form validators (value-first `define` builders).
@@ -238,42 +272,55 @@ export const createGetTypeErrors = createRTFunction<GetTypeErrorsFn>(
 // =============================================================================
 
 /** Builds the `isType` validator for a value-first RunType schema —
- *  `createIsTypeFor(string({maxLength: 5}))`. **/
-export function createIsTypeFor<RT extends RunType>(schema: RT): IsTypeFn {
-  return lookupRTFn<IsTypeFn>('createIsTypeFor', 'it', schema.id, () => true);
+ *  `createIsTypeFor(string({maxLength: 5}))`. Accepts the same
+ *  `IsTypeOptions` bag as the marker form so schema and marker calls
+ *  for the same `T` share one structural id and converge on the same
+ *  variant cache key when given the same options. **/
+export function createIsTypeFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): IsTypeFn {
+  return lookupRTFn<IsTypeFn>('createIsTypeFor', 'it', schema.id, () => true, options as Record<string, unknown> | undefined);
 }
 
 /** Builds the `getTypeErrors` validator for a value-first RunType schema —
  *  `createTypeErrorsFor(number({min: 0}))`. **/
-export function createTypeErrorsFor<RT extends RunType>(schema: RT): GetTypeErrorsFn {
-  return lookupRTFn<GetTypeErrorsFn>('createTypeErrorsFor', 'te', schema.id, getTypeErrorsIdentity);
+export function createTypeErrorsFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): GetTypeErrorsFn {
+  return lookupRTFn<GetTypeErrorsFn>(
+    'createTypeErrorsFor',
+    'te',
+    schema.id,
+    getTypeErrorsIdentity,
+    options as Record<string, unknown> | undefined
+  );
 }
 
-export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <
-  T,
->(
-  val?: T,
-  options?: CompTimeArgs<RunTypeOptions>,
-  id?: InjectRunTypeId<T>
-) => HasUnknownKeysFn;
+// IsTypeOptions does not affect these families' validators — the
+// options bag is exclusive to `createIsType` / `createGetTypeErrors`.
+// Leaving the slot here would let callers pass values that the Go
+// emitter silently ignores; dropping it surfaces the limitation at
+// the type-checker level.
+
+export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>(
+  'createHasUnknownKeys',
+  'huk',
+  () => false
+) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => HasUnknownKeysFn;
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
   'suk',
   identityValueFn
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => StripUnknownKeysFn;
+) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => StripUnknownKeysFn;
 
 export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn;
+) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn;
 
 export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
   'uku',
   identityValueFn
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
+) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
 
 // createFormatTransform returns a `(value) => transformedValue` for `T`. Identity
 // fallback covers both noop-format types and the no-plugin case.
@@ -281,7 +328,7 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
   'createFormatTransform',
   'fmt',
   identityValueFn
-) as unknown as <T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>) => FormatTransformFn<T>;
+) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => FormatTransformFn<T>;
 
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.

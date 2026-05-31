@@ -3,6 +3,7 @@ package resolver_test
 import (
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/diag"
@@ -1189,8 +1190,8 @@ func TestResolver_CompTimeArgs_NonLiteralDiagnostic(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export interface RunTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
 	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
@@ -1220,18 +1221,23 @@ createIsType<string>(undefined, getOptions());
 }
 
 // TestResolver_CompTimeArgs_LiteralAccepted pins the positive case for
-// CompTimeArgs<T>: a direct object literal at the call site must
-// produce zero diagnostics.
+// CompTimeArgs<T>: a direct object literal at the call site must pass
+// the CompTimeArgs gate (no CTA001/002/003 violations). Unrelated
+// marker codes (e.g. MKR004 fires when `{noLiterals: true}` lands on
+// a non-literal type — by design) are filtered out so this test stays
+// focused on its subject. The fixture uses a literal type for the
+// noLiterals call so MKR004 doesn't fire here; non-literal call sites
+// are covered by TestResolver_IsTypeOptions_NoLiteralsNoop.
 func TestResolver_CompTimeArgs_LiteralAccepted(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export interface RunTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
 	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
-createIsType<string>(undefined, {noLiterals: true});
+createIsType<'a'>(undefined, {noLiterals: true});
 createIsType<string>(undefined, {});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
@@ -1240,8 +1246,11 @@ createIsType<string>(undefined, {});
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
 	markerDiags := filterDiagsByFamily(resp.Diagnostics, diag.FamilyMarker)
-	if len(markerDiags) != 0 {
-		t.Fatalf("expected 0 marker diagnostics for literal options, got %d (%+v)", len(markerDiags), markerDiags)
+	for _, d := range markerDiags {
+		// CTA gate only — MKR is a different subject (anti-patterns).
+		if strings.HasPrefix(d.Code, "CTA") {
+			t.Fatalf("expected no CTA diagnostics for literal options, got %+v", d)
+		}
 	}
 }
 
@@ -1286,8 +1295,8 @@ func TestResolver_CompTimeArgs_ConstChainAccepted(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export interface RunTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
 	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
@@ -1477,8 +1486,8 @@ func TestResolver_TrailingInjectionStillEmitsSite(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-  export interface RunTypeOptions {noLiterals?: boolean}
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export interface IsTypeOptions {noLiterals?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
 }
 `
 	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
@@ -1499,5 +1508,126 @@ createIsType<string>(undefined, getOptions());
 	}
 	if markerDiags[0].Code != diag.CodeCompTimeArgsForbiddenConstruct {
 		t.Fatalf("expected %s, got %q", diag.CodeCompTimeArgsForbiddenConstruct, markerDiags[0].Code)
+	}
+}
+
+// TestResolver_IsTypeOptions_DoNotChangeID is the IsTypeOptions refactor
+// guard: for the same TS type T, the resolved Site.ID must be IDENTICAL
+// across every option combination. The marker scanner used to fold
+// `noLiterals` / `noIsArrayCheck` into the typeid (via type-swap for
+// literals + `SerializeArrayWithFlags` for arrays) — both paths are
+// gone now, replaced by per-call-site `Site.Options` that drive the
+// emitter's variant fan-out under the SAME structural id.
+//
+// Covers three flavours of T:
+//   - literal `'a'`   ± `noLiterals`
+//   - array  `string[]` ± `noIsArrayCheck`
+//   - composite `{tag: 'a'; list: string[]}` with both options
+//
+// Each case asserts that every call site for the same T produces the
+// same `Site.ID`. The Site.Options field carries the option tuple
+// (sorted, name-keyed) — the emitter consumes it to materialise the
+// variant factory keyed `<tag><variantSuffix>_<id>`.
+func TestResolver_IsTypeOptions_DoNotChangeID(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+}
+`
+	cases := []struct {
+		name string
+		code string
+	}{
+		{
+			name: "literal 'a' ± noLiterals",
+			code: `import {createIsType} from '@mionjs/ts-go-run-types';
+createIsType<'a'>();
+createIsType<'a'>(undefined, {noLiterals: true});
+const v: 'a' = 'a';
+createIsType(v);
+createIsType(v, {noLiterals: true});
+`,
+		},
+		{
+			name: "array string[] ± noIsArrayCheck",
+			code: `import {createIsType} from '@mionjs/ts-go-run-types';
+createIsType<string[]>();
+createIsType<string[]>(undefined, {noIsArrayCheck: true});
+const v: string[] = [];
+createIsType(v);
+createIsType(v, {noIsArrayCheck: true});
+`,
+		},
+		{
+			name: "composite with nested literal AND array + both options",
+			code: `import {createIsType} from '@mionjs/ts-go-run-types';
+type Composite = {tag: 'a'; list: string[]};
+createIsType<Composite>();
+createIsType<Composite>(undefined, {noLiterals: true});
+createIsType<Composite>(undefined, {noIsArrayCheck: true});
+createIsType<Composite>(undefined, {noLiterals: true, noIsArrayCheck: true});
+`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": c.code})
+			resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+			if resp.Error != "" {
+				t.Fatalf("scanFiles: %s", resp.Error)
+			}
+			if len(resp.Sites) < 2 {
+				t.Fatalf("expected at least 2 Sites, got %d", len(resp.Sites))
+			}
+			first := resp.Sites[0].ID
+			for i, s := range resp.Sites {
+				if s.ID != first {
+					t.Errorf("Site[%d].ID = %q, want %q (options=%v)", i, s.ID, first, s.Options)
+				}
+			}
+		})
+	}
+}
+
+// TestResolver_IsTypeOptions_NoLiteralsNoop pins the build-time
+// Warning emitted when an option lands on a type where it has no
+// effect (e.g. `{noLiterals: true}` on plain `string`,
+// `{noIsArrayCheck: true}` on an object literal). The variant factory
+// is still materialised (always-emit invariant — the JS side can't
+// tell whether an option is meaningful for a given T), so the
+// diagnostic is the only build-time signal.
+func TestResolver_IsTypeOptions_NoLiteralsNoop(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+}
+`
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+createIsType<string>(undefined, {noLiterals: true});
+createIsType<{a: string}>(undefined, {noIsArrayCheck: true});
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	var nl, na bool
+	for _, d := range resp.Diagnostics {
+		switch d.Code {
+		case diag.CodeIsTypeOptionsNoLiteralsNoop:
+			nl = true
+		case diag.CodeIsTypeOptionsNoArrayNoop:
+			na = true
+		}
+	}
+	if !nl {
+		t.Errorf("expected %s for {noLiterals:true} on non-literal type, got: %+v", diag.CodeIsTypeOptionsNoLiteralsNoop, resp.Diagnostics)
+	}
+	if !na {
+		t.Errorf("expected %s for {noIsArrayCheck:true} on non-array type, got: %+v", diag.CodeIsTypeOptionsNoArrayNoop, resp.Diagnostics)
 	}
 }

@@ -114,6 +114,66 @@ var CacheModules = CacheModuleGroup{
 	},
 }
 
+// IsTypeOption describes one entry in the `IsTypeOptions` bag — the
+// call-site options that parameterise the generated isType / typeErrors
+// validator without affecting the structural type id. Each entry pairs
+// the option's JS-side property name with a single-letter token used to
+// build the variant cache-key suffix (`itNL_<id>`, `itNA_<id>`,
+// `itNLA_<id>`, …). The same table drives the Go scanner's option
+// extraction, the emitter's variant fan-out, and (via gen-ts-constants)
+// the JS runtime's cache-key construction.
+type IsTypeOption struct {
+	Name   string // JS property name, e.g. "noLiterals"
+	Letter string // single uppercase letter appended to the variant suffix, e.g. "L"
+}
+
+// IsTypeOptions is the ordered registry of supported `IsTypeOptions`
+// keys. Order is load-bearing: the variant suffix concatenates letters
+// in this order so existing variant keys stay stable as new options
+// append to the tail (declaration-order, not alphabetic).
+//
+// To add a new option:
+//  1. Append an entry here.
+//  2. Add the field to `IsTypeOptions` in
+//     packages/ts-go-run-types/src/createRTFunctions.ts.
+//  3. Teach the Go scanner to read it and the emitters to honour it.
+//  4. Regenerate the TS mirror (`pnpm run gen:ts-constants`).
+var IsTypeOptions = []IsTypeOption{
+	{Name: "noLiterals", Letter: "L"},
+	{Name: "noIsArrayCheck", Letter: "A"},
+}
+
+// IsTypeVariantSuffix returns the canonical variant suffix for a sorted
+// list of option NAMES (subset of `IsTypeOptions[*].Name`). Empty input
+// → empty suffix (the plain key). Unknown names are silently skipped —
+// callers (scanner / emitter) should validate ahead of time.
+//
+// The suffix shape is `N` + concatenated letters in `IsTypeOptions`
+// declaration order. Example: `["noLiterals", "noIsArrayCheck"]` →
+// `"NLA"`. The leading `N` ("No") disambiguates the variant prefix
+// from a plain `<tag>_<id>` key.
+func IsTypeVariantSuffix(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	present := make(map[string]bool, len(names))
+	for _, name := range names {
+		present[name] = true
+	}
+	suffix := "N"
+	hit := false
+	for _, opt := range IsTypeOptions {
+		if present[opt.Name] {
+			suffix += opt.Letter
+			hit = true
+		}
+	}
+	if !hit {
+		return ""
+	}
+	return suffix
+}
+
 // Version is the binary version, injected at build time via
 //
 //	-ldflags "-X github.com/mionkit/ts-run-types/internal/constants.Version=<v>"

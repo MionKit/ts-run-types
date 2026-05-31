@@ -58,6 +58,38 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 	return settings.Tag + "_"
 }
 
+// supportsIsTypeVariants returns true for the emitters whose validator
+// body is sensitive to `IsTypeOptions` (currently isType and
+// typeErrors). For every other family the option bag is semantically
+// inert, so the renderer skips the per-(typeid, options) fan-out.
+func supportsIsTypeVariants(emitter Emitter) bool {
+	switch emitter.(type) {
+	case IsTypeEmitter, TypeErrorsEmitter:
+		return true
+	}
+	return false
+}
+
+// variantKey reports the cache-key shape for an emitter + variant
+// suffix + runtype id. For the plain variant (empty suffix) this is
+// `<tag>_<id>`; for a non-empty suffix it's `<tag><suffix>_<id>`
+// (e.g. `itNA_<id>`).
+func variantKey(settings constants.CacheModuleSettings, suffix string, id string) string {
+	return settings.Tag + suffix + "_" + id
+}
+
+// variantFactoryName builds the outer factory's printed name —
+// `g_<tag><suffix>_<id>` (e.g. `g_itNA_abc123`). The plain branch
+// reduces to `g_<tag>_<id>` (= `settings.VarPrefix + id`). Wrapping
+// `variantKey` with the `g_` prefix keeps the factory and cache-key
+// shapes in lockstep.
+func variantFactoryName(settings constants.CacheModuleSettings, suffix string, id string) string {
+	if suffix == "" {
+		return settings.VarPrefix + id
+	}
+	return "g_" + variantKey(settings, suffix, id)
+}
+
 // IsTypeModule writes the runtime artifact for the isType cache module:
 // the hand-authored skeleton with the marker line replaced by one
 // `init(…);` call per cached RunType the IsTypeEmitter supports.
@@ -249,6 +281,14 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	// the JS side sees in rtUtils.
 	entries := make(map[string]compiled, len(dump.RunTypes))
 	order := make([]string, 0, len(dump.RunTypes))
+
+	// Variant fan-out: collect every (typeid, options-tuple) pair seen
+	// at a call site. The emitter sees one walker per pair so each
+	// option combination renders as a distinct cache entry keyed
+	// `<tag><variantSuffix>_<id>`. Non-variant emitters skip this —
+	// their option bag is semantically inert.
+	variantsByID := collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))
+
 	for _, runType := range dump.RunTypes {
 		if runType == nil || !emitter.Supports(runType) {
 			continue
@@ -261,16 +301,30 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		// upward and the walker's IsUnsupported flag signals to skip
 		// the factory entirely. See codetype.go's CodeNS comment for
 		// the full contract.
-		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts)
-		if line == "" {
-			continue
+		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, "", nil)
+		if line != "" {
+			namespacedID := innerPrefix + runType.ID
+			if _, exists := entries[namespacedID]; !exists {
+				entries[namespacedID] = compiled{line: line, deps: deps}
+				order = append(order, namespacedID)
+			}
 		}
-		namespacedID := innerPrefix + runType.ID
-		if _, exists := entries[namespacedID]; exists {
-			continue
+
+		// Variant entries — same RunType, different walker per
+		// option combination. Skip emitters that don't honour any
+		// variant (variantsByID is empty for them by construction).
+		for _, variant := range variantsByID[runType.ID] {
+			variantLine, variantDeps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, variant.suffix, variant.options)
+			if variantLine == "" {
+				continue
+			}
+			variantID := variantKey(settings, variant.suffix, runType.ID)
+			if _, exists := entries[variantID]; exists {
+				continue
+			}
+			entries[variantID] = compiled{line: variantLine, deps: variantDeps}
+			order = append(order, variantID)
 		}
-		entries[namespacedID] = compiled{line: line, deps: deps}
-		order = append(order, namespacedID)
 	}
 
 	// Dangling-dep cascade: an entry whose body holds a
@@ -337,6 +391,66 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	return err
 }
 
+// isTypeVariant pairs an option-tuple (the unsorted names harvested
+// from a call site) with its canonical variant suffix. The renderer
+// keys variant entries on `suffix` while the walker reads `options`
+// via `EmitContext.HasVariantOption`.
+type isTypeVariant struct {
+	suffix  string
+	options []string
+}
+
+// collectIsTypeVariants groups the per-call-site option tuples in
+// `sites` by structural runtype id and deduplicates by canonical
+// variant suffix. Skips sites with no options, sites whose suffix is
+// empty (an option name not in the registry), and the entire fan-out
+// when `enable` is false — non-variant emitters get an empty result
+// so their inner loop matches the legacy single-entry-per-runtype
+// shape.
+func collectIsTypeVariants(sites []protocol.Site, enable bool) map[string][]isTypeVariant {
+	if !enable {
+		return nil
+	}
+	byID := make(map[string]map[string][]string)
+	for _, site := range sites {
+		if site.ID == "" || len(site.Options) == 0 {
+			continue
+		}
+		suffix := constants.IsTypeVariantSuffix(site.Options)
+		if suffix == "" {
+			continue
+		}
+		if byID[site.ID] == nil {
+			byID[site.ID] = make(map[string][]string)
+		}
+		if _, exists := byID[site.ID][suffix]; !exists {
+			byID[site.ID][suffix] = append([]string(nil), site.Options...)
+		}
+	}
+	out := make(map[string][]isTypeVariant, len(byID))
+	for id, suffixes := range byID {
+		variants := make([]isTypeVariant, 0, len(suffixes))
+		for suffix, options := range suffixes {
+			variants = append(variants, isTypeVariant{suffix: suffix, options: options})
+		}
+		// Stable order keeps the rendered module deterministic across
+		// runs — the test asserts on exact init() lines.
+		sortIsTypeVariants(variants)
+		out[id] = variants
+	}
+	return out
+}
+
+// sortIsTypeVariants orders variants by suffix ascending so the
+// renderer emits in a stable order across builds.
+func sortIsTypeVariants(variants []isTypeVariant) {
+	for i := 1; i < len(variants); i++ {
+		for j := i; j > 0 && variants[j].suffix < variants[j-1].suffix; j-- {
+			variants[j], variants[j-1] = variants[j-1], variants[j]
+		}
+	}
+}
+
 // renderEntryWithDeps compiles one RunType into its `init(…);` line
 // and returns the discovered rt-dependency hashes alongside. Inner
 // function name is `<innerPrefix><hash>` (e.g. "it_abc123"); the
@@ -346,6 +460,15 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 // an empty line so the renderer skips them; consumers default to a
 // trivial fallback on the JS side.
 //
+// When `variantSuffix` is non-empty (e.g. "NA"), the entry is rendered
+// under the variant cache key `<tag><variantSuffix>_<id>` and the
+// walker is primed with `VariantOptions` so the emitter's per-kind
+// dispatch can branch (e.g. skip `Array.isArray` for noIsArrayCheck,
+// emit base-kind validation for noLiterals). Variants share child
+// references with the plain entry — `InnerPrefix` stays at the
+// plain tag so child dep calls resolve to the plain `<tag>_<id>`
+// factories.
+//
 // When opts.Store is non-nil and opts.Lookup is provided, the function
 // first checks the on-disk cache at <store>/<runType.ID>/<settings.Tag>.json.
 // A header structural-id mismatch, or any cached child-ref whose
@@ -353,19 +476,30 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 // a miss; we then fall through to the walker as usual and write the
 // fresh result back. Read/write errors are non-fatal — the renderer
 // always produces output even when the cache is broken.
-func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts) (string, []string) {
-	factoryName := settings.VarPrefix + runType.ID
-	innerName := innerPrefix + runType.ID
+func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) (string, []string) {
+	factoryName := variantFactoryName(settings, variantSuffix, runType.ID)
+	innerName := variantKey(settings, variantSuffix, runType.ID)
 
-	if cachedLine, cachedDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
-		return cachedLine, cachedDeps
+	if variantSuffix == "" {
+		if cachedLine, cachedDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
+			return cachedLine, cachedDeps
+		}
 	}
 
 	walker := NewWalker(runType, innerName, emitter)
 	walker.RefTable = refTable
 	// InnerPrefix lets dispatch namespace child cache keys consistently
 	// with the factory registration's first arg (innerName below).
+	// Variant walkers still set this to the plain tag (e.g. `it_`) so
+	// child deps resolve to the plain entries — the variant only
+	// changes the ROOT body, not its children.
 	walker.InnerPrefix = innerPrefix
+	if len(variantOptions) > 0 {
+		walker.VariantOptions = make(map[string]bool, len(variantOptions))
+		for _, name := range variantOptions {
+			walker.VariantOptions[name] = true
+		}
+	}
 	// Wire diagnostic emission for this walk. EmitDiagnostic fans each
 	// recorded code out across every call site referencing this RT.
 	walker.DiagSink = opts.DiagSink
@@ -390,8 +524,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
 			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
 				walker.EmitDiagnostic(diagCode, leafKindLabel(walker.UnsupportedLeaf))
-				line := renderAlwaysThrowEntry(runType, settings, innerPrefix, diagCode, walker.rootProvenance)
-				writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+				line := renderAlwaysThrowEntry(runType, settings, innerName, diagCode, walker.rootProvenance)
+				if variantSuffix == "" {
+					writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+				}
 				return line, nil
 			}
 		}
@@ -414,7 +550,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			"true",      // isNoop
 		}
 		line := "init(" + joinArgs(args) + ");"
-		writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+		if variantSuffix == "" {
+			writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+		}
 		return line, nil
 	}
 	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
@@ -451,7 +589,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	deps := append([]string(nil), walker.RTDependencies...)
 	line := "init(" + joinArgs(args) + ");"
-	writeCachedEntry(runType, settings, innerPrefix, line, deps, opts)
+	if variantSuffix == "" {
+		writeCachedEntry(runType, settings, innerPrefix, line, deps, opts)
+	}
 	return line, deps
 }
 
@@ -620,9 +760,8 @@ func leafKindLabel(leaf *protocol.RunType) string {
 //	     '<siteHint>')
 //
 // See docs/UNSUPPORTED-KINDS.md "Wire format".
-func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, diagCode string, provenance []diag.Site) string {
+func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerName string, diagCode string, provenance []diag.Site) string {
 	_ = settings
-	innerName := innerPrefix + runType.ID
 	args := []string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),

@@ -20,6 +20,7 @@ import type {
   InitializedTypeFn,
   Mutable,
 } from './types.ts';
+import {buildIsTypeVariantSuffix} from './isTypeOptionsConstants.generated.ts';
 import {alwaysThrowFactory as alwaysThrowFactoryImpl} from './diagnosticCatalog.ts';
 import {getClassSerializer as getClassSerializerImpl} from './classSerializerRegistry.ts';
 import type {ClassSerializer} from './classSerializerRegistry.ts';
@@ -189,16 +190,48 @@ function initPureFunction(compiled: CompiledPureFunction): asserts compiled is R
   compiled.fn = compiled.createPureFn(rtUtils);
 }
 
-/** Look up the RT entry at `<prefix>_<id>`. Returns the entry's `fn`,
- *  the identity fallback when the runtype is registered but its factory
- *  collapsed to a noop, or throws. **/
-export function lookupRTFn<F extends AnyFn>(callerName: string, prefix: string, id: string, identityFn: F): F {
+/** Canonical cache key for an `IsTypeOptions` variant — produces
+ *  `<tag><variantSuffix>_<id>` (e.g. `itNA_<id>`) or the plain
+ *  `<tag>_<id>` when `options` is empty / undefined. Same shape the
+ *  Go emitter uses, mirrored via `buildIsTypeVariantSuffix` from the
+ *  generated constants file so both halves agree byte-for-byte. **/
+export function buildVariantKey(tag: string, id: string, options?: Record<string, unknown> | undefined): string {
+  const suffix = options ? variantSuffixFromOptions(options) : '';
+  return tag + suffix + '_' + id;
+}
+
+function variantSuffixFromOptions(options: Record<string, unknown>): string {
+  const names: string[] = [];
+  for (const key of Object.keys(options)) {
+    if (options[key] === true) names.push(key);
+  }
+  if (names.length === 0) return '';
+  return buildIsTypeVariantSuffix(names);
+}
+
+/** Look up the RT entry at `<prefix>_<id>` (when `options` is absent)
+ *  or at the variant key `<prefix><variantSuffix>_<id>`. Returns the
+ *  entry's `fn`, the identity fallback when the runtype is registered
+ *  but its factory collapsed to a noop, or throws. The Go emitter
+ *  always materialises a factory for every (typeid, options) tuple
+ *  observed at a call site, so a miss on the variant key with a
+ *  registered runtype means the call site uses an option combination
+ *  the build never saw — surfaced as the identity fallback so the
+ *  call site keeps working with a coarse validator. **/
+export function lookupRTFn<F extends AnyFn>(
+  callerName: string,
+  prefix: string,
+  id: string,
+  identityFn: F,
+  options?: Record<string, unknown> | undefined
+): F {
   const utils = getRTUtils();
-  const entry = utils.getRT(prefix + '_' + id) as CompiledTypeFn | undefined;
+  const key = buildVariantKey(prefix, id, options);
+  const entry = utils.getRT(key) as CompiledTypeFn | undefined;
   if (entry) return entry.fn as F;
   if (utils.hasRunType(id)) return identityFn;
   throw new Error(
-    `${callerName}(): no RTCompiledFn entry for "${prefix}_${id}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
+    `${callerName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
   );
 }
 

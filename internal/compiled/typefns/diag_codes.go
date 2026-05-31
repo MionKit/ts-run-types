@@ -33,6 +33,17 @@ func (m rootCodeMap) codeFor(leaf *protocol.RunType) string {
 		return m.function
 	case protocol.KindSymbol:
 		return m.symbol
+	case protocol.KindLiteral:
+		// A symbol-flavored literal under the `noLiterals` IsTypeOptions
+		// variant degrades to the bare-symbol validator — same misleading
+		// shape as plain `createIsType<symbol>()`, so we route to the
+		// symbol root code and let the alwaysThrow path emit the same
+		// diagnostic. See istype.go's emitLiteralBaseKind symbol arm.
+		for _, flag := range leaf.Flags {
+			if flag == "symbol" {
+				return m.symbol
+			}
+		}
 	case protocol.KindClass:
 		if leaf.SubKind == protocol.SubKindNonSerializable {
 			return m.nonSerializable

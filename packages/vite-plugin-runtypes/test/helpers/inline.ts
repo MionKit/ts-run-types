@@ -33,14 +33,13 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export interface RunTypeOptions {
+  export interface IsTypeOptions {
     noLiterals?: boolean;
     noIsArrayCheck?: boolean;
-    strictTypes?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): IsTypeFn;
-  export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<RunTypeOptions>, id?: InjectRunTypeId<T>): IsTypeFn;
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): IsTypeFn;
+  export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): IsTypeFn;
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;

@@ -548,13 +548,7 @@ export const ARRAY = {
       const v: string[] = [];
       return deserializeIsType(v, {noIsArrayCheck: true});
     },
-    // TODO: value-first builders can't carry the `noIsArrayCheck` RunTypeOption — it's
-    // folded into the structural typeId at the createIsType call site (see
-    // internal/resolver/scan.go: noIsArrayCheck wraps the array id with a flag), but
-    // value-first builders carry only the TS type via InjectRunTypeId<T>. When
-    // RunTypeOptions is moved out of typeId computation these become authorable
-    // value-first; until then the schema variants are marked unsupported.
-    isTypeSchema: 'not-supported',
+    isTypeSchema: () => createIsTypeFor(RT.array(RT.string()), {noIsArrayCheck: true}),
     getTypeErrors: () => createGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
     getTypeErrorsReflect: () => {
@@ -565,7 +559,7 @@ export const ARRAY = {
       const v: string[] = [];
       return deserializeGetTypeErrors(v, {noIsArrayCheck: true});
     },
-    getTypeErrorsSchema: 'not-supported', // see TODO on isTypeSchema above
+    getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.string()), {noIsArrayCheck: true}),
     mockType: () => createMockType<string[]>(undefined, undefined),
     mockTypeReflect: () => {
       const v: string[] = [];
