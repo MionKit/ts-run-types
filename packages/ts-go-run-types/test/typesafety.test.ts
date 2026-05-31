@@ -15,7 +15,7 @@
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
-import {define} from '../src/define/index.ts';
+import {defineObject} from '../src/define/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -80,7 +80,7 @@ function assertionsAcceptUnknown(): void {
 function assertionsValueFirstDefine(): void {
   // Valid value-first configs compile — no directive. Each field's params
   // are checked against the matching format's param interface.
-  const _ok = define({
+  const _ok = defineObject({
     name: {type: 'string', minLength: 1, maxLength: 50},
     age: {type: 'number', min: 0, max: 120, integer: true},
     born: {type: 'date', max: 'now'},
@@ -90,28 +90,28 @@ function assertionsValueFirstDefine(): void {
   // @ts-expect-error — an unknown discriminator is rejected locally on the
   // offending field (TS2322 on `type`), not as a deep generic blowup. This
   // is the discriminator-as-local-error property the value-first surface buys.
-  define({flag: {type: 'boolean'}});
+  defineObject({flag: {type: 'boolean'}});
 
   // @ts-expect-error — cross-family param leakage is caught: `maxLength` is a
   // string-only param, so on a `number` field the exclusive-union negation
   // types it `never` and assigning `5` errors locally (TS2322). Without the
   // negation TypeScript's union excess-property check would let it through.
-  define({age: {type: 'number', maxLength: 5}});
+  defineObject({age: {type: 'number', maxLength: 5}});
 
   // @ts-expect-error — symmetric case: `min` (number/date) on a string field.
-  define({name: {type: 'string', min: 0}});
+  defineObject({name: {type: 'string', min: 0}});
 
   // @ts-expect-error — `integer` (number-only) on a date field.
-  define({born: {type: 'date', integer: true}});
+  defineObject({born: {type: 'date', integer: true}});
 
   // Date sharing the number bounds is fine — `min`/`max`/`gt`/`lt` are valid
   // for both number and date, so they are NOT forbidden on a date field.
-  const _okDate = define({born: {type: 'date', min: 'now', max: '2030-01-01T00:00:00'}});
+  const _okDate = defineObject({born: {type: 'date', min: 'now', max: '2030-01-01T00:00:00'}});
   void _okDate;
 
   // A regex `pattern` is allowed on a string field in all three value-channel
   // forms (inline /…/, {source, flags}, registerFormatPattern result).
-  const _okRegex = define({
+  const _okRegex = defineObject({
     slug: {type: 'string', pattern: /^[a-z-]+$/},
     digits: {type: 'string', pattern: {source: '^[0-9]+$', flags: ''}},
   });
@@ -119,7 +119,7 @@ function assertionsValueFirstDefine(): void {
 
   // `optional: true` is a per-field meta flag accepted on every field family
   // (it is not a format param, so the exclusive-union negation leaves it alone).
-  const _okOptional = define({
+  const _okOptional = defineObject({
     s: {type: 'string', maxLength: 5, optional: true},
     n: {type: 'number', min: 0, optional: true},
     d: {type: 'date', max: 'now', optional: true},
@@ -127,9 +127,9 @@ function assertionsValueFirstDefine(): void {
   void _okOptional;
 
   // @ts-expect-error — `optional` is boolean; a non-boolean value errors.
-  define({s: {type: 'string', optional: 'yes'}});
+  defineObject({s: {type: 'string', optional: 'yes'}});
 
   // @ts-expect-error — `pattern` is a string-only param, so the exclusive-union
   // negation forbids it on a number field.
-  define({age: {type: 'number', pattern: /^[0-9]+$/}});
+  defineObject({age: {type: 'number', pattern: /^[0-9]+$/}});
 }

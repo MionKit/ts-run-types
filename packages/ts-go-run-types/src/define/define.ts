@@ -2,7 +2,7 @@
 // derives the equivalent type-first format types via plain TYPE MAPPING (no
 // TS `infer`). Write a runtime config object:
 //
-//   const UserModel = define({
+//   const UserModel = defineObject({
 //     name: {type: 'string', minLength: 1, maxLength: 50},
 //     age:  {type: 'number', min: 0, max: 120},
 //     born: {type: 'date', max: 'now'},
@@ -139,7 +139,7 @@ type FieldType<F extends FieldConfig> = F extends {type: 'string'}
  *  the `?` modifier per-key in a single homomorphic map, so the split is the
  *  standard way to do it — and it stays a flat O(keys) map (no template-literal
  *  `infer`, which would tax the checker). `-readonly` strips the `readonly` the
- *  `define<const C>` capture stamps on every config property; without it the
+ *  `defineObject<const C>` capture stamps on every config property; without it the
  *  derived properties would diverge from the canonical (mutable) type-first
  *  form at the structural-id level (the format type itself is already
  *  identical, only the modifier differed). An all-required model leaves the
@@ -151,7 +151,7 @@ export type ModelType<C extends ModelConfig> = {
   -readonly [K in keyof C as C[K] extends {optional: true} ? K : never]?: FieldType<C[K]>;
 };
 
-// ───────────────────────────── define() ─────────────────────────────
+// ───────────────────────────── defineObject() ─────────────────────────────
 
 /** Identity at runtime — returns the config object unchanged so it survives
  *  in the bundle (Drizzle / form builders / OpenAPI generators can read it as
@@ -160,6 +160,6 @@ export type ModelType<C extends ModelConfig> = {
  *  validates the config shape at the authoring site, surfacing a local
  *  discriminated-union mismatch on a bad field instead of a deep generic
  *  error downstream. **/
-export function define<const C extends ModelConfig>(config: C): C {
+export function defineObject<const C extends ModelConfig>(config: C): C {
   return config;
 }

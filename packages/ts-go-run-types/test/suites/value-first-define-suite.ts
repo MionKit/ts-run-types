@@ -1,9 +1,9 @@
-// Value-first `define` validation suite — single source of truth for the
+// Value-first `defineObject` validation suite — single source of truth for the
 // behavioral assertions of the value-first authoring surface
 // (`@mionjs/ts-go-run-types/define`). Sibling of validation-suite.ts /
 // format-validation-suite.ts.
 //
-// Each model is authored with `define({...})` and the validator is built from
+// Each model is authored with `defineObject({...})` and the validator is built from
 // `ModelType<typeof Model>` through the SAME `createIsType` / createGetTypeErrors
 // path as the type-first surface — proving the value-first front-end lowers to
 // the identical RunType graph (convergence is asserted directly in
@@ -27,7 +27,7 @@ import {
   type IsTypeFn,
   type GetTypeErrorsFn,
 } from '@mionjs/ts-go-run-types';
-import {define, type ModelType} from '@mionjs/ts-go-run-types/define';
+import {defineObject, type ModelType} from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType} from '../util/deserializeRTFunctions.ts';
 import '@mionjs/ts-go-run-types/formats';
 
@@ -47,7 +47,7 @@ export interface ValueFirstCase {
 
 // ─────────────────────────────── Models ─────────────────────────────
 
-const UserModel = define({
+const UserModel = defineObject({
   username: {type: 'string', minLength: 3, maxLength: 20},
   code: {type: 'string', length: 4},
   role: {type: 'string', allowedValues: {val: ['admin', 'user', 'guest']}},
@@ -59,14 +59,14 @@ const UserModel = define({
   bornBefore: {type: 'date', max: 'now'},
 });
 
-const StringModel = define({
+const StringModel = defineObject({
   short: {type: 'string', maxLength: 5},
   long: {type: 'string', minLength: 3},
   exact: {type: 'string', length: 4},
   pick: {type: 'string', allowedValues: {val: ['red', 'green', 'blue']}},
 });
 
-const NumberModel = define({
+const NumberModel = defineObject({
   bounded: {type: 'number', min: 0, max: 10},
   exclusive: {type: 'number', gt: 0, lt: 10},
   whole: {type: 'number', integer: true},
@@ -74,17 +74,17 @@ const NumberModel = define({
   divisible: {type: 'number', multipleOf: 3},
 });
 
-const DateModel = define({
+const DateModel = defineObject({
   past: {type: 'date', max: 'now'},
   window: {type: 'date', min: '2020-01-01T00:00:00', max: '2030-01-01T00:00:00'},
 });
 
-const ProfileModel = define({name: {type: 'string', maxLength: 5}});
-const SettingsModel = define({theme: {type: 'string', allowedValues: {val: ['light', 'dark']}}});
+const ProfileModel = defineObject({name: {type: 'string', maxLength: 5}});
+const SettingsModel = defineObject({theme: {type: 'string', allowedValues: {val: ['light', 'dark']}}});
 
 // `optional: true` makes a property optional (`key?:`) in the derived model —
 // the key may be absent; when present it still validates.
-const OptionalModel = define({
+const OptionalModel = defineObject({
   id: {type: 'string', length: 4}, // required
   nick: {type: 'string', maxLength: 8, optional: true}, // optional
   age: {type: 'number', min: 0, optional: true}, // optional
@@ -94,7 +94,7 @@ const OptionalModel = define({
 // string field accepts. The Go scanner recovers {source, flags} from the
 // literal the property declaration preserves (no `typeof` needed).
 const hexPattern = registerFormatPattern({regexp: /^[0-9a-f]+$/i, mockSamples: ['DEADbeef']});
-const RegexModel = define({
+const RegexModel = defineObject({
   slug: {type: 'string', pattern: /^[a-z0-9-]+$/}, // inline /…/ literal
   digits: {type: 'string', pattern: {source: '^[0-9]+$', flags: ''}}, // {source,flags}
   hex: {type: 'string', pattern: hexPattern}, // registerFormatPattern value
