@@ -4,13 +4,13 @@ import type {SerializationCase} from './types.ts';
 export const TEMPLATE_LITERALS = {
   url_string: {
     title: 'template literal as string type',
-    unsafeEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<`api/users/${number}`>(),
-    safeDirectEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<`api/users/${number}`>(),
-    unsafeDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<`api/users/${number}`>(),
+    directEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<`api/users/${number}`>(),
+    preserveDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<`api/users/${number}`>(),
     binaryDecoder: () => createBinaryDecoder<`api/users/${number}`>(),
     getTestData: () => ({
@@ -26,14 +26,14 @@ export const TEMPLATE_LITERALS = {
   },
   url_in_object: {
     title: 'template literal as object property type',
-    unsafeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () =>
+    mutateEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () =>
       createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
-    safeDirectEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
-    unsafeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
+    stripCloneEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
+    directEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
+    preserveDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{url: `api/user/${number}`; method: string}>(),
     binaryDecoder: () => createBinaryDecoder<{url: `api/user/${number}`; method: string}>(),
     getTestData: () => ({
@@ -46,30 +46,30 @@ export const TEMPLATE_LITERALS = {
   },
   url_index_key: {
     title: 'template literal as index signature key',
-    unsafeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
-    safeDirectEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
-    unsafeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
+    directEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
+    preserveDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: `api/${string}`]: number}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: `api/${string}`]: number}>(),
     getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
   },
   url_index_key_with_named: {
     title: 'template literal index key + sibling named property',
-    unsafeEncoder: () =>
+    mutateEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () =>
+    cloneEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () =>
+    stripMutateEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
-    safeDirectEncoder: () =>
+    stripCloneEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+    directEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
-    unsafeDecoder: () =>
+    stripDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+    preserveDecoder: () =>
       createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     binaryDecoder: () => createBinaryDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),

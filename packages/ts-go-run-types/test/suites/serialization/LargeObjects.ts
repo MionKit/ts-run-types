@@ -6,7 +6,7 @@ export const LARGE_OBJECTS = {
     title: 'wide interface — 30 mixed-type properties',
     description:
       'Single interface with 30+ properties spanning scalars, Date, bigint, nested object — exercises the per-field walk cost without any union dispatch.',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -41,7 +41,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<WideRecord>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -76,7 +76,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<WideRecord>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -111,7 +111,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<WideRecord>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -146,7 +146,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<WideRecord>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -181,7 +181,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<WideRecord>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -216,7 +216,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonDecoder<WideRecord>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface WideRecord {
         id: number;
         name: string;
@@ -394,7 +394,7 @@ export const LARGE_OBJECTS = {
     title: 'discriminated union of 5 large object members',
     description:
       'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an isType walk per candidate member.',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -443,7 +443,7 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -492,7 +492,7 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -541,7 +541,7 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -590,7 +590,7 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonEncoder<LargeObjectUnion>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -639,7 +639,7 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -688,7 +688,7 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createJsonDecoder<LargeObjectUnion>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -864,7 +864,7 @@ export const LARGE_OBJECTS = {
     title: 'mixed union — atomic + large object members',
     description:
       'string | number | ProductEvent | UserEvent — exercises the flat encoder atomic short-circuit alongside the merged-object envelope.',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -886,7 +886,7 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -908,7 +908,7 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -930,7 +930,7 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -952,7 +952,7 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonEncoder<MixedLargeUnion>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -974,7 +974,7 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -996,7 +996,7 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createJsonDecoder<MixedLargeUnion>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ProductEvent {
         kind: 'product';
         id: string;
@@ -1090,7 +1090,7 @@ export const LARGE_OBJECTS = {
   deep_nested: {
     title: 'five-level deeply nested object with arrays of objects',
     description: 'Walks five levels of nested arrays of objects to amplify per-property overhead.',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1118,7 +1118,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1146,7 +1146,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1174,7 +1174,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1202,7 +1202,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<DeepNestedLevel1>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1230,7 +1230,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1258,7 +1258,7 @@ export const LARGE_OBJECTS = {
       }
       return createJsonDecoder<DeepNestedLevel1>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface DeepNestedLeaf {
         id: number;
         value: string;
@@ -1380,7 +1380,7 @@ export const LARGE_OBJECTS = {
   large_class_union: {
     title: 'discriminated union of three large class instances',
     description: 'Three-member class union — restore decodes to plain objects (class instances do not survive JSON round-trip).',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
@@ -1411,7 +1411,7 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
@@ -1442,7 +1442,7 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
@@ -1473,7 +1473,7 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
@@ -1504,7 +1504,7 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonEncoder<LargeClassUnion>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
@@ -1535,7 +1535,7 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
@@ -1566,7 +1566,7 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createJsonDecoder<LargeClassUnion>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       class LargeClassA {
         kind!: 'classA';
         alpha!: string;
