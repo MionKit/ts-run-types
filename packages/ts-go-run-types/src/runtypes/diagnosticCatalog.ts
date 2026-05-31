@@ -189,6 +189,22 @@ Fix — accept a pre-computed id from the caller:
   const isUser = makeChecker<User>(getRunTypeId<User>());`,
   },
 
+  MKR006: {
+    headline:
+      '`createIsTypeFor` / `createTypeErrorsFor` schema must be a value-first builder call (or a `const` bound to one) — a dynamic schema reference can’t be resolved at build time.',
+    detail: `The build derives the schema’s type id by tracing the argument back to
+the \`RT.*\` builder that created it. A dynamic reference — a ternary, a
+function call returning a runtype, a \`let\`/\`var\` binding, or a value built
+in a loop — has no single build-time identity, so no factory can be emitted
+and the call would throw at runtime.
+
+Fix — pass the builder inline, or a module-scope \`const\` bound to one:
+-  const schema = cond ? RT.string() : RT.number();
+-  const isValid = createIsTypeFor(schema);
++  const schema = RT.union([RT.string(), RT.number()]);
++  const isValid = createIsTypeFor(schema);`,
+  },
+
   // ─────────── Temporal family (TMPxxx) ───────────
   TMP001: {
     headline:

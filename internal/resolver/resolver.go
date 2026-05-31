@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
@@ -79,8 +80,26 @@ type Resolver struct {
 	checker      *checker.Checker
 	releaseLease func()
 	sites        []protocol.Site
-	marker       marker.Options
-	opts         Options
+	// demands is the session-wide set of USED type ids (see protocol.Demand) —
+	// accumulated in scanCall (non-builder injection markers) and the deferred
+	// CompTimeRunType pass (schema-form factories), filtered per request by
+	// scopedDump exactly like sites. Drives demand-gated factory emission.
+	demands []protocol.Demand
+	// nodeToID maps a value-first builder CALL node to the structural id its
+	// own injection Site produced. Populated in scanCall; read by
+	// builderIDForNode so a CompTimeRunType schema ref resolves to the SAME id
+	// the runtime reads off `schema.id` (correct for AST-harvested regex
+	// literals and recursively-interned schemas, where the type alone can't
+	// reproduce the id). Reset with sites on Program swap.
+	nodeToID map[*ast.Node]string
+	// pendingSchema is per-file scratch: CompTimeRunType schema-form calls
+	// collected during a file's call walk and resolved into demands AFTER the
+	// walk completes (the inline schema builder is visited after the enclosing
+	// createXFor call, so its id isn't in nodeToID yet mid-walk). Drained per
+	// file in dispatchScanFiles.
+	pendingSchema []pendingSchemaCall
+	marker        marker.Options
+	opts          Options
 	// pureFnHashes is the session-wide index of every pure-fn entry
 	// the resolver has observed so far, keyed by "<ns>::<fnName>" with
 	// the entry's bodyHash as the value. Used by dispatchScanFiles to
@@ -149,6 +168,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
+		nodeToID:     map[*ast.Node]string{},
 		rtStore:      newRTStore(opts),
 	}, nil
 }
@@ -166,6 +186,7 @@ func NewServer(opts Options) *Resolver {
 		opts:         opts,
 		pureFnHashes: map[string]string{},
 		scannedFiles: map[string]struct{}{},
+		nodeToID:     map[*ast.Node]string{},
 		rtStore:      newRTStore(opts),
 	}
 }
@@ -191,6 +212,8 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.releaseLease = releaseLease
 	resolver.cache.Rebind(typeChecker)
 	resolver.sites = resolver.sites[:0]
+	resolver.demands = resolver.demands[:0]
+	resolver.nodeToID = map[*ast.Node]string{}
 	resolver.scannedFiles = map[string]struct{}{}
 	return nil
 }
@@ -216,6 +239,8 @@ func (resolver *Resolver) Reset() {
 	resolver.cache.Clear()
 	resolver.cache.Rebind(nil)
 	resolver.sites = resolver.sites[:0]
+	resolver.demands = resolver.demands[:0]
+	resolver.nodeToID = map[*ast.Node]string{}
 	resolver.pureFnHashes = map[string]string{}
 	resolver.scannedFiles = map[string]struct{}{}
 }
@@ -233,4 +258,23 @@ func (resolver *Resolver) Cache() *runtype.Cache { return resolver.cache }
 // plugin) read this at end-of-build to write out the manifest.
 func (resolver *Resolver) Sites() []protocol.Site {
 	return append([]protocol.Site(nil), resolver.sites...)
+}
+
+// Demands returns the running list of USED type ids (see protocol.Demand) —
+// the seed set for demand-gated factory emission. Session-wide; the OpDump
+// path attaches it to the full dump, scopedDump filters it per request.
+func (resolver *Resolver) Demands() []protocol.Demand {
+	return append([]protocol.Demand(nil), resolver.demands...)
+}
+
+// markerModule returns the package the marker brands are declared in (the
+// first configured spec's Module, defaulting to marker.DefaultModule). Passed
+// to builders.IsBuilderCall as the module gate.
+func (resolver *Resolver) markerModule() string {
+	for _, spec := range resolver.marker.Specs {
+		if spec.Module != "" {
+			return spec.Module
+		}
+	}
+	return marker.DefaultModule
 }

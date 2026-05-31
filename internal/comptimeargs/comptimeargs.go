@@ -78,7 +78,15 @@ type Result struct {
 // CheckLiteral validates that node is a literal (or const-traceable
 // chain ending in one) per the package contract. Pass depth=0 from the
 // resolver entry point.
-func CheckLiteral(typeChecker *checker.Checker, node *ast.Node, depth int) Result {
+// isBuilderCall, when non-nil, reports whether a CallExpression node is a
+// recognized value-first builder (RT.string(), RT.object({…}), …). Such a call
+// is a valid CompTimeArgs leaf — it self-validates its own CompTimeArgs params
+// on its own scan visit, so the walk STOPS at it rather than recursing into its
+// args. nil means "no call is a builder" (current behavior for callers that
+// don't supply the predicate), so every call stays a forbidden construct.
+type isBuilderCall = func(*ast.Node) bool
+
+func CheckLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, builderCall isBuilderCall) Result {
 	if depth > DepthCap {
 		return Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
 	}
@@ -93,15 +101,23 @@ func CheckLiteral(typeChecker *checker.Checker, node *ast.Node, depth int) Resul
 	case ast.KindArrowFunction, ast.KindFunctionExpression:
 		return Result{Ok: true}
 	case ast.KindObjectLiteralExpression:
-		return checkObjectLiteral(typeChecker, unwrapped, depth)
+		return checkObjectLiteral(typeChecker, unwrapped, depth, builderCall)
 	case ast.KindArrayLiteralExpression:
-		return checkArrayLiteral(typeChecker, unwrapped, depth)
+		return checkArrayLiteral(typeChecker, unwrapped, depth, builderCall)
 	case ast.KindPrefixUnaryExpression:
 		// Accept `-1`, `+1`, `-1n` — sign-prefixed numeric / bigint literal.
 		// Reject anything else (`!x`, `~x`, prefix on non-literal).
 		return checkPrefixUnary(typeChecker, unwrapped, depth)
+	case ast.KindCallExpression:
+		// A recognized value-first builder call is a valid leaf — STOP, do not
+		// recurse into its args (it self-validates on its own scan visit). Any
+		// other call is a dynamic construct the build can't evaluate.
+		if builderCall != nil && builderCall(unwrapped) {
+			return Result{Ok: true}
+		}
+		return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "function call", FailingNode: unwrapped}
 	case ast.KindIdentifier:
-		return traceIdentifier(typeChecker, unwrapped, depth)
+		return traceIdentifier(typeChecker, unwrapped, depth, builderCall)
 	}
 	return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: forbiddenConstructName(unwrapped.Kind), FailingNode: unwrapped}
 }
@@ -251,7 +267,7 @@ func isLiteralLeaf(node *ast.Node) bool {
 	return false
 }
 
-func checkObjectLiteral(typeChecker *checker.Checker, node *ast.Node, depth int) Result {
+func checkObjectLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, builderCall isBuilderCall) Result {
 	objectLiteral := node.AsObjectLiteralExpression()
 	if objectLiteral == nil || objectLiteral.Properties == nil {
 		return Result{Ok: true}
@@ -273,7 +289,7 @@ func checkObjectLiteral(typeChecker *checker.Checker, node *ast.Node, depth int)
 			if propertyAssignment.Initializer == nil {
 				return Result{Ok: false, Kind: FailNonLiteral, Reason: "property has no initializer", FailingNode: property}
 			}
-			result := CheckLiteral(typeChecker, propertyAssignment.Initializer, depth+1)
+			result := CheckLiteral(typeChecker, propertyAssignment.Initializer, depth+1, builderCall)
 			if !result.Ok {
 				return result
 			}
@@ -283,7 +299,7 @@ func checkObjectLiteral(typeChecker *checker.Checker, node *ast.Node, depth int)
 			if shorthand == nil || shorthand.Name() == nil {
 				return Result{Ok: false, Kind: FailNonLiteral, Reason: "nil shorthand property", FailingNode: property}
 			}
-			result := traceIdentifier(typeChecker, shorthand.Name(), depth+1)
+			result := traceIdentifier(typeChecker, shorthand.Name(), depth+1, builderCall)
 			if !result.Ok {
 				return result
 			}
@@ -296,7 +312,7 @@ func checkObjectLiteral(typeChecker *checker.Checker, node *ast.Node, depth int)
 	return Result{Ok: true}
 }
 
-func checkArrayLiteral(typeChecker *checker.Checker, node *ast.Node, depth int) Result {
+func checkArrayLiteral(typeChecker *checker.Checker, node *ast.Node, depth int, builderCall isBuilderCall) Result {
 	arrayLiteral := node.AsArrayLiteralExpression()
 	if arrayLiteral == nil || arrayLiteral.Elements == nil {
 		return Result{Ok: true}
@@ -308,7 +324,7 @@ func checkArrayLiteral(typeChecker *checker.Checker, node *ast.Node, depth int) 
 		if element.Kind == ast.KindSpreadElement {
 			return Result{Ok: false, Kind: FailForbiddenConstruct, Reason: "spread", FailingNode: element}
 		}
-		result := CheckLiteral(typeChecker, element, depth+1)
+		result := CheckLiteral(typeChecker, element, depth+1, builderCall)
 		if !result.Ok {
 			return result
 		}
@@ -336,7 +352,7 @@ func checkPrefixUnary(typeChecker *checker.Checker, node *ast.Node, depth int) R
 	return Result{Ok: true}
 }
 
-func traceIdentifier(typeChecker *checker.Checker, node *ast.Node, depth int) Result {
+func traceIdentifier(typeChecker *checker.Checker, node *ast.Node, depth int, builderCall isBuilderCall) Result {
 	if depth > DepthCap {
 		return Result{Ok: false, Kind: FailDepthExceeded, Reason: "depth cap exceeded", FailingNode: node}
 	}
@@ -349,7 +365,14 @@ func traceIdentifier(typeChecker *checker.Checker, node *ast.Node, depth int) Re
 	if !ok {
 		return Result{Ok: false, Kind: FailNonLiteral, Reason: "identifier not a same-module `const` binding to a literal", FailingNode: node}
 	}
-	return CheckLiteral(typeChecker, initializer, depth+1)
+	return CheckLiteral(typeChecker, initializer, depth+1, builderCall)
+}
+
+// ResolveConstInitializer is the exported entry to the const-chain trace.
+// Used by the resolver's CompTimeRunType schema-reference resolution
+// (resolveToBuilderCall) so the const-trace logic lives in one place.
+func ResolveConstInitializer(typeChecker *checker.Checker, identifier *ast.Node) (*ast.Node, bool) {
+	return resolveConstInitializer(typeChecker, identifier)
 }
 
 // resolveConstInitializer returns the initializer expression of the
