@@ -103,3 +103,91 @@ func TestFormatPattern_ResolvedLiteralObject(t *testing.T) {
 		t.Errorf("mockSamples = %#v, want [\"a-b\",\"abc\"]", pattern["mockSamples"])
 	}
 }
+
+// ─────────────────── value-first regex recovery ───────────────────
+//
+// In a value-first config (`define({slug: {type:'string', pattern: /…/}})`),
+// the regex rides the VALUE channel, not the type channel: the property's TYPE
+// erases to `RegExp`, but the homomorphic Omit/Pick mapped type behind
+// `ModelType` preserves the property declaration, so the scanner recovers
+// {source, flags} from the literal initializer. These tests mirror the
+// `ModelType<typeof M>['field']` shape so the scanned type is the branded
+// string directly.
+
+// scanValueFirstPattern scans the named field of a value-first model and
+// returns the recovered FormatAnnotation.Params["pattern"].
+func scanValueFirstPattern(t *testing.T, decls, field string) map[string]any {
+	t.Helper()
+	root := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type FieldType<F> = F extends {type:'string'} ? TypeFormat<string,'stringFormat', Omit<F,'type'>> : never;
+type ModelType<C> = { -readonly [K in keyof C]: FieldType<C[K]> };
+`+decls+`
+getRunTypeId<ModelType<typeof M>['`+field+`']>();
+`)
+	if root.FormatAnnotation == nil {
+		t.Fatalf("expected FormatAnnotation on the field, got nil")
+	}
+	pattern, _ := root.FormatAnnotation.Params["pattern"].(map[string]any)
+	return pattern
+}
+
+func TestFormatPattern_ValueFirstInlineRegex(t *testing.T) {
+	pattern := scanValueFirstPattern(t,
+		`const M = { slug: { type: 'string' as const, pattern: /^[a-z0-9-]+$/i } };`, "slug")
+	if pattern == nil {
+		t.Fatalf("inline /…/ value did not yield a recovered pattern")
+	}
+	if pattern["source"] != "^[a-z0-9-]+$" {
+		t.Errorf("source = %#v, want the inline regex source", pattern["source"])
+	}
+	if pattern["flags"] != "i" {
+		t.Errorf("flags = %#v, want \"i\"", pattern["flags"])
+	}
+}
+
+func TestFormatPattern_ValueFirstSourceFlagsObject(t *testing.T) {
+	pattern := scanValueFirstPattern(t,
+		`const M = { digits: { type: 'string' as const, pattern: {source: '^[0-9]+$', flags: 'g'} } };`, "digits")
+	if pattern == nil || pattern["source"] != "^[0-9]+$" || pattern["flags"] != "g" {
+		t.Fatalf("{source,flags} value not recovered: %#v", pattern)
+	}
+}
+
+func TestFormatPattern_ValueFirstRegisterFormatPatternValue(t *testing.T) {
+	// `pattern: p` where p is a registerFormatPattern(...) const — recovered by
+	// resolving the identifier to its initializer call (mockSamples included).
+	pattern := scanValueFirstPattern(t, `
+interface FormatPattern { readonly __fmtPatternBrand: true }
+declare function registerFormatPattern(args: {regexp: RegExp; mockSamples: readonly string[]}): FormatPattern;
+const p = registerFormatPattern({regexp: /^[0-9a-f]+$/i, mockSamples: ['dead']});
+const M = { hex: { type: 'string' as const, pattern: p } };`, "hex")
+	if pattern == nil || pattern["source"] != "^[0-9a-f]+$" || pattern["flags"] != "i" {
+		t.Fatalf("registerFormatPattern value not recovered: %#v", pattern)
+	}
+	if samples, ok := pattern["mockSamples"].([]any); !ok || len(samples) != 1 || samples[0] != "dead" {
+		t.Errorf("mockSamples = %#v, want [\"dead\"]", pattern["mockSamples"])
+	}
+}
+
+// Value-first inline regex and the type-first {source,flags} form for the same
+// pattern must hash to one id — identical recovered {source, flags}.
+func TestFormatPattern_ValueFirstConvergesWithTypeFirst(t *testing.T) {
+	valueFirst := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+type FieldType<F> = F extends {type:'string'} ? TypeFormat<string,'stringFormat', Omit<F,'type'>> : never;
+type ModelType<C> = { -readonly [K in keyof C]: FieldType<C[K]> };
+const M = { slug: { type: 'string' as const, pattern: /^[a-z-]+$/ } };
+getRunTypeId<ModelType<typeof M>['slug']>();
+`)
+	typeFirst := runFormatScan(t, `
+import {getRunTypeId} from '@mionjs/ts-go-run-types';
+import type {TypeFormat} from '@mionjs/ts-go-run-types';
+getRunTypeId<TypeFormat<string, 'stringFormat', {pattern: {source: '^[a-z-]+$'; flags: ''}}>>();
+`)
+	if valueFirst.ID != typeFirst.ID {
+		t.Fatalf("value-first inline regex (%s) must converge with type-first {source,flags} (%s)", valueFirst.ID, typeFirst.ID)
+	}
+}
