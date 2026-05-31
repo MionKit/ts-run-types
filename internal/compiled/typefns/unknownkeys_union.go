@@ -87,6 +87,17 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 	snippet := opts.Snippet(ctx, target, keyVar)
 	body := "for (const " + keyVar + " in " + target + ") { if (!(" + allowlist + ")) { " + snippet + "; } }"
 
+	// Non-wire-format runtime gate. The union may match a non-object
+	// atomic member at runtime (primitive, array, Date, …); applying
+	// the merged-allowlist for-loop in those cases would corrupt
+	// array indices or throw on immutable primitives. The merged
+	// allowlist only makes sense when v is a plain object. The
+	// JsonWireFormat path is independently gated by the
+	// `[-1, mergedObject]` wrapper check below and keeps its own shape.
+	if !opts.JsonWireFormat {
+		body = "if (typeof " + ctx.Vλl + " === 'object' && " + ctx.Vλl + " !== null && !Array.isArray(" + ctx.Vλl + ")) { " + body + " }"
+	}
+
 	switch opts.CodeShape {
 	case CodeE:
 		// hasUnknownKeys wraps the loop in an IIFE: snippet emits
