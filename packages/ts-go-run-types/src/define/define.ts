@@ -11,23 +11,26 @@
 //     nick:   optional(string({maxLength: 50})),
 //     bornAt: temporal.instant({max: 'now'}),
 //   });
-//   type User = ModelType<typeof UserModel>;
-//   const isUser = createIsType<User>();
+//   type User = typeof UserModel;            // already {name: FormatString<…>; nick?: …}
+//   const isUser = createIsType<User>();     // converges with the type-first surface
 //
-// Each builder is a runtime identity that returns a plain field-config object
-// `{type, optional?, formatParams}` — plain data so the model survives in the
-// bundle (Drizzle / form builders / OpenAPI read it), `const`-narrowed so the
-// literal params (`{maxLength: 50}`) stay narrow enough to brand. `ModelType<C>`
-// maps each field onto the SAME branded format type the type-first surface
-// produces (`FormatString` / `FormatNumber` / …), so the Go scanner
-// (internal/compiled/runtype/typeid/formats.go) reflects it unchanged and both
+// Each builder returns the SAME branded format type the type-first surface
+// produces (`string({maxLength: 5})` ⇒ `FormatString<{maxLength: 5}>`),
+// `const`-narrowed so the literal params (`{maxLength: 5}`) stay narrow enough
+// to brand. So `typeof Model` IS the model type, the Go scanner
+// (internal/compiled/runtype/typeid/formats.go) reflects it unchanged, and both
 // front-ends converge on the same structural id — one engine, two front doors.
+// The only forward-path discriminator left is the tiny `{__opt}` carrier
+// `object` reads to split optional vs required keys — that is OPTIONALITY, not
+// format family; the brand IS the format identity.
 //
 // No `infer`, no Zod-style "type instantiation is excessively deep" tax: each
 // builder types its own params arg (so cross-family misuse like
-// `number({maxLength: 5})` errors at the call), and the mapping reads each
-// field's params by INDEXED ACCESS `F['formatParams']` — a known key, not a
-// pattern-match. The Go binary, not the type system, is the validation engine.
+// `number({maxLength: 5})` errors at the call). The retained `ModelType<C>` /
+// `FieldFormatMap` / `FieldType` / `ParamsOf` chain below is NO LONGER on the
+// forward path — it is kept as the config↔type bridge the inverse
+// `RunType → typed model` direction reuses. The Go binary, not the type system,
+// is the validation engine.
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps the brand alias's reflection metadata reachable for tsgo, the
@@ -35,9 +38,9 @@
 
 import {TypeFormat} from '../runtypes/typeFormat.ts';
 import type {StringParams} from '../formats/string/stringFormats.ts';
-import type {NumberParams} from '../formats/numberFormats.ts';
-import type {BigIntParams} from '../formats/bigintFormats.ts';
-import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
+import type {NumberParams, FormatNumber} from '../formats/numberFormats.ts';
+import type {BigIntParams, FormatBigInt} from '../formats/bigintFormats.ts';
+import type {FormatParams_NativeDate, FormatDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
 import type {FormatPattern} from '../runtypes/formatPattern.ts';
 // The 6 orderable Temporal FORMAT aliases (min/max bounds). Importing the
@@ -138,52 +141,63 @@ export type ModelConfig = Record<string, FieldConfig>;
 
 // ───────────────────────────── Builders ─────────────────────────────
 //
-// Each builder is a runtime identity returning the plain field object. The
-// `const` type parameter on the params is the ONLY narrowing mechanism (same
-// as the old `defineObject<const C>`): it keeps `{maxLength: 50}` as `50`, not
-// `number`, so the literal survives into the brand. The params arg is typed to
-// the family's own interface, so cross-family misuse errors right here.
+// Each builder RETURNS ITS BRANDED FORMAT TYPE (`FormatString<P>` / …). The
+// `const` type parameter on the params is the ONLY narrowing mechanism: it
+// keeps `{maxLength: 50}` as `50`, not `number`, so the literal survives into
+// the brand. The params arg is typed to the family's own interface, so
+// cross-family misuse (`number({maxLength: 5})`) errors right at the call.
+//
+// Runtime (transitional, Tier 1): the body still returns the readable
+// `{type, formatParams}` object, only RETYPED to the brand — nothing reads it
+// across the type-lie yet. Tier 2 turns each builder into an injectable marker
+// whose body returns the live RunType node for the injected id (the same node
+// the type compiler produces), replacing the cast with that lookup.
 
-/** A string field builder. **/
+/** A string field builder. Returns `FormatString<P>` — written as the
+ *  equivalent `TypeFormat<string, 'stringFormat', P>` because the `FormatString`
+ *  alias's `StringParams` bound can't accept the value-channel `ValuePattern`
+ *  regex forms `StringFamilyParams` adds; the two are structurally identical, so
+ *  convergence with the type-first `FormatString<P>` is preserved. **/
 export function string<const P extends StringFamilyParams = Record<string, never>>(
   formatParams: P = {} as P
-): {type: 'string'; formatParams: P} {
-  return {type: 'string', formatParams};
+): TypeFormat<string, 'stringFormat', P> {
+  return {type: 'string', formatParams} as unknown as TypeFormat<string, 'stringFormat', P>;
 }
 
-/** A number field builder. **/
-export function number<const P extends NumberParams = Record<string, never>>(
-  formatParams: P = {} as P
-): {type: 'number'; formatParams: P} {
-  return {type: 'number', formatParams};
+/** A number field builder — returns the branded `FormatNumber`. **/
+export function number<const P extends NumberParams = Record<string, never>>(formatParams: P = {} as P): FormatNumber<P> {
+  return {type: 'number', formatParams} as unknown as FormatNumber<P>;
 }
 
-/** A bigint field builder. **/
-export function bigint<const P extends BigIntParams = Record<string, never>>(
-  formatParams: P = {} as P
-): {type: 'bigint'; formatParams: P} {
-  return {type: 'bigint', formatParams};
+/** A bigint field builder — returns the branded `FormatBigInt`. **/
+export function bigint<const P extends BigIntParams = Record<string, never>>(formatParams: P = {} as P): FormatBigInt<P> {
+  return {type: 'bigint', formatParams} as unknown as FormatBigInt<P>;
 }
 
-/** A native-`Date` field builder. **/
-export function date<const P extends FormatParams_NativeDate = Record<string, never>>(
-  formatParams: P = {} as P
-): {type: 'date'; formatParams: P} {
-  return {type: 'date', formatParams};
+/** A native-`Date` field builder — returns the branded `FormatDate`. **/
+export function date<const P extends FormatParams_NativeDate = Record<string, never>>(formatParams: P = {} as P): FormatDate<P> {
+  return {type: 'date', formatParams} as unknown as FormatDate<P>;
 }
 
-/** A boolean field builder — no params. **/
-export function boolean(): {type: 'boolean'; formatParams: Record<string, never>} {
-  return {type: 'boolean', formatParams: {}};
+/** A boolean field builder — no params, returns plain `boolean`. **/
+export function boolean(): boolean {
+  return {type: 'boolean', formatParams: {}} as unknown as boolean;
 }
 
 // `temporalBuilder` — shared factory for the 6 temporal builders below. Each
-// fixes its `temporal.<name>` discriminator and accepts the `MinMax` bounds.
-function temporalBuilder<Tag extends string>(tag: Tag) {
-  return <const P extends MinMax = Record<string, never>>(formatParams: P = {} as P): {type: Tag; formatParams: P} => ({
-    type: tag,
-    formatParams,
-  });
+// fixes its tag and returns the matching `FormatTemporal*<P>` via the local
+// tag→format lookup, so the 6 namespace call sites don't change.
+interface TemporalFormatByTag<P extends MinMax> {
+  'temporal.instant': FormatTemporalInstant<P>;
+  'temporal.zonedDateTime': FormatTemporalZonedDateTime<P>;
+  'temporal.plainDate': FormatTemporalPlainDate<P>;
+  'temporal.plainTime': FormatTemporalPlainTime<P>;
+  'temporal.plainDateTime': FormatTemporalPlainDateTime<P>;
+  'temporal.plainYearMonth': FormatTemporalPlainYearMonth<P>;
+}
+function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag) {
+  return <const P extends MinMax = Record<string, never>>(formatParams: P = {} as P): TemporalFormatByTag<P>[Tag] =>
+    ({type: tag, formatParams}) as unknown as TemporalFormatByTag<P>[Tag];
 }
 
 /** Temporal field builders, namespaced to mirror the `Temporal.X` API
@@ -197,23 +211,32 @@ export const temporal = {
   plainYearMonth: temporalBuilder('temporal.plainYearMonth'),
 };
 
-/** Marks a field optional — the wrapped property becomes `key?:` in the
- *  derived model (the key MAY be absent, matching the `?` modifier, NOT
- *  `T | undefined`). A composable modifier (Zod/TypeBox style) that preserves
- *  the field's static type and keeps it plain data. **/
-export function optional<const F extends FieldConfig>(field: F): F & {optional: true} {
-  return {...field, optional: true};
+/** Marks a field optional. Wraps the field in a DISTINCT `{__opt}` carrier so
+ *  it does NOT intersect a brand onto the format type (which would corrupt the
+ *  `__rtFormatName` / `__rtFormatParams` sentinels). `object` unwraps it via
+ *  `ValOf` and turns the key into `key?:`. A bare `optional(...)` is only
+ *  meaningful as a field inside `object(...)`. **/
+export function optional<const F>(field: F): {readonly __opt: F} {
+  return {__opt: field};
 }
 
-// ────────────────────────── Discriminator map ───────────────────────
+/** Unwraps the `{__opt}` carrier back to the field's branded format type. **/
+type ValOf<F> = F extends {__opt: infer Inner} ? Inner : F;
+
+// ──────────── Config↔type bridge (RETAINED, off the forward path) ───────────
 //
-// `ParamsOf<F>` (indexed access, NOT `infer`) pulls the params object a builder
-// stored, and `TypeFormat<Base, Name, Params>` re-brands it — producing a type
-// byte-for-byte identical to `FormatString` / `FormatNumber` / etc., so a
-// builder-authored model converges on the same structural id as the
-// hand-written type-first form. The helper's own `extends {formatParams:
-// unknown}` constraint is what lets the bare indexed access typecheck (a
-// generic `F extends FieldConfig` alone doesn't surface the key to `F[...]`).
+// `ParamsOf` / `FieldFormatMap` / `FieldType` / `ModelType` below NO LONGER run
+// the forward authoring path — builders return the brand directly. They are
+// retained as the discriminated-config → branded-type direction of a
+// bidirectional bridge the inverse `RunType → typed model` reflection reuses,
+// kept byte-for-byte so a config mapped through `ModelType` still equals the
+// matching builder / type-first brand.
+//
+// `ParamsOf<F>` (indexed access, NOT `infer`) pulls the params object a field
+// config stored, and `TypeFormat<Base, Name, Params>` re-brands it. The helper's
+// own `extends {formatParams: unknown}` constraint is what lets the bare indexed
+// access typecheck (a generic `F extends FieldConfig` alone doesn't surface the
+// key to `F[...]`).
 type ParamsOf<F extends {formatParams: unknown}> = F['formatParams'];
 
 /** The discriminator → format-type lookup, keyed by the `type` tag every field
@@ -256,9 +279,9 @@ interface FieldFormatMap<P extends object> {
  *  resolves with ITS own params), matching the old per-branch conditional. **/
 type FieldType<F extends FieldConfig> = F extends FieldConfig ? FieldFormatMap<ParamsOf<F>>[F['type']] : never;
 
-/** The type a value-first model represents — a flat mapped type over the
- *  config keys, each value resolved through `FieldType`. Feed it to any RT
- *  factory: `createIsType<ModelType<typeof UserModel>>()`.
+/** Maps a discriminated `ModelConfig` to its branded model type — the
+ *  config→type half of the bridge (no longer the forward authoring hop; builders
+ *  return the brand). Still byte-identical to the builder / type-first form.
  *
  *  Two key-groups, intersected: fields wrapped in `optional(...)` (carrying
  *  `optional: true`) become optional properties (`key?:`), the rest required.
@@ -278,11 +301,20 @@ export type ModelType<C extends ModelConfig> = {
 
 // ─────────────────────────────── object() ───────────────────────────
 
-/** Assembles a model from named field builders. Identity at runtime — returns
- *  the config object unchanged so it survives in the bundle (Drizzle / form
- *  builders / OpenAPI read it as plain data). The `const` type parameter
- *  captures the composed builder objects narrowly so each field's `formatParams`
- *  literals stay narrow enough to brand. **/
-export function object<const C extends ModelConfig>(config: C): C {
-  return config;
+/** Assembles a model from named field builders. Does the work `ModelType<C>`
+ *  used to do on the forward path: splits optional vs required keys (reading the
+ *  `{__opt}` carrier `optional(...)` adds), strips the `const`-capture
+ *  `readonly`, and unwraps the carrier via `ValOf` — so `typeof object({...})`
+ *  IS the model type, with no further mapping.
+ *
+ *  Runtime (transitional, Tier 1): identity (`config` cast). Tier 2 makes it an
+ *  injectable marker returning the live composite RunType for the whole model. **/
+export function object<const C extends Record<string, unknown>>(
+  config: C
+): {
+  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? never : K]: C[K];
+} & {
+  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? K : never]?: ValOf<C[K]>;
+} {
+  return config as never;
 }
