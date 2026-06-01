@@ -15,7 +15,7 @@
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
-import {defineObject} from '../src/define/index.ts';
+import {object, string, number, boolean, bigint, date, optional, temporal} from '../src/define/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -78,78 +78,57 @@ function assertionsAcceptUnknown(): void {
 }
 
 function assertionsValueFirstDefine(): void {
-  // Valid value-first configs compile — no directive. Each field's params
-  // are checked against the matching format's param interface.
-  const _ok = defineObject({
-    name: {type: 'string', minLength: 1, maxLength: 50},
-    age: {type: 'number', min: 0, max: 120, integer: true},
-    born: {type: 'date', max: 'now'},
-    big: {type: 'bigint', min: 0n, max: 1000n},
-    active: {type: 'boolean'},
-    at: {type: 'T.instant', max: 'now'},
-    day: {type: 'T.plainDate'},
+  // Valid models compile — no directive. Each builder type-checks its own
+  // params, and `object(...)` assembles them. `optional(...)` wraps any field.
+  const _ok = object({
+    name: string({minLength: 1, maxLength: 50}),
+    age: number({min: 0, max: 120, integer: true}),
+    born: date({max: 'now'}),
+    big: bigint({min: 0n, max: 1000n}),
+    active: boolean(),
+    at: temporal.instant({max: 'now'}),
+    day: optional(temporal.plainDate()),
+    nick: optional(string({maxLength: 8})),
   });
   void _ok;
 
-  // @ts-expect-error — an unknown discriminator is rejected locally on the
-  // offending field (TS2322 on `type`), not as a deep generic blowup. This
-  // is the discriminator-as-local-error property the value-first surface buys.
-  // (`symbol` is not a supported field family.)
-  defineObject({sym: {type: 'symbol'}});
-
-  // @ts-expect-error — cross-family param leakage is caught: `maxLength` is a
-  // string-only param, so on a `number` field the exclusive-union negation
-  // types it `never` and assigning `5` errors locally (TS2322). Without the
-  // negation TypeScript's union excess-property check would let it through.
-  defineObject({age: {type: 'number', maxLength: 5}});
-
-  // @ts-expect-error — symmetric case: `min` (number/date) on a string field.
-  defineObject({name: {type: 'string', min: 0}});
-
-  // @ts-expect-error — `integer` (number-only) on a date field.
-  defineObject({born: {type: 'date', integer: true}});
-
   // Date sharing the number bounds is fine — `min`/`max`/`gt`/`lt` are valid
-  // for both number and date, so they are NOT forbidden on a date field.
-  const _okDate = defineObject({born: {type: 'date', min: 'now', max: '2030-01-01T00:00:00'}});
+  // for the date param interface too.
+  const _okDate = object({born: date({min: 'now', max: '2030-01-01T00:00:00'})});
   void _okDate;
 
   // A regex `pattern` is allowed on a string field in all three value-channel
   // forms (inline /…/, {source, flags}, registerFormatPattern result).
-  const _okRegex = defineObject({
-    slug: {type: 'string', pattern: /^[a-z-]+$/},
-    digits: {type: 'string', pattern: {source: '^[0-9]+$', flags: ''}},
+  const _okRegex = object({
+    slug: string({pattern: /^[a-z-]+$/}),
+    digits: string({pattern: {source: '^[0-9]+$', flags: ''}}),
   });
   void _okRegex;
 
-  // `optional: true` is a per-field meta flag accepted on every field family
-  // (it is not a format param, so the exclusive-union negation leaves it alone).
-  const _okOptional = defineObject({
-    s: {type: 'string', maxLength: 5, optional: true},
-    n: {type: 'number', min: 0, optional: true},
-    d: {type: 'date', max: 'now', optional: true},
-    b: {type: 'bigint', min: 0n, optional: true},
-    bool: {type: 'boolean', optional: true},
-    at: {type: 'T.instant', optional: true},
-  });
-  void _okOptional;
+  // Cross-family param misuse is caught at the BUILDER CALL — each builder
+  // types its own params arg, so the bad key errors locally (no exclusive-union
+  // machinery needed). These replace the old inline-config leakage assertions.
 
-  // @ts-expect-error — `optional` is boolean; a non-boolean value errors.
-  defineObject({s: {type: 'string', optional: 'yes'}});
+  // @ts-expect-error — `maxLength` is a string param, not a number param.
+  number({maxLength: 5});
 
-  // @ts-expect-error — `pattern` is a string-only param, so the exclusive-union
-  // negation forbids it on a number field.
-  defineObject({age: {type: 'number', pattern: /^[0-9]+$/}});
+  // @ts-expect-error — `min` (number/date bound) is not a string param.
+  string({min: 0});
 
-  // @ts-expect-error — `boolean` carries no params: every param key is
-  // forbidden, so `maxLength` on a boolean field errors locally.
-  defineObject({active: {type: 'boolean', maxLength: 5}});
+  // @ts-expect-error — `integer` (number-only) is not a date param.
+  date({integer: true});
+
+  // @ts-expect-error — `boolean` takes no params at all.
+  boolean({maxLength: 5});
+
+  // @ts-expect-error — `pattern` is a string-only param, not a number param.
+  number({pattern: /^[0-9]+$/});
 
   // @ts-expect-error — `bigint` bounds are bigint-valued; a number `5` (not
   // `5n`) errors on the value type.
-  defineObject({big: {type: 'bigint', min: 5}});
+  bigint({min: 5});
 
-  // @ts-expect-error — a temporal field's only params are min/max/gt/lt; a
-  // string param (`maxLength`) is forbidden.
-  defineObject({at: {type: 'T.instant', maxLength: 5}});
+  // @ts-expect-error — a temporal builder's only params are min/max/gt/lt; a
+  // string param (`maxLength`) is rejected.
+  temporal.instant({maxLength: 5});
 }

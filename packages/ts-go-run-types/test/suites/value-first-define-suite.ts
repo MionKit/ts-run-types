@@ -27,7 +27,7 @@ import {
   type IsTypeFn,
   type GetTypeErrorsFn,
 } from '@mionjs/ts-go-run-types';
-import {defineObject, type ModelType} from '@mionjs/ts-go-run-types/define';
+import {object, string, number, boolean, bigint, date, optional, temporal, type ModelType} from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType} from '../util/deserializeRTFunctions.ts';
 import '@mionjs/ts-go-run-types/formats';
 
@@ -47,73 +47,73 @@ export interface ValueFirstCase {
 
 // ─────────────────────────────── Models ─────────────────────────────
 
-const UserModel = defineObject({
-  username: {type: 'string', minLength: 3, maxLength: 20},
-  code: {type: 'string', length: 4},
-  role: {type: 'string', allowedValues: {val: ['admin', 'user', 'guest']}},
-  age: {type: 'number', min: 0, max: 120, integer: true},
-  score: {type: 'number', gt: 0, lt: 100},
-  step: {type: 'number', multipleOf: 5},
-  ratio: {type: 'number', float: true},
-  level: {type: 'number', min: -128, max: 127, integer: true},
-  bornBefore: {type: 'date', max: 'now'},
+const UserModel = object({
+  username: string({minLength: 3, maxLength: 20}),
+  code: string({length: 4}),
+  role: string({allowedValues: {val: ['admin', 'user', 'guest']}}),
+  age: number({min: 0, max: 120, integer: true}),
+  score: number({gt: 0, lt: 100}),
+  step: number({multipleOf: 5}),
+  ratio: number({float: true}),
+  level: number({min: -128, max: 127, integer: true}),
+  bornBefore: date({max: 'now'}),
 });
 
-const StringModel = defineObject({
-  short: {type: 'string', maxLength: 5},
-  long: {type: 'string', minLength: 3},
-  exact: {type: 'string', length: 4},
-  pick: {type: 'string', allowedValues: {val: ['red', 'green', 'blue']}},
+const StringModel = object({
+  short: string({maxLength: 5}),
+  long: string({minLength: 3}),
+  exact: string({length: 4}),
+  pick: string({allowedValues: {val: ['red', 'green', 'blue']}}),
 });
 
-const NumberModel = defineObject({
-  bounded: {type: 'number', min: 0, max: 10},
-  exclusive: {type: 'number', gt: 0, lt: 10},
-  whole: {type: 'number', integer: true},
-  fractional: {type: 'number', float: true},
-  divisible: {type: 'number', multipleOf: 3},
+const NumberModel = object({
+  bounded: number({min: 0, max: 10}),
+  exclusive: number({gt: 0, lt: 10}),
+  whole: number({integer: true}),
+  fractional: number({float: true}),
+  divisible: number({multipleOf: 3}),
 });
 
-const DateModel = defineObject({
-  past: {type: 'date', max: 'now'},
-  window: {type: 'date', min: '2020-01-01T00:00:00', max: '2030-01-01T00:00:00'},
+const DateModel = object({
+  past: date({max: 'now'}),
+  window: date({min: '2020-01-01T00:00:00', max: '2030-01-01T00:00:00'}),
 });
 
-const ProfileModel = defineObject({name: {type: 'string', maxLength: 5}});
-const SettingsModel = defineObject({theme: {type: 'string', allowedValues: {val: ['light', 'dark']}}});
+const ProfileModel = object({name: string({maxLength: 5})});
+const SettingsModel = object({theme: string({allowedValues: {val: ['light', 'dark']}})});
 
 // Leaf-format scalars added beyond string/number/date: boolean (no params) +
 // bigint (bigint-valued bounds).
-const ScalarModel = defineObject({
-  active: {type: 'boolean'},
-  count: {type: 'bigint', min: 0n, max: 1000n},
-  even: {type: 'bigint', multipleOf: 2n},
+const ScalarModel = object({
+  active: boolean(),
+  count: bigint({min: 0n, max: 1000n}),
+  even: bigint({multipleOf: 2n}),
 });
 
 // Temporal leaf formats (representative subset of the 6 orderable types — all
-// share the same TemporalConfig shape). Requires `ESNext.Temporal` in lib;
-// the test harness provides the ambient (test/temporal-ambient.d.ts).
-const TemporalModel = defineObject({
-  at: {type: 'T.instant', min: '2020-01-01T00:00:00Z'},
-  day: {type: 'T.plainDate', max: '2030-12-31', optional: true},
+// share the same MinMax bounds). Requires `ESNext.Temporal` in lib; the test
+// harness provides the ambient (test/temporal-ambient.d.ts).
+const TemporalModel = object({
+  at: temporal.instant({min: '2020-01-01T00:00:00Z'}),
+  day: optional(temporal.plainDate({max: '2030-12-31'})),
 });
 
-// `optional: true` makes a property optional (`key?:`) in the derived model —
+// `optional(...)` makes a property optional (`key?:`) in the derived model —
 // the key may be absent; when present it still validates.
-const OptionalModel = defineObject({
-  id: {type: 'string', length: 4}, // required
-  nick: {type: 'string', maxLength: 8, optional: true}, // optional
-  age: {type: 'number', min: 0, optional: true}, // optional
+const OptionalModel = object({
+  id: string({length: 4}), // required
+  nick: optional(string({maxLength: 8})), // optional
+  age: optional(number({min: 0})), // optional
 });
 
 // Regex through the VALUE channel — the three `pattern` forms a value-first
 // string field accepts. The Go scanner recovers {source, flags} from the
 // literal the property declaration preserves (no `typeof` needed).
 const hexPattern = registerFormatPattern({regexp: /^[0-9a-f]+$/i, mockSamples: ['DEADbeef']});
-const RegexModel = defineObject({
-  slug: {type: 'string', pattern: /^[a-z0-9-]+$/}, // inline /…/ literal
-  digits: {type: 'string', pattern: {source: '^[0-9]+$', flags: ''}}, // {source,flags}
-  hex: {type: 'string', pattern: hexPattern}, // registerFormatPattern value
+const RegexModel = object({
+  slug: string({pattern: /^[a-z0-9-]+$/}), // inline /…/ literal
+  digits: string({pattern: {source: '^[0-9]+$', flags: ''}}), // {source,flags}
+  hex: string({pattern: hexPattern}), // registerFormatPattern value
 });
 
 const NOW = Date.now();
@@ -368,7 +368,7 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
   },
 
   optional_fields: {
-    title: 'optional — `optional: true` fields may be absent; present ones validate',
+    title: 'optional — `optional(...)` fields may be absent; present ones validate',
     isType: () => createIsType<ModelType<typeof OptionalModel>>(),
     isTypeReflect: () => {
       const v = {id: 'AB12'} as unknown as ModelType<typeof OptionalModel>;
