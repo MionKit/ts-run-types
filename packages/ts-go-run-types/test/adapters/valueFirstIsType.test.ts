@@ -1,8 +1,8 @@
 // Value-first `define` adapter — runs every VALUE_FIRST_SUITE case through the
-// precompiled validator the Go binary emits for a `ModelType<typeof Model>`
+// precompiled validator the Go binary emits for the branded `typeof Model`
 // type. Proves the value-first authoring surface lowers to the same RunType
 // graph + emitters as the type-first surface (hash-level convergence is
-// asserted separately in vite-plugin-runtypes/test/value-first.test.ts).
+// asserted separately in test/adapters/valueFirstConvergence.test.ts).
 //
 // Shape mirrors formatIsType.test.ts: one explicit `it(...)` per case in suite
 // order + a coverage-guard counter. Each case runs `assertIsType` (static +
