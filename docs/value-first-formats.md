@@ -2,14 +2,26 @@
 
 > **Status: shipped for every LEAF format — including inline `/regex/`.**
 > The value-first authoring surface — a Zod/TypeBox-style BUILDER API
-> (`RT.object({ name: RT.string({maxLength: 50}) })`) + the `RT.ModelType<typeof
-Model>` type mapping — ships today for flat models over the **type channel**
-> (`createIsType<RT.ModelType<…>>()`), via
+> (`RT.object({ name: RT.string({maxLength: 50}) })`) ships today for flat models
+> over the **type channel**, via
 > [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts),
 > imported as a namespace: `import * as RT from '@mionjs/ts-go-run-types/define'`
-> (a single `import *` collects both the value builders and the `ModelType` type;
-> there is **no** root `RunType` export — that name is the core wire-protocol
+> (there is **no** root `RunType` export — that name is the core wire-protocol
 > node type + the `RunTypeKind`/`RunTypeError`/`RunTypeOptions` public family).
+>
+> **Update — RunType-construct / marker model
+> ([value-first-marker-refactor.md](value-first-marker-refactor.md), Tiers 1–3
+> implemented):** each builder now RETURNS its branded format type directly, so
+> `typeof Model` IS the model type (no `ModelType<…>` hop on the forward path)
+> and the validator is `createIsType<typeof Model>()`. Builders are also
+> injectable markers — a standalone `RT.string({maxLength: 5})` / `RT.object({…})`
+> resolves to the live RunType node the type compiler produces — and the inverse
+> `RT.reflectModel<T>()` reconstructs a discriminated runtime model from the
+> RunType (Drizzle / OpenAPI / forms). `ModelType<C>` / `FieldConfig` /
+> `FieldFormatMap` are RETAINED as the config↔type bridge (`ModelType<C>` ⇄
+> `ModelConfigOf<T>`), no longer the forward hop. The design-discussion sections
+> below describe that retained mapping engine; only the forward authoring path
+> changed (builders return the brand).
 > Per-type builders cover all leaf formats: `RT.string()` / `RT.number()` /
 > `RT.date()` / `RT.bigint()` / `RT.boolean()`, plus the 6 orderable temporal
 > types under a lowercase `temporal` namespace mirroring the `Temporal.X` API
@@ -56,7 +68,8 @@ Formats and constraints can be expressed two ways:
     age: RT.number({min: 0, max: 120}),
     nick: RT.optional(RT.string({maxLength: 50})),
   });
-  type User = RT.ModelType<typeof UserModel>;
+  type User = typeof UserModel; // builders return the brand — already the model type
+  const isUser = createIsType<User>();
   ```
 
 Both are useful for different audiences. The question this doc answers: **should
