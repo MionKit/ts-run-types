@@ -2,16 +2,21 @@
 
 > **Status: shipped for every LEAF format — including inline `/regex/`.**
 > The value-first authoring surface — a Zod/TypeBox-style BUILDER API
-> (`object({ name: string({maxLength: 50}) })`) + the `ModelType<typeof Model>`
-> type mapping — ships today for flat models over the **type channel**
-> (`createIsType<ModelType<…>>()`), via
-> [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts).
-> Per-type builders cover all leaf formats: `string()` / `number()` / `date()` /
-> `bigint()` / `boolean()`, plus the 6 orderable temporal types under a lowercase
-> `temporal` namespace mirroring the `Temporal.X` API (`temporal.instant()`,
-> `temporal.zonedDateTime()`, `temporal.plainDate()`, `temporal.plainTime()`,
-> `temporal.plainDateTime()`, `temporal.plainYearMonth()`). `optional(builder)`
-> wraps any field to make it `key?:`.
+> (`RT.object({ name: RT.string({maxLength: 50}) })`) + the `RT.ModelType<typeof
+Model>` type mapping — ships today for flat models over the **type channel**
+> (`createIsType<RT.ModelType<…>>()`), via
+> [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts),
+> imported as a namespace: `import * as RT from '@mionjs/ts-go-run-types/define'`
+> (a single `import *` collects both the value builders and the `ModelType` type;
+> there is **no** root `RunType` export — that name is the core wire-protocol
+> node type + the `RunTypeKind`/`RunTypeError`/`RunTypeOptions` public family).
+> Per-type builders cover all leaf formats: `RT.string()` / `RT.number()` /
+> `RT.date()` / `RT.bigint()` / `RT.boolean()`, plus the 6 orderable temporal
+> types under a lowercase `temporal` namespace mirroring the `Temporal.X` API
+> (`RT.temporal.instant()`, `RT.temporal.zonedDateTime()`, `RT.temporal.plainDate()`,
+> `RT.temporal.plainTime()`, `RT.temporal.plainDateTime()`,
+> `RT.temporal.plainYearMonth()`). `RT.optional(builder)` wraps any field to make
+> it `key?:`.
 > Most of it needed **no new Go engine**: `ModelType<…>` resolves to the same
 > branded `TypeFormat` types the type-first surface already reflects. Regex
 > (`pattern: /…/`) needed one small additive Go change — recovering the literal
@@ -45,13 +50,13 @@ Formats and constraints can be expressed two ways:
   ```
 - **Value-first** — compose per-type builders; the type is derived from the model:
   ```ts
-  import {object, string, number, optional} from '@mionjs/ts-go-run-types/define';
-  const UserModel = object({
-    name: string({minLength: 1, maxLength: 50}),
-    age: number({min: 0, max: 120}),
-    nick: optional(string({maxLength: 50})),
+  import * as RT from '@mionjs/ts-go-run-types/define';
+  const UserModel = RT.object({
+    name: RT.string({minLength: 1, maxLength: 50}),
+    age: RT.number({min: 0, max: 120}),
+    nick: RT.optional(RT.string({maxLength: 50})),
   });
-  type User = ModelType<typeof UserModel>;
+  type User = RT.ModelType<typeof UserModel>;
   ```
 
 Both are useful for different audiences. The question this doc answers: **should
@@ -214,33 +219,48 @@ thin adapter rather than a second validator.
 
 ## Building blocks that already exist
 
-- **`CompTimeArgs<T>`** — the existing marker brand. Perfect here because it
-  gives both halves at once: the config stays a **real runtime object** (Drizzle
-  reads it) _and_ is marked for **build-time literal extraction** (the Go binary
-  scans it). No tension.
+> **What actually shipped (read this first).** The sections below are the
+> original design exploration of a **value-AST front-end** (the Go binary reads
+> the `object({…})` call's AST). That is **not** what shipped — and it turned out
+> **not to be needed**. The shipped surface lowers entirely through the **type
+> channel**: `RT.object(...)` + the builders compose a `const`-narrow config
+> object, `RT.ModelType<typeof Model>` maps it to the same branded `TypeFormat`
+> types the type-first surface already reflects, and `createIsType<RT.ModelType<…>>()`
+> reflects that _type_ — no new Go front-end, no value call form, no new rewrite
+> rule. The only Go change was a small additive read so an inline `pattern: /…/`
+> value is recovered from the property declaration the type system preserves (see
+> "Spike results → (c)"). So items 1–3 in "net-new" below describe the parked
+> Option B, kept as the design record; the params-cache de-dup (next section) is
+> the one forward-looking item that still applies.
+
+- **`CompTimeArgs<T>`** — the existing marker brand. (Relevant to the _parked_
+  value-AST front-end; the shipped type-channel path does not use it.)
 - **AST literal extraction** — `registerFormatPattern` already walks
-  `{regexp: /.../, mockSamples: [...]}` from a call's object-literal arg.
-  Reading `{name: {type: 'string', maxLength: 50}}` is the same walk.
+  `{regexp: /.../, mockSamples: [...]}` from a call's object-literal arg. The
+  shipped regex support reuses exactly this walk, pointed at the `pattern` value
+  a builder stored.
 - **The RunType graph + isType/typeErrors/mock emitters** — the engine,
   untouched.
-- **Discriminator → type** is plain TS conditionals.
-- **regex-as-value** already solved (`registerFormatPattern`).
+- **Discriminator → type** is plain TS conditionals (the shipped `FieldType`
+  mapping).
+- **regex-as-value** already solved (`registerFormatPattern`), and inline `/…/`
+  recovery now works too (Spike results → c).
 
-### What is genuinely net-new (assembly, not foundations)
+### What would be net-new for the parked value-AST front-end (Option B)
 
-1. **A value-config → RunType front-end.** Today the binary reflects a _type_;
-   this reads the config object's AST and builds the RunType graph from it
-   (`type:'string'` → KindString, `type:'object'` → nested, params →
-   constraints). Parallel to the existing type-reflection front-end, sharing
-   everything downstream. The one real new chunk of Go — but a mapping, not new
-   infrastructure.
-2. **A call / rewrite shape.** `createIsType<T>()` injects a hash at the call
-   site; the value path validates against a value (`UserModel.isType(x)` or
-   `createIsType(UserModel)`), so there's a new call form + a keying path
-   (hash off the config content the scanner already reads).
+_None of this shipped — the type-channel path made it unnecessary. Kept as the
+design record for if/when a value call form is added._
+
+1. **A value-config → RunType front-end.** Read the config object's AST and build
+   the RunType graph from it directly. The shipped path instead reflects the
+   `ModelType<…>` _type_, so this Go front-end was never built.
+2. **A call / rewrite shape.** A value call form (`UserModel.isType(x)` /
+   `createIsType(UserModel)`) keyed off the runtime config. Still parked; the
+   shipped path uses the existing `createIsType<RT.ModelType<…>>()` marker.
 3. **A plugin nuance.** Unlike `registerPureFnFactory` (whose factory the plugin
-   nulls out), the `object()` config must **survive at runtime** intact — Drizzle
-   needs it. So it's a "scan-and-keep" rewrite rule, not "scan-and-strip".
+   nulls out), a value-call config would need to **survive at runtime** intact —
+   a "scan-and-keep" rewrite. Moot until the value call form lands; the builder
+   model already survives at runtime as plain data regardless.
 
 ## Known drawback: params duplication, and the fix
 
@@ -283,7 +303,7 @@ validator" from "which mock data", which is the right separation anyway.
   (self-contained entries, fewer dedup hits). Pulling them into a params cache
   says "no, they're metadata". Both defensible — decide deliberately, not by
   default.
-- **How is a `defineObject()`'d model keyed** for cache dedup — by config content
+- **How is an `object()`'d model keyed** for cache dedup — by config content
   (scanner-read) so it converges with the equivalent type-first entry? Worth
   ensuring both front-ends land on the same structural id for the same shape, or
   the dual model itself becomes a duplication source. **Answered by the spike

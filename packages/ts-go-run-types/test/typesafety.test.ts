@@ -15,7 +15,7 @@
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
-import {object, string, number, boolean, bigint, date, optional, temporal} from '../src/define/index.ts';
+import * as RT from '../src/define/index.ts';
 
 // Reference the assertion bodies from a real test so they don't get
 // flagged as dead code by lint. The body is never invoked.
@@ -79,29 +79,29 @@ function assertionsAcceptUnknown(): void {
 
 function assertionsValueFirstDefine(): void {
   // Valid models compile — no directive. Each builder type-checks its own
-  // params, and `object(...)` assembles them. `optional(...)` wraps any field.
-  const _ok = object({
-    name: string({minLength: 1, maxLength: 50}),
-    age: number({min: 0, max: 120, integer: true}),
-    born: date({max: 'now'}),
-    big: bigint({min: 0n, max: 1000n}),
-    active: boolean(),
-    at: temporal.instant({max: 'now'}),
-    day: optional(temporal.plainDate()),
-    nick: optional(string({maxLength: 8})),
+  // params, and `RT.object(...)` assembles them. `RT.optional(...)` wraps any field.
+  const _ok = RT.object({
+    name: RT.string({minLength: 1, maxLength: 50}),
+    age: RT.number({min: 0, max: 120, integer: true}),
+    born: RT.date({max: 'now'}),
+    big: RT.bigint({min: 0n, max: 1000n}),
+    active: RT.boolean(),
+    at: RT.temporal.instant({max: 'now'}),
+    day: RT.optional(RT.temporal.plainDate()),
+    nick: RT.optional(RT.string({maxLength: 8})),
   });
   void _ok;
 
   // Date sharing the number bounds is fine — `min`/`max`/`gt`/`lt` are valid
   // for the date param interface too.
-  const _okDate = object({born: date({min: 'now', max: '2030-01-01T00:00:00'})});
+  const _okDate = RT.object({born: RT.date({min: 'now', max: '2030-01-01T00:00:00'})});
   void _okDate;
 
   // A regex `pattern` is allowed on a string field in all three value-channel
   // forms (inline /…/, {source, flags}, registerFormatPattern result).
-  const _okRegex = object({
-    slug: string({pattern: /^[a-z-]+$/}),
-    digits: string({pattern: {source: '^[0-9]+$', flags: ''}}),
+  const _okRegex = RT.object({
+    slug: RT.string({pattern: /^[a-z-]+$/}),
+    digits: RT.string({pattern: {source: '^[0-9]+$', flags: ''}}),
   });
   void _okRegex;
 
@@ -110,25 +110,25 @@ function assertionsValueFirstDefine(): void {
   // machinery needed). These replace the old inline-config leakage assertions.
 
   // @ts-expect-error — `maxLength` is a string param, not a number param.
-  number({maxLength: 5});
+  RT.number({maxLength: 5});
 
   // @ts-expect-error — `min` (number/date bound) is not a string param.
-  string({min: 0});
+  RT.string({min: 0});
 
   // @ts-expect-error — `integer` (number-only) is not a date param.
-  date({integer: true});
+  RT.date({integer: true});
 
   // @ts-expect-error — `boolean` takes no params at all.
-  boolean({maxLength: 5});
+  RT.boolean({maxLength: 5});
 
   // @ts-expect-error — `pattern` is a string-only param, not a number param.
-  number({pattern: /^[0-9]+$/});
+  RT.number({pattern: /^[0-9]+$/});
 
   // @ts-expect-error — `bigint` bounds are bigint-valued; a number `5` (not
   // `5n`) errors on the value type.
-  bigint({min: 5});
+  RT.bigint({min: 5});
 
   // @ts-expect-error — a temporal builder's only params are min/max/gt/lt; a
   // string param (`maxLength`) is rejected.
-  temporal.instant({maxLength: 5});
+  RT.temporal.instant({maxLength: 5});
 }
