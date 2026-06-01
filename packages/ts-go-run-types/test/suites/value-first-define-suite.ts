@@ -94,8 +94,8 @@ const ScalarModel = defineObject({
 // share the same TemporalConfig shape). Requires `ESNext.Temporal` in lib;
 // the test harness provides the ambient (test/temporal-ambient.d.ts).
 const TemporalModel = defineObject({
-  at: {type: 'instant', min: '2020-01-01T00:00:00Z'},
-  day: {type: 'plainDate', max: '2030-12-31', optional: true},
+  at: {type: 'T.instant', min: '2020-01-01T00:00:00Z'},
+  day: {type: 'T.plainDate', max: '2030-12-31', optional: true},
 });
 
 // `optional: true` makes a property optional (`key?:`) in the derived model —
