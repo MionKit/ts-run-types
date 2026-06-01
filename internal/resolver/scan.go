@@ -213,6 +213,19 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if !injectionMatched {
 		return protocol.Site{}, diagnostics, false
 	}
+	// NESTED-BUILDER SKIP: a value-first builder call nested inside another
+	// marker call (e.g. `string({...})` inside `object({...})`) is reflected by
+	// the enclosing marker — the enclosing RunType already references this type
+	// as a child, so the nested call's own id would be redundant. Skip it; at
+	// runtime the nested builder returns a type-only carrier the enclosing
+	// marker discards. Only trailing-slot injection markers count as
+	// "enclosing" — wrappers without an InjectRunTypeId slot (`optional(...)`,
+	// plain helpers, vitest's `expect`) are transparent, so the walk continues
+	// past them and a `string()` inside `optional()` inside `object()` still
+	// skips via the `object` ancestor.
+	if resolver.enclosedByInjectionMarker(call) {
+		return protocol.Site{}, diagnostics, false
+	}
 	// Guard against a `Temporal.*` type that silently resolved to `any`
 	// because the consumer's tsconfig lib doesn't load the Temporal
 	// namespace — otherwise the emitted validator accepts anything. Emitted
@@ -355,6 +368,40 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
 	}, diagnostics, true
+}
+
+// enclosedByInjectionMarker reports whether call sits (transitively) inside the
+// arguments of ANOTHER call whose resolved signature carries a trailing
+// InjectRunTypeId<T> slot. Used to skip injecting an id for a value-first
+// builder nested inside an enclosing marker (the enclosing marker reflects the
+// whole shape; the nested id would be redundant). Walks the AST parent chain,
+// resolving each ancestor CallExpression's signature and checking its trailing
+// parameter — non-injection ancestor calls (plain helpers, `optional`, vitest's
+// `expect`) are transparent, so the walk continues past them.
+func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
+	for parent := call.Parent; parent != nil; parent = parent.Parent {
+		if parent.Kind != ast.KindCallExpression {
+			continue
+		}
+		signature := checker.Checker_getResolvedSignature(resolver.checker, parent, nil, 0)
+		if signature == nil {
+			continue
+		}
+		parameters := checker.Signature_parameters(signature)
+		if len(parameters) == 0 {
+			continue
+		}
+		lastParam := parameters[len(parameters)-1]
+		if lastParam == nil {
+			continue
+		}
+		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
+		kind, _, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
+		if matched && kind == marker.KindInjectRunTypeId {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveRegexLiteralSource attempts to harvest a regex-literal source from
