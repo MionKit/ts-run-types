@@ -56,8 +56,8 @@ type OptionalFirstTF = {req: FormatString<{maxLength: 5}>; opt?: FormatNumber<{m
 const ScalarFirst = defineObject({active: {type: 'boolean'}, count: {type: 'bigint', min: 0n, max: 1000n}});
 type ScalarFirstTF = {active: boolean; count: FormatBigInt<{min: 0n; max: 1000n}>};
 const TemporalFirst = defineObject({
-  at: {type: 'instant', min: '2020-01-01T00:00:00Z'},
-  day: {type: 'plainDate', max: '2030-12-31'},
+  at: {type: 'T.instant', min: '2020-01-01T00:00:00Z'},
+  day: {type: 'T.plainDate', max: '2030-12-31'},
 });
 type TemporalFirstTF = {
   at: FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'}>;

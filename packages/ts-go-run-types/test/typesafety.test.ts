@@ -86,8 +86,8 @@ function assertionsValueFirstDefine(): void {
     born: {type: 'date', max: 'now'},
     big: {type: 'bigint', min: 0n, max: 1000n},
     active: {type: 'boolean'},
-    at: {type: 'instant', max: 'now'},
-    day: {type: 'plainDate'},
+    at: {type: 'T.instant', max: 'now'},
+    day: {type: 'T.plainDate'},
   });
   void _ok;
 
@@ -130,7 +130,7 @@ function assertionsValueFirstDefine(): void {
     d: {type: 'date', max: 'now', optional: true},
     b: {type: 'bigint', min: 0n, optional: true},
     bool: {type: 'boolean', optional: true},
-    at: {type: 'instant', optional: true},
+    at: {type: 'T.instant', optional: true},
   });
   void _okOptional;
 
@@ -151,5 +151,5 @@ function assertionsValueFirstDefine(): void {
 
   // @ts-expect-error — a temporal field's only params are min/max/gt/lt; a
   // string param (`maxLength`) is forbidden.
-  defineObject({at: {type: 'instant', maxLength: 5}});
+  defineObject({at: {type: 'T.instant', maxLength: 5}});
 }
