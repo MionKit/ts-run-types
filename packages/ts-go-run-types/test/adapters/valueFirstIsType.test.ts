@@ -39,7 +39,7 @@ describe('value-first define / isType + getTypeErrors', () => {
   it('date fields — relative now bound + absolute window', () => assertCase(VALUE_FIRST_SUITE.date_bounds));
   it('regex — inline /…/, {source,flags}, registerFormatPattern via the value channel', () =>
     assertCase(VALUE_FIRST_SUITE.regex_patterns));
-  it('optional — `optional: true` fields may be absent; present ones validate', () =>
+  it('optional — `optional(...)` fields may be absent; present ones validate', () =>
     assertCase(VALUE_FIRST_SUITE.optional_fields));
   it('scalars — boolean + bigint leaf formats', () => assertCase(VALUE_FIRST_SUITE.scalars));
   it('temporal — Instant (min bound) + optional PlainDate (max bound)', () => assertCase(VALUE_FIRST_SUITE.temporal));
