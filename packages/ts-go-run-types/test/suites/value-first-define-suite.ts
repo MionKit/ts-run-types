@@ -82,6 +82,22 @@ const DateModel = defineObject({
 const ProfileModel = defineObject({name: {type: 'string', maxLength: 5}});
 const SettingsModel = defineObject({theme: {type: 'string', allowedValues: {val: ['light', 'dark']}}});
 
+// Leaf-format scalars added beyond string/number/date: boolean (no params) +
+// bigint (bigint-valued bounds).
+const ScalarModel = defineObject({
+  active: {type: 'boolean'},
+  count: {type: 'bigint', min: 0n, max: 1000n},
+  even: {type: 'bigint', multipleOf: 2n},
+});
+
+// Temporal leaf formats (representative subset of the 6 orderable types — all
+// share the same TemporalConfig shape). Requires `ESNext.Temporal` in lib;
+// the test harness provides the ambient (test/temporal-ambient.d.ts).
+const TemporalModel = defineObject({
+  at: {type: 'instant', min: '2020-01-01T00:00:00Z'},
+  day: {type: 'plainDate', max: '2030-12-31', optional: true},
+});
+
 // `optional: true` makes a property optional (`key?:`) in the derived model —
 // the key may be absent; when present it still validates.
 const OptionalModel = defineObject({
@@ -374,6 +390,60 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
         {nick: 'hi'}, // id (required) missing
         {id: 'AB12', nick: 'wayTooLong'}, // present optional violates maxLength
         {id: 'AB12', age: -1}, // present optional violates min
+      ],
+    }),
+  },
+
+  scalars: {
+    title: 'scalars — boolean (no params) + bigint (bigint-valued bounds)',
+    isType: () => createIsType<ModelType<typeof ScalarModel>>(),
+    isTypeReflect: () => {
+      const v = {active: true, count: 5n, even: 4n} as unknown as ModelType<typeof ScalarModel>;
+      return createIsType(v);
+    },
+    deserializeIsType: () => deserializeIsType<ModelType<typeof ScalarModel>>(),
+    deserializeIsTypeReflect: () => {
+      const v = {active: true, count: 5n, even: 4n} as unknown as ModelType<typeof ScalarModel>;
+      return deserializeIsType(v);
+    },
+    getTypeErrors: () => createGetTypeErrors<ModelType<typeof ScalarModel>>(),
+    getSamples: () => ({
+      valid: [
+        {active: true, count: 0n, even: 0n},
+        {active: false, count: 1000n, even: 8n},
+      ],
+      invalid: [
+        {active: 'yes', count: 5n, even: 4n}, // active not boolean
+        {active: true, count: 5, even: 4n}, // count number, not bigint
+        {active: true, count: 2000n, even: 4n}, // count > max
+        {active: true, count: 5n, even: 3n}, // even not multipleOf 2
+      ],
+    }),
+  },
+
+  temporal: {
+    title: 'temporal — Instant (min bound) + optional PlainDate (max bound)',
+    isType: () => createIsType<ModelType<typeof TemporalModel>>(),
+    isTypeReflect: () => {
+      const v = {at: Temporal.Now.instant()} as unknown as ModelType<typeof TemporalModel>;
+      return createIsType(v);
+    },
+    deserializeIsType: () => deserializeIsType<ModelType<typeof TemporalModel>>(),
+    deserializeIsTypeReflect: () => {
+      const v = {at: Temporal.Now.instant()} as unknown as ModelType<typeof TemporalModel>;
+      return deserializeIsType(v);
+    },
+    getTypeErrors: () => createGetTypeErrors<ModelType<typeof TemporalModel>>(),
+    getSamples: () => ({
+      valid: [
+        {at: Temporal.Instant.from('2021-06-15T00:00:00Z')}, // after min, day absent
+        {at: Temporal.Now.instant(), day: Temporal.PlainDate.from('2025-01-01')}, // both present, in range
+      ],
+      invalid: [
+        {at: 'not-an-instant'}, // wrong type
+        {day: Temporal.PlainDate.from('2025-01-01')}, // `at` required
+        {at: Temporal.Instant.from('2019-01-01T00:00:00Z')}, // before min bound
+        {at: Temporal.Now.instant(), day: 'not-a-date'}, // optional present but wrong type
       ],
     }),
   },

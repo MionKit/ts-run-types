@@ -31,8 +31,26 @@
 import {TypeFormat} from '../runtypes/typeFormat.ts';
 import type {StringParams} from '../formats/string/stringFormats.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
+import type {BigIntParams} from '../formats/bigintFormats.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
+import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
 import type {FormatPattern} from '../runtypes/formatPattern.ts';
+// The 6 orderable Temporal FORMAT aliases (min/max bounds). Importing the
+// alias TYPES — not naming `Temporal.*` directly — keeps the Temporal lib
+// coupling inside temporalFormats.ts: a value-first temporal field still
+// requires `ESNext.Temporal` in the consumer's `lib` (the same scan-time
+// TMP001 rule as the type-first Temporal formats), but the core `define`
+// module never references the Temporal global. `PlainMonthDay` / `Duration`
+// have no format family (no ordering ⇒ no min/max), so they are outside the
+// format-helper surface — same boundary that excludes object/array/union.
+import type {
+  FormatTemporalInstant,
+  FormatTemporalZonedDateTime,
+  FormatTemporalPlainDate,
+  FormatTemporalPlainTime,
+  FormatTemporalPlainDateTime,
+  FormatTemporalPlainYearMonth,
+} from '../formats/datetime/temporalFormats.ts';
 
 // ─────────────────────────── Field configs ──────────────────────────
 //
@@ -70,7 +88,10 @@ type ValuePattern = RegExp | FormatPattern | {source: string; flags?: string};
 type StringFamilyParams = Omit<StringParams, 'pattern'> & {pattern?: ValuePattern};
 
 // Every param key across all field families — the universe the per-member
-// negation subtracts from.
+// negation subtracts from. `bigint` reuses number's key NAMES (its bounds are
+// bigint-valued, distinguished by the value type), `boolean` carries no
+// params, and the temporal `MinMax` bound keys (min/max/gt/lt) are already a
+// subset of number/date — so none of the added families extend this set.
 type AllParamKeys = keyof StringFamilyParams | keyof NumberParams | keyof FormatParams_NativeDate;
 
 // Forbids every param key NOT in `OwnKeys` by typing it optional-`never`.
@@ -102,10 +123,51 @@ export type NumberFieldConfig = {type: 'number'} & FieldMeta & NumberParams & Fo
  *  `multipleOf`. **/
 export type DateFieldConfig = {type: 'date'} & FieldMeta & FormatParams_NativeDate & Forbid<keyof FormatParams_NativeDate>;
 
+/** A bigint field: the `bigint` discriminator plus every `FormatBigInt` param
+ *  (min / max / lt / gt / multipleOf, all `bigint`-valued) plus `optional`.
+ *  Forbids string-only params; shares min/max/lt/gt KEY NAMES with number (the
+ *  value type disambiguates). **/
+export type BigIntFieldConfig = {type: 'bigint'} & FieldMeta & BigIntParams & Forbid<keyof BigIntParams>;
+
+/** A boolean field: the `boolean` discriminator only — booleans carry no
+ *  format params, so `Forbid<never>` rejects every param key. **/
+export type BooleanFieldConfig = {type: 'boolean'} & FieldMeta & Forbid<never>;
+
+// Temporal field configs — one per orderable `Temporal.X` FORMAT type. All
+// share the `MinMax` bounds (string-valued: an absolute Temporal literal in
+// the type's ISO form, or a relative `now±P` duration), so they forbid the
+// same non-bound param keys. `PlainMonthDay` / `Duration` have no format
+// family (no ordering) and are intentionally absent — see the import note.
+type TemporalConfig<Tag extends string> = {type: Tag} & FieldMeta & MinMax & Forbid<keyof MinMax>;
+/** A `Temporal.Instant` field. **/
+export type InstantFieldConfig = TemporalConfig<'instant'>;
+/** A `Temporal.ZonedDateTime` field. **/
+export type ZonedDateTimeFieldConfig = TemporalConfig<'zonedDateTime'>;
+/** A `Temporal.PlainDate` field. **/
+export type PlainDateFieldConfig = TemporalConfig<'plainDate'>;
+/** A `Temporal.PlainTime` field. **/
+export type PlainTimeFieldConfig = TemporalConfig<'plainTime'>;
+/** A `Temporal.PlainDateTime` field. **/
+export type PlainDateTimeFieldConfig = TemporalConfig<'plainDateTime'>;
+/** A `Temporal.PlainYearMonth` field. **/
+export type PlainYearMonthFieldConfig = TemporalConfig<'plainYearMonth'>;
+
 /** The discriminated union of every supported field config. Extending this
- *  union (object / array / union / named formats) is the Option-B follow-up
- *  parked in docs/value-first-formats.md. **/
-export type FieldConfig = StringFieldConfig | NumberFieldConfig | DateFieldConfig;
+ *  union with composition (object / array / union / tuple / nullable) is out
+ *  of scope by design — those compose for free in the type channel; see
+ *  docs/value-first-formats.md. **/
+export type FieldConfig =
+  | StringFieldConfig
+  | NumberFieldConfig
+  | DateFieldConfig
+  | BigIntFieldConfig
+  | BooleanFieldConfig
+  | InstantFieldConfig
+  | ZonedDateTimeFieldConfig
+  | PlainDateFieldConfig
+  | PlainTimeFieldConfig
+  | PlainDateTimeFieldConfig
+  | PlainYearMonthFieldConfig;
 
 /** A whole model: a flat record of named field configs. **/
 export type ModelConfig = Record<string, FieldConfig>;
@@ -120,15 +182,46 @@ export type ModelConfig = Record<string, FieldConfig>;
 // the per-family param-constraint proof while producing a type byte-for-byte
 // identical to `FormatString` / `FormatNumber` / `FormatDate`.
 
+// Strips the discriminator + `optional` meta flag, leaving ONLY the bounds the
+// field actually declared. Do NOT intersect the full `MinMax` interface here —
+// that would inject `min?/max?/gt?/lt?: string | undefined` for the unset
+// bounds, and the scanner would read those as the literal type-string
+// `"string | undefined"` and emit a broken `Temporal.X.compare(value,
+// "string | undefined")`. The `FormatTemporal*` alias's own
+// `P extends MinMax = MinMax` already supplies the constraint.
+type TemporalParams<F> = Omit<F, 'type' | 'optional'>;
+
+/** Maps the 6 orderable temporal discriminators onto the `FormatTemporal*`
+ *  aliases; returns `never` for non-temporal `F` so it composes as the
+ *  fallthrough branch of `FieldType`. **/
+type TemporalFieldType<F> = F extends {type: 'instant'}
+  ? FormatTemporalInstant<TemporalParams<F>>
+  : F extends {type: 'zonedDateTime'}
+    ? FormatTemporalZonedDateTime<TemporalParams<F>>
+    : F extends {type: 'plainDate'}
+      ? FormatTemporalPlainDate<TemporalParams<F>>
+      : F extends {type: 'plainTime'}
+        ? FormatTemporalPlainTime<TemporalParams<F>>
+        : F extends {type: 'plainDateTime'}
+          ? FormatTemporalPlainDateTime<TemporalParams<F>>
+          : F extends {type: 'plainYearMonth'}
+            ? FormatTemporalPlainYearMonth<TemporalParams<F>>
+            : never;
+
 /** Maps one field config to its branded format type via a conditional lookup
- *  on the `type` discriminator. **/
+ *  on the `type` discriminator. Scalars resolve directly; the temporal
+ *  discriminators fall through to `TemporalFieldType`. **/
 type FieldType<F extends FieldConfig> = F extends {type: 'string'}
   ? TypeFormat<string, 'stringFormat', Omit<F, 'type' | 'optional'>>
   : F extends {type: 'number'}
     ? TypeFormat<number, 'numberFormat', Omit<F, 'type' | 'optional'>>
     : F extends {type: 'date'}
       ? TypeFormat<Date, 'nativeDate', Omit<F, 'type' | 'optional'>>
-      : never;
+      : F extends {type: 'bigint'}
+        ? TypeFormat<bigint, 'bigintFormat', Omit<F, 'type' | 'optional'>>
+        : F extends {type: 'boolean'}
+          ? boolean
+          : TemporalFieldType<F>;
 
 /** The type a value-first model represents — a flat mapped type over the
  *  config keys, each value resolved through `FieldType`.  Feed it to any RT

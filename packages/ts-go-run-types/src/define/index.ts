@@ -11,4 +11,12 @@ export {
   type StringFieldConfig,
   type NumberFieldConfig,
   type DateFieldConfig,
+  type BigIntFieldConfig,
+  type BooleanFieldConfig,
+  type InstantFieldConfig,
+  type ZonedDateTimeFieldConfig,
+  type PlainDateFieldConfig,
+  type PlainTimeFieldConfig,
+  type PlainDateTimeFieldConfig,
+  type PlainYearMonthFieldConfig,
 } from './define.ts';
