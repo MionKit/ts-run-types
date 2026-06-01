@@ -16,7 +16,10 @@
 import {describe, expect, it} from 'vitest';
 import {createIsType} from '@mionjs/ts-go-run-types';
 import {defineObject, type ModelType} from '@mionjs/ts-go-run-types/define';
-import type {FormatString, FormatNumber, FormatDate} from '@mionjs/ts-go-run-types/formats';
+import type {FormatString, FormatNumber, FormatDate, FormatBigInt} from '@mionjs/ts-go-run-types/formats';
+// Temporal format aliases live on the dedicated subpath (NOT re-exported from
+// the root `formats`, so consumers who don't use Temporal never pull the lib).
+import type {FormatTemporalInstant, FormatTemporalPlainDate} from '@mionjs/ts-go-run-types/formats/temporal';
 import '@mionjs/ts-go-run-types/formats';
 
 const StringFirst = defineObject({
@@ -49,6 +52,18 @@ type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: '
 const OptionalFirst = defineObject({req: {type: 'string', maxLength: 5}, opt: {type: 'number', min: 0, optional: true}});
 type OptionalFirstTF = {req: FormatString<{maxLength: 5}>; opt?: FormatNumber<{min: 0}>};
 
+// boolean → plain `boolean`; bigint → FormatBigInt; temporal → FormatTemporal*.
+const ScalarFirst = defineObject({active: {type: 'boolean'}, count: {type: 'bigint', min: 0n, max: 1000n}});
+type ScalarFirstTF = {active: boolean; count: FormatBigInt<{min: 0n; max: 1000n}>};
+const TemporalFirst = defineObject({
+  at: {type: 'instant', min: '2020-01-01T00:00:00Z'},
+  day: {type: 'plainDate', max: '2030-12-31'},
+});
+type TemporalFirstTF = {
+  at: FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'}>;
+  day: FormatTemporalPlainDate<{max: '2030-12-31'}>;
+};
+
 describe('value-first / convergence with type-first', () => {
   it('string model converges to the same validator', () => {
     expect(createIsType<ModelType<typeof StringFirst>>()).toBe(createIsType<StringFirstTF>());
@@ -68,5 +83,13 @@ describe('value-first / convergence with type-first', () => {
 
   it('optional field converges with a type-first optional property', () => {
     expect(createIsType<ModelType<typeof OptionalFirst>>()).toBe(createIsType<OptionalFirstTF>());
+  });
+
+  it('boolean + bigint fields converge with type-first', () => {
+    expect(createIsType<ModelType<typeof ScalarFirst>>()).toBe(createIsType<ScalarFirstTF>());
+  });
+
+  it('temporal fields converge with type-first FormatTemporal*', () => {
+    expect(createIsType<ModelType<typeof TemporalFirst>>()).toBe(createIsType<TemporalFirstTF>());
   });
 });

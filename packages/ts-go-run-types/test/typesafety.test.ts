@@ -84,13 +84,18 @@ function assertionsValueFirstDefine(): void {
     name: {type: 'string', minLength: 1, maxLength: 50},
     age: {type: 'number', min: 0, max: 120, integer: true},
     born: {type: 'date', max: 'now'},
+    big: {type: 'bigint', min: 0n, max: 1000n},
+    active: {type: 'boolean'},
+    at: {type: 'instant', max: 'now'},
+    day: {type: 'plainDate'},
   });
   void _ok;
 
   // @ts-expect-error — an unknown discriminator is rejected locally on the
   // offending field (TS2322 on `type`), not as a deep generic blowup. This
   // is the discriminator-as-local-error property the value-first surface buys.
-  defineObject({flag: {type: 'boolean'}});
+  // (`symbol` is not a supported field family.)
+  defineObject({sym: {type: 'symbol'}});
 
   // @ts-expect-error — cross-family param leakage is caught: `maxLength` is a
   // string-only param, so on a `number` field the exclusive-union negation
@@ -123,6 +128,9 @@ function assertionsValueFirstDefine(): void {
     s: {type: 'string', maxLength: 5, optional: true},
     n: {type: 'number', min: 0, optional: true},
     d: {type: 'date', max: 'now', optional: true},
+    b: {type: 'bigint', min: 0n, optional: true},
+    bool: {type: 'boolean', optional: true},
+    at: {type: 'instant', optional: true},
   });
   void _okOptional;
 
@@ -132,4 +140,16 @@ function assertionsValueFirstDefine(): void {
   // @ts-expect-error — `pattern` is a string-only param, so the exclusive-union
   // negation forbids it on a number field.
   defineObject({age: {type: 'number', pattern: /^[0-9]+$/}});
+
+  // @ts-expect-error — `boolean` carries no params: every param key is
+  // forbidden, so `maxLength` on a boolean field errors locally.
+  defineObject({active: {type: 'boolean', maxLength: 5}});
+
+  // @ts-expect-error — `bigint` bounds are bigint-valued; a number `5` (not
+  // `5n`) errors on the value type.
+  defineObject({big: {type: 'bigint', min: 5}});
+
+  // @ts-expect-error — a temporal field's only params are min/max/gt/lt; a
+  // string param (`maxLength`) is forbidden.
+  defineObject({at: {type: 'instant', maxLength: 5}});
 }

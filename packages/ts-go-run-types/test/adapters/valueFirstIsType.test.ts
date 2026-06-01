@@ -41,6 +41,8 @@ describe('value-first define / isType + getTypeErrors', () => {
     assertCase(VALUE_FIRST_SUITE.regex_patterns));
   it('optional — `optional: true` fields may be absent; present ones validate', () =>
     assertCase(VALUE_FIRST_SUITE.optional_fields));
+  it('scalars — boolean + bigint leaf formats', () => assertCase(VALUE_FIRST_SUITE.scalars));
+  it('temporal — Instant (min bound) + optional PlainDate (max bound)', () => assertCase(VALUE_FIRST_SUITE.temporal));
   it('nested — value-first models composed in a parent object', () => assertCase(VALUE_FIRST_SUITE.nested));
 
   it('all VALUE_FIRST_SUITE tests ran', () => {
