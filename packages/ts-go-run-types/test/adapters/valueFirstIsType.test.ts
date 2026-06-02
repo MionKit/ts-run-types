@@ -37,7 +37,7 @@ describe('value-first define / isType + getTypeErrors', () => {
   it('string fields — length / minLength / maxLength / allowedValues', () => assertCase(VALUE_FIRST_SUITE.string_features));
   it('number fields — bounds / exclusive / integer / float / multipleOf', () => assertCase(VALUE_FIRST_SUITE.number_features));
   it('date fields — relative now bound + absolute window', () => assertCase(VALUE_FIRST_SUITE.date_bounds));
-  it('regex — inline /…/, {source,flags}, registerFormatPattern via the value channel', () =>
+  it('regex — inline {source, flags, mockSamples} + registerFormatPattern via the value channel', () =>
     assertCase(VALUE_FIRST_SUITE.regex_patterns));
   it('optional — `optional(...)` fields may be absent; present ones validate', () =>
     assertCase(VALUE_FIRST_SUITE.optional_fields));

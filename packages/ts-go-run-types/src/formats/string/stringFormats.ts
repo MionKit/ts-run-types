@@ -9,7 +9,7 @@
 // (mion documents the same constraint).
 
 import {TypeFormat} from '../../runtypes/typeFormat.ts';
-import type {FormatPattern} from '../../runtypes/formatPattern.ts';
+import type {FormatPattern, StringPatternArgs} from '../../runtypes/formatPattern.ts';
 // Built-in regex patterns — value import so the format types below can
 // reference them by `typeof`. The Go scanner recovers {source, flags,
 // mockSamples} from each const's literal type. Defined + sample-validated
@@ -32,13 +32,19 @@ import {
 
 // ─────────────────────────── StringFormat ───────────────────────────
 
-// PatternParam — the regex a string format validates against, supplied
-// via `registerFormatPattern(...)`:
+// PatternParam — the regex a string format validates against. Either a
+// `registerFormatPattern(...)` result (validates its samples at load) or an
+// inline `{source, flags?, mockSamples, message?}` literal (the
+// `StringPatternArgs` shape) the Go scanner recovers directly from the property.
+// EITHER WAY a pattern carries `mockSamples` — a bare `/regex/` with no samples
+// is deliberately NOT accepted (the mock generator needs samples to produce
+// matching values):
 //   const slug = registerFormatPattern({regexp: /^[a-z-]+$/, mockSamples: ['a-b']});
 //   type Slug = FormatString<{pattern: typeof slug}>;
-// (Built-ins encode their pattern as an inline `{source, flags}` literal
-// — a published .d.ts can't carry a regex VALUE for `typeof` recovery.)
-export type PatternParam = FormatPattern;
+//   type Digits = FormatString<{pattern: {source: '^[0-9]+$'; mockSamples: ['1', '42']}}>;
+// (Built-ins encode their pattern as an inline `{source, flags, mockSamples}`
+// literal — a published .d.ts can't carry a regex VALUE for `typeof` recovery.)
+export type PatternParam = FormatPattern | StringPatternArgs;
 
 // Samples — canonical valid values for the mock generator: either an
 // explicit list, or (for char-class params) a string of sample chars.
