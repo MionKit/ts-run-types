@@ -348,37 +348,33 @@ export type ModelType<C extends ModelConfig> = {
 // nested object / array / union field has no `__rtFormat*` brand and resolves to
 // `never`, matching the leaf-only value-first scope.
 
-/** brand `__rtFormatName` → authoring `type` tag (inverse of the format-name
- *  assignment `FieldFormatMap` makes). One arm per leaf format — a coupling
- *  point kept in sync with the builders (mirrored at runtime by
- *  `tagFromFormatName` in define/reflectModel.ts). **/
-type TagOf<N> = N extends 'stringFormat'
-  ? 'string'
-  : N extends 'numberFormat'
-    ? 'number'
-    : N extends 'bigintFormat'
-      ? 'bigint'
-      : N extends 'nativeDate'
-        ? 'date'
-        : N extends 'temporalInstant'
-          ? 'temporal.instant'
-          : N extends 'temporalZonedDateTime'
-            ? 'temporal.zonedDateTime'
-            : N extends 'temporalPlainDate'
-              ? 'temporal.plainDate'
-              : N extends 'temporalPlainTime'
-                ? 'temporal.plainTime'
-                : N extends 'temporalPlainDateTime'
-                  ? 'temporal.plainDateTime'
-                  : N extends 'temporalPlainYearMonth'
-                    ? 'temporal.plainYearMonth'
-                    : never;
+/** Format brand name → authoring `type` tag — the inverse of `FieldFormatMap`'s
+ *  per-tag rows, as a single keyed lookup (a flat dictionary, NOT a nested
+ *  conditional ladder). Add a format by adding one row here (mirrored at runtime
+ *  by `tagFromFormatName` in define/reflectModel.ts). **/
+interface TagByFormatName {
+  stringFormat: 'string';
+  numberFormat: 'number';
+  bigintFormat: 'bigint';
+  nativeDate: 'date';
+  temporalInstant: 'temporal.instant';
+  temporalZonedDateTime: 'temporal.zonedDateTime';
+  temporalPlainDate: 'temporal.plainDate';
+  temporalPlainTime: 'temporal.plainTime';
+  temporalPlainDateTime: 'temporal.plainDateTime';
+  temporalPlainYearMonth: 'temporal.plainYearMonth';
+}
 
-/** A single branded field type → its discriminated config. Reads the two
- *  sentinel brand properties via `infer`; a plain `boolean` (no brand) maps to
- *  the param-less boolean config. A non-leaf field resolves to `never`. **/
-type FieldConfigOf<F> = F extends {__rtFormatName: infer N extends string; __rtFormatParams: infer P extends object}
-  ? {type: TagOf<N>; formatParams: P}
+/** brand `__rtFormatName` → authoring tag, by indexing `TagByFormatName`. **/
+type TagOf<N extends keyof TagByFormatName> = TagByFormatName[N];
+
+/** A single branded field type → its discriminated config. The structural guard
+ *  proves the two sentinel brand properties exist, then INDEXED ACCESS pulls
+ *  them (`F['__rtFormatName']` / `F['__rtFormatParams']`) — no `infer`, matching
+ *  the `ParamsOf` / `FieldType` style on the forward path. A plain `boolean` (no
+ *  brand) maps to the param-less config; a non-leaf field resolves to `never`. **/
+type FieldConfigOf<F> = F extends {__rtFormatName: keyof TagByFormatName; __rtFormatParams: object}
+  ? {type: TagOf<F['__rtFormatName']>; formatParams: F['__rtFormatParams']}
   : F extends boolean
     ? {type: 'boolean'; formatParams: Record<string, never>}
     : never;
