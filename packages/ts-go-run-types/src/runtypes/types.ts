@@ -58,8 +58,15 @@ export interface CompiledPureFunction extends PureFunctionData {
  *  set by the `rt(...)` factory; ref slots (`child`, `parameters`, …) start
  *  as `undefined` and are patched post-construction by the emitter's footer
  *  assignments. Fields are typed permissively — the concrete schema lives
- *  on the Go side. */
-export interface RunType {
+ *  on the Go side.
+ *
+ *  `T` is the source TS type this node represents. It is a PHANTOM type
+ *  parameter (carried on the never-set `__rtType` property, erased at
+ *  runtime) so a value-first builder can return `RunType<FormatString<P>>`
+ *  and `TypeFromRT<…>` can recover the original type. Defaults to `unknown`
+ *  so every existing `RunType` reference (the cache, the mock walker, the
+ *  self-referential ref slots) is unaffected — `RunType` ≡ `RunType<unknown>`. */
+export interface RunType<T = unknown> {
   id: string;
   kind: unknown;
   subKind?: unknown;
@@ -97,6 +104,11 @@ export interface RunType {
   implements?: RunType[];
   extends?: RunType;
   classType?: RunType;
+  /** Phantom carrier of the source TS type `T` this node represents. Never
+   *  set at runtime; exists only so `TypeFromRT<RunType<T>>` recovers `T` via
+   *  indexed access. The explicit member takes precedence over the index
+   *  signature below, so `RunType<T>['__rtType']` resolves to `T | undefined`. */
+  readonly __rtType?: T;
   [extra: string]: unknown;
 }
 
