@@ -79,8 +79,10 @@ function assertionsAcceptUnknown(): void {
 }
 
 function assertionsValueFirstDefine(): void {
-  // Valid models compile — no directive. Each builder type-checks its own
-  // params, and `RT.object(...)` assembles them. `RT.optional(...)` wraps any field.
+  // Valid models compile — no directive. Each builder type-checks its own params,
+  // and `RT.object(...)` assembles them. Property modifiers apply via the
+  // `RT.optional(field)` shortcut or the general `RT.propMod({optional?,
+  // readonly?}, field)`.
   const _ok = RT.object({
     name: RT.string({minLength: 1, maxLength: 50}),
     age: RT.number({min: 0, max: 120, integer: true}),
@@ -88,8 +90,9 @@ function assertionsValueFirstDefine(): void {
     big: RT.bigint({min: 0n, max: 1000n}),
     active: RT.boolean(),
     at: RT.temporal.instant({max: 'now'}),
-    day: RT.optional(RT.temporal.plainDate()),
-    nick: RT.optional(RT.string({maxLength: 8})),
+    day: RT.optional(RT.temporal.plainDate()), // shortcut
+    nick: RT.propMod({optional: true}, RT.string({maxLength: 8})), // general form
+    slugRo: RT.propMod({readonly: true}, RT.string({maxLength: 8})), // readonly
   });
   void _ok;
 
@@ -128,12 +131,12 @@ function assertionsValueFirstDefine(): void {
   const _notConfig: {type: 'string'; formatParams: {maxLength: 5}} = RT.string({maxLength: 5});
   void _notConfig;
 
-  // A bare `optional(...)` outside `object` is well-defined — it yields the
-  // `{__opt}` carrier (which `object` unwraps). The carrier is NOT itself a
-  // usable format brand, so it can't leak into a reflected position.
-  const _carrier: {readonly __opt: FormatNumber<{min: 0}>} = RT.optional(RT.number({min: 0}));
+  // A bare `optional(...)` / `propMod(...)` outside `object` is well-defined — it
+  // yields the modifier carrier (which `object` unwraps). The carrier is NOT
+  // itself a usable format brand, so it can't leak into a reflected position.
+  const _carrier = RT.optional(RT.number({min: 0}));
   void _carrier;
-  // @ts-expect-error — the `{__opt}` carrier is not assignable to the bare format.
+  // @ts-expect-error — the modifier carrier is not assignable to the bare format.
   const _carrierLeak: FormatNumber<{min: 0}> = RT.optional(RT.number({min: 0}));
   void _carrierLeak;
 
