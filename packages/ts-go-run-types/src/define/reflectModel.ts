@@ -16,7 +16,7 @@ import {getRTUtils} from '../runtypes/rtUtils.ts';
 import {RunTypeKind} from '../runTypeKind.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId} from '../markers.ts';
-import type {ModelConfigOf} from './define.ts';
+import {tagByFormatName, type ModelConfigOf} from './define.ts';
 
 /** A reflected field config — the loose runtime shape of a `FieldConfig` (the
  *  precise discriminated type comes from `ModelConfigOf<T>` at the call site). **/
@@ -77,31 +77,10 @@ function fieldEntryFromRunType(runType: RunType): FieldEntry | undefined {
   return undefined;
 }
 
-/** Runtime twin of the `TagOf<N>` type — brand `__rtFormatName` → authoring tag.
- *  Kept in sync with `TagOf` in define.ts (and the builders). **/
+/** Runtime brand `__rtFormatName` → authoring tag, via the shared
+ *  `tagByFormatName` map — the SAME object the `TagByFormatName` type is derived
+ *  from in define.ts, so the type and the walk can't drift. Unknown names pass
+ *  through unchanged (a non-leaf or future format). **/
 function tagFromFormatName(name: string): string {
-  switch (name) {
-    case 'stringFormat':
-      return 'string';
-    case 'numberFormat':
-      return 'number';
-    case 'bigintFormat':
-      return 'bigint';
-    case 'nativeDate':
-      return 'date';
-    case 'temporalInstant':
-      return 'temporal.instant';
-    case 'temporalZonedDateTime':
-      return 'temporal.zonedDateTime';
-    case 'temporalPlainDate':
-      return 'temporal.plainDate';
-    case 'temporalPlainTime':
-      return 'temporal.plainTime';
-    case 'temporalPlainDateTime':
-      return 'temporal.plainDateTime';
-    case 'temporalPlainYearMonth':
-      return 'temporal.plainYearMonth';
-    default:
-      return name;
-  }
+  return Object.hasOwn(tagByFormatName, name) ? tagByFormatName[name as keyof typeof tagByFormatName] : name;
 }
