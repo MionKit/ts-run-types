@@ -1,36 +1,34 @@
-// Value-first model definitions — a Zod/TypeBox-style BUILDER API where each
-// builder RETURNS its branded format type directly (no type-mapping hop on the
-// forward path). Author a model by composing per-type builders:
+// Value-first type definitions — a Zod/TypeBox-style BUILDER API. Each LEAF
+// builder returns a generic `RunType<T>` (the runtime run-type node, typed with
+// the source type `T` it represents); `TypeFromRT<typeof X>` recovers `T`:
 //
-//   import {object, string, number, boolean, propMod, temporal} from '@mionjs/ts-go-run-types/define';
+//   import {string, number, boolean, bigint, date, temporal} from '@mionjs/ts-go-run-types/define';
+//   import {createIsTypeFor, type TypeFromRT} from '@mionjs/ts-go-run-types';
 //
-//   const UserModel = object({
-//     name:   string({minLength: 1, maxLength: 50}),
-//     age:    number({min: 0, max: 120}),
-//     active: boolean(),
-//     nick:   propMod({optional: true}, string({maxLength: 50})),
-//     bornAt: temporal.instant({max: 'now'}),
-//   });
-//   type User = typeof UserModel;            // already {name: FormatString<…>; nick?: …}
-//   const isUser = createIsType<User>();     // converges with the type-first surface
+//   const Name = string({minLength: 1, maxLength: 50}); // RunType<FormatString<…>>
+//   type Name  = TypeFromRT<typeof Name>;               // FormatString<…>
+//   const isName = createIsTypeFor(Name);               // validator from the schema
 //
-// Each builder returns the SAME branded format type the type-first surface
-// produces (`string({maxLength: 5})` ⇒ `FormatString<{maxLength: 5}>`),
-// `const`-narrowed so the literal params (`{maxLength: 5}`) stay narrow enough
-// to brand. So `typeof Model` IS the model type, the Go scanner
-// (internal/compiled/runtype/typeid/formats.go) reflects it unchanged, and both
-// front-ends converge on the same structural id — one engine, two front doors.
-// The only forward-path discriminator left is the tiny `{__propMod}` carrier
-// `object` reads to place optional / readonly properties — that is a property
-// MODIFIER, not format family; the brand IS the format identity.
+// The leaf builder's carried `T` is sourced from the leaf reverse map
+// (leafTypes.ts) keyed by format name — the single place the format→type mapping
+// lives. The Go scanner reflects the SAME branded type off the builder's
+// `InjectRunTypeId<…>` brand as the type-first surface, so a value-first leaf and
+// the hand-written `Format*<P>` form converge on one structural id; the runtime
+// then resolves the same precompiled factory (see createIsTypeFor).
+//
+// `object(...)` composes leaf builders, but — unlike the leaves — it still
+// returns the PLAIN object type (`ObjectType<C>`), not `RunType<ObjectType<C>>`;
+// converting composition to the generic `RunType<…>` is a separate follow-up. So
+// `typeof object({...})` is the object type, consumed with `createIsType<typeof
+// Model>()` as today. The `{__propMod}` carrier `object` reads is a property
+// MODIFIER (optional / readonly), not a format family.
 //
 // No `infer`, no Zod-style "type instantiation is excessively deep" tax: each
 // builder types its own params arg (so cross-family misuse like
 // `number({maxLength: 5})` errors at the call). The retained `ModelType<C>` /
-// `FieldFormatMap` / `FieldType` / `ParamsOf` chain below is NO LONGER on the
-// forward path — it is kept as the config↔type bridge the inverse
-// `RunType → typed model` direction reuses. The Go binary, not the type system,
-// is the validation engine.
+// `FieldFormatMap` / `FieldType` / `ParamsOf` chain below is the config↔type
+// bridge the inverse direction reuses (slated for removal in a later pass). The
+// Go binary, not the type system, is the validation engine.
 //
 // `TypeFormat` IS imported as a value (not `import type`): the value-level
 // import keeps the brand alias's reflection metadata reachable for tsgo, the
@@ -38,28 +36,20 @@
 
 import {TypeFormat} from '../runtypes/typeFormat.ts';
 import {getRTUtils} from '../runtypes/rtUtils.ts';
+import type {RunType} from '../runtypes/types.ts';
+import type {TypeFromRT} from '../runtypes/typeFromRt.ts';
+// The leaf descriptor → type reverse map (format name → branded type). Each
+// builder routes its carried `RunType<…>` type through it, so the format→type
+// mapping lives in ONE place (leafTypes.ts), not hardcoded per builder. The 6
+// temporal rows reference the `FormatTemporal*` aliases there, keeping the
+// Temporal-lib coupling out of this module.
+import type {LeafType} from './leafTypes.ts';
 import type {InjectRunTypeId} from '../markers.ts';
-import type {StringParams, FormatString} from '../formats/string/stringFormats.ts';
-import type {NumberParams, FormatNumber} from '../formats/numberFormats.ts';
-import type {BigIntParams, FormatBigInt} from '../formats/bigintFormats.ts';
-import type {FormatParams_NativeDate, FormatDate} from '../formats/datetime/dateFormats.ts';
+import type {StringParams} from '../formats/string/stringFormats.ts';
+import type {NumberParams} from '../formats/numberFormats.ts';
+import type {BigIntParams} from '../formats/bigintFormats.ts';
+import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
-// The 6 orderable Temporal FORMAT aliases (min/max bounds). Importing the
-// alias TYPES — not naming `Temporal.*` directly — keeps the Temporal lib
-// coupling inside temporalFormats.ts: a value-first temporal field still
-// requires `ESNext.Temporal` in the consumer's `lib` (the same scan-time
-// TMP001 rule as the type-first Temporal formats), but this module never
-// references the Temporal global. `PlainMonthDay` / `Duration` have no format
-// family (no ordering ⇒ no min/max), so they are outside the surface — the
-// same leaf-only boundary that excludes object/array/union composition.
-import type {
-  FormatTemporalInstant,
-  FormatTemporalZonedDateTime,
-  FormatTemporalPlainDate,
-  FormatTemporalPlainTime,
-  FormatTemporalPlainDateTime,
-  FormatTemporalPlainYearMonth,
-} from '../formats/datetime/temporalFormats.ts';
 
 // ─────────────────────────────── Params ─────────────────────────────
 //
@@ -132,7 +122,8 @@ export type ModelConfig = Record<string, FieldConfig>;
 
 // ───────────────────────────── Builders ─────────────────────────────
 //
-// Each builder RETURNS ITS BRANDED FORMAT TYPE (`FormatString<P>` / …). The
+// Each LEAF builder RETURNS `RunType<T>` where `T` is its branded format type
+// (`RunType<FormatString<P>>` / …), sourced from the leaf reverse map. The
 // `const` type parameter on the params is the ONLY narrowing mechanism: it
 // keeps `{maxLength: 50}` as `50`, not `number`, so the literal survives into
 // the brand. The params arg is typed to the family's own interface, so
@@ -151,12 +142,12 @@ export type ModelConfig = Record<string, FieldConfig>;
  *  builder is nested inside `object(...)`, so the scanner skipped it) or before
  *  the cache module has loaded, it returns the `carrier` the enclosing `object`
  *  discards. **/
-function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): T {
+function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): RunType<T> {
   if (id !== undefined) {
     const runType = getRTUtils().getRunType(id);
-    if (runType) return runType as unknown as T;
+    if (runType) return runType as RunType<T>;
   }
-  return carrier as T;
+  return carrier as RunType<T>;
 }
 
 /** A string field builder — returns the branded `FormatString`. The param type
@@ -166,56 +157,60 @@ function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown):
  *  workaround. **/
 export function string<const P extends StringParams = Record<string, never>>(
   formatParams: P = {} as P,
-  id?: InjectRunTypeId<FormatString<P>>
-): FormatString<P> {
+  id?: InjectRunTypeId<LeafType<'stringFormat', P>>
+): RunType<LeafType<'stringFormat', P>> {
   return builderResult(id, {type: 'string', formatParams});
 }
 
 /** A number field builder — returns the branded `FormatNumber`. **/
 export function number<const P extends NumberParams = Record<string, never>>(
   formatParams: P = {} as P,
-  id?: InjectRunTypeId<FormatNumber<P>>
-): FormatNumber<P> {
+  id?: InjectRunTypeId<LeafType<'numberFormat', P>>
+): RunType<LeafType<'numberFormat', P>> {
   return builderResult(id, {type: 'number', formatParams});
 }
 
 /** A bigint field builder — returns the branded `FormatBigInt`. **/
 export function bigint<const P extends BigIntParams = Record<string, never>>(
   formatParams: P = {} as P,
-  id?: InjectRunTypeId<FormatBigInt<P>>
-): FormatBigInt<P> {
+  id?: InjectRunTypeId<LeafType<'bigintFormat', P>>
+): RunType<LeafType<'bigintFormat', P>> {
   return builderResult(id, {type: 'bigint', formatParams});
 }
 
 /** A native-`Date` field builder — returns the branded `FormatDate`. **/
 export function date<const P extends FormatParams_NativeDate = Record<string, never>>(
   formatParams: P = {} as P,
-  id?: InjectRunTypeId<FormatDate<P>>
-): FormatDate<P> {
+  id?: InjectRunTypeId<LeafType<'nativeDate', P>>
+): RunType<LeafType<'nativeDate', P>> {
   return builderResult(id, {type: 'date', formatParams});
 }
 
-/** A boolean field builder — no params, returns plain `boolean`. **/
-export function boolean(id?: InjectRunTypeId<boolean>): boolean {
+/** A boolean builder — no params, no format brand (kind boolean). Returns
+ *  `RunType<boolean>`. **/
+export function boolean(id?: InjectRunTypeId<boolean>): RunType<boolean> {
   return builderResult(id, {type: 'boolean', formatParams: {}});
 }
 
 // `temporalBuilder` — shared factory for the 6 temporal builders below. Each
 // fixes its tag and returns the matching `FormatTemporal*<P>` via the local
 // tag→format lookup, so the 6 namespace call sites don't change.
+// Authoring tag (`temporal.instant`, …) → branded temporal type, via the leaf
+// reverse map (so the format→type mapping stays in leafTypes.ts only). Each row
+// is `LeafType<'temporal<Name>', P>` = `FormatTemporal*<P>` for `P extends MinMax`.
 interface TemporalFormatByTag<P extends MinMax> {
-  'temporal.instant': FormatTemporalInstant<P>;
-  'temporal.zonedDateTime': FormatTemporalZonedDateTime<P>;
-  'temporal.plainDate': FormatTemporalPlainDate<P>;
-  'temporal.plainTime': FormatTemporalPlainTime<P>;
-  'temporal.plainDateTime': FormatTemporalPlainDateTime<P>;
-  'temporal.plainYearMonth': FormatTemporalPlainYearMonth<P>;
+  'temporal.instant': LeafType<'temporalInstant', P>;
+  'temporal.zonedDateTime': LeafType<'temporalZonedDateTime', P>;
+  'temporal.plainDate': LeafType<'temporalPlainDate', P>;
+  'temporal.plainTime': LeafType<'temporalPlainTime', P>;
+  'temporal.plainDateTime': LeafType<'temporalPlainDateTime', P>;
+  'temporal.plainYearMonth': LeafType<'temporalPlainYearMonth', P>;
 }
 function temporalBuilder<Tag extends keyof TemporalFormatByTag<MinMax>>(tag: Tag) {
   return <const P extends MinMax = Record<string, never>>(
     formatParams: P = {} as P,
     id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
-  ): TemporalFormatByTag<P>[Tag] => builderResult(id, {type: tag, formatParams});
+  ): RunType<TemporalFormatByTag<P>[Tag]> => builderResult(id, {type: tag, formatParams});
 }
 
 /** Temporal field builders, namespaced to mirror the `Temporal.X` API
@@ -265,21 +260,23 @@ export function optional<const F>(field: F): PropModCarrier<{optional: true}, F>
 }
 
 // object's per-field readers — all INDEXED ACCESS / structural guards, no `infer`.
-/** The field type a value carries — the `__field` of a `propMod` carrier, or the
- *  value itself (a bare brand). **/
-type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? V['__field'] : V;
+/** The branded field type a value carries. Leaf builders now return
+ *  `RunType<…>`, so `TypeFromRT` unwraps either the `__field` inside a `propMod`
+ *  carrier (itself a `RunType<…>`) or a bare `RunType<…>` back to the format
+ *  type the property should hold. **/
+type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? TypeFromRT<V['__field']> : TypeFromRT<V>;
 /** Whether a value carries the `optional` / `readonly` property modifier. **/
 type IsOptional<V> = V extends {__propMod: {optional: true}} ? true : false;
 type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : false;
 
-/** The model type `object(C)` produces. Four key-groups intersected — the
+/** The object type `object(C)` produces. Four key-groups intersected — the
  *  (optional × readonly) combinations — because TS can't apply `?` / `readonly`
  *  per-key in one homomorphic map. A bare field is required + mutable; a
  *  `propMod(...)` field places the key per its modifiers. `FieldOf` unwraps each
- *  carrier to its brand; empty groups collapse (`& {}`) so an all-required-mutable
- *  model converges with the plain type-first object. Shared by `object`'s return
- *  type and its `InjectRunTypeId<…>` marker param. **/
-type ModelOf<C> = {
+ *  field's `RunType<…>` to its format type; empty groups collapse (`& {}`) so an
+ *  all-required-mutable object converges with the plain type-first object. Shared
+ *  by `object`'s return type and its `InjectRunTypeId<…>` marker param. **/
+type ObjectType<C> = {
   -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
 } & {
   readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
@@ -326,17 +323,17 @@ interface FieldFormatMap<P extends object> {
   date: TypeFormat<Date, 'nativeDate', P>;
   bigint: TypeFormat<bigint, 'bigintFormat', P>;
   boolean: boolean;
-  // The temporal aliases constrain their params to `MinMax<string>`, stricter
-  // than the `object` bound above (and incompatible with number's `min:
-  // number`), so each row self-guards `P extends MinMax`. The guard NARROWS, it
-  // does not intersect — `P` flows through unchanged, so no spurious
-  // `min?/max? : string | undefined` is injected (see the params note above).
-  'temporal.instant': P extends MinMax ? FormatTemporalInstant<P> : never;
-  'temporal.zonedDateTime': P extends MinMax ? FormatTemporalZonedDateTime<P> : never;
-  'temporal.plainDate': P extends MinMax ? FormatTemporalPlainDate<P> : never;
-  'temporal.plainTime': P extends MinMax ? FormatTemporalPlainTime<P> : never;
-  'temporal.plainDateTime': P extends MinMax ? FormatTemporalPlainDateTime<P> : never;
-  'temporal.plainYearMonth': P extends MinMax ? FormatTemporalPlainYearMonth<P> : never;
+  // Temporal rows reuse `LeafType<'temporal*', P>` — which IS
+  // `P extends MinMax ? FormatTemporal*<P> : never` — so the format→type mapping
+  // (and the Temporal-lib import) stays in leafTypes.ts only. The internal guard
+  // NARROWS, it does not intersect, so `P` flows through unchanged and no
+  // spurious `min?/max?: string | undefined` is injected (see the params note).
+  'temporal.instant': LeafType<'temporalInstant', P>;
+  'temporal.zonedDateTime': LeafType<'temporalZonedDateTime', P>;
+  'temporal.plainDate': LeafType<'temporalPlainDate', P>;
+  'temporal.plainTime': LeafType<'temporalPlainTime', P>;
+  'temporal.plainDateTime': LeafType<'temporalPlainDateTime', P>;
+  'temporal.plainYearMonth': LeafType<'temporalPlainYearMonth', P>;
 }
 
 /** Maps one field config to its branded format type by indexing
@@ -409,17 +406,18 @@ export type ModelConfigOf<T> = {-readonly [K in keyof T]-?: FieldConfigOf<NonNul
 
 // ─────────────────────────────── object() ───────────────────────────
 
-/** Assembles a model from named field builders. Builds the model type via
- *  `ModelOf<C>`: a bare field is a required + mutable property; a
+/** Assembles an object run-type from named leaf builders, building the object
+ *  type via `ObjectType<C>`: a bare field is a required + mutable property; a
  *  `propMod({optional?, readonly?}, field)` wrapper places the key (`key?:` /
  *  `readonly key:`). Strips the `const`-capture `readonly` from un-modified keys
- *  and unwraps each carrier to its field brand — so `typeof object({...})` IS the
- *  model type, with no further mapping.
+ *  and unwraps each field's `RunType<…>` to its format type.
  *
- *  An injectable marker (Tier 2): standalone it returns the live composite
- *  RunType for the whole model (the same node the type compiler produces); the
- *  nested field builders are skipped by the scanner and their carriers are
- *  discarded here. **/
-export function object<const C extends Record<string, unknown>>(config: C, id?: InjectRunTypeId<ModelOf<C>>): ModelOf<C> {
-  return builderResult(id, config);
+ *  NOTE: unlike the leaf builders, `object` still returns the PLAIN object type
+ *  (`ObjectType<C>`), not `RunType<ObjectType<C>>` — converting composition to
+ *  the generic `RunType<…>` is a separate follow-up. So `typeof object({...})` is
+ *  the object type, consumed with `createIsType<typeof Model>()` as today. At
+ *  runtime it is still the live composite RunType node (the nested leaf builders
+ *  are skipped by the scanner); the cast bridges the node to the plain type. **/
+export function object<const C extends Record<string, unknown>>(config: C, id?: InjectRunTypeId<ObjectType<C>>): ObjectType<C> {
+  return builderResult<ObjectType<C>>(id, config) as unknown as ObjectType<C>;
 }

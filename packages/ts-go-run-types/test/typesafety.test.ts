@@ -15,6 +15,7 @@
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
+import type {RunType, TypeFromRT} from '../src/index.ts';
 import * as RT from '../src/define/index.ts';
 import type {FormatString, FormatNumber} from '../src/formats/index.ts';
 
@@ -117,19 +118,26 @@ function assertionsValueFirstDefine(): void {
   // @ts-expect-error — an inline `{source, flags}` pattern without mockSamples is rejected.
   RT.string({pattern: {source: '^[0-9]+$', flags: ''}});
 
-  // Return type IS the branded format (not the old `{type, formatParams}`
-  // config). Builders return the brand directly, so `typeof Model` is the type.
-  const _s: FormatString<{maxLength: 5}> = RT.string({maxLength: 5});
-  const _n: FormatNumber<{min: 0}> = RT.number({min: 0});
-  const _b: boolean = RT.boolean();
+  // Leaf builders return `RunType<FormatX<P>>` — the generic run-type carrying
+  // the source type — NOT the bare brand.
+  const _s: RunType<FormatString<{maxLength: 5}>> = RT.string({maxLength: 5});
+  const _n: RunType<FormatNumber<{min: 0}>> = RT.number({min: 0});
+  const _b: RunType<boolean> = RT.boolean();
   void _s;
   void _n;
   void _b;
 
-  // @ts-expect-error — the result is the brand, NOT the old `{type, formatParams}`
-  // config object the first version returned.
-  const _notConfig: {type: 'string'; formatParams: {maxLength: 5}} = RT.string({maxLength: 5});
-  void _notConfig;
+  // `TypeFromRT<…>` recovers the format type the RunType carries — both
+  // directions compile only if it resolves EXACTLY to `FormatString<P>` (the
+  // no-`infer` indexed-access round-trip).
+  const _rtToFormat = (x: TypeFromRT<RunType<FormatString<{maxLength: 5}>>>): FormatString<{maxLength: 5}> => x;
+  const _formatToRt = (x: FormatString<{maxLength: 5}>): TypeFromRT<RunType<FormatString<{maxLength: 5}>>> => x;
+  void _rtToFormat;
+  void _formatToRt;
+
+  // @ts-expect-error — the result is a `RunType<…>`, NOT the bare format brand.
+  const _notBareFormat: FormatString<{maxLength: 5}> = RT.string({maxLength: 5});
+  void _notBareFormat;
 
   // A bare `optional(...)` / `propMod(...)` outside `object` is well-defined — it
   // yields the modifier carrier (which `object` unwraps). The carrier is NOT

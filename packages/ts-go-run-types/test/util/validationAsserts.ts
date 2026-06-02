@@ -88,6 +88,20 @@ export function assertIsType(c: ValidationCase): void {
       expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}] should fail`).toBe(false);
     });
   }
+
+  // Schema form: createIsTypeFor(<value-first builder schema>). Optional —
+  // present only on leaf-buildable cases. Proves the value-first authoring path
+  // resolves a validator that agrees with the type-first surface on the same
+  // samples (the builder reflects the same leaf type → same precompiled factory).
+  if (c.isTypeSchema) {
+    const isTypeSchema = c.isTypeSchema();
+    valid.forEach((v, i) => {
+      expect(isTypeSchema(v), `${c.title} [schema]: valid[${i}] should pass`).toBe(true);
+    });
+    invalid.forEach((v, i) => {
+      expect(isTypeSchema(v), `${c.title} [schema]: invalid[${i}] should fail`).toBe(false);
+    });
+  }
 }
 
 /** Runs the getTypeErrors validator in every available form and asserts
@@ -157,6 +171,22 @@ export function assertGetTypeErrors(c: ValidationCase): void {
     });
     invalid.forEach((v, i) => {
       expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}]`).toEqual(expected[i]);
+    });
+  }
+
+  // Schema form: createTypeErrorsFor(<value-first builder schema>). Optional.
+  // A value-first leaf builder reflects the FORMAT of a type (e.g. `string()` →
+  // `FormatString<{}>`), so its error detail may carry format metadata the bare
+  // type-first error doesn't — we therefore assert the CONTRACT (valid → no
+  // errors; invalid → at least one error) rather than deep-equality with the
+  // type-first `expected`, which the static pass above already pins exactly.
+  if (c.getTypeErrorsSchema) {
+    const getErrSchema = c.getTypeErrorsSchema();
+    valid.forEach((v, i) => {
+      expect(getErrSchema(v), `${c.title} [schema]: valid[${i}] → no errors`).toEqual([]);
+    });
+    invalid.forEach((v, i) => {
+      expect(getErrSchema(v).length, `${c.title} [schema]: invalid[${i}] → at least one error`).toBeGreaterThan(0);
     });
   }
 }

@@ -48,12 +48,19 @@
 import {
   createIsType,
   createGetTypeErrors,
+  createIsTypeFor,
+  createTypeErrorsFor,
   createMockType,
   type IsTypeFn,
   type GetTypeErrorsFn,
   type RunTypeError,
   type MockTypeFn,
 } from '@mionjs/ts-go-run-types';
+// Value-first leaf builders — the SCHEMA-form thunks (`isTypeSchema` /
+// `getTypeErrorsSchema`) build validators from these via `createIsTypeFor` /
+// `createTypeErrorsFor`, proving the value-first authoring path lowers to the
+// same precompiled factory as the type-first `createIsType<T>()` surface.
+import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../util/deserializeRTFunctions.ts';
 
 /** One atomic-type case in the shared suite. */
@@ -88,6 +95,11 @@ export interface ValidationCase {
   deserializeIsType?: () => IsTypeFn;
   /** Reflect-form companion to `deserializeIsType`. **/
   deserializeIsTypeReflect?: () => IsTypeFn;
+  /** SCHEMA form: `() => createIsTypeFor(<value-first builder schema>)`. Builds
+   *  the validator from a `define` builder result (a `RunType` value) instead of
+   *  reflecting a type — the value-first authoring path. Run against the same
+   *  samples as `isType`. Present only on leaf-buildable cases. **/
+  isTypeSchema?: () => IsTypeFn;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `isType` but the validator returns `RunTypeError[]`
@@ -104,6 +116,9 @@ export interface ValidationCase {
   deserializeGetTypeErrors?: () => GetTypeErrorsFn;
   /** Reflect-form companion to `deserializeGetTypeErrors`. */
   deserializeGetTypeErrorsReflect?: () => GetTypeErrorsFn;
+  /** SCHEMA form: `() => createTypeErrorsFor(<value-first builder schema>)`.
+   *  Companion to `isTypeSchema` for the getTypeErrors family. **/
+  getTypeErrorsSchema?: () => GetTypeErrorsFn;
   /** Expected error arrays for invalid samples — index-parallel to
    *  `getSamples().invalid`. Outer array length must match
    *  `invalid.length`; entry i is the `RunTypeError[]` the validator
@@ -181,6 +196,7 @@ export const VALIDATION_SUITE = {
       title: 'BigInt primitive',
       description: 'Infinity and -Infinity rejected (typeof gate)',
       isType: () => createIsType<bigint>(),
+      isTypeSchema: () => createIsTypeFor(RT.bigint()),
       deserializeIsType: () => deserializeIsType<bigint>(),
       isTypeReflect: () => {
         const v: bigint = 1n;
@@ -191,6 +207,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<bigint>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.bigint()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint>(),
       getTypeErrorsReflect: () => {
         const v: bigint = 1n;
@@ -225,6 +242,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
       isType: () => createIsType<boolean>(),
+      isTypeSchema: () => createIsTypeFor(RT.boolean()),
       deserializeIsType: () => deserializeIsType<boolean>(),
       isTypeReflect: () => {
         const v: boolean = true;
@@ -235,6 +253,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<boolean>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.boolean()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean>(),
       getTypeErrorsReflect: () => {
         const v: boolean = true;
@@ -271,6 +290,7 @@ export const VALIDATION_SUITE = {
         'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
       ],
       isType: () => createIsType<Date>(),
+      isTypeSchema: () => createIsTypeFor(RT.date()),
       deserializeIsType: () => deserializeIsType<Date>(),
       isTypeReflect: () => {
         const v: Date = new Date();
@@ -281,6 +301,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<Date>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.date()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date>(),
       getTypeErrorsReflect: () => {
         const v: Date = new Date();
@@ -859,6 +880,7 @@ export const VALIDATION_SUITE = {
         '`NaN`, `Infinity`, and `-Infinity` are rejected even though they pass `typeof === "number"`.',
       ],
       isType: () => createIsType<number>(),
+      isTypeSchema: () => createIsTypeFor(RT.number()),
       deserializeIsType: () => deserializeIsType<number>(),
       isTypeReflect: () => {
         const v: number = 42;
@@ -869,6 +891,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<number>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.number()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<number>(),
       getTypeErrorsReflect: () => {
         const v: number = 42;
@@ -991,6 +1014,7 @@ export const VALIDATION_SUITE = {
       title: 'String primitive',
       isTypeNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
       isType: () => createIsType<string>(),
+      isTypeSchema: () => createIsTypeFor(RT.string()),
       deserializeIsType: () => deserializeIsType<string>(),
       isTypeReflect: () => {
         const v: string = 'hello';
@@ -1001,6 +1025,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.string()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string>(),
       getTypeErrorsReflect: () => {
         const v: string = 'hello';
