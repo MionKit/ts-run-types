@@ -24,7 +24,6 @@ export {
   type ModelConfigOf,
   type ModelConfig,
   type FieldConfig,
-  type StringFamilyParams,
   type StringFieldConfig,
   type NumberFieldConfig,
   type DateFieldConfig,

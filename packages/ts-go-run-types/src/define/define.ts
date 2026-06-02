@@ -39,12 +39,11 @@
 import {TypeFormat} from '../runtypes/typeFormat.ts';
 import {getRTUtils} from '../runtypes/rtUtils.ts';
 import type {InjectRunTypeId} from '../markers.ts';
-import type {StringParams} from '../formats/string/stringFormats.ts';
+import type {StringParams, FormatString} from '../formats/string/stringFormats.ts';
 import type {NumberParams, FormatNumber} from '../formats/numberFormats.ts';
 import type {BigIntParams, FormatBigInt} from '../formats/bigintFormats.ts';
 import type {FormatParams_NativeDate, FormatDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
-import type {FormatPattern} from '../runtypes/formatPattern.ts';
 // The 6 orderable Temporal FORMAT aliases (min/max bounds). Importing the
 // alias TYPES — not naming `Temporal.*` directly — keeps the Temporal lib
 // coupling inside temporalFormats.ts: a value-first temporal field still
@@ -63,24 +62,13 @@ import type {
 } from '../formats/datetime/temporalFormats.ts';
 
 // ─────────────────────────────── Params ─────────────────────────────
-
-// `ValuePattern` — the regex forms a value-first string field accepts. The
-// regex rides the VALUE channel, not the type channel: the Go scanner recovers
-// `{source, flags}` from the literal the property declaration preserves
-// (`formatPatternFromInitializer` in internal/compiled/runtype/typeid/formats.go).
-//   - `/…/`               an inline regex literal — full `/…/` syntax, the
-//                         recommended form;
-//   - `{source, flags?}`  the regex as string literals (handy when assembled);
-//   - `FormatPattern`     a `registerFormatPattern(...)` result — adds the
-//                         load-time sample check + `mockSamples` for the mock
-//                         generator (an inline `/…/` carries no samples, so
-//                         `createMockType` can't generate matching values for it).
-type ValuePattern = RegExp | FormatPattern | {source: string; flags?: string};
-
-// `StringFamilyParams` — the string params a value-first field accepts. Same as
-// `StringParams` but `pattern` is re-typed to the value-channel `ValuePattern`
-// forms above (instead of the type-first `FormatPattern`-only `PatternParam`).
-export type StringFamilyParams = Omit<StringParams, 'pattern'> & {pattern?: ValuePattern};
+//
+// Value-first builders accept the type-first format params unchanged
+// (`StringParams`, `NumberParams`, … imported above). There is NO value-first
+// re-typing of `pattern`: a pattern must carry `mockSamples` (see `PatternParam`
+// in stringFormats.ts — a `FormatPattern` or an inline `{source, flags?,
+// mockSamples, …}`, never a bare `/regex/`), so `string` uses
+// `StringParams.pattern` as-is.
 
 // ─────────────────────────── Field configs ──────────────────────────
 //
@@ -91,8 +79,8 @@ export type StringFamilyParams = Omit<StringParams, 'pattern'> & {pattern?: Valu
 // `Forbid<>` machinery: each builder types its own params arg, so a misplaced
 // param (`number({maxLength: 5})`) is rejected at the builder call itself.
 
-/** A `string` field — `formatParams` is the value-channel `FormatString` set. **/
-export type StringFieldConfig = {type: 'string'; optional?: true; formatParams: StringFamilyParams};
+/** A `string` field. **/
+export type StringFieldConfig = {type: 'string'; optional?: true; formatParams: StringParams};
 /** A `number` field. **/
 export type NumberFieldConfig = {type: 'number'; optional?: true; formatParams: NumberParams};
 /** A native-`Date` field (min/max bounds: absolute ISO literal or `now±P…`). **/
@@ -170,15 +158,15 @@ function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown):
   return carrier as T;
 }
 
-/** A string field builder. Returns `FormatString<P>` — written as the
- *  equivalent `TypeFormat<string, 'stringFormat', P>` because the `FormatString`
- *  alias's `StringParams` bound can't accept the value-channel `ValuePattern`
- *  regex forms `StringFamilyParams` adds; the two are structurally identical, so
- *  convergence with the type-first `FormatString<P>` is preserved. **/
-export function string<const P extends StringFamilyParams = Record<string, never>>(
+/** A string field builder — returns the branded `FormatString`. The param type
+ *  is `StringParams` (a `pattern` is a `FormatPattern` or an inline
+ *  `{source, flags?, mockSamples, …}`, never a bare `/regex/`), so `P` satisfies
+ *  `FormatString`'s own `StringParams` bound directly — no `TypeFormat<…>`
+ *  workaround. **/
+export function string<const P extends StringParams = Record<string, never>>(
   formatParams: P = {} as P,
-  id?: InjectRunTypeId<TypeFormat<string, 'stringFormat', P>>
-): TypeFormat<string, 'stringFormat', P> {
+  id?: InjectRunTypeId<FormatString<P>>
+): FormatString<P> {
   return builderResult(id, {type: 'string', formatParams});
 }
 

@@ -1,6 +1,6 @@
 # Value-first format & constraint definitions
 
-> **Status: shipped for every LEAF format — including inline `/regex/`.**
+> **Status: shipped for every LEAF format.**
 > The value-first authoring surface — a Zod/TypeBox-style BUILDER API
 > (`RT.object({ name: RT.string({maxLength: 50}) })`) ships today for flat models
 > over the **type channel**, via
@@ -21,7 +21,11 @@
 > `FieldFormatMap` are RETAINED as the config↔type bridge (`ModelType<C>` ⇄
 > `ModelConfigOf<T>`), no longer the forward hop. The design-discussion sections
 > below describe that retained mapping engine; only the forward authoring path
-> changed (builders return the brand).
+> changed (builders return the brand). A string `pattern` follows the type-first
+> `StringParams.pattern` exactly — a `registerFormatPattern` result or an inline
+> `{source, flags?, mockSamples, …}` object; a bare `/regex/` is **not** accepted
+> (a pattern must carry `mockSamples` so the mock generator can produce matching
+> values).
 > Per-type builders cover all leaf formats: `RT.string()` / `RT.number()` /
 > `RT.date()` / `RT.bigint()` / `RT.boolean()`, plus the 6 orderable temporal
 > types under a lowercase `temporal` namespace mirroring the `Temporal.X` API
@@ -29,11 +33,10 @@
 > `RT.temporal.plainTime()`, `RT.temporal.plainDateTime()`,
 > `RT.temporal.plainYearMonth()`). `RT.optional(builder)` wraps any field to make
 > it `key?:`.
-> Most of it needed **no new Go engine**: `ModelType<…>` resolves to the same
-> branded `TypeFormat` types the type-first surface already reflects. Regex
-> (`pattern: /…/`) needed one small additive Go change — recovering the literal
-> from the property declaration the type system preserves — **not** a separate
-> value-AST front-end.
+> Most of it needed **no new Go engine**: the branded format types are the same
+> ones the type-first surface already reflects. An inline `pattern` object
+> (`{source, flags?, mockSamples}`) is recovered from the property declaration by
+> a small additive Go read — **not** a separate value-AST front-end.
 >
 > **Deliberate boundary** (this is what keeps it from becoming a worse
 > Zod/TypeBox): the value DSL owns **leaf formats only**. **Composition** —

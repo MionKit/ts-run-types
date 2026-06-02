@@ -98,13 +98,21 @@ function assertionsValueFirstDefine(): void {
   const _okDate = RT.object({born: RT.date({min: 'now', max: '2030-01-01T00:00:00'})});
   void _okDate;
 
-  // A regex `pattern` is allowed on a string field in all three value-channel
-  // forms (inline /…/, {source, flags}, registerFormatPattern result).
+  // A `pattern` is allowed on a string field as an inline `{source, flags?,
+  // mockSamples}` object or a `registerFormatPattern` result — both carry
+  // mockSamples (a `StringParams.pattern`, same as the type-first surface).
   const _okRegex = RT.object({
-    slug: RT.string({pattern: /^[a-z-]+$/}),
-    digits: RT.string({pattern: {source: '^[0-9]+$', flags: ''}}),
+    slug: RT.string({pattern: {source: '^[a-z-]+$', flags: '', mockSamples: ['a-b']}}),
+    digits: RT.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123']}}),
   });
   void _okRegex;
+
+  // A pattern MUST carry mockSamples — the value-first surface no longer loosens
+  // `StringParams.pattern` to allow a samples-less regex.
+  // @ts-expect-error — a bare `/regex/` is not a valid pattern (no mockSamples).
+  RT.string({pattern: /^[a-z-]+$/});
+  // @ts-expect-error — an inline `{source, flags}` pattern without mockSamples is rejected.
+  RT.string({pattern: {source: '^[0-9]+$', flags: ''}});
 
   // Return type IS the branded format (not the old `{type, formatParams}`
   // config). Builders return the brand directly, so `typeof Model` is the type.

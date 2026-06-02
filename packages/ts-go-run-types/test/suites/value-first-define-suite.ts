@@ -107,13 +107,14 @@ const OptionalModel = RT.object({
   age: RT.optional(RT.number({min: 0})), // optional
 });
 
-// Regex through the VALUE channel — the three `pattern` forms a value-first
-// string field accepts. The Go scanner recovers {source, flags} from the
-// literal the property declaration preserves (no `typeof` needed).
+// Regex through the VALUE channel — the two `pattern` forms a value-first string
+// field accepts, both carrying mockSamples: an inline `{source, flags,
+// mockSamples}` literal and a `registerFormatPattern` value. The Go scanner
+// recovers {source, flags} from the literal the property declaration preserves.
 const hexPattern = registerFormatPattern({regexp: /^[0-9a-f]+$/i, mockSamples: ['DEADbeef']});
 const RegexModel = RT.object({
-  slug: RT.string({pattern: /^[a-z0-9-]+$/}), // inline /…/ literal
-  digits: RT.string({pattern: {source: '^[0-9]+$', flags: ''}}), // {source,flags}
+  slug: RT.string({pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['ok-slug', 'a-b-c-1']}}), // inline
+  digits: RT.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123', '0']}}), // inline
   hex: RT.string({pattern: hexPattern}), // registerFormatPattern value
 });
 
@@ -343,7 +344,7 @@ export const VALUE_FIRST_SUITE: Record<string, ValueFirstCase> = {
   },
 
   regex_patterns: {
-    title: 'regex — inline /…/, {source,flags}, and registerFormatPattern, all via the value channel',
+    title: 'regex — inline {source, flags, mockSamples} and registerFormatPattern, via the value channel',
     isType: () => createIsType<typeof RegexModel>(),
     isTypeReflect: () => {
       const v = {slug: 'ok-slug', digits: '123', hex: 'deadBEEF'} as unknown as typeof RegexModel;
