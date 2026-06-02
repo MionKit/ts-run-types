@@ -350,22 +350,25 @@ export type ModelType<C extends ModelConfig> = {
 
 /** Format brand name → authoring `type` tag — the inverse of `FieldFormatMap`'s
  *  per-tag rows, as a single keyed lookup (a flat dictionary, NOT a nested
- *  conditional ladder). Add a format by adding one row here (mirrored at runtime
- *  by `tagFromFormatName` in define/reflectModel.ts). **/
-interface TagByFormatName {
-  stringFormat: 'string';
-  numberFormat: 'number';
-  bigintFormat: 'bigint';
-  nativeDate: 'date';
-  temporalInstant: 'temporal.instant';
-  temporalZonedDateTime: 'temporal.zonedDateTime';
-  temporalPlainDate: 'temporal.plainDate';
-  temporalPlainTime: 'temporal.plainTime';
-  temporalPlainDateTime: 'temporal.plainDateTime';
-  temporalPlainYearMonth: 'temporal.plainYearMonth';
-}
+ *  conditional ladder). This object is the SINGLE source of truth for the
+ *  brand→tag map: the `TagByFormatName` type is derived from it via `typeof`, and
+ *  the runtime walk in define/reflectModel.ts imports it directly — so adding a
+ *  format is one edit here, and the type + runtime can't drift. **/
+export const tagByFormatName = {
+  stringFormat: 'string',
+  numberFormat: 'number',
+  bigintFormat: 'bigint',
+  nativeDate: 'date',
+  temporalInstant: 'temporal.instant',
+  temporalZonedDateTime: 'temporal.zonedDateTime',
+  temporalPlainDate: 'temporal.plainDate',
+  temporalPlainTime: 'temporal.plainTime',
+  temporalPlainDateTime: 'temporal.plainDateTime',
+  temporalPlainYearMonth: 'temporal.plainYearMonth',
+} as const;
 
-/** brand `__rtFormatName` → authoring tag, by indexing `TagByFormatName`. **/
+/** brand `__rtFormatName` → authoring tag, derived from `tagByFormatName`. **/
+type TagByFormatName = typeof tagByFormatName;
 type TagOf<N extends keyof TagByFormatName> = TagByFormatName[N];
 
 /** A single branded field type → its discriminated config. The structural guard
