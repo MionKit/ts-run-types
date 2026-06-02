@@ -31,8 +31,10 @@
 > types under a lowercase `temporal` namespace mirroring the `Temporal.X` API
 > (`RT.temporal.instant()`, `RT.temporal.zonedDateTime()`, `RT.temporal.plainDate()`,
 > `RT.temporal.plainTime()`, `RT.temporal.plainDateTime()`,
-> `RT.temporal.plainYearMonth()`). `RT.optional(builder)` wraps any field to make
-> it `key?:`.
+> `RT.temporal.plainYearMonth()`). Property modifiers apply via
+> `RT.propMod({optional?, readonly?}, field)` (→ `key?:` / `readonly key:`), with
+> `RT.optional(field)` as the shortcut for `propMod({optional: true}, field)`.
+> Modifiers live on the `object` authoring layer, never on a `FieldConfig`.
 > Most of it needed **no new Go engine**: the branded format types are the same
 > ones the type-first surface already reflects. An inline `pattern` object
 > (`{source, flags?, mockSamples}`) is recovered from the property declaration by
@@ -363,13 +365,16 @@ through `TypeFormat<Base, Name, ParamsOf<F>>` — structurally identical to the
 type-first `FormatString`/`FormatNumber`/`FormatDate`. The existing brand
 scanner (`internal/compiled/runtype/typeid/formats.go`) lifts it unchanged.
 Flat fields, and **nested value-first models composed inside a parent object**,
-both reflect + validate correctly. **Optional properties** come from the
-`optional(builder)` wrapper, which sets `optional: true` on the field; `ModelType`
-splits the keys into required/optional groups and intersects (TypeScript can't
-apply `?` per-key in one homomorphic map). An optional value-first field
-converges with a type-first `key?:`. (A string-key `'name?'` marker à la ArkType
-was rejected: it needs a template-literal `infer` in the mapped type, which taxes
-the checker.)
+both reflect + validate correctly. **Property modifiers** (optional / readonly)
+come from the `propMod({optional?, readonly?}, field)` wrapper (`optional(field)`
+is the shortcut) — modifiers are a property-POSITION concern `object`'s mapped
+type applies, NOT part of a field's identity (the `FieldConfig` shapes stay pure
+`{type, formatParams}`). `object` splits keys into the (optional × readonly)
+groups and intersects (TypeScript can't apply `?` / `readonly` per-key in one
+homomorphic map). A modified value-first field converges with the type-first
+`key?:` / `readonly key:` form. (A string-key `'name?'` marker à la ArkType was
+rejected: it needs a template-literal `infer` in the mapped type, which taxes the
+checker.)
 
 **Convergence holds (the dual-front-end requirement).** A value-first model and
 the hand-written type-first equivalent resolve to the **same structural id → the

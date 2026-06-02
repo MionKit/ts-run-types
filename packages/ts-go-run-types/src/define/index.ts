@@ -1,7 +1,8 @@
 // Public entry for the `@mionjs/ts-go-run-types/define` subpath — the
 // value-first model authoring surface: the `object` model assembler, the
 // per-type field builders (`string` / `number` / `boolean` / `bigint` /
-// `date` / `temporal.*`), and the `optional` modifier. Each builder returns its
+// `date` / `temporal.*`), and the `propMod({optional?, readonly?}, field)`
+// property-modifier wrapper. Each builder returns its
 // branded format type, so `typeof object({...})` IS the model type. `ModelType`
 // and the field-config types are re-exported as the retained config↔type bridge
 // (no longer on the forward authoring path), now joined by the inverse
@@ -18,7 +19,12 @@ export {
   bigint,
   date,
   temporal,
+  // Property-modifier wrappers — `propMod({optional?, readonly?}, field)` and the
+  // `optional(field)` shortcut for `propMod({optional: true}, field)`. The
+  // modifiers live here + in `object`'s param, never in a `FieldConfig`.
+  propMod,
   optional,
+  type PropModifiers,
   // Type mapping + config types (the config↔type bridge, both directions).
   type ModelType,
   type ModelConfigOf,

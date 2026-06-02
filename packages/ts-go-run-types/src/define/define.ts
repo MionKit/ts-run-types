@@ -2,13 +2,13 @@
 // builder RETURNS its branded format type directly (no type-mapping hop on the
 // forward path). Author a model by composing per-type builders:
 //
-//   import {object, string, number, boolean, optional, temporal} from '@mionjs/ts-go-run-types/define';
+//   import {object, string, number, boolean, propMod, temporal} from '@mionjs/ts-go-run-types/define';
 //
 //   const UserModel = object({
 //     name:   string({minLength: 1, maxLength: 50}),
 //     age:    number({min: 0, max: 120}),
 //     active: boolean(),
-//     nick:   optional(string({maxLength: 50})),
+//     nick:   propMod({optional: true}, string({maxLength: 50})),
 //     bornAt: temporal.instant({max: 'now'}),
 //   });
 //   type User = typeof UserModel;            // already {name: FormatString<…>; nick?: …}
@@ -20,9 +20,9 @@
 // to brand. So `typeof Model` IS the model type, the Go scanner
 // (internal/compiled/runtype/typeid/formats.go) reflects it unchanged, and both
 // front-ends converge on the same structural id — one engine, two front doors.
-// The only forward-path discriminator left is the tiny `{__opt}` carrier
-// `object` reads to split optional vs required keys — that is OPTIONALITY, not
-// format family; the brand IS the format identity.
+// The only forward-path discriminator left is the tiny `{__propMod}` carrier
+// `object` reads to place optional / readonly properties — that is a property
+// MODIFIER, not format family; the brand IS the format identity.
 //
 // No `infer`, no Zod-style "type instantiation is excessively deep" tax: each
 // builder types its own params arg (so cross-family misuse like
@@ -72,30 +72,31 @@ import type {
 
 // ─────────────────────────── Field configs ──────────────────────────
 //
-// A field config is the plain object a builder returns: the `type`
-// discriminator, an optional `optional` flag, and the `formatParams` object
-// (always present — builders default it to `{}` — so the type mapping reads it
-// by indexed access uniformly across every family). There is NO exclusive-union
-// `Forbid<>` machinery: each builder types its own params arg, so a misplaced
-// param (`number({maxLength: 5})`) is rejected at the builder call itself.
+// A field config describes a field's TYPE only — the `type` discriminator + the
+// `formatParams`. Property MODIFIERS (optional / readonly) are deliberately NOT
+// here: they are a property-POSITION concern that `object(...)` applies (from a
+// `propMod(...)` wrapper), not part of a field's identity — so the same field
+// type is reused whether the property is required, optional, or readonly. (These
+// are the retained config↔type bridge shapes: `ModelConfigOf<T>` returns them
+// and `ModelType<C>` maps them back; builders return the brand directly.)
 
 /** A `string` field. **/
-export type StringFieldConfig = {type: 'string'; optional?: true; formatParams: StringParams};
+export type StringFieldConfig = {type: 'string'; formatParams: StringParams};
 /** A `number` field. **/
-export type NumberFieldConfig = {type: 'number'; optional?: true; formatParams: NumberParams};
+export type NumberFieldConfig = {type: 'number'; formatParams: NumberParams};
 /** A native-`Date` field (min/max bounds: absolute ISO literal or `now±P…`). **/
-export type DateFieldConfig = {type: 'date'; optional?: true; formatParams: FormatParams_NativeDate};
+export type DateFieldConfig = {type: 'date'; formatParams: FormatParams_NativeDate};
 /** A `bigint` field (bigint-valued bounds). **/
-export type BigIntFieldConfig = {type: 'bigint'; optional?: true; formatParams: BigIntParams};
+export type BigIntFieldConfig = {type: 'bigint'; formatParams: BigIntParams};
 /** A `boolean` field — carries no params (`formatParams: {}`). **/
-export type BooleanFieldConfig = {type: 'boolean'; optional?: true; formatParams: Record<string, never>};
+export type BooleanFieldConfig = {type: 'boolean'; formatParams: Record<string, never>};
 
 // Temporal field configs — one per orderable `Temporal.X` FORMAT type, all
 // sharing the `MinMax` bounds. The `temporal.<name>` discriminator mirrors the
 // `temporal.instant(...)` builder (and the `Temporal.X` API). The Go side keys
 // off the brand's `__rtFormatName`, not this tag, so the prefix is an
 // authoring-side label only.
-type TemporalFieldConfig<Tag extends string> = {type: Tag; optional?: true; formatParams: MinMax};
+type TemporalFieldConfig<Tag extends string> = {type: Tag; formatParams: MinMax};
 /** A `Temporal.Instant` field. **/
 export type InstantFieldConfig = TemporalFieldConfig<'temporal.instant'>;
 /** A `Temporal.ZonedDateTime` field. **/
@@ -228,25 +229,64 @@ export const temporal = {
   plainYearMonth: temporalBuilder('temporal.plainYearMonth'),
 };
 
-/** Marks a field optional. Wraps the field in a DISTINCT `{__opt}` carrier so
- *  it does NOT intersect a brand onto the format type (which would corrupt the
- *  `__rtFormatName` / `__rtFormatParams` sentinels). `object` unwraps it via
- *  `ValOf` and turns the key into `key?:`. A bare `optional(...)` is only
- *  meaningful as a field inside `object(...)`. **/
-export function optional<const F>(field: F): {readonly __opt: F} {
-  return {__opt: field};
+/** Property modifiers a field can carry inside `object(...)`: `optional` makes
+ *  the property `key?:`, `readonly` makes it `readonly key:`. Both are
+ *  property-POSITION concerns `object`'s mapped type applies — NOT part of a
+ *  field's identity (the `*FieldConfig` types stay pure `{type, formatParams}`),
+ *  so this type appears only here and in `object`'s param, never in a config. **/
+export interface PropModifiers {
+  optional?: true;
+  readonly?: true;
 }
 
-/** Unwraps the `{__opt}` carrier back to the field's branded format type. **/
-type ValOf<F> = F extends {__opt: infer Inner} ? Inner : F;
+/** The carrier `propMod(...)` produces — a field paired with its modifiers.
+ *  `object` reads `__propMod` to place the key and `__field` for its value type;
+ *  the carrier never leaks past `object`'s mapped type. **/
+interface PropModCarrier<M extends PropModifiers, F> {
+  readonly __propMod: M;
+  readonly __field: F;
+}
 
-/** The model type `object(C)` produces — required keys keep their brand,
- *  `{__opt}`-carried keys become optional and are unwrapped via `ValOf`. Shared
- *  by `object`'s return type and its `InjectRunTypeId<…>` marker param. **/
+/** Applies property modifiers to a field for use inside `object(...)`:
+ *  `propMod({optional: true}, string({maxLength: 5}))`, `propMod({readonly:
+ *  true}, number())`, or both. The modifiers ride a DISTINCT carrier (no brand
+ *  intersection, which would corrupt the `__rtFormatName` / `__rtFormatParams`
+ *  sentinels); `object` unwraps it. A bare `propMod(...)` is only meaningful as a
+ *  field inside `object(...)`. **/
+export function propMod<const M extends PropModifiers, const F>(modifiers: M, field: F): PropModCarrier<M, F> {
+  return {__propMod: modifiers, __field: field};
+}
+
+/** Shortcut for `propMod({optional: true}, field)` — marks a field optional
+ *  (`key?:`) inside `object(...)`. The common modifier gets a terse spelling;
+ *  reach for `propMod` for `readonly` or combinations. **/
+export function optional<const F>(field: F): PropModCarrier<{optional: true}, F> {
+  return propMod({optional: true}, field);
+}
+
+// object's per-field readers — all INDEXED ACCESS / structural guards, no `infer`.
+/** The field type a value carries — the `__field` of a `propMod` carrier, or the
+ *  value itself (a bare brand). **/
+type FieldOf<V> = V extends {__propMod: PropModifiers; __field: unknown} ? V['__field'] : V;
+/** Whether a value carries the `optional` / `readonly` property modifier. **/
+type IsOptional<V> = V extends {__propMod: {optional: true}} ? true : false;
+type IsReadonly<V> = V extends {__propMod: {readonly: true}} ? true : false;
+
+/** The model type `object(C)` produces. Four key-groups intersected — the
+ *  (optional × readonly) combinations — because TS can't apply `?` / `readonly`
+ *  per-key in one homomorphic map. A bare field is required + mutable; a
+ *  `propMod(...)` field places the key per its modifiers. `FieldOf` unwraps each
+ *  carrier to its brand; empty groups collapse (`& {}`) so an all-required-mutable
+ *  model converges with the plain type-first object. Shared by `object`'s return
+ *  type and its `InjectRunTypeId<…>` marker param. **/
 type ModelOf<C> = {
-  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? never : K]: C[K];
+  -readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? never : K]: FieldOf<C[K]>;
 } & {
-  -readonly [K in keyof C as C[K] extends {__opt: unknown} ? K : never]?: ValOf<C[K]>;
+  readonly [K in keyof C as IsOptional<C[K]> extends true ? never : IsReadonly<C[K]> extends true ? K : never]: FieldOf<C[K]>;
+} & {
+  -readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? never : K) : never]?: FieldOf<C[K]>;
+} & {
+  readonly [K in keyof C as IsOptional<C[K]> extends true ? (IsReadonly<C[K]> extends true ? K : never) : never]?: FieldOf<C[K]>;
 };
 
 // ──────────── Config↔type bridge (RETAINED, off the forward path) ───────────
@@ -307,22 +347,12 @@ type FieldType<F extends FieldConfig> = F extends FieldConfig ? FieldFormatMap<P
 
 /** Maps a discriminated `ModelConfig` to its branded model type — the
  *  config→type half of the bridge (no longer the forward authoring hop; builders
- *  return the brand). Still byte-identical to the builder / type-first form.
- *
- *  Two key-groups, intersected: fields wrapped in `optional(...)` (carrying
- *  `optional: true`) become optional properties (`key?:`), the rest required.
- *  TypeScript can't apply the `?` modifier per-key in a single homomorphic map,
- *  so the split is the standard way to do it — and it stays a flat O(keys) map.
- *  `-readonly` strips the `readonly` the `object<const C>` capture stamps on
- *  every config property; without it the derived properties would diverge from
- *  the canonical (mutable) type-first form at the structural-id level (the
- *  format type itself is already identical, only the modifier differed). An
- *  all-required model leaves the optional group empty (`… & {}`), which tsgo
- *  collapses, so it still converges with the plain type-first object. **/
+ *  return the brand). A `FieldConfig` carries no property modifiers (optional /
+ *  readonly live on the `object` / `propMod` authoring layer, not on a field's
+ *  identity), so this is a flat all-required map; `-readonly` strips the capture
+ *  `readonly` so it converges with the mutable type-first form. **/
 export type ModelType<C extends ModelConfig> = {
-  -readonly [K in keyof C as C[K] extends {optional: true} ? never : K]: FieldType<C[K]>;
-} & {
-  -readonly [K in keyof C as C[K] extends {optional: true} ? K : never]?: FieldType<C[K]>;
+  -readonly [K in keyof C]: FieldType<C[K]>;
 };
 
 // ───────────── Type → config bridge (inverse of ModelType, Tier 3) ──────────
@@ -372,18 +402,19 @@ type FieldConfigOf<F> = F extends {__rtFormatName: keyof TagByFormatName; __rtFo
 
 /** The discriminated `ModelConfig` a branded model type `T` came from — the
  *  inverse of `ModelType<C>`. `-?` un-optionalises the mapped keys and
- *  `NonNullable` strips the `| undefined` an `optional(...)` field's `?` adds, so
- *  every field yields a concrete config entry (the `optional` flag itself is not
- *  recovered — flat-model scope). **/
+ *  `NonNullable` strips the `| undefined` an optional property's `?` adds, so
+ *  every field yields a concrete config entry (property modifiers aren't
+ *  recovered — they're not part of a `FieldConfig`; flat-model scope). **/
 export type ModelConfigOf<T> = {-readonly [K in keyof T]-?: FieldConfigOf<NonNullable<T[K]>>};
 
 // ─────────────────────────────── object() ───────────────────────────
 
-/** Assembles a model from named field builders. Does the work `ModelType<C>`
- *  used to do on the forward path: splits optional vs required keys (reading the
- *  `{__opt}` carrier `optional(...)` adds), strips the `const`-capture
- *  `readonly`, and unwraps the carrier via `ValOf` — so `typeof object({...})`
- *  IS the model type, with no further mapping.
+/** Assembles a model from named field builders. Builds the model type via
+ *  `ModelOf<C>`: a bare field is a required + mutable property; a
+ *  `propMod({optional?, readonly?}, field)` wrapper places the key (`key?:` /
+ *  `readonly key:`). Strips the `const`-capture `readonly` from un-modified keys
+ *  and unwraps each carrier to its field brand — so `typeof object({...})` IS the
+ *  model type, with no further mapping.
  *
  *  An injectable marker (Tier 2): standalone it returns the live composite
  *  RunType for the whole model (the same node the type compiler produces); the

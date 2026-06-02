@@ -99,8 +99,8 @@ const TemporalModel = RT.object({
   day: RT.optional(RT.temporal.plainDate({max: '2030-12-31'})),
 });
 
-// `RT.optional(...)` makes a property optional (`key?:`) in the derived model —
-// the key may be absent; when present it still validates.
+// `RT.optional(...)` (shortcut for `propMod({optional: true}, ...)`) makes a
+// property optional (`key?:`) — the key may be absent; when present it validates.
 const OptionalModel = RT.object({
   id: RT.string({length: 4}), // required
   nick: RT.optional(RT.string({maxLength: 8})), // optional

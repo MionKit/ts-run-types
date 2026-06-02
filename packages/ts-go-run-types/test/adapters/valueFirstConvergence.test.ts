@@ -50,9 +50,17 @@ type DateFirstTF = {past: FormatDate<{max: 'now'}>};
 const RegexFirst = RT.object({slug: RT.string({pattern: {source: '^[a-z-]+$', flags: '', mockSamples: ['a-b-c']}})});
 type RegexFirstTF = {slug: FormatString<{pattern: {source: '^[a-z-]+$'; flags: ''; mockSamples: ['a-b-c']}}>};
 
-// An `RT.optional(...)` field converges with a type-first optional property.
+// An `RT.optional(...)` field (shortcut for `propMod({optional: true}, ...)`)
+// converges with a type-first optional property; `propMod({readonly: true}, ...)`
+// converges with a `readonly` property (both are property-position modifiers the
+// scanner reflects into the id).
 const OptionalFirst = RT.object({req: RT.string({maxLength: 5}), opt: RT.optional(RT.number({min: 0}))});
 type OptionalFirstTF = {req: FormatString<{maxLength: 5}>; opt?: FormatNumber<{min: 0}>};
+const ModifierFirst = RT.object({
+  ro: RT.propMod({readonly: true}, RT.string({maxLength: 5})),
+  roOpt: RT.propMod({readonly: true, optional: true}, RT.number({min: 0})),
+});
+type ModifierFirstTF = {readonly ro: FormatString<{maxLength: 5}>; readonly roOpt?: FormatNumber<{min: 0}>};
 
 // boolean → plain `boolean`; bigint → FormatBigInt; temporal → FormatTemporal*.
 const ScalarFirst = RT.object({active: RT.boolean(), count: RT.bigint({min: 0n, max: 1000n})});
@@ -85,6 +93,10 @@ describe('value-first / convergence with type-first', () => {
 
   it('optional field converges with a type-first optional property', () => {
     expect(createIsType<typeof OptionalFirst>()).toBe(createIsType<OptionalFirstTF>());
+  });
+
+  it('propMod readonly / readonly+optional converge with type-first modifiers', () => {
+    expect(createIsType<typeof ModifierFirst>()).toBe(createIsType<ModifierFirstTF>());
   });
 
   it('boolean + bigint fields converge with type-first', () => {
