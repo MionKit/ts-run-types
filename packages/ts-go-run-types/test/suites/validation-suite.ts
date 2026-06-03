@@ -162,6 +162,7 @@ export const VALIDATION_SUITE = {
       title: 'Any type — every value passes',
       isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
       isType: () => createIsType<any>(),
+      isTypeSchema: () => createIsTypeFor(RT.any()),
       deserializeIsType: () => deserializeIsType<any>(),
       isTypeReflect: () => {
         const v: any = null;
@@ -172,6 +173,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<any>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.any()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<any>(),
       getTypeErrorsReflect: () => {
         const v: any = null;
@@ -793,6 +795,7 @@ export const VALIDATION_SUITE = {
       title: 'Never — no value passes',
       isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
       isType: () => createIsType<never>(),
+      isTypeSchema: () => createIsTypeFor(RT.never()),
       deserializeIsType: () => deserializeIsType<never>(),
       isTypeReflect: () => {
         const v: never = null as never;
@@ -803,6 +806,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<never>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.never()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<never>(),
       getTypeErrorsReflect: () => {
         const v: never = null as never;
@@ -1151,6 +1155,7 @@ export const VALIDATION_SUITE = {
       title: 'Void — accepts undefined, rejects null',
       description: 'void accepts undefined (and bare function return); rejects null',
       isType: () => createIsType<void>(),
+      isTypeSchema: () => createIsTypeFor(RT.void()),
       deserializeIsType: () => deserializeIsType<void>(),
       isTypeReflect: () => {
         const v: void = undefined;
@@ -1161,6 +1166,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<void>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.void()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<void>(),
       getTypeErrorsReflect: () => {
         const v: void = undefined;
@@ -1481,6 +1487,7 @@ export const VALIDATION_SUITE = {
       title: 'Unknown type — every value passes',
       isTypeNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
       isType: () => createIsType<unknown>(),
+      isTypeSchema: () => createIsTypeFor(RT.unknown()),
       deserializeIsType: () => deserializeIsType<unknown>(),
       isTypeReflect: () => {
         const v: unknown = null;
@@ -1491,6 +1498,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<unknown>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.unknown()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<unknown>(),
       getTypeErrorsReflect: () => {
         const v: unknown = null;

@@ -220,6 +220,37 @@ export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
   return builderResult(id, {type: 'symbol', formatParams: {}});
 }
 
+// Top / bottom atomic builders — `any` / `unknown` / `never` / `void`. Dedicated
+// builders (not `runType<any>()`, which `RejectAny` blocks by design): each
+// carries its kind off the trailing `InjectRunTypeId<…>` brand, so the scanner
+// reflects the SAME kind as the type-first `createIsType<any>()` / `<never>` / …
+// surface and the value-first form converges on one structural id.
+
+/** An `any` builder — `any()` → `RunType<any>` (no-op validator; every value
+ *  passes). **/
+export function any(id?: InjectRunTypeId<any>): RunType<any> {
+  return builderResult(id, {type: 'any', formatParams: {}});
+}
+
+/** An `unknown` builder — `unknown()` → `RunType<unknown>` (every value passes,
+ *  same as `any`). **/
+export function unknown(id?: InjectRunTypeId<unknown>): RunType<unknown> {
+  return builderResult(id, {type: 'unknown', formatParams: {}});
+}
+
+/** A `never` builder — `never()` → `RunType<never>` (no value passes; the
+ *  validator returns `false` for every input). **/
+export function never(id?: InjectRunTypeId<never>): RunType<never> {
+  return builderResult(id, {type: 'never', formatParams: {}});
+}
+
+/** A `void` builder — `voidType()` → `RunType<void>` (accepts `undefined`,
+ *  rejects `null`). The function can't be named `void` (reserved word); the
+ *  `/define` index also re-exports it as `void` so `RT.void()` reads naturally. **/
+export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
+  return builderResult(id, {type: 'void', formatParams: {}});
+}
+
 // `temporalBuilder` — shared factory for the 6 temporal builders below. Each
 // fixes its tag and returns the matching `FormatTemporal*<P>` via the local
 // tag→format lookup, so the 6 namespace call sites don't change.
