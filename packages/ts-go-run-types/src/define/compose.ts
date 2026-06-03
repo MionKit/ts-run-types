@@ -180,3 +180,61 @@ export function func<P extends readonly RunType[] = [], R extends RunType = RunT
 ): RunType<(...args: MapTuple<P>) => TypeFromRT<R>> {
   return builderResult(id, {type: 'function', parameters: params ?? [], return: ret});
 }
+
+/** A template-literal part: a string-literal segment or a `RunType` placeholder. **/
+export type TemplatePart = string | RunType;
+
+/** The TS template-literal interpolation domain — what a `${…}` placeholder may
+ *  hold. A `RunType` part contributes its carried `T` narrowed to this set; a
+ *  string part contributes its own literal text. **/
+type Interpolatable = string | number | bigint | boolean | null | undefined;
+
+/** Strips a value-first leaf's FORMAT brand (`{__rtFormatName, __rtFormatParams}`
+ *  carried by `number()`/`string()`/`bigint()`) back to its base primitive, so a
+ *  placeholder converges with the type-first PLAIN `${number}` / `${string}` —
+ *  otherwise the brand leaks into the template-literal type and the scanner
+ *  reflects a different (permissive) shape. Literals and unions carry no brand and
+ *  pass through unchanged, so `literal('a')` stays `'a'`. **/
+type Unbrand<X> = X extends {__rtFormatName: string; __rtFormatParams: object}
+  ? X extends string
+    ? string
+    : X extends number
+      ? number
+      : X extends bigint
+        ? bigint
+        : X & Interpolatable
+  : X & Interpolatable;
+type PartText<Part extends TemplatePart> = Part extends RunType ? Unbrand<TypeFromRT<Part>> : Part & Interpolatable;
+
+/** Folds a parts tuple into the template-literal type it denotes:
+ *  `['api/user/', RunType<number>]` → `` `api/user/${number}` ``. Recursion over
+ *  the FIXED parts tuple is what assembles the literal — the one spot a `infer`
+ *  head/tail split is unavoidable (a mapped type can't JOIN into a template
+ *  string). The parts tuple is bounded by the call site, so there's no
+ *  deep-instantiation tax; a nested template-literal placeholder flattens
+ *  transparently, and a union placeholder distributes — both matching how the
+ *  type-first `` `…` `` form normalises, so the two converge on one structural id. **/
+export type AssembleTemplate<P extends readonly TemplatePart[]> = P extends readonly [
+  infer Head extends TemplatePart,
+  ...infer Tail extends readonly TemplatePart[],
+]
+  ? `${PartText<Head>}${AssembleTemplate<Tail>}`
+  : '';
+
+/** A template-literal builder — value-first authoring of a TS template-literal
+ *  type from a parts array mixing string segments and `RunType` placeholders:
+ *  `templateLiteral(['api/user/', number()])` → `` RunType<`api/user/${number}`> ``;
+ *  `templateLiteral([string(), '/', number()])` → `` RunType<`${string}/${number}`> ``;
+ *  `templateLiteral([union([literal('a'), literal('b')]), '-', number()])` →
+ *  `` RunType<`${'a' | 'b'}-${number}`> ``. Because the result is a real
+ *  template-literal TYPE it nests anywhere (object property, union member) and
+ *  converges with the type-first `` createIsType<`…`>() `` through the existing
+ *  reflection — no Go-side change. The `const` type parameter captures
+ *  string-literal segments (`'api/user/'` stays a literal, not `string`); the
+ *  parts ride the carrier only. **/
+export function templateLiteral<const P extends readonly TemplatePart[]>(
+  parts: P,
+  id?: InjectRunTypeId<AssembleTemplate<P>>
+): RunType<AssembleTemplate<P>> {
+  return builderResult(id, {type: 'templateLiteral', children: parts});
+}
