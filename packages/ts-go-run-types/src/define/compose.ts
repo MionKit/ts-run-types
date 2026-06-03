@@ -28,14 +28,32 @@ export function array<T>(item: RunType<T>, id?: InjectRunTypeId<T[]>): RunType<T
   return builderResult(id, {type: 'array', child: item});
 }
 
-/** A fixed tuple builder — `tuple([string(), number()])` → `RunType<[string,
- *  number]>`. The `readonly [...T]` target captures the argument as a tuple `T`
- *  (length/order preserved), then `MapTuple` recovers each element's type. **/
+/** A tuple builder. Fixed: `tuple([string(), number()])` →
+ *  `RunType<[string, number]>`. Rest: `tuple([number()], string())` →
+ *  `RunType<[number, ...string[]]>` — the second argument is the rest element.
+ *  The `readonly [...T]` target captures the leading items as a tuple `T`
+ *  (length/order preserved); `MapTuple` recovers each element's type. **/
 export function tuple<T extends readonly RunType[]>(
   items: readonly [...T],
   id?: InjectRunTypeId<MapTuple<T>>
-): RunType<MapTuple<T>> {
-  return builderResult(id, {type: 'tuple', children: items});
+): RunType<MapTuple<T>>;
+export function tuple<T extends readonly RunType[], R>(
+  items: readonly [...T],
+  rest: RunType<R>,
+  id?: InjectRunTypeId<[...MapTuple<T>, ...R[]]>
+): RunType<[...MapTuple<T>, ...R[]]>;
+export function tuple(
+  items: readonly RunType[],
+  restOrId?: RunType | InjectRunTypeId<unknown>,
+  id?: InjectRunTypeId<unknown>
+): RunType {
+  // Disambiguate the two overloads at runtime: a rest element is a RunType
+  // (object); the injected id is a string. Either way the scanner reflected the
+  // whole tuple type off the brand, so items/rest ride the carrier only.
+  const restIsSchema = typeof restOrId === 'object' && restOrId !== null;
+  const injectedId = (restIsSchema ? id : restOrId) as InjectRunTypeId<unknown> | undefined;
+  const rest = restIsSchema ? (restOrId as RunType) : undefined;
+  return builderResult(injectedId, {type: 'tuple', children: items, rest});
 }
 
 /** A union builder — `union([string(), number()])` → `RunType<string |

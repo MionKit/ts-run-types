@@ -50,6 +50,21 @@ describe('compose builders — tuple', () => {
   });
 });
 
+describe('compose builders — tuple with rest', () => {
+  it('validates [number, ...string[]]', () => {
+    const isRest = createIsTypeFor(tuple([number()], string()));
+    expect(isRest([1])).toBe(true);
+    expect(isRest([1, 'a', 'b'])).toBe(true);
+    expect(isRest([1, 'a', 2])).toBe(false); // rest element must be string
+    expect(isRest(['a'])).toBe(false); // first element must be number
+    expect(isRest([])).toBe(false); // leading number is required
+  });
+
+  it('converges with the type-first rest tuple (boolean head + boolean rest)', () => {
+    expect(createIsTypeFor(tuple([boolean()], boolean()))).toBe(createIsType<[boolean, ...boolean[]]>());
+  });
+});
+
 describe('compose builders — union', () => {
   it('validates and converges with the type-first union', () => {
     const isBoolOrLit = createIsTypeFor(union([boolean(), literal('x')]));
