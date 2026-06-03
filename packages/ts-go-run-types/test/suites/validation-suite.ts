@@ -51,6 +51,7 @@ import {
   createIsTypeFor,
   createTypeErrorsFor,
   createMockType,
+  type RunType,
   type IsTypeFn,
   type GetTypeErrorsFn,
   type RunTypeError,
@@ -2272,6 +2273,11 @@ export const VALIDATION_SUITE = {
         const v: CircularArray = [];
         return deserializeIsType(v);
       },
+      isTypeSchema: () => {
+        type CircularArray = CircularArray[];
+        const ca: RunType<CircularArray> = RT.array(RT.lazy((): RunType<CircularArray> => ca));
+        return createIsTypeFor(ca);
+      },
       getTypeErrors: () => {
         type CircularArray = CircularArray[];
         return createGetTypeErrors<CircularArray>();
@@ -2331,6 +2337,15 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
         return createIsType<ObjectType>();
+      },
+      isTypeSchema: () => {
+        type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+        const ot: RunType<ObjectType> = RT.object({
+          a: RT.string(),
+          deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
+          d: RT.optional(RT.array(RT.lazy((): RunType<ObjectType> => ot))),
+        });
+        return createIsTypeFor(ot);
       },
       deserializeIsType: () => {
         type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
@@ -3053,6 +3068,11 @@ export const VALIDATION_SUITE = {
         type ICircular = {name: string; child?: ICircular};
         return createIsType<ICircular>();
       },
+      isTypeSchema: () => {
+        type ICircular = {name: string; child?: ICircular};
+        const ic: RunType<ICircular> = RT.object({name: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircular> => ic))});
+        return createIsTypeFor(ic);
+      },
       deserializeIsType: () => {
         type ICircular = {name: string; child?: ICircular};
         return deserializeIsType<ICircular>();
@@ -3125,6 +3145,14 @@ export const VALIDATION_SUITE = {
         type ICircularArray = {name: string; children?: ICircularArray[]};
         return createIsType<ICircularArray>();
       },
+      isTypeSchema: () => {
+        type ICircularArray = {name: string; children?: ICircularArray[]};
+        const ica: RunType<ICircularArray> = RT.object({
+          name: RT.string(),
+          children: RT.optional(RT.array(RT.lazy((): RunType<ICircularArray> => ica))),
+        });
+        return createIsTypeFor(ica);
+      },
       deserializeIsType: () => {
         type ICircularArray = {name: string; children?: ICircularArray[]};
         return deserializeIsType<ICircularArray>();
@@ -3188,6 +3216,14 @@ export const VALIDATION_SUITE = {
       isType: () => {
         type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
         return createIsType<ICircularDeep>();
+      },
+      isTypeSchema: () => {
+        type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
+        const icd: RunType<ICircularDeep> = RT.object({
+          name: RT.string(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
+        });
+        return createIsTypeFor(icd);
       },
       deserializeIsType: () => {
         type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
@@ -6009,6 +6045,17 @@ export const VALIDATION_SUITE = {
       description:
         'mion union.spec.ts "Union circular". Handled via always-non-inlined Union + Object + Array (no IsCircular detection needed; the dependency-call layer terminates via the lazy-init two-phase cache registration).',
       isTypeNotes: 'Self-recursive unions traverse the cycle until the input value bottoms out at an atomic arm.',
+      isTypeSchema: () => {
+        type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
+        const uc: RunType<UnionC> = RT.union([
+          RT.date(),
+          RT.number(),
+          RT.string(),
+          RT.object({a: RT.optional(RT.lazy((): RunType<UnionC> => uc)), b: RT.optional(RT.string())}),
+          RT.array(RT.lazy((): RunType<UnionC> => uc)),
+        ]);
+        return createIsTypeFor(uc);
+      },
       isType: () => {
         type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
         return createIsType<UnionC>();
