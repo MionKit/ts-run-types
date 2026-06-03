@@ -5092,6 +5092,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
       deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
       isTypeReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
@@ -5102,6 +5103,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
       getTypeErrorsReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
@@ -5339,6 +5341,7 @@ export const VALIDATION_SUITE = {
       description:
         "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
       isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
       deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
       isTypeReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
@@ -5349,6 +5352,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
       getTypeErrorsReflect: () => {
         const v: [number, bigint?, boolean?, number?] = [3];
