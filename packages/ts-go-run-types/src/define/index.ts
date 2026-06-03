@@ -19,6 +19,12 @@ export {
   bigint,
   date,
   temporal,
+  // Atomic leaf builders for the remaining kinds — `literal(value)` (string /
+  // number / bigint / boolean / null / undefined literals), `regexp()`
+  // (`RegExp`), `symbol()` (`symbol`; validator unsupported by design).
+  literal,
+  regexp,
+  symbol,
   // Property-modifier wrappers — `propMod({optional?, readonly?}, field)` and the
   // `optional(field)` shortcut for `propMod({optional: true}, field)`. The
   // modifiers live here + in `object`'s param, never in a `FieldConfig`.
@@ -42,6 +48,16 @@ export {
   type PlainDateTimeFieldConfig,
   type PlainYearMonthFieldConfig,
 } from './define.ts';
+
+// Composer builders — `array` / `tuple` / `union` / `intersection` / `record`.
+// Each returns the generic `RunType<…>` for the composed type; child schemas
+// nest freely (the outer composer's marker reflects the whole shape).
+export {array, tuple, union, intersection, record, type MapTuple} from './compose.ts';
+
+// Universal reflectors — `runType<T>()` (static) / `reflectRunType(value)`
+// (inferred). The escape hatch for any TS type with no dedicated builder
+// (utility types, template literals, conditionals, native, circular).
+export {runType, reflectRunType} from './reflect.ts';
 
 // Tier 3 — the inverse reflector (RunType → typed runtime model).
 export {reflectModel} from './reflectModel.ts';

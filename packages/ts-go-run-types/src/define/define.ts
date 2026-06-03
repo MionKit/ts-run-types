@@ -142,7 +142,7 @@ export type ModelConfig = Record<string, FieldConfig>;
  *  builder is nested inside `object(...)`, so the scanner skipped it) or before
  *  the cache module has loaded, it returns the `carrier` the enclosing `object`
  *  discards. **/
-function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): RunType<T> {
+export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: unknown): RunType<T> {
   if (id !== undefined) {
     const runType = getRTUtils().getRunType(id);
     if (runType) return runType as RunType<T>;
@@ -190,6 +190,34 @@ export function date<const P extends FormatParams_NativeDate = Record<string, ne
  *  `RunType<boolean>`. **/
 export function boolean(id?: InjectRunTypeId<boolean>): RunType<boolean> {
   return builderResult(id, {type: 'boolean', formatParams: {}});
+}
+
+/** A literal builder — `literal('a')` → `RunType<'a'>`, plus `literal(42)`,
+ *  `literal(10n)`, `literal(true)`, `literal(null)`, `literal(undefined)`. The
+ *  `const V` narrows the argument to its literal type (so `literal(true)` is
+ *  `RunType<true>`, not `RunType<boolean>`); the scanner reflects that literal
+ *  off the `InjectRunTypeId<V>` brand. **/
+export function literal<const V extends string | number | bigint | boolean | null | undefined>(
+  value: V,
+  id?: InjectRunTypeId<V>
+): RunType<V> {
+  return builderResult(id, {type: 'literal', literal: value});
+}
+
+/** A `RegExp` builder — `regexp()` → `RunType<RegExp>` (kind regexp; matches a
+ *  `RegExp` instance). No params. Distinct from `string({pattern})`, which
+ *  validates a STRING against a pattern. **/
+export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
+  return builderResult(id, {type: 'regexp', formatParams: {}});
+}
+
+/** A `symbol` builder — `symbol()` → `RunType<symbol>`. Provided for
+ *  composition/parity; symbol identity is not round-trippable, so the Go side
+ *  emits an unsupported validator (docs/UNSUPPORTED-KINDS.md) — a standalone
+ *  `createIsTypeFor(symbol())` throws the same way the type-first `symbol` case
+ *  does. **/
+export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
+  return builderResult(id, {type: 'symbol', formatParams: {}});
 }
 
 // `temporalBuilder` — shared factory for the 6 temporal builders below. Each
@@ -406,18 +434,22 @@ export type ModelConfigOf<T> = {-readonly [K in keyof T]-?: FieldConfigOf<NonNul
 
 // ─────────────────────────────── object() ───────────────────────────
 
-/** Assembles an object run-type from named leaf builders, building the object
+/** Assembles an object run-type from named field builders, building the object
  *  type via `ObjectType<C>`: a bare field is a required + mutable property; a
  *  `propMod({optional?, readonly?}, field)` wrapper places the key (`key?:` /
  *  `readonly key:`). Strips the `const`-capture `readonly` from un-modified keys
- *  and unwraps each field's `RunType<…>` to its format type.
+ *  and unwraps each field's `RunType<…>` to its type via `FieldOf`/`TypeFromRT`,
+ *  so leaf builders AND composers (`array`/`tuple`/`union`/`record`/nested
+ *  `object`) nest freely.
  *
- *  NOTE: unlike the leaf builders, `object` still returns the PLAIN object type
- *  (`ObjectType<C>`), not `RunType<ObjectType<C>>` — converting composition to
- *  the generic `RunType<…>` is a separate follow-up. So `typeof object({...})` is
- *  the object type, consumed with `createIsType<typeof Model>()` as today. At
- *  runtime it is still the live composite RunType node (the nested leaf builders
- *  are skipped by the scanner); the cast bridges the node to the plain type. **/
-export function object<const C extends Record<string, unknown>>(config: C, id?: InjectRunTypeId<ObjectType<C>>): ObjectType<C> {
-  return builderResult<ObjectType<C>>(id, config) as unknown as ObjectType<C>;
+ *  Like every builder, `object` returns the generic `RunType<ObjectType<C>>`:
+ *  `typeof object({...})` is the run-type node, `TypeFromRT<typeof …>` recovers
+ *  the object type, and the value drops straight into `createIsTypeFor(...)` or
+ *  nests inside another composer. The nested field builders are skipped by the
+ *  scanner — the enclosing `object` marker reflects the whole shape. **/
+export function object<const C extends Record<string, unknown>>(
+  config: C,
+  id?: InjectRunTypeId<ObjectType<C>>
+): RunType<ObjectType<C>> {
+  return builderResult<ObjectType<C>>(id, config);
 }
