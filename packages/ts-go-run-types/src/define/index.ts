@@ -25,6 +25,13 @@ export {
   literal,
   regexp,
   symbol,
+  // Top / bottom atomic builders — `any` / `unknown` / `never` / `void`
+  // (`voidType` also aliased as `void` for a natural `RT.void()` call).
+  any,
+  unknown,
+  never,
+  voidType,
+  voidType as void,
   // Property-modifier wrappers — `propMod({optional?, readonly?}, field)` and the
   // `optional(field)` shortcut for `propMod({optional: true}, field)`. The
   // modifiers live here + in `object`'s param, never in a `FieldConfig`.
