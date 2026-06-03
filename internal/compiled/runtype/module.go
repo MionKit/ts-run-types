@@ -85,6 +85,7 @@ func renderFactoryArgs(runType *protocol.RunType) []string {
 		jsonArg(runType.DefaultVal),     // 16: defaultVal
 		enumArg(runType.EnumVal),        // 17: enumVal
 		valuesArg(runType.Values),       // 18: values
+		boolArg(runType.NotSupported),   // 19: notSupported
 	}
 	return trimTrailingUndefined(args)
 }
