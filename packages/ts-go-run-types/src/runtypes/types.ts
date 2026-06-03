@@ -104,11 +104,15 @@ export interface RunType<T = unknown> {
   implements?: RunType[];
   extends?: RunType;
   classType?: RunType;
-  /** Phantom carrier of the source TS type `T` this node represents. Never
-   *  set at runtime; exists only so `TypeFromRT<RunType<T>>` recovers `T` via
-   *  indexed access. The explicit member takes precedence over the index
-   *  signature below, so `RunType<T>['__rtType']` resolves to `T | undefined`. */
-  readonly __rtType?: T;
+  /** Phantom carrier of the source TS type `T` this node represents. Never set
+   *  at runtime; exists only so `TypeFromRT<RunType<T>>` recovers `T` via indexed
+   *  access (no `infer`). `T` rides INSIDE a `{t: T}` wrapper so the optional `?`
+   *  adds `| undefined` to the WRAPPER, not to `T`: `TypeFromRT` strips that outer
+   *  `undefined` and reads `.t`, preserving an intentional `null`/`undefined` `T`
+   *  (a bare-`T` carrier + `NonNullable` would collapse those to `never`, dropping
+   *  e.g. a `literal(null)` arm from a composed union). The explicit member wins
+   *  over the index signature below. */
+  readonly __rtType?: {t: T};
   [extra: string]: unknown;
 }
 
