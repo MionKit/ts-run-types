@@ -338,6 +338,7 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Color>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
       deserializeIsType: () => {
         enum Color {
           Red,
@@ -372,6 +373,7 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Color>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
       deserializeGetTypeErrors: () => {
         enum Color {
           Red,
@@ -443,6 +445,7 @@ export const VALIDATION_SUITE = {
       title: 'Numeric literal type (strict equality)',
       isTypeNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
       isType: () => createIsType<2>(),
+      isTypeSchema: () => createIsTypeFor(RT.literal(2)),
       deserializeIsType: () => deserializeIsType<2>(),
       isTypeReflect: () => {
         const v = 2 as const;
@@ -453,6 +456,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<2>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(2)),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(),
       getTypeErrorsReflect: () => {
         const v = 2 as const;
@@ -681,6 +685,7 @@ export const VALIDATION_SUITE = {
       title: 'BigInt literal type (only 1n)',
       isTypeNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
       isType: () => createIsType<1n>(),
+      isTypeSchema: () => createIsTypeFor(RT.literal(1n)),
       deserializeIsType: () => deserializeIsType<1n>(),
       isTypeReflect: () => {
         const v = 1n as const;
@@ -691,6 +696,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<1n>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(1n)),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(),
       getTypeErrorsReflect: () => {
         const v = 1n as const;
@@ -1098,6 +1104,7 @@ export const VALIDATION_SUITE = {
       description: 'undefined and null are distinct',
       isTypeNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
       isType: () => createIsType<undefined>(),
+      isTypeSchema: () => createIsTypeFor(RT.literal(undefined)),
       deserializeIsType: () => deserializeIsType<undefined>(),
       isTypeReflect: () => {
         const v: undefined = undefined;
@@ -1108,6 +1115,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<undefined>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.literal(undefined)),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined>(),
       getTypeErrorsReflect: () => {
         const v: undefined = undefined;
@@ -1190,6 +1198,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
       isType: () => createIsType<2>(undefined, {noLiterals: true}),
+      isTypeSchema: () => createIsTypeFor(RT.number()),
       deserializeIsType: () => deserializeIsType<2>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = 2 as const;
@@ -1200,6 +1209,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v, {noLiterals: true});
       },
       getTypeErrors: () => createGetTypeErrors<2>(undefined, {noLiterals: true}),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.number()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(undefined, {noLiterals: true}),
       getTypeErrorsReflect: () => {
         const v = 2 as const;
@@ -1229,6 +1239,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
       isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
+      isTypeSchema: () => createIsTypeFor(RT.string()),
       deserializeIsType: () => deserializeIsType<'a'>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = 'a' as const;
@@ -1239,6 +1250,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v, {noLiterals: true});
       },
       getTypeErrors: () => createGetTypeErrors<'a'>(undefined, {noLiterals: true}),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.string()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<'a'>(undefined, {noLiterals: true}),
       getTypeErrorsReflect: () => {
         const v = 'a' as const;
@@ -1327,6 +1339,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
       isType: () => createIsType<true>(undefined, {noLiterals: true}),
+      isTypeSchema: () => createIsTypeFor(RT.boolean()),
       deserializeIsType: () => deserializeIsType<true>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = true as const;
@@ -1337,6 +1350,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v, {noLiterals: true});
       },
       getTypeErrors: () => createGetTypeErrors<true>(undefined, {noLiterals: true}),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.boolean()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(undefined, {noLiterals: true}),
       getTypeErrorsReflect: () => {
         const v = true as const;
@@ -1367,6 +1381,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
       isType: () => createIsType<1n>(undefined, {noLiterals: true}),
+      isTypeSchema: () => createIsTypeFor(RT.bigint()),
       deserializeIsType: () => deserializeIsType<1n>(undefined, {noLiterals: true}),
       isTypeReflect: () => {
         const v = 1n as const;
@@ -1377,6 +1392,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v, {noLiterals: true});
       },
       getTypeErrors: () => createGetTypeErrors<1n>(undefined, {noLiterals: true}),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.bigint()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(undefined, {noLiterals: true}),
       getTypeErrorsReflect: () => {
         const v = 1n as const;
@@ -1742,6 +1758,7 @@ export const VALIDATION_SUITE = {
     regexp_array: {
       title: 'Array of RegExps',
       isType: () => createIsType<RegExp[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.regexp())),
       deserializeIsType: () => deserializeIsType<RegExp[]>(),
       isTypeReflect: () => {
         const v: RegExp[] = [];
@@ -1752,6 +1769,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<RegExp[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.regexp())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<RegExp[]>(),
       getTypeErrorsReflect: () => {
         const v: RegExp[] = [];
@@ -1785,6 +1803,7 @@ export const VALIDATION_SUITE = {
       description: 'from mion serialization-suite ARRAYS.undefined_in_array',
       isTypeNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
       isType: () => createIsType<undefined[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.literal(undefined))),
       deserializeIsType: () => deserializeIsType<undefined[]>(),
       isTypeReflect: () => {
         const v: undefined[] = [];
@@ -1795,6 +1814,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<undefined[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.literal(undefined))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined[]>(),
       getTypeErrorsReflect: () => {
         const v: undefined[] = [];
@@ -1828,6 +1848,7 @@ export const VALIDATION_SUITE = {
       title: 'Array of nulls',
       isTypeNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
       isType: () => createIsType<null[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.literal(null))),
       deserializeIsType: () => deserializeIsType<null[]>(),
       isTypeReflect: () => {
         const v: null[] = [];
@@ -1838,6 +1859,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<null[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.literal(null))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<null[]>(),
       getTypeErrorsReflect: () => {
         const v: null[] = [];
@@ -1871,6 +1893,7 @@ export const VALIDATION_SUITE = {
       title: 'Generic Array<T> form (same emit as T[])',
       description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
       isType: () => createIsType<Array<string>>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.string())),
       deserializeIsType: () => deserializeIsType<Array<string>>(),
       isTypeReflect: () => {
         const v: Array<string> = [];
@@ -1881,6 +1904,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<Array<string>>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.string())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<Array<string>>(),
       getTypeErrorsReflect: () => {
         const v: Array<string> = [];
@@ -1912,6 +1936,7 @@ export const VALIDATION_SUITE = {
       description:
         'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getRT(...).fn(v[i0]))',
       isType: () => createIsType<string[][]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.array(RT.string()))),
       deserializeIsType: () => deserializeIsType<string[][]>(),
       isTypeReflect: () => {
         const v: string[][] = [];
@@ -1922,6 +1947,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string[][]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.array(RT.string()))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][]>(),
       getTypeErrorsReflect: () => {
         const v: string[][] = [];
@@ -1974,6 +2000,7 @@ export const VALIDATION_SUITE = {
       title: 'Three-dimensional string array (depth stress)',
       description: 'depth stress for the dependency-call layer',
       isType: () => createIsType<string[][][]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.array(RT.array(RT.string())))),
       deserializeIsType: () => deserializeIsType<string[][][]>(),
       isTypeReflect: () => {
         const v: string[][][] = [];
@@ -1984,6 +2011,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string[][][]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.array(RT.array(RT.string())))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][][]>(),
       getTypeErrorsReflect: () => {
         const v: string[][][] = [];
@@ -2067,6 +2095,7 @@ export const VALIDATION_SUITE = {
       description:
         "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
       isType: () => createIsType<{a: string}[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.object({a: RT.string()}))),
       deserializeIsType: () => deserializeIsType<{a: string}[]>(),
       isTypeReflect: () => {
         const v: {a: string}[] = [];
@@ -2077,6 +2106,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{a: string}[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.object({a: RT.string()}))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string}[]>(),
       getTypeErrorsReflect: () => {
         const v: {a: string}[] = [];
@@ -2111,6 +2141,7 @@ export const VALIDATION_SUITE = {
       title: 'Array of unions (OR-chain per element)',
       description: 'array of union — each element validates against the union OR-chain.',
       isType: () => createIsType<(string | number)[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.union([RT.string(), RT.number()]))),
       deserializeIsType: () => deserializeIsType<(string | number)[]>(),
       isTypeReflect: () => {
         const v: (string | number)[] = [];
@@ -2121,6 +2152,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<(string | number)[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.union([RT.string(), RT.number()]))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | number)[]>(),
       getTypeErrorsReflect: () => {
         const v: (string | number)[] = [];
@@ -2162,6 +2194,7 @@ export const VALIDATION_SUITE = {
       title: 'Array of tuples',
       description: 'array of tuples — exercises tuple under array dependency call.',
       isType: () => createIsType<[string, number][]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.tuple([RT.string(), RT.number()]))),
       deserializeIsType: () => deserializeIsType<[string, number][]>(),
       isTypeReflect: () => {
         const v: [string, number][] = [];
@@ -2172,6 +2205,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.tuple([RT.string(), RT.number()]))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
       getTypeErrorsReflect: () => {
         const v: [string, number][] = [];
@@ -2415,6 +2449,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
       isType: () => createIsType<ReadonlyArray<string>>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.string())),
       deserializeIsType: () => deserializeIsType<ReadonlyArray<string>>(),
       isTypeReflect: () => {
         const v: ReadonlyArray<string> = [];
@@ -2425,6 +2460,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<ReadonlyArray<string>>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.string())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<ReadonlyArray<string>>(),
       getTypeErrorsReflect: () => {
         const v: ReadonlyArray<string> = [];
@@ -5018,6 +5054,7 @@ export const VALIDATION_SUITE = {
       title: 'Tuple as array element (tuple inside array dependency call)',
       description: 'array of tuples — exercises tuple inside array dependency call',
       isType: () => createIsType<[string, number][]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.tuple([RT.string(), RT.number()]))),
       deserializeIsType: () => deserializeIsType<[string, number][]>(),
       isTypeReflect: () => {
         const v: [string, number][] = [];
@@ -5028,6 +5065,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.tuple([RT.string(), RT.number()]))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
       getTypeErrorsReflect: () => {
         const v: [string, number][] = [];
