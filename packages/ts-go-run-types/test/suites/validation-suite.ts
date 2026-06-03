@@ -4899,6 +4899,9 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
       isType: () => createIsType<{[k: number]: string}>(),
+      // Number-key index sigs are string-key at runtime (JS object keys are
+      // strings), so the string-key record() validates the same samples.
+      isTypeSchema: () => createIsTypeFor(RT.record(RT.string())),
       deserializeIsType: () => deserializeIsType<{[k: number]: string}>(),
       isTypeReflect: () => {
         const v: {[k: number]: string} = {};
