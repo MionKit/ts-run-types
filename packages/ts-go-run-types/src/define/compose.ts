@@ -91,3 +91,22 @@ export function intersection<A, B = unknown, C = unknown, D = unknown, E = unkno
 export function record<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Record<string, V>>): RunType<Record<string, V>> {
   return builderResult(id, {type: 'record', child: valueSchema});
 }
+
+/** A `Map` builder — `map(string(), number())` → `RunType<Map<string, number>>`.
+ *  Both the key and value schemas are validated per entry. **/
+export function map<K, V>(keySchema: RunType<K>, valueSchema: RunType<V>, id?: InjectRunTypeId<Map<K, V>>): RunType<Map<K, V>> {
+  return builderResult(id, {type: 'map', index: keySchema, child: valueSchema});
+}
+
+/** A `Set` builder — `set(string())` → `RunType<Set<string>>`. Each member is
+ *  validated against the value schema. **/
+export function set<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Set<V>>): RunType<Set<V>> {
+  return builderResult(id, {type: 'set', child: valueSchema});
+}
+
+/** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.
+ *  Validates the thenable shape (the resolved value type is not checked at
+ *  runtime — a pending promise's value isn't available synchronously). **/
+export function promise<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Promise<V>>): RunType<Promise<V>> {
+  return builderResult(id, {type: 'promise', child: valueSchema});
+}
