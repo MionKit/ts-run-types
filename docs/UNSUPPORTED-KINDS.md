@@ -62,6 +62,13 @@ This mirrors mion's `getRTChildren` filter — the only "skip" in the upstream l
 
 So the same logical throw (Never at root) surfaces as `PJ001` under prepareForJson, `SJ001` under stringifyJson, `TB001` under toBinary, etc. Users reading their build log can grep by family prefix.
 
+## Reflection keeps these nodes — the `notSupported` flag
+
+The two rules above govern **emit** (validators / serializers). **Reflection is different**: the serializer KEEPS every unsupported node in the RunType tree so a reflected type stays a complete picture of the source type — nothing is dropped from reflection. At cache-exit, `PopulateFamily` (`internal/protocol/family.go`) sets `NotSupported: true` on exactly the unsupported-set nodes via `IsNotSupportedKind(kind, subKind)` — the same set tabulated above, with **`KindPromise` excluded** (it is validation-supported, i.e. data). The flag is set on the **node itself only, never its children** (a method's params / return are not flagged).
+
+- **Emit is unchanged.** The type functions still drop unsupported children at property positions (Warning) and throw at propagating positions (Error) per the two-rule model. The flag is additive metadata for reflection / tooling; emit ignores it.
+- **Wire.** `notSupported` ships as the `notSupported` JSON field on the dump (`omitempty`) and as positional factory-arg **slot 19** in `packages/ts-go-run-types/src/caches/runTypesCache.ts` (mirrored on `RunType` in `src/runtypes/types.ts`). Reflection consumers read it to know which members the validators / serializers skip.
+
 ## Wire format
 
 A factory rendered for an unsupported root looks like:
