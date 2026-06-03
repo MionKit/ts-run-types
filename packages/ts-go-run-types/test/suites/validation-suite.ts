@@ -7848,6 +7848,21 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Circular>();
       },
+      isTypeSchema: () => {
+        interface Circular {
+          n: number;
+          s: string;
+          c?: Circular;
+          d?: Date;
+        }
+        const cir: RunType<Circular> = RT.object({
+          n: RT.number(),
+          s: RT.string(),
+          c: RT.optional(RT.lazy((): RunType<Circular> => cir)),
+          d: RT.optional(RT.date()),
+        });
+        return createIsTypeFor(cir);
+      },
       deserializeIsType: () => {
         interface Circular {
           n: number;
@@ -7970,6 +7985,13 @@ export const VALIDATION_SUITE = {
       title: 'Self-referential array whose union element includes the array itself',
       description:
         "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
+      isTypeSchema: () => {
+        type CuArray = (CuArray | Date | number | string)[];
+        const cu: RunType<CuArray> = RT.array(
+          RT.union([RT.lazy((): RunType<CuArray> => cu), RT.date(), RT.number(), RT.string()])
+        );
+        return createIsTypeFor(cu);
+      },
       isType: () => {
         type CuArray = (CuArray | Date | number | string)[];
         return createIsType<CuArray>();
@@ -8163,6 +8185,13 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularIndex>();
       },
+      isTypeSchema: () => {
+        interface CircularIndex {
+          index: {[key: string]: CircularIndex};
+        }
+        const ci: RunType<CircularIndex> = RT.object({index: RT.record(RT.lazy((): RunType<CircularIndex> => ci))});
+        return createIsTypeFor(ci);
+      },
       deserializeIsType: () => {
         interface CircularIndex {
           index: {[key: string]: CircularIndex};
@@ -8261,6 +8290,17 @@ export const VALIDATION_SUITE = {
           deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
         }
         return createIsType<CircularDeep>();
+      },
+      isTypeSchema: () => {
+        interface CircularDeep {
+          deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+        }
+        const cd: RunType<CircularDeep> = RT.object({
+          deep1: RT.object({
+            deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.lazy((): RunType<CircularDeep> => cd))})}),
+          }),
+        });
+        return createIsTypeFor(cd);
       },
       deserializeIsType: () => {
         interface CircularDeep {
@@ -8372,6 +8412,24 @@ export const VALIDATION_SUITE = {
           ciChild: ICircularDeep;
         }
         return createIsType<RootNotCircular>();
+      },
+      isTypeSchema: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface RootNotCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+        }
+        const icd: RunType<ICircularDeep> = RT.object({
+          name: RT.string(),
+          big: RT.bigint(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
+        });
+        const root: RunType<RootNotCircular> = RT.object({isRoot: RT.literal(true), ciChild: icd});
+        return createIsTypeFor(root);
       },
       deserializeIsType: () => {
         interface ICircularDeep {
@@ -8583,6 +8641,45 @@ export const VALIDATION_SUITE = {
           ciDate: ICircularDate;
         }
         return createIsType<RootCircular>();
+      },
+      isTypeSchema: () => {
+        interface ICircularDeep {
+          name: string;
+          big: bigint;
+          embedded: {hello: string; child?: ICircularDeep};
+        }
+        interface ICircularDate {
+          date: Date;
+          month: number;
+          year: number;
+          embedded?: ICircularDate;
+          deep?: ICircularDeep;
+        }
+        interface RootCircular {
+          isRoot: true;
+          ciChild: ICircularDeep;
+          ciRoort?: RootCircular;
+          ciDate: ICircularDate;
+        }
+        const icd: RunType<ICircularDeep> = RT.object({
+          name: RT.string(),
+          big: RT.bigint(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
+        });
+        const icDate: RunType<ICircularDate> = RT.object({
+          date: RT.date(),
+          month: RT.number(),
+          year: RT.number(),
+          embedded: RT.optional(RT.lazy((): RunType<ICircularDate> => icDate)),
+          deep: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd)),
+        });
+        const root: RunType<RootCircular> = RT.object({
+          isRoot: RT.literal(true),
+          ciChild: icd,
+          ciRoort: RT.optional(RT.lazy((): RunType<RootCircular> => root)),
+          ciDate: icDate,
+        });
+        return createIsTypeFor(root);
       },
       deserializeIsType: () => {
         interface ICircularDeep {
