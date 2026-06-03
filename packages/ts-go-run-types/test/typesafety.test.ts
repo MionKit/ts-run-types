@@ -26,6 +26,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsRejectAny).toBe('function');
   expect(typeof assertionsAcceptUnknown).toBe('function');
   expect(typeof assertionsValueFirstDefine).toBe('function');
+  expect(typeof assertionsComposers).toBe('function');
 });
 
 // Runtime contract: the markers throw at runtime when no id is injected
@@ -184,4 +185,61 @@ function assertionsValueFirstDefine(): void {
   // @ts-expect-error — a temporal builder's only params are min/max/gt/lt; a
   // string param (`maxLength`) is rejected.
   RT.temporal.instant({maxLength: 5});
+}
+
+function assertionsComposers(): void {
+  // Composer builders return `RunType<…>` for the COMPOSED type — these
+  // positive assignments compile only if the carried type is exactly right
+  // (no `infer`: `MapTuple` over the child tuple, `[number]` for unions,
+  // positional `A & B` for intersections).
+  const _arr: RunType<boolean[]> = RT.array(RT.boolean());
+  const _tup: RunType<[boolean, boolean]> = RT.tuple([RT.boolean(), RT.boolean()]);
+  const _tupRest: RunType<[boolean, ...boolean[]]> = RT.tuple([RT.boolean()], RT.boolean());
+  const _uni: RunType<boolean | 'x'> = RT.union([RT.boolean(), RT.literal('x')]);
+  const _int: RunType<{a: boolean} & {b: boolean}> = RT.intersection(RT.object({a: RT.boolean()}), RT.object({b: RT.boolean()}));
+  const _rec: RunType<Record<string, boolean>> = RT.record(RT.boolean());
+  const _obj: RunType<{a: boolean}> = RT.object({a: RT.boolean()});
+  void _arr;
+  void _tup;
+  void _tupRest;
+  void _uni;
+  void _int;
+  void _rec;
+  void _obj;
+
+  // Leaf builders: `literal` narrows via `const` to the literal type; `regexp` /
+  // `symbol` are fixed.
+  const _litStr: RunType<'a'> = RT.literal('a');
+  const _litTrue: RunType<true> = RT.literal(true);
+  const _litNum: RunType<42> = RT.literal(42);
+  const _litNull: RunType<null> = RT.literal(null);
+  const _re: RunType<RegExp> = RT.regexp();
+  const _sym: RunType<symbol> = RT.symbol();
+  void _litStr;
+  void _litTrue;
+  void _litNum;
+  void _litNull;
+  void _re;
+  void _sym;
+
+  // Universal reflectors carry exactly `T` (static + reflection forms).
+  const _rt: RunType<Map<string, number>> = RT.runType<Map<string, number>>();
+  const _sample: boolean[] = [true];
+  const _rtRef: RunType<boolean[]> = RT.reflectRunType(_sample);
+  void _rt;
+  void _rtRef;
+
+  // `TypeFromRT<…>` round-trips a composed type back to its tuple form.
+  const _back = (x: TypeFromRT<RunType<[boolean, number]>>): [boolean, number] => x;
+  void _back;
+
+  // @ts-expect-error — `array` takes a RunType schema, not the bare builder fn.
+  RT.array(RT.boolean);
+
+  // @ts-expect-error — `literal` only accepts string/number/bigint/boolean/null/undefined.
+  RT.literal({});
+
+  // @ts-expect-error — the result is a `RunType<…>`, NOT the bare composed type.
+  const _notBare: boolean[] = RT.array(RT.boolean());
+  void _notBare;
 }
