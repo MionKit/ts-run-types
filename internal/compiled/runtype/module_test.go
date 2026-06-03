@@ -168,27 +168,28 @@ func TestDeterministic(t *testing.T) {
 // scalar slot when a new field is added to RunType.
 func TestKnownFieldsCovered(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{
-		ID:          "FULL",
-		Kind:        protocol.KindClass,
-		SubKind:     protocol.SubKindNonSerializable,
-		TypeName:    "TN",
-		Name:        "NM",
-		Literal:     "L",
-		Optional:    true,
-		Readonly:    true,
-		IsAbstract:  true,
-		IsStatic:    true,
-		Visibility:  intPtr(2),
-		IsSafeName:  true,
-		Position:    intPtr(7),
-		IsCircular:  true,
-		Flags:       []string{"f1"},
-		Description: "D",
-		DefaultVal:  "DEF",
-		EnumVal:     map[string]any{"k": 1.0},
-		Values:      []any{"v"},
+		ID:           "FULL",
+		Kind:         protocol.KindClass,
+		SubKind:      protocol.SubKindNonSerializable,
+		TypeName:     "TN",
+		Name:         "NM",
+		Literal:      "L",
+		Optional:     true,
+		Readonly:     true,
+		IsAbstract:   true,
+		IsStatic:     true,
+		Visibility:   intPtr(2),
+		IsSafeName:   true,
+		Position:     intPtr(7),
+		IsCircular:   true,
+		Flags:        []string{"f1"},
+		Description:  "D",
+		DefaultVal:   "DEF",
+		EnumVal:      map[string]any{"k": 1.0},
+		Values:       []any{"v"},
+		NotSupported: true,
 	}})
-	expected := `rt('FULL',20,2004,'TN','NM','L',!0,!0,!0,!0,2,!0,7,!0,['f1'],'D','DEF',{'k':1},['v']);`
+	expected := `rt('FULL',20,2004,'TN','NM','L',!0,!0,!0,!0,2,!0,7,!0,['f1'],'D','DEF',{'k':1},['v'],!0);`
 	if !strings.Contains(out, expected) {
 		t.Errorf("expected fully-populated factory call:\n  %s\ngot:\n%s", expected, out)
 	}

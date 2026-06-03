@@ -90,10 +90,29 @@ func FamilyOf(kind ReflectionKind) Family {
 	return FamilyUnknown
 }
 
-// PopulateFamily recursively walks a RunType and sets `Family` on
-// every concrete node it visits. Called at cache-exit time
-// (Cache.Dump and friends) so every wire-bound node carries its
-// family before the JSON envelope is built.
+// IsNotSupportedKind reports whether a node's Kind (+ SubKind) is one the
+// type-function emitters cannot faithfully validate or serialise — the
+// "non-data" set documented in docs/UNSUPPORTED-KINDS.md: functions,
+// methods, method-signatures and call-signatures (no value form), symbols
+// (identity doesn't round-trip), never (no inhabitants), and non-
+// serialisable classes (WeakMap, typed arrays, …). KindPromise is
+// deliberately absent: it is validation-supported (a real thenable runtime
+// value), so it counts as data.
+func IsNotSupportedKind(kind ReflectionKind, subKind ReflectionSubKind) bool {
+	switch kind {
+	case KindNever, KindSymbol,
+		KindFunction, KindMethod, KindMethodSignature, KindCallSignature:
+		return true
+	case KindClass:
+		return subKind == SubKindNonSerializable
+	}
+	return false
+}
+
+// PopulateFamily recursively walks a RunType and sets `Family` AND
+// `NotSupported` on every concrete node it visits. Called at cache-exit
+// time (Cache.Dump and friends) so every wire-bound node carries both
+// Kind-derived classifications before the JSON envelope is built.
 //
 // Idempotent — re-running on an already-populated tree is a no-op
 // modulo the function-call overhead. Refs (KindRef) terminate the
@@ -104,6 +123,7 @@ func PopulateFamily(runType *RunType) {
 		return
 	}
 	runType.Family = FamilyOf(runType.Kind)
+	runType.NotSupported = IsNotSupportedKind(runType.Kind, runType.SubKind)
 
 	for _, child := range runType.Children {
 		PopulateFamily(child)

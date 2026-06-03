@@ -244,4 +244,36 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
       expect((root.literal as RegExp).flags).toBe('gi');
     }
   );
+
+  // ---- notSupported — non-data members kept in the tree but flagged ---------
+  // serialize.go KEEPS the method signature in the reflected tree; the
+  // cache-exit pass flags exactly that node `notSupported` and the runtime
+  // rt() factory round-trips it. The data property stays unflagged. Emit
+  // behaviour is unchanged (see docs/UNSUPPORTED-KINDS.md).
+  function assertNotSupported(cache: Cache) {
+    const root = getTypeFor(cache, 'm.ts');
+    expect(root.kind).toBe(ReflectionKind.objectLiteral);
+    expect(root.notSupported).toBeFalsy();
+    const a = root.children?.find((m) => m.name === 'a');
+    expect(a).toBeDefined();
+    expect(a!.notSupported).toBeFalsy();
+    // The non-data method is KEPT (not dropped) and flagged notSupported.
+    const greet = root.children?.find((m) => m.name === 'greet');
+    expect(greet).toBeDefined();
+    expect(greet!.kind).toBe(ReflectionKind.methodSignature);
+    expect(greet!.notSupported).toBe(true);
+  }
+  const notSupportedSrc = `interface Mixed { a: string; greet(name: string): string }`;
+  runTest(
+    'notSupported: non-data method kept + flagged [static]',
+    {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\n${notSupportedSrc}\ngetRunTypeId<Mixed>();\n`},
+    async (s) => assertNotSupported(await evalCacheFor(s))
+  );
+  runTest(
+    'notSupported: non-data method kept + flagged [reflect]',
+    {
+      'm.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\n${notSupportedSrc}\ndeclare const value: Mixed;\nreflectRunTypeId(value);\n`,
+    },
+    async (s) => assertNotSupported(await evalCacheFor(s))
+  );
 });
