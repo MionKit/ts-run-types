@@ -7514,8 +7514,7 @@ export const VALIDATION_SUITE = {
       description:
         "mion templateLiteral.spec.ts 'nested in object' — template literal as a property value; the parent object's AND chain composes the typeof+regex check against `v.url`.",
       isType: () => createIsType<{url: `api/user/${number}`; method: string}>(),
-      isTypeSchema: () =>
-        createIsTypeFor(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+      isTypeSchema: () => createIsTypeFor(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
       deserializeIsType: () => deserializeIsType<{url: `api/user/${number}`; method: string}>(),
       isTypeReflect: () => {
         const v: {url: `api/user/${number}`; method: string} = {url: 'api/user/42', method: 'GET'};
@@ -7620,8 +7619,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Union placeholders inside a template literal compile to a character-class / alternation in the regex — only the listed literal values pass.',
       isType: () => createIsType<`${'a' | 'b'}-${number}`>(),
-      isTypeSchema: () =>
-        createIsTypeFor(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
+      isTypeSchema: () => createIsTypeFor(RT.templateLiteral([RT.union([RT.literal('a'), RT.literal('b')]), '-', RT.number()])),
       deserializeIsType: () => deserializeIsType<`${'a' | 'b'}-${number}`>(),
       isTypeReflect: () => {
         const v: `${'a' | 'b'}-${number}` = 'a-42';

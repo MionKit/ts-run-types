@@ -267,10 +267,10 @@ export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
  *  (`classType<typeof Box, Box<number>>(Box)`); otherwise it defaults to the
  *  unparameterised `InstanceType<C>`. The ctor rides the carrier (the runtime
  *  keeps a real class reference). **/
-export function classType<
-  C extends abstract new (...args: any[]) => any,
-  Instance extends InstanceType<C> = InstanceType<C>,
->(ctor: C, id?: InjectRunTypeId<Instance>): RunType<Instance> {
+export function classType<C extends abstract new (...args: any[]) => any, Instance extends InstanceType<C> = InstanceType<C>>(
+  ctor: C,
+  id?: InjectRunTypeId<Instance>
+): RunType<Instance> {
   return builderResult(id, {type: 'class', ctor});
 }
 
