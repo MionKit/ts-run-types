@@ -3847,6 +3847,20 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<MySerializableClass>();
       },
+      isTypeSchema: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        return createIsTypeFor(RT.classType(MySerializableClass));
+      },
       deserializeIsType: () => {
         class MySerializableClass {
           date: Date;
@@ -3904,6 +3918,20 @@ export const VALIDATION_SUITE = {
           }
         }
         return createGetTypeErrors<MySerializableClass>();
+      },
+      getTypeErrorsSchema: () => {
+        class MySerializableClass {
+          date: Date;
+          name: string;
+          constructor(date: Date, name: string) {
+            this.date = date;
+            this.name = name;
+          }
+          someMethod() {
+            return 'unused';
+          }
+        }
+        return createTypeErrorsFor(RT.classType(MySerializableClass));
       },
       deserializeGetTypeErrors: () => {
         class MySerializableClass {
@@ -4796,6 +4824,15 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Sub>();
       },
+      isTypeSchema: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return createIsTypeFor(RT.classType(Sub));
+      },
       deserializeIsType: () => {
         class Base {
           a: string = '';
@@ -4833,6 +4870,15 @@ export const VALIDATION_SUITE = {
           b: number = 0;
         }
         return createGetTypeErrors<Sub>();
+      },
+      getTypeErrorsSchema: () => {
+        class Base {
+          a: string = '';
+        }
+        class Sub extends Base {
+          b: number = 0;
+        }
+        return createTypeErrorsFor(RT.classType(Sub));
       },
       deserializeGetTypeErrors: () => {
         class Base {
