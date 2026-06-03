@@ -29,7 +29,9 @@ import {
   regexp,
   runType,
   reflectRunType,
+  lazy,
 } from '@mionjs/ts-go-run-types/define';
+import type {RunType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
 
 describe('compose builders — array', () => {
@@ -211,6 +213,22 @@ describe('compose builders — null member survives composition (TypeFromRT carr
     expect(isTup([true, null])).toBe(true);
     expect(isTup([true, undefined])).toBe(false);
     expect(isTup).toBe(createIsType<[boolean, null]>());
+  });
+});
+
+describe('compose builders — lazy (recursive self-reference)', () => {
+  it('validates a recursive linked-list node', () => {
+    interface LNode {
+      value: number;
+      next: LNode | null;
+    }
+    const LNodeSchema: RunType<LNode> = object({value: number(), next: union([lazy(() => LNodeSchema), literal(null)])});
+    const isNode = createIsTypeFor(LNodeSchema);
+    expect(isNode({value: 1, next: null})).toBe(true);
+    expect(isNode({value: 1, next: {value: 2, next: null}})).toBe(true);
+    expect(isNode({value: 1, next: {value: 2, next: {value: 3, next: null}}})).toBe(true);
+    expect(isNode({value: 1, next: {value: 'x', next: null}})).toBe(false); // nested value wrong type
+    expect(isNode({value: 1})).toBe(false); // missing next
   });
 });
 
