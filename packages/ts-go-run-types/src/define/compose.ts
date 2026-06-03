@@ -163,3 +163,20 @@ export function lazy<T>(thunk: () => RunType<T>, id?: InjectRunTypeId<T>): RunTy
 export function promise<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Promise<V>>): RunType<Promise<V>> {
   return builderResult(id, {type: 'promise', child: valueSchema});
 }
+
+/** A function builder — `func()` → `RunType<() => void>`; `func([string(),
+ *  number()], boolean())` → `RunType<(a: string, b: number) => boolean>`. The
+ *  params list maps to the call signature via `MapTuple` (rest-tuple form, so
+ *  `(...args: [string, number])` ≡ `(a: string, b: number)`); `ret` defaults to
+ *  `void`. Function values aren't serialisable, so the validator a function
+ *  lowers to depends on POSITION: a function-typed object property is skipped
+ *  entirely, a function at a tuple slot must be `undefined`, and a top-level
+ *  function passes a `typeof === 'function'` gate. The builder exists so those
+ *  shapes can be authored value-first. **/
+export function func<P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
+  params?: readonly [...P],
+  ret?: R,
+  id?: InjectRunTypeId<(...args: MapTuple<P>) => TypeFromRT<R>>
+): RunType<(...args: MapTuple<P>) => TypeFromRT<R>> {
+  return builderResult(id, {type: 'function', parameters: params ?? [], return: ret});
+}
