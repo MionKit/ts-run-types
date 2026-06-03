@@ -4980,6 +4980,8 @@ export const VALIDATION_SUITE = {
       title: 'Six-element heterogeneous tuple (mion fixture)',
       description: 'mion tuple.spec.ts "validate tuple"',
       isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
+      isTypeSchema: () =>
+        createIsTypeFor(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
       deserializeIsType: () => deserializeIsType<[Date, number, string, null, string[], bigint]>(),
       isTypeReflect: () => {
         const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
@@ -4990,6 +4992,10 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])
+        ),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
       getTypeErrorsReflect: () => {
         const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
@@ -5348,6 +5354,7 @@ export const VALIDATION_SUITE = {
       description:
         "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
       isType: () => createIsType<[name: string, age: number]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string(), RT.number()])),
       deserializeIsType: () => deserializeIsType<[name: string, age: number]>(),
       isTypeReflect: () => {
         const v: [name: string, age: number] = ['Alice', 30];
@@ -5358,6 +5365,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[name: string, age: number]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string(), RT.number()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[name: string, age: number]>(),
       getTypeErrorsReflect: () => {
         const v: [name: string, age: number] = ['Alice', 30];
@@ -5463,6 +5471,7 @@ export const VALIDATION_SUITE = {
       description:
         "Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors mion's `children.length === 0` branch.",
       isType: () => createIsType<[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([])),
       deserializeIsType: () => deserializeIsType<[]>(),
       isTypeReflect: () => {
         const v: [] = [];
@@ -5473,6 +5482,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[]>(),
       getTypeErrorsReflect: () => {
         const v: [] = [];
@@ -5507,6 +5517,7 @@ export const VALIDATION_SUITE = {
       description:
         'One-slot tuple — corner case for the length-bound check (length must be exactly 1 modulo optional / rest). Exercises the same emit shape as multi-element tuples but with a single member.',
       isType: () => createIsType<[string]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string()])),
       deserializeIsType: () => deserializeIsType<[string]>(),
       isTypeReflect: () => {
         const v: [string] = ['x'];
@@ -5517,6 +5528,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<[string]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string]>(),
       getTypeErrorsReflect: () => {
         const v: [string] = ['x'];
@@ -5554,6 +5566,7 @@ export const VALIDATION_SUITE = {
       description:
         '`readonly [T, U]` — readonly modifier on a tuple type. As with arrays, the readonly bit is TS-only and erased at runtime; the validator is identical to the bare `[T, U]` shape.',
       isType: () => createIsType<readonly [string, number]>(),
+      isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string(), RT.number()])),
       deserializeIsType: () => deserializeIsType<readonly [string, number]>(),
       isTypeReflect: () => {
         const v: readonly [string, number] = ['x', 1];
@@ -5564,6 +5577,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<readonly [string, number]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string(), RT.number()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<readonly [string, number]>(),
       getTypeErrorsReflect: () => {
         const v: readonly [string, number] = ['x', 1];
@@ -5667,6 +5681,7 @@ export const VALIDATION_SUITE = {
       description: 'mion union.spec.ts "validate union discriminator string"',
       isTypeNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
       isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
       deserializeIsType: () => deserializeIsType<'UNO' | 'DOS' | 'TRES'>(),
       isTypeReflect: () => {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
@@ -5677,6 +5692,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
       getTypeErrorsReflect: () => {
         const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
@@ -5711,6 +5727,7 @@ export const VALIDATION_SUITE = {
     string_or_number: {
       title: 'Two-arm union of string and number',
       isType: () => createIsType<string | number>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.string(), RT.number()])),
       deserializeIsType: () => deserializeIsType<string | number>(),
       isTypeReflect: () => {
         const v: string | number = 'hello';
@@ -5721,6 +5738,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string | number>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.string(), RT.number()])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | number>(),
       getTypeErrorsReflect: () => {
         const v: string | number = 'hello';
@@ -5757,6 +5775,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
       isType: () => createIsType<string[] | number[] | boolean[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
       deserializeIsType: () => deserializeIsType<string[] | number[] | boolean[]>(),
       isTypeReflect: () => {
         const v: string[] | number[] | boolean[] = ['a'];
@@ -5767,6 +5786,8 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string[] | number[] | boolean[]>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[] | number[] | boolean[]>(),
       getTypeErrorsReflect: () => {
         const v: string[] | number[] | boolean[] = ['a'];
@@ -5803,6 +5824,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
       isType: () => createIsType<(string | bigint | boolean | Date)[]>(),
+      isTypeSchema: () => createIsTypeFor(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
       deserializeIsType: () => deserializeIsType<(string | bigint | boolean | Date)[]>(),
       isTypeReflect: () => {
         const v: (string | bigint | boolean | Date)[] = [];
@@ -5813,6 +5835,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<(string | bigint | boolean | Date)[]>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | bigint | boolean | Date)[]>(),
       getTypeErrorsReflect: () => {
         const v: (string | bigint | boolean | Date)[] = [];
@@ -5856,6 +5879,10 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
+        ),
       deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
       isTypeReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
@@ -5866,6 +5893,10 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
+        ),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
       getTypeErrorsReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint} = {b: 1};
@@ -6377,6 +6408,7 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
       isType: () => createIsType<{a: boolean} | {a: number}>(),
+      isTypeSchema: () => createIsTypeFor(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
       deserializeIsType: () => deserializeIsType<{a: boolean} | {a: number}>(),
       isTypeReflect: () => {
         const v: {a: boolean} | {a: number} = {a: true};
@@ -6387,6 +6419,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{a: boolean} | {a: number}>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: boolean} | {a: number}>(),
       getTypeErrorsReflect: () => {
         const v: {a: boolean} | {a: number} = {a: true};
