@@ -44,7 +44,7 @@ import type {TypeFromRT} from '../runtypes/typeFromRt.ts';
 // temporal rows reference the `FormatTemporal*` aliases there, keeping the
 // Temporal-lib coupling out of this module.
 import type {LeafType} from './leafTypes.ts';
-import type {InjectRunTypeId} from '../markers.ts';
+import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {StringParams} from '../formats/string/stringFormats.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
@@ -204,11 +204,18 @@ export function literal<const V extends string | number | bigint | boolean | nul
   return builderResult(id, {type: 'literal', literal: value});
 }
 
-/** A `RegExp` builder — `regexp()` → `RunType<RegExp>` (kind regexp; matches a
- *  `RegExp` instance). No params. Distinct from `string({pattern})`, which
- *  validates a STRING against a pattern. **/
-export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
-  return builderResult(id, {type: 'regexp', formatParams: {}});
+/** A `RegExp` builder. Two forms:
+ *   - `regexp()` → `RunType<RegExp>` — matches any `RegExp` instance.
+ *   - `regexp(/abc/i)` → a `RegExp`-LITERAL run-type matched by source + flags
+ *     (≡ the type-first `` createIsType<typeof reg>() `` where `const reg = /abc/i`).
+ *  TS has no regex-literal type, so the literal can only come from the AST: the
+ *  argument is `CompTimeArgs<RegExp>` (must be a literal at the call site, else a
+ *  CTA diagnostic), and the marker scanner harvests its source + flags from the
+ *  call's first argument exactly as it does for `typeof reg`. The pattern rides
+ *  the carrier; convergence comes from the harvested id. Distinct from
+ *  `string({pattern})`, which validates a STRING against a pattern. **/
+export function regexp(pattern?: CompTimeArgs<RegExp>, id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
+  return builderResult(id, {type: 'regexp', formatParams: {}, pattern});
 }
 
 /** A `symbol` builder — `symbol()` → `RunType<symbol>`. Provided for
