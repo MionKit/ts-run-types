@@ -196,6 +196,58 @@ func TestUnionUnknownKeys_WireFormatObjectBranch(t *testing.T) {
 	}
 }
 
+// TestUnionUnknownKeys_NonWireGatesOnPlainObject — `string[] | {a: string}`.
+// The non-wire emit MUST gate the merged-allowlist loop on a plain-object
+// runtime check. Without it, runtime values that match the array atomic
+// member would have their indices clobbered by the merged-allowlist
+// strip/uku snippet (and primitive-string members would throw on assign).
+// Pins the fix for the stripMutate/Unions failures (uku ran ungated on
+// the raw runtime value).
+func TestUnionUnknownKeys_NonWireGatesOnPlainObject(t *testing.T) {
+	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
+	arr := &protocol.RunType{ID: "arr", Kind: protocol.KindArray, Child: makeRef("str")}
+	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("num")}
+	obj := &protocol.RunType{ID: "obj", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pa")}}
+	union := &protocol.RunType{
+		ID: "uni", Kind: protocol.KindUnion,
+		Children:          []*protocol.RunType{makeRef("arr"), makeRef("obj")},
+		SafeUnionChildren: []*protocol.RunType{makeRef("arr"), makeRef("obj")},
+	}
+	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
+
+	// strip / uku-style (CodeS)
+	out := emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: ukuSnippet, CodeShape: CodeS})
+	if !strings.Contains(out.Code, "typeof v === 'object'") {
+		t.Errorf("strip emit missing plain-object gate: %s", out.Code)
+	}
+	if !strings.Contains(out.Code, "!Array.isArray(v)") {
+		t.Errorf("strip emit missing !Array.isArray gate: %s", out.Code)
+	}
+	if !strings.Contains(out.Code, "v !== null") {
+		t.Errorf("strip emit missing v !== null guard: %s", out.Code)
+	}
+
+	// hasUnknownKeys (CodeE) — IIFE must also gate on plain object.
+	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
+	out = emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: hasSnippet, CodeShape: CodeE})
+	if !strings.Contains(out.Code, "typeof v === 'object'") || !strings.Contains(out.Code, "!Array.isArray(v)") {
+		t.Errorf("has emit missing plain-object gate: %s", out.Code)
+	}
+
+	// JsonWireFormat path keeps its own wrapper gate and does NOT add
+	// the plain-object gate (v[1] is already the inner merged object
+	// post-wrapper-check).
+	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
+	out = emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: ukuSnippet, CodeShape: CodeS, JsonWireFormat: true})
+	if strings.Contains(out.Code, "typeof v === 'object'") {
+		t.Errorf("wire-format path must not add plain-object gate (wrapper check already gates): %s", out.Code)
+	}
+	if !strings.Contains(out.Code, "v[0] === -1") {
+		t.Errorf("wire-format path missing wrapper gate: %s", out.Code)
+	}
+}
+
 // TestUnionUnknownKeys_OptionalDoesntChangeAllowlist —
 // `{a?: string} | {b: number}`. The optional flag doesn't change the
 // allowlist; still `{a, b}`.
