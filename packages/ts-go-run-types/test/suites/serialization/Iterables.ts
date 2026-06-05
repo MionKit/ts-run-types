@@ -4,20 +4,20 @@ import type {SerializationCase} from './types.ts';
 export const ITERABLES = {
   set_string: {
     title: 'Set<string>',
-    unsafeEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<Set<string>>(),
-    safeDirectEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<Set<string>>(),
-    unsafeDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<Set<string>>(),
+    directEncoder: () => createJsonEncoder<Set<string>>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<Set<string>>(),
+    preserveDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Set<string>>(),
     binaryDecoder: () => createBinaryDecoder<Set<string>>(),
     getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
   },
   set_small_object: {
     title: 'Set<SmallObject>',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -27,7 +27,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -37,7 +37,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -47,7 +47,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -57,7 +57,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Set<SmallObject>>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -67,7 +67,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Set<SmallObject>>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -77,7 +77,7 @@ export const ITERABLES = {
       }
       return createJsonDecoder<Set<SmallObject>>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -128,7 +128,7 @@ export const ITERABLES = {
   },
   objects_with_nested_sets: {
     title: 'objects with nested sets',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -137,7 +137,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -146,7 +146,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -155,7 +155,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -164,7 +164,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<DeepWithSet>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -173,7 +173,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<DeepWithSet>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -182,7 +182,7 @@ export const ITERABLES = {
       }
       return createJsonDecoder<DeepWithSet>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       type Set1 = Set<{s: string; arr: number[]}>;
       interface DeepWithSet {
         a: string;
@@ -223,13 +223,13 @@ export const ITERABLES = {
   },
   map_string_number: {
     title: 'Map<string, number>',
-    unsafeEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<Map<string, number>>(),
-    safeDirectEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<Map<string, number>>(),
-    unsafeDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<Map<string, number>>(),
+    directEncoder: () => createJsonEncoder<Map<string, number>>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<Map<string, number>>(),
+    preserveDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<string, number>>(),
     binaryDecoder: () => createBinaryDecoder<Map<string, number>>(),
     getTestData: () => ({
@@ -244,7 +244,7 @@ export const ITERABLES = {
   },
   map_string_small_object: {
     title: 'Map<string, SmallObject>',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -254,7 +254,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -264,7 +264,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -274,7 +274,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -284,7 +284,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<string, SmallObject>>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -294,7 +294,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<string, SmallObject>>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -304,7 +304,7 @@ export const ITERABLES = {
       }
       return createJsonDecoder<Map<string, SmallObject>>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -355,7 +355,7 @@ export const ITERABLES = {
   },
   map_small_object_number: {
     title: 'Map<SmallObject, number>',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -365,7 +365,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -375,7 +375,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -385,7 +385,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -395,7 +395,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<SmallObject, number>>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -405,7 +405,7 @@ export const ITERABLES = {
       }
       return createJsonEncoder<Map<SmallObject, number>>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -415,7 +415,7 @@ export const ITERABLES = {
       }
       return createJsonDecoder<Map<SmallObject, number>>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface SmallObject {
         prop1: string;
         prop2: number;
@@ -466,49 +466,49 @@ export const ITERABLES = {
   },
   objects_with_nested_maps: {
     title: 'objects with nested maps',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
       return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
       return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
       return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
       return createJsonEncoder<DeepWithMap>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
       return createJsonEncoder<DeepWithMap>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
       }
       return createJsonDecoder<DeepWithMap>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface DeepWithMap {
         a: string;
         b: Map<string, {sm: {s: string; arr: number[]}}>;
@@ -543,13 +543,13 @@ export const ITERABLES = {
   },
   map_with_bigint_keys: {
     title: 'Map with bigint keys',
-    unsafeEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<Map<bigint, number>>(),
-    safeDirectEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<Map<bigint, number>>(),
-    unsafeDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<Map<bigint, number>>(),
+    directEncoder: () => createJsonEncoder<Map<bigint, number>>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<Map<bigint, number>>(),
+    preserveDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<bigint, number>>(),
     binaryDecoder: () => createBinaryDecoder<Map<bigint, number>>(),
     getTestData: () => ({
@@ -564,13 +564,13 @@ export const ITERABLES = {
   },
   map_with_date_values: {
     title: 'Map with Date values',
-    unsafeEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<Map<string, Date>>(),
-    safeDirectEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<Map<string, Date>>(),
-    unsafeDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<Map<string, Date>>(),
+    directEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<Map<string, Date>>(),
+    preserveDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<string, Date>>(),
     binaryDecoder: () => createBinaryDecoder<Map<string, Date>>(),
     getTestData: () => ({

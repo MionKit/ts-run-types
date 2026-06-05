@@ -4,26 +4,26 @@ import type {SerializationCase} from './types.ts';
 export const ATOMIC = {
   string: {
     title: 'string',
-    unsafeEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<string>(),
-    safeDirectEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<string>(),
-    unsafeDecoder: () => createJsonDecoder<string>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<string>(),
+    directEncoder: () => createJsonEncoder<string>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<string>(),
+    preserveDecoder: () => createJsonDecoder<string>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string>(),
     binaryDecoder: () => createBinaryDecoder<string>(),
     getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
   },
   number: {
     title: 'number',
-    unsafeEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<number>(),
-    safeDirectEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<number>(),
-    unsafeDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<number>(),
+    directEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<number>(),
+    preserveDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number>(),
     binaryDecoder: () => createBinaryDecoder<number>(),
     getTestData: () => ({
@@ -46,13 +46,13 @@ export const ATOMIC = {
   number_not_supported: {
     title: 'number values not supported by all protocols',
     description: 'Infinity / NaN do not survive JSON encoding (become null on restore).',
-    unsafeEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<number>(),
-    safeDirectEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<number>(),
-    unsafeDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<number>(),
+    directEncoder: () => createJsonEncoder<number>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<number>(),
+    preserveDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number>(),
     binaryDecoder: () => createBinaryDecoder<number>(),
     // Binary writes float64, which preserves Infinity/NaN natively —
@@ -75,52 +75,52 @@ export const ATOMIC = {
   },
   regexp: {
     title: 'regexp',
-    unsafeEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<RegExp>(),
-    safeDirectEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<RegExp>(),
-    unsafeDecoder: () => createJsonDecoder<RegExp>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<RegExp>(),
+    directEncoder: () => createJsonEncoder<RegExp>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<RegExp>(),
+    preserveDecoder: () => createJsonDecoder<RegExp>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<RegExp>(),
     binaryDecoder: () => createBinaryDecoder<RegExp>(),
     getTestData: () => ({values: [/abc/, /xyz/i, /\d+/g, /^[a-z]+$/]}),
   },
   bigint: {
     title: 'bigint',
-    unsafeEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<bigint>(),
-    safeDirectEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<bigint>(),
-    unsafeDecoder: () => createJsonDecoder<bigint>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<bigint>(),
+    directEncoder: () => createJsonEncoder<bigint>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<bigint>(),
+    preserveDecoder: () => createJsonDecoder<bigint>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<bigint>(),
     binaryDecoder: () => createBinaryDecoder<bigint>(),
     getTestData: () => ({values: [1n]}),
   },
   boolean: {
     title: 'boolean',
-    unsafeEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<boolean>(),
-    safeDirectEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<boolean>(),
-    unsafeDecoder: () => createJsonDecoder<boolean>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<boolean>(),
+    directEncoder: () => createJsonEncoder<boolean>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<boolean>(),
+    preserveDecoder: () => createJsonDecoder<boolean>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<boolean>(),
     binaryDecoder: () => createBinaryDecoder<boolean>(),
     getTestData: () => ({values: [true]}),
   },
   any: {
     title: 'any',
-    unsafeEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<any>(),
-    safeDirectEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<any>(),
-    unsafeDecoder: () => createJsonDecoder<any>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<any>(),
+    directEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<any>(),
+    preserveDecoder: () => createJsonDecoder<any>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<any>(),
     binaryDecoder: () => createBinaryDecoder<any>(),
     roundTripBestEffort: true,
@@ -130,13 +130,13 @@ export const ATOMIC = {
     title: 'not supported in JSON stringify when any type is used',
     description:
       'undefined / Date / BigInt are not natively JSON-encodable when the type is `any` (no per-kind transform applies).',
-    unsafeEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<any>(),
-    safeDirectEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<any>(),
-    unsafeDecoder: () => createJsonDecoder<any>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<any>(),
+    directEncoder: () => createJsonEncoder<any>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<any>(),
+    preserveDecoder: () => createJsonDecoder<any>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<any>(),
     binaryDecoder: () => createBinaryDecoder<any>(),
     roundTripBestEffort: true,
@@ -144,46 +144,46 @@ export const ATOMIC = {
   },
   null: {
     title: 'null',
-    unsafeEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<null>(),
-    safeDirectEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<null>(),
-    unsafeDecoder: () => createJsonDecoder<null>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<null>(),
+    directEncoder: () => createJsonEncoder<null>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<null>(),
+    preserveDecoder: () => createJsonDecoder<null>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<null>(),
     binaryDecoder: () => createBinaryDecoder<null>(),
     getTestData: () => ({values: [null]}),
   },
   undefined: {
     title: 'undefined',
-    unsafeEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<undefined>(),
-    safeDirectEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<undefined>(),
-    unsafeDecoder: () => createJsonDecoder<undefined>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<undefined>(),
+    directEncoder: () => createJsonEncoder<undefined>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<undefined>(),
+    preserveDecoder: () => createJsonDecoder<undefined>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<undefined>(),
     binaryDecoder: () => createBinaryDecoder<undefined>(),
     getTestData: () => ({values: [undefined]}),
   },
   date: {
     title: 'date',
-    unsafeEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<Date>(),
-    safeDirectEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<Date>(),
-    unsafeDecoder: () => createJsonDecoder<Date>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<Date>(),
+    directEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<Date>(),
+    preserveDecoder: () => createJsonDecoder<Date>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date>(),
     binaryDecoder: () => createBinaryDecoder<Date>(),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
   enum_color: {
     title: 'enum',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -191,7 +191,7 @@ export const ATOMIC = {
       }
       return createJsonEncoder<Color>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -199,7 +199,7 @@ export const ATOMIC = {
       }
       return createJsonEncoder<Color>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -207,7 +207,7 @@ export const ATOMIC = {
       }
       return createJsonEncoder<Color>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -215,7 +215,7 @@ export const ATOMIC = {
       }
       return createJsonEncoder<Color>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -223,7 +223,7 @@ export const ATOMIC = {
       }
       return createJsonEncoder<Color>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -231,7 +231,7 @@ export const ATOMIC = {
       }
       return createJsonDecoder<Color>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       enum Color {
         Red = 'red',
         Green = 'green',
@@ -268,13 +268,13 @@ export const ATOMIC = {
     title: 'symbol',
     description:
       'symbol at root is unsupported — identity does not survive JSON or binary round-trips, so the factory is rendered as alwaysThrow. See docs/UNSUPPORTED-KINDS.md.',
-    unsafeEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<symbol>(),
-    safeDirectEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<symbol>(),
-    unsafeDecoder: () => createJsonDecoder<symbol>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<symbol>(),
+    directEncoder: () => createJsonEncoder<symbol>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<symbol>(),
+    preserveDecoder: () => createJsonDecoder<symbol>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<symbol>(),
     binaryDecoder: () => createBinaryDecoder<symbol>(),
     factoryThrows: true,
@@ -282,13 +282,13 @@ export const ATOMIC = {
   },
   object: {
     title: 'object',
-    unsafeEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<object>(),
-    safeDirectEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<object>(),
-    unsafeDecoder: () => createJsonDecoder<object>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<object>(),
+    directEncoder: () => createJsonEncoder<object>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<object>(),
+    preserveDecoder: () => createJsonDecoder<object>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<object>(),
     binaryDecoder: () => createBinaryDecoder<object>(),
     roundTripBestEffort: true,
@@ -296,13 +296,13 @@ export const ATOMIC = {
   },
   void: {
     title: 'void',
-    unsafeEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<void>(),
-    safeDirectEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<void>(),
-    unsafeDecoder: () => createJsonDecoder<void>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<void>(),
+    directEncoder: () => createJsonEncoder<void>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<void>(),
+    preserveDecoder: () => createJsonDecoder<void>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<void>(),
     binaryDecoder: () => createBinaryDecoder<void>(),
     getTestData: () => ({values: [undefined]}),
@@ -310,13 +310,13 @@ export const ATOMIC = {
   never: {
     title: 'never',
     description: 'never type cannot be JSON-encoded or decoded — invoking the factory throws.',
-    unsafeEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<never>(),
-    safeDirectEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<never>(),
-    unsafeDecoder: () => createJsonDecoder<never>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<never>(),
+    directEncoder: () => createJsonEncoder<never>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<never>(),
+    preserveDecoder: () => createJsonDecoder<never>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<never>(),
     binaryDecoder: () => createBinaryDecoder<never>(),
     factoryThrows: true,
@@ -324,70 +324,70 @@ export const ATOMIC = {
   },
   literal_string: {
     title: 'string literal',
-    unsafeEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<'hello'>(),
-    safeDirectEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<'hello'>(),
-    unsafeDecoder: () => createJsonDecoder<'hello'>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<'hello'>(),
+    directEncoder: () => createJsonEncoder<'hello'>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<'hello'>(),
+    preserveDecoder: () => createJsonDecoder<'hello'>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<'hello'>(),
     binaryDecoder: () => createBinaryDecoder<'hello'>(),
     getTestData: () => ({values: ['hello']}),
   },
   literal_number: {
     title: 'number literal',
-    unsafeEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<42>(),
-    safeDirectEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<42>(),
-    unsafeDecoder: () => createJsonDecoder<42>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<42>(),
+    directEncoder: () => createJsonEncoder<42>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<42>(),
+    preserveDecoder: () => createJsonDecoder<42>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<42>(),
     binaryDecoder: () => createBinaryDecoder<42>(),
     getTestData: () => ({values: [42]}),
   },
   literal_boolean: {
     title: 'boolean literal',
-    unsafeEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<true>(),
-    safeDirectEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<true>(),
-    unsafeDecoder: () => createJsonDecoder<true>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<true>(),
+    directEncoder: () => createJsonEncoder<true>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<true>(),
+    preserveDecoder: () => createJsonDecoder<true>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<true>(),
     binaryDecoder: () => createBinaryDecoder<true>(),
     getTestData: () => ({values: [true]}),
   },
   literal_regexp: {
     title: 'regexp literal',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       const reg = /abc/;
       return createJsonEncoder<typeof reg>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       const reg = /abc/;
       return createJsonEncoder<typeof reg>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       const reg = /abc/;
       return createJsonEncoder<typeof reg>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       const reg = /abc/;
       return createJsonEncoder<typeof reg>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       const reg = /abc/;
       return createJsonEncoder<typeof reg>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       const reg = /abc/;
       return createJsonDecoder<typeof reg>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       const reg = /abc/;
       return createJsonDecoder<typeof reg>(undefined, {strategy: 'preserve'});
     },

@@ -6,50 +6,49 @@ export interface SerializationCase {
   title: string;
   description?: string;
 
-  /** Encoder thunks — one per encoder shape exercised by the suite.
-   *  All five combinations of (strategy, stripExtras) are benched:
-   *  - `safeEncoder` — strategy='clone', stripExtras=true (default).
-   *  - `clonePreserveEncoder` — strategy='clone', stripExtras=false.
-   *  - `mutateStripEncoder` — strategy='mutate', stripExtras=true.
-   *  - `unsafeEncoder` — strategy='mutate', stripExtras=false.
-   *  - `safeDirectEncoder` — strategy='direct' (stripExtras pinned true).
-   *  Decoder pairing: `safeEncoder` / `clonePreserveEncoder` /
-   *  `mutateStripEncoder` / `safeDirectEncoder` pair with `safeDecoder`;
-   *  `unsafeEncoder` pairs with `unsafeDecoder` (the only path that
-   *  preserves extras through the round-trip). **/
-  safeEncoder: () => JsonEncoderFn;
-  clonePreserveEncoder: () => JsonEncoderFn;
-  mutateStripEncoder: () => JsonEncoderFn;
-  safeDirectEncoder: () => JsonEncoderFn;
-  unsafeEncoder: () => JsonEncoderFn;
+  /** Encoder thunks — one per `createJsonEncoder` strategy exercised by the
+   *  suite (the field name IS the strategy):
+   *  - `stripCloneEncoder` — strategy 'stripClone' (clone, strips extras; default).
+   *  - `cloneEncoder` — strategy 'clone' (clone, preserves extras).
+   *  - `stripMutateEncoder` — strategy 'stripMutate' (mutate, strips extras).
+   *  - `mutateEncoder` — strategy 'mutate' (mutate, preserves extras).
+   *  - `directEncoder` — strategy 'direct' (single-pass, always strips).
+   *  Decoder pairing: every strip/direct encoder pairs with `stripDecoder`;
+   *  `mutateEncoder` (preserve) pairs with `preserveDecoder` — the only path
+   *  that preserves undeclared keys through the round-trip. **/
+  stripCloneEncoder: () => JsonEncoderFn;
+  cloneEncoder: () => JsonEncoderFn;
+  stripMutateEncoder: () => JsonEncoderFn;
+  directEncoder: () => JsonEncoderFn;
+  mutateEncoder: () => JsonEncoderFn;
 
   /** Safe-mode only: when set, the case's input produces a JSON string
    *  that is not parseable by `JSON.parse` — e.g. number-at-root with
    *  `Infinity` (mion's `String(Infinity)` = `"Infinity"`). Mirrors
    *  mion's number-not-supported spec, which accepts either a throw OR
    *  a non-matching round-trip as a "value not supported by JSON"
-   *  signal. The safe loop asserts the parse-throws instead of a
-   *  deep-equal round-trip. The unsafe loop ignores this flag — on
+   *  signal. The stripClone loop asserts the parse-throws instead of a
+   *  deep-equal round-trip. The mutate loop ignores this flag — on
    *  that path `JSON.stringify(Infinity)` returns `"null"` (not a
    *  throw) and the case's own `deserializedValues` already handles
    *  the round-trip. **/
   safeAdapterStringifyJsonNotParseable?: boolean;
 
-  /** Decoder thunks. `safeDecoder` builds `createJsonDecoder<T>()`
-   *  (default `stripExtras: true`: undeclared keys become `undefined`
-   *  via ukuWire before restoreFromJson). `unsafeDecoder` builds
-   *  `createJsonDecoder<T>(undefined, {stripExtras: false})` —
+  /** Decoder thunks. `stripDecoder` builds `createJsonDecoder<T>()`
+   *  (default strategy 'strip': undeclared keys become `undefined` via
+   *  ukuWire before restoreFromJson). `preserveDecoder` builds
+   *  `createJsonDecoder<T>(undefined, {strategy: 'preserve'})` —
    *  undeclared keys on the parsed value pass through to the restored
    *  result untouched. The round-trip adapter pairs each encoder
    *  shape with its corresponding decoder. **/
-  safeDecoder: () => JsonDecoderFn;
-  unsafeDecoder: () => JsonDecoderFn;
+  stripDecoder: () => JsonDecoderFn;
+  preserveDecoder: () => JsonDecoderFn;
 
-  /** Sample values to round-trip via the **unsafe** path
+  /** Sample values to round-trip via the **mutate** path
    *  (`prepareForJson + JSON.stringify` / `JSON.parse + restoreFromJson`).
    *  Required for every case.
    *
-   *  Returns valid inputs for `prepareForJson`: the unsafe path
+   *  Returns valid inputs for `prepareForJson`: the mutate path
    *  mutates `v` in place, walks declared children only, and lets
    *  `JSON.stringify` see any extras (which then pass through,
    *  throw on bigint extras, or get silently dropped for
@@ -63,15 +62,15 @@ export interface SerializationCase {
    *  Mirrors mion's `getTestData` shape. **/
   getTestData: () => {values: unknown[]; deserializedValues?: unknown[]};
 
-  /** Optional override consumed by the **safe** path adapter
+  /** Optional override consumed by the **stripClone** path adapter
    *  (`stripUnknownKeys + prepareForJson + JSON.stringify` /
    *  `JSON.parse + (stripUnknownKeys | unknownKeyErrors) + restoreFromJson`).
    *
-   *  Provide only when the safe path produces a different observable
-   *  than the unsafe path — typically when an input carries extras
+   *  Provide only when the stripClone path produces a different observable
+   *  than the mutate path — typically when an input carries extras
    *  that are stripped pre-serialise (so `deserializedValues`
    *  reflects the cleaned shape). For ~90% of cases (no extras,
-   *  identical behaviour between paths) leave this unset; the safe
+   *  identical behaviour between paths) leave this unset; the stripClone
    *  adapter falls back to `getTestData`.
    *
    *  Mirrors the split between mion's jsonSpec (prepareForJson +
