@@ -6,6 +6,7 @@
 
 import {expect} from 'vitest';
 import type {ValidationCase} from '../suites/validation/types.ts';
+import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
 /** Number of values to draw per mock case. Larger = better coverage;
  *  smaller = faster CI. 20 is enough to surface most random-pool drift
@@ -264,4 +265,47 @@ export function assertMockType(c: ValidationCase): void {
 
   runPass(c.mockType(), 'static');
   if (c.mockTypeReflect) runPass(c.mockTypeReflect(), 'reflect');
+}
+
+/** Format getTypeErrors — asserts valid samples produce no errors and each
+ *  invalid sample carries the expected `format` payload (name, optional `val`,
+ *  optional `formatPath` tail) via the case's index-parallel
+ *  `expectedFormatErrors`. Matches on the format payload, not a full
+ *  RunTypeError deep-equal — robust against incidental fields in the envelope. **/
+export function assertFormatGetTypeErrors(c: FormatValidationCase): void {
+  if (!c.getTypeErrors) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
+  if (!c.expectedFormatErrors) throw new Error(`case ${c.title}: missing expectedFormatErrors thunk`);
+
+  const {valid, invalid} = c.getSamples();
+  const expected = c.expectedFormatErrors();
+  if (expected.length !== invalid.length) {
+    throw new Error(
+      `case ${c.title}: expectedFormatErrors length (${expected.length}) must match invalid samples (${invalid.length})`
+    );
+  }
+
+  const getErr = c.getTypeErrors();
+
+  valid.forEach((v, i) => {
+    expect(getErr(v), `${c.title}: valid[${i}] → no errors`).toEqual([]);
+  });
+
+  invalid.forEach((v, i) => {
+    const errors = getErr(v);
+    expect(errors.length, `${c.title}: invalid[${i}] should produce at least one error`).toBeGreaterThan(0);
+
+    const exp = expected[i];
+    if (!exp) return;
+
+    const formatErr = errors.find((entry) => entry.format?.name === exp.name)?.format;
+    expect(formatErr, `${c.title}: invalid[${i}] should carry a '${exp.name}' format error`).toBeDefined();
+
+    if (exp.val !== undefined) {
+      expect(formatErr?.val, `${c.title}: invalid[${i}] format.val`).toEqual(exp.val);
+    }
+    if (exp.formatPathTail !== undefined) {
+      const path = formatErr?.formatPath;
+      expect(path?.[path.length - 1], `${c.title}: invalid[${i}] format.formatPath tail`).toBe(exp.formatPathTail);
+    }
+  });
 }
