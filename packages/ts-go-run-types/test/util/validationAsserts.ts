@@ -1,21 +1,25 @@
-// Shared assertion helpers for the validation adapters. Extracted so
-// the atomic/collection adapters (isType / getTypeErrors / mockType)
-// and the format adapters (formatIsType / formatMockType) run the exact
-// same per-case logic against the `ValidationCase` shape — no
-// copy-pasted assertion bodies.
+// Per-variant assertion helpers for the validation adapters. Each helper
+// exercises EXACTLY ONE thunk on a ValidationCase (one cell of the
+// family × form matrix), so the validation/* and format-validation/*
+// suites can register one it() per variant — a failing test name
+// (`<title> — isType/deserialize-reflect`) pinpoints which form broke,
+// and other forms in the same case keep running instead of being
+// short-circuited by the first failing expect().
+//
+// A thunk field on a case can be in three states; titleFor() surfaces
+// the state in the it() name so the test tree is self-documenting:
+//   - function           → no suffix; assert runs the function
+//   - undefined          → " (not implemented)"; assert silently early-returns
+//   - 'not-supported'    → " (not supported)";   assert silently early-returns
 
 import {expect} from 'vitest';
-import type {ValidationCase} from '../suites/validation/types.ts';
+import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
 /** Number of values to draw per mock case. Larger = better coverage;
  *  smaller = faster CI. 20 is enough to surface most random-pool drift
  *  bugs without bloating test runtimes. **/
 export const MOCK_ITERATIONS = 20;
-
-/** Titles already warned about, so a `valueFirstUnsupported` case logs its
- *  design-flaw notice exactly once across the (isType/getTypeErrors/mock) adapters. **/
-const warnedValueFirstUnsupported = new Set<string>();
 
 function safeStringify(value: unknown): string {
   try {
@@ -25,255 +29,382 @@ function safeStringify(value: unknown): string {
   }
 }
 
-/** Runs the isType validator in every available form (static, reflect,
- *  deserialize-static, deserialize-reflect) against the case's valid /
- *  invalid samples. **/
-export function assertIsType(c: ValidationCase): void {
-  if (!c.isType) throw new Error(`case ${c.title}: missing isType thunk`);
+/** Resolves a thunk field to its callable form, or `undefined` if the case
+ *  doesn't declare a working thunk (either omitted entirely or marked
+ *  `'not-supported'`). Use at the top of every per-variant assert to skip
+ *  both gaps with a single check. **/
+function resolveThunk<T>(thunk: Thunk<T> | undefined): (() => T) | undefined {
+  if (!thunk || thunk === 'not-supported') return undefined;
+  return thunk;
+}
 
-  // A case flagged `valueFirstUnsupported` has no value-first builder form because
-  // the option it needs is folded into the structural typeId at the createIsType
-  // call site. The type-first assertions below still run and pass; we just surface
-  // the design flaw once so it stays visible.
-  if (c.valueFirstUnsupported && !warnedValueFirstUnsupported.has(c.title)) {
-    warnedValueFirstUnsupported.add(c.title);
-    console.warn(
-      `[value-first-unsupported] case "${c.title}" cannot be authored value-first: the ` +
-        `\`${c.valueFirstUnsupported}\` option (and \`noLiterals\`) is folded into the structural ` +
-        `typeId at the createIsType call site (internal/resolver/scan.go — noLiterals walks a literal ` +
-        `to its base type, noIsArrayCheck wraps the array id with a flag), but value-first builders ` +
-        `carry only the TS type via InjectRunTypeId<T>, so options can't ride the value-first surface. ` +
-        `DESIGN FLAW to fix: move RunTypeOptions out of the typeId computation so these options become ` +
-        `authorable value-first.`
-    );
+/** The (family, form) coordinates that actually exist on a ValidationCase.
+ *  Invalid combos like 'isType/format' or 'mockType/schema' are not in the
+ *  union — passing one is a TS error at the test-file call site. **/
+export type VariantKey =
+  | `isType/${'static' | 'reflect' | 'deserialize-static' | 'deserialize-reflect' | 'schema'}`
+  | `getTypeErrors/${'static' | 'reflect' | 'deserialize-static' | 'deserialize-reflect' | 'schema' | 'format'}`
+  | `mockType/${'static' | 'reflect'}`;
+
+/** Resolves a variant key to the case's matching thunk field (function,
+ *  `'not-supported'`, or `undefined`). 'getTypeErrors/format' points at the
+ *  same static thunk as 'getTypeErrors/static' but is asserted with
+ *  format-payload semantics by the format-validation suites. **/
+function thunkFor(c: ValidationCase, key: VariantKey): Thunk<unknown> | undefined {
+  switch (key) {
+    case 'isType/static':
+      return c.isType;
+    case 'isType/reflect':
+      return c.isTypeReflect;
+    case 'isType/deserialize-static':
+      return c.deserializeIsType;
+    case 'isType/deserialize-reflect':
+      return c.deserializeIsTypeReflect;
+    case 'isType/schema':
+      return c.isTypeSchema;
+    case 'getTypeErrors/static':
+      return c.getTypeErrors;
+    case 'getTypeErrors/reflect':
+      return c.getTypeErrorsReflect;
+    case 'getTypeErrors/deserialize-static':
+      return c.deserializeGetTypeErrors;
+    case 'getTypeErrors/deserialize-reflect':
+      return c.deserializeGetTypeErrorsReflect;
+    case 'getTypeErrors/schema':
+      return c.getTypeErrorsSchema;
+    case 'getTypeErrors/format':
+      return c.getTypeErrors;
+    case 'mockType/static':
+      return c.mockType;
+    case 'mockType/reflect':
+      return c.mockTypeReflect;
   }
+}
 
-  // factoryThrows — the Go pipeline rendered the runtype's factory as
-  // alwaysThrow (root-unsupported kinds like `symbol`). Every variant
-  // throws on invocation; nothing further to validate.
+/** Build the it() title for one variant. The key is used directly as the
+ *  suffix (`<case title> — <family>/<form>`), with a state marker appended
+ *  when the case's thunk is missing or marked as a known limitation:
+ *   - function          → no suffix
+ *   - `'not-supported'` → " (not supported)"
+ *   - undefined         → " (not implemented)"
+ *  Both gap markers surface in the test tree without anyone having to read
+ *  the test body. **/
+export function titleFor(c: ValidationCase, key: VariantKey): string {
+  const value = thunkFor(c, key);
+  const base = `${c.title} — ${key}`;
+  if (value === 'not-supported') return `${base} (not supported)`;
+  if (!value) return `${base} (not implemented)`;
+  return base;
+}
+
+// =========================================================================
+// isType family — 5 variants
+// =========================================================================
+
+/** Static form: createIsType<T>(). **/
+export function assertIsTypeStatic(c: ValidationCase): void {
+  const factory = resolveThunk(c.isType);
+  if (!factory) return;
   if (c.factoryThrows) {
-    expect(() => c.isType!(), `${c.title} [static]: factory must throw`).toThrow();
-    if (c.isTypeReflect) expect(() => c.isTypeReflect!(), `${c.title} [reflect]: factory must throw`).toThrow();
-    if (c.deserializeIsType)
-      expect(() => c.deserializeIsType!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
-    if (c.deserializeIsTypeReflect)
-      expect(() => c.deserializeIsTypeReflect!(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
+    expect(() => factory(), `${c.title} [static]: factory must throw`).toThrow();
     return;
   }
-
   const {valid, invalid} = c.getSamples();
-
-  // Static form: createIsType<T>().
-  const isTypeStatic = c.isType();
+  const isTypeStatic = factory();
   valid.forEach((v, i) => {
     expect(isTypeStatic(v), `${c.title} [static]: valid[${i}] should pass`).toBe(true);
   });
   invalid.forEach((v, i) => {
     expect(isTypeStatic(v), `${c.title} [static]: invalid[${i}] should fail`).toBe(false);
   });
-
-  // Reflect form: createIsType(value). Optional — cases that omit
-  // `isTypeReflect` (typically because of a documented divergence with
-  // the static form) skip the second pass.
-  if (c.isTypeReflect) {
-    const isTypeReflect = c.isTypeReflect();
-    valid.forEach((v, i) => {
-      expect(isTypeReflect(v), `${c.title} [reflect]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(isTypeReflect(v), `${c.title} [reflect]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
-
-  // Deserialize-static form: deserializeIsType<T>() rebuilds the
-  // validator from the serialized RTCompiledFnData.code body via
-  // `new Function('utl', code)(rtUtils)` — verifies that the
-  // over-the-wire round-trip produces an equivalent validator.
-  if (c.deserializeIsType) {
-    const deserializedStatic = c.deserializeIsType();
-    valid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
-
-  // Deserialize-reflect form: same as above but T inferred from a
-  // runtime value's declared type.
-  if (c.deserializeIsTypeReflect) {
-    const deserializedReflect = c.deserializeIsTypeReflect();
-    valid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
-
-  // Schema form: createIsTypeFor(<value-first builder schema>). Optional —
-  // present only on leaf-buildable cases. Proves the value-first authoring path
-  // resolves a validator that agrees with the type-first surface on the same
-  // samples (the builder reflects the same leaf type → same precompiled factory).
-  if (c.isTypeSchema) {
-    const isTypeSchema = c.isTypeSchema();
-    valid.forEach((v, i) => {
-      expect(isTypeSchema(v), `${c.title} [schema]: valid[${i}] should pass`).toBe(true);
-    });
-    invalid.forEach((v, i) => {
-      expect(isTypeSchema(v), `${c.title} [schema]: invalid[${i}] should fail`).toBe(false);
-    });
-  }
 }
 
-/** Runs the getTypeErrors validator in every available form and asserts
- *  each invalid sample produces the index-parallel `getExpectedErrors`
- *  entry (exact deep-equal), valid samples produce `[]`. **/
-export function assertGetTypeErrors(c: ValidationCase): void {
-  if (!c.getTypeErrors) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
-
-  // factoryThrows — alwaysThrow factory; every variant throws on
-  // invocation. getExpectedErrors / samples are not consulted.
+/** Reflect form: createIsType(value). T inferred from a runtime value's
+ *  declared type; the value itself is discarded at runtime. **/
+export function assertIsTypeReflect(c: ValidationCase): void {
+  const factory = resolveThunk(c.isTypeReflect);
+  if (!factory) return;
   if (c.factoryThrows) {
-    expect(() => c.getTypeErrors!(), `${c.title} [static]: factory must throw`).toThrow();
-    if (c.getTypeErrorsReflect) expect(() => c.getTypeErrorsReflect!(), `${c.title} [reflect]: factory must throw`).toThrow();
-    if (c.deserializeGetTypeErrors)
-      expect(() => c.deserializeGetTypeErrors!(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
-    if (c.deserializeGetTypeErrorsReflect)
-      expect(() => c.deserializeGetTypeErrorsReflect!(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
+    expect(() => factory(), `${c.title} [reflect]: factory must throw`).toThrow();
     return;
   }
+  const {valid, invalid} = c.getSamples();
+  const isTypeReflect = factory();
+  valid.forEach((v, i) => {
+    expect(isTypeReflect(v), `${c.title} [reflect]: valid[${i}] should pass`).toBe(true);
+  });
+  invalid.forEach((v, i) => {
+    expect(isTypeReflect(v), `${c.title} [reflect]: invalid[${i}] should fail`).toBe(false);
+  });
+}
 
+/** Deserialize-static form: validator rebuilt from the serialized
+ *  RTCompiledFnData.code body via `new Function('utl', code)(rtUtils)`. **/
+export function assertIsTypeDeserializeStatic(c: ValidationCase): void {
+  const factory = resolveThunk(c.deserializeIsType);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
+    return;
+  }
+  const {valid, invalid} = c.getSamples();
+  const deserializedStatic = factory();
+  valid.forEach((v, i) => {
+    expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] should pass`).toBe(true);
+  });
+  invalid.forEach((v, i) => {
+    expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}] should fail`).toBe(false);
+  });
+}
+
+/** Deserialize-reflect form: same as deserialize-static but T inferred
+ *  from a runtime value's declared type. **/
+export function assertIsTypeDeserializeReflect(c: ValidationCase): void {
+  const factory = resolveThunk(c.deserializeIsTypeReflect);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
+    return;
+  }
+  const {valid, invalid} = c.getSamples();
+  const deserializedReflect = factory();
+  valid.forEach((v, i) => {
+    expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] should pass`).toBe(true);
+  });
+  invalid.forEach((v, i) => {
+    expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}] should fail`).toBe(false);
+  });
+}
+
+/** Backwards-compat shim used by the value-first-define suite, which is
+ *  not restructured into per-variant it()s. Runs all 5 isType variants
+ *  in sequence so the single it() in that suite exercises the same matrix
+ *  the validation suite splits across five it()s. **/
+export function assertIsType(c: ValidationCase): void {
+  assertIsTypeStatic(c);
+  assertIsTypeReflect(c);
+  assertIsTypeDeserializeStatic(c);
+  assertIsTypeDeserializeReflect(c);
+  assertIsTypeSchema(c);
+}
+
+/** Schema form: createIsTypeFor(<value-first builder schema>). Proves the
+ *  value-first authoring path resolves a validator that agrees with the
+ *  type-first surface on the same samples. **/
+export function assertIsTypeSchema(c: ValidationCase): void {
+  const factory = resolveThunk(c.isTypeSchema);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [schema]: factory must throw`).toThrow();
+    return;
+  }
+  const {valid, invalid} = c.getSamples();
+  const isTypeSchema = factory();
+  valid.forEach((v, i) => {
+    expect(isTypeSchema(v), `${c.title} [schema]: valid[${i}] should pass`).toBe(true);
+  });
+  invalid.forEach((v, i) => {
+    expect(isTypeSchema(v), `${c.title} [schema]: invalid[${i}] should fail`).toBe(false);
+  });
+}
+
+// =========================================================================
+// getTypeErrors family — 5 variants
+// =========================================================================
+
+/** Static form: createGetTypeErrors<T>(). **/
+export function assertGetTypeErrorsStatic(c: ValidationCase): void {
+  const factory = resolveThunk(c.getTypeErrors);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [static]: factory must throw`).toThrow();
+    return;
+  }
   if (!c.getExpectedErrors) throw new Error(`case ${c.title}: missing getExpectedErrors thunk`);
   const {valid, invalid} = c.getSamples();
   const expected = c.getExpectedErrors();
-
   if (expected.length !== invalid.length) {
     throw new Error(
       `case ${c.title}: getExpectedErrors length (${expected.length}) must match invalid samples (${invalid.length})`
     );
   }
-
-  // Static form: createGetTypeErrors<T>().
-  const getErrStatic = c.getTypeErrors();
+  const getErrStatic = factory();
   valid.forEach((v, i) => {
     expect(getErrStatic(v), `${c.title} [static]: valid[${i}] → no errors`).toEqual([]);
   });
   invalid.forEach((v, i) => {
     expect(getErrStatic(v), `${c.title} [static]: invalid[${i}]`).toEqual(expected[i]);
   });
-
-  // Reflect form: createGetTypeErrors(value). Optional.
-  if (c.getTypeErrorsReflect) {
-    const getErrReflect = c.getTypeErrorsReflect();
-    valid.forEach((v, i) => {
-      expect(getErrReflect(v), `${c.title} [reflect]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(getErrReflect(v), `${c.title} [reflect]: invalid[${i}]`).toEqual(expected[i]);
-    });
-  }
-
-  // Deserialize-static form: deserializeGetTypeErrors<T>().
-  if (c.deserializeGetTypeErrors) {
-    const deserializedStatic = c.deserializeGetTypeErrors();
-    valid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}]`).toEqual(expected[i]);
-    });
-  }
-
-  // Deserialize-reflect form: deserializeGetTypeErrors(value).
-  if (c.deserializeGetTypeErrorsReflect) {
-    const deserializedReflect = c.deserializeGetTypeErrorsReflect();
-    valid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}]`).toEqual(expected[i]);
-    });
-  }
-
-  // Schema form: createTypeErrorsFor(<value-first builder schema>). Optional.
-  // A value-first leaf builder reflects the FORMAT of a type (e.g. `string()` →
-  // `FormatString<{}>`), so its error detail may carry format metadata the bare
-  // type-first error doesn't — we therefore assert the CONTRACT (valid → no
-  // errors; invalid → at least one error) rather than deep-equality with the
-  // type-first `expected`, which the static pass above already pins exactly.
-  if (c.getTypeErrorsSchema) {
-    const getErrSchema = c.getTypeErrorsSchema();
-    valid.forEach((v, i) => {
-      expect(getErrSchema(v), `${c.title} [schema]: valid[${i}] → no errors`).toEqual([]);
-    });
-    invalid.forEach((v, i) => {
-      expect(getErrSchema(v).length, `${c.title} [schema]: invalid[${i}] → at least one error`).toBeGreaterThan(0);
-    });
-  }
 }
 
-/** Draws MOCK_ITERATIONS values from the mock generator (static +
- *  reflect forms) and asserts each passes the paired `isType<T>()`,
- *  honoring the `mockTypeExpect` / `factoryThrows` discriminators. **/
-export function assertMockType(c: ValidationCase): void {
-  if (!c.mockType) throw new Error(`case ${c.title}: missing mockType thunk`);
-
-  // factoryThrows — the isType / getTypeErrors factories are
-  // alwaysThrow for this kind (root-unsupported), but the mock walker
-  // doesn't go through the RT cache. It still produces a value (a
-  // mocked symbol, function, etc.); we just can't isType-check it
-  // since the paired validator throws on construction. Run the mock
-  // fn so we still verify no error escapes the generator, then bail.
-  const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
-
-  if (expectMode === 'throw') {
-    const mockFn = c.mockType();
-    expect(() => mockFn(), `${c.title} [static]: mock fn should throw`).toThrow();
-    if (c.mockTypeReflect) {
-      const mockFnReflect = c.mockTypeReflect();
-      expect(() => mockFnReflect(), `${c.title} [reflect]: mock fn should throw`).toThrow();
-    }
+/** Reflect form: createGetTypeErrors(value). **/
+export function assertGetTypeErrorsReflect(c: ValidationCase): void {
+  const factory = resolveThunk(c.getTypeErrorsReflect);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [reflect]: factory must throw`).toThrow();
     return;
   }
+  if (!c.getExpectedErrors) throw new Error(`case ${c.title}: missing getExpectedErrors thunk`);
+  const {valid, invalid} = c.getSamples();
+  const expected = c.getExpectedErrors();
+  if (expected.length !== invalid.length) {
+    throw new Error(
+      `case ${c.title}: getExpectedErrors length (${expected.length}) must match invalid samples (${invalid.length})`
+    );
+  }
+  const getErrReflect = factory();
+  valid.forEach((v, i) => {
+    expect(getErrReflect(v), `${c.title} [reflect]: valid[${i}] → no errors`).toEqual([]);
+  });
+  invalid.forEach((v, i) => {
+    expect(getErrReflect(v), `${c.title} [reflect]: invalid[${i}]`).toEqual(expected[i]);
+  });
+}
 
-  if (expectMode !== 'skip' && !c.isType) {
+/** Deserialize-static form: validator rebuilt from RTCompiledFnData.code. **/
+export function assertGetTypeErrorsDeserializeStatic(c: ValidationCase): void {
+  const factory = resolveThunk(c.deserializeGetTypeErrors);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [deserialize-static]: factory must throw`).toThrow();
+    return;
+  }
+  if (!c.getExpectedErrors) throw new Error(`case ${c.title}: missing getExpectedErrors thunk`);
+  const {valid, invalid} = c.getSamples();
+  const expected = c.getExpectedErrors();
+  if (expected.length !== invalid.length) {
+    throw new Error(
+      `case ${c.title}: getExpectedErrors length (${expected.length}) must match invalid samples (${invalid.length})`
+    );
+  }
+  const deserializedStatic = factory();
+  valid.forEach((v, i) => {
+    expect(deserializedStatic(v), `${c.title} [deserialize-static]: valid[${i}] → no errors`).toEqual([]);
+  });
+  invalid.forEach((v, i) => {
+    expect(deserializedStatic(v), `${c.title} [deserialize-static]: invalid[${i}]`).toEqual(expected[i]);
+  });
+}
+
+/** Deserialize-reflect form. **/
+export function assertGetTypeErrorsDeserializeReflect(c: ValidationCase): void {
+  const factory = resolveThunk(c.deserializeGetTypeErrorsReflect);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [deserialize-reflect]: factory must throw`).toThrow();
+    return;
+  }
+  if (!c.getExpectedErrors) throw new Error(`case ${c.title}: missing getExpectedErrors thunk`);
+  const {valid, invalid} = c.getSamples();
+  const expected = c.getExpectedErrors();
+  if (expected.length !== invalid.length) {
+    throw new Error(
+      `case ${c.title}: getExpectedErrors length (${expected.length}) must match invalid samples (${invalid.length})`
+    );
+  }
+  const deserializedReflect = factory();
+  valid.forEach((v, i) => {
+    expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: valid[${i}] → no errors`).toEqual([]);
+  });
+  invalid.forEach((v, i) => {
+    expect(deserializedReflect(v), `${c.title} [deserialize-reflect]: invalid[${i}]`).toEqual(expected[i]);
+  });
+}
+
+/** Schema form: createTypeErrorsFor(<value-first builder schema>).
+ *  A value-first leaf builder reflects the FORMAT of a type (e.g. `string()`
+ *  → `FormatString<{}>`), so its error detail may carry format metadata the
+ *  bare type-first error doesn't — we therefore assert the CONTRACT
+ *  (valid → no errors; invalid → at least one error) rather than deep-equality
+ *  with the type-first `expected`, which the static pass above already pins. **/
+export function assertGetTypeErrorsSchema(c: ValidationCase): void {
+  const factory = resolveThunk(c.getTypeErrorsSchema);
+  if (!factory) return;
+  if (c.factoryThrows) {
+    expect(() => factory(), `${c.title} [schema]: factory must throw`).toThrow();
+    return;
+  }
+  const {valid, invalid} = c.getSamples();
+  const getErrSchema = factory();
+  valid.forEach((v, i) => {
+    expect(getErrSchema(v), `${c.title} [schema]: valid[${i}] → no errors`).toEqual([]);
+  });
+  invalid.forEach((v, i) => {
+    expect(getErrSchema(v).length, `${c.title} [schema]: invalid[${i}] → at least one error`).toBeGreaterThan(0);
+  });
+}
+
+// =========================================================================
+// mockType family — 2 variants
+// =========================================================================
+
+/** Drives one mock fn for MOCK_ITERATIONS iterations and asserts each
+ *  generated value passes the case's static isType. **/
+function runMockPass(c: ValidationCase, mockFn: () => unknown, label: string): void {
+  // expectMode === 'skip' means we exercise the mock generator but can't
+  // validate output — either because the kind has no isType semantic
+  // (functions) or because the paired isType factory is alwaysThrow
+  // (root symbol). Either way, skip the isType call so it doesn't blow up.
+  const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
+  if (expectMode === 'skip') {
+    for (let i = 0; i < MOCK_ITERATIONS; i++) mockFn();
+    return;
+  }
+  const isTypeFactory = resolveThunk(c.isType);
+  if (!isTypeFactory) {
     throw new Error(`case ${c.title}: mockType needs paired isType thunk to validate`);
   }
-
-  const runPass = (mockFn: () => unknown, label: string): void => {
-    // expectMode === 'skip' means we exercise the mock generator but
-    // can't validate output — either because the kind has no isType
-    // semantic (functions) or because the paired isType factory is
-    // alwaysThrow (root symbol). Either way, skip the isType call so
-    // it doesn't blow up the test.
-    if (expectMode === 'skip') {
-      for (let i = 0; i < MOCK_ITERATIONS; i++) mockFn();
-      return;
+  const isValid = isTypeFactory();
+  for (let i = 0; i < MOCK_ITERATIONS; i++) {
+    const generated = mockFn();
+    const ok = isValid(generated);
+    if (!ok) {
+      throw new Error(
+        `${c.title} [${label}]: iteration ${i} — generated value did not pass isType. value=${safeStringify(generated)}`
+      );
     }
-    const isValid = c.isType!();
-    for (let i = 0; i < MOCK_ITERATIONS; i++) {
-      const generated = mockFn();
-      const ok = isValid(generated);
-      if (!ok) {
-        throw new Error(
-          `${c.title} [${label}]: iteration ${i} — generated value did not pass isType. value=${safeStringify(generated)}`
-        );
-      }
-    }
-  };
-
-  runPass(c.mockType(), 'static');
-  if (c.mockTypeReflect) runPass(c.mockTypeReflect(), 'reflect');
+  }
 }
+
+/** Static form: createMockType<T>(). **/
+export function assertMockTypeStatic(c: ValidationCase): void {
+  const factory = resolveThunk(c.mockType);
+  if (!factory) return;
+  const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
+  if (expectMode === 'throw') {
+    const mockFn = factory();
+    expect(() => mockFn(), `${c.title} [static]: mock fn should throw`).toThrow();
+    return;
+  }
+  runMockPass(c, factory(), 'static');
+}
+
+/** Reflect form: createMockType(value). **/
+export function assertMockTypeReflect(c: ValidationCase): void {
+  const factory = resolveThunk(c.mockTypeReflect);
+  if (!factory) return;
+  const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
+  if (expectMode === 'throw') {
+    const mockFn = factory();
+    expect(() => mockFn(), `${c.title} [reflect]: mock fn should throw`).toThrow();
+    return;
+  }
+  runMockPass(c, factory(), 'reflect');
+}
+
+// =========================================================================
+// format-validation getTypeErrors — single variant (static, format payload)
+// =========================================================================
 
 /** Format getTypeErrors — asserts valid samples produce no errors and each
  *  invalid sample carries the expected `format` payload (name, optional `val`,
  *  optional `formatPath` tail) via the case's index-parallel
  *  `expectedFormatErrors`. Matches on the format payload, not a full
  *  RunTypeError deep-equal — robust against incidental fields in the envelope. **/
-export function assertFormatGetTypeErrors(c: FormatValidationCase): void {
-  if (!c.getTypeErrors) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
+export function assertFormatGetTypeErrorsStatic(c: FormatValidationCase): void {
+  const factory = resolveThunk(c.getTypeErrors);
+  if (!factory) return;
   if (!c.expectedFormatErrors) throw new Error(`case ${c.title}: missing expectedFormatErrors thunk`);
 
   const {valid, invalid} = c.getSamples();
@@ -284,7 +415,7 @@ export function assertFormatGetTypeErrors(c: FormatValidationCase): void {
     );
   }
 
-  const getErr = c.getTypeErrors();
+  const getErr = factory();
 
   valid.forEach((v, i) => {
     expect(getErr(v), `${c.title}: valid[${i}] → no errors`).toEqual([]);
@@ -310,15 +441,20 @@ export function assertFormatGetTypeErrors(c: FormatValidationCase): void {
   });
 }
 
+// =========================================================================
+// value-first-suite contract helper (kept as-is, consumed elsewhere)
+// =========================================================================
+
 /** Lightweight getTypeErrors contract used by the value-first suite: valid
  *  samples produce no errors, invalid samples produce at least one. A value-first
  *  leaf builder reflects the FORMAT of a type, so its error detail may carry
  *  metadata the bare type-first error doesn't — assert the contract, not a
  *  deep-equal against an expected-errors table (the validation suite pins those). **/
 export function assertGetTypeErrorsContract(c: ValidationCase): void {
-  if (!c.getTypeErrors) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
+  const factory = resolveThunk(c.getTypeErrors);
+  if (!factory) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
   const {valid, invalid} = c.getSamples();
-  const getErr = c.getTypeErrors();
+  const getErr = factory();
   valid.forEach((v, i) => {
     expect(getErr(v), `${c.title} [getTypeErrors]: valid[${i}] → no errors`).toEqual([]);
   });

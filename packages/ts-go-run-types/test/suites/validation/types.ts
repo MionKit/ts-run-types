@@ -1,5 +1,18 @@
 import type {IsTypeFn, GetTypeErrorsFn, RunTypeError, MockTypeFn} from '@mionjs/ts-go-run-types';
 
+/** Thunk that returns the variant's function, OR the `'not-supported'`
+ *  sentinel marking the variant as deliberately unsupported on this case
+ *  (e.g. a value-first schema for a case that needs a `RunTypeOptions` flag
+ *  the value-first builders can't carry).
+ *
+ *  - Field omitted entirely → "not implemented" gap (test title suffixed
+ *    with `(not implemented)`, no warning).
+ *  - `'not-supported'` sentinel → known design limitation (test title
+ *    suffixed with `(not supported)`, assert emits a once-per-(case, variant)
+ *    `console.warn`).
+ *  - Function → normal variant; assert runs it. **/
+export type Thunk<T> = (() => T) | 'not-supported';
+
 /** One atomic-type case in the shared suite. */
 export interface ValidationCase {
   title: string;
@@ -16,53 +29,50 @@ export interface ValidationCase {
   isTypeNotes?: string | string[];
   /** Plugin-rewritten thunk returning the isType validator — STATIC
    *  form. Caller supplies `T` explicitly via the type argument. */
-  isType?: () => IsTypeFn;
+  isType?: Thunk<IsTypeFn>;
   /** Plugin-rewritten thunk returning the isType validator — REFLECT
    *  form. Calls `createIsType(value)` with a runtime value annotated
    *  to type T; the type checker infers T from the annotation, the
    *  value itself is discarded at runtime. Paired with `isType` per
    *  the CLAUDE.md "Marker test coverage rule" to verify both call
    *  shapes produce the same validator end-to-end. **/
-  isTypeReflect?: () => IsTypeFn;
+  isTypeReflect?: Thunk<IsTypeFn>;
   /** Plugin-rewritten thunk returning the validator rebuilt from the
    *  serialized `RTCompiledFnData.code` body via
    *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `isType` (static form). **/
-  deserializeIsType?: () => IsTypeFn;
+  deserializeIsType?: Thunk<IsTypeFn>;
   /** Reflect-form companion to `deserializeIsType`. **/
-  deserializeIsTypeReflect?: () => IsTypeFn;
+  deserializeIsTypeReflect?: Thunk<IsTypeFn>;
   /** SCHEMA form: `() => createIsTypeFor(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
-   *  samples as `isType`. Present only on leaf-buildable cases. **/
-  isTypeSchema?: () => IsTypeFn;
-  /** Set when a case CANNOT be authored value-first because it depends on a
-   *  `RunTypeOptions` flag (`noIsArrayCheck` / `noLiterals`) that the Go scanner
-   *  folds into the structural typeId at the `createIsType` call site — the
-   *  value-first builders carry only the TS type via `InjectRunTypeId<T>`, with no
-   *  options channel. Holds the offending option name; the harness warns once and
-   *  the case stays type-first only. **/
-  valueFirstUnsupported?: string;
+   *  samples as `isType`. Present only on leaf-buildable cases. Set to
+   *  `'not-supported'` to mark a case whose schema variant CANNOT be authored
+   *  value-first (e.g. depends on a `RunTypeOptions` flag the builders can't
+   *  carry) — the assert logs once and the title shows `(not supported)`. **/
+  isTypeSchema?: Thunk<IsTypeFn>;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `isType` but the validator returns `RunTypeError[]`
    *  instead of a boolean (matches mion's `RTFunctions.typeErrors`). */
-  getTypeErrors?: () => GetTypeErrorsFn;
+  getTypeErrors?: Thunk<GetTypeErrorsFn>;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  REFLECT form. `T` inferred from a runtime value's declared type. */
-  getTypeErrorsReflect?: () => GetTypeErrorsFn;
+  getTypeErrorsReflect?: Thunk<GetTypeErrorsFn>;
   /** Plugin-rewritten thunk returning the getTypeErrors validator
    *  rebuilt from the serialized `RTCompiledFnData.code` body via
    *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `getTypeErrors` (static form). */
-  deserializeGetTypeErrors?: () => GetTypeErrorsFn;
+  deserializeGetTypeErrors?: Thunk<GetTypeErrorsFn>;
   /** Reflect-form companion to `deserializeGetTypeErrors`. */
-  deserializeGetTypeErrorsReflect?: () => GetTypeErrorsFn;
+  deserializeGetTypeErrorsReflect?: Thunk<GetTypeErrorsFn>;
   /** SCHEMA form: `() => createTypeErrorsFor(<value-first builder schema>)`.
-   *  Companion to `isTypeSchema` for the getTypeErrors family. **/
-  getTypeErrorsSchema?: () => GetTypeErrorsFn;
+   *  Companion to `isTypeSchema` for the getTypeErrors family. Supports the
+   *  same `'not-supported'` sentinel. **/
+  getTypeErrorsSchema?: Thunk<GetTypeErrorsFn>;
   /** Expected error arrays for invalid samples — index-parallel to
    *  `getSamples().invalid`. Outer array length must match
    *  `invalid.length`; entry i is the `RunTypeError[]` the validator
@@ -73,10 +83,10 @@ export interface ValidationCase {
   /** Plugin-rewritten thunk returning the mock generator — STATIC
    *  form. Caller supplies `T` explicitly. The adapter generates N
    *  values (default 20) and asserts each passes `isType<T>()`. */
-  mockType?: () => MockTypeFn<unknown>;
+  mockType?: Thunk<MockTypeFn<unknown>>;
   /** Plugin-rewritten thunk returning the mock generator — REFLECT
    *  form. `T` inferred from a runtime value's declared type. */
-  mockTypeReflect?: () => MockTypeFn<unknown>;
+  mockTypeReflect?: Thunk<MockTypeFn<unknown>>;
   /** Adapter expectation for the mock case:
    *  - `'value'` (default) — every generated value must pass `isType<T>()`.
    *  - `'throw'` — calling the mock fn must throw (e.g. `never`).
