@@ -281,6 +281,34 @@ function assertionsNewBuilders(): void {
   const _cls: RunType<_Point> = RT.classType(_Point);
   void _cls;
 
+  // classType generic pin: the single-param form infers for non-generic classes
+  // (above) and pins a generic class's instantiation via an explicit Instance arg.
+  class _Box<T> {
+    contents!: T;
+  }
+  const _boxNum: RunType<_Box<number>> = RT.classType<_Box<number>>(_Box);
+  void _boxNum;
+
+  // func tuple-overload: params as a single tuple RunType (so optional/rest params
+  // ride tuple()); `(...args: T)` ≡ the spread tuple. Brand-free booleans so the
+  // positive assignment matches exactly.
+  const _fnTup: RunType<(a: boolean, b?: boolean) => void> = RT.func(RT.tuple([RT.boolean()], [RT.boolean()]));
+  void _fnTup;
+
+  // parameters(fn): extracts the function's parameter tuple — fixed, trailing-
+  // optional, and rest forms each converge with `Parameters<F>`.
+  const _pFixed: RunType<[boolean, boolean]> = RT.parameters(RT.func([RT.boolean(), RT.boolean()]));
+  const _pOpt: RunType<[boolean, boolean?]> = RT.parameters(RT.func(RT.tuple([RT.boolean()], [RT.boolean()])));
+  const _pRest: RunType<[boolean, ...boolean[]]> = RT.parameters(RT.func(RT.tuple([RT.boolean()], RT.boolean())));
+  void _pFixed;
+  void _pOpt;
+  void _pRest;
+
+  // record(key, value): the key schema's type becomes the index-signature key. A
+  // templateLiteral key is unbranded, so it stays the `api/${string}` pattern.
+  const _recTpl: RunType<Record<`api/${string}`, boolean>> = RT.record(RT.templateLiteral(['api/', RT.string()]), RT.boolean());
+  void _recTpl;
+
   // regexp(/literal/): the TS type stays RegExp (source+flags precision is a
   // scanner concern); regexp() with no arg is the same RegExp type.
   const _reLit: RunType<RegExp> = RT.regexp(/abc/i);
