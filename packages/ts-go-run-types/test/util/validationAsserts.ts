@@ -12,6 +12,10 @@ import type {ValidationCase} from '../suites/validation-suite.ts';
  *  bugs without bloating test runtimes. **/
 export const MOCK_ITERATIONS = 20;
 
+/** Titles already warned about, so a `valueFirstUnsupported` case logs its
+ *  design-flaw notice exactly once across the (isType/getTypeErrors/mock) adapters. **/
+const warnedValueFirstUnsupported = new Set<string>();
+
 function safeStringify(value: unknown): string {
   try {
     return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? `${v}n` : typeof v === 'symbol' ? v.toString() : v));
@@ -25,6 +29,23 @@ function safeStringify(value: unknown): string {
  *  invalid samples. **/
 export function assertIsType(c: ValidationCase): void {
   if (!c.isType) throw new Error(`case ${c.title}: missing isType thunk`);
+
+  // A case flagged `valueFirstUnsupported` has no value-first builder form because
+  // the option it needs is folded into the structural typeId at the createIsType
+  // call site. The type-first assertions below still run and pass; we just surface
+  // the design flaw once so it stays visible.
+  if (c.valueFirstUnsupported && !warnedValueFirstUnsupported.has(c.title)) {
+    warnedValueFirstUnsupported.add(c.title);
+    console.warn(
+      `[value-first-unsupported] case "${c.title}" cannot be authored value-first: the ` +
+        `\`${c.valueFirstUnsupported}\` option (and \`noLiterals\`) is folded into the structural ` +
+        `typeId at the createIsType call site (internal/resolver/scan.go — noLiterals walks a literal ` +
+        `to its base type, noIsArrayCheck wraps the array id with a flag), but value-first builders ` +
+        `carry only the TS type via InjectRunTypeId<T>, so options can't ride the value-first surface. ` +
+        `DESIGN FLAW to fix: move RunTypeOptions out of the typeId computation so these options become ` +
+        `authorable value-first.`
+    );
+  }
 
   // factoryThrows — the Go pipeline rendered the runtype's factory as
   // alwaysThrow (root-unsupported kinds like `symbol`). Every variant
