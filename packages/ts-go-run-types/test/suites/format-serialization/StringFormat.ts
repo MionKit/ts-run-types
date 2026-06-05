@@ -1,4 +1,5 @@
 import type {SerializationCase} from './types.ts';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import '@mionjs/ts-go-run-types/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
 import type {FormatString, FormatAlpha, FormatUUIDv4, FormatStringDate, FormatEmail} from '@mionjs/ts-go-run-types/formats';
@@ -17,6 +18,10 @@ export const STRING_FORMAT = {
     preserveDecoder: () => createJsonDecoder<FormatString<{maxLength: 5}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatString<{maxLength: 5}>>(),
     binaryDecoder: () => createBinaryDecoder<FormatString<{maxLength: 5}>>(),
+    schemaEncoder: () => createJsonEncoder(RT.string({maxLength: 5})),
+    schemaDecoder: () => createJsonDecoder(RT.string({maxLength: 5})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.string({maxLength: 5})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.string({maxLength: 5})),
     getTestData: () => ({values: ['', 'hello', 'abc']}),
   },
   uuidv4: {
@@ -30,6 +35,10 @@ export const STRING_FORMAT = {
     preserveDecoder: () => createJsonDecoder<FormatUUIDv4>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatUUIDv4>(),
     binaryDecoder: () => createBinaryDecoder<FormatUUIDv4>(),
+    schemaEncoder: () => createJsonEncoder(RT.uuidv4()),
+    schemaDecoder: () => createJsonDecoder(RT.uuidv4()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.uuidv4()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.uuidv4()),
     getTestData: () => ({values: [V4]}),
   },
   date: {
@@ -43,6 +52,10 @@ export const STRING_FORMAT = {
     preserveDecoder: () => createJsonDecoder<FormatStringDate>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatStringDate>(),
     binaryDecoder: () => createBinaryDecoder<FormatStringDate>(),
+    schemaEncoder: () => createJsonEncoder(RT.stringDate()),
+    schemaDecoder: () => createJsonDecoder(RT.stringDate()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.stringDate()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.stringDate()),
     getTestData: () => ({values: ['2024-02-29', '2026-05-28', '0001-01-01']}),
   },
   email: {
@@ -56,6 +69,10 @@ export const STRING_FORMAT = {
     preserveDecoder: () => createJsonDecoder<FormatEmail>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatEmail>(),
     binaryDecoder: () => createBinaryDecoder<FormatEmail>(),
+    schemaEncoder: () => createJsonEncoder(RT.email()),
+    schemaDecoder: () => createJsonDecoder(RT.email()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.email()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.email()),
     getTestData: () => ({values: ['john@example.com', 'jane.doe@mion.io']}),
   },
   alpha: {
@@ -69,6 +86,10 @@ export const STRING_FORMAT = {
     preserveDecoder: () => createJsonDecoder<FormatAlpha>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatAlpha>(),
     binaryDecoder: () => createBinaryDecoder<FormatAlpha>(),
+    schemaEncoder: () => createJsonEncoder(RT.alpha()),
+    schemaDecoder: () => createJsonDecoder(RT.alpha()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.alpha()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.alpha()),
     getTestData: () => ({values: ['Hello', 'abcXYZ']}),
   },
   object_with_formats: {
@@ -87,6 +108,10 @@ export const STRING_FORMAT = {
       createJsonDecoder<{id: FormatUUIDv4; name: FormatString<{maxLength: 20}>}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{id: FormatUUIDv4; name: FormatString<{maxLength: 20}>}>(),
     binaryDecoder: () => createBinaryDecoder<{id: FormatUUIDv4; name: FormatString<{maxLength: 20}>}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({id: RT.uuidv4(), name: RT.string({maxLength: 20})})),
+    schemaDecoder: () => createJsonDecoder(RT.object({id: RT.uuidv4(), name: RT.string({maxLength: 20})})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({id: RT.uuidv4(), name: RT.string({maxLength: 20})})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({id: RT.uuidv4(), name: RT.string({maxLength: 20})})),
     getTestData: () => ({values: [{id: V4, name: 'alice'}]}),
   },
   email_array: {
@@ -100,6 +125,10 @@ export const STRING_FORMAT = {
     preserveDecoder: () => createJsonDecoder<FormatEmail[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatEmail[]>(),
     binaryDecoder: () => createBinaryDecoder<FormatEmail[]>(),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.email())),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.email())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.email())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.email())),
     getTestData: () => ({values: [['john@example.com', 'jane.doe@mion.io']]}),
   },
 } as const satisfies Record<string, SerializationCase>;
