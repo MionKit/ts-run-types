@@ -11,6 +11,8 @@
 // util/equalsHelpers.ts (canonical-string compare + immutable pass-through).
 
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
+import '@mionjs/ts-go-run-types/formats';
 import type {SerializationCase} from './types.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
@@ -28,6 +30,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Date>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date>(),
     binaryDecoder: () => createBinaryDecoder<Date>(),
+    schemaEncoder: () => createJsonEncoder(RT.date()),
+    schemaDecoder: () => createJsonDecoder(RT.date()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.date()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.date()),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
 
@@ -42,6 +48,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.Instant>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.Instant>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.Instant>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.instant()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.instant()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.instant()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.instant()),
     getTestData: () => ({values: [T.Instant.from('2020-01-15T10:30:00Z'), T.Instant.fromEpochMilliseconds(0)]}),
   },
 
@@ -56,6 +66,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.ZonedDateTime>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.ZonedDateTime>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.ZonedDateTime>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.zonedDateTime()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.zonedDateTime()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.zonedDateTime()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.zonedDateTime()),
     getTestData: () => ({values: [T.ZonedDateTime.from('2020-01-15T10:30:00[UTC]')]}),
   },
 
@@ -70,6 +84,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.PlainDate>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.PlainDate>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.PlainDate>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainDate()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainDate()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainDate()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainDate()),
     getTestData: () => ({values: [T.PlainDate.from('2020-08-24'), T.PlainDate.from('1999-01-01')]}),
   },
 
@@ -84,6 +102,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.PlainTime>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.PlainTime>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.PlainTime>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainTime()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainTime()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainTime()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainTime()),
     getTestData: () => ({values: [T.PlainTime.from('19:39:09'), T.PlainTime.from('00:00:00')]}),
   },
 
@@ -98,6 +120,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.PlainDateTime>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.PlainDateTime>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.PlainDateTime>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainDateTime()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainDateTime()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainDateTime()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainDateTime()),
     getTestData: () => ({values: [T.PlainDateTime.from('1995-12-07T15:00:00')]}),
   },
 
@@ -112,6 +138,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.PlainYearMonth>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.PlainYearMonth>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.PlainYearMonth>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainYearMonth()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainYearMonth()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainYearMonth()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainYearMonth()),
     getTestData: () => ({values: [T.PlainYearMonth.from('2020-10')]}),
   },
 
@@ -126,6 +156,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.PlainMonthDay>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.PlainMonthDay>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.PlainMonthDay>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainMonthDay()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainMonthDay()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainMonthDay()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainMonthDay()),
     getTestData: () => ({values: [T.PlainMonthDay.from('07-14')]}),
   },
 
@@ -140,6 +174,10 @@ export const DATETIME = {
     preserveDecoder: () => createJsonDecoder<Temporal.Duration>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Temporal.Duration>(),
     binaryDecoder: () => createBinaryDecoder<Temporal.Duration>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.duration()),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.duration()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.duration()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.duration()),
     getTestData: () => ({values: [T.Duration.from('P1Y2M10DT2H30M'), T.Duration.from('PT0S')]}),
   },
 } as const satisfies Record<string, SerializationCase>;
