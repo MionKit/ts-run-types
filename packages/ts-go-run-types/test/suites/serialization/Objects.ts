@@ -4,7 +4,7 @@ import type {SerializationCase} from './types.ts';
 export const OBJECTS = {
   interface: {
     title: 'interface',
-    unsafeEncoder: () =>
+    mutateEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -15,7 +15,7 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () =>
+    cloneEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -26,7 +26,7 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () =>
+    stripMutateEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -37,7 +37,7 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () =>
+    stripCloneEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -48,7 +48,7 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(),
-    safeDirectEncoder: () =>
+    directEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -59,7 +59,7 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(undefined, {strategy: 'direct'}),
-    safeDecoder: () =>
+    stripDecoder: () =>
       createJsonDecoder<{
         startDate: Date;
         quantity: number;
@@ -70,7 +70,7 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(),
-    unsafeDecoder: () =>
+    preserveDecoder: () =>
       createJsonDecoder<{
         startDate: Date;
         quantity: number;
@@ -119,7 +119,7 @@ export const OBJECTS = {
   },
   many_optional_props: {
     title: 'many optional properties',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -130,7 +130,7 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -141,7 +141,7 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -152,7 +152,7 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -163,7 +163,7 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -174,7 +174,7 @@ export const OBJECTS = {
         };
       return createJsonEncoder<ManyOptional>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -185,7 +185,7 @@ export const OBJECTS = {
         };
       return createJsonDecoder<ManyOptional>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       type N = number;
       // prettier-ignore
       type ManyOptional = {
@@ -224,7 +224,7 @@ export const OBJECTS = {
   },
   class: {
     title: 'class',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -242,7 +242,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -260,7 +260,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -278,7 +278,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -296,7 +296,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<MySerializableClass>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -314,7 +314,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<MySerializableClass>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -332,7 +332,7 @@ export const OBJECTS = {
       }
       return createJsonDecoder<MySerializableClass>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       class MySerializableClass {
         name: string;
         surname: string;
@@ -409,7 +409,7 @@ export const OBJECTS = {
   },
   extended_class: {
     title: 'extended class',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -418,7 +418,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -427,7 +427,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -436,7 +436,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -445,7 +445,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -454,7 +454,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ExtendedClass>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -463,7 +463,7 @@ export const OBJECTS = {
       }
       return createJsonDecoder<ExtendedClass>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       class BaseClass {
         baseProp: string = 'base';
       }
@@ -504,7 +504,7 @@ export const OBJECTS = {
     title: 'non-serializable class via deserialize function',
     description:
       'mion registers a deserialize fn so the class instance can be reconstructed; without that registration, JSON yields a plain object.',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -518,7 +518,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -532,7 +532,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -546,7 +546,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -560,7 +560,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<NonSerializableClass>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -574,7 +574,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<NonSerializableClass>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -588,7 +588,7 @@ export const OBJECTS = {
       }
       return createJsonDecoder<NonSerializableClass>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       class NonSerializableClass {
         constructor(
           public name: string,
@@ -649,13 +649,13 @@ export const OBJECTS = {
   },
   undefined_in_object: {
     title: 'undefined is omitted in object prop',
-    unsafeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(),
-    safeDirectEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
-    unsafeDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(),
+    directEncoder: () => createJsonEncoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(),
+    preserveDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number; c: undefined}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number; c: undefined}>(),
     getTestData: () => ({
@@ -665,26 +665,26 @@ export const OBJECTS = {
   },
   optional_properties_order: {
     title: 'optional properties order',
-    unsafeEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<{a: string; b?: string}>(),
-    safeDirectEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
-    unsafeDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<{a: string; b?: string}>(),
+    directEncoder: () => createJsonEncoder<{a: string; b?: string}>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<{a: string; b?: string}>(),
+    preserveDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b?: string}>(),
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
   },
   all_optional_fields: {
     title: 'all optional fields',
-    unsafeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<{a?: string; b?: string}>(),
-    safeDirectEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
-    unsafeDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<{a?: string; b?: string}>(),
+    directEncoder: () => createJsonEncoder<{a?: string; b?: string}>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<{a?: string; b?: string}>(),
+    preserveDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a?: string; b?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a?: string; b?: string}>(),
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
@@ -693,7 +693,7 @@ export const OBJECTS = {
     title: 'unsafe path preserves extras (mion semantic — JSON.stringify does not strip)',
     description:
       "Canonical baseline for the `prepareForJson + JSON.stringify` path: declared children get transformed, structural extras (both top-level and nested-in-declared-composites) pass through unchanged. Mirrors mion's `03JsonObjects.spec.ts` strip-extras case where the strip expectation is explicitly commented out (`// native JSON.stringify do not strip extra params`). The safe path (`stripUnknownKeys + prepareForJson + JSON.stringify`) strips the extras — that divergence is exercised in EXTRA_PARAMS.",
-    unsafeEncoder: () =>
+    mutateEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -706,7 +706,7 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () =>
+    cloneEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -719,7 +719,7 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () =>
+    stripMutateEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -732,7 +732,7 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () =>
+    stripCloneEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -745,7 +745,7 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(),
-    safeDirectEncoder: () =>
+    directEncoder: () =>
       createJsonEncoder<{
         startDate: Date;
         quantity: number;
@@ -758,7 +758,7 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(undefined, {strategy: 'direct'}),
-    safeDecoder: () =>
+    stripDecoder: () =>
       createJsonDecoder<{
         startDate: Date;
         quantity: number;
@@ -771,7 +771,7 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(),
-    unsafeDecoder: () =>
+    preserveDecoder: () =>
       createJsonDecoder<{
         startDate: Date;
         quantity: number;
@@ -864,49 +864,49 @@ export const OBJECTS = {
   },
   interface_circular: {
     title: 'interface circular',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
       return createJsonEncoder<ICircular>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
       return createJsonEncoder<ICircular>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
       return createJsonEncoder<ICircular>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
       return createJsonEncoder<ICircular>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
       return createJsonEncoder<ICircular>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
       }
       return createJsonDecoder<ICircular>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ICircular {
         name: string;
         child?: ICircular;
@@ -931,49 +931,49 @@ export const OBJECTS = {
   },
   interface_circular_array: {
     title: 'interface circular array',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
       return createJsonEncoder<ICircularArray>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
       return createJsonEncoder<ICircularArray>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
       return createJsonEncoder<ICircularArray>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
       return createJsonEncoder<ICircularArray>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
       return createJsonEncoder<ICircularArray>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
       }
       return createJsonDecoder<ICircularArray>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ICircularArray {
         name: string;
         children?: ICircularArray[];
@@ -1003,7 +1003,7 @@ export const OBJECTS = {
   },
   interface_circular_deep: {
     title: 'interface circular deep',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1014,7 +1014,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1025,7 +1025,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1036,7 +1036,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1047,7 +1047,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularDeep>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1058,7 +1058,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<ICircularDeep>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1069,7 +1069,7 @@ export const OBJECTS = {
       }
       return createJsonDecoder<ICircularDeep>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1115,7 +1115,7 @@ export const OBJECTS = {
   },
   interface_root_not_circular: {
     title: 'interface root not circular',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1127,7 +1127,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1139,7 +1139,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1151,7 +1151,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1163,7 +1163,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootNotCircular>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1175,7 +1175,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootNotCircular>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1187,7 +1187,7 @@ export const OBJECTS = {
       }
       return createJsonDecoder<RootNotCircular>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1239,7 +1239,7 @@ export const OBJECTS = {
   },
   interface_multiple_circular: {
     title: 'interface multiple circular',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1260,7 +1260,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootCircular>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1281,7 +1281,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootCircular>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1302,7 +1302,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootCircular>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1323,7 +1323,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootCircular>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1344,7 +1344,7 @@ export const OBJECTS = {
       }
       return createJsonEncoder<RootCircular>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1365,7 +1365,7 @@ export const OBJECTS = {
       }
       return createJsonDecoder<RootCircular>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ICircularDeep {
         name: string;
         big: bigint;
@@ -1460,49 +1460,49 @@ export const OBJECTS = {
   },
   interface_with_methods: {
     title: 'methods should be excluded from interface when serializing',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
       return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
       return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
       return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
       return createJsonEncoder<ObjectWithMethods>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
       return createJsonEncoder<ObjectWithMethods>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;
       }
       return createJsonDecoder<ObjectWithMethods>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       interface ObjectWithMethods {
         name: string;
         methodProp: () => any;

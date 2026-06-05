@@ -4,26 +4,26 @@ import type {SerializationCase} from './types.ts';
 export const ARRAYS = {
   array: {
     title: 'array',
-    unsafeEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<string[]>(),
-    safeDirectEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<string[]>(),
-    unsafeDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<string[]>(),
+    directEncoder: () => createJsonEncoder<string[]>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<string[]>(),
+    preserveDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[]>(),
     binaryDecoder: () => createBinaryDecoder<string[]>(),
     getTestData: () => ({values: [['hello', 'world'], []]}),
   },
   array_date: {
     title: 'array of dates',
-    unsafeEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<Date[]>(),
-    safeDirectEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<Date[]>(),
-    unsafeDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<Date[]>(),
+    directEncoder: () => createJsonEncoder<Date[]>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<Date[]>(),
+    preserveDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date[]>(),
     binaryDecoder: () => createBinaryDecoder<Date[]>(),
     getTestData: () => ({
@@ -32,26 +32,26 @@ export const ARRAYS = {
   },
   undefined_in_array: {
     title: 'undefined is serialized as null in array',
-    unsafeEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<undefined[]>(),
-    safeDirectEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<undefined[]>(),
-    unsafeDecoder: () => createJsonDecoder<undefined[]>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<undefined[]>(),
+    directEncoder: () => createJsonEncoder<undefined[]>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<undefined[]>(),
+    preserveDecoder: () => createJsonDecoder<undefined[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<undefined[]>(),
     binaryDecoder: () => createBinaryDecoder<undefined[]>(),
     getTestData: () => ({values: [[undefined, undefined]]}),
   },
   multi_dimensional: {
     title: 'multi dimensional array',
-    unsafeEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<string[][]>(),
-    safeDirectEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<string[][]>(),
-    unsafeDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<string[][]>(),
+    directEncoder: () => createJsonEncoder<string[][]>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<string[][]>(),
+    preserveDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[][]>(),
     binaryDecoder: () => createBinaryDecoder<string[][]>(),
     getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
@@ -59,13 +59,13 @@ export const ARRAYS = {
   non_serializable_in_array: {
     title: 'non serializable items throws an error',
     description: 'symbol[] should throw at RT-compile time per mion semantic.',
-    unsafeEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate'}),
-    clonePreserveEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone'}),
-    mutateStripEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'stripMutate'}),
-    safeEncoder: () => createJsonEncoder<symbol[]>(),
-    safeDirectEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),
-    safeDecoder: () => createJsonDecoder<symbol[]>(),
-    unsafeDecoder: () => createJsonDecoder<symbol[]>(undefined, {strategy: 'preserve'}),
+    mutateEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'mutate'}),
+    cloneEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'clone'}),
+    stripMutateEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'stripMutate'}),
+    stripCloneEncoder: () => createJsonEncoder<symbol[]>(),
+    directEncoder: () => createJsonEncoder<symbol[]>(undefined, {strategy: 'direct'}),
+    stripDecoder: () => createJsonDecoder<symbol[]>(),
+    preserveDecoder: () => createJsonDecoder<symbol[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<symbol[]>(),
     binaryDecoder: () => createBinaryDecoder<symbol[]>(),
     factoryThrows: true,
@@ -73,31 +73,31 @@ export const ARRAYS = {
   },
   array_circular: {
     title: 'array circular',
-    unsafeEncoder: () => {
+    mutateEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'mutate'});
     },
-    clonePreserveEncoder: () => {
+    cloneEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'clone'});
     },
-    mutateStripEncoder: () => {
+    stripMutateEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'stripMutate'});
     },
-    safeEncoder: () => {
+    stripCloneEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>();
     },
-    safeDirectEncoder: () => {
+    directEncoder: () => {
       type CircularArray = CircularArray[];
       return createJsonEncoder<CircularArray>(undefined, {strategy: 'direct'});
     },
-    safeDecoder: () => {
+    stripDecoder: () => {
       type CircularArray = CircularArray[];
       return createJsonDecoder<CircularArray>();
     },
-    unsafeDecoder: () => {
+    preserveDecoder: () => {
       type CircularArray = CircularArray[];
       return createJsonDecoder<CircularArray>(undefined, {strategy: 'preserve'});
     },
