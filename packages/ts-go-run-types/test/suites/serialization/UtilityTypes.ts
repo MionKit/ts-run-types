@@ -4,35 +4,29 @@ import type {SerializationCase} from './types.ts';
 export const UTILITY_TYPES = {
   awaited: {
     title: 'Awaited<Promise<T>>',
-    unsafeEncoder: () =>
-      createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
-      createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'clone', stripExtras: false}),
+      createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate', stripExtras: true}),
+      createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
     safeDirectEncoder: () =>
       createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
-    unsafeDecoder: () =>
-      createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
     binaryDecoder: () => createBinaryDecoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(),
     getTestData: () => ({values: [{a: 'hello', b: 1, c: new Date('2000-08-06T02:13:00.000Z')}]}),
   },
   exclude_atomic: {
     title: 'Exclude on atomic union',
-    unsafeEncoder: () =>
-      createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
     safeDirectEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
-    unsafeDecoder: () =>
-      createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Exclude<'name' | 'age' | number, 'age'>>(),
     binaryDecoder: () => createBinaryDecoder<Exclude<'name' | 'age' | number, 'age'>>(),
     getTestData: () => ({values: ['name', 3, 4]}),
@@ -44,21 +38,21 @@ export const UTILITY_TYPES = {
       type Square = {kind: 'square'; x: number};
       type Triangle = {kind: 'triangle'; x: number; y: number};
       type Shape = Circle | Square | Triangle;
-      return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type Circle = {kind: 'circle'; radius: number};
       type Square = {kind: 'square'; x: number};
       type Triangle = {kind: 'triangle'; x: number; y: number};
       type Shape = Circle | Square | Triangle;
-      return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type Circle = {kind: 'circle'; radius: number};
       type Square = {kind: 'square'; x: number};
       type Triangle = {kind: 'triangle'; x: number; y: number};
       type Shape = Circle | Square | Triangle;
-      return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<Exclude<Shape, Circle>>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type Circle = {kind: 'circle'; radius: number};
@@ -86,7 +80,7 @@ export const UTILITY_TYPES = {
       type Square = {kind: 'square'; x: number};
       type Triangle = {kind: 'triangle'; x: number; y: number};
       type Shape = Circle | Square | Triangle;
-      return createJsonDecoder<Exclude<Shape, Circle>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonDecoder<Exclude<Shape, Circle>>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type Circle = {kind: 'circle'; radius: number};
@@ -112,29 +106,17 @@ export const UTILITY_TYPES = {
   required_properties: {
     title: 'Required<T>',
     unsafeEncoder: () =>
-      createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
-      createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {
-        strategy: 'clone',
-        stripExtras: false,
-      }),
+      createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
-      }),
+      createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
     safeDirectEncoder: () =>
       createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
     unsafeDecoder: () =>
-      createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
     binaryDecoder: () => createBinaryDecoder<Required<{name?: string; age?: number; createdAt?: Date}>>(),
     getTestData: () => ({
@@ -144,29 +126,17 @@ export const UTILITY_TYPES = {
   extract_atomic: {
     title: 'Extract on atomic union',
     unsafeEncoder: () =>
-      createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
-      createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {
-        strategy: 'clone',
-        stripExtras: false,
-      }),
+      createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
-      }),
+      createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     safeDirectEncoder: () =>
       createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     unsafeDecoder: () =>
-      createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     binaryDecoder: () => createBinaryDecoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
     getTestData: () => ({values: ['name']}),
@@ -176,17 +146,17 @@ export const UTILITY_TYPES = {
     unsafeEncoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
       type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-      return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
       type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-      return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
       type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-      return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
@@ -206,7 +176,7 @@ export const UTILITY_TYPES = {
     unsafeDecoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
       type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
-      return createJsonDecoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonDecoder<Extract<Shape, ToExtract>>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
@@ -223,29 +193,17 @@ export const UTILITY_TYPES = {
   partial_properties: {
     title: 'Partial<T>',
     unsafeEncoder: () =>
-      createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
-      createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {
-        strategy: 'clone',
-        stripExtras: false,
-      }),
+      createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
-      }),
+      createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
     safeDirectEncoder: () =>
       createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
     unsafeDecoder: () =>
-      createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonDecoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Partial<{name: string; age: number; createdAt: Date}>>(),
     binaryDecoder: () => createBinaryDecoder<Partial<{name: string; age: number; createdAt: Date}>>(),
     getTestData: () => {
@@ -258,17 +216,14 @@ export const UTILITY_TYPES = {
     unsafeEncoder: () =>
       createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
         strategy: 'mutate',
-        stripExtras: false,
       }),
     clonePreserveEncoder: () =>
       createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
         strategy: 'clone',
-        stripExtras: false,
       }),
     mutateStripEncoder: () =>
       createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
+        strategy: 'stripMutate',
       }),
     safeEncoder: () =>
       createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
@@ -280,7 +235,7 @@ export const UTILITY_TYPES = {
       createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
     unsafeDecoder: () =>
       createJsonDecoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
-        stripExtras: false,
+        strategy: 'preserve',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(),
@@ -293,17 +248,14 @@ export const UTILITY_TYPES = {
     unsafeEncoder: () =>
       createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
         strategy: 'mutate',
-        stripExtras: false,
       }),
     clonePreserveEncoder: () =>
       createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
         strategy: 'clone',
-        stripExtras: false,
       }),
     mutateStripEncoder: () =>
       createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
+        strategy: 'stripMutate',
       }),
     safeEncoder: () => createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
     safeDirectEncoder: () =>
@@ -313,7 +265,7 @@ export const UTILITY_TYPES = {
     safeDecoder: () => createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
     unsafeDecoder: () =>
       createJsonDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
-        stripExtras: false,
+        strategy: 'preserve',
       }),
     binaryEncoder: () => createBinaryEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
     binaryDecoder: () => createBinaryDecoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(),
@@ -321,13 +273,13 @@ export const UTILITY_TYPES = {
   },
   record_type: {
     title: 'Record<string, Date>',
-    unsafeEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Record<string, Date>>(),
     safeDirectEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Record<string, Date>>(),
-    unsafeDecoder: () => createJsonDecoder<Record<string, Date>>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Record<string, Date>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Record<string, Date>>(),
     binaryDecoder: () => createBinaryDecoder<Record<string, Date>>(),
     getTestData: () => ({

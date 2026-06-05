@@ -4,32 +4,26 @@ import type {SerializationCase} from './types.ts';
 export const UNIONS = {
   union: {
     title: 'atomic union',
-    unsafeEncoder: () =>
-      createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(),
     safeDirectEncoder: () => createJsonEncoder<Date | number | string | null | bigint>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(),
-    unsafeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Date | number | string | null | bigint>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date | number | string | null | bigint>(),
     binaryDecoder: () => createBinaryDecoder<Date | number | string | null | bigint>(),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z'), 123, 'hello', null, 3n]}),
   },
   union_array: {
     title: 'union of arrays',
-    unsafeEncoder: () =>
-      createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(),
     safeDirectEncoder: () => createJsonEncoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(),
-    unsafeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<string[] | number[] | boolean[] | Date[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[] | number[] | boolean[] | Date[]>(),
     binaryDecoder: () => createBinaryDecoder<string[] | number[] | boolean[] | Date[]>(),
     getTestData: () => ({
@@ -44,16 +38,13 @@ export const UNIONS = {
   },
   with_discriminator: {
     title: 'array of union with discriminator',
-    unsafeEncoder: () =>
-      createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(),
     safeDirectEncoder: () => createJsonEncoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(),
-    unsafeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<(string | bigint | boolean | Date)[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<(string | bigint | boolean | Date)[]>(),
     binaryDecoder: () => createBinaryDecoder<(string | bigint | boolean | Date)[]>(),
     getTestData: () => {
@@ -71,26 +62,19 @@ export const UNIONS = {
   union_object_with_discriminator: {
     title: 'union of object shapes',
     unsafeEncoder: () =>
-      createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
-      createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {
-        strategy: 'clone',
-        stripExtras: false,
-      }),
+      createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
       createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
+        strategy: 'stripMutate',
       }),
     safeEncoder: () => createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     safeDirectEncoder: () =>
       createJsonEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     unsafeDecoder: () =>
-      createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {stripExtras: false}),
+      createJsonDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}>(),
     getTestData: () => ({values: [{a: 'world', aa: true}, {c: 1n}, {d: 'hello'}, {}]}),
@@ -103,21 +87,21 @@ export const UNIONS = {
         | {type: 'b'; otherProp: number}
         | {type: 'c'; otherProp: string; time: Date}
         | {type: boolean; otherProp: string}
-      >(undefined, {strategy: 'mutate', stripExtras: false}),
+      >(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
       createJsonEncoder<
         | {type: 'a'; otherProp: boolean}
         | {type: 'b'; otherProp: number}
         | {type: 'c'; otherProp: string; time: Date}
         | {type: boolean; otherProp: string}
-      >(undefined, {strategy: 'clone', stripExtras: false}),
+      >(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
       createJsonEncoder<
         | {type: 'a'; otherProp: boolean}
         | {type: 'b'; otherProp: number}
         | {type: 'c'; otherProp: string; time: Date}
         | {type: boolean; otherProp: string}
-      >(undefined, {strategy: 'mutate', stripExtras: true}),
+      >(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () =>
       createJsonEncoder<
         | {type: 'a'; otherProp: boolean}
@@ -145,7 +129,7 @@ export const UNIONS = {
         | {type: 'b'; otherProp: number}
         | {type: 'c'; otherProp: string; time: Date}
         | {type: boolean; otherProp: string}
-      >(undefined, {strategy: 'mutate', stripExtras: false}),
+      >(undefined, {strategy: 'preserve'}),
     binaryEncoder: () =>
       createBinaryEncoder<
         | {type: 'a'; otherProp: boolean}
@@ -174,17 +158,17 @@ export const UNIONS = {
     unsafeEncoder: () =>
       createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
         undefined,
-        {strategy: 'mutate', stripExtras: false}
+        {strategy: 'mutate'}
       ),
     clonePreserveEncoder: () =>
       createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
         undefined,
-        {strategy: 'clone', stripExtras: false}
+        {strategy: 'clone'}
       ),
     mutateStripEncoder: () =>
       createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
         undefined,
-        {strategy: 'mutate', stripExtras: true}
+        {strategy: 'stripMutate'}
       ),
     safeEncoder: () =>
       createJsonEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
@@ -198,7 +182,7 @@ export const UNIONS = {
     unsafeDecoder: () =>
       createJsonDecoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(
         undefined,
-        {stripExtras: false}
+        {strategy: 'preserve'}
       ),
     binaryEncoder: () =>
       createBinaryEncoder<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
@@ -215,7 +199,7 @@ export const UNIONS = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
-      >(undefined, {strategy: 'mutate', stripExtras: false}),
+      >(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
       createJsonEncoder<
         | string[]
@@ -223,7 +207,7 @@ export const UNIONS = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
-      >(undefined, {strategy: 'clone', stripExtras: false}),
+      >(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
       createJsonEncoder<
         | string[]
@@ -231,7 +215,7 @@ export const UNIONS = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
-      >(undefined, {strategy: 'mutate', stripExtras: true}),
+      >(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () =>
       createJsonEncoder<
         | string[]
@@ -263,7 +247,7 @@ export const UNIONS = {
         | {b: number}
         | {a: string; [key: string]: string}
         | {[key: string]: bigint; b: bigint}
-      >(undefined, {strategy: 'mutate', stripExtras: false}),
+      >(undefined, {strategy: 'preserve'}),
     binaryEncoder: () =>
       createBinaryEncoder<
         | string[]
@@ -286,15 +270,15 @@ export const UNIONS = {
     title: 'Circular union with discriminator',
     unsafeEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createJsonEncoder<UnionC>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<UnionC>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createJsonEncoder<UnionC>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<UnionC>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createJsonEncoder<UnionC>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<UnionC>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -310,7 +294,7 @@ export const UNIONS = {
     },
     unsafeDecoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
-      return createJsonDecoder<UnionC>(undefined, {stripExtras: false});
+      return createJsonDecoder<UnionC>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -343,15 +327,15 @@ export const UNIONS = {
     unsafeEncoder: () =>
       createJsonEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
-      >(undefined, {strategy: 'mutate', stripExtras: false}),
+      >(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
       createJsonEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
-      >(undefined, {strategy: 'clone', stripExtras: false}),
+      >(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
       createJsonEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
-      >(undefined, {strategy: 'mutate', stripExtras: true}),
+      >(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () =>
       createJsonEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
@@ -367,7 +351,7 @@ export const UNIONS = {
     unsafeDecoder: () =>
       createJsonDecoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
-      >(undefined, {strategy: 'mutate', stripExtras: false}),
+      >(undefined, {strategy: 'preserve'}),
     binaryEncoder: () =>
       createBinaryEncoder<
         {name: string; getName(): string} | {age: number; getAge(): number} | {active: boolean; isActive(): boolean}
@@ -403,15 +387,13 @@ export const UNIONS = {
   },
   union_with_any: {
     title: 'union with any — checked last as fallback',
-    unsafeEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<number | {name: string} | any>(),
     safeDirectEncoder: () => createJsonEncoder<number | {name: string} | any>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<number | {name: string} | any>(),
-    unsafeDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<number | {name: string} | any>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number | {name: string} | any>(),
     binaryDecoder: () => createBinaryDecoder<number | {name: string} | any>(),
     roundTripBestEffort: true,
@@ -420,17 +402,13 @@ export const UNIONS = {
   union_with_non_serializable: {
     title: 'union with non-serializable type throws',
     description: 'function in union — mion throws at RT-compile time.',
-    unsafeEncoder: () =>
-      createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(),
     safeDirectEncoder: () => createJsonEncoder<Date | number | string | (() => any)>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(),
-    unsafeDecoder: () =>
-      createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'mutate', stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<Date | number | string | (() => any)>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date | number | string | (() => any)>(),
     binaryDecoder: () => createBinaryDecoder<Date | number | string | (() => any)>(),
     factoryThrows: true,
@@ -455,13 +433,13 @@ export const UNIONS = {
     title: 'union member with extra bigint prop throws at JSON.stringify',
     description:
       'Input `{b: 123, c: 123n}` matches the `{b: number}` arm; mion preserves the structural extra `c: 123n` (no implicit strip). JSON.stringify then throws on the bigint. Contract: extras pass through unchanged — pre-strip them if they may carry non-serializable values.',
-    unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
     safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
-    unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
     jsonStringifyThrows: true,
@@ -476,13 +454,13 @@ export const UNIONS = {
     title: 'union member with extra symbol prop is dropped by JSON.stringify',
     description:
       'Same contract as `union_extra_bigint_prop_throws` but with a symbol extra. JSON.stringify silently drops symbols (returns `{"b":123}` — no throw), so this case round-trips with the extra silently lost. Rename from the original `_throws` name (which advertised a throw that never fires) for honesty.',
-    unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<{a: string} | {b: number}>(),
     safeDirectEncoder: () => createJsonEncoder<{a: string} | {b: number}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(),
-    unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<{a: string} | {b: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string} | {b: number}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string} | {b: number}>(),
     // Symbol-valued props are silently dropped by JSON.stringify
@@ -513,17 +491,14 @@ export const UNIONS = {
     unsafeEncoder: () =>
       createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
         strategy: 'mutate',
-        stripExtras: false,
       }),
     clonePreserveEncoder: () =>
       createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
         strategy: 'clone',
-        stripExtras: false,
       }),
     mutateStripEncoder: () =>
       createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
+        strategy: 'stripMutate',
       }),
     safeEncoder: () =>
       createJsonEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
@@ -535,7 +510,7 @@ export const UNIONS = {
       createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
     unsafeDecoder: () =>
       createJsonDecoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(undefined, {
-        stripExtras: false,
+        strategy: 'preserve',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<{kind: 'created'; at: Date; by: string} | {kind: 'updated'; at: Date; reviewers: string[]}>(),
@@ -556,17 +531,14 @@ export const UNIONS = {
     unsafeEncoder: () =>
       createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
         strategy: 'mutate',
-        stripExtras: false,
       }),
     clonePreserveEncoder: () =>
       createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
         strategy: 'clone',
-        stripExtras: false,
       }),
     mutateStripEncoder: () =>
       createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
+        strategy: 'stripMutate',
       }),
     safeEncoder: () =>
       createJsonEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
@@ -578,7 +550,7 @@ export const UNIONS = {
       createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
     unsafeDecoder: () =>
       createJsonDecoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(undefined, {
-        stripExtras: false,
+        strategy: 'preserve',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<{kind: 'event'; when: Date; label: string} | {kind: 'note'; when: string; label: string}>(),
@@ -599,17 +571,14 @@ export const UNIONS = {
     unsafeEncoder: () =>
       createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
         strategy: 'mutate',
-        stripExtras: false,
       }),
     clonePreserveEncoder: () =>
       createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
         strategy: 'clone',
-        stripExtras: false,
       }),
     mutateStripEncoder: () =>
       createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
+        strategy: 'stripMutate',
       }),
     safeEncoder: () => createJsonEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
     safeDirectEncoder: () =>
@@ -619,7 +588,7 @@ export const UNIONS = {
     safeDecoder: () => createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
     unsafeDecoder: () =>
       createJsonDecoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(undefined, {
-        stripExtras: false,
+        strategy: 'preserve',
       }),
     binaryEncoder: () =>
       createBinaryEncoder<{form: 'big'; id: bigint; label: string} | {form: 'small'; id: number; label: string}>(),
@@ -637,16 +606,14 @@ export const UNIONS = {
     title: 'shared prop — no literal discriminator, member resolved structurally',
     description:
       'No tag-like literal field. Members differentiated by (a) shared prop `a` having divergent type (string vs boolean — a sub-union) and (b) unique companion props (`b: number` vs `c: Date`). The encoder/decoder dispatch must work purely on shape: which member’s required props match the input. Verifies the dispatch is not silently relying on a literal-discriminator fast path.',
-    unsafeEncoder: () =>
-      createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'clone', stripExtras: false}),
+    unsafeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'mutate', stripExtras: true}),
+      createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     safeDirectEncoder: () => createJsonEncoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
-    unsafeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<{a: string; b: number} | {a: boolean; c: Date}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number} | {a: boolean; c: Date}>(),
     getTestData: () => ({
