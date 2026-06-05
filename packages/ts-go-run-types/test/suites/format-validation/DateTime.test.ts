@@ -1,8 +1,9 @@
 // format-validation / DateTime — per-variant it() blocks: every DATETIME case
-// yields up to 8 it()s (5 isType + 1 getTypeErrors/format + 2 mockType). The
-// getTypeErrors variant uses the format-payload assertion (assertFormatGetType-
-// ErrorsStatic); the other 4 getTypeErrors forms aren't exercised by the
-// format-validation suites. Missing thunks → " (not implemented)" suffix.
+// yields up to 9 it()s (5 isType + 2 getTypeErrors [format + schema] + 2
+// mockType). The format variant uses the format-payload assertion
+// (assertFormatGetTypeErrorsStatic); the schema variant the value-first contract
+// check (assertGetTypeErrorsSchema). The other 3 getTypeErrors forms aren't
+// exercised by the format-validation suites. Missing thunks → " (not implemented)" suffix.
 import {describe, it} from 'vitest';
 import {DATETIME} from './DateTime.ts';
 import {
@@ -12,6 +13,7 @@ import {
   assertIsTypeDeserializeReflect,
   assertIsTypeSchema,
   assertFormatGetTypeErrorsStatic,
+  assertGetTypeErrorsSchema,
   assertMockTypeStatic,
   assertMockTypeReflect,
   titleFor,
@@ -26,6 +28,7 @@ describe('format-validation / DateTime', () => {
     it(titleFor(c, 'isType/schema'), () => assertIsTypeSchema(c));
 
     it(titleFor(c, 'getTypeErrors/format'), () => assertFormatGetTypeErrorsStatic(c));
+    it(titleFor(c, 'getTypeErrors/schema'), () => assertGetTypeErrorsSchema(c));
 
     it(titleFor(c, 'mockType/static'), () => assertMockTypeStatic(c));
     it(titleFor(c, 'mockType/reflect'), () => assertMockTypeReflect(c));

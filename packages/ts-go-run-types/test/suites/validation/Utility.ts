@@ -1266,6 +1266,7 @@ export const UTILITY = {
       const config = {url: 'http://example.com', port: 8080};
       return createGetTypeErrors<typeof config>();
     },
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({url: RT.string(), port: RT.number()})),
     deserializeGetTypeErrors: () => {
       const config = {url: 'http://example.com', port: 8080};
       return deserializeGetTypeErrors<typeof config>();
@@ -1514,6 +1515,10 @@ export const UTILITY = {
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       return createGetTypeErrors<Nullable<Source>>();
     },
+    getTypeErrorsSchema: () =>
+      createGetTypeErrors(
+        RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})
+      ),
     deserializeGetTypeErrors: () => {
       interface Source {
         a: string;
@@ -1687,6 +1692,14 @@ export const UTILITY = {
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
       return createGetTypeErrors<UserForm>();
     },
+    getTypeErrorsSchema: () =>
+      createGetTypeErrors(
+        RT.object({
+          name: RT.object({kind: RT.literal('text'), value: RT.string()}),
+          age: RT.object({kind: RT.literal('number'), value: RT.number(), min: RT.optional(RT.number())}),
+          admin: RT.object({kind: RT.literal('checkbox'), value: RT.boolean()}),
+        })
+      ),
     deserializeGetTypeErrors: () => {
       type FieldFor<T> = T extends string
         ? {kind: 'text'; value: string}
@@ -1858,6 +1871,7 @@ export const UTILITY = {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createGetTypeErrors<Wrap<string | number>>();
     },
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
     deserializeGetTypeErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return deserializeGetTypeErrors<Wrap<string | number>>();
@@ -1955,6 +1969,18 @@ export const UTILITY = {
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       return createGetTypeErrors<DeepPartial<Settings>>();
     },
+    getTypeErrorsSchema: () =>
+      createGetTypeErrors(
+        RT.object({
+          display: RT.optional(
+            RT.object({
+              theme: RT.optional(RT.union([RT.literal('light'), RT.literal('dark')])),
+              brightness: RT.optional(RT.number()),
+            })
+          ),
+          audio: RT.optional(RT.object({volume: RT.optional(RT.number()), muted: RT.optional(RT.boolean())})),
+        })
+      ),
     deserializeGetTypeErrors: () => {
       interface Settings {
         display: {theme: 'light' | 'dark'; brightness: number};

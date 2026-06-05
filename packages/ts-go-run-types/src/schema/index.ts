@@ -6,17 +6,15 @@
 // `typeof object({...})` IS the run-type and `Static<typeof …>` recovers its type.
 // Opt-in lane: consumers who want pure type-first reflection never import this.
 
-// Leaf / atomic builders — scalars (`string` / `number` / `boolean` / `bigint` /
-// `date` / `temporal.*`), the atomic leaves (`literal` / `regexp` / `symbol`), the
-// top / bottom kinds (`any` / `unknown` / `never` / `void`; `voidType` aliased as
-// `void` for a natural `RT.void()`), and the class-instance builder.
+// Leaf / atomic builders — scalars (`string` / `number` / `boolean` / `bigint`),
+// the atomic leaves (`literal` / `regexp` / `symbol`), the top / bottom kinds
+// (`any` / `unknown` / `never` / `void`; `voidType` aliased as `void` for a
+// natural `RT.void()`), and the class-instance builder.
 export {
   string,
   number,
   boolean,
   bigint,
-  date,
-  temporal,
   literal,
   regexp,
   symbol,
@@ -27,6 +25,11 @@ export {
   voidType as void,
   classType,
 } from './atomic.ts';
+
+// Date / time leaf builders — the native JS `Date` builder and the namespaced
+// `temporal.*` builders (the 8 TC39 `Temporal` types), grouped in datetime.ts so
+// the date/time family reads as a unit.
+export {date, temporal} from './datetime.ts';
 
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
 // `map` / `set` / `promise` / `func` / `templateLiteral`, the `object` assembler,
@@ -70,6 +73,62 @@ export {
   returnType,
   parameters,
 } from './utility.ts';
+
+// Predefined STRING-format builders — one per named string format alias
+// (`email` / `uuidv4` / `ipv4` / `domain` / `url` / `alpha` / `numeric` /
+// `lowercase` / `stringDate` / `stringTime` / `stringDateTime` / …). Each carries
+// the concrete `Format*` alias, so it converges with the type-first surface.
+export {
+  alpha,
+  alphaNumeric,
+  numeric,
+  lowercase,
+  uppercase,
+  capitalize,
+  uuidv4,
+  uuidv7,
+  ip,
+  ipv4,
+  ipv6,
+  ipWithPort,
+  ipv4WithPort,
+  ipv6WithPort,
+  domain,
+  domainUnicode,
+  domainPunycode,
+  domainStrict,
+  email,
+  emailPunycode,
+  emailStrict,
+  url,
+  urlHttp,
+  urlFile,
+  stringDate,
+  stringTime,
+  stringDateTime,
+} from './stringFormats.ts';
+
+// Predefined NUMBER-format builders — `integer` / `float` / `positive` /
+// `negative` / `positiveInt` / `negativeInt` / `int8` / `int16` / `int32` /
+// `uint8` / `uint16` / `uint32`.
+export {
+  integer,
+  float,
+  positive,
+  negative,
+  positiveInt,
+  negativeInt,
+  int8,
+  int16,
+  int32,
+  uint8,
+  uint16,
+  uint32,
+} from './numberFormats.ts';
+
+// Predefined BIGINT-format builders — `bigPositive` / `bigNegative` /
+// `bigPositiveInt` / `bigNegativeInt` / `bigInt64` / `bigUInt64`.
+export {bigPositive, bigNegative, bigPositiveInt, bigNegativeInt, bigInt64, bigUInt64} from './bigintFormats.ts';
 
 // Type-level helpers the builders carry (all in static.ts).
 export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate} from './static.ts';
