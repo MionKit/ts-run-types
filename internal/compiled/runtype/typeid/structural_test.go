@@ -123,6 +123,26 @@ getRunTypeId<Map<string, string>>();
 	}
 }
 
+// TestStructural_TupleRestNotDeduplicatedWithFixed — a rest tuple
+// `[number, ...string[]]` and a fixed tuple `[number, string]` reduce to the
+// same element TYPE list, but the rest flag makes them different shapes (the
+// tail absorbs zero-or-more trailing strings, so `[3]` is valid for the rest
+// tuple but not the fixed one). mion RT-compiles per call so the two never
+// share a runtime Type; our AOT cache is project-global, so without folding
+// the element flags into the id they collapse to one entry and the
+// nondeterministically-chosen winner gives one of them the wrong validator.
+func TestStructural_TupleRestNotDeduplicatedWithFixed(t *testing.T) {
+	_, restNode := rootFor(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<[number, ...string[]]>();
+`)
+	_, fixedNode := rootFor(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+getRunTypeId<[number, string]>();
+`)
+	if restNode.ID == fixedNode.ID {
+		t.Fatalf("rest tuple [number, ...string[]] must not share id with fixed [number, string], both got %q", restNode.ID)
+	}
+}
+
 // TestStructural_HashIdLooksLikeIdentifier sanity-checks that the
 // subKind-tagged nodes still get short, identifier-safe hash ids the
 // emitter can use verbatim as JS const names.
