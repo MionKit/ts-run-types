@@ -5,7 +5,7 @@
 // copy-pasted assertion bodies.
 
 import {expect} from 'vitest';
-import type {ValidationCase} from '../suites/validation-suite.ts';
+import type {ValidationCase} from '../suites/validation/types.ts';
 
 /** Number of values to draw per mock case. Larger = better coverage;
  *  smaller = faster CI. 20 is enough to surface most random-pool drift

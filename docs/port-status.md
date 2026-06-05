@@ -69,7 +69,7 @@ Test infrastructure:
   future safe-path adapter when the expected output diverges
   (typically only for extras-bearing cases).
 - The `EXTRA_PARAMS` section in
-  `test/suites/serialization-suite.ts` documents every divergence
+  `test/suites/serialization/` documents every divergence
   kind in executable form (JSON-compatible passthrough, bigint
   throws, symbol/function drops, nested extras).
 - `test/safeUnsafeJsonWrappers.test.ts` covers all four wrappers
@@ -276,15 +276,15 @@ Documented divergence cleared; behaviour now matches mion.
 
 ### 6. `RT_SUITE` → `VALIDATION_SUITE` rename
 
-**Where**: `packages/ts-go-run-types/test/suites/validation-suite.ts`.
+**Where**: `packages/ts-go-run-types/test/suites/validation/`.
 
 The shared suite was originally named `rt-suite` when it carried
 thunks for every RT family. Once the JSON pair was moved to its
-own `serialization-suite.ts` (because JSON samples need
+own `serialization/` (because JSON samples need
 `deserializedValues` and the JSON-throws-on-extras contract clashes
 with isType's "extras are valid" semantic), the remaining file only
 covers `isType` and `getTypeErrors` — so it's been renamed to
-`validation-suite.ts` to match its actual scope.
+`validation/` to match its actual scope.
 
 Pure refactor; no behavioral change.
 
@@ -324,8 +324,8 @@ also renamed to `UNIONS.union_extra_symbol_prop_drops` in the same
 pass (`JSON.stringify` silently drops symbol-valued props per
 ECMAScript spec — no throw was ever exercised).
 
-- **Where**: `test/adapters/serializationRoundTrip.test.ts` →
-  `serialization-suite.ts` `OBJECTS.strip_extra_params`
+- **Where**: `test/suites/serialization/serializationRoundTrip.test.ts` →
+  `serialization/` `OBJECTS.strip_extra_params`
 - **What our test asserts**: input `objectWithExtraParams` (includes
   extras `extraA`, `extraB`, `extraC`, and nested-object extras
   `deep.cExtra`, `?other weird p.eExtra`); expected
@@ -357,7 +357,7 @@ in `internal/compiled/typefns/istype.go`; gate added to prepareForJson,
 restoreFromJson, isType, typeErrors, hasUnknownKeys, stripUnknownKeys,
 unknownKeyErrors, unknownKeysToUndefined.
 
-- **Where**: `serialization-suite.ts` `RECORDS.multiple_index_props`
+- **Where**: `serialization/` `RECORDS.multiple_index_props`
 - **What our test asserts**: input `{key1: 'value1', key2: 'value2'}`
   (typed as `{[k: string]: string; [k: number]: string; [k: symbol]: Date}`);
   expected `{key1: 'value1', key2: 'value2'}` (string keys
@@ -398,7 +398,7 @@ into `unionMemberIsTypeCheck` (preparefjson) and `emitUnionIsType`
 (istype) for full mion parity. Arm dispatch in preparefjson now picks
 the correct concrete member before falling back to the weak shape.
 
-- **Where**: `serialization-suite.ts` `UNIONS.union_object_with_discriminator`
+- **Where**: `serialization/` `UNIONS.union_object_with_discriminator`
 - **What our test asserts**: type
   `{a: string; aa: boolean} | {b: number} | {c: bigint} | {d?: string}`
   with input `{c: 1n}`. Expected: round-trip preserves `{c: 1n}`.
@@ -442,7 +442,7 @@ on restore. Atomic-noop fast-path falls back to the original
 `v = Array.from(v)` / `v = new Map(v)` shape. Reuses existing
 `mapKeyValueTypes` / `setItemType` helpers in `istype.go`.
 
-- **Where**: `serialization-suite.ts` `ITERABLES.set_small_object`
+- **Where**: `serialization/` `ITERABLES.set_small_object`
 - **What our test asserts**: `Set<SmallObject>` with three elements
   including one carrying `prop5: BigInt(100)`. Expected: round-trip
   preserves the Set with bigint intact (via prepareForJson →
@@ -492,7 +492,7 @@ its own transform via `e0[0]` / `e0[1]` accessors — matches the
 `toString()` rewrite through the per-entry transform applied to
 `e0[0]`.
 
-- **Where**: `serialization-suite.ts` `ITERABLES.map_with_bigint_keys`
+- **Where**: `serialization/` `ITERABLES.map_with_bigint_keys`
 - **What our test asserts**: `Map<bigint, number>` round-trip
   preserves bigint keys.
 - **What mion asserts**:
@@ -512,8 +512,8 @@ in `internal/compiled/runtype/typeid/typeid.go`. The original analysis
 mis-classified this as a `BUG` with unclear mechanism; the actual
 root cause was a structural-dedup collision between two
 `interface CircularTuple` declarations in different test files
-(`validation-suite.ts` uses `tuple: [bigint, CircularTuple?]`,
-`serialization-suite.ts` uses `list: [bigint, CircularTuple?]`).
+(`validation/` uses `tuple: [bigint, CircularTuple?]`,
+`serialization/` uses `list: [bigint, CircularTuple?]`).
 Both inner tuple shapes were `[bigint, $cycle(KindObjectLiteral)?]`
 — identical structural IDs after dedup, so the single shared tuple
 entry's optional slot pointed at *whichever* outer entry was
@@ -532,7 +532,7 @@ cycle tokens, so the surrounding tuple IDs differ and the cache
 holds one entry per outer interface. `aliasName`-bearing types are
 unaffected (named type aliases continue to disambiguate as before).
 
-- **Where**: `serialization-suite.ts` `CIRCULAR_REFS.circular_tuple`
+- **Where**: `serialization/` `CIRCULAR_REFS.circular_tuple`
 - **What our test asserts**: `interface CircularTuple { list: [bigint, CircularTuple?] }`
   with deeply-nested input round-trips intact.
 - **What our test gets**: this failure is **flaky** under default
@@ -568,8 +568,8 @@ serialization, isType, and typeErrors test files but never went
 away. The cycle-ref position fix in Failure 8 closes this
 deterministically — `pool` config is not needed.
 
-- **Where**: `test/adapters/isType.test.ts` and `getTypeErrors.test.ts`
-  → `validation-suite.ts` `CIRCULAR.object_with_tuple_prop`
+- **Where**: `test/suites/validation/isType.test.ts` and `getTypeErrors.test.ts`
+  → `validation/` `CIRCULAR.object_with_tuple_prop`
 - **What our test asserts**: `interface CircularTuple { tuple: [bigint, CircularTuple?] }`
   validates correctly. Returns `true` for valid samples, accumulates
   expected errors for invalid samples.
