@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const ATOMIC = {
@@ -13,6 +14,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<string>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string>(),
     binaryDecoder: () => createBinaryDecoder<string>(),
+    schemaEncoder: () => createJsonEncoder(RT.string()),
+    schemaDecoder: () => createJsonDecoder(RT.string()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.string()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.string()),
     getTestData: () => ({values: ['hello', '', 'world', '', '你好', 'مرحبا', 'Здравствуйте', '🌍🚀✨']}),
   },
   number: {
@@ -26,6 +31,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number>(),
     binaryDecoder: () => createBinaryDecoder<number>(),
+    schemaEncoder: () => createJsonEncoder(RT.number()),
+    schemaDecoder: () => createJsonDecoder(RT.number()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.number()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.number()),
     getTestData: () => ({
       values: [
         0,
@@ -55,6 +64,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<number>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<number>(),
     binaryDecoder: () => createBinaryDecoder<number>(),
+    schemaEncoder: () => createJsonEncoder(RT.number()),
+    schemaDecoder: () => createJsonDecoder(RT.number()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.number()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.number()),
     // Binary writes float64, which preserves Infinity/NaN natively —
     // no conversion to null like JSON.stringify does.
     getBinaryTestData: () => ({
@@ -84,6 +97,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<RegExp>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<RegExp>(),
     binaryDecoder: () => createBinaryDecoder<RegExp>(),
+    schemaEncoder: () => createJsonEncoder(RT.regexp()),
+    schemaDecoder: () => createJsonDecoder(RT.regexp()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.regexp()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.regexp()),
     getTestData: () => ({values: [/abc/, /xyz/i, /\d+/g, /^[a-z]+$/]}),
   },
   bigint: {
@@ -97,6 +114,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<bigint>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<bigint>(),
     binaryDecoder: () => createBinaryDecoder<bigint>(),
+    schemaEncoder: () => createJsonEncoder(RT.bigint()),
+    schemaDecoder: () => createJsonDecoder(RT.bigint()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.bigint()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.bigint()),
     getTestData: () => ({values: [1n]}),
   },
   boolean: {
@@ -110,6 +131,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<boolean>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<boolean>(),
     binaryDecoder: () => createBinaryDecoder<boolean>(),
+    schemaEncoder: () => createJsonEncoder(RT.boolean()),
+    schemaDecoder: () => createJsonDecoder(RT.boolean()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.boolean()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.boolean()),
     getTestData: () => ({values: [true]}),
   },
   any: {
@@ -123,6 +148,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<any>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<any>(),
     binaryDecoder: () => createBinaryDecoder<any>(),
+    schemaEncoder: () => createJsonEncoder(RT.any()),
+    schemaDecoder: () => createJsonDecoder(RT.any()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.any()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.any()),
     roundTripBestEffort: true,
     getTestData: () => ({values: [42, 'hello', true, null, 0, -1, 1.1, {a: 1, b: 2}, [1, 2, 3, null]]}),
   },
@@ -139,6 +168,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<any>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<any>(),
     binaryDecoder: () => createBinaryDecoder<any>(),
+    schemaEncoder: () => createJsonEncoder(RT.any()),
+    schemaDecoder: () => createJsonDecoder(RT.any()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.any()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.any()),
     roundTripBestEffort: true,
     getTestData: () => ({values: [undefined, [undefined, 123, null], new Date('2000-08-06T02:13:00.000Z'), BigInt(1)]}),
   },
@@ -153,6 +186,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<null>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<null>(),
     binaryDecoder: () => createBinaryDecoder<null>(),
+    schemaEncoder: () => createJsonEncoder(RT.literal(null)),
+    schemaDecoder: () => createJsonDecoder(RT.literal(null)),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.literal(null)),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.literal(null)),
     getTestData: () => ({values: [null]}),
   },
   undefined: {
@@ -166,6 +203,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<undefined>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<undefined>(),
     binaryDecoder: () => createBinaryDecoder<undefined>(),
+    schemaEncoder: () => createJsonEncoder(RT.literal(undefined)),
+    schemaDecoder: () => createJsonDecoder(RT.literal(undefined)),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.literal(undefined)),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.literal(undefined)),
     getTestData: () => ({values: [undefined]}),
   },
   date: {
@@ -179,6 +220,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<Date>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date>(),
     binaryDecoder: () => createBinaryDecoder<Date>(),
+    schemaEncoder: () => createJsonEncoder(RT.date()),
+    schemaDecoder: () => createJsonDecoder(RT.date()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.date()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.date()),
     getTestData: () => ({values: [new Date('2000-08-06T02:13:00.000Z')]}),
   },
   enum_color: {
@@ -255,6 +300,11 @@ export const ATOMIC = {
       }
       return createBinaryDecoder<Color>();
     },
+    // Value-first enum = union of its string-literal members.
+    schemaEncoder: () => createJsonEncoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
+    schemaDecoder: () => createJsonDecoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
     getTestData: () => {
       enum Color {
         Red = 'red',
@@ -277,6 +327,12 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<symbol>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<symbol>(),
     binaryDecoder: () => createBinaryDecoder<symbol>(),
+    // Bare symbol resolves the same alwaysThrow factory via the value-first path,
+    // so each schema thunk throws like the type-first form (factoryThrows below).
+    schemaEncoder: () => createJsonEncoder(RT.symbol()),
+    schemaDecoder: () => createJsonDecoder(RT.symbol()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.symbol()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.symbol()),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -291,6 +347,12 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<object>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<object>(),
     binaryDecoder: () => createBinaryDecoder<object>(),
+    // No value-first builder for the TS `object` primitive (any non-null
+    // non-primitive) — `RT.object(...)` is the shape composer, a different kind.
+    schemaEncoder: 'not-supported',
+    schemaDecoder: 'not-supported',
+    schemaBinaryEncoder: 'not-supported',
+    schemaBinaryDecoder: 'not-supported',
     roundTripBestEffort: true,
     getTestData: () => ({values: [{a: 42, b: 'hello'}, null]}),
   },
@@ -305,6 +367,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<void>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<void>(),
     binaryDecoder: () => createBinaryDecoder<void>(),
+    schemaEncoder: () => createJsonEncoder(RT.void()),
+    schemaDecoder: () => createJsonDecoder(RT.void()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.void()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.void()),
     getTestData: () => ({values: [undefined]}),
   },
   never: {
@@ -319,6 +385,11 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<never>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<never>(),
     binaryDecoder: () => createBinaryDecoder<never>(),
+    // never resolves the same alwaysThrow factory via the value-first path.
+    schemaEncoder: () => createJsonEncoder(RT.never()),
+    schemaDecoder: () => createJsonDecoder(RT.never()),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.never()),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.never()),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -333,6 +404,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<'hello'>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<'hello'>(),
     binaryDecoder: () => createBinaryDecoder<'hello'>(),
+    schemaEncoder: () => createJsonEncoder(RT.literal('hello')),
+    schemaDecoder: () => createJsonDecoder(RT.literal('hello')),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.literal('hello')),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.literal('hello')),
     getTestData: () => ({values: ['hello']}),
   },
   literal_number: {
@@ -346,6 +421,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<42>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<42>(),
     binaryDecoder: () => createBinaryDecoder<42>(),
+    schemaEncoder: () => createJsonEncoder(RT.literal(42)),
+    schemaDecoder: () => createJsonDecoder(RT.literal(42)),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.literal(42)),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.literal(42)),
     getTestData: () => ({values: [42]}),
   },
   literal_boolean: {
@@ -359,6 +438,10 @@ export const ATOMIC = {
     preserveDecoder: () => createJsonDecoder<true>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<true>(),
     binaryDecoder: () => createBinaryDecoder<true>(),
+    schemaEncoder: () => createJsonEncoder(RT.literal(true)),
+    schemaDecoder: () => createJsonDecoder(RT.literal(true)),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.literal(true)),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.literal(true)),
     getTestData: () => ({values: [true]}),
   },
 } as const satisfies Record<string, SerializationCase>;
