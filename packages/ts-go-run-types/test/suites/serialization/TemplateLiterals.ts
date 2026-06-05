@@ -4,13 +4,13 @@ import type {SerializationCase} from './types.ts';
 export const TEMPLATE_LITERALS = {
   url_string: {
     title: 'template literal as string type',
-    unsafeEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<`api/users/${number}`>(),
     safeDirectEncoder: () => createJsonEncoder<`api/users/${number}`>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<`api/users/${number}`>(),
-    unsafeDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<`api/users/${number}`>(),
     binaryDecoder: () => createBinaryDecoder<`api/users/${number}`>(),
     getTestData: () => ({
@@ -26,16 +26,14 @@ export const TEMPLATE_LITERALS = {
   },
   url_in_object: {
     title: 'template literal as object property type',
-    unsafeEncoder: () =>
-      createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone', stripExtras: false}),
+    unsafeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'mutate', stripExtras: true}),
+      createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(),
     safeDirectEncoder: () => createJsonEncoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(),
-    unsafeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{url: `api/user/${number}`; method: string}>(),
     binaryDecoder: () => createBinaryDecoder<{url: `api/user/${number}`; method: string}>(),
     getTestData: () => ({
@@ -48,15 +46,13 @@ export const TEMPLATE_LITERALS = {
   },
   url_index_key: {
     title: 'template literal as index signature key',
-    unsafeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate', stripExtras: false}),
-    clonePreserveEncoder: () =>
-      createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone', stripExtras: false}),
-    mutateStripEncoder: () =>
-      createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate', stripExtras: true}),
+    unsafeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'mutate'}),
+    clonePreserveEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'clone'}),
+    mutateStripEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(),
     safeDirectEncoder: () => createJsonEncoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(),
-    unsafeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {stripExtras: false}),
+    unsafeDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: `api/${string}`]: number}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: `api/${string}`]: number}>(),
     getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
@@ -64,26 +60,17 @@ export const TEMPLATE_LITERALS = {
   url_index_key_with_named: {
     title: 'template literal index key + sibling named property',
     unsafeEncoder: () =>
-      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: false,
-      }),
+      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'mutate'}),
     clonePreserveEncoder: () =>
-      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {
-        strategy: 'clone',
-        stripExtras: false,
-      }),
+      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'clone'}),
     mutateStripEncoder: () =>
-      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {
-        strategy: 'mutate',
-        stripExtras: true,
-      }),
+      createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'stripMutate'}),
     safeEncoder: () => createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     safeDirectEncoder: () =>
       createJsonEncoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'direct'}),
     safeDecoder: () => createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     unsafeDecoder: () =>
-      createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {stripExtras: false}),
+      createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     binaryDecoder: () => createBinaryDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     getTestData: () => ({

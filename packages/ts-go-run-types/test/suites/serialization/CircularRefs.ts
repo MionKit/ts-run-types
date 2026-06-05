@@ -6,15 +6,15 @@ export const CIRCULAR_REFS = {
     title: 'circular objects',
     unsafeEncoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
-      return createJsonEncoder<CircularObject>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<CircularObject>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
-      return createJsonEncoder<CircularObject>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<CircularObject>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
-      return createJsonEncoder<CircularObject>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<CircularObject>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
@@ -30,7 +30,7 @@ export const CIRCULAR_REFS = {
     },
     unsafeDecoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
-      return createJsonDecoder<CircularObject>(undefined, {stripExtras: false});
+      return createJsonDecoder<CircularObject>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
@@ -46,15 +46,15 @@ export const CIRCULAR_REFS = {
     title: 'CircularUnion array with discriminator',
     unsafeEncoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createJsonEncoder<CuArray>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<CuArray>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createJsonEncoder<CuArray>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<CuArray>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createJsonEncoder<CuArray>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<CuArray>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -70,7 +70,7 @@ export const CIRCULAR_REFS = {
     },
     unsafeDecoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      return createJsonDecoder<CuArray>(undefined, {stripExtras: false});
+      return createJsonDecoder<CuArray>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -97,19 +97,19 @@ export const CIRCULAR_REFS = {
       interface CircularTuple {
         list: [bigint, CircularTuple?];
       }
-      return createJsonEncoder<CircularTuple>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<CircularTuple>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface CircularTuple {
         list: [bigint, CircularTuple?];
       }
-      return createJsonEncoder<CircularTuple>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<CircularTuple>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface CircularTuple {
         list: [bigint, CircularTuple?];
       }
-      return createJsonEncoder<CircularTuple>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<CircularTuple>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface CircularTuple {
@@ -133,7 +133,7 @@ export const CIRCULAR_REFS = {
       interface CircularTuple {
         list: [bigint, CircularTuple?];
       }
-      return createJsonDecoder<CircularTuple>(undefined, {stripExtras: false});
+      return createJsonDecoder<CircularTuple>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface CircularTuple {
@@ -157,19 +157,19 @@ export const CIRCULAR_REFS = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createJsonEncoder<CircularIndex>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<CircularIndex>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createJsonEncoder<CircularIndex>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<CircularIndex>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createJsonEncoder<CircularIndex>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<CircularIndex>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface CircularIndex {
@@ -193,7 +193,7 @@ export const CIRCULAR_REFS = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      return createJsonDecoder<CircularIndex>(undefined, {stripExtras: false});
+      return createJsonDecoder<CircularIndex>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface CircularIndex {
@@ -217,19 +217,19 @@ export const CIRCULAR_REFS = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createJsonEncoder<CircularDeep>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<CircularDeep>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createJsonEncoder<CircularDeep>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<CircularDeep>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createJsonEncoder<CircularDeep>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<CircularDeep>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface CircularDeep {
@@ -253,7 +253,7 @@ export const CIRCULAR_REFS = {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
-      return createJsonDecoder<CircularDeep>(undefined, {stripExtras: false});
+      return createJsonDecoder<CircularDeep>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface CircularDeep {
@@ -275,15 +275,15 @@ export const CIRCULAR_REFS = {
     title: 'Circular tuple with complex structure',
     unsafeEncoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
-      return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
-      return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
-      return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
@@ -299,7 +299,7 @@ export const CIRCULAR_REFS = {
     },
     unsafeDecoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
-      return createJsonDecoder<CircularTupleComplex>(undefined, {stripExtras: false});
+      return createJsonDecoder<CircularTupleComplex>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
@@ -319,7 +319,7 @@ export const CIRCULAR_REFS = {
         deep?: {b: string; c: number};
         d?: ObjCircularArr[];
       };
-      return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       type ObjCircularArr = {
@@ -327,7 +327,7 @@ export const CIRCULAR_REFS = {
         deep?: {b: string; c: number};
         d?: ObjCircularArr[];
       };
-      return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       type ObjCircularArr = {
@@ -335,7 +335,7 @@ export const CIRCULAR_REFS = {
         deep?: {b: string; c: number};
         d?: ObjCircularArr[];
       };
-      return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<ObjCircularArr>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       type ObjCircularArr = {
@@ -367,7 +367,7 @@ export const CIRCULAR_REFS = {
         deep?: {b: string; c: number};
         d?: ObjCircularArr[];
       };
-      return createJsonDecoder<ObjCircularArr>(undefined, {stripExtras: false});
+      return createJsonDecoder<ObjCircularArr>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       type ObjCircularArr = {

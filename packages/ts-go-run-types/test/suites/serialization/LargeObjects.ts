@@ -39,7 +39,7 @@ export const LARGE_OBJECTS = {
         weight: number;
         meta: {category: string; priority: number; lastSeen: Date};
       }
-      return createJsonEncoder<WideRecord>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<WideRecord>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface WideRecord {
@@ -74,7 +74,7 @@ export const LARGE_OBJECTS = {
         weight: number;
         meta: {category: string; priority: number; lastSeen: Date};
       }
-      return createJsonEncoder<WideRecord>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<WideRecord>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface WideRecord {
@@ -109,7 +109,7 @@ export const LARGE_OBJECTS = {
         weight: number;
         meta: {category: string; priority: number; lastSeen: Date};
       }
-      return createJsonEncoder<WideRecord>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<WideRecord>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface WideRecord {
@@ -249,7 +249,7 @@ export const LARGE_OBJECTS = {
         weight: number;
         meta: {category: string; priority: number; lastSeen: Date};
       }
-      return createJsonDecoder<WideRecord>(undefined, {stripExtras: false});
+      return createJsonDecoder<WideRecord>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface WideRecord {
@@ -441,7 +441,7 @@ export const LARGE_OBJECTS = {
         device: string;
       }
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface ProductEvent {
@@ -490,7 +490,7 @@ export const LARGE_OBJECTS = {
         device: string;
       }
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface ProductEvent {
@@ -539,7 +539,7 @@ export const LARGE_OBJECTS = {
         device: string;
       }
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<LargeObjectUnion>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface ProductEvent {
@@ -735,7 +735,7 @@ export const LARGE_OBJECTS = {
         device: string;
       }
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
-      return createJsonDecoder<LargeObjectUnion>(undefined, {stripExtras: false});
+      return createJsonDecoder<LargeObjectUnion>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface ProductEvent {
@@ -884,7 +884,7 @@ export const LARGE_OBJECTS = {
         isPremium: boolean;
       }
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface ProductEvent {
@@ -906,7 +906,7 @@ export const LARGE_OBJECTS = {
         isPremium: boolean;
       }
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface ProductEvent {
@@ -928,7 +928,7 @@ export const LARGE_OBJECTS = {
         isPremium: boolean;
       }
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<MixedLargeUnion>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface ProductEvent {
@@ -1016,7 +1016,7 @@ export const LARGE_OBJECTS = {
         isPremium: boolean;
       }
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
-      return createJsonDecoder<MixedLargeUnion>(undefined, {stripExtras: false});
+      return createJsonDecoder<MixedLargeUnion>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface ProductEvent {
@@ -1116,7 +1116,7 @@ export const LARGE_OBJECTS = {
         root: string;
         categories: DeepNestedLevel2[];
       }
-      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       interface DeepNestedLeaf {
@@ -1144,7 +1144,7 @@ export const LARGE_OBJECTS = {
         root: string;
         categories: DeepNestedLevel2[];
       }
-      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       interface DeepNestedLeaf {
@@ -1172,7 +1172,7 @@ export const LARGE_OBJECTS = {
         root: string;
         categories: DeepNestedLevel2[];
       }
-      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<DeepNestedLevel1>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       interface DeepNestedLeaf {
@@ -1284,7 +1284,7 @@ export const LARGE_OBJECTS = {
         root: string;
         categories: DeepNestedLevel2[];
       }
-      return createJsonDecoder<DeepNestedLevel1>(undefined, {stripExtras: false});
+      return createJsonDecoder<DeepNestedLevel1>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       interface DeepNestedLeaf {
@@ -1409,7 +1409,7 @@ export const LARGE_OBJECTS = {
         steps!: number[];
       }
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'mutate', stripExtras: false});
+      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'mutate'});
     },
     clonePreserveEncoder: () => {
       class LargeClassA {
@@ -1440,7 +1440,7 @@ export const LARGE_OBJECTS = {
         steps!: number[];
       }
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'clone', stripExtras: false});
+      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'clone'});
     },
     mutateStripEncoder: () => {
       class LargeClassA {
@@ -1471,7 +1471,7 @@ export const LARGE_OBJECTS = {
         steps!: number[];
       }
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'mutate', stripExtras: true});
+      return createJsonEncoder<LargeClassUnion>(undefined, {strategy: 'stripMutate'});
     },
     safeEncoder: () => {
       class LargeClassA {
@@ -1595,7 +1595,7 @@ export const LARGE_OBJECTS = {
         steps!: number[];
       }
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
-      return createJsonDecoder<LargeClassUnion>(undefined, {stripExtras: false});
+      return createJsonDecoder<LargeClassUnion>(undefined, {strategy: 'preserve'});
     },
     binaryEncoder: () => {
       class LargeClassA {
