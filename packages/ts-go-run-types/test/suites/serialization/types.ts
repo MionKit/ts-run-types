@@ -22,16 +22,17 @@ export interface SerializationCase {
   directEncoder: () => JsonEncoderFn;
   mutateEncoder: () => JsonEncoderFn;
 
-  /** Safe-mode only: when set, the case's input produces a JSON string
+  /** Direct-mode only: when set, the case's input produces a JSON string
    *  that is not parseable by `JSON.parse` — e.g. number-at-root with
    *  `Infinity` (mion's `String(Infinity)` = `"Infinity"`). Mirrors
    *  mion's number-not-supported spec, which accepts either a throw OR
    *  a non-matching round-trip as a "value not supported by JSON"
-   *  signal. The stripClone loop asserts the parse-throws instead of a
-   *  deep-equal round-trip. The mutate loop ignores this flag — on
-   *  that path `JSON.stringify(Infinity)` returns `"null"` (not a
-   *  throw) and the case's own `deserializedValues` already handles
-   *  the round-trip. **/
+   *  signal. Only the `direct + *` pairings consult this flag (direct
+   *  uses single-pass `stringifyJson` which emits the unparseable
+   *  literal). The mutate / clone / stripMutate / stripClone paths all
+   *  route through `JSON.stringify` where `JSON.stringify(Infinity)`
+   *  returns `"null"` (not a throw) and `deserializedValues` already
+   *  handles the round-trip. **/
   safeAdapterStringifyJsonNotParseable?: boolean;
 
   /** Decoder thunks. `stripDecoder` builds `createJsonDecoder<T>()`

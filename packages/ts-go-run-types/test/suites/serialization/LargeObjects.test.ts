@@ -3,10 +3,10 @@
 // binary is the representative codec, delegating to its shared helper.
 import {describe, it} from 'vitest';
 import {LARGE_OBJECTS} from './LargeObjects.ts';
-import {runBinaryRoundTripCase} from '../../util/serializationAsserts.ts';
+import {assertBinaryRoundTrip} from '../../util/serializationAsserts.ts';
 
 describe('serialization / LargeObjects', () => {
   for (const c of Object.values(LARGE_OBJECTS)) {
-    it(`binary — ${c.title}`, () => runBinaryRoundTripCase(c));
+    it(`binary - ${c.title}`, () => assertBinaryRoundTrip(c));
   }
 });
