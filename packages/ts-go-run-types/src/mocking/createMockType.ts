@@ -3,27 +3,35 @@
 // bundles that don't reference `createMockType`. Mock has no per-type RT
 // cache; the walker reads `runTypesCache` and generates values at runtime.
 
-import {getRTUtils} from '../runtypes/rtUtils.ts';
+import {getRTUtils, isRunTypeSchema} from '../runtypes/rtUtils.ts';
+import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId} from '../index.ts';
 import {mockRunType} from './mockType.ts';
 import {defaultMockOptions} from './constants.mock.ts';
 import type {MockOptions, MockTypeFn, RunTypeMockOptions, DeepPartial} from './mockTypes.ts';
 
 /** Returns a mock-value generator for `T`. Each call produces a fresh value
- *  that passes `isType<T>`. Options merge: call < factory < defaults.
+ *  that passes `isType<T>`. Options merge: call < factory < defaults. Accepts
+ *  either a value-first schema (`createMockType(rt)`) or the value/static form.
  *  Throws if the Vite plugin isn't active (no `id` injected). **/
-export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T> {
-  void val;
-  if (id === undefined) {
+export function createMockType<T>(schema: RunType<T>, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+export function createMockType<T>(val?: T, options?: RunTypeMockOptions, id?: InjectRunTypeId<T>): MockTypeFn<T>;
+export function createMockType<T>(
+  valOrSchema?: T | RunType<T>,
+  options?: RunTypeMockOptions,
+  id?: InjectRunTypeId<T>
+): MockTypeFn<T> {
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  if (effectiveId === undefined) {
     throw new Error(
       'createMockType(): no id injected. vite-plugin-runtypes must be active for createMockType to resolve the runtype graph.'
     );
   }
   const utils = getRTUtils();
-  const runType = utils.getRunType(id);
+  const runType = utils.getRunType(effectiveId);
   if (!runType) {
     throw new Error(
-      `createMockType(): no RunType entry for "${id}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
+      `createMockType(): no RunType entry for "${effectiveId}" in rtUtils. The build pipeline didn't emit a cache entry for that runtype.`
     );
   }
   const factoryOpts = mergeMockOptions(undefined, options);
