@@ -304,6 +304,31 @@ function assertionsNewBuilders(): void {
   void _pOpt;
   void _pRest;
 
+  // utility-type builders: each brand is the RESOLVED stdlib utility type. Brand-
+  // free booleans/literals so the positive assignment matches exactly.
+  const _uModel = RT.object({a: RT.boolean(), b: RT.boolean()});
+  const _uPartial: RunType<Partial<{a: boolean; b: boolean}>> = RT.partial(_uModel);
+  const _uRequired: RunType<Required<{a?: boolean; b?: boolean}>> = RT.required(
+    RT.object({a: RT.optional(RT.boolean()), b: RT.optional(RT.boolean())})
+  );
+  const _uPick: RunType<Pick<{a: boolean; b: boolean}, 'a'>> = RT.pick(_uModel, ['a']);
+  const _uOmit: RunType<Omit<{a: boolean; b: boolean}, 'a'>> = RT.omit(_uModel, ['a']);
+  const _uExclude: RunType<'x'> = RT.exclude(RT.union([RT.literal('x'), RT.literal('y')]), RT.literal('y'));
+  const _uExtract: RunType<'x'> = RT.extract(RT.union([RT.literal('x'), RT.literal('y')]), RT.literal('x'));
+  const _uNonNull: RunType<boolean> = RT.nonNullable(RT.union([RT.boolean(), RT.literal(null)]));
+  const _uReadonly: RunType<Readonly<{a: boolean}>> = RT.readonly(RT.object({a: RT.boolean()}));
+  const _uReturn: RunType<boolean> = RT.returnType(RT.func([RT.number()], RT.boolean()));
+  void _uModel;
+  void _uPartial;
+  void _uRequired;
+  void _uPick;
+  void _uOmit;
+  void _uExclude;
+  void _uExtract;
+  void _uNonNull;
+  void _uReadonly;
+  void _uReturn;
+
   // record(key, value): the key schema's type becomes the index-signature key. A
   // templateLiteral key is unbranded, so it stays the `api/${string}` pattern.
   const _recTpl: RunType<Record<`api/${string}`, boolean>> = RT.record(RT.templateLiteral(['api/', RT.string()]), RT.boolean());

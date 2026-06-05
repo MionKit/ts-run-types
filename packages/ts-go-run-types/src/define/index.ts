@@ -72,12 +72,30 @@ export {
   promise,
   lazy,
   func,
-  parameters,
   templateLiteral,
   type MapTuple,
   type TemplatePart,
   type AssembleTemplate,
 } from './compose.ts';
+
+// Utility-type builders — Partial / Required / Pick / Omit / Exclude / Extract /
+// NonNullable / Readonly / ReturnType + Parameters. Each brands the RESOLVED
+// stdlib utility type; tsgo resolves it before the Go scanner computes the id, so
+// `createIsTypeFor(partial(model))` converges with `createIsType<Partial<T>>()`.
+// `readonlyType` is re-aliased as `readonly` for a natural `RT.readonly(model)`.
+export {
+  partial,
+  required,
+  pick,
+  omit,
+  exclude,
+  extract,
+  nonNullable,
+  readonlyType,
+  readonlyType as readonly,
+  returnType,
+  parameters,
+} from './utility.ts';
 
 // Universal reflectors — `runType<T>()` (static) / `reflectRunType(value)`
 // (inferred). The escape hatch for any TS type with no dedicated builder
