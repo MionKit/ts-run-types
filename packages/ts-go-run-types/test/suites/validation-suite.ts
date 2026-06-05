@@ -101,6 +101,13 @@ export interface ValidationCase {
    *  reflecting a type — the value-first authoring path. Run against the same
    *  samples as `isType`. Present only on leaf-buildable cases. **/
   isTypeSchema?: () => IsTypeFn;
+  /** Set when a case CANNOT be authored value-first because it depends on a
+   *  `RunTypeOptions` flag (`noIsArrayCheck` / `noLiterals`) that the Go scanner
+   *  folds into the structural typeId at the `createIsType` call site — the
+   *  value-first builders carry only the TS type via `InjectRunTypeId<T>`, with no
+   *  options channel. Holds the offending option name; the harness warns once and
+   *  the case stays type-first only. **/
+  valueFirstUnsupported?: string;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `isType` but the validator returns `RunTypeError[]`
@@ -2059,6 +2066,7 @@ export const VALIDATION_SUITE = {
 
     string_array_noIsArrayCheck: {
       title: 'Array with noIsArrayCheck (Array.isArray guard stripped)',
+      valueFirstUnsupported: 'noIsArrayCheck',
       description:
         'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
       isTypeNotes: [
@@ -3349,6 +3357,10 @@ export const VALIDATION_SUITE = {
       description:
         "mion indexProperty.spec.ts 'validate index run type + extra properties' — named props (a, b) AND the index signature both validate; extras (any key not a/b) must satisfy the union value type.",
       isType: () => createIsType<{a: string; b: number; [key: string]: string | number}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        ),
       deserializeIsType: () => deserializeIsType<{a: string; b: number; [key: string]: string | number}>(),
       isTypeReflect: () => {
         const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
@@ -3359,6 +3371,10 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+        ),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; b: number; [key: string]: string | number}>(),
       getTypeErrorsReflect: () => {
         const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
@@ -3502,6 +3518,8 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<Obj2>();
       },
+      isTypeSchema: () =>
+        createIsTypeFor(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
       deserializeIsType: () => {
         interface Obj1 {
           a: string;
@@ -3548,6 +3566,8 @@ export const VALIDATION_SUITE = {
         }
         return createGetTypeErrors<Obj2>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
       deserializeGetTypeErrors: () => {
         interface Obj1 {
           a: string;
@@ -4285,6 +4305,7 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean) => string;
         return createIsType<Parameters<CallSig>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
       deserializeIsType: () => {
         type CallSig = (a: number, b: boolean) => string;
         return deserializeIsType<Parameters<CallSig>>();
@@ -4303,6 +4324,7 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean) => string;
         return createGetTypeErrors<Parameters<CallSig>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.parameters(RT.func([RT.number(), RT.boolean()], RT.string()))),
       deserializeGetTypeErrors: () => {
         type CallSig = (a: number, b: boolean) => string;
         return deserializeGetTypeErrors<Parameters<CallSig>>();
@@ -4371,6 +4393,7 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         return createIsType<Parameters<CallSig>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
       deserializeIsType: () => {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         return deserializeIsType<Parameters<CallSig>>();
@@ -4389,6 +4412,8 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         return createGetTypeErrors<Parameters<CallSig>>();
       },
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
       deserializeGetTypeErrors: () => {
         type CallSig = (a: number, b: boolean, c?: string) => Date;
         return deserializeGetTypeErrors<Parameters<CallSig>>();
@@ -4450,6 +4475,7 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         return createIsType<Parameters<CallSig>>();
       },
+      isTypeSchema: () => createIsTypeFor(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
       deserializeIsType: () => {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         return deserializeIsType<Parameters<CallSig>>();
@@ -4468,6 +4494,7 @@ export const VALIDATION_SUITE = {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         return createGetTypeErrors<Parameters<CallSig>>();
       },
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
       deserializeGetTypeErrors: () => {
         type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
         return deserializeGetTypeErrors<Parameters<CallSig>>();
@@ -5318,6 +5345,14 @@ export const VALIDATION_SUITE = {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createIsType<TupleCircular>();
       },
+      isTypeSchema: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const tc: RunType<TupleCircular> = RT.tuple(
+          [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
+          [RT.lazy((): RunType<TupleCircular> => tc)]
+        );
+        return createIsTypeFor(tc);
+      },
       deserializeIsType: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return deserializeIsType<TupleCircular>();
@@ -5335,6 +5370,14 @@ export const VALIDATION_SUITE = {
       getTypeErrors: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
         return createGetTypeErrors<TupleCircular>();
+      },
+      getTypeErrorsSchema: () => {
+        type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
+        const tc: RunType<TupleCircular> = RT.tuple(
+          [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
+          [RT.lazy((): RunType<TupleCircular> => tc)]
+        );
+        return createTypeErrorsFor(tc);
       },
       deserializeGetTypeErrors: () => {
         type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -6197,6 +6240,13 @@ export const VALIDATION_SUITE = {
       description:
         'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
       isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
+            RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
+          ])
+        ),
       deserializeIsType: () => deserializeIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
       isTypeReflect: () => {
         const v: {name: string; getName(): string} | {age: number; getAge(): number} = {
@@ -6213,6 +6263,13 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
+            RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
+          ])
+        ),
       deserializeGetTypeErrors: () =>
         deserializeGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
       getTypeErrorsReflect: () => {
@@ -6316,6 +6373,14 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
       isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.object({a: RT.string(), aa: RT.boolean()}),
+            RT.object({b: RT.number()}),
+            RT.intersection(RT.record(RT.bigint()), RT.object({c: RT.bigint()})),
+          ])
+        ),
       deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
       isTypeReflect: () => {
         const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
@@ -6326,6 +6391,14 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.object({a: RT.string(), aa: RT.boolean()}),
+            RT.object({b: RT.number()}),
+            RT.intersection(RT.record(RT.bigint()), RT.object({c: RT.bigint()})),
+          ])
+        ),
       deserializeGetTypeErrors: () =>
         deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
       getTypeErrorsReflect: () => {
@@ -6625,6 +6698,16 @@ export const VALIDATION_SUITE = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      isTypeSchema: () =>
+        createIsTypeFor(
+          RT.union([
+            RT.array(RT.string()),
+            RT.object({a: RT.string(), aa: RT.boolean()}),
+            RT.object({b: RT.number()}),
+            RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()})),
+            RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
+          ])
+        ),
       deserializeIsType: () =>
         deserializeIsType<
           | string[]
@@ -6659,6 +6742,16 @@ export const VALIDATION_SUITE = {
           | {a: string; [key: string]: string}
           | {[key: string]: bigint; b: bigint}
         >(),
+      getTypeErrorsSchema: () =>
+        createTypeErrorsFor(
+          RT.union([
+            RT.array(RT.string()),
+            RT.object({a: RT.string(), aa: RT.boolean()}),
+            RT.object({b: RT.number()}),
+            RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()})),
+            RT.intersection(RT.record(RT.bigint()), RT.object({b: RT.bigint()})),
+          ])
+        ),
       deserializeGetTypeErrors: () =>
         deserializeGetTypeErrors<
           | string[]
@@ -6729,6 +6822,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
       isType: () => createIsType<string | any>(),
+      isTypeSchema: () => createIsTypeFor(RT.any()),
       deserializeIsType: () => deserializeIsType<string | any>(),
       isTypeReflect: () => {
         const v: string | any = 'hello';
@@ -6739,6 +6833,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string | any>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.any()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | any>(),
       getTypeErrorsReflect: () => {
         const v: string | any = 'hello';
@@ -6766,6 +6861,7 @@ export const VALIDATION_SUITE = {
       description:
         "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
       isType: () => createIsType<string | unknown>(),
+      isTypeSchema: () => createIsTypeFor(RT.unknown()),
       deserializeIsType: () => deserializeIsType<string | unknown>(),
       isTypeReflect: () => {
         const v: string | unknown = 'hello';
@@ -6776,6 +6872,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<string | unknown>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.unknown()),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | unknown>(),
       getTypeErrorsReflect: () => {
         const v: string | unknown = 'hello';
@@ -7575,6 +7672,7 @@ export const VALIDATION_SUITE = {
       isTypeNotes:
         'Index-signature keys constrained by a template literal pattern: every own key on the object must match the compiled regex AND its value must satisfy the value type.',
       isType: () => createIsType<{[key: `api/${string}`]: number}>(),
+      isTypeSchema: () => createIsTypeFor(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
       deserializeIsType: () => deserializeIsType<{[key: `api/${string}`]: number}>(),
       isTypeReflect: () => {
         const v: {[key: `api/${string}`]: number} = {};
@@ -7585,6 +7683,7 @@ export const VALIDATION_SUITE = {
         return deserializeIsType(v);
       },
       getTypeErrors: () => createGetTypeErrors<{[key: `api/${string}`]: number}>(),
+      getTypeErrorsSchema: () => createTypeErrorsFor(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
       deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[key: `api/${string}`]: number}>(),
       getTypeErrorsReflect: () => {
         const v: {[key: `api/${string}`]: number} = {};
@@ -8174,6 +8273,13 @@ export const VALIDATION_SUITE = {
         }
         return createIsType<CircularTuple>();
       },
+      isTypeSchema: () => {
+        type CircularTuple = {tuple: [bigint, CircularTuple?]};
+        const ct: RunType<CircularTuple> = RT.object({
+          tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
+        });
+        return createIsTypeFor(ct);
+      },
       deserializeIsType: () => {
         interface CircularTuple {
           tuple: [bigint, CircularTuple?];
@@ -8199,6 +8305,13 @@ export const VALIDATION_SUITE = {
           tuple: [bigint, CircularTuple?];
         }
         return createGetTypeErrors<CircularTuple>();
+      },
+      getTypeErrorsSchema: () => {
+        type CircularTuple = {tuple: [bigint, CircularTuple?]};
+        const ct: RunType<CircularTuple> = RT.object({
+          tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
+        });
+        return createTypeErrorsFor(ct);
       },
       deserializeGetTypeErrors: () => {
         interface CircularTuple {

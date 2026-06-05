@@ -30,6 +30,9 @@ import {
   runType,
   reflectRunType,
   lazy,
+  func,
+  parameters,
+  templateLiteral,
 } from '@mionjs/ts-go-run-types/define';
 import type {RunType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
@@ -237,5 +240,53 @@ describe('compose builders — getTypeErrors schema form', () => {
     const errs = createTypeErrorsFor(array(boolean()));
     expect(errs([true, false])).toEqual([]);
     expect(errs([1]).length).toBeGreaterThan(0);
+  });
+});
+
+describe('compose builders — parameters (Parameters<F>) + func tuple-overload', () => {
+  it('extracts a fixed param tuple and converges (brand-free)', () => {
+    const isPair = createIsTypeFor(parameters(func([boolean(), boolean()])));
+    expect(isPair([true, false])).toBe(true);
+    expect(isPair([true])).toBe(false);
+    expect(isPair([true, 1])).toBe(false);
+    expect(isPair('nope')).toBe(false);
+    expect(isPair).toBe(createIsType<[boolean, boolean]>());
+  });
+
+  it('keeps a trailing-optional param via the func tuple-overload and converges', () => {
+    const isOpt = createIsTypeFor(parameters(func(tuple([boolean()], [boolean()]))));
+    expect(isOpt([true])).toBe(true);
+    expect(isOpt([true, false])).toBe(true);
+    expect(isOpt([true, 1])).toBe(false);
+    expect(isOpt).toBe(createIsType<[boolean, boolean?]>());
+  });
+
+  it('keeps a rest param via the func tuple-overload (behavioral — mirrors the wired case)', () => {
+    // Head ≠ rest type (number head, string rest) so the rest segment is exercised
+    // distinctly; number()/string() carry a format brand so this asserts behavior,
+    // not `.toBe`. Same shape the call_signature_params_with_rest case proves.
+    const isRest = createIsTypeFor(parameters(func(tuple([number()], string()))));
+    expect(isRest([1])).toBe(true); // head only, zero rest
+    expect(isRest([1, 'a', 'b'])).toBe(true);
+    expect(isRest([1, 'a', 2])).toBe(false); // rest element must be string
+    expect(isRest(['a'])).toBe(false); // head must be number
+  });
+
+  it('validates realistic (branded) params behaviorally — mirrors call_signature_params', () => {
+    const isArgs = createIsTypeFor(parameters(func([number(), boolean()], string())));
+    expect(isArgs([1, true])).toBe(true);
+    expect(isArgs([1, 'no'])).toBe(false);
+    expect(isArgs(['no', true])).toBe(false);
+  });
+});
+
+describe('compose builders — record key (string | number | template-literal)', () => {
+  it('validates a template-literal-keyed record and converges', () => {
+    const isApi = createIsTypeFor(record(templateLiteral(['api/', string()]), boolean()));
+    expect(isApi({'api/users': true})).toBe(true);
+    expect(isApi({})).toBe(true);
+    expect(isApi({'api/users': 1})).toBe(false); // value must be boolean
+    expect(isApi({nope: true})).toBe(false); // key must match the `api/${string}` pattern
+    expect(isApi).toBe(createIsType<Record<`api/${string}`, boolean>>());
   });
 });
