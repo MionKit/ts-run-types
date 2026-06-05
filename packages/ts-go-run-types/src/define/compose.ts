@@ -212,19 +212,6 @@ export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType
   return builderResult(id, {type: 'function', parameters, return: ret});
 }
 
-/** A `Parameters<F>` builder — `parameters(func([number(), boolean()], string()))`
- *  → `RunType<[number, boolean]>`. Takes a function run-type and yields its
- *  parameter tuple (exactly the tuple `Parameters<F>` denotes), so a function's
- *  parameters can be validated as a first-class tuple. The function rides the
- *  carrier; the brand `Parameters<F>` (an ordinary tuple type) drives the id and
- *  reflects through the existing tuple path. **/
-export function parameters<F extends (...args: any[]) => any>(
-  fnRt: RunType<F>,
-  id?: InjectRunTypeId<Parameters<F>>
-): RunType<Parameters<F>> {
-  return builderResult(id, {type: 'parameters', child: fnRt});
-}
-
 /** A template-literal part: a string-literal segment or a `RunType` placeholder. **/
 export type TemplatePart = string | RunType;
 
