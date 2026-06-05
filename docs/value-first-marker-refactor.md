@@ -324,7 +324,7 @@ The earlier worry was that unifying on a single discriminator would force foldin
   — switch `createIsType<ModelType<typeof X>>()` → `createIsType<typeof X>()`.
   These same-hash assertions are the regression guard for the port; they MUST
   stay green (the POC already shows they do).
-- [`value-first-define-suite.ts`](../packages/ts-go-run-types/test/suites/value-first-define-suite.ts)
+- [`value-first-define/`](../packages/ts-go-run-types/test/suites/value-first-define/)
   — all `RT.ModelType<typeof Model>` → `typeof Model`; reflect-form thunks
   unchanged otherwise.
 - [`typesafety.test.ts`](../packages/ts-go-run-types/test/typesafety.test.ts)

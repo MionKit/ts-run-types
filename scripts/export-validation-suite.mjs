@@ -31,12 +31,12 @@ import {ResolverClient} from '../packages/vite-plugin-runtypes/dist/resolver-cli
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
-const SUITE_PATH = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/validation-suite.ts');
+const SUITE_DIR = path.join(REPO_ROOT, 'packages/ts-go-run-types/test/suites/validation');
+const SUITE_PATH = path.join(SUITE_DIR, 'index.ts');
 const PACKAGE_ROOT = path.join(REPO_ROOT, 'packages/ts-go-run-types');
 const BIN = path.join(REPO_ROOT, 'bin/ts-go-run-types');
 const OUT_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.json');
 const MD_PATH = path.join(REPO_ROOT, 'gendocs/validation-suite.md');
-const IDENTIFIER = 'VALIDATION_SUITE';
 const FN_FIELDS = ['isType', 'isTypeReflect', 'getSamples'];
 const APIS = ['isType', 'isTypeReflect'];
 
@@ -76,20 +76,39 @@ const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
 }
 `;
 
-function runGoExtractor() {
-  const res = spawnSync('go', ['run', './cmd/extract-fn-bodies', '--file', SUITE_PATH, '--identifier', IDENTIFIER], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-  });
-  if (res.error) {
-    process.stderr.write(`go run failed to launch: ${res.error.message}\n`);
-    process.exit(1);
+// UPPER_SNAKE group name -> PascalCase data-file basename ('TEMPLATE_LITERAL' -> 'TemplateLiteral').
+function groupToFile(group) {
+  return group
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+}
+
+// The suite is split one file per group under SUITE_DIR, so the body extractor
+// runs once per group file — the barrel index.ts only re-exports imported
+// identifiers, which the Go extractor (a single object-literal walker) can't
+// see. Results merge into the {GROUP: {caseKey: {field: body}}} shape the rest
+// of the script consumes.
+function runGoExtractor(groups) {
+  const bodies = {};
+  for (const group of groups) {
+    const groupFile = path.join(SUITE_DIR, `${groupToFile(group)}.ts`);
+    const res = spawnSync('go', ['run', './cmd/extract-fn-bodies', '--file', groupFile, '--identifier', group], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    if (res.error) {
+      process.stderr.write(`go run failed to launch: ${res.error.message}\n`);
+      process.exit(1);
+    }
+    if (res.status !== 0) {
+      process.stderr.write(res.stderr || '');
+      process.exit(res.status || 1);
+    }
+    bodies[group] = JSON.parse(res.stdout);
   }
-  if (res.status !== 0) {
-    process.stderr.write(res.stderr || '');
-    process.exit(res.status || 1);
-  }
-  return JSON.parse(res.stdout);
+  return bodies;
 }
 
 function ensureBinary() {
@@ -347,7 +366,7 @@ function renderMarkdown(out) {
   lines.push('# Validation suite');
   lines.push('');
   lines.push(
-    'Generated from `VALIDATION_SUITE` in `packages/ts-go-run-types/test/suites/validation-suite.ts`. ' +
+    'Generated from `VALIDATION_SUITE` in `packages/ts-go-run-types/test/suites/validation/`. ' +
       'Full per-case metrics (including `isTypeReflect`) live in `validation-suite.json`; ' +
       'per-case rendered cache modules live under `cases/`. ' +
       '`ts-compile` measures pure tsgo (bind + typecheck + emit) on the synthetic case file; ' +
@@ -450,14 +469,14 @@ function buildOutput(suite, bodies, metrics) {
 
 async function main() {
   ensureBinary();
-  const t0 = performance.now();
-
-  const bodies = runGoExtractor();
-  process.stdout.write(`extracted bodies (${ms(t0)})\n`);
 
   const t1 = performance.now();
   const suite = await loadSuiteWithPlugin();
   process.stdout.write(`loaded VALIDATION_SUITE via vite + runtypes plugin (${ms(t1)})\n`);
+
+  const t0 = performance.now();
+  const bodies = runGoExtractor(Object.keys(suite));
+  process.stdout.write(`extracted bodies (${ms(t0)})\n`);
 
   const t2 = performance.now();
   const {metrics, cases, fnsRun} = await runValidationPhase(suite);

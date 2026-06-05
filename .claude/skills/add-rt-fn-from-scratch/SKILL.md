@@ -199,15 +199,15 @@ Two edits:
 When you're adding the first RT fn whose semantics isn't "is this
 value valid", rename:
 
-- `packages/ts-go-run-types/test/suites/validation-suite.ts` →
+- `packages/ts-go-run-types/test/suites/validation/` →
   `rt-suite.ts`
 - Interface `ValidationCase` → `RTCase`
 - Export `VALIDATION_SUITE` → `RT_SUITE`
 - Update imports in `test/adapters/*.test.ts`
 
 **Note**: The rt-suite rename did not stick in the current tree. The
-active suites are `validation-suite.ts` (isType/getTypeErrors) +
-`serialization-suite.ts` (JSON families) + format suites. If the
+active suites are `validation/` (isType/getTypeErrors) +
+`serialization/` (JSON families) + format suites. If the
 rename is desirable, confirm with the user first.
 
 Subsequent fns just add new optional thunks to the existing
@@ -322,7 +322,7 @@ cd /home/user/ts-run-types
 go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 go test ./internal/...
 pnpm exec vitest run test/adapters/<fnname>.test.ts \
-  test/adapters/isType.test.ts test/adapters/getTypeErrors.test.ts
+  test/suites/validation/isType.test.ts test/suites/validation/getTypeErrors.test.ts
 pnpm --filter vite-plugin-runtypes test
 ```
 
@@ -370,7 +370,7 @@ pnpm run pre-publish-test
 - `packages/vite-plugin-runtypes/src/protocol.ts`
 
 **Test suite + adapters:**
-- `packages/ts-go-run-types/test/suites/validation-suite.ts` (isType/getTypeErrors)
-- `packages/ts-go-run-types/test/suites/serialization-suite.ts` (JSON families)
-- `packages/ts-go-run-types/test/adapters/isType.test.ts`
-- `packages/ts-go-run-types/test/adapters/getTypeErrors.test.ts`
+- `packages/ts-go-run-types/test/suites/validation/` (isType/getTypeErrors)
+- `packages/ts-go-run-types/test/suites/serialization/` (JSON families)
+- `packages/ts-go-run-types/test/suites/validation/isType.test.ts`
+- `packages/ts-go-run-types/test/suites/validation/getTypeErrors.test.ts`

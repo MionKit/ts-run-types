@@ -121,9 +121,9 @@ into the plan file covering:
   (both halves of a pair may need different pure fns; list them
   separately).
 - Whether this is the FIRST non-validator port (and therefore
-  triggers the `validation-suite.ts` → `rt-suite.ts` rename — see
+  triggers the `validation/` → `rt-suite.ts` rename — see
   step 8; note: the rt-suite rename did not stick in the current tree —
-  the active suites are `validation-suite.ts` + `serialization-suite.ts`
+  the active suites are `validation/` + `serialization/`
   + format suites; a further rename is a separate decision)
 - The verification commands from step 14, including the round-trip
   assertion for each serializer pair.
@@ -255,15 +255,15 @@ the first RT fn whose semantics isn't "is this value valid"),
 rename the test suite to reflect that it now covers more than
 validation:
 
-- `packages/ts-go-run-types/test/suites/validation-suite.ts` →
+- `packages/ts-go-run-types/test/suites/validation/` →
   `rt-suite.ts`
 - Interface `ValidationCase` → `RTCase`
 - Export `VALIDATION_SUITE` → `RT_SUITE`
 - Update imports in `test/adapters/*.test.ts`
 
 **Note**: The rt-suite rename did not stick in the current tree. The
-active suites are `validation-suite.ts` (isType/getTypeErrors) +
-`serialization-suite.ts` (JSON families) + format suites. If the
+active suites are `validation/` (isType/getTypeErrors) +
+`serialization/` (JSON families) + format suites. If the
 rename is desirable, confirm with the user first — it is not a
 prerequisite for adding new RT families.
 
@@ -403,7 +403,7 @@ cd /home/user/ts-run-types
 go build -o bin/ts-go-run-types ./cmd/ts-go-run-types
 go test ./internal/...
 pnpm exec vitest run test/adapters/<fnname>.test.ts \
-  test/adapters/isType.test.ts test/adapters/getTypeErrors.test.ts
+  test/suites/validation/isType.test.ts test/suites/validation/getTypeErrors.test.ts
 pnpm --filter vite-plugin-runtypes test
 ```
 
@@ -452,7 +452,7 @@ pnpm run pre-publish-test
 - `packages/vite-plugin-runtypes/src/protocol.ts`
 
 **Test suite + adapters:**
-- `packages/ts-go-run-types/test/suites/validation-suite.ts` (isType/getTypeErrors)
-- `packages/ts-go-run-types/test/suites/serialization-suite.ts` (JSON families)
-- `packages/ts-go-run-types/test/adapters/isType.test.ts`
-- `packages/ts-go-run-types/test/adapters/getTypeErrors.test.ts`
+- `packages/ts-go-run-types/test/suites/validation/` (isType/getTypeErrors)
+- `packages/ts-go-run-types/test/suites/serialization/` (JSON families)
+- `packages/ts-go-run-types/test/suites/validation/isType.test.ts`
+- `packages/ts-go-run-types/test/suites/validation/getTypeErrors.test.ts`
