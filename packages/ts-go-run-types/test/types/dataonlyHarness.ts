@@ -1,23 +1,19 @@
-// In-process TypeScript-compiler harness for the per-branch `DataOnly<T>`
-// instantiation-budget test (dataonly.compile.test.ts).
+// Harness for the per-branch `DataOnly<T>` instantiation-budget test
+// (dataonly.compile.test.ts). Builds the PREAMBLE — the REAL `DataOnly`
+// machinery sliced VERBATIM out of src/runtypes/dataOnly.ts between the
+// `#region dataonly-extract` markers (so the harness can never drift from the
+// shipped type) + a local Temporal ambient/augmentation + assertion helpers —
+// and binds it to the shared compiler measurer in compileHarness.ts.
 //
-// Each call to `measureDataOnly(snippet)` compiles a self-contained source =
-// PREAMBLE + snippet and returns the type-check errors plus the compiler's
-// `Instantiations` / `Types` counts (the same numbers `tsc --extendedDiagnostics`
-// prints). Asserting an absolute instantiation ceiling per branch turns a
-// recursion / exponential-blowup regression into a red test, and the raw number
-// is data for tuning an individual branch of the mapping.
-//
-// The PREAMBLE embeds the REAL `DataOnly` machinery, sliced VERBATIM out of
-// src/runtypes/dataOnly.ts between the `#region dataonly-extract` markers — so the
-// harness can never drift from the shipped type. Temporal is mirrored locally
-// (ambient stub + the `DataOnlyNativeExtra` augmentation) so the keep-Temporal
-// branch is exercised without pulling the package's module graph (which would
-// swamp the instantiation count with unrelated cost).
+// Temporal is mirrored locally (ambient stub + the `DataOnlyNativeExtra`
+// augmentation) so the keep-Temporal branch is exercised without pulling the
+// package's module graph (which would swamp the instantiation count).
 
-import * as ts from 'typescript';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
+import {makeMeasurer, type MeasureResult} from './compileHarness.ts';
+
+export type {MeasureResult};
 
 const DATAONLY_TS = fileURLToPath(new URL('../../src/runtypes/dataOnly.ts', import.meta.url));
 
@@ -59,12 +55,6 @@ interface DataOnlyNativeExtra {
 }
 `;
 
-// The DataOnly region now names only `lib.es2023` types (Date / RegExp / the
-// binary buffers / typed arrays / Map / Set) — no DOM types — so the harness
-// compiles against `lib.es2023` ALONE. Dropping `lib.dom` cuts the per-case
-// baseline (and bind time) by an order of magnitude, sharpening the
-// DataOnly-attributable instantiation signal.
-
 // Type-level assertion helpers used by the snippets.
 const ASSERT_PREAMBLE = `
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -74,85 +64,6 @@ type Assignable<A, B> = A extends B ? true : false;
 `;
 
 const PREAMBLE = `${TEMPORAL_PREAMBLE}\n${extractDataOnlyRegion()}\n${ASSERT_PREAMBLE}\n`;
-// Line count of everything we prepend — used to rebase diagnostic line numbers.
-const PREAMBLE_LINES = PREAMBLE.split('\n').length - 1;
-
-const COMPILER_OPTIONS: ts.CompilerOptions = {
-  strict: true,
-  noEmit: true,
-  target: ts.ScriptTarget.ES2023,
-  lib: ['lib.es2023.d.ts'],
-  moduleDetection: ts.ModuleDetectionKind.Force, // each snippet is its own module
-};
-
-const SNIPPET_FILE = '__dataonly_case__.ts';
-
-// One shared host; lib SourceFiles are parsed once and reused across every
-// measurement, so per-case cost is dominated by the snippet itself.
-const libCache = new Map<string, ts.SourceFile | undefined>();
-const baseHost = ts.createCompilerHost(COMPILER_OPTIONS, true);
-let currentSnippet = '';
-
-const host: ts.CompilerHost = {
-  ...baseHost,
-  getSourceFile(fileName, languageVersionOrOptions, onError, shouldCreate) {
-    if (fileName === SNIPPET_FILE) {
-      return ts.createSourceFile(fileName, currentSnippet, languageVersionOrOptions, true);
-    }
-    if (libCache.has(fileName)) return libCache.get(fileName);
-    const sf = baseHost.getSourceFile(fileName, languageVersionOrOptions, onError, shouldCreate);
-    libCache.set(fileName, sf);
-    return sf;
-  },
-  writeFile() {},
-  fileExists: (fileName) => fileName === SNIPPET_FILE || baseHost.fileExists(fileName),
-  readFile: (fileName) => (fileName === SNIPPET_FILE ? currentSnippet : baseHost.readFile(fileName)),
-};
-
-export interface MeasureResult {
-  /** Type-check + syntax errors, with line numbers rebased to the SNIPPET (the
-   *  preamble offset removed) so messages point at the case's own code. **/
-  errors: string[];
-  /** Raw program instantiation count (preamble + lib baseline + the snippet). **/
-  instantiations: number;
-  /** Instantiations ATTRIBUTABLE TO THE SNIPPET — raw minus the constant
-   *  empty-snippet baseline (preamble decls don't instantiate until applied).
-   *  This is the per-branch regression metric: it isolates `DataOnly`'s cost
-   *  from lib/preamble noise, so a tight absolute ceiling is meaningful. **/
-  netInstantiations: number;
-  /** Compiler type count (secondary signal). **/
-  types: number;
-}
-
-function rawMeasure(snippet: string): {errors: string[]; instantiations: number; types: number} {
-  currentSnippet = `${PREAMBLE}${snippet}\n`;
-  const program = ts.createProgram([SNIPPET_FILE], COMPILER_OPTIONS, host);
-  const diagnostics = [...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()];
-
-  const errors = diagnostics.map((d) => {
-    let where = '';
-    if (d.file && d.start !== undefined) {
-      const {line, character} = d.file.getLineAndCharacterOfPosition(d.start);
-      where = `${Math.max(1, line + 1 - PREAMBLE_LINES)}:${character + 1} `;
-    }
-    return `TS${d.code} ${where}${ts.flattenDiagnosticMessageText(d.messageText, '\n')}`;
-  });
-
-  return {errors, instantiations: program.getInstantiationCount(), types: program.getTypeCount()};
-}
-
-// Constant baseline (preamble + lib only). Computed once, lazily, and subtracted
-// so per-case numbers reflect only the snippet's own instantiation cost.
-let baselineInstantiations = -1;
 
 /** Compile `PREAMBLE + snippet` and report errors + raw/net instantiation counts. **/
-export function measureDataOnly(snippet: string): MeasureResult {
-  if (baselineInstantiations < 0) baselineInstantiations = rawMeasure('').instantiations;
-  const raw = rawMeasure(snippet);
-  return {
-    errors: raw.errors,
-    instantiations: raw.instantiations,
-    netInstantiations: raw.instantiations - baselineInstantiations,
-    types: raw.types,
-  };
-}
+export const measureDataOnly = makeMeasurer(PREAMBLE);
