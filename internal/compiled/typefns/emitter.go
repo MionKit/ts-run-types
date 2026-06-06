@@ -242,6 +242,17 @@ func (ctx *EmitContext) registerRTLookup(childID string) {
 	if !ctx.HasContextItem(childID) {
 		ctx.SetContextItem(childID, "const "+childID+" = utl.getRT("+quoteJS(childID)+")")
 	}
+	// Capture cross-family lookups as tracked dependency edges. A lookup
+	// is cross-family when childID's tag prefix differs from this walker's
+	// own InnerPrefix (e.g. a prepareForJson/toBinary/typeErrors body
+	// resolving `it_<member>`). recordCrossFamilyDep applies that prefix
+	// gate, so same-family lookups (also funnelled through here by
+	// emitDepCall) stay in RTDependencies and only genuine cross-family
+	// references are captured. Additive: nothing consumes CrossFamilyDeps
+	// in emission today. See docs/CROSS-FAMILY-RT-DEPS.md.
+	if ctx.walker != nil {
+		ctx.walker.recordCrossFamilyDep(childID)
+	}
 }
 
 // emitDepCall builds the JS expression that invokes child childID's
