@@ -45,7 +45,14 @@ func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type
 	if nameSymbol == nil || paramsSymbol == nil {
 		return nil
 	}
-	nameType := typeChecker.GetTypeOfSymbol(nameSymbol)
+	// The sentinel props are declared OPTIONAL on TypeFormat (so an unbranded
+	// format stays assignable from its base primitive — `FormatString<P>` ≡
+	// `string`). tsgo therefore types the symbols as `Name | undefined` /
+	// `Params | undefined`; strip the `undefined` before reading the literal
+	// name and walking the params. GetNonNullableType is a no-op on the
+	// already-non-nullable (required-prop) shape, so this stays correct either
+	// way.
+	nameType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(nameSymbol))
 	if nameType == nil || nameType.Flags()&checker.TypeFlagsStringLiteral == 0 {
 		return nil
 	}
@@ -53,7 +60,7 @@ func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type
 	if !ok || name == "" {
 		return nil
 	}
-	paramsType := typeChecker.GetTypeOfSymbol(paramsSymbol)
+	paramsType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(paramsSymbol))
 	params := literalParamsFromType(typeChecker, paramsType)
 	return &protocol.FormatAnnotation{Name: name, Params: params}
 }

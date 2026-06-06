@@ -16,8 +16,8 @@ import (
 // the scanner recognises it structurally (the two sentinel properties),
 // not by import source. Lets these tests stay self-contained.
 const typeFormatBrandDecl = `type TypeFormat<Base, Name extends string, Params> = Base & {
-  readonly __rtFormatName: Name;
-  readonly __rtFormatParams: Params;
+  readonly __rtFormatName?: Name;
+  readonly __rtFormatParams?: Params;
 };
 `
 

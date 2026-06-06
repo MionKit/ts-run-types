@@ -35,33 +35,33 @@ import type {MinMax} from './dateTimeParams.ts';
 // are intentionally absent — they have no min/max ordering semantics.
 
 export type FormatTemporalInstant<P extends MinMax = MinMax> = Temporal.Instant & {
-  readonly __rtFormatName: 'temporalInstant';
-  readonly __rtFormatParams: P;
+  readonly __rtFormatName?: 'temporalInstant';
+  readonly __rtFormatParams?: P;
 };
 
 export type FormatTemporalZonedDateTime<P extends MinMax = MinMax> = Temporal.ZonedDateTime & {
-  readonly __rtFormatName: 'temporalZonedDateTime';
-  readonly __rtFormatParams: P;
+  readonly __rtFormatName?: 'temporalZonedDateTime';
+  readonly __rtFormatParams?: P;
 };
 
 export type FormatTemporalPlainDate<P extends MinMax = MinMax> = Temporal.PlainDate & {
-  readonly __rtFormatName: 'temporalPlainDate';
-  readonly __rtFormatParams: P;
+  readonly __rtFormatName?: 'temporalPlainDate';
+  readonly __rtFormatParams?: P;
 };
 
 export type FormatTemporalPlainTime<P extends MinMax = MinMax> = Temporal.PlainTime & {
-  readonly __rtFormatName: 'temporalPlainTime';
-  readonly __rtFormatParams: P;
+  readonly __rtFormatName?: 'temporalPlainTime';
+  readonly __rtFormatParams?: P;
 };
 
 export type FormatTemporalPlainDateTime<P extends MinMax = MinMax> = Temporal.PlainDateTime & {
-  readonly __rtFormatName: 'temporalPlainDateTime';
-  readonly __rtFormatParams: P;
+  readonly __rtFormatName?: 'temporalPlainDateTime';
+  readonly __rtFormatParams?: P;
 };
 
 export type FormatTemporalPlainYearMonth<P extends MinMax = MinMax> = Temporal.PlainYearMonth & {
-  readonly __rtFormatName: 'temporalPlainYearMonth';
-  readonly __rtFormatParams: P;
+  readonly __rtFormatName?: 'temporalPlainYearMonth';
+  readonly __rtFormatParams?: P;
 };
 
 // Unbranded base instance type per temporal format — the type a no-params

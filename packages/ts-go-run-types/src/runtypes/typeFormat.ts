@@ -25,16 +25,28 @@ export type TypeFormatBase = string | number | bigint | Date;
 // so consumers can still narrow at the call site.
 export type TypeFormatParams = Record<string, unknown>;
 
-// TypeFormat brands a base primitive with a name+params pair the
-// Go-side scanner can detect. The properties are typed as `readonly`
-// so the brand survives `as const` widening and TypeScript's
-// excess-property checks on object literals don't mistake it for a
-// regular property.
+// TypeFormat tags a base primitive with a name+params pair the Go-side
+// scanner can detect. The two sentinel properties are typed as `readonly`
+// so the tag survives `as const` widening and TypeScript's excess-property
+// checks on object literals don't mistake them for regular properties.
 //
-// `BrandName` follows mion's convention: when provided, it becomes
-// the nominal brand carried alongside the format params. The Go-side
-// detection ignores `BrandName` — it only cares about the two
-// sentinel properties — so this stays a pure TS-level discriminator.
+// The sentinels are OPTIONAL by default. A format WITHOUT a `BrandName`
+// is therefore a transparent annotation — `FormatString<{maxLength: 5}>`
+// stays mutually assignable with its base `string`, so a plain `'hello'`
+// flows into a format-typed slot with no cast and a format value flows
+// back out as its base. Formats are RUNTIME contracts enforced by the
+// generated validator, not compile-time guards; the optional sentinels
+// keep the type ergonomic while still carrying the metadata the scanner
+// lifts off the widened intersection. (tsgo widens the optional props to
+// `Name | undefined` / `Params | undefined`; the scanner strips the
+// `undefined` — see internal/compiled/runtype/typeid/formats.go.)
+//
+// `BrandName` follows mion's convention: pass it (`FormatString<P,
+// 'UserId'>`) to opt INTO a nominal brand — a REQUIRED `__rtFormatBrand`
+// marker that makes the type no longer assignable from a bare primitive,
+// so the compiler forces values through a validation/cast boundary. The
+// Go-side detection ignores `BrandName` (it only reads the two sentinels),
+// so branding stays a pure TS-level discriminator.
 export type TypeFormat<
   Base extends TypeFormatBase,
   Name extends string,
@@ -43,9 +55,8 @@ export type TypeFormat<
   // don't satisfy Record<string, unknown>. `object` accepts them while
   // still excluding primitives.
   Params extends object,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   BrandName extends string = never,
 > = Base & {
-  readonly __rtFormatName: Name;
-  readonly __rtFormatParams: Params;
-};
+  readonly __rtFormatName?: Name;
+  readonly __rtFormatParams?: Params;
+} & ([BrandName] extends [never] ? unknown : {readonly __rtFormatBrand: BrandName});
