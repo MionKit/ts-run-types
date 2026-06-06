@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 	"github.com/mionkit/ts-run-types/internal/resolver"
@@ -1110,12 +1111,16 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 	if len(ids) != 1 {
 		t.Fatalf("expected 1 shared id across the three encoder shapes, got %d distinct ids (%+v)", len(ids), ids)
 	}
-	// The fnId (tuple[1]) is the comptime-resolved strategy token and differs
-	// per site: the no-options call defaults to stripClone, the others carry
-	// their literal strategy.
-	for _, want := range []string{"stripClone", "mutate", "direct"} {
+	// The fnId (tuple[1]) is now the opaque COMPOSITE fnHash the scanner
+	// computes per (jsonEncoder, strategy) — the no-options call defaults to
+	// stripClone, the others carry their literal strategy. Assert equality to
+	// operations.FnHashFor (NOT a hardcoded hash) so the test stays correct
+	// across version-isolated hashes.
+	encoderOp, _ := operations.ByName("jsonEncoder")
+	for _, strategy := range []string{"stripClone", "mutate", "direct"} {
+		want := operations.FnHashFor(encoderOp, nil, strategy)
 		if !fnIDs[want] {
-			t.Errorf("expected a site with fnId %q, got %v", want, fnIDs)
+			t.Errorf("expected a site with fnId %q (jsonEncoder/%s), got %v", want, strategy, fnIDs)
 		}
 	}
 }
@@ -1621,9 +1626,13 @@ createIsType(array(string()), {noIsArrayCheck: true});
 		}
 	}
 	// The options bag rides the schema-overload call's own slot, folded into
-	// the injected FnId variant suffix (`noIsArrayCheck` ⇒ `itNA`).
+	// the injected FnId — now the opaque isType variant fnHash for the
+	// noIsArrayCheck option set (NOT the readable `itNA` token). Assert equality
+	// to operations.FnHashFor so the test stays correct across versions.
+	isTypeOp, _ := operations.ByName("isType")
+	wantVariant := operations.FnHashFor(isTypeOp, []string{"noIsArrayCheck"}, "")
 	variant := resp.Sites[2]
-	if variant.FnId != "itNA" {
-		t.Errorf("schema-form options not observed: Site[2].FnId = %q, want %q", variant.FnId, "itNA")
+	if variant.FnId != wantVariant {
+		t.Errorf("schema-form options not observed: Site[2].FnId = %q, want %q (isType/noIsArrayCheck)", variant.FnId, wantVariant)
 	}
 }

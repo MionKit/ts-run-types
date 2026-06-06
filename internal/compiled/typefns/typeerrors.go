@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
-	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -1043,7 +1043,7 @@ func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v str
 // cache) means the entry is always populated by the time the
 // typeErrors closure invokes `utl.getRT('it_<hash>')`.
 func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	isTypeHash := constants.CacheModules["isType"].Tag + "_" + rt.ID
+	isTypeHash := operations.PlainHash("isType") + "_" + rt.ID
 	ctx.registerRTLookup(isTypeHash)
 	return RTCode{
 		Code: "if (!" + isTypeHash + ".fn(" + v + ")) " + callRTErr(ctx, "union", ""),

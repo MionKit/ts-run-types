@@ -69,17 +69,22 @@ createIsType<string>();
       // 2. Evaluate the isType module via its initCache(rtUtils) export.
       //    The stub records every `addToRTCache` call and the returned
       //    cache map is keyed by the namespaced `rtFnHash`
-      //    (`it_<id>`) — see internal/compiled/typefns/module.go which
+      //    (`<fnHash>_<id>`) — see internal/compiled/typefns/module.go which
       //    namespaces the cache key per fn so isType / typeErrors /
       //    prepareForJson entries for the same runtype don't collide
-      //    in the shared rtFnsCache.
+      //    in the shared rtFnsCache. Slice 4: the family prefix is the opaque
+      //    isType fnHash the scanner injected into this site's `fnId`, not the
+      //    readable `it` tag — derive the key from `site.fnId` so the test
+      //    stays correct across version-isolated hashes.
       const isTypeSource = response.isTypeCacheSource;
       if (!isTypeSource) throw new Error('expected isTypeCacheSource in response');
       const {byHash: isTypeCache, registered} = evalIsTypeModule(isTypeSource);
 
       // Both the returned map entry and the stub-registered cache entry
       // must point at the same `RTCompiledFn` object — there's no copy.
-      const cacheKey = 'it_' + site.id;
+      const fnPrefix = site.fnId;
+      if (!fnPrefix) throw new Error('expected an injected fnId (fnHash) on the createIsType site');
+      const cacheKey = fnPrefix + '_' + site.id;
       const fromCache = isTypeCache[cacheKey];
       const fromRegistry = registered[cacheKey];
       expect(fromCache).toBeDefined();
@@ -94,7 +99,7 @@ createIsType<string>();
       expect(fromCache.defaultParamValues).toEqual({vλl: undefined});
       // `code` carries the factory body (suitable for `new Function('utl', code)(rtUtils)`
       // reconstruction), not just the inner validator body.
-      expect(fromCache.code).toBe('return function it_' + site.id + "(v){return typeof v === 'string'}");
+      expect(fromCache.code).toBe('return function ' + cacheKey + "(v){return typeof v === 'string'}");
       expect(fromCache.isNoop).toBe(false);
       expect(fromCache.rtDependencies).toEqual([]);
       expect(fromCache.pureFnDependencies).toEqual([]);

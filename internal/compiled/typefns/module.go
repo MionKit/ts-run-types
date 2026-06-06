@@ -11,6 +11,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/cachetpl"
 	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/diag"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -72,34 +73,62 @@ type RenderOpts struct {
 	// sets this on each NON-it family's collection pass to aggregate the edges
 	// that seed `it`'s ExtraRoots. Nil for normal renders (no behaviour change).
 	CrossFamilySink *[]string
+	// ExtraBodyLines is appended verbatim to the module body AFTER the demand /
+	// topo-ordered entry lines and BEFORE the skeleton splice. Used to fold the
+	// JSON-composite `init(…)` lines into the prepareForJson / restoreFromJson
+	// modules (which are already loaded into rtUtils) so createJsonEncoder /
+	// createJsonDecoder collapse to a pure lookup. Empty for every other render —
+	// composites emit no type-walking entries and reference primitives by their
+	// fnHash, so they ride an existing module's body rather than a new virtual
+	// module. The cross-family it-collection passes never set this (their output
+	// is discarded), so it does not perturb the it-seeding pipeline.
+	ExtraBodyLines string
 }
 
-// innerPrefix derives the inner-fn name prefix from a cache-module's
-// short Tag (e.g. "te" → "te_"). The inner validator function inside
-// each createRTFn closure is named `<innerPrefix><hash>`; the same
-// prefix namespaces the JS cache key registered via factory's first arg.
+// familyOp recovers the operation that emits entries under a cache-module's
+// family Tag (e.g. "te" → the typeErrors operation). The fnHash naming scheme
+// derives every cache key from the operation registry, NEVER from settings.Tag,
+// so this lookup is the single bridge from a CacheModuleSettings to its hashes.
+// Panics on an unknown tag — every type-walking family in CacheModules has a
+// matching registry operation, so a miss is a programmer error caught in tests.
+func familyOp(settings constants.CacheModuleSettings) operations.Operation {
+	op, ok := operations.ByFamilyTag(settings.Tag)
+	if !ok {
+		panic(fmt.Sprintf("typefns: no operation registered for family tag %q", settings.Tag))
+	}
+	return op
+}
+
+// innerPrefix derives the inner-fn name prefix for a cache-module's family from
+// the operation registry's plain (default-variant) fnHash — e.g. the typeErrors
+// family → `<PlainHash("typeErrors")>_`. The inner validator function inside
+// each createRTFn closure is named `<innerPrefix><hash>`; the same prefix
+// namespaces the JS cache key registered via the factory's first arg, and the
+// SAME plain prefix is what same-family child dep calls resolve to (so a
+// variant root references plain children).
 func innerPrefix(settings constants.CacheModuleSettings) string {
-	return settings.Tag + "_"
+	return operations.PlainHash(familyOp(settings).Name) + "_"
 }
 
-// variantKey reports the cache-key shape for an emitter + variant
-// suffix + runtype id. For the plain variant (empty suffix) this is
-// `<tag>_<id>`; for a non-empty suffix it's `<tag><suffix>_<id>`
-// (e.g. `itNA_<id>`).
-func variantKey(settings constants.CacheModuleSettings, suffix string, id string) string {
-	return settings.Tag + suffix + "_" + id
+// variantKey reports the cache-key shape for an emitter + variant suffix +
+// runtype id. For the plain variant (empty suffix) this is `<plainFhash>_<id>`;
+// for a non-empty suffix it's `<variantFhash>_<id>` — the variant fhash folds
+// the option NAMES (carried in `options`) into the hash, so e.g. the
+// noIsArrayCheck variant of isType is keyed by FnHashFor(isType, [noIsArrayCheck]).
+func variantKey(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
+	op := familyOp(settings)
+	if suffix == "" {
+		return operations.PlainHash(op.Name) + "_" + id
+	}
+	return operations.FnHashFor(op, options, "") + "_" + id
 }
 
 // variantFactoryName builds the outer factory's printed name —
-// `g_<tag><suffix>_<id>` (e.g. `g_itNA_abc123`). The plain branch
-// reduces to `g_<tag>_<id>` (= `settings.VarPrefix + id`). Wrapping
-// `variantKey` with the `g_` prefix keeps the factory and cache-key
-// shapes in lockstep.
-func variantFactoryName(settings constants.CacheModuleSettings, suffix string, id string) string {
-	if suffix == "" {
-		return settings.VarPrefix + id
-	}
-	return "g_" + variantKey(settings, suffix, id)
+// `g_<variantFhash>_<id>`. The plain branch reduces to `g_<plainFhash>_<id>`
+// (= `settings.VarPrefix + id`). Wrapping `variantKey` with the `g_` prefix
+// keeps the factory and cache-key shapes in lockstep.
+func variantFactoryName(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
+	return "g_" + variantKey(settings, suffix, options, id)
 }
 
 // IsTypeModule writes the runtime artifact for the isType cache module:
@@ -294,10 +323,11 @@ func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
 		// never errors, so this is effectively infallible.
 		_ = RenderFnModule(io.Discard, dump, family.settings, family.emitter, innerPrefix(family.settings), family.skeleton, collectOpts)
 	}
+	itPrefix := operations.PlainHash("isType") + "_"
 	seen := make(map[string]bool, len(sink))
 	roots := make([]string, 0, len(sink))
 	for _, dep := range sink {
-		bare := strings.TrimPrefix(dep, "it_")
+		bare := strings.TrimPrefix(dep, itPrefix)
 		if bare == dep || seen[bare] {
 			continue
 		}
@@ -383,12 +413,12 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	// CompileChild; the compile pass returns CodeNS from any leaf with no emit,
 	// compound parents propagate it, and the walker's IsUnsupported flag drops
 	// the factory — see codetype.go's CodeNS contract. variantKey(settings, "",
-	// id) reduces to the plain `<tag>_<id>` key (== innerPrefix + id).
+	// nil, id) reduces to the plain `<plainFhash>_<id>` key (== innerPrefix + id).
 	renderEntry := func(runType *protocol.RunType, suffix string, options []string) ([]string, bool) {
 		if runType == nil || !emitter.Supports(runType) {
 			return nil, false
 		}
-		entryID := variantKey(settings, suffix, runType.ID)
+		entryID := variantKey(settings, suffix, options, runType.ID)
 		if existing, exists := entries[entryID]; exists {
 			return existing.deps, true
 		}
@@ -565,6 +595,17 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		body.WriteByte('\n')
 	}
 
+	// JSON-composite lines (when this module hosts them) ride after the
+	// type-walking entries. They reference primitives by fnHash via the same
+	// `init(…)`/getRT machinery, so they only need the skeleton's `init` in
+	// scope — which the splice provides.
+	if opts.ExtraBodyLines != "" {
+		body.WriteString(opts.ExtraBodyLines)
+		if !strings.HasSuffix(opts.ExtraBodyLines, "\n") {
+			body.WriteByte('\n')
+		}
+	}
+
 	out, err := cachetpl.Splice(skeleton, body.String())
 	if err != nil {
 		return err
@@ -650,8 +691,8 @@ type entryRender struct {
 // fresh result back. Read/write errors are non-fatal — the renderer
 // always produces output even when the cache is broken.
 func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) entryRender {
-	factoryName := variantFactoryName(settings, variantSuffix, runType.ID)
-	innerName := variantKey(settings, variantSuffix, runType.ID)
+	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID)
+	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID)
 
 	if variantSuffix == "" {
 		if cachedLine, cachedDeps, cachedCrossFamilyDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {

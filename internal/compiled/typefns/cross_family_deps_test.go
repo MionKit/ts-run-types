@@ -7,8 +7,25 @@ import (
 	"testing"
 
 	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
+
+// itKey returns the isType cache key `<isType-fnHash>_<id>` the emitter now
+// produces for a same-family / cross-family isType lookup. Slice 4 replaced the
+// readable `it_` tag prefix with the opaque, version-isolated fnHash from the
+// operation registry; tests derive the expected key through the same helper the
+// emitter uses so they stay correct across binary versions.
+func itKey(id string) string { return operations.PlainHash("isType") + "_" + id }
+
+// itVariantKey returns the isType cache key for the IsTypeOptions variant
+// identified by `optionNames` — `<variant-fnHash>_<id>` (e.g. the noIsArrayCheck
+// variant). Mirrors variantKey for the isType family without depending on the
+// CacheModuleSettings plumbing.
+func itVariantKey(optionNames []string, id string) string {
+	itOp, _ := operations.ByName("isType")
+	return operations.FnHashFor(itOp, optionNames, "") + "_" + id
+}
 
 // buildRefTable indexes every RunType by id so renderEntryWithDeps and the
 // walker can deref the KindRef child slots (the wire form every composite
@@ -79,7 +96,7 @@ func assertUnionCrossFamily(t *testing.T, emitter Emitter, settings constants.Ca
 		t.Fatalf("%T: expected a non-empty entry line for the conflict-prop union", emitter)
 	}
 
-	for _, want := range []string{"it_big", "it_dat"} {
+	for _, want := range []string{itKey("big"), itKey("dat")} {
 		if !containsStr(rendered.crossFamilyDeps, want) {
 			t.Errorf("%T: CrossFamilyDeps %v missing cross-family edge %q", emitter, rendered.crossFamilyDeps, want)
 		}
@@ -133,8 +150,8 @@ func TestCrossFamilyDeps_IsTypeSameFamilyOnly(t *testing.T) {
 	if rendered.line == "" {
 		t.Fatal("expected a non-empty isType entry line for the nested-object fixture")
 	}
-	if !containsStr(rendered.deps, "it_inner") {
-		t.Errorf("expected same-family child dep it_inner in RTDependencies, got %v", rendered.deps)
+	if !containsStr(rendered.deps, itKey("inner")) {
+		t.Errorf("expected same-family child dep %q in RTDependencies, got %v", itKey("inner"), rendered.deps)
 	}
 	if len(rendered.crossFamilyDeps) != 0 {
 		t.Errorf("same-family-only isType entry must have empty CrossFamilyDeps, got %v", rendered.crossFamilyDeps)
@@ -158,10 +175,14 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 
 	// The exact validator body the union root emits — unchanged by the
 	// cross-family capture. Sub-union dispatch over the conflicting `a` slot
-	// uses the candidate isType lookups.
-	wantBody := "function pj_uni(v){if (typeof v === 'object' && v !== null) " +
-		"{if ((it_big?.fn(v.a) ?? true)) {v.a = v.a.toString();v.a = [0, v.a]} " +
-		"else if ((typeof v.a === 'object' && v.a !== null && (it_dat?.fn(v.a) ?? true))) " +
+	// uses the candidate isType lookups. Keys are the opaque per-family fnHashes
+	// (prepareForJson for the root, isType for the discriminator lookups).
+	pjUni := operations.PlainHash("prepareForJson") + "_uni"
+	itBig := itKey("big")
+	itDat := itKey("dat")
+	wantBody := "function " + pjUni + "(v){if (typeof v === 'object' && v !== null) " +
+		"{if ((" + itBig + "?.fn(v.a) ?? true)) {v.a = v.a.toString();v.a = [0, v.a]} " +
+		"else if ((typeof v.a === 'object' && v.a !== null && (" + itDat + "?.fn(v.a) ?? true))) " +
 		"{v.a = [1, v.a]};v = [-1, v]} else { throw new Error(fuEncErr) } return v}"
 	if !strings.Contains(out, wantBody) {
 		t.Errorf("expected the union validator body unchanged after capture:\nwant substring:\n%s\ngot module:\n%s", wantBody, out)
@@ -170,7 +191,7 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 	// The cross-family lookups appear in the closure prologue as getRT
 	// context-item declarations exactly as before (the registration the
 	// capture piggy-backs on).
-	for _, want := range []string{"const it_big = utl.getRT('it_big')", "const it_dat = utl.getRT('it_dat')"} {
+	for _, want := range []string{"const " + itBig + " = utl.getRT('" + itBig + "')", "const " + itDat + " = utl.getRT('" + itDat + "')"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected getRT prologue %q in rendered module:\n%s", want, out)
 		}

@@ -32,7 +32,12 @@ package disk
 // them via the walker). v1 files lack the field, so they (correctly)
 // become misses under v2 — a hit returning empty crossFamilyDeps would
 // silently break unions on cached production builds.
-const FormatVersion = 2
+//
+// v3 is the hashed-naming flip: every cached `Line` and `CrossFamilyRef.Prefix`
+// now embeds an opaque fnHash (e.g. `WMk0_<id>`) instead of the readable family
+// tag (`it_<id>`). v2 files bake the old tag-based keys, so a hit would feed the
+// runtime keys it no longer registers — they must become misses.
+const FormatVersion = 3
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can

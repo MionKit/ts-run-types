@@ -82,8 +82,8 @@ func TestRenderFnModule_DiskCache_RoundTrip(t *testing.T) {
 	if entry.StructuralID != "1:atomic" {
 		t.Errorf("cache StructuralID: got %q want %q", entry.StructuralID, "1:atomic")
 	}
-	if !strings.Contains(entry.Line, "it_abc123") {
-		t.Errorf("cache Line missing innerName: %q", entry.Line)
+	if !strings.Contains(entry.Line, itKey("abc123")) {
+		t.Errorf("cache Line missing innerName %q: %q", itKey("abc123"), entry.Line)
 	}
 
 	var second bytes.Buffer

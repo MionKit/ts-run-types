@@ -44,13 +44,24 @@ type TupleSonENCDECRequired = [bigint, Date];
 type AtomicNoEncRequired = number | string;
 type AtomicEncRequired = bigint | Date;
 
-function pjEntry(id: string) {
+// Slice 4: cache keys are now `<fnHash>_<id>` (opaque per-family hash), not the
+// readable `pj_<id>` / `rj_<id>` tag prefix, and there is no runtime hashing to
+// reconstruct the prefix. Find the entry by its stable `fnID` family tag (still
+// carried on every entry) plus the `_<id>` suffix — the id stays f(T).
+function entryByFamily(fnID: string, id: string) {
   const {rtFnsCache} = getRTFnCaches();
-  return rtFnsCache['pj_' + id];
+  const suffix = '_' + id;
+  for (const key of Object.keys(rtFnsCache)) {
+    const entry = rtFnsCache[key];
+    if (entry?.fnID === fnID && key.endsWith(suffix)) return entry;
+  }
+  return undefined;
+}
+function pjEntry(id: string) {
+  return entryByFamily('pj', id);
 }
 function rjEntry(id: string) {
-  const {rtFnsCache} = getRTFnCaches();
-  return rtFnsCache['rj_' + id];
+  return entryByFamily('rj', id);
 }
 
 // pj / rj are demand-scoped now (Slice C): a `getRunTypeId<T>()` reflection

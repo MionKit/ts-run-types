@@ -72,10 +72,10 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 2
-    // when CrossFamilyRefs was added so cache hits can reconstruct cross-family
-    // it_<member> edges; v1 files are misses.
-    expect(parsed.version).toBe(2);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 3
+    // for the hashed-naming flip (Slice 4): every cached key now embeds an
+    // opaque fnHash, so v2's tag-based keys (`it_<id>`) are incompatible misses.
+    expect(parsed.version).toBe(3);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.line).toBe('string');
