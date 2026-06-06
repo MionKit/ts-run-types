@@ -400,13 +400,6 @@ Fix:
   PJS004: rootThrow('encode', ARRAY_ELEMENT_DETAIL, 'to JSON'),
   PJS005: rootThrow('encode', SYMBOL_DETAIL, 'to JSON'),
 
-  // prepareForJsonSafePreserve (PJP)
-  PJP001: rootThrow('encode', NEVER_DETAIL, 'to JSON'),
-  PJP002: rootThrow('encode', NON_SERIALIZABLE_DETAIL, 'to JSON'),
-  PJP003: rootThrow('encode', FUNCTION_ROOT_DETAIL, 'to JSON'),
-  PJP004: rootThrow('encode', ARRAY_ELEMENT_DETAIL, 'to JSON'),
-  PJP005: rootThrow('encode', SYMBOL_DETAIL, 'to JSON'),
-
   // restoreFromJson (RJ)
   RJ001: rootThrow('decode', NEVER_DETAIL, 'from JSON'),
   RJ002: rootThrow('decode', NON_SERIALIZABLE_DETAIL, 'from JSON'),
@@ -457,7 +450,6 @@ Fix:
   TE010: dropFunctionProp('typeErrors', 'checked'),
   PJ010: dropFunctionProp('prepareForJson', 'encoded'),
   PJS010: dropFunctionProp('prepareForJsonSafe', 'encoded'),
-  PJP010: dropFunctionProp('prepareForJsonSafePreserve', 'encoded'),
   RJ010: dropFunctionProp('restoreFromJson', 'decoded'),
   SJ010: dropFunctionProp('stringifyJson', 'stringified'),
   TB010: dropFunctionProp('toBinary', 'serialised'),
@@ -473,7 +465,6 @@ Fix:
   TE011: dropMethod('typeErrors', 'checked'),
   PJ011: dropMethod('prepareForJson', 'encoded'),
   PJS011: dropMethod('prepareForJsonSafe', 'encoded'),
-  PJP011: dropMethod('prepareForJsonSafePreserve', 'encoded'),
   RJ011: dropMethod('restoreFromJson', 'decoded'),
   SJ011: dropMethod('stringifyJson', 'stringified'),
   TB011: dropMethod('toBinary', 'serialised'),
@@ -484,7 +475,6 @@ Fix:
   TE012: dropStatic('typeErrors', 'checked'),
   PJ012: dropStatic('prepareForJson', 'encoded'),
   PJS012: dropStatic('prepareForJsonSafe', 'encoded'),
-  PJP012: dropStatic('prepareForJsonSafePreserve', 'encoded'),
   RJ012: dropStatic('restoreFromJson', 'decoded'),
   SJ012: dropStatic('stringifyJson', 'stringified'),
   TB012: dropStatic('toBinary', 'serialised'),
@@ -495,7 +485,6 @@ Fix:
   TE013: dropSymbolKeyed('typeErrors', 'checked'),
   PJ013: dropSymbolKeyed('prepareForJson', 'encoded'),
   PJS013: dropSymbolKeyed('prepareForJsonSafe', 'encoded'),
-  PJP013: dropSymbolKeyed('prepareForJsonSafePreserve', 'encoded'),
   RJ013: dropSymbolKeyed('restoreFromJson', 'decoded'),
   SJ013: dropSymbolKeyed('stringifyJson', 'stringified'),
   TB013: dropSymbolKeyed('toBinary', 'serialised'),

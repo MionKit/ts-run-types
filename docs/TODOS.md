@@ -69,4 +69,6 @@ Acting on this, the JSON-encoder strategy set was collapsed to **`clone` | `muta
 - `stripMutate` was removed — the mutate-with-strip variant (`unknownKeysToUndefined` + `prepareForJson`) is unnecessary; use `clone` to strip, or `mutate` to keep extras.
 - `mutate` (in-place, preserves extras) and `direct` (single-pass) are unchanged.
 
-Disk cache format bumped to **v4** (the `clone` composite body changed pjsp→pjs while its fnHash is unchanged, so stale `jeCL` entries must miss). The internal `prepareForJsonSafePreserve` primitive (pjsp) remains in the registry but is no longer selected by any public strategy — a candidate for a follow-up dead-code removal (it also touches the plugin protocol + diagnostics).
+Disk cache format bumped to **v4** (the `clone` composite body changed pjsp→pjs while its fnHash is unchanged, so stale `jeCL` entries must miss).
+
+The internal `prepareForJsonSafePreserve` primitive (pjsp) — the only thing that ever produced extras-preserving clones — was then **fully removed** as dead code: the emitter, the `operations` registry entry, the `CacheModules`/`jsonCompositeTags`/`JsonStrategyFamilies` wiring, the `Walker.PreserveExtras` plumbing (`buildSafeObjectLiteral` no longer takes a `preserveExtras` flag), the PJP* diagnostic codes (Go + both TS catalogs), the protocol cache-source/added fields + dispatch/render wiring, the embedded skeleton + cache module, and the plugin protocol/resolver-client/index mappings.

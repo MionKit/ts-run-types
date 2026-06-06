@@ -345,7 +345,7 @@ func emitObjectPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v stri
 	// clone equals `v` whenever `Object.keys(v).length === N`, so we
 	// skip the allocation on clean inputs.
 	fastpath := allExtraProof && allRequired
-	cloneExpr := buildSafeObjectLiteral(props, v, ctx.walker.PreserveExtras)
+	cloneExpr := buildSafeObjectLiteral(props)
 	if fastpath {
 		body := "if (Object.keys(" + v + ").length === " + strconv.Itoa(len(props)) + ") return " + v + ";" +
 			"return " + cloneExpr
@@ -468,15 +468,17 @@ func buildSafeIndexSignatureObject(v string, props []safePropEmit, indexSigs []*
 }
 
 // buildSafeObjectLiteral assembles the JS expression that clones the
-// declared keys. For all-required shapes the result is an object
-// literal `{a: <expr>, b: <expr>}`. For mixed-optionality shapes we
-// build an accumulator IIFE so optional props can be conditionally
-// included without per-optional object spreads (a spread allocates a
-// temp object per optional, which is wasteful).
+// declared keys. The clone is built purely from the declared type shape
+// (never `{...sourceV}`), so undeclared keys are dropped by construction —
+// this is why the shape-derived clone strategy strips for free. For
+// all-required shapes the result is an object literal `{a: <expr>, b: <expr>}`.
+// For mixed-optionality shapes we build an accumulator IIFE so optional props
+// can be conditionally included without per-optional object spreads (a spread
+// allocates a temp object per optional, which is wasteful).
 //
 // Note: this helper assumes len(props) > 0; the parent emit gates
 // the empty case separately.
-func buildSafeObjectLiteral(props []safePropEmit, sourceV string, preserveExtras bool) string {
+func buildSafeObjectLiteral(props []safePropEmit) string {
 	hasOptional := false
 	for _, p := range props {
 		if p.optional {
@@ -487,13 +489,6 @@ func buildSafeObjectLiteral(props []safePropEmit, sourceV string, preserveExtras
 	if !hasOptional {
 		var b strings.Builder
 		b.WriteString("{")
-		if preserveExtras {
-			b.WriteString("...")
-			b.WriteString(sourceV)
-			if len(props) > 0 {
-				b.WriteString(",")
-			}
-		}
 		for i, p := range props {
 			if i > 0 {
 				b.WriteString(",")
@@ -508,11 +503,7 @@ func buildSafeObjectLiteral(props []safePropEmit, sourceV string, preserveExtras
 	// Mixed-optionality — accumulator IIFE.
 	var b strings.Builder
 	b.WriteString("(function(){const _r={")
-	if preserveExtras {
-		b.WriteString("...")
-		b.WriteString(sourceV)
-	}
-	first := !preserveExtras
+	first := true
 	for _, p := range props {
 		if p.optional {
 			continue
@@ -798,7 +789,7 @@ func emitUnionPrepareForJsonSafe(rt *protocol.RunType, ctx *EmitContext, v strin
 				expr:       propExpr,
 			})
 		}
-		objLit := buildSafeObjectLiteral(props, v, ctx.walker.PreserveExtras)
+		objLit := buildSafeObjectLiteral(props)
 		guard := objectGuard(v, "")
 		clauses = append(clauses, "if ("+guard+") return [-1, "+objLit+"];")
 	}
