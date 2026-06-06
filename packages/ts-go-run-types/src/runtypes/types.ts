@@ -233,59 +233,117 @@ interface FormData {
 // prettier-ignore
 type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | FormData | ArrayBuffer | SharedArrayBuffer | DataView | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
 
-/** The serialisable projection of `T` — the exact shape `createIsType<T>()` /
- *  `createGetTypeErrors<T>()` validate. It traverses every node like
- *  `SubstituteSelf` but, instead of substituting, DROPS every member the AOT
- *  emitter treats as non-data (see CLAUDE.md "isType contract — serializable
- *  data only"):
- *   - functions / methods / constructors → `never` (drop at property position);
- *   - `symbol`-typed values and symbol-keyed properties → dropped;
- *   - `never`-typed properties → dropped;
- *   - primitives, `Date`/`RegExp`/native, `Map`/`Set`, arrays, and TUPLES
- *     (slot structure + optional/readonly modifiers preserved) recurse;
- *   - `any` / `unknown` pass through unchanged (the emitter keeps the broad
- *     kinds).
+/** Augmentation hook for native / host classes that `DataOnly` must KEEP
+ *  verbatim (the RT validates them by identity / `instanceof`, never by
+ *  structural projection) but that this core module cannot NAME without forcing
+ *  their lib onto every consumer. The opt-in
+ *  `@mionjs/ts-go-run-types/formats/temporal` subpath augments this interface
+ *  with the 8 TC39 `Temporal` types; consumers who never import it pay nothing
+ *  and the `DataOnlyNative` tail below stays `never`. Add one row per kept
+ *  class (`{ temporalInstant: Temporal.Instant; … }`). **/
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface DataOnlyNativeExtra {}
+
+/** Native / host classes kept verbatim by `DataOnly`, plus the augmentable
+ *  `DataOnlyNativeExtra` tail (Temporal, …). With nothing augmenting it the
+ *  tail is `never`, so this is just `Native`. **/
+type DataOnlyNative = Native | DataOnlyNativeExtra[keyof DataOnlyNativeExtra];
+
+/** Kinds the AOT validator treats as NON-DATA and strips (docs/UNSUPPORTED-KINDS.md
+ *  "the unsupported set"):
+ *   - `symbol` — runtime identity, not round-trippable;
+ *   - any callable / constructable value (function, method, class value);
+ *   - `Promise` / thenables — `isType` validates inbound public-API *data*,
+ *     which never carries promises; a thenable is not data.
  *
- *  Modifiers (`readonly`, optional `?`) survive because the object/tuple
- *  branches use homomorphic mapped types (`keyof T`). A property is dropped iff
- *  its recursively-projected value collapses to `never` OR its key is a symbol —
- *  this single rule subsumes "drop functions" (`DataOnly<fn>` is `never`).
+ *  (`WeakMap`/`WeakSet` are intentionally absent: a real `Set` is structurally
+ *  assignable to `WeakSet<any>`, so listing it here would wrongly strip `Set`.
+ *  They fall through to the object branch and project to `{}`, exactly as
+ *  before.)
  *
- *  Root-level non-data kinds (a bare function type, a callable interface, a
- *  `symbol`) collapse to `never` here, which the emitter renders as an
- *  always-throw factory rather than the value-position drop — those cases are
- *  intentionally `DataOnly`-divergent (the structural ids cannot converge). */
-export type DataOnly<T> = unknown extends T // `any` / `unknown` — keep broad kinds
-  ? T
-  : T extends string | number | boolean | bigint | null | undefined
-    ? T
-    : T extends symbol
-      ? never
-      : T extends Native
-        ? T
-        : T extends (...args: any[]) => any
-          ? never
-          : T extends abstract new (...args: any[]) => any
-            ? never
-            : T extends Map<infer K, infer V>
-              ? Map<DataOnly<K>, DataOnly<V>>
-              : T extends Set<infer U>
-                ? Set<DataOnly<U>>
-                : T extends Promise<infer U> // validated as a thenable; wrapped type recurses
-                  ? Promise<DataOnly<U>>
-                  : T extends ReadonlyArray<unknown>
-                    ? number extends T['length'] // array (open length) vs tuple (fixed)
-                      ? T extends ReadonlyArray<infer E>
-                        ? DataOnly<E>[]
-                        : never
-                      : {-readonly [K in keyof T]: DataOnly<T[K]>} // tuple — preserve slots
-                    : T extends object
-                      ? {
-                          [K in keyof T as K extends symbol ? never : [DataOnly<T[K]>] extends [never] ? never : K]: DataOnly<
-                            T[K]
-                          >;
-                        }
-                      : T;
+ *  At a PROPERTY slot these drop silently; at a PROPAGATING slot (root, array
+ *  element, tuple slot, union member) they collapse the projection to `never`.
+ *  `DataOnly` maps each to `never`, so the single rule "a value that projects to
+ *  `never` is dropped" subsumes symbol-keyed and method members alike. The
+ *  `never[]` parameter positions disable variance so EVERY function and
+ *  constructor shape is matched. **/
+type DataOnlyStripped =
+  | symbol
+  | ((...args: never[]) => unknown)
+  | (abstract new (...args: never[]) => unknown)
+  // Thenables, detected STRUCTURALLY (a `.then` method) rather than as
+  // `Promise<any>` — the latter's `T`-in-`then` contravariance means
+  // `Promise<string> extends Promise<any>` does not hold, so it would miss.
+  // The `never[]` params keep the check variance-free, matching every Promise.
+  | {then: (...args: never[]) => unknown};
+
+/** Recursion-budget decrement for `DataOnly`: `_DataOnlyDepth[N]` is `N - 1`
+ *  (and `_DataOnlyDepth[0]` is `never`, never reached — the `Depth extends 0`
+ *  guard stops first). Bounding the recursion is what lets circular / mutually
+ *  recursive types resolve to a finite instantiation instead of tripping the
+ *  TS2589 depth cap. **/
+type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+
+/** The data-only projection of `T` — the exact shape `createIsType<T>()` /
+ *  `createGetTypeErrors<T>()` validate. It walks `T` and DROPS every member the
+ *  AOT emitter treats as non-data (see CLAUDE.md "isType contract — serializable
+ *  data only" + docs/UNSUPPORTED-KINDS.md):
+ *   - `DataOnlyStripped` kinds (symbol / function / constructor / promise /
+ *     `never`) → `never`;
+ *   - primitives, `Date`/`RegExp`/typed-array/native (+ augmented Temporal),
+ *     and `Map`/`Set` → kept verbatim;
+ *   - `any` / `unknown` (and broad `object`) → kept (the emitter best-effort
+ *     accepts the broad kinds — the validator emits `true`);
+ *   - arrays + tuples → recurse per element/slot, preserving array-ness, slot
+ *     order, and `readonly`/`?` modifiers;
+ *   - objects → recurse per property, dropping symbol-keyed and `never`-valued
+ *     (⊇ method) properties.
+ *
+ *  Implementation: NO `infer` — every arm is a bare `extends` test or a
+ *  homomorphic `{[K in keyof T]: …}` map (which preserves array/tuple structure
+ *  and `readonly`/`?` modifiers for free). `Map`/`Set` are kept verbatim rather
+ *  than recursed: they are validation-supported and their type args don't change
+ *  the validator's structural id in practice.
+ *
+ *  Recursion is BOUNDED by the `Depth` budget (`_DataOnlyDepth` decrement): a
+ *  self- or mutually-referential type resolves to a finite instantiation rather
+ *  than tripping TS's instantiation-depth cap (TS2589). Beyond the budget the
+ *  remaining sub-tree is kept as-is. 8 levels covers any realistic data shape.
+ *
+ *  Root-level non-data kinds (a bare function type, a `symbol`, a `Promise`)
+ *  collapse to `never` here, which the emitter renders as an always-throw
+ *  factory — those cases are intentionally `DataOnly`-divergent. **/
+export type DataOnly<T, Depth extends number = 8> = Depth extends 0
+  ? T // budget exhausted — keep the remaining sub-tree as-is (best effort)
+  : unknown extends T
+    ? T // any / unknown — keep the broad kinds
+    : T extends DataOnlyStripped
+      ? never // symbol / fn / ctor / thenable — strip
+      : T extends
+            | string
+            | number
+            | boolean
+            | bigint
+            | null
+            | undefined
+            | DataOnlyNative
+            | ReadonlyMap<any, any>
+            | ReadonlySet<any>
+        ? T // primitive / native (+ Temporal) / Map / Set (incl. readonly) — keep verbatim
+        : T extends readonly unknown[]
+          ? {-readonly [K in keyof T]: DataOnly<T[K], _DataOnlyDepth[Depth]>} // array + tuple
+          : T extends object
+            ? object extends T
+              ? T // broad `object` / `{}` — keep (the emitter accepts the broad kind)
+              : {
+                  // plain object — drop symbol keys + never-valued (⊇ method) props
+                  [K in keyof T as K extends symbol
+                    ? never
+                    : [DataOnly<T[K], _DataOnlyDepth[Depth]>] extends [never]
+                      ? never
+                      : K]: DataOnly<T[K], _DataOnlyDepth[Depth]>;
+                }
+            : T;
 
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
 
