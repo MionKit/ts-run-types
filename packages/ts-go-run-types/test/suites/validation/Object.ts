@@ -165,6 +165,16 @@ export const OBJECT = {
       return createValidate<DataOnly<ReturnType<typeof makeUser>>>();
     },
     validateSchema: () => createValidate(RT.object({id: RT.number(), name: RT.string()})),
+    // All REFLECT forms are opted out: a reflect thunk here would be
+    // `createValidate(makeUser())`, which INVOKES the factory at runtime purely to
+    // infer its type — the anti-pattern the resolver flags as a build-time warning
+    // (see description / validateNotes). The static `ReturnType<typeof fn>` form is
+    // the supported idiom; the vite-plugin diagnostic test covers the warning.
+    validateReflect: 'not-supported',
+    deserializeValidateReflect: 'not-supported',
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: 'not-supported',
     deserializeValidate: () => {
       function makeUser(): {id: number; name: string} {
         return {id: 1, name: 'john'};
@@ -1213,6 +1223,9 @@ export const OBJECT = {
     // emits a `typeof === 'function'` validator, so the ids cannot converge.
     dataOnlyDivergent: true,
     validate: () => createValidate<() => void>(),
+    // DataOnly<() => void> = never → an always-throw factory; the assert skips it
+    // (dataOnlyDivergent above), but the thunk is declared so the contract holds.
+    validateDataOnly: () => createValidate<DataOnly<() => void>>(),
     validateSchema: () => createValidate(RT.func()),
     deserializeValidate: () => deserializeValidate<() => void>(),
     validateReflect: () => {
@@ -1224,6 +1237,7 @@ export const OBJECT = {
       return deserializeValidate(v);
     },
     getValidationErrors: () => createGetValidationErrors<() => void>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<() => void>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.func()),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<() => void>(),
     getValidationErrorsReflect: () => {
@@ -1271,6 +1285,9 @@ export const OBJECT = {
     // validates it as a function-with-data-props. Ids cannot converge.
     dataOnlyDivergent: true,
     validate: () => createValidate<{(a: number, b: boolean): string; extra: string}>(),
+    // DataOnly collapses the call signature away → never; assert skips it
+    // (dataOnlyDivergent), the thunk is declared to satisfy the contract.
+    validateDataOnly: () => createValidate<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     validateSchema: () =>
       createValidate(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
     deserializeValidate: () => deserializeValidate<{(a: number, b: boolean): string; extra: string}>(),
@@ -1293,6 +1310,8 @@ export const OBJECT = {
       return deserializeValidate(v);
     },
     getValidationErrors: () => createGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<{(a: number, b: boolean): string; extra: string}>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{(a: number, b: boolean): string; extra: string}>(),

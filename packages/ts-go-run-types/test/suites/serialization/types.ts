@@ -11,6 +11,13 @@ export interface SerializationCase {
   title: string;
   description?: string;
 
+  /** User-facing notes about this case's serialization behavior — the
+   *  serialization counterpart of the validation suite's `validateNotes`.
+   *  Use it to explain a deliberate `'not-supported'` opt-out (e.g. a binary
+   *  or value-first-schema variant a case can't express) or any non-obvious
+   *  round-trip behavior. Single point → string; several → array. */
+  serializeNotes?: string | string[];
+
   /** Encoder thunks — one per `createJsonEncoder` strategy exercised by the
    *  suite (the field name IS the strategy):
    *  - `cloneEncoder` — strategy 'clone' (shape-derived clone, strips extras; default).
@@ -120,11 +127,15 @@ export interface SerializationCase {
   /** Binary encoder thunk for this case. Mirrors the structure of the
    *  JSON encoder thunks (full type setup inline so the marker plugin
    *  can inject the runtype hash at the call site). The adapter pairs
-   *  it with `binaryDecoder` for a deep-equal round-trip assertion. **/
-  binaryEncoder?: () => BinaryEncoderFn;
+   *  it with `binaryDecoder` for a deep-equal round-trip assertion.
+   *  REQUIRED on every case: supply a thunk, or the `'not-supported'`
+   *  sentinel to mark binary as a deliberate opt-out for this case
+   *  (explain the reason in `serializeNotes`). **/
+  binaryEncoder: SchemaThunk<BinaryEncoderFn>;
 
-  /** Binary decoder thunk. Must come paired with `binaryEncoder`. **/
-  binaryDecoder?: () => BinaryDecoderFn;
+  /** Binary decoder thunk. Paired with `binaryEncoder`. Same REQUIRED +
+   *  `'not-supported'` contract as `binaryEncoder`. **/
+  binaryDecoder: SchemaThunk<BinaryDecoderFn>;
 
   /** Override `factoryThrows` for binary alone. Use only when binary
    *  has a different unsupported-kind contract than JSON (e.g. a kind
@@ -153,10 +164,11 @@ export interface SerializationCase {
    *  every thunk stays self-contained + single-purpose (benchmarking, code
    *  extraction, doc-gen). The JSON pair uses the default strategy (clone
    *  encoder / strip decoder), mirroring `cloneEncoder` / `stripDecoder`.
-   *  `'not-supported'` when no `RT.*` builder can express the type; omit a field
-   *  entirely → the suite reports "(not implemented)" for that variant. **/
-  schemaEncoder?: SchemaThunk<JsonEncoderFn>;
-  schemaDecoder?: SchemaThunk<JsonDecoderFn>;
-  schemaBinaryEncoder?: SchemaThunk<BinaryEncoderFn>;
-  schemaBinaryDecoder?: SchemaThunk<BinaryDecoderFn>;
+   *  REQUIRED on every case: supply a thunk, or the `'not-supported'` sentinel
+   *  when no `RT.*` builder can express the type (note the reason in
+   *  `serializeNotes`). **/
+  schemaEncoder: SchemaThunk<JsonEncoderFn>;
+  schemaDecoder: SchemaThunk<JsonDecoderFn>;
+  schemaBinaryEncoder: SchemaThunk<BinaryEncoderFn>;
+  schemaBinaryDecoder: SchemaThunk<BinaryDecoderFn>;
 }

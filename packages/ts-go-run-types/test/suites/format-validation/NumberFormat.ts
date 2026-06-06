@@ -1,6 +1,14 @@
+// Reflect-form thunks author a value of the (now transparent) format type — a
+// trivial `0` suffices, since the value only drives `T` inference and is
+// discarded at runtime. The getValidationErrors reflect/deserialize forms are
+// `'not-supported'`: the format-validation runner exercises getValidationErrors
+// ONLY via the format-payload (`getValidationErrors/format`) and schema variants
+// (no exact-error table), so those call shapes add no format-specific coverage and
+// aren't registered — the sentinel keeps the required-thunk contract explicit.
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
 import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {deserializeValidate} from '../../util/deserializeRTFunctions.ts';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatNumber, FormatInteger, FormatFloat, FormatInt8, FormatUInt8} from '@mionjs/ts-go-run-types/formats';
 
@@ -8,6 +16,22 @@ export const NUMBER_FORMAT = {
   number_max: {
     title: 'FormatNumber<{max: 100}> — inclusive upper bound',
     validate: () => createValidate<FormatNumber<{max: 100}>>(),
+    validateReflect: () => {
+      const v: FormatNumber<{max: 100}> = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatNumber<{max: 100}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatNumber<{max: 100}> = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatNumber<{max: 100}> = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{max: 100}>>>(),
     validateSchema: () => createValidate(RT.number({max: 100})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{max: 100}>>(),
@@ -20,6 +44,22 @@ export const NUMBER_FORMAT = {
   number_min: {
     title: 'FormatNumber<{min: 0}> — inclusive lower bound',
     validate: () => createValidate<FormatNumber<{min: 0}>>(),
+    validateReflect: () => {
+      const v: FormatNumber<{min: 0}> = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatNumber<{min: 0}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatNumber<{min: 0}> = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatNumber<{min: 0}> = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{min: 0}>>>(),
     validateSchema: () => createValidate(RT.number({min: 0})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{min: 0}>>(),
@@ -32,6 +72,22 @@ export const NUMBER_FORMAT = {
   number_lt: {
     title: 'FormatNumber<{lt: 10}> — exclusive upper bound',
     validate: () => createValidate<FormatNumber<{lt: 10}>>(),
+    validateReflect: () => {
+      const v: FormatNumber<{lt: 10}> = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatNumber<{lt: 10}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatNumber<{lt: 10}> = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatNumber<{lt: 10}> = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{lt: 10}>>>(),
     validateSchema: () => createValidate(RT.number({lt: 10})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{lt: 10}>>(),
@@ -47,6 +103,22 @@ export const NUMBER_FORMAT = {
   number_gt: {
     title: 'FormatNumber<{gt: 0}> — exclusive lower bound',
     validate: () => createValidate<FormatNumber<{gt: 0}>>(),
+    validateReflect: () => {
+      const v: FormatNumber<{gt: 0}> = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatNumber<{gt: 0}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatNumber<{gt: 0}> = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatNumber<{gt: 0}> = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{gt: 0}>>>(),
     validateSchema: () => createValidate(RT.number({gt: 0})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{gt: 0}>>(),
@@ -62,6 +134,22 @@ export const NUMBER_FORMAT = {
   number_integer: {
     title: 'FormatInteger — whole numbers only',
     validate: () => createValidate<FormatInteger>(),
+    validateReflect: () => {
+      const v: FormatInteger = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatInteger>(),
+    deserializeValidateReflect: () => {
+      const v: FormatInteger = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatInteger = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatInteger>>(),
     validateSchema: () => createValidate(RT.integer()),
     getValidationErrors: () => createGetValidationErrors<FormatInteger>(),
@@ -77,6 +165,22 @@ export const NUMBER_FORMAT = {
   number_float: {
     title: 'FormatFloat — non-integer only',
     validate: () => createValidate<FormatFloat>(),
+    validateReflect: () => {
+      const v: FormatFloat = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatFloat>(),
+    deserializeValidateReflect: () => {
+      const v: FormatFloat = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatFloat = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatFloat>>(),
     validateSchema: () => createValidate(RT.float()),
     getValidationErrors: () => createGetValidationErrors<FormatFloat>(),
@@ -93,6 +197,22 @@ export const NUMBER_FORMAT = {
   number_multipleOf: {
     title: 'FormatNumber<{multipleOf: 5}> — divisible by 5',
     validate: () => createValidate<FormatNumber<{multipleOf: 5}>>(),
+    validateReflect: () => {
+      const v: FormatNumber<{multipleOf: 5}> = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatNumber<{multipleOf: 5}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatNumber<{multipleOf: 5}> = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatNumber<{multipleOf: 5}> = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{multipleOf: 5}>>>(),
     validateSchema: () => createValidate(RT.number({multipleOf: 5})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{multipleOf: 5}>>(),
@@ -108,6 +228,22 @@ export const NUMBER_FORMAT = {
   number_combined: {
     title: 'FormatNumber<{min:0; max:100; integer:true; multipleOf:5}> — all constraints',
     validate: () => createValidate<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    validateReflect: () => {
+      const v: FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}> = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
+    deserializeValidateReflect: () => {
+      const v: FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}> = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}> = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     validateSchema: () => createValidate(RT.number({min: 0, max: 100, integer: true, multipleOf: 5})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
@@ -126,6 +262,22 @@ export const NUMBER_FORMAT = {
   number_int8: {
     title: 'FormatInt8 — signed 8-bit range',
     validate: () => createValidate<FormatInt8>(),
+    validateReflect: () => {
+      const v: FormatInt8 = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatInt8>(),
+    deserializeValidateReflect: () => {
+      const v: FormatInt8 = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatInt8 = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatInt8>>(),
     validateSchema: () => createValidate(RT.int8()),
     getValidationErrors: () => createGetValidationErrors<FormatInt8>(),
@@ -142,6 +294,22 @@ export const NUMBER_FORMAT = {
   number_uint8: {
     title: 'FormatUInt8 — unsigned 8-bit range',
     validate: () => createValidate<FormatUInt8>(),
+    validateReflect: () => {
+      const v: FormatUInt8 = 0;
+      return createValidate(v);
+    },
+    deserializeValidate: () => deserializeValidate<FormatUInt8>(),
+    deserializeValidateReflect: () => {
+      const v: FormatUInt8 = 0;
+      return deserializeValidate(v);
+    },
+    getValidationErrorsReflect: 'not-supported',
+    deserializeGetValidationErrors: 'not-supported',
+    deserializeGetValidationErrorsReflect: 'not-supported',
+    mockTypeReflect: () => {
+      const v: FormatUInt8 = 0;
+      return createMockType(v);
+    },
     validateDataOnly: () => createValidate<DataOnly<FormatUInt8>>(),
     validateSchema: () => createValidate(RT.uint8()),
     getValidationErrors: () => createGetValidationErrors<FormatUInt8>(),
