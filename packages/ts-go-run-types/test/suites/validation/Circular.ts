@@ -1,6 +1,6 @@
 import type {ValidationCase} from './types.ts';
 import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/define';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const CIRCULAR = {

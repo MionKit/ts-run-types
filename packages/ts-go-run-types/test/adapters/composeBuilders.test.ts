@@ -8,10 +8,6 @@
 // kinds with NO format brand — so the value-first id equals the bare type-first
 // id. (A `string()` builder carries `FormatString<{}>`, which converges with
 // `FormatString<{}>`, not the bare `string`; behaviour is identical either way.)
-//
-// Per the CLAUDE.md marker-coverage rule the universal reflectors are covered in
-// BOTH forms — static `runType<T>()` and reflection `reflectRunType(value)` —
-// with a hash-equivalence assertion that both resolve to the same factory.
 
 import {describe, expect, it} from 'vitest';
 import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
@@ -27,8 +23,6 @@ import {
   boolean,
   literal,
   regexp,
-  runType,
-  reflectRunType,
   lazy,
   func,
   parameters,
@@ -43,7 +37,7 @@ import {
   nonNullable,
   readonly,
   returnType,
-} from '@mionjs/ts-go-run-types/define';
+} from '@mionjs/ts-go-run-types/schema';
 import type {RunType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
 
@@ -167,41 +161,7 @@ describe('leaf builders — literal / regexp', () => {
   });
 });
 
-describe('universal reflectors — runType / reflectRunType (both marker forms)', () => {
-  // STATIC form: caller supplies T explicitly.
-  it('runType<T>() reflects an arbitrary type', () => {
-    const isBoolArr = createIsType(runType<boolean[]>());
-    expect(isBoolArr([true])).toBe(true);
-    expect(isBoolArr(['x'])).toBe(false);
-  });
-
-  // REFLECTION form: T inferred from a runtime value.
-  it('reflectRunType(value) reflects T from the value', () => {
-    const sample: boolean[] = [true, false];
-    const isBoolArr = createIsType(reflectRunType(sample));
-    expect(isBoolArr([false])).toBe(true);
-    expect(isBoolArr([1])).toBe(false);
-  });
-
-  // Hash equivalence: both marker forms (and the type-first form) resolve to the
-  // SAME cached factory for equivalent T.
-  it('static and reflection forms resolve to the same factory', () => {
-    const fromStatic = createIsType(runType<boolean[]>());
-    const sample: boolean[] = [true];
-    const fromReflect = createIsType(reflectRunType(sample));
-    expect(fromStatic).toBe(fromReflect);
-    expect(fromStatic).toBe(createIsType<boolean[]>());
-  });
-
-  it('runType<T>() covers a utility type with no dedicated builder', () => {
-    const isPartial = createIsType(runType<Partial<{a: boolean; b: boolean}>>());
-    expect(isPartial({a: true})).toBe(true);
-    expect(isPartial({})).toBe(true);
-    expect(isPartial({a: 1})).toBe(false);
-  });
-});
-
-describe('compose builders — null member survives composition (TypeFromRT carrier)', () => {
+describe('compose builders — null member survives composition (Static carrier)', () => {
   // Regression: a bare-`T` carrier + `NonNullable` collapsed `literal(null)` to
   // `never`, silently dropping the null arm/slot/prop from union/tuple/object.
   it('union keeps the literal(null) arm and converges', () => {
