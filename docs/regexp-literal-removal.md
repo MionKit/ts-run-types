@@ -38,9 +38,9 @@ Runtime factory identity (`createValidate<T>()` returns the cached factory for `
 id, so `===` is id-equality):
 
 ```
-createValidate<typeof /abc/i>()  →  it_D1Bjh   ┐
-createValidate<typeof /xyz/>()   →  it_XNnRL   ├─ three DIFFERENT ids …
-createValidate<RegExp>()         →  it_kCssiW  ┘
+createValidate<typeof /abc/i>()  →  val_D1Bjh   ┐
+createValidate<typeof /xyz/>()   →  val_XNnRL   ├─ three DIFFERENT ids …
+createValidate<RegExp>()         →  val_kCssiW  ┘
 ```
 
 …even though `typeof /abc/i`, `typeof /xyz/`, and `RegExp` are **the same type** to
@@ -52,7 +52,7 @@ The divergence is **whole-type only**. A regex literal _nested_ in a member does
 
 ```
 createValidate<{r: typeof /abc/i}>()  ┐
-createValidate<{r: typeof /xyz/}>()   ├─ all the SAME id (it_e4m0Ms)
+createValidate<{r: typeof /xyz/}>()   ├─ all the SAME id (val_e4m0Ms)
 createValidate<{r: RegExp}>()         ┘
 ```
 

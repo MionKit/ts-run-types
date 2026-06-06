@@ -14,10 +14,10 @@ import (
 // a validator that accumulates RunTypeError entries into the third arg
 // `er` instead of returning a boolean. The factory shape it emits:
 //
-//	export function g_te_<hash>(utl){
+//	export function g_verr_<hash>(utl){
 //	  'use strict';
 //	  const nRT = utl.getPureFn(k_nRT); // k_nRT = 'mion::newRunTypeErr' (declared in skeleton)
-//	  return function te_<hash>(v,pth=[],er=[]){ <body>; return er }
+//	  return function verr_<hash>(v,pth=[],er=[]){ <body>; return er }
 //	}
 //
 // Mirrors `ValidateEmitter` (istype.go) but with the three-arg shape and
@@ -1030,7 +1030,7 @@ func emitTemplateLiteralValidationErrors(rt *protocol.RunType, ctx *EmitContext,
 
 // emitUnionValidationErrors mirrors mion's
 // nodes/collection/union.ts:emitTypeErrors. The validator delegates
-// to the validate boolean check — `if (!it_<hash>.fn(v)) <err>`.
+// to the validate boolean check — `if (!val_<hash>.fn(v)) <err>`.
 // Per-arm error breakdown is explicitly NOT a feature of mion's
 // validationErrors (mion's stance: a union failure is one error, not N).
 //
@@ -1041,7 +1041,7 @@ func emitTemplateLiteralValidationErrors(rt *protocol.RunType, ctx *EmitContext,
 // validationErrors entries), so a validationErrors entry can't satisfy an
 // validate dep ref. The runtime load order (validate cache → validationErrors
 // cache) means the entry is always populated by the time the
-// validationErrors closure invokes `utl.getRT('it_<hash>')`.
+// validationErrors closure invokes `utl.getRT('val_<hash>')`.
 func emitUnionValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	validateHash := operations.PlainHash("validate") + "_" + rt.ID
 	ctx.registerRTLookup(validateHash)

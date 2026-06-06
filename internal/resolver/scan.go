@@ -344,9 +344,9 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// Structural id resolution — purely a function of the resolved TS
 	// type. `ValidateOptions` (`noLiterals` / `noIsArrayCheck`) does NOT
 	// fold into the id; instead, the option set folds into the injected
-	// `fnId` variant suffix below (e.g. `itNL`, `itNA`) and the emitter
+	// `fnId` variant suffix below (e.g. `itNL`, `valNA`) and the emitter
 	// renders one factory per (typeid, fnId) pair under the canonical
-	// variant cache key (e.g. `itNL_<id>`, `itNA_<id>`). Same invariant
+	// variant cache key (e.g. `itNL_<id>`, `valNA_<id>`). Same invariant
 	// the encoder strategy / decoder strategy already honour. See
 	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
 	// `ValidateVariantSuffix` helper in internal/constants.
@@ -536,7 +536,7 @@ type validateOptions struct {
 // Names returns the option NAMES whose value is true, in the canonical
 // declaration order from `constants.ValidateOptions`. computeFnId feeds the
 // result to `constants.ResolveFnId` to build the injected fnId's variant
-// cache-key suffix (e.g. `itNL`, `itNA`). Empty when no option is set.
+// cache-key suffix (e.g. `itNL`, `valNA`). Empty when no option is set.
 func (opts validateOptions) Names() []string {
 	if !opts.NoLiterals && !opts.NoIsArrayCheck {
 		return nil

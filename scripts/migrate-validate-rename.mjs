@@ -71,7 +71,7 @@ function makeRules() {
   ];
   const B = [
     // tag-derived Go identifiers (exact)
-    {name: 'CrossFamilyItRoots', re: /\bCrossFamilyItRoots\b/g, rep: 'CrossFamilyValRoots'},
+    {name: 'CrossFamilyItRoots', re: /CrossFamilyItRoots/g, rep: 'CrossFamilyValRoots'},
     {name: 'itKey', re: /\bitKey\b/g, rep: 'valKey'},
     // var prefixes (longer first)
     {name: 'g_it_', re: /(?<![A-Za-z])g_it_/g, rep: 'g_val_'},
@@ -81,6 +81,9 @@ function makeRules() {
     // inner-fn / cross-family prefixes
     {name: 'it_', re: /(?<![A-Za-z])it_/g, rep: 'val_'},
     {name: 'te_', re: /(?<![A-Za-z])te_/g, rep: 'verr_'},
+    // quoted tag-as-disk-filename: "it.json" -> "val.json" (basename is the Tag)
+    {name: '"it.json"', re: /(['"])it\.json\1/g, rep: '$1val.json$1'},
+    {name: '"te.json"', re: /(['"])te\.json\1/g, rep: '$1verr.json$1'},
     // quoted bare tags: 'it' "it" (FnKey/FamilyTag/Tag/fnID/fallbackPrefix/markers/test asserts)
     {name: "'it'", re: /(['"])it\1/g, rep: '$1val$1'},
     {name: "'te'", re: /(['"])te\1/g, rep: '$1verr$1'},

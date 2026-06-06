@@ -111,8 +111,8 @@ The variant fan-out itself (§4) is independent and stays.
   pairs. One plain entry plus N variant entries per id.
 - **`renderEntryWithDeps`** — gained `variantSuffix string,
   variantOptions []string`. Cache key shape:
-  `<tag><suffix>_<id>` (e.g. `itNA_<id>`); variant factory's printed
-  name follows: `g_itNA_<id>`.
+  `<tag><suffix>_<id>` (e.g. `valNA_<id>`); variant factory's printed
+  name follows: `g_valNA_<id>`.
 - **`Walker.VariantOptions`** ([walker.go](../internal/compiled/typefns/walker.go))
   — new field; renderer primes it on the variant walker only.
   Emitters read via `EmitContext.HasVariantOption(name)`.

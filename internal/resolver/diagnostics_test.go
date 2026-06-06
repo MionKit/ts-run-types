@@ -229,7 +229,7 @@ export const _b = createBinaryEncoder<symbol>();
 		codes[d.Code] = true
 	}
 	// Each family emits its own Symbol-unsupported code.
-	for _, want := range []string{diag.CodeISSymbolRoot, diag.CodePJSymbolRoot, diag.CodeSJSymbolRoot, diag.CodeTBSymbolRoot} {
+	for _, want := range []string{diag.CodeVLSymbolRoot, diag.CodePJSymbolRoot, diag.CodeSJSymbolRoot, diag.CodeTBSymbolRoot} {
 		if !codes[want] {
 			t.Errorf("expected diagnostic %s to fire for symbol at root, got %v", want, codes)
 		}
@@ -265,7 +265,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 // visibility: when an interface has a function-typed member, the RT
 // silently drops it from the validator/serializer. The new diagnostic
 // surfaces that drop at build time so the user knows e.g. `onClick`
-// is not validated. The exact code (IT010 vs IT011) depends on whether
+// is not validated. The exact code (VL010 vs VL011) depends on whether
 // TypeScript parses the member as a method or a property — both flow
 // through the same family prefix (IT) so consumers can grep by prefix.
 func TestDiag_SilentSkip_FunctionMember_Validate(t *testing.T) {
@@ -285,7 +285,7 @@ export const _ = createValidate<User>();
 	var found *diag.Diagnostic
 	for _, d := range runtypeDiagsOf(resp.Diagnostics) {
 		switch d.Code {
-		case diag.CodeISFunctionPropDropped, diag.CodeISMethodDropped:
+		case diag.CodeVLFunctionPropDropped, diag.CodeVLMethodDropped:
 			d := d
 			found = &d
 		}
@@ -294,7 +294,7 @@ export const _ = createValidate<User>();
 		}
 	}
 	if found == nil {
-		t.Fatalf("expected IT010 or IT011 diagnostic, got %+v", resp.Diagnostics)
+		t.Fatalf("expected VL010 or VL011 diagnostic, got %+v", resp.Diagnostics)
 	}
 	if found.Severity != diag.SeverityWarning {
 		t.Errorf("severity: got %d want %d", found.Severity, diag.SeverityWarning)

@@ -129,7 +129,7 @@ type Walker struct {
 	// out across multiple walkers — one plain + one per option-tuple
 	// seen at any call site — so each emit produces a distinct cache
 	// entry keyed `<tag><variantSuffix>_<id>`. Root-scoped: child
-	// compiles dispatch through plain dep calls (`it_<childID>`) so the
+	// compiles dispatch through plain dep calls (`val_<childID>`) so the
 	// variant only changes the root's body. Empty when this walker
 	// emits the plain entry.
 	VariantOptions map[string]bool
@@ -167,7 +167,7 @@ type Walker struct {
 	// CrossFamilyDeps records the cross-family RT lookups this function
 	// reaches via registerRTLookup — childIDs whose family-tag prefix
 	// differs from this walker's own InnerPrefix (e.g. a prepareForJson /
-	// toBinary / validationErrors body referencing `it_<member>` for union
+	// toBinary / validationErrors body referencing `val_<member>` for union
 	// member discrimination). Same-family lookups already flow through
 	// RTDependencies and are NOT duplicated here. Unlike RTDependencies
 	// this list is NOT consumed by emission/topo decisions today — it is

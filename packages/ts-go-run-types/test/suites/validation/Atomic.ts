@@ -882,7 +882,7 @@ export const ATOMIC = {
   symbol: {
     title: 'Symbol primitive',
     validateNotes:
-      'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes IT002 / TE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
+      'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes VL002 / VE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
     validate: () => createValidate<symbol>(),
     validateDataOnly: () => createValidate<DataOnly<symbol>>(),
     // Bare symbol is unsupported at root — the value-first `RT.symbol()` resolves

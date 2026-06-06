@@ -226,7 +226,7 @@ func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
 }
 
 // FnKeyForInjectTypeFnArgs returns the Fn type-argument (the 2nd) of an
-// InjectTypeFnArgs<T, Fn> alias as its string-literal value (e.g. "it",
+// InjectTypeFnArgs<T, Fn> alias as its string-literal value (e.g. "val",
 // "jsonEncoder"). ok is false when paramType is not that alias, the spec is
 // absent, or the Fn arg isn't a string literal. Used by the scanner to compute
 // the precise fnId injected at a createX call site.

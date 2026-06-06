@@ -379,20 +379,20 @@ Fix:
   FB006: rootThrow('deserialise', SYMBOL_DETAIL, 'from binary'),
 
   // validate (IT) — root throws
-  IT001: rootThrow('validate', NON_SERIALIZABLE_DETAIL),
-  IT002: rootThrow('validate', SYMBOL_DETAIL),
+  VL001: rootThrow('validate', NON_SERIALIZABLE_DETAIL),
+  VL002: rootThrow('validate', SYMBOL_DETAIL),
 
   // validationErrors (TE) — root throws
-  TE001: rootThrow('validate', NON_SERIALIZABLE_DETAIL),
-  TE002: rootThrow('validate', SYMBOL_DETAIL),
+  VE001: rootThrow('validate', NON_SERIALIZABLE_DETAIL),
+  VE002: rootThrow('validate', SYMBOL_DETAIL),
 
   // ────────────── Child-position member drops (Warning) ──────────────
   // These don't throw — they silently exclude one member from the output.
   // See CLAUDE.md "validate contract" for the design rationale.
 
   // Function-typed property dropped (one entry per family, same shape)
-  IT010: dropFunctionProp('validate', 'validated'),
-  TE010: dropFunctionProp('validationErrors', 'checked'),
+  VL010: dropFunctionProp('validate', 'validated'),
+  VE010: dropFunctionProp('validationErrors', 'checked'),
   PJ010: dropFunctionProp('prepareForJson', 'encoded'),
   PJS010: dropFunctionProp('prepareForJsonSafe', 'encoded'),
   RJ010: dropFunctionProp('restoreFromJson', 'decoded'),
@@ -406,8 +406,8 @@ Fix:
   UKW010: dropFunctionProp('unknownKeysToUndefinedWire', 'cleared'),
 
   // Method dropped
-  IT011: dropMethod('validate', 'validated'),
-  TE011: dropMethod('validationErrors', 'checked'),
+  VL011: dropMethod('validate', 'validated'),
+  VE011: dropMethod('validationErrors', 'checked'),
   PJ011: dropMethod('prepareForJson', 'encoded'),
   PJS011: dropMethod('prepareForJsonSafe', 'encoded'),
   RJ011: dropMethod('restoreFromJson', 'decoded'),
@@ -416,8 +416,8 @@ Fix:
   FB011: dropMethod('fromBinary', 'deserialised'),
 
   // Static member dropped
-  IT012: dropStatic('validate', 'validated'),
-  TE012: dropStatic('validationErrors', 'checked'),
+  VL012: dropStatic('validate', 'validated'),
+  VE012: dropStatic('validationErrors', 'checked'),
   PJ012: dropStatic('prepareForJson', 'encoded'),
   PJS012: dropStatic('prepareForJsonSafe', 'encoded'),
   RJ012: dropStatic('restoreFromJson', 'decoded'),
@@ -426,8 +426,8 @@ Fix:
   FB012: dropStatic('fromBinary', 'deserialised'),
 
   // Symbol-keyed property dropped
-  IT013: dropSymbolKeyed('validate', 'validated'),
-  TE013: dropSymbolKeyed('validationErrors', 'checked'),
+  VL013: dropSymbolKeyed('validate', 'validated'),
+  VE013: dropSymbolKeyed('validationErrors', 'checked'),
   PJ013: dropSymbolKeyed('prepareForJson', 'encoded'),
   PJS013: dropSymbolKeyed('prepareForJsonSafe', 'encoded'),
   RJ013: dropSymbolKeyed('restoreFromJson', 'decoded'),
@@ -436,7 +436,7 @@ Fix:
   FB013: dropSymbolKeyed('fromBinary', 'deserialised'),
 
   // Root any/unknown — noop validator (Warning)
-  IT021: {
+  VL021: {
     headline: '`validate` on `any` / `unknown` always returns true — the validator accepts every value.',
     detail: `\`any\` and \`unknown\` describe "anything", so a structural validator has
 nothing to check. The resulting function passes for every input —
@@ -447,9 +447,9 @@ Fix — narrow the type to the actual shape you expect:
 +  const isUser = createValidate<User>();`,
   },
 
-  TE020: {
+  VE020: {
     headline: '`validationErrors` on `any` / `unknown` always returns an empty error array — nothing is checked.',
-    detail: `Same reason as IT021: \`any\` and \`unknown\` describe "anything", so the
+    detail: `Same reason as VL021: \`any\` and \`unknown\` describe "anything", so the
 checker has no structure to compare against. The returned error array
 will always be empty.
 

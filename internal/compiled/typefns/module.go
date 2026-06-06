@@ -59,7 +59,7 @@ type RenderOpts struct {
 	RefTable map[string]*protocol.RunType
 	// ExtraRoots seeds extra BARE type-ids as plain roots in the demand-driven
 	// path, in addition to the family's own call-site demand. Used ONLY for the
-	// `it` family: CrossFamilyItRoots collects the `it_<member>` cross-family
+	// `it` family: CrossFamilyValRoots collects the `val_<member>` cross-family
 	// edges every OTHER demanded family references (union decoders, validationErrors)
 	// and the resolver feeds the bare member ids here so `it`'s demand covers
 	// them even when no createValidate site requests them. Each id is rendered as a
@@ -69,7 +69,7 @@ type RenderOpts struct {
 	ExtraRoots []string
 	// CrossFamilySink, when non-nil, collects the surviving (post-dangling-
 	// cascade) entries' crossFamilyDeps after a render — the namespaced
-	// `it_<member>` lookups the demanded entries reference. CrossFamilyItRoots
+	// `val_<member>` lookups the demanded entries reference. CrossFamilyValRoots
 	// sets this on each NON-it family's collection pass to aggregate the edges
 	// that seed `it`'s ExtraRoots. Nil for normal renders (no behaviour change).
 	CrossFamilySink *[]string
@@ -86,7 +86,7 @@ type RenderOpts struct {
 }
 
 // familyOp recovers the operation that emits entries under a cache-module's
-// family Tag (e.g. "te" → the validationErrors operation). The fnHash naming scheme
+// family Tag (e.g. "verr" → the validationErrors operation). The fnHash naming scheme
 // derives every cache key from the operation registry, NEVER from settings.Tag,
 // so this lookup is the single bridge from a CacheModuleSettings to its hashes.
 // Panics on an unknown tag — every type-walking family in CacheModules has a
@@ -257,7 +257,7 @@ func FormatTransformModule(writer io.Writer, dump protocol.Dump, opts RenderOpts
 
 // familyConfig bundles the (settings, emitter, skeleton) triple that
 // uniquely identifies one cache family render. The per-family XxxModule
-// wrappers above each spell out the same triple inline; CrossFamilyItRoots
+// wrappers above each spell out the same triple inline; CrossFamilyValRoots
 // needs to iterate a SET of families, so it reuses this slice instead.
 type familyConfig struct {
 	settings constants.CacheModuleSettings
@@ -266,10 +266,10 @@ type familyConfig struct {
 }
 
 // crossFamilyItSourceFamilies lists every family whose render can reference an
-// `it_<member>` cross-family edge — i.e. every migrated function family EXCEPT
+// `val_<member>` cross-family edge — i.e. every migrated function family EXCEPT
 // `it` itself (the target), `runTypes` (reflection, no function body), and
-// `pureFns` (rendered by a different package). CrossFamilyItRoots renders each
-// of these demand-driven (output discarded) to harvest the `it_` edges they
+// `pureFns` (rendered by a different package). CrossFamilyValRoots renders each
+// of these demand-driven (output discarded) to harvest the `val_` edges they
 // keep, so the `it` family's demand covers the union decoders / validationErrors
 // child checks even when `it` is demand-scoped. Mirrors the family triples the
 // XxxModule wrappers above declare.
@@ -289,10 +289,10 @@ var crossFamilyItSourceFamilies = []familyConfig{
 	{constants.CacheModules["formatTransform"], FormatTransformEmitter{}, cachetpl.SkeletonFormatTransform},
 }
 
-// CrossFamilyItRoots renders every NON-it migrated family demand-driven (output
-// discarded) to collect the it_<member> cross-family edges they reference, and
+// CrossFamilyValRoots renders every NON-it migrated family demand-driven (output
+// discarded) to collect the val_<member> cross-family edges they reference, and
 // returns the bare member type-ids. Seeds the it family's demand so union
-// decoders / validationErrors find their it_ entries even when it is demand-scoped.
+// decoders / validationErrors find their val_ entries even when it is demand-scoped.
 //
 // The disk cache (opts.Store) is KEPT for these collection passes: as of
 // FormatVersion 2 each cached entry persists its cross-family edges as
@@ -301,7 +301,7 @@ var crossFamilyItSourceFamilies = []familyConfig{
 // without re-rendering all families on every it-cache build. DiagSink is nil'd
 // so the collection passes don't double-emit diagnostics the real validate render
 // (and the other families' real renders) already surface.
-func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
+func CrossFamilyValRoots(dump protocol.Dump, opts RenderOpts) []string {
 	var sink []string
 	for _, family := range crossFamilyItSourceFamilies {
 		collectOpts := opts
@@ -383,14 +383,14 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		line string
 		deps []string
 		// crossFamilyDeps mirrors entryRender.crossFamilyDeps — the
-		// cross-family `it_<member>`-style lookups this entry's body
+		// cross-family `val_<member>`-style lookups this entry's body
 		// reaches (see renderEntryWithDeps). Captured for a later
 		// demand-scoping step; NOT consulted by the dangling-dep cascade
 		// or topo sort below (those operate on same-family `deps` only).
 		crossFamilyDeps []string
 	}
 	// Entries are keyed by the namespaced JS cache hash (innerPrefix +
-	// runtype ID, e.g. "it_abc123"). Sharing this key with the
+	// runtype ID, e.g. "val_abc123"). Sharing this key with the
 	// init registration's first arg means downstream tooling
 	// (dangling-dep cascade, topo sort) operates on the same identifier
 	// the JS side sees in rtUtils.
@@ -422,7 +422,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	}
 
 	// enqueueChildren strips the inner prefix off each namespaced dependency
-	// hash (e.g. "it_abc" → "abc") so the demand worklist can resolve the child
+	// hash (e.g. "val_abc" → "abc") so the demand worklist can resolve the child
 	// RunType via refTable and render its (plain) factory.
 	enqueueChildren := func(deps []string, queued map[string]bool, queue *[]string) {
 		for _, dep := range deps {
@@ -472,11 +472,11 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 			}
 		}
 		// ExtraRoots seed plain roots beyond the family's own call sites — the
-		// cross-family `it_<member>` edges other families reference (it family
+		// cross-family `val_<member>` edges other families reference (it family
 		// only). Treated exactly like worklist roots so their transitive
 		// same-family closure is pulled too; deduped against the child queue.
 		// Sorted (copy) for the same determinism reason as the demand roots —
-		// CrossFamilyItRoots aggregates them from map-iterated sinks, so the
+		// CrossFamilyValRoots aggregates them from map-iterated sinks, so the
 		// incoming order is not stable.
 		extraRoots := append([]string(nil), opts.ExtraRoots...)
 		sort.Strings(extraRoots)
@@ -546,7 +546,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 
 	// Cross-family edge collection: after the dangling cascade (so dropped
 	// entries don't contribute stale edges), append every surviving entry's
-	// crossFamilyDeps to the sink. Drives CrossFamilyItRoots — the `it`
+	// crossFamilyDeps to the sink. Drives CrossFamilyValRoots — the `it`
 	// demand is seeded from the edges the OTHER demanded families actually
 	// keep. Nil sink (every normal render) is a no-op.
 	if opts.CrossFamilySink != nil {
@@ -638,11 +638,11 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]p
 // cache-module line. `line` is the `init(…);` statement (empty when the
 // entry is skipped — noop with no body to emit, or an unsupported leaf with
 // no per-family diag code). `deps` is the same-family rt-dependency hashes
-// (walker.RTDependencies, e.g. "it_<childHash>") that drive the dangling-dep
+// (walker.RTDependencies, e.g. "val_<childHash>") that drive the dangling-dep
 // cascade and topo sort. `crossFamilyDeps` is the distinct cross-family RT
 // lookups the body reaches (walker.CrossFamilyDeps, e.g. a prepareForJson /
-// toBinary / validationErrors entry referencing `it_<member>` to discriminate a
-// union member) — followed by the demand-scoping step (CrossFamilyItRoots)
+// toBinary / validationErrors entry referencing `val_<member>` to discriminate a
+// union member) — followed by the demand-scoping step (CrossFamilyValRoots)
 // into the referenced family; it is NOT consumed by any emission/topo decision
 // in this render. `crossFamilyDeps` is populated whether the entry came from a
 // fresh walk OR a disk-cache hit: as of FormatVersion 2 the edges are persisted
@@ -657,9 +657,9 @@ type entryRender struct {
 // renderEntryWithDeps compiles one RunType into its `init(…);` line
 // and returns the discovered dependency hashes alongside (see
 // entryRender). Inner
-// function name is `<innerPrefix><hash>` (e.g. "it_abc123"); the
+// function name is `<innerPrefix><hash>` (e.g. "val_abc123"); the
 // outer factory's debug name (`<VarPrefix><hash>`, e.g.
-// "g_it_abc123") is used only as the closure's printed name so
+// "g_val_abc123") is used only as the closure's printed name so
 // consumers see the same identity in stack traces. Noop bodies return
 // an empty line so the renderer skips them; consumers default to a
 // trivial fallback on the JS side.
@@ -690,7 +690,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			// cross-family edges were persisted as CrossFamilyRefs and
 			// rebuilt here (see tryReadCachedEntry / writeCachedEntry), so
 			// the hit returns the same crossFamilyDeps a fresh walk would —
-			// the demand-collection pass observes the it_<member> edges
+			// the demand-collection pass observes the val_<member> edges
 			// without re-rendering.
 			return entryRender{line: cachedLine, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps}
 		}
@@ -700,7 +700,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	walker.RefTable = refTable
 	// InnerPrefix lets dispatch namespace child cache keys consistently
 	// with the factory registration's first arg (innerName below).
-	// Variant walkers still set this to the plain tag (e.g. `it_`) so
+	// Variant walkers still set this to the plain tag (e.g. `val_`) so
 	// child deps resolve to the plain entries — the variant only
 	// changes the ROOT body, not its children.
 	walker.InnerPrefix = innerPrefix
@@ -868,7 +868,7 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 }
 
 // splitNamespacedHash splits a namespaced cache hash into its family
-// prefix (everything up to and including the first `_`, e.g. "it_") and
+// prefix (everything up to and including the first `_`, e.g. "val_") and
 // the bare hash (the rest). Reports ok=false when there is no `_`
 // separator — such an id can't be reconstructed as prefix+hash on read.
 func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok bool) {
@@ -887,10 +887,10 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 // re-attempt the write.
 //
 // deps here are the namespaced rt-dependency hashes
-// (walker.RTDependencies, e.g. "it_<childHash>"). We strip the prefix
+// (walker.RTDependencies, e.g. "val_<childHash>"). We strip the prefix
 // to recover the bare childHash and look up its structural id for the
 // ChildRefs record. crossFamilyDeps (walker.CrossFamilyDeps) are
-// foreign-prefixed namespaced hashes (e.g. `it_<member>` in a `tb` / `pj`
+// foreign-prefixed namespaced hashes (e.g. `val_<member>` in a `tb` / `pj`
 // entry); we split each into its prefix (up to and including the first
 // `_`) and bare hash, resolve the bare hash to its structural id, and
 // store the triple as a CrossFamilyRef. As with ChildRefs, an

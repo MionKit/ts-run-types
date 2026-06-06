@@ -208,21 +208,21 @@ func (FromBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var validateCodes = map[DiagSlot]string{
-	SlotNonSerializableRoot: diag.CodeISNonSerializableRoot,
-	SlotFunctionPropDropped: diag.CodeISFunctionPropDropped,
-	SlotMethodDropped:       diag.CodeISMethodDropped,
-	SlotStaticDropped:       diag.CodeISStaticDropped,
-	SlotSymbolKeyedDropped:  diag.CodeISSymbolKeyedDropped,
-	SlotRootAnyUnknown:      diag.CodeISRootAnyUnknown,
+	SlotNonSerializableRoot: diag.CodeVLNonSerializableRoot,
+	SlotFunctionPropDropped: diag.CodeVLFunctionPropDropped,
+	SlotMethodDropped:       diag.CodeVLMethodDropped,
+	SlotStaticDropped:       diag.CodeVLStaticDropped,
+	SlotSymbolKeyedDropped:  diag.CodeVLSymbolKeyedDropped,
+	SlotRootAnyUnknown:      diag.CodeVLRootAnyUnknown,
 }
 
 func (ValidateEmitter) DiagCodeFor(slot DiagSlot) string { return validateCodes[slot] }
 
 var validateRootCodes = rootCodeMap{
 	never:           "", // validate validates Never as "no inhabitants" — handled by existing never arm, not unsupported
-	nonSerializable: diag.CodeISNonSerializableRoot,
+	nonSerializable: diag.CodeVLNonSerializableRoot,
 	function:        "", // validate validates function-kinds as `typeof === 'function'` — supported
-	symbol:          diag.CodeISSymbolRoot,
+	symbol:          diag.CodeVLSymbolRoot,
 }
 
 func (ValidateEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
@@ -230,21 +230,21 @@ func (ValidateEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 }
 
 var validationErrorsCodes = map[DiagSlot]string{
-	SlotNonSerializableRoot: diag.CodeTENonSerializableRoot,
-	SlotFunctionPropDropped: diag.CodeTEFunctionPropDropped,
-	SlotMethodDropped:       diag.CodeTEMethodDropped,
-	SlotStaticDropped:       diag.CodeTEStaticDropped,
-	SlotSymbolKeyedDropped:  diag.CodeTESymbolKeyedDropped,
-	SlotRootAnyUnknown:      diag.CodeTERootAnyUnknown,
+	SlotNonSerializableRoot: diag.CodeVENonSerializableRoot,
+	SlotFunctionPropDropped: diag.CodeVEFunctionPropDropped,
+	SlotMethodDropped:       diag.CodeVEMethodDropped,
+	SlotStaticDropped:       diag.CodeVEStaticDropped,
+	SlotSymbolKeyedDropped:  diag.CodeVESymbolKeyedDropped,
+	SlotRootAnyUnknown:      diag.CodeVERootAnyUnknown,
 }
 
 func (ValidationErrorsEmitter) DiagCodeFor(slot DiagSlot) string { return validationErrorsCodes[slot] }
 
 var validationErrorsRootCodes = rootCodeMap{
 	never:           "",
-	nonSerializable: diag.CodeTENonSerializableRoot,
+	nonSerializable: diag.CodeVENonSerializableRoot,
 	function:        "",
-	symbol:          diag.CodeTESymbolRoot,
+	symbol:          diag.CodeVESymbolRoot,
 }
 
 func (ValidationErrorsEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {

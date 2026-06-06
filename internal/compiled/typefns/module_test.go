@@ -87,7 +87,7 @@ func TestValidateModule_SingleEntryShape(t *testing.T) {
 	// `function g_<hash>(utl){…}` declaration. Used by runtimes
 	// without `new Function` and by every body-shape test below.
 	out := renderToString(t, dump)
-	key := itKey("abc123")
+	key := valKey("abc123")
 	want := "init(" +
 		"'" + key + "'," +
 		"'string'," +
@@ -113,7 +113,7 @@ func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
 	out := renderToStringDefault(t, dump)
-	key := itKey("abc123")
+	key := valKey("abc123")
 	want := "init(" +
 		"'" + key + "'," +
 		"'string'," +
@@ -150,9 +150,9 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 		{"boolean", &protocol.RunType{ID: "boo", Kind: protocol.KindBoolean}, "return typeof v === 'boolean'", false},
 		{"bigint", &protocol.RunType{ID: "big", Kind: protocol.KindBigInt}, "return typeof v === 'bigint'", false},
 		// KindSymbol is unsupported at root — see docs/UNSUPPORTED-KINDS.md
-		// FAQ. Renderer emits an alwaysThrow factory keyed by IT002,
+		// FAQ. Renderer emits an alwaysThrow factory keyed by VL002,
 		// not a body-bearing validator.
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + itKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined,'IT002',undefined)", false},
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined,'VL002',undefined)", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -174,12 +174,12 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 				// isNoop and pre-sets `fn` to the family identity. Assert
 				// both: the short-form `init('<id>',...,undefined,true);`
 				// is present, AND no full createRTFn closure leaks in.
-				marker := "init('" + itKey(row.rt.ID) + "',"
+				marker := "init('" + valKey(row.rt.ID) + "',"
 				if !strings.Contains(out, marker) {
 					t.Errorf("noop kind %s expected short-form init line %q in:\n%s", row.name, marker, out)
 				}
-				if strings.Contains(out, "function g_"+itKey(row.rt.ID)) {
-					t.Errorf("noop kind %s should NOT emit a createRTFn closure, but found g_%s in:\n%s", row.name, itKey(row.rt.ID), out)
+				if strings.Contains(out, "function g_"+valKey(row.rt.ID)) {
+					t.Errorf("noop kind %s should NOT emit a createRTFn closure, but found g_%s in:\n%s", row.name, valKey(row.rt.ID), out)
 				}
 				return
 			}
@@ -311,9 +311,9 @@ func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{outer, inner}}
 	out := renderToString(t, dump)
 
-	innerKey := itKey("inn")
+	innerKey := valKey("inn")
 	innerFactory := "init('" + innerKey + "',"
-	outerFactory := "init('" + itKey("out") + "',"
+	outerFactory := "init('" + valKey("out") + "',"
 	innerIdx := strings.Index(out, innerFactory)
 	outerIdx := strings.Index(out, outerFactory)
 	if innerIdx < 0 {
@@ -338,9 +338,9 @@ func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 
 // TestValidateModule_ArrayNoIsArrayCheck — when a createValidate site requests the
 // `noIsArrayCheck` ValidateOptions variant for an array runtype, the
-// emitter fans out an extra `itNA_<id>` factory whose body omits the
+// emitter fans out an extra `valNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. A plain
-// createValidate site still emits the guarded `it_<id>` factory. Mirrors
+// createValidate site still emits the guarded `val_<id>` factory. Mirrors
 // mion's `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
 // demand-scoped: the scanner attaches each site's structured Demand, so the
 // plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
@@ -355,15 +355,15 @@ func TestValidateModule_ArrayNoIsArrayCheck(t *testing.T) {
 			},
 		},
 		Sites: []protocol.Site{
-			// Plain createValidate<T[]>() — demands the guarded `it_an1`.
-			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "it"}}},
+			// Plain createValidate<T[]>() — demands the guarded `val_an1`.
+			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val"}}},
 			// createValidate<T[]>(undefined, {noIsArrayCheck: true}) — demands
-			// the `itNA_an1` variant whose body omits the Array.isArray guard.
-			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "it", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
+			// the `valNA_an1` variant whose body omits the Array.isArray guard.
+			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "val", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
 		},
 	}
 	out := renderToString(t, dump)
-	plainKey := itKey("an1")
+	plainKey := valKey("an1")
 	variantKeyNA := itVariantKey([]string{"noIsArrayCheck"}, "an1")
 	// Plain `<itHash>_an1` factory MUST keep the guard — the variant key
 	// dispatch is the only path that strips it.
@@ -382,10 +382,10 @@ func TestValidateModule_ArrayNoIsArrayCheck(t *testing.T) {
 		t.Fatalf("no init('%s', …) line found in:\n%s", variantKeyNA, out)
 	}
 	if strings.Contains(variantLine, "Array.isArray") {
-		t.Errorf("itNA variant must omit `Array.isArray(…)` guard, got:\n%s", variantLine)
+		t.Errorf("valNA variant must omit `Array.isArray(…)` guard, got:\n%s", variantLine)
 	}
 	if !strings.Contains(variantLine, "for (let i0 = 0;") {
-		t.Errorf("itNA variant must still emit element loop, got:\n%s", variantLine)
+		t.Errorf("valNA variant must still emit element loop, got:\n%s", variantLine)
 	}
 }
 
@@ -437,7 +437,7 @@ func TestValidateModule_InterfaceEmitBody(t *testing.T) {
 	}
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propA, propB, stringRT, numberRT}}
 	out := renderToString(t, dump)
-	if !strings.Contains(out, "init('"+itKey("if1")+"',") {
+	if !strings.Contains(out, "init('"+valKey("if1")+"',") {
 		t.Fatalf("interface factory missing in:\n%s", out)
 	}
 	want := "(typeof v === 'object' && v !== null && typeof v.a === 'string' && Number.isFinite(v.b))"
@@ -682,13 +682,13 @@ func TestValidateModule_UnsupportedKindSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if strings.Contains(out, "'"+itKey("u1")+"'") {
+	if strings.Contains(out, "'"+valKey("u1")+"'") {
 		t.Error("empty KindUnion should be skipped (unsupported), but u1 was rendered")
 	}
-	if strings.Contains(out, "'"+itKey("x1")+"'") {
+	if strings.Contains(out, "'"+valKey("x1")+"'") {
 		t.Error("KindIntersection should be skipped (unsupported), but x1 was rendered")
 	}
-	if !strings.Contains(out, "init('"+itKey("s1")+"',") {
+	if !strings.Contains(out, "init('"+valKey("s1")+"',") {
 		t.Errorf("KindString should be rendered as factory call, got:\n%s", out)
 	}
 }
@@ -715,10 +715,10 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{arr, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "init('"+itKey("ar1")+"',") {
+		if strings.Contains(out, "init('"+valKey("ar1")+"',") {
 			t.Errorf("array with unsupported child must be skipped, got:\n%s", out)
 		}
-		if !strings.Contains(out, "init('"+itKey("str")+"',") {
+		if !strings.Contains(out, "init('"+valKey("str")+"',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)
 		}
 	})
@@ -752,7 +752,7 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{iface, propUns, propOk, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('"+itKey("if1")+"',") {
+		if !strings.Contains(out, "init('"+valKey("if1")+"',") {
 			t.Errorf("object with one unsupported property must still render (absorption), got:\n%s", out)
 		}
 		// The body must NOT reference the dropped property's accessor.
@@ -776,7 +776,7 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{un, unsupportedLeaf, stringRT}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "init('"+itKey("un1")+"',") {
+		if strings.Contains(out, "init('"+valKey("un1")+"',") {
 			t.Errorf("union with one unsupported member must be skipped, got:\n%s", out)
 		}
 	})
@@ -798,10 +798,10 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{outerArr, innerArr, unsupportedLeaf}}
 		out := renderToString(t, dump)
-		if strings.Contains(out, "init('"+itKey("ao")+"',") {
+		if strings.Contains(out, "init('"+valKey("ao")+"',") {
 			t.Errorf("outer array of unsupported must be skipped, got:\n%s", out)
 		}
-		if strings.Contains(out, "init('"+itKey("ai")+"',") {
+		if strings.Contains(out, "init('"+valKey("ai")+"',") {
 			t.Errorf("inner array of unsupported must be skipped, got:\n%s", out)
 		}
 	})
@@ -814,14 +814,14 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('"+itKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,'IT001',undefined)") {
-			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code IT001, got:\n%s", out)
+		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,'VL001',undefined)") {
+			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code VL001, got:\n%s", out)
 		}
 		// No inline throwing function body should remain.
 		if strings.Contains(out, "throw new Error(") {
 			t.Errorf("v2 wire format should not embed throw-body strings, got:\n%s", out)
 		}
-		if !strings.Contains(out, "init('"+itKey("str")+"',") {
+		if !strings.Contains(out, "init('"+valKey("str")+"',") {
 			t.Errorf("supported sibling must still render, got:\n%s", out)
 		}
 	})
@@ -836,7 +836,7 @@ func TestValidateModule_NilRunTypeSkipped(t *testing.T) {
 		},
 	}
 	out := renderToString(t, dump)
-	if !strings.Contains(out, "init('"+itKey("s1")+"',") {
+	if !strings.Contains(out, "init('"+valKey("s1")+"',") {
 		t.Error("nil entries should be skipped without affecting the real one")
 	}
 }

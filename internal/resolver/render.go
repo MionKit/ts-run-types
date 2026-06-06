@@ -121,13 +121,13 @@ func renderRunTypesModule(dump protocol.Dump) (string, error) {
 // for KindString; other kinds are silently skipped (see typefns.ValidateModule).
 func renderValidateModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
 	// `it` is demand-scoped like every function family, so a createValidate
-	// site alone doesn't pull the `it_<member>` entries the JSON/binary union
+	// site alone doesn't pull the `val_<member>` entries the JSON/binary union
 	// decoders + validationErrors child checks reference at runtime. Seed those
 	// missing roots from the cross-family edges the OTHER demanded families keep
-	// — CrossFamilyItRoots renders them (Store-bypassed so the walker always
+	// — CrossFamilyValRoots renders them (Store-bypassed so the walker always
 	// runs) and returns the bare member ids. The createValidate-site demand is
 	// still handled by the normal demand path inside ValidateModule.
-	opts.ExtraRoots = typefns.CrossFamilyItRoots(dump, opts)
+	opts.ExtraRoots = typefns.CrossFamilyValRoots(dump, opts)
 	return renderToString("renderValidateModule", func(w io.Writer) error {
 		return typefns.ValidateModule(w, dump, opts)
 	})

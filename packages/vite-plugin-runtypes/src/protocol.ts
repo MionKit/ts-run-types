@@ -449,7 +449,7 @@ export interface DiagnosticRelated extends DiagnosticSite {
 // Diagnostic mirrors the Go-side diag.Diagnostic. The Family
 // discriminator tells the consumer which subsystem produced it (purefn
 // extractor, marker scanner, runtype RT compiler); the Code is the
-// stable identifier (PFE9004, CTA001, PFN001, IT010, SJ001, …) and Severity
+// stable identifier (PFE9004, CTA001, PFN001, VL010, SJ001, …) and Severity
 // classifies impact.
 //
 // The user-facing message is NOT carried on the wire. Per-code message

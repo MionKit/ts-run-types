@@ -59,7 +59,7 @@ for _, runType := range dump.RunTypes {            // every interned id
   handle."*
 - The only thing keyed off actual call sites is the **variant** fan-out
   (`collectValidateVariants(dump.Sites)`) — i.e. `ValidateOptions` tuples like
-  `itNA_<id>`. Base factories are not call-site-driven at all.
+  `valNA_<id>`. Base factories are not call-site-driven at all.
 
 ### Dimension B — families: all eagerly wired
 
@@ -139,8 +139,8 @@ on the `Dump`.
 
 ### 3.2 Close over dependencies (per family)
 
-A validator references its children's factories by id — `it_<string[]>`
-calls `it_<string>`. So a demanded `(it, string[])` requires `(it, string)`
+A validator references its children's factories by id — `val_<string[]>`
+calls `val_<string>`. So a demanded `(it, string[])` requires `(it, string)`
 too. `renderEntryWithDeps` already returns each entry's `deps`; seed the
 worklist from the demand set and transitively pull in referenced child
 ids **within the same family**. The closure is still vastly smaller than
@@ -165,7 +165,7 @@ family. Options, roughly in order of effort:
 2. Have the plugin emit a single manifest of used families and gate the
    eager-init block on it.
 
-The cache-key scheme (`it_<id>`, `itNA_<id>`, …) and `getRT(key)` lookups
+The cache-key scheme (`val_<id>`, `valNA_<id>`, …) and `getRT(key)` lookups
 are unchanged — we stop *emitting* unreferenced keys, not rename them.
 
 ## 4. Design points & edge cases
