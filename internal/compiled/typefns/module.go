@@ -50,10 +50,10 @@ type RenderOpts struct {
 	EmitCreateRTFn bool
 	// RefTable resolves child ref ids to their RunType during a render. When
 	// non-nil it is used instead of an index built from dump.RunTypes — the
-	// resolver passes the FULL session cache here so a demand-gated render
-	// (whose dump.RunTypes is a per-request projection) can always resolve a
-	// demanded type's children, even ones interned via a different file.
-	// Nil falls back to indexing dump.RunTypes (the module_test shape).
+	// resolver passes the FULL session cache here so a render whose dump.RunTypes
+	// is a per-request projection (the scanFiles scope) can always resolve a
+	// root's children, even ones interned while scanning a different file. Nil
+	// falls back to indexing dump.RunTypes (the module_test shape).
 	RefTable map[string]*protocol.RunType
 }
 
@@ -269,8 +269,8 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	// child slot as a ref (`{kind: -1, id: …}`) per protocol.go;
 	// without the table the walker would dispatch on the ref's
 	// placeholder kind and panic. opts.RefTable (the full session cache)
-	// wins when provided so a demand-gated render resolves children that
-	// the per-request dump.RunTypes projection may not contain.
+	// wins when provided so a render resolves children that the per-request
+	// dump.RunTypes projection may not contain.
 	refTable := opts.RefTable
 	if refTable == nil {
 		refTable = make(map[string]*protocol.RunType, len(dump.RunTypes))

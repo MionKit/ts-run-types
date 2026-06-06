@@ -40,10 +40,10 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 }
 
 // fullRefTable indexes every interned RunType by id for the typefns renderers.
-// A demand-gated render seeds its roots from the (possibly scoped) demand set
-// but must resolve those roots' children against the FULL session cache — a
-// demanded type can reference children interned while scanning a different
-// file. Built once per dispatch and shared across every family render.
+// A render seeds its roots from the (possibly scoped) dump but must resolve those
+// roots' child KindRef sentinels against the FULL session cache — a root can
+// reference children interned while scanning a different file. Built once per
+// dispatch and shared across every family render.
 func (resolver *Resolver) fullRefTable() map[string]*protocol.RunType {
 	if resolver == nil || resolver.cache == nil {
 		return nil
