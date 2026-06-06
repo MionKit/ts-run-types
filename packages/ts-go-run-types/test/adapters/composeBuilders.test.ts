@@ -1,6 +1,6 @@
 // End-to-end proof that the value-first COMPOSER + reflection builders lower to
 // the same precompiled RunType graph the type-first surface produces. Each
-// builder is fed to `createIsTypeFor` (schema form) and asserted against
+// builder is fed to `createIsType` (schema form) and asserted against
 // valid/invalid samples; convergence is asserted with `.toBe` against the
 // equivalent `createIsType<T>()` (same structural id ⇒ same cached factory).
 //
@@ -14,7 +14,7 @@
 // with a hash-equivalence assertion that both resolve to the same factory.
 
 import {describe, expect, it} from 'vitest';
-import {createIsType, createIsTypeFor, createTypeErrorsFor} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors} from '@mionjs/ts-go-run-types';
 import {
   array,
   tuple,
@@ -49,7 +49,7 @@ import '@mionjs/ts-go-run-types/formats';
 
 describe('compose builders — array', () => {
   it('validates and converges with the type-first array', () => {
-    const isBoolArr = createIsTypeFor(array(boolean()));
+    const isBoolArr = createIsType(array(boolean()));
     expect(isBoolArr([true, false])).toBe(true);
     expect(isBoolArr([])).toBe(true);
     expect(isBoolArr([true, 1])).toBe(false);
@@ -59,7 +59,7 @@ describe('compose builders — array', () => {
   });
 
   it('validates a string-format element array', () => {
-    const isStrArr = createIsTypeFor(array(string()));
+    const isStrArr = createIsType(array(string()));
     expect(isStrArr(['a', 'b'])).toBe(true);
     expect(isStrArr([1])).toBe(false);
   });
@@ -67,7 +67,7 @@ describe('compose builders — array', () => {
 
 describe('compose builders — tuple', () => {
   it('validates a fixed [string, number] tuple', () => {
-    const isPair = createIsTypeFor(tuple([string(), number()]));
+    const isPair = createIsType(tuple([string(), number()]));
     expect(isPair(['a', 1])).toBe(true);
     expect(isPair(['a', 'b'])).toBe(false);
     expect(isPair(['a'])).toBe(false);
@@ -75,13 +75,13 @@ describe('compose builders — tuple', () => {
   });
 
   it('converges with the type-first tuple (boolean elements)', () => {
-    expect(createIsTypeFor(tuple([boolean(), boolean()]))).toBe(createIsType<[boolean, boolean]>());
+    expect(createIsType(tuple([boolean(), boolean()]))).toBe(createIsType<[boolean, boolean]>());
   });
 });
 
 describe('compose builders — tuple with rest', () => {
   it('validates [number, ...string[]]', () => {
-    const isRest = createIsTypeFor(tuple([number()], string()));
+    const isRest = createIsType(tuple([number()], string()));
     expect(isRest([1])).toBe(true);
     expect(isRest([1, 'a', 'b'])).toBe(true);
     expect(isRest([1, 'a', 2])).toBe(false); // rest element must be string
@@ -90,13 +90,13 @@ describe('compose builders — tuple with rest', () => {
   });
 
   it('converges with the type-first rest tuple (boolean head + boolean rest)', () => {
-    expect(createIsTypeFor(tuple([boolean()], boolean()))).toBe(createIsType<[boolean, ...boolean[]]>());
+    expect(createIsType(tuple([boolean()], boolean()))).toBe(createIsType<[boolean, ...boolean[]]>());
   });
 });
 
 describe('compose builders — union', () => {
   it('validates and converges with the type-first union', () => {
-    const isBoolOrLit = createIsTypeFor(union([boolean(), literal('x')]));
+    const isBoolOrLit = createIsType(union([boolean(), literal('x')]));
     expect(isBoolOrLit(true)).toBe(true);
     expect(isBoolOrLit('x')).toBe(true);
     expect(isBoolOrLit('y')).toBe(false);
@@ -106,9 +106,7 @@ describe('compose builders — union', () => {
   });
 
   it('validates a discriminated union of objects', () => {
-    const isShape = createIsTypeFor(
-      union([object({kind: literal('a'), n: number()}), object({kind: literal('b'), s: string()})])
-    );
+    const isShape = createIsType(union([object({kind: literal('a'), n: number()}), object({kind: literal('b'), s: string()})]));
     expect(isShape({kind: 'a', n: 1})).toBe(true);
     expect(isShape({kind: 'b', s: 'hi'})).toBe(true);
     expect(isShape({kind: 'a', s: 'hi'})).toBe(false);
@@ -117,7 +115,7 @@ describe('compose builders — union', () => {
 
 describe('compose builders — intersection', () => {
   it('validates the merged object and converges', () => {
-    const isMerged = createIsTypeFor(intersection(object({a: boolean()}), object({b: boolean()})));
+    const isMerged = createIsType(intersection(object({a: boolean()}), object({b: boolean()})));
     expect(isMerged({a: true, b: false})).toBe(true);
     expect(isMerged({a: true})).toBe(false);
     expect(isMerged({b: false})).toBe(false);
@@ -128,7 +126,7 @@ describe('compose builders — intersection', () => {
 
 describe('compose builders — record', () => {
   it('validates a string-index record and converges', () => {
-    const isRec = createIsTypeFor(record(boolean()));
+    const isRec = createIsType(record(boolean()));
     expect(isRec({x: true, y: false})).toBe(true);
     expect(isRec({})).toBe(true);
     expect(isRec({x: 1})).toBe(false);
@@ -138,31 +136,31 @@ describe('compose builders — record', () => {
 });
 
 describe('compose builders — object (now RunType<T>)', () => {
-  it('validates via createIsTypeFor and converges with type-first', () => {
-    const isObj = createIsTypeFor(object({a: boolean(), b: number()}));
+  it('validates via createIsType and converges with type-first', () => {
+    const isObj = createIsType(object({a: boolean(), b: number()}));
     expect(isObj({a: true, b: 1})).toBe(true);
     expect(isObj({a: true, b: 'x'})).toBe(false);
     expect(isObj({a: true})).toBe(false);
     // the object-of-boolean half converges with the bare type-first object
-    expect(createIsTypeFor(object({a: boolean()}))).toBe(createIsType<{a: boolean}>());
+    expect(createIsType(object({a: boolean()}))).toBe(createIsType<{a: boolean}>());
   });
 });
 
 describe('leaf builders — literal / regexp', () => {
   it('literal(value) validates and converges per literal kind', () => {
-    expect(createIsTypeFor(literal('a'))('a')).toBe(true);
-    expect(createIsTypeFor(literal('a'))('b')).toBe(false);
-    expect(createIsTypeFor(literal(true))(true)).toBe(true);
-    expect(createIsTypeFor(literal(true))(false)).toBe(false);
-    expect(createIsTypeFor(literal(42))(42)).toBe(true);
-    expect(createIsTypeFor(literal(42))(43)).toBe(false);
+    expect(createIsType(literal('a'))('a')).toBe(true);
+    expect(createIsType(literal('a'))('b')).toBe(false);
+    expect(createIsType(literal(true))(true)).toBe(true);
+    expect(createIsType(literal(true))(false)).toBe(false);
+    expect(createIsType(literal(42))(42)).toBe(true);
+    expect(createIsType(literal(42))(43)).toBe(false);
     // convergence with the type-first literal types
-    expect(createIsTypeFor(literal('a'))).toBe(createIsType<'a'>());
-    expect(createIsTypeFor(literal(true))).toBe(createIsType<true>());
+    expect(createIsType(literal('a'))).toBe(createIsType<'a'>());
+    expect(createIsType(literal(true))).toBe(createIsType<true>());
   });
 
   it('regexp() validates RegExp instances and converges', () => {
-    const isRe = createIsTypeFor(regexp());
+    const isRe = createIsType(regexp());
     expect(isRe(/x/)).toBe(true);
     expect(isRe('x')).toBe(false);
     expect(isRe).toBe(createIsType<RegExp>());
@@ -172,7 +170,7 @@ describe('leaf builders — literal / regexp', () => {
 describe('universal reflectors — runType / reflectRunType (both marker forms)', () => {
   // STATIC form: caller supplies T explicitly.
   it('runType<T>() reflects an arbitrary type', () => {
-    const isBoolArr = createIsTypeFor(runType<boolean[]>());
+    const isBoolArr = createIsType(runType<boolean[]>());
     expect(isBoolArr([true])).toBe(true);
     expect(isBoolArr(['x'])).toBe(false);
   });
@@ -180,7 +178,7 @@ describe('universal reflectors — runType / reflectRunType (both marker forms)'
   // REFLECTION form: T inferred from a runtime value.
   it('reflectRunType(value) reflects T from the value', () => {
     const sample: boolean[] = [true, false];
-    const isBoolArr = createIsTypeFor(reflectRunType(sample));
+    const isBoolArr = createIsType(reflectRunType(sample));
     expect(isBoolArr([false])).toBe(true);
     expect(isBoolArr([1])).toBe(false);
   });
@@ -188,15 +186,15 @@ describe('universal reflectors — runType / reflectRunType (both marker forms)'
   // Hash equivalence: both marker forms (and the type-first form) resolve to the
   // SAME cached factory for equivalent T.
   it('static and reflection forms resolve to the same factory', () => {
-    const fromStatic = createIsTypeFor(runType<boolean[]>());
+    const fromStatic = createIsType(runType<boolean[]>());
     const sample: boolean[] = [true];
-    const fromReflect = createIsTypeFor(reflectRunType(sample));
+    const fromReflect = createIsType(reflectRunType(sample));
     expect(fromStatic).toBe(fromReflect);
     expect(fromStatic).toBe(createIsType<boolean[]>());
   });
 
   it('runType<T>() covers a utility type with no dedicated builder', () => {
-    const isPartial = createIsTypeFor(runType<Partial<{a: boolean; b: boolean}>>());
+    const isPartial = createIsType(runType<Partial<{a: boolean; b: boolean}>>());
     expect(isPartial({a: true})).toBe(true);
     expect(isPartial({})).toBe(true);
     expect(isPartial({a: 1})).toBe(false);
@@ -207,7 +205,7 @@ describe('compose builders — null member survives composition (TypeFromRT carr
   // Regression: a bare-`T` carrier + `NonNullable` collapsed `literal(null)` to
   // `never`, silently dropping the null arm/slot/prop from union/tuple/object.
   it('union keeps the literal(null) arm and converges', () => {
-    const isBoolOrNull = createIsTypeFor(union([boolean(), literal(null)]));
+    const isBoolOrNull = createIsType(union([boolean(), literal(null)]));
     expect(isBoolOrNull(true)).toBe(true);
     expect(isBoolOrNull(null)).toBe(true);
     expect(isBoolOrNull(undefined)).toBe(false);
@@ -215,14 +213,14 @@ describe('compose builders — null member survives composition (TypeFromRT carr
   });
 
   it('object keeps a null-typed property', () => {
-    const isObj = createIsTypeFor(object({a: literal(null), b: boolean()}));
+    const isObj = createIsType(object({a: literal(null), b: boolean()}));
     expect(isObj({a: null, b: true})).toBe(true);
     expect(isObj({a: undefined, b: true})).toBe(false);
     expect(isObj).toBe(createIsType<{a: null; b: boolean}>());
   });
 
   it('tuple keeps a null slot', () => {
-    const isTup = createIsTypeFor(tuple([boolean(), literal(null)]));
+    const isTup = createIsType(tuple([boolean(), literal(null)]));
     expect(isTup([true, null])).toBe(true);
     expect(isTup([true, undefined])).toBe(false);
     expect(isTup).toBe(createIsType<[boolean, null]>());
@@ -236,7 +234,7 @@ describe('compose builders — lazy (recursive self-reference)', () => {
       next: LNode | null;
     }
     const LNodeSchema: RunType<LNode> = object({value: number(), next: union([lazy(() => LNodeSchema), literal(null)])});
-    const isNode = createIsTypeFor(LNodeSchema);
+    const isNode = createIsType(LNodeSchema);
     expect(isNode({value: 1, next: null})).toBe(true);
     expect(isNode({value: 1, next: {value: 2, next: null}})).toBe(true);
     expect(isNode({value: 1, next: {value: 2, next: {value: 3, next: null}}})).toBe(true);
@@ -246,8 +244,8 @@ describe('compose builders — lazy (recursive self-reference)', () => {
 });
 
 describe('compose builders — getTypeErrors schema form', () => {
-  it('createTypeErrorsFor returns [] for valid, non-empty for invalid', () => {
-    const errs = createTypeErrorsFor(array(boolean()));
+  it('createGetTypeErrors returns [] for valid, non-empty for invalid', () => {
+    const errs = createGetTypeErrors(array(boolean()));
     expect(errs([true, false])).toEqual([]);
     expect(errs([1]).length).toBeGreaterThan(0);
   });
@@ -255,7 +253,7 @@ describe('compose builders — getTypeErrors schema form', () => {
 
 describe('compose builders — parameters (Parameters<F>) + func tuple-overload', () => {
   it('extracts a fixed param tuple and converges (brand-free)', () => {
-    const isPair = createIsTypeFor(parameters(func([boolean(), boolean()])));
+    const isPair = createIsType(parameters(func([boolean(), boolean()])));
     expect(isPair([true, false])).toBe(true);
     expect(isPair([true])).toBe(false);
     expect(isPair([true, 1])).toBe(false);
@@ -264,7 +262,7 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
   });
 
   it('keeps a trailing-optional param via the func tuple-overload and converges', () => {
-    const isOpt = createIsTypeFor(parameters(func(tuple([boolean()], [boolean()]))));
+    const isOpt = createIsType(parameters(func(tuple([boolean()], [boolean()]))));
     expect(isOpt([true])).toBe(true);
     expect(isOpt([true, false])).toBe(true);
     expect(isOpt([true, 1])).toBe(false);
@@ -275,7 +273,7 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
     // Head ≠ rest type (number head, string rest) so the rest segment is exercised
     // distinctly; number()/string() carry a format brand so this asserts behavior,
     // not `.toBe`. Same shape the call_signature_params_with_rest case proves.
-    const isRest = createIsTypeFor(parameters(func(tuple([number()], string()))));
+    const isRest = createIsType(parameters(func(tuple([number()], string()))));
     expect(isRest([1])).toBe(true); // head only, zero rest
     expect(isRest([1, 'a', 'b'])).toBe(true);
     expect(isRest([1, 'a', 2])).toBe(false); // rest element must be string
@@ -283,7 +281,7 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
   });
 
   it('validates realistic (branded) params behaviorally — mirrors call_signature_params', () => {
-    const isArgs = createIsTypeFor(parameters(func([number(), boolean()], string())));
+    const isArgs = createIsType(parameters(func([number(), boolean()], string())));
     expect(isArgs([1, true])).toBe(true);
     expect(isArgs([1, 'no'])).toBe(false);
     expect(isArgs(['no', true])).toBe(false);
@@ -292,7 +290,7 @@ describe('compose builders — parameters (Parameters<F>) + func tuple-overload'
 
 describe('compose builders — record key (string | number | template-literal)', () => {
   it('validates a template-literal-keyed record and converges', () => {
-    const isApi = createIsTypeFor(record(templateLiteral(['api/', string()]), boolean()));
+    const isApi = createIsType(record(templateLiteral(['api/', string()]), boolean()));
     expect(isApi({'api/users': true})).toBe(true);
     expect(isApi({})).toBe(true);
     expect(isApi({'api/users': 1})).toBe(false); // value must be boolean
@@ -303,66 +301,62 @@ describe('compose builders — record key (string | number | template-literal)',
 
 describe('utility builders — convergence with type-first', () => {
   // Each utility builder brands the RESOLVED stdlib utility type, so `.toBe`
-  // (reference identity ⇒ same structural id) proves `createIsTypeFor(partial(model))`
+  // (reference identity ⇒ same structural id) proves `createIsType(partial(model))`
   // lands on the SAME cached factory as the type-first `createIsType<Partial<T>>()`.
   // Brand-free kinds (boolean / literals) so the value-first id equals the BARE
   // type-first id — a `string()`/`number()`/`date()` builder carries `FormatX<{}>`,
   // which converges with `FormatX<{}>`, not the bare kind (see header).
   it('partial(model) converges with Partial<T>', () => {
-    expect(createIsTypeFor(partial(object({a: boolean(), b: boolean()})))).toBe(
-      createIsType<Partial<{a: boolean; b: boolean}>>()
-    );
+    expect(createIsType(partial(object({a: boolean(), b: boolean()})))).toBe(createIsType<Partial<{a: boolean; b: boolean}>>());
   });
 
   it('required(model) converges with Required<T>', () => {
-    expect(createIsTypeFor(required(object({a: optional(boolean()), b: optional(boolean())})))).toBe(
+    expect(createIsType(required(object({a: optional(boolean()), b: optional(boolean())})))).toBe(
       createIsType<Required<{a?: boolean; b?: boolean}>>()
     );
   });
 
   it('pick(model, keys) converges with Pick<T, K>', () => {
-    expect(createIsTypeFor(pick(object({a: boolean(), b: boolean()}), ['a']))).toBe(
+    expect(createIsType(pick(object({a: boolean(), b: boolean()}), ['a']))).toBe(
       createIsType<Pick<{a: boolean; b: boolean}, 'a'>>()
     );
   });
 
   it('omit(model, keys) converges with Omit<T, K>', () => {
-    expect(createIsTypeFor(omit(object({a: boolean(), b: boolean()}), ['a']))).toBe(
+    expect(createIsType(omit(object({a: boolean(), b: boolean()}), ['a']))).toBe(
       createIsType<Omit<{a: boolean; b: boolean}, 'a'>>()
     );
   });
 
   it('exclude(union, removed) converges with Exclude<U, X>', () => {
-    expect(createIsTypeFor(exclude(union([literal('x'), literal('y'), literal('z')]), literal('y')))).toBe(
+    expect(createIsType(exclude(union([literal('x'), literal('y'), literal('z')]), literal('y')))).toBe(
       createIsType<Exclude<'x' | 'y' | 'z', 'y'>>()
     );
   });
 
   it('extract(union, extracted) converges with Extract<U, X>', () => {
-    expect(createIsTypeFor(extract(union([literal('x'), literal('y'), literal('z')]), union([literal('x'), literal('z')])))).toBe(
+    expect(createIsType(extract(union([literal('x'), literal('y'), literal('z')]), union([literal('x'), literal('z')])))).toBe(
       createIsType<Extract<'x' | 'y' | 'z', 'x' | 'z'>>()
     );
   });
 
   it('nonNullable(union) converges with NonNullable<T>', () => {
-    expect(createIsTypeFor(nonNullable(union([boolean(), literal(null), literal(undefined)])))).toBe(
+    expect(createIsType(nonNullable(union([boolean(), literal(null), literal(undefined)])))).toBe(
       createIsType<NonNullable<boolean | null | undefined>>()
     );
   });
 
   it('readonly(model) converges with Readonly<T>', () => {
-    expect(createIsTypeFor(readonly(object({a: boolean(), b: boolean()})))).toBe(
-      createIsType<Readonly<{a: boolean; b: boolean}>>()
-    );
+    expect(createIsType(readonly(object({a: boolean(), b: boolean()})))).toBe(createIsType<Readonly<{a: boolean; b: boolean}>>());
   });
 
   it('returnType(fn) converges with ReturnType<F>', () => {
-    expect(createIsTypeFor(returnType(func([boolean()], boolean())))).toBe(createIsType<ReturnType<(a: boolean) => boolean>>());
+    expect(createIsType(returnType(func([boolean()], boolean())))).toBe(createIsType<ReturnType<(a: boolean) => boolean>>());
   });
 
   it('intersection(partial, required(pick)) converges (composite, mirrors intersection_with_required_override)', () => {
     const model = () => object({a: boolean(), b: boolean()});
-    expect(createIsTypeFor(intersection(partial(model()), required(pick(model(), ['a']))))).toBe(
+    expect(createIsType(intersection(partial(model()), required(pick(model(), ['a']))))).toBe(
       createIsType<Partial<{a: boolean; b: boolean}> & Required<Pick<{a: boolean; b: boolean}, 'a'>>>()
     );
   });

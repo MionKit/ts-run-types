@@ -1,9 +1,21 @@
 # Demand-driven factory emission
 
+> **⚠️ SUPERSEDED / REVERTED.** This feature (the `CompTimeRunType` schema-ref
+> marker, the value-ref back-tracing, the `protocol.Demand` plumbing, and the
+> demand-gated `RenderFnModule` walk) was **removed**. Factory emission is back to
+> the pre-`bba7451` **emit-all** behaviour: every interned RunType the emitter
+> `Supports` gets a factory. Schema-form validators are now a `createIsType` /
+> `createGetTypeErrors` **overload** taking a `RunType<T>` first arg — reflecting
+> `T` like the type-first marker, dispatching on the schema's runtime `.id` — with
+> no ref-tracing and no demand. The over-emission this doc set out to fix is a
+> known, accepted trade-off (re-introducing `Site`-driven gating, without
+> ref-tracing, is a possible future optimisation). The design below is retained
+> for historical context only.
+
 **Implementation note, not a feature.** Describes how the precompiler
-currently decides *which* RT factories to generate, why that is
-over-broad, and how to make it demand-driven. The current behaviour is
-**correct** — it just generates (and bundles) far more than any project
+once decided *which* RT factories to generate, why that was
+over-broad, and how it was made demand-driven (since reverted). The behaviour was
+**correct** — it just generated (and bundled) far more than any project
 uses. Nothing here changes the public API, the cache-key scheme, or the
 schema/marker convergence work.
 

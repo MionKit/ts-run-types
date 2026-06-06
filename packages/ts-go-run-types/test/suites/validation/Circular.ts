@@ -1,12 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {
-  createIsType,
-  createGetTypeErrors,
-  createIsTypeFor,
-  createTypeErrorsFor,
-  createMockType,
-  type RunType,
-} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -39,7 +32,7 @@ export const CIRCULAR = {
         c: RT.optional(RT.lazy((): RunType<Circular> => cir)),
         d: RT.optional(RT.date()),
       });
-      return createIsTypeFor(cir);
+      return createIsType(cir);
     },
     deserializeIsType: () => {
       interface Circular {
@@ -166,7 +159,7 @@ export const CIRCULAR = {
     isTypeSchema: () => {
       type CuArray = (CuArray | Date | number | string)[];
       const cu: RunType<CuArray> = RT.array(RT.union([RT.lazy((): RunType<CuArray> => cu), RT.date(), RT.number(), RT.string()]));
-      return createIsTypeFor(cu);
+      return createIsType(cu);
     },
     isType: () => {
       type CuArray = (CuArray | Date | number | string)[];
@@ -264,7 +257,7 @@ export const CIRCULAR = {
       const ct: RunType<CircularTuple> = RT.object({
         tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
       });
-      return createIsTypeFor(ct);
+      return createIsType(ct);
     },
     deserializeIsType: () => {
       interface CircularTuple {
@@ -297,7 +290,7 @@ export const CIRCULAR = {
       const ct: RunType<CircularTuple> = RT.object({
         tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
       });
-      return createTypeErrorsFor(ct);
+      return createGetTypeErrors(ct);
     },
     deserializeGetTypeErrors: () => {
       interface CircularTuple {
@@ -380,7 +373,7 @@ export const CIRCULAR = {
         index: {[key: string]: CircularIndex};
       }
       const ci: RunType<CircularIndex> = RT.object({index: RT.record(RT.lazy((): RunType<CircularIndex> => ci))});
-      return createIsTypeFor(ci);
+      return createIsType(ci);
     },
     deserializeIsType: () => {
       interface CircularIndex {
@@ -490,7 +483,7 @@ export const CIRCULAR = {
           deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.lazy((): RunType<CircularDeep> => cd))})}),
         }),
       });
-      return createIsTypeFor(cd);
+      return createIsType(cd);
     },
     deserializeIsType: () => {
       interface CircularDeep {
@@ -619,7 +612,7 @@ export const CIRCULAR = {
         embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
       });
       const root: RunType<RootNotCircular> = RT.object({isRoot: RT.literal(true), ciChild: icd});
-      return createIsTypeFor(root);
+      return createIsType(root);
     },
     deserializeIsType: () => {
       interface ICircularDeep {
@@ -869,7 +862,7 @@ export const CIRCULAR = {
         ciRoort: RT.optional(RT.lazy((): RunType<RootCircular> => root)),
         ciDate: icDate,
       });
-      return createIsTypeFor(root);
+      return createIsType(root);
     },
     deserializeIsType: () => {
       interface ICircularDeep {

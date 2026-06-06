@@ -188,7 +188,7 @@ export function assertIsType(c: ValidationCase): void {
   assertIsTypeSchema(c);
 }
 
-/** Schema form: createIsTypeFor(<value-first builder schema>). Proves the
+/** Schema form: createIsType(<value-first builder schema>). Proves the
  *  value-first authoring path resolves a validator that agrees with the
  *  type-first surface on the same samples. **/
 export function assertIsTypeSchema(c: ValidationCase): void {
@@ -312,7 +312,7 @@ export function assertGetTypeErrorsDeserializeReflect(c: ValidationCase): void {
   });
 }
 
-/** Schema form: createTypeErrorsFor(<value-first builder schema>).
+/** Schema form: createGetTypeErrors(<value-first builder schema>).
  *  A value-first leaf builder reflects the FORMAT of a type (e.g. `string()`
  *  → `FormatString<{}>`), so its error detail may carry format metadata the
  *  bare type-first error doesn't — we therefore assert the CONTRACT

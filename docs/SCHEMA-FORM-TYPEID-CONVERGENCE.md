@@ -1,16 +1,20 @@
 # Schema-form ⇄ marker-form typeid convergence
 
-> **Status: LANDED.** The overload-based builder fix below shipped, and the
-> `EmitOnly` schema-form workaround is gone. One nuance vs. the original
-> plan: the overloads alone don't replace the *options observation* the
-> workaround also did, and the **builder must keep owning the id** (regex
-> literals carry their `source`/`flags` only in the AST, and recursive
-> schemas intern through the builder — neither is reproducible from the
-> schema's TS type). So instead of deleting the schema-form scan path
-> outright, schema-form options are now **folded onto the builder's own
-> injection Site** (`schemaFormOptions` in scan.go); the `Site.EmitOnly`
-> field, the phantom no-rewrite Site, and the rewriter filter were removed.
-> See "Go-side amendments" §1 below for the as-built shape.
+> **Status: LANDED — schema form is now a `createIsType` overload.** Convergence
+> still holds (`createIsType(RT.array(RT.string()))` resolves the same id as
+> `createIsType<string[]>()`), but the mechanism changed when `CompTimeRunType`
+> ref-tracing + demand emission were reverted. The schema form is no longer a
+> separate `createIsTypeFor` function; it is an OVERLOAD of `createIsType` /
+> `createGetTypeErrors` taking a `RunType<T>` first arg. `T` is reflected off the
+> trailing `InjectRunTypeId<T>` like the type-first marker (so options ride the
+> call's OWN slot — no `schemaFormOptions` builder-fold, which was removed), while
+> the runtime dispatches on the schema's `.id` (`isRunTypeSchema` in
+> createRTFunctions.ts) so a recursive schema still uses the builder's correct,
+> emit-all-emitted id rather than a reflected-`T` id that can diverge. Regex
+> literals now carry `source`/`flags` in the type via the decomposed
+> `regexp({source, flags?, mockSamples})` brand, so the builder no longer needs to
+> own a uniquely-AST-derived id for that case. Sections below describing
+> `schemaFormOptions` / `CompTimeRunType` / the builder-fold are historical.
 
 ## Problem
 

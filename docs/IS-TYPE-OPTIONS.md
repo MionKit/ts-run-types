@@ -1,5 +1,15 @@
 # `IsTypeOptions` — backend architecture notes
 
+> **⚠️ Schema-form options updated.** The schema form is now a `createIsType` /
+> `createGetTypeErrors` **overload** (`createIsType(schema, options)`), not the
+> separate `createIsTypeFor`/`createTypeErrorsFor` functions. Options ride the
+> overload call's OWN options slot (read by `extractIsTypeOptions` like any
+> marker), so the `schemaFormOptions` builder-fold and the `CompTimeRunType`
+> marker described below were **removed**. The runtime still dispatches on the
+> schema's `.id` (so recursive schemas use the builder's id); for a non-recursive
+> schema that id equals the reflected-`T` id by convergence, so the options
+> variant emitted from the call's Site resolves correctly.
+
 Snapshot of the Go-side changes that landed when `RunTypeOptions` was
 renamed to `IsTypeOptions` and decoupled from the structural type id.
 This is a **working doc for future review** — some pieces here are

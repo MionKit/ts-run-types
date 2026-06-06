@@ -45,7 +45,7 @@ export interface ValidationCase {
   deserializeIsType?: Thunk<IsTypeFn>;
   /** Reflect-form companion to `deserializeIsType`. **/
   deserializeIsTypeReflect?: Thunk<IsTypeFn>;
-  /** SCHEMA form: `() => createIsTypeFor(<value-first builder schema>)`. Builds
+  /** SCHEMA form: `() => createIsType(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
    *  samples as `isType`. Present only on leaf-buildable cases. Set to
@@ -69,7 +69,7 @@ export interface ValidationCase {
   deserializeGetTypeErrors?: Thunk<GetTypeErrorsFn>;
   /** Reflect-form companion to `deserializeGetTypeErrors`. */
   deserializeGetTypeErrorsReflect?: Thunk<GetTypeErrorsFn>;
-  /** SCHEMA form: `() => createTypeErrorsFor(<value-first builder schema>)`.
+  /** SCHEMA form: `() => createGetTypeErrors(<value-first builder schema>)`.
    *  Companion to `isTypeSchema` for the getTypeErrors family. Supports the
    *  same `'not-supported'` sentinel. **/
   getTypeErrorsSchema?: Thunk<GetTypeErrorsFn>;

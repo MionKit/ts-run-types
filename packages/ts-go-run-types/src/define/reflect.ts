@@ -10,7 +10,7 @@
 //
 // They mirror `getRunTypeId<T>()` / `reflectRunTypeId(value)` (markers.ts) but
 // return the RunType node instead of the bare id string, so the result drops
-// straight into `createIsTypeFor(...)` or nests inside `object`/`array`/….
+// straight into `createIsType(...)` or nests inside `object`/`array`/….
 
 import {builderResult} from './define.ts';
 import type {RunType} from '../runtypes/types.ts';
