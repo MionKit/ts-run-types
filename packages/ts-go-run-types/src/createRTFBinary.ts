@@ -116,12 +116,7 @@ export function createBinaryDecoder<T>(
 ): BinaryDecoderFn<DataOnly<T>> {
   const schemaId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : undefined;
   const cacheKey = options?.cacheKey ?? binarySizingKey(schemaId, id);
-  const decodeFn = resolveEntryTupleFn<FromBinaryFn<T>>(
-    'createBinaryDecoder',
-    noopFromBinaryFn as FromBinaryFn<T>,
-    schemaId,
-    id
-  );
+  const decodeFn = resolveEntryTupleFn<FromBinaryFn<T>>('createBinaryDecoder', noopFromBinaryFn as FromBinaryFn<T>, schemaId, id);
   // A decoded value is reconstructed from bytes, so it only ever holds
   // serialisable data — the return is the data-only projection `DataOnly<T>`
   // (identity on clean DTOs). The runtime value is unchanged; the single cast

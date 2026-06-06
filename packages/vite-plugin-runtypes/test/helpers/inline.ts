@@ -193,56 +193,134 @@ export interface EvaluatedCache {
 }
 
 // Full pipeline: scan every test source in ONE scanFiles request. The
-// Go side projects runTypes / runTypeCacheSource over exactly those
-// files, independent of anything else in the cache. The rendered module
-// body (skeleton + spliced factory calls) is evaluated through
-// `new Function`, its `initCache` export is invoked, and the populated
-// cache object is returned.
+// Go side projects the per-entry virtual modules over exactly those
+// files, independent of anything else in the cache. Every entry module is
+// evaluated (see evalEntryModules), the runtype tuples are instantiated
+// against a stub registry, and the populated cache object is returned.
 export async function evalCacheFor(sources: InlineSources, opts: WithInlineOpts = {}): Promise<EvaluatedCache> {
   return withInlineSources(
     sources,
     async ({client, sources: augmented}) => {
       const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
       if (files.length === 0) throw new Error('evalCacheFor: no source files to scan');
-      const response = await client.scanFiles(files, {includeCacheSources: ['all']});
+      const response = await client.scanFiles(files, {includeEntryModules: true});
       recordResponse(response);
-      const {runTypeCacheSource} = response;
-      if (!runTypeCacheSource) throw new Error('evalCacheFor: resolver returned no runTypeCacheSource');
-      return {byHash: evalRunTypesModule(runTypeCacheSource) as Record<string, RunType>, sites: response.sites ?? []};
+      const {entryModules} = response;
+      if (!entryModules) throw new Error('evalCacheFor: resolver returned no entryModules');
+      const tuples = evalEntryModules(entryModules);
+      return {byHash: instantiateRunTypes(tuples), sites: response.sites ?? []};
     },
     opts
   );
 }
 
-// evalRunTypesModule evaluates the rendered runtypes cache module body
-// (skeleton + spliced rt(...) / c('id').slot assignments) via
-// `new Function` against a stub rtUtils that records every `addRunType`
-// call into a local table and serves `useRunType` lookups from that
-// same table. Returns the populated cache object.
-function evalRunTypesModule(source: string): Record<string, RunType> {
+// One evaluated entry-module tuple, indexed positionally — slot 0 the kind /
+// family tag, slot 1 the deps thunk, slot 2 the ini fn, slot 3 the cache key,
+// slot 4+ the legacy positional args. Mirrors the layout contract in
+// packages/ts-go-run-types/src/runtypes/entryTuple.ts.
+export type EntryTuple = readonly unknown[];
+
+const IMPORT_LINE = /^import \{e as (d\d+)\} from 'virtual:rt\/(.+)\.js';\n/gm;
+
+// evalEntryModules evaluates every per-entry virtual module source into its
+// exported tuple, keyed by basename. Imports between entry modules are
+// emulated with LIVE bindings: each module body runs inside a `with` scope
+// whose proxy resolves the renamed import identifiers (d1…dN) lazily at
+// access time — by the time any deps() thunk dereferences them, every module
+// has evaluated, so recursive type graphs behave exactly as real ESM cycles
+// do. Locals (e / deps / ini / u) shadow the proxy, and the factory `code`
+// strings are never touched (no identifier rewriting).
+export function evalEntryModules(modules: Record<string, string>): Record<string, EntryTuple> {
+  const tuples: Record<string, EntryTuple> = {};
+  for (const [basename, source] of Object.entries(modules)) {
+    const importsByBinding = new Map<string, string>();
+    const body = source
+      .replace(IMPORT_LINE, (_whole, binding: string, dep: string) => {
+        importsByBinding.set(binding, dep);
+        return '';
+      })
+      .replace(/^export const e=/m, 'const e=');
+    const scope = new Proxy(
+      {},
+      {
+        has: (_target, prop) => typeof prop === 'string' && importsByBinding.has(prop),
+        get: (_target, prop) => tuples[importsByBinding.get(prop as string)!],
+      }
+    );
+    // Sloppy-mode `new Function` body so `with` is legal; entry modules are
+    // emitted without a 'use strict' prologue on purpose.
+    const factory = new Function('__scope', `with(__scope){${body}\nreturn e;}`);
+    tuples[basename] = factory(scope) as EntryTuple;
+  }
+  return tuples;
+}
+
+// instantiateRunTypes builds the RunType records from every runtype-kind
+// tuple (slot 0 === 0) and runs the footer initializers against a stub
+// registry — the same two-phase shape the marker package's initFromTuple
+// performs against the real rtUtils. Returns the flat {[id]: RunType} table.
+export function instantiateRunTypes(tuples: Record<string, EntryTuple>): Record<string, RunType> {
   const registered: Record<string, RunType> = {};
   const stub = {
-    addRunType(id: string, runType: RunType) {
-      registered[id] = runType;
-    },
     useRunType(id: string): RunType {
       const entry = registered[id];
       if (!entry) throw new Error(`stub useRunType: no entry for ${id}`);
       return entry;
     },
   };
-  const stripped = stripExports(source);
-  const factory = new Function(`${stripped}\nreturn initCache;`);
-  const initCache = factory() as (rtUtils: typeof stub) => void;
-  initCache(stub);
+  const inis: Array<(rtu: typeof stub) => void> = [];
+  for (const tuple of Object.values(tuples)) {
+    if (!Array.isArray(tuple) || tuple[0] !== 0) continue;
+    const id = tuple[3] as string;
+    registered[id] = buildRunTypeFromTuple(tuple);
+    if (typeof tuple[2] === 'function') inis.push(tuple[2] as (rtu: typeof stub) => void);
+  }
+  for (const ini of inis) ini(stub);
   return registered;
 }
 
-// stripExports rewrites `export function …` to `function …` so the
-// skeleton body evaluates inside a `new Function` script body (which
-// doesn't accept `export` syntax).
-function stripExports(source: string): string {
-  return source.replace(/^\s*export\s+function\s+/gm, 'function ');
+// buildRunTypeFromTuple mirrors the 20-slot construction in
+// packages/ts-go-run-types/src/runtypes/entryTuple.ts (registerRunTypeTuple):
+// every ref-bearing slot starts undefined and is patched by the ini pass.
+function buildRunTypeFromTuple(tuple: EntryTuple): RunType {
+  const arg = (offset: number) => tuple[3 + offset];
+  return {
+    id: arg(0),
+    kind: arg(1),
+    subKind: arg(2),
+    typeName: arg(3),
+    name: arg(4),
+    literal: arg(5),
+    optional: arg(6),
+    readonly: arg(7),
+    isAbstract: arg(8),
+    isStatic: arg(9),
+    visibility: arg(10),
+    isSafeName: arg(11),
+    position: arg(12),
+    isCircular: arg(13),
+    flags: arg(14),
+    description: arg(15),
+    defaultVal: arg(16),
+    enumVal: arg(17),
+    values: arg(18),
+    notSupported: arg(19),
+    child: undefined,
+    index: undefined,
+    return: undefined,
+    indexType: undefined,
+    parameters: undefined,
+    children: undefined,
+    safeUnionChildren: undefined,
+    unionDiscriminators: undefined,
+    typeMeta: undefined,
+    typeArguments: undefined,
+    arguments: undefined,
+    extendsArguments: undefined,
+    implements: undefined,
+    extends: undefined,
+    classType: undefined,
+  } as unknown as RunType;
 }
 
 // Look up the resolved RunType for a given source file in an evaluated cache.

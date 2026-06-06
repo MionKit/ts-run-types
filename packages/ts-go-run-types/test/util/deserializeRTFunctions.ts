@@ -19,14 +19,12 @@
 // from test files get the same compile-time `[typeId, fnHash]` tuple
 // injection that `createXxx<T>()` calls do.
 //
-// HASHED-NAMING NOTE (Slice 4): the deserialize twins now route through the
-// SAME `InjectTypeFnArgs<T, Fn>` marker as the production factories rather than
-// the bare `InjectRunTypeId<T>` reflection marker. Pre-flip they reconstructed
-// the variant cache-key suffix from the explicit `ValidateOptions` argument; with
-// opaque fnHashes there is no runtime hashing, so they MUST read the precomputed
-// fnHash the plugin injects (tuple[1]) — identical key derivation to
-// `resolveTupleEntry`. The distinguishing behavior (rebuild from `entry.code`
-// instead of reading the materialized `entry.fn`) is unchanged.
+// PER-ENTRY MODULE NOTE: the deserialize twins route through the SAME
+// `InjectTypeFnArgs<T, Fn>` marker as the production factories, so each call
+// site receives the ENTRY-MODULE TUPLE binding. The key comes off the tuple
+// (slot 3) after registering its dep closure — identical derivation to the
+// production `resolveEntryTupleFn`. The distinguishing behavior (rebuild from
+// `entry.code` instead of reading the materialized `entry.fn`) is unchanged.
 
 import {
   type InjectTypeFnArgs,
@@ -46,30 +44,42 @@ import {
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
 import {getRTUtils, isRunTypeSchema, buildFactoryFromCode} from '../../src/runtypes/rtUtils.ts';
+import {
+  entryTupleKey,
+  initFromTuple,
+  isEntryTuple,
+  isMissingTuple,
+  FN_HASH_LEN,
+  type EntryTuple,
+} from '../../src/runtypes/entryTuple.ts';
 import type {AnyFn, CompiledTypeFn} from '../../src/runtypes/types.ts';
 
-/** Test-side mirror of the production `resolveTupleEntry`, but rebuilding the
+/** Test-side mirror of the production `resolveEntryTupleFn`, but rebuilding the
  *  per-id closure from `entry.code` on every call instead of reading the
- *  materialized `entry.fn`. The plugin injects a `[typeId, fnHash]` tuple at the
- *  trailing slot; the key is `fnHash + '_' + typeId` — the fnHash already folds
- *  the ValidateOptions variant / strategy the build resolved, so nothing is
- *  recomputed here. Noop entries carry no code; they reuse the pre-populated
- *  `entry.fn`. **/
+ *  materialized `entry.fn`. The plugin injects the entry-module tuple at the
+ *  trailing slot; the key is the tuple's slot-3 cache key — the fnHash prefix
+ *  already folds the ValidateOptions variant / strategy the build resolved, so
+ *  nothing is recomputed here. Noop entries carry no code; they reuse the
+ *  pre-populated `entry.fn`. **/
 function resolveDeserializedEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
-  const tuple = args as [string, string] | undefined;
-  const injectedId = tuple ? tuple[0] : undefined;
-  const fnId = tuple ? tuple[1] : undefined;
-  const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
-  if (effectiveId === undefined) {
-    throw new Error(
-      `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
-    );
-  }
   const utils = getRTUtils();
-  const key = (fnId ?? '') + '_' + effectiveId;
+  const schemaId = isRunTypeSchema(val) ? val.id : undefined;
+  if (isMissingTuple(args)) return identityFn;
+  if (!isEntryTuple(args)) {
+    if (schemaId === undefined) {
+      throw new Error(
+        `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
+      );
+    }
+    if (utils.hasRunType(schemaId)) return identityFn;
+    throw new Error(`${fnName}(): no RTCompiledFn entry for schema id "${schemaId}" in rtUtils.`);
+  }
+  initFromTuple(args as EntryTuple);
+  let key = entryTupleKey(args as EntryTuple);
+  if (schemaId !== undefined) key = key.slice(0, FN_HASH_LEN) + '_' + schemaId;
   const entry = utils.getRT(key) as CompiledTypeFn | undefined;
   if (!entry) {
-    if (utils.hasRunType(effectiveId)) return identityFn;
+    if (utils.hasRunType(key.slice(FN_HASH_LEN + 1))) return identityFn;
     throw new Error(
       `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
     );

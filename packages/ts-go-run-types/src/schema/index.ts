@@ -143,3 +143,7 @@ export type {PropModifiers, MapTuple, TemplatePart, AssembleTemplate, BrandArg} 
 // Run-type registration is per-entry now: the value-first builders' marker
 // call sites import their type's virtual entry module and register it (plus
 // transitive children) on first use — no monolithic cache module to populate.
+// The built-in pure fns still need to load for materialised validators that
+// call them (newRunTypeErr et al.) — their registration file is the side
+// effect (each registerPureFnFactory call site registers its entry tuple).
+import '../runtypes/pure-fns-utils.ts';

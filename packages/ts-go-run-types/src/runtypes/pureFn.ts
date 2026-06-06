@@ -37,6 +37,23 @@ export function registerPureFnFactory(
   }
   const existing = getRTUtils().getCompiledPureFn(key);
   if (!existing) {
+    if (typeof createPureFn === 'function') {
+      // No-plugin (or extraction-skipped) fallback: the factory body is
+      // right here — register it directly. Build-time metadata (bodyHash,
+      // stripped code, static dep extraction) is plugin-only; runtime
+      // behaviour is identical because createPureFn IS the body.
+      const compiled: CompiledPureFunction = {
+        namespace,
+        fnName: functionID,
+        bodyHash: '',
+        paramNames: [],
+        code: '',
+        pureFnDependencies: [],
+        createPureFn,
+        fn: undefined,
+      };
+      return getRTUtils().addPureFn(key, compiled);
+    }
     throw new Error(
       `[ts-go-run-types] registerPureFnFactory: no cache entry for "${key}". ` +
         `The Vite plugin must process this file before runtime — check that ` +

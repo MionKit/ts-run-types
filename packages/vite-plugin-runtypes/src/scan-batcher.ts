@@ -58,10 +58,21 @@ export function createScanBatcher(scan: SiteScanner['scanFiles']): SiteScanner {
 // projectFile narrows a batched response down to one member file. Sites
 // and replacements are file-tagged; the per-cache added* booleans stay
 // batch-scoped (they are coarse invalidation signals, not per-file data).
+//
+// Path comparison must tolerate the wire's two shapes: sites echo the
+// REQUESTED path verbatim, but pure-fn replacements carry the program's
+// ABSOLUTE file name (the extractor records source positions against the
+// tsgo program, which always holds absolute paths in tsconfig mode).
+// Matching on a separator boundary keeps `a/user.ts` from claiming
+// `another-user.ts`.
 function projectFile(result: ScanFilesResult, file: string): ScanFilesResult {
   return {
     ...result,
-    sites: result.sites.filter((site) => site.file === file),
-    replacements: result.replacements?.filter((replacement) => replacement.file === file),
+    sites: result.sites.filter((site) => samePath(site.file, file)),
+    replacements: result.replacements?.filter((replacement) => samePath(replacement.file, file)),
   };
+}
+
+function samePath(tagged: string, requested: string): boolean {
+  return tagged === requested || tagged.endsWith('/' + requested) || tagged.endsWith('\\' + requested);
 }
