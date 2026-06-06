@@ -7,13 +7,20 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// demand_scope_test.go pins the demand-driven invariant for the migrated LEAF
-// families: a function cache contains an entry for a type ONLY when a createX
-// call site of that family references it. `te` (typeErrors) is the first
+// demand_scope_test.go pins the demand-driven invariant for the migrated
+// function families: a function cache contains an entry for a type ONLY when a
+// createX call site of that family references it. `te` (typeErrors) is one
 // migrated leaf — a type reached only through getRunTypeId (reflection) or
-// through createIsType leaves no te_ entry. (`it` itself stays all-emit because
-// the JSON/binary union decoders depend on it_ cross-family — see
-// constants.MigratedFamilies and docs/DEMAND-DRIVEN-FN-CACHES.md.)
+// through createIsType leaves no te_ entry.
+//
+// `it` (isType) is now demand-scoped too. Because the JSON/binary union
+// decoders + typeErrors discriminate members via `it_<member>` cross-family,
+// its demand is the createIsType-site closure ∪ the `it_<member>` edges the
+// OTHER demanded families reference (collected by typefns.CrossFamilyItRoots,
+// seeded via RenderOpts.ExtraRoots). So a reflection-only file emits ZERO it_
+// entries, a createIsType file emits them, and a file that ONLY serializes a
+// (non-merging) union still gets the per-member it_ entries its decoder needs.
+// See constants.MigratedFamilies and docs/DEMAND-DRIVEN-FN-CACHES.md.
 
 func scopeScan(t *testing.T, code string) protocol.Response {
 	t.Helper()
@@ -80,15 +87,75 @@ export const _ = createGetTypeErrors<Parent>();
 	}
 }
 
-// TestDemandScope_ItStaysAllEmit documents the cross-family constraint: `it`
-// is NOT demand-scoped (the JSON/binary union decoders need it_ cross-family),
-// so a reflection-only file still carries it_ entries today. This guards the
-// constraint until the all-families migration lets `it` be scoped safely.
-func TestDemandScope_ItStaysAllEmit(t *testing.T) {
+// scopeScanBinary mirrors scopeScan but also opts into the toBinary cache body
+// so a cross-family test can assert the `it_` seeding driven by a binary-only
+// (createBinaryEncoder) file — the binary union decoder references the per-
+// member it_ validators, and CrossFamilyItRoots must seed them into the it
+// demand.
+func scopeScanBinary(t *testing.T, code string) protocol.Response {
+	t.Helper()
+	r := setupInline(t, map[string]string{"a.ts": code})
+	resp := r.Dispatch(protocol.Request{
+		Op:              protocol.OpScanFiles,
+		Files:           []string{"a.ts"},
+		IncludeRunTypes: true,
+		IncludeCacheSources: []protocol.CacheKind{
+			protocol.CacheKindRunType,
+			protocol.CacheKindIsType,
+			protocol.CacheKindToBinary,
+		},
+	})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	return resp
+}
+
+// TestDemandScope_ItScopedReflectionOnly — `it` is now demand-scoped: a
+// getRunTypeId-only (reflection) file emits ZERO it_ entries (no createIsType
+// site, no other family referencing it_ cross-family).
+func TestDemandScope_ItScopedReflectionOnly(t *testing.T) {
 	resp := scopeScan(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<{a: string; b: number}>();
 `)
+	if len(resp.RunTypes) == 0 {
+		t.Fatalf("reflection must still project runtypes for getRunTypeId, got none")
+	}
+	if strings.Contains(resp.IsTypeCacheSource, "init('it_") {
+		t.Errorf("it is now demand-scoped; a reflection-only file must emit no it_ entries, got:\n%s", resp.IsTypeCacheSource)
+	}
+}
+
+// TestDemandScope_ItScopedToCreateIsType — a createIsType call site demands the
+// `it` family, so its it_ entry is emitted.
+func TestDemandScope_ItScopedToCreateIsType(t *testing.T) {
+	resp := scopeScan(t, `import {createIsType} from '@mionjs/ts-go-run-types';
+export const _ = createIsType<{a: string}>();
+`)
 	if !strings.Contains(resp.IsTypeCacheSource, "init('it_") {
-		t.Fatalf("it is intentionally all-emit (shared cross-family dep); expected it_ entries, got:\n%s", resp.IsTypeCacheSource)
+		t.Errorf("createIsType must emit an it_ entry, got:\n%s", resp.IsTypeCacheSource)
+	}
+}
+
+// TestDemandScope_ItSeededByCrossFamilyUnion — the cross-family seeding proof: a
+// file that ONLY serializes a NON-merging union (conflicting shared prop, so
+// the binary union decoder discriminates members via the per-member isType
+// validators) and NEVER calls createIsType MUST still emit it_ entries — the
+// union members — because CrossFamilyItRoots follows the toBinary entry's
+// crossFamilyDeps into the it demand (RenderOpts.ExtraRoots). Without that
+// seeding the union round-trip silently corrupts (missing it_<member> ⇒
+// `?? true` ⇒ first member always matches).
+func TestDemandScope_ItSeededByCrossFamilyUnion(t *testing.T) {
+	resp := scopeScanBinary(t, `import {createBinaryEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createBinaryEncoder<{a: bigint} | {a: Date}>();
+`)
+	// Sanity: the binary family IS demanded by createBinaryEncoder.
+	if !strings.Contains(resp.ToBinaryCacheSource, "init('tb_") {
+		t.Fatalf("createBinaryEncoder must emit tb_ entries, got:\n%s", resp.ToBinaryCacheSource)
+	}
+	// The proof: no createIsType site, yet the union's per-member it_ entries
+	// are seeded from the toBinary entry's cross-family edges.
+	if !strings.Contains(resp.IsTypeCacheSource, "init('it_") {
+		t.Fatalf("cross-family seeding broken: a createBinaryEncoder-only union file must still emit it_ member entries (CrossFamilyItRoots → ExtraRoots), got:\n%s", resp.IsTypeCacheSource)
 	}
 }

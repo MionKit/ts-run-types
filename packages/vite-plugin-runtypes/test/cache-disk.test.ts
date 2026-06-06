@@ -50,8 +50,8 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     try {
       await renderIsTypeFor(client, {
         'user.ts': `
-          import {getRunTypeId} from '@mionjs/ts-go-run-types';
-          export const id = getRunTypeId<string>();
+          import {createIsType} from '@mionjs/ts-go-run-types';
+          export const isStr = createIsType<string>();
         `,
       });
     } finally {
@@ -83,10 +83,10 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDir = path.join(scratchRoot, 'roundtrip');
     const sources = {
       'roundtrip.ts': `
-        import {getRunTypeId} from '@mionjs/ts-go-run-types';
-        export const a = getRunTypeId<string>();
-        export const b = getRunTypeId<number>();
-        export const c = getRunTypeId<{x: string; y: number}>();
+        import {createIsType} from '@mionjs/ts-go-run-types';
+        export const a = createIsType<string>();
+        export const b = createIsType<number>();
+        export const c = createIsType<{x: string; y: number}>();
       `,
     };
     const clientA = spawnWithCache(cacheDir);
@@ -118,8 +118,8 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     const cacheDirAlt = path.join(scratchRoot, 'fp-alt');
     const sources = {
       'fp.ts': `
-        import {getRunTypeId} from '@mionjs/ts-go-run-types';
-        export const id = getRunTypeId<string>();
+        import {createIsType} from '@mionjs/ts-go-run-types';
+        export const isStr = createIsType<string>();
       `,
     };
     const root = path.resolve(__dirname, '../../..');

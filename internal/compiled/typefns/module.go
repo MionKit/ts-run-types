@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
@@ -55,6 +56,22 @@ type RenderOpts struct {
 	// root's children, even ones interned while scanning a different file. Nil
 	// falls back to indexing dump.RunTypes (the module_test shape).
 	RefTable map[string]*protocol.RunType
+	// ExtraRoots seeds extra BARE type-ids as plain roots in the demand-driven
+	// path, in addition to the family's own call-site demand. Used ONLY for the
+	// `it` family: CrossFamilyItRoots collects the `it_<member>` cross-family
+	// edges every OTHER demanded family references (union decoders, typeErrors)
+	// and the resolver feeds the bare member ids here so `it`'s demand covers
+	// them even when no createIsType site requests them. Each id is rendered as a
+	// plain root (no variant) and its transitive same-family child closure is
+	// pulled too. Empty/nil for every non-`it` family — leaves their output
+	// byte-identical.
+	ExtraRoots []string
+	// CrossFamilySink, when non-nil, collects the surviving (post-dangling-
+	// cascade) entries' crossFamilyDeps after a render — the namespaced
+	// `it_<member>` lookups the demanded entries reference. CrossFamilyItRoots
+	// sets this on each NON-it family's collection pass to aggregate the edges
+	// that seed `it`'s ExtraRoots. Nil for normal renders (no behaviour change).
+	CrossFamilySink *[]string
 }
 
 // innerPrefix derives the inner-fn name prefix from a cache-module's
@@ -230,6 +247,78 @@ func FormatTransformModule(writer io.Writer, dump protocol.Dump, opts RenderOpts
 	return RenderFnModule(writer, dump, settings, FormatTransformEmitter{}, innerPrefix(settings), cachetpl.SkeletonFormatTransform, opts)
 }
 
+// familyConfig bundles the (settings, emitter, skeleton) triple that
+// uniquely identifies one cache family render. The per-family XxxModule
+// wrappers above each spell out the same triple inline; CrossFamilyItRoots
+// needs to iterate a SET of families, so it reuses this slice instead.
+type familyConfig struct {
+	settings constants.CacheModuleSettings
+	emitter  Emitter
+	skeleton string
+}
+
+// crossFamilyItSourceFamilies lists every family whose render can reference an
+// `it_<member>` cross-family edge — i.e. every migrated function family EXCEPT
+// `it` itself (the target), `runTypes` (reflection, no function body), and
+// `pureFns` (rendered by a different package). CrossFamilyItRoots renders each
+// of these demand-driven (output discarded) to harvest the `it_` edges they
+// keep, so the `it` family's demand covers the union decoders / typeErrors
+// child checks even when `it` is demand-scoped. Mirrors the family triples the
+// XxxModule wrappers above declare.
+var crossFamilyItSourceFamilies = []familyConfig{
+	{constants.CacheModules["typeErrors"], TypeErrorsEmitter{}, cachetpl.SkeletonTypeErrors},
+	{constants.CacheModules["prepareForJson"], PrepareForJsonEmitter{}, cachetpl.SkeletonPrepareForJson},
+	{constants.CacheModules["restoreFromJson"], RestoreFromJsonEmitter{}, cachetpl.SkeletonRestoreFromJson},
+	{constants.CacheModules["stringifyJson"], StringifyJsonEmitter{}, cachetpl.SkeletonStringifyJson},
+	{constants.CacheModules["prepareForJsonSafe"], PrepareForJsonSafeEmitter{}, cachetpl.SkeletonPrepareForJsonSafe},
+	{constants.CacheModules["prepareForJsonSafePreserve"], PrepareForJsonSafePreserveEmitter{}, cachetpl.SkeletonPrepareForJsonSafePreserve},
+	{constants.CacheModules["hasUnknownKeys"], HasUnknownKeysEmitter{}, cachetpl.SkeletonHasUnknownKeys},
+	{constants.CacheModules["stripUnknownKeys"], StripUnknownKeysEmitter{}, cachetpl.SkeletonStripUnknownKeys},
+	{constants.CacheModules["unknownKeyErrors"], UnknownKeyErrorsEmitter{}, cachetpl.SkeletonUnknownKeyErrors},
+	{constants.CacheModules["unknownKeysToUndefined"], UnknownKeysToUndefinedEmitter{}, cachetpl.SkeletonUnknownKeysToUndefined},
+	{constants.CacheModules["unknownKeysToUndefinedWire"], UnknownKeysToUndefinedWireEmitter{}, cachetpl.SkeletonUnknownKeysToUndefinedWire},
+	{constants.CacheModules["toBinary"], ToBinaryEmitter{}, cachetpl.SkeletonToBinary},
+	{constants.CacheModules["fromBinary"], FromBinaryEmitter{}, cachetpl.SkeletonFromBinary},
+	{constants.CacheModules["formatTransform"], FormatTransformEmitter{}, cachetpl.SkeletonFormatTransform},
+}
+
+// CrossFamilyItRoots renders every NON-it migrated family demand-driven (output
+// discarded) to collect the it_<member> cross-family edges they reference, and
+// returns the bare member type-ids. Seeds the it family's demand so union
+// decoders / typeErrors find their it_ entries even when it is demand-scoped.
+//
+// CRITICAL: each collection pass nils opts.Store so the disk cache is bypassed
+// — a cache hit short-circuits the walker (tryReadCachedEntry) and the
+// crossFamilyDeps would never be observed (the disk cache does not persist
+// cross-family edges; see docs/CROSS-FAMILY-RT-DEPS.md). DiagSink is nil'd too
+// so the collection passes don't double-emit diagnostics the real isType render
+// (and the other families' real renders) already surface.
+func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
+	var sink []string
+	for _, family := range crossFamilyItSourceFamilies {
+		collectOpts := opts
+		collectOpts.Store = nil
+		collectOpts.DiagSink = nil
+		collectOpts.CrossFamilySink = &sink
+		collectOpts.ExtraRoots = nil
+		// Errors here only affect the discarded body; the real per-family
+		// render (with diagnostics + disk cache) runs separately. io.Discard
+		// never errors, so this is effectively infallible.
+		_ = RenderFnModule(io.Discard, dump, family.settings, family.emitter, innerPrefix(family.settings), family.skeleton, collectOpts)
+	}
+	seen := make(map[string]bool, len(sink))
+	roots := make([]string, 0, len(sink))
+	for _, dep := range sink {
+		bare := strings.TrimPrefix(dep, "it_")
+		if bare == dep || seen[bare] {
+			continue
+		}
+		seen[bare] = true
+		roots = append(roots, bare)
+	}
+	return roots
+}
+
 // RenderFnModule is the fn-agnostic module renderer. Emits one
 // `init('hash', …);` line per supported RunType then splices the
 // result into the named skeleton. The skeleton's `init` closes over
@@ -348,15 +437,52 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		demand := collectFamilyDemand(dump.Sites, settings.Tag)
 		queued := make(map[string]bool)
 		var childQueue []string
-		for rootID, demands := range demand {
+		// Iterate demand roots in a deterministic (sorted) order — Go map
+		// iteration is randomized, and the per-entry `order` slice it feeds
+		// drives the topo sort's stable tie-breaking, so an unsorted walk makes
+		// the rendered module non-deterministic across runs (breaks the
+		// byte-identical disk-cache round-trip). Variant suffixes within a root
+		// are sorted too for the same reason.
+		rootIDs := make([]string, 0, len(demand))
+		for rootID := range demand {
+			rootIDs = append(rootIDs, rootID)
+		}
+		sort.Strings(rootIDs)
+		for _, rootID := range rootIDs {
 			root := refTable[rootID]
 			if root == nil {
 				continue
 			}
+			demands := demand[rootID]
+			sort.Slice(demands, func(i, j int) bool {
+				return demands[i].VariantSuffix < demands[j].VariantSuffix
+			})
 			for _, demanded := range demands {
 				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options); ok {
 					enqueueChildren(deps, queued, &childQueue)
 				}
+			}
+		}
+		// ExtraRoots seed plain roots beyond the family's own call sites — the
+		// cross-family `it_<member>` edges other families reference (it family
+		// only). Treated exactly like worklist roots so their transitive
+		// same-family closure is pulled too; deduped against the child queue.
+		// Sorted (copy) for the same determinism reason as the demand roots —
+		// CrossFamilyItRoots aggregates them from map-iterated sinks, so the
+		// incoming order is not stable.
+		extraRoots := append([]string(nil), opts.ExtraRoots...)
+		sort.Strings(extraRoots)
+		for _, rootID := range extraRoots {
+			if queued[rootID] {
+				continue
+			}
+			queued[rootID] = true
+			root := refTable[rootID]
+			if root == nil {
+				continue
+			}
+			if deps, ok := renderEntry(root, "", nil); ok {
+				enqueueChildren(deps, queued, &childQueue)
 			}
 		}
 		for len(childQueue) > 0 {
@@ -411,6 +537,17 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		}
 		if removed == 0 {
 			break
+		}
+	}
+
+	// Cross-family edge collection: after the dangling cascade (so dropped
+	// entries don't contribute stale edges), append every surviving entry's
+	// crossFamilyDeps to the sink. Drives CrossFamilyItRoots — the `it`
+	// demand is seeded from the edges the OTHER demanded families actually
+	// keep. Nil sink (every normal render) is a no-op.
+	if opts.CrossFamilySink != nil {
+		for _, entry := range entries {
+			*opts.CrossFamilySink = append(*opts.CrossFamilySink, entry.crossFamilyDeps...)
 		}
 	}
 

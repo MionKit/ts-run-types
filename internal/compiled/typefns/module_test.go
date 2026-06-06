@@ -333,15 +333,16 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_ArrayNoIsArrayCheck — when a Site requests the
+// TestIsTypeModule_ArrayNoIsArrayCheck — when a createIsType site requests the
 // `noIsArrayCheck` IsTypeOptions variant for an array runtype, the
 // emitter fans out an extra `itNA_<id>` factory whose body omits the
-// leading `if (!Array.isArray(v)) return false;` guard. The plain
-// `it_<id>` factory still emits the guarded body. Mirrors mion's
-// `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType, driven by
-// Site.Options. (`it` is all-emit — the back-compat path keys variants
-// off Site.Options; the FnId-driven demand path is exercised on the
-// migrated `te` family in internal/resolver/demand_scope_test.go.)
+// leading `if (!Array.isArray(v)) return false;` guard. A plain
+// createIsType site (`FnId: "it"`) still emits the guarded `it_<id>`
+// factory. Mirrors mion's `comp.opts.noIsArrayCheck` branch in
+// array.ts:emitIsType. (`it` is now demand-scoped, so the variant rides
+// the FnId-driven demand path — `FnId: "itNA"` resolves to the NA variant
+// via constants.DemandsForFnId, `FnId: "it"` to the plain entry — not the
+// legacy Site.Options back-compat fan-out.)
 func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
@@ -352,7 +353,11 @@ func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 			},
 		},
 		Sites: []protocol.Site{
-			{File: "call.ts", Pos: 0, ID: "an1", Options: []string{"noIsArrayCheck"}},
+			// Plain createIsType<T[]>() — demands the guarded `it_an1`.
+			{File: "call.ts", Pos: 0, ID: "an1", FnId: "it"},
+			// createIsType<T[]>(undefined, {noIsArrayCheck: true}) — demands
+			// the `itNA_an1` variant whose body omits the Array.isArray guard.
+			{File: "call.ts", Pos: 40, ID: "an1", FnId: "itNA"},
 		},
 	}
 	out := renderToString(t, dump)
