@@ -231,6 +231,15 @@ export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRun
  *  a function-typed object property is skipped entirely, a function at a tuple slot
  *  must be `undefined`, and a top-level function passes a `typeof === 'function'`
  *  gate. The builder exists so those shapes can be authored value-first. **/
+// No-PARAMS form (overloads resolve top-to-bottom, so this is tried FIRST): an
+// empty / omitted param list brands a bare `() => Static<R>`. NOT `(...args: []) => …`
+// — the empty-tuple rest-spread is reflected by tsgo as a spurious rest parameter,
+// diverging from the written `() => R` and method shorthand. `ret` defaults to `void`.
+export function func<R extends RunType = RunType<void>>(
+  params?: CompTimeArgs<readonly []>,
+  ret?: CompTimeArgs<R>,
+  id?: InjectRunTypeId<() => Static<R>>
+): RunType<() => Static<R>>;
 export function func<const P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
   params?: CompTimeArgs<P>,
   ret?: CompTimeArgs<R>,
