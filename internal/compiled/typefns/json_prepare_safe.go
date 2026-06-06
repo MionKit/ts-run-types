@@ -45,20 +45,6 @@ func (PrepareForJsonSafeEmitter) Supports(rt *protocol.RunType) bool {
 	return PrepareForJsonEmitter{}.Supports(rt)
 }
 
-// AnyPrepareForJsonSafeSupported reports whether at least one runtype
-// in the slice is supported by the PrepareForJsonSafeEmitter. Used by
-// the resolver to set AddedPrepareForJsonSafe independently of
-// AddedRunTypes.
-func AnyPrepareForJsonSafeSupported(runTypes []*protocol.RunType) bool {
-	emitter := PrepareForJsonSafeEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 func (PrepareForJsonSafeEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }

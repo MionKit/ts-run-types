@@ -78,7 +78,7 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	// un-escaped form inside the `function g_pj_uni(utl){…}` closure.
 	// See module_test.go's renderToString comment for the rationale.
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonModule(w, d, RenderOpts{EmitCreateRTFn: true})
+		return FamilyByKey("prepareForJson").Render(w, d, RenderOpts{EmitCreateRTFn: true})
 	})
 
 	pjUniFactory := "g_" + operations.PlainHash("prepareForJson") + "_uni"
@@ -112,7 +112,7 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 func TestRestoreFromJsonModule_ObjectUnionDecodesFlat(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return RestoreFromJsonModule(w, d, RenderOpts{})
+		return FamilyByKey("restoreFromJson").Render(w, d, RenderOpts{})
 	})
 
 	if strings.Contains(out, "Array.isArray(v) && v.length === 2 && typeof v[0] === 'number'") {
@@ -144,7 +144,7 @@ func TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	// EmitCreateRTFn=true so the body assertions match the
 	// un-escaped form inside the inline factory closure.
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return StringifyJsonModule(w, d, RenderOpts{EmitCreateRTFn: true})
+		return FamilyByKey("stringifyJson").Render(w, d, RenderOpts{EmitCreateRTFn: true})
 	})
 
 	if !strings.Contains(out, "'[-1,'") {
@@ -195,7 +195,7 @@ func TestStringifyJsonModule_RequiredPropsSkipUndefinedGuard(t *testing.T) {
 		obA, obB, obC, union,
 	}}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return StringifyJsonModule(w, d, RenderOpts{})
+		return FamilyByKey("stringifyJson").Render(w, d, RenderOpts{})
 	})
 
 	// No per-property undefined guard in the union root's emit — every
@@ -239,7 +239,7 @@ func TestPrepareForJsonModule_MixedUnionWrapsEveryMember(t *testing.T) {
 	}
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{str, bigint, propA, obj, union}}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonModule(w, d, RenderOpts{})
+		return FamilyByKey("prepareForJson").Render(w, d, RenderOpts{})
 	})
 
 	// Object branch exists so string member MUST wrap too — every
@@ -276,7 +276,7 @@ func TestPrepareForJsonModule_ConflictingPropSynthesizesSubUnion(t *testing.T) {
 	}
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{bigint, date, propABig, propADat, obj1, obj2, union}}
 	out := renderModule(t, dump, func(w *bytes.Buffer, d protocol.Dump) error {
-		return PrepareForJsonModule(w, d, RenderOpts{})
+		return FamilyByKey("prepareForJson").Render(w, d, RenderOpts{})
 	})
 
 	if !strings.Contains(out, "v.a = [0, v.a]") {

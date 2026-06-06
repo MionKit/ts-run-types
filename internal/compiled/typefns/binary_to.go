@@ -105,19 +105,6 @@ func (ToBinaryEmitter) Supports(rt *protocol.RunType) bool {
 	return false
 }
 
-// AnyToBinarySupported reports whether at least one runtype in the slice
-// is supported by the ToBinaryEmitter. Used by the resolver to set
-// AddedToBinary independently of AddedRunTypes.
-func AnyToBinarySupported(runTypes []*protocol.RunType) bool {
-	emitter := ToBinaryEmitter{}
-	for _, rt := range runTypes {
-		if emitter.Supports(rt) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
 // every other RT family.
 func (ToBinaryEmitter) IsRTInlined(ctx *InlineContext) bool {
