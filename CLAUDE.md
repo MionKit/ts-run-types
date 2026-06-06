@@ -169,6 +169,8 @@ This same rule applies to the JSON / binary serialisation families: a property t
 
 The clean line: **Warning = expected drop, the user should know but it's fine**. **Error = will throw at runtime, build must fail**.
 
+**Decoders return the data-only projection.** `createJsonDecoder<T>()` and `createBinaryDecoder<T>()` return `DataOnly<T>` (the `// #region dataonly-extract` type in [`src/runtypes/dataOnly.ts`](packages/ts-go-run-types/src/runtypes/dataOnly.ts)), NOT bare `T`. A decoded value is reconstructed from JSON/bytes, so it can only ever hold serialisable data — the old `=> T` over-promised methods/`Promise`s/symbols the value doesn't have (calling them type-checked but threw). On a clean DTO `DataOnly<T> ≡ T`, so nothing changes. The projection lives on the **factory overload return** (`JsonDecoderFn<DataOnly<T>>` / `BinaryDecoderFn<DataOnly<T>>`), not on the `JsonDecoderFn`/`BinaryDecoderFn` aliases (those stay `=> T`) — see [docs/DATAONLY-DECODE-SPEC.md](docs/DATAONLY-DECODE-SPEC.md). **Encoders are unchanged** (they take `T` as input). This is purely a type-level annotation: no runtime or emitter change.
+
 Future direction (out of scope for the current code): we may refine the return type to `IsTypeFn<DataOnly<T>>` (where `DataOnly<T>` strips non-serialisable members from the type), rename `createIsType` → `createIsDataType`, or introduce a separate stricter `createIsFullType` that errors instead of dropping. Discuss in [docs/ROADMAP.md](docs/ROADMAP.md) before changing — current callers depend on the silent-drop semantics.
 
 ## Documentation

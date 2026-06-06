@@ -271,7 +271,9 @@ describe('classSerializer / nested class as an object property', () => {
     const decode = createJsonDecoder<Shape>();
 
     const input: Shape = {name: 'box', origin: new Point(3, 4)};
-    const decoded = decode(encode(input) as string);
+    // The decoder return is `DataOnly<Shape>` (Point's `mag()` projected away);
+    // the registered serializer reconstructs a REAL Point, so cast back to Shape.
+    const decoded = decode(encode(input) as string) as Shape;
     expect(decoded.name).toBe('box');
     expect(decoded.origin).toBeInstanceOf(Point);
     expect(decoded.origin.mag()).toBe(5);
@@ -283,7 +285,8 @@ describe('classSerializer / nested class as an object property', () => {
     const decode = createBinaryDecoder<Shape>();
 
     const input: Shape = {name: 'box', origin: new Point(6, 8)};
-    const decoded = decode(encode(input));
+    // See JSON case: cast `DataOnly<Shape>` back to the real reconstructed Shape.
+    const decoded = decode(encode(input)) as Shape;
     expect(decoded.name).toBe('box');
     expect(decoded.origin).toBeInstanceOf(Point);
     expect(decoded.origin.mag()).toBe(10);
