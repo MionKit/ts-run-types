@@ -1,7 +1,6 @@
 package typefns
 
 import (
-	"bytes"
 	"sort"
 	"strings"
 	"testing"
@@ -92,7 +91,7 @@ func assertUnionCrossFamily(t *testing.T, emitter Emitter, settings constants.Ca
 	prefix := innerPrefix(settings)
 
 	rendered := renderEntryWithDeps(refTable[rootID], settings, emitter, prefix, refTable, RenderOpts{}, "", nil)
-	if rendered.line == "" {
+	if rendered.argsText == "" {
 		t.Fatalf("%T: expected a non-empty entry line for the conflict-prop union", emitter)
 	}
 
@@ -147,7 +146,7 @@ func TestCrossFamilyDeps_ValidateSameFamilyOnly(t *testing.T) {
 	prefix := innerPrefix(settings)
 
 	rendered := renderEntryWithDeps(refTable["outer"], settings, ValidateEmitter{}, prefix, refTable, RenderOpts{}, "", nil)
-	if rendered.line == "" {
+	if rendered.argsText == "" {
 		t.Fatal("expected a non-empty validate entry line for the nested-object fixture")
 	}
 	if !containsStr(rendered.deps, valKey("inner")) {
@@ -167,11 +166,7 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 	runTypes, _ := buildConflictPropUnionFixture()
 	dump := protocol.Dump{RunTypes: runTypes}
 
-	var buf bytes.Buffer
-	if err := FamilyByKey("prepareForJson").Render(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("PrepareForJsonModule: %v", err)
-	}
-	out := buf.String()
+	out := joinEntries(t, FamilyByKey("prepareForJson").Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
 
 	// The exact validator body the union root emits — unchanged by the
 	// cross-family capture. Sub-union dispatch over the conflicting `a` slot
@@ -198,11 +193,8 @@ func TestCrossFamilyDeps_CaptureIsByteIdentical(t *testing.T) {
 	}
 
 	// Determinism: a second render produces byte-identical output.
-	var buf2 bytes.Buffer
-	if err := FamilyByKey("prepareForJson").Render(&buf2, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("PrepareForJsonModule (second render): %v", err)
-	}
-	if buf2.String() != out {
+	again := joinEntries(t, FamilyByKey("prepareForJson").Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
+	if again != out {
 		t.Error("module render is non-deterministic after cross-family capture")
 	}
 }

@@ -250,6 +250,59 @@ var JsonStrategyFamilies = map[string][]string{
 	"preserve": {"rj"},
 }
 
+// Per-entry virtual module settings (mirrored to TS via gen-ts-constants).
+// Every cache entry — runtype node, type-fn factory, JSON composite, pure fn —
+// is served as its own ES module `<VirtualModulePrefix><basename><EntryModuleSuffix>`
+// exporting one tuple under EntryExportName. See internal/compiled/entrymod.
+const (
+	// VirtualModulePrefix is the Vite virtual-module namespace every entry
+	// module lives under.
+	VirtualModulePrefix = "virtual:rt/"
+	// EntryModuleSuffix terminates every entry-module specifier; the .js
+	// extension keeps downstream tooling (and import-analysis fast paths)
+	// treating the virtual id as plain JS.
+	EntryModuleSuffix = ".js"
+	// EntryExportName is the fixed named export of every entry module.
+	// Importers always rename (`import {e as <binding>} from …`), so hash ids
+	// that start with a digit never need to be valid identifiers.
+	EntryExportName = "e"
+	// EntryBindingPrefix prefixes the renamed import binding the rewrite
+	// injects into user files (`<prefix><sanitized basename>`); the leading
+	// double-underscore keeps collisions with user identifiers implausible.
+	EntryBindingPrefix = "__rt_"
+	// PureFnModuleDir is the basename directory prefix for pure-fn entry
+	// modules (`pf/<ns>/<fn>`), keeping them visually distinct from the hash-
+	// keyed runtype / type-fn modules.
+	PureFnModuleDir = "pf"
+)
+
+// Tuple slot-0 kind discriminators for entry-module tuples. Type-fn entries
+// carry their QUOTED family tag in slot 0 instead of a number, so the runtime
+// discriminates with `typeof t[0] === 'string'`.
+const (
+	TupleKindRunType = 0
+	TupleKindPureFn  = 2
+	TupleKindMissing = 3
+)
+
+// JsonCompositeHostTags maps each JSON-composite family tag to the family
+// whose runtime entry metadata (fnID / args / defaultParamValues) the
+// composite borrows: encoder strategies registered through the prepareForJson
+// consumer pre-migration, decoder strategies through restoreFromJson. The
+// TS-side familyMeta table mirrors this mapping by hand (see rtUtils.ts).
+var JsonCompositeHostTags = func() map[string]string {
+	out := make(map[string]string, len(jsonCompositeTags))
+	for key, tag := range jsonCompositeTags {
+		parts := splitPipe(key)
+		if parts[0] == "jsonEncoder" {
+			out[tag] = "pj"
+		} else {
+			out[tag] = "rj"
+		}
+	}
+	return out
+}()
+
 // Version is the binary version, injected at build time via
 //
 //	-ldflags "-X github.com/mionkit/ts-run-types/internal/constants.Version=<v>"

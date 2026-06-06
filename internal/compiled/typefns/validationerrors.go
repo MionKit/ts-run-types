@@ -16,7 +16,7 @@ import (
 //
 //	export function g_verr_<hash>(utl){
 //	  'use strict';
-//	  const nRT = utl.getPureFn(k_nRT); // k_nRT = 'mion::newRunTypeErr' (declared in skeleton)
+//	  const nRT = utl.getPureFn('mion::newRunTypeErr');
 //	  return function verr_<hash>(v,pth=[],er=[]){ <body>; return er }
 //	}
 //

@@ -31,7 +31,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -76,7 +76,7 @@ export const _ = createJsonEncoder<() => void>(undefined, {strategy: 'mutate'});
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"f.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -112,11 +112,7 @@ export const _b = createBinaryEncoder<never>();
 	resp := r.Dispatch(protocol.Request{
 		Op:    protocol.OpScanFiles,
 		Files: []string{"n.ts"},
-		IncludeCacheSources: []protocol.CacheKind{
-			protocol.CacheKindPrepareForJson,
-			protocol.CacheKindStringifyJson,
-			protocol.CacheKindToBinary,
-		},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -148,7 +144,7 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"u.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -165,21 +161,17 @@ export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 	if rootSiteID == "" {
 		t.Fatalf("expected at least one site for the User marker call")
 	}
-	// Slice 4: the entry key is `<prepareForJson-fnHash>_<id>` (opaque per-family
-	// hash), not the readable `pj_` tag. Derive the prefix via the operation
-	// registry so the assertion stays correct across version-isolated hashes.
-	rootInit := "init('" + operations.PlainHash("prepareForJson") + "_" + rootSiteID + "',"
-	if !strings.Contains(resp.PrepareForJsonCacheSource, rootInit) {
-		t.Errorf("expected PrepareForJson cache to contain User init line %q, got:\n%s", rootInit, resp.PrepareForJsonCacheSource)
+	// The entry key is `<prepareForJson-fnHash>_<id>` (opaque per-family
+	// hash). Derive it via the operation registry so the assertion stays
+	// correct across version-isolated hashes.
+	rootKey := operations.PlainHash("prepareForJson") + "_" + rootSiteID
+	userModule := entryModule(resp, rootKey)
+	if userModule == "" {
+		t.Errorf("expected a PrepareForJson entry module for the User root %q, got keys %v", rootKey, familyEntryKeys(resp, "prepareForJson"))
 	}
-	// Locate the User init() and confirm it's not the 8-arg alwaysThrow form.
-	idx := strings.Index(resp.PrepareForJsonCacheSource, rootInit)
-	if idx >= 0 {
-		end := strings.Index(resp.PrepareForJsonCacheSource[idx:], ";")
-		userLine := resp.PrepareForJsonCacheSource[idx : idx+end]
-		if strings.Contains(userLine, "'PJ001'") {
-			t.Errorf("User factory should NOT be alwaysThrow — property absorbs the never child. Got: %s", userLine)
-		}
+	// Confirm the User tuple is not the alwaysThrow form (diag code arg).
+	if strings.Contains(userModule, "'PJ001'") {
+		t.Errorf("User factory should NOT be alwaysThrow — property absorbs the never child. Got: %s", userModule)
 	}
 	// A PJ001 diagnostic should fire for the absorbed never child.
 	runtype := runtypeDiagsOf(resp.Diagnostics)
@@ -214,12 +206,7 @@ export const _b = createBinaryEncoder<symbol>();
 	resp := r.Dispatch(protocol.Request{
 		Op:    protocol.OpScanFiles,
 		Files: []string{"s.ts"},
-		IncludeCacheSources: []protocol.CacheKind{
-			protocol.CacheKindValidate,
-			protocol.CacheKindPrepareForJson,
-			protocol.CacheKindStringifyJson,
-			protocol.CacheKindToBinary,
-		},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -248,16 +235,16 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"n.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
 	}
-	if !strings.Contains(resp.PrepareForJsonCacheSource, "'PJ001'") {
-		t.Errorf("expected rendered alwaysThrow init() to carry the 'PJ001' code as 8th arg, got:\n%s", resp.PrepareForJsonCacheSource)
+	if !strings.Contains(familyEntrySources(resp, "prepareForJson"), "'PJ001'") {
+		t.Errorf("expected rendered alwaysThrow init() to carry the 'PJ001' code as 8th arg, got:\n%s", familyEntrySources(resp, "prepareForJson"))
 	}
-	if strings.Contains(resp.PrepareForJsonCacheSource, "throw new Error(") {
-		t.Errorf("v2 wire format should not embed inline throw bodies, got:\n%s", resp.PrepareForJsonCacheSource)
+	if strings.Contains(familyEntrySources(resp, "prepareForJson"), "throw new Error(") {
+		t.Errorf("v2 wire format should not embed inline throw bodies, got:\n%s", familyEntrySources(resp, "prepareForJson"))
 	}
 }
 
@@ -277,7 +264,7 @@ export const _ = createValidate<User>();
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"u.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -320,7 +307,7 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"multi.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindPrepareForJson},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

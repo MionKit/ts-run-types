@@ -2,25 +2,23 @@ package typefns
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
-	"github.com/mionkit/ts-run-types/internal/cachetpl"
+	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
 	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// RenderOpts threads the per-session disk cache into the renderer. Zero
-// value is a valid "no caching" configuration — every entry is computed
-// fresh and nothing is persisted, matching the pre-cache behaviour. The
-// renderer never panics on disk-layer errors: a read failure falls
-// through to a fresh compile, a write failure is logged once and
-// ignored so a read-only filesystem doesn't break builds.
+// RenderOpts threads the per-session disk cache into the per-entry collectors.
+// Zero value is a valid "no caching" configuration — every entry is computed
+// fresh and nothing is persisted. The collectors never panic on disk-layer
+// errors: a read failure falls through to a fresh compile, a write failure is
+// logged once and ignored so a read-only filesystem doesn't break builds.
 type RenderOpts struct {
 	// Store is the on-disk RT cache. Nil disables caching.
 	Store *disk.Store
@@ -31,8 +29,7 @@ type RenderOpts struct {
 	// DiagSink is the destination for compile-time diagnostics emitted
 	// by the walker at RTThrow / silent-skip sites. Nil disables
 	// diagnostic emission entirely — keeps tests that don't care about
-	// the per-call-site fan-out quiet. The dispatcher wires this from
-	// the response's Diagnostics slice and flushes after each render.
+	// the per-call-site fan-out quiet.
 	DiagSink *[]diag.Diagnostic
 	// ProvenanceSites maps each cached RunType ID to the set of marker
 	// call sites that reference it. EmitDiagnostic uses this to fan out
@@ -40,114 +37,28 @@ type RenderOpts struct {
 	// coordinates — without it, a RTThrow would record a diagnostic
 	// with empty Site and the warning would be useless in the editor.
 	ProvenanceSites map[string][]diag.Site
-	// EmitCreateRTFn opts the renderer into emitting the inline
+	// EmitCreateRTFn opts the collector into emitting the inline
 	// `createRTFn` closure alongside the body `code` string. False
-	// (the default) writes `u` (the `const u = undefined` alias) in the
-	// arg-7 slot and the JS-side materializer rebuilds the factory from
+	// (the default) writes `u` (the `const u=undefined` alias) in the
+	// createRTFn slot and the JS-side materializer rebuilds the factory from
 	// `code` via `new Function('utl', code)` lazily on first lookup.
 	// True writes the full `function g_<hash>(utl){…}` declaration so
 	// runtimes that disallow `new Function` (Cloudflare WorkerD,
 	// browser CSP without `unsafe-eval`, …) can still materialise
 	// validators. See docs/UNSUPPORTED-KINDS.md.
 	EmitCreateRTFn bool
-	// RefTable resolves child ref ids to their RunType during a render. When
+	// RefTable resolves child ref ids to their RunType during a collect. When
 	// non-nil it is used instead of an index built from dump.RunTypes — the
-	// resolver passes the FULL session cache here so a render whose dump.RunTypes
+	// resolver passes the FULL session cache here so a collect whose dump.RunTypes
 	// is a per-request projection (the scanFiles scope) can always resolve a
 	// root's children, even ones interned while scanning a different file. Nil
-	// falls back to indexing dump.RunTypes (the module_test shape).
+	// falls back to indexing dump.RunTypes (the unit-test shape).
 	RefTable map[string]*protocol.RunType
-	// ExtraRoots seeds extra BARE type-ids as plain roots in the demand-driven
-	// path, in addition to the family's own call-site demand. Used ONLY for the
-	// `it` family: CrossFamilyValRoots collects the `val_<member>` cross-family
-	// edges every OTHER demanded family references (union decoders, validationErrors)
-	// and the resolver feeds the bare member ids here so `it`'s demand covers
-	// them even when no createValidate site requests them. Each id is rendered as a
-	// plain root (no variant) and its transitive same-family child closure is
-	// pulled too. Empty/nil for every non-`it` family — leaves their output
-	// byte-identical.
-	ExtraRoots []string
-	// CrossFamilySink, when non-nil, collects the surviving (post-dangling-
-	// cascade) entries' crossFamilyDeps after a render — the namespaced
-	// `val_<member>` lookups the demanded entries reference. CrossFamilyValRoots
-	// sets this on each NON-it family's collection pass to aggregate the edges
-	// that seed `it`'s ExtraRoots. Nil for normal renders (no behaviour change).
-	CrossFamilySink *[]string
-	// ExtraBodyLines is appended verbatim to the module body AFTER the demand /
-	// topo-ordered entry lines and BEFORE the skeleton splice. Used to fold the
-	// JSON-composite `init(…)` lines into the prepareForJson / restoreFromJson
-	// modules (which are already loaded into rtUtils) so createJsonEncoder /
-	// createJsonDecoder collapse to a pure lookup. Empty for every other render —
-	// composites emit no type-walking entries and reference primitives by their
-	// fnHash, so they ride an existing module's body rather than a new virtual
-	// module. The cross-family it-collection passes never set this (their output
-	// is discarded), so it does not perturb the it-seeding pipeline.
-	ExtraBodyLines string
 	// Facts, when non-nil, memoizes the canonical-node subtree predicates
-	// (isJsonCompatible / isExtraProof) across every render of one
+	// (isJsonCompatible / isExtraProof) across every collect of one
 	// dispatch. See FactsTable.
 	Facts *FactsTable
-	// EntryCache, when non-nil, memoizes compiled (family-variant, typeID)
-	// entries for the lifetime of ONE dispatch. Real family renders (live
-	// DiagSink) populate it after compiling; CrossFamilyValRoots' collection
-	// passes (DiagSink nil'd) read it, so a family that renders for real in
-	// the same dispatch is never walked a second time just to harvest its
-	// val_ edges. Writes are gated on DiagSink != nil — an entry must never
-	// enter the cache from a diag-suppressed pass, or a later real render
-	// reusing it would silently drop its diagnostics. The dispatcher orders
-	// the validate render LAST so every requested family's real render runs
-	// before the collection passes need it.
-	EntryCache *EntryRenderCache
 }
-
-// EntryRenderCache is the per-dispatch memo for compiled cache-module
-// entries, keyed by the namespaced variant cache key (`<fnHash>_<typeID>`),
-// which is unique per (family, variant, type). Opaque so callers outside
-// typefns can only create and thread it.
-type EntryRenderCache struct {
-	entries map[string]entryRender
-}
-
-// NewEntryRenderCache returns an empty per-dispatch entry memo.
-func NewEntryRenderCache() *EntryRenderCache {
-	return &EntryRenderCache{entries: map[string]entryRender{}}
-}
-
-func (cache *EntryRenderCache) get(key string) (entryRender, bool) {
-	if cache == nil {
-		return entryRender{}, false
-	}
-	entry, ok := cache.entries[key]
-	return entry, ok
-}
-
-func (cache *EntryRenderCache) put(key string, entry entryRender) {
-	if cache == nil {
-		return
-	}
-	cache.entries[key] = entry
-}
-
-// Merge folds every entry from other into cache. Used by the parallel
-// render path: each family render compiles against its own shard (Go maps
-// are not safe for concurrent writes, even to distinct keys), and the
-// dispatcher merges the shards back after the join — before the validate
-// render's CrossFamilyValRoots collection passes read them. Keys are
-// family-disjoint (`<fnHash>_<typeID>` with a per-family fnHash), so the
-// union is collision-free. Nil-safe on both sides.
-func (cache *EntryRenderCache) Merge(other *EntryRenderCache) {
-	if cache == nil || other == nil {
-		return
-	}
-	for key, entry := range other.entries {
-		cache.entries[key] = entry
-	}
-}
-
-// validateFamilyTag identifies the `it` family for the EntryCache write gate
-// in renderEntryWithDeps — validate renders last and is never a collection
-// source, so caching its entries is pure overhead.
-var validateFamilyTag = constants.CacheModules["validate"].Tag
 
 // familyOp recovers the operation that emits entries under a cache-module's
 // family Tag (e.g. "verr" → the validationErrors operation). The fnHash naming scheme
@@ -167,9 +78,9 @@ func familyOp(settings constants.CacheModuleSettings) operations.Operation {
 // the operation registry's plain (default-variant) fnHash — e.g. the validationErrors
 // family → `<PlainHash("validationErrors")>_`. The inner validator function inside
 // each createRTFn closure is named `<innerPrefix><hash>`; the same prefix
-// namespaces the JS cache key registered via the factory's first arg, and the
-// SAME plain prefix is what same-family child dep calls resolve to (so a
-// variant root references plain children).
+// namespaces the JS cache key (tuple slot 3), and the SAME plain prefix is what
+// same-family child dep calls resolve to (so a variant root references plain
+// children).
 func innerPrefix(settings constants.CacheModuleSettings) string {
 	return operations.PlainHash(familyOp(settings).Name) + "_"
 }
@@ -195,90 +106,35 @@ func variantFactoryName(settings constants.CacheModuleSettings, suffix string, o
 	return "g_" + variantKey(settings, suffix, options, id)
 }
 
-// CrossFamilyValRoots renders every NON-it migrated family demand-driven (output
-// discarded) to collect the val_<member> cross-family edges they reference, and
-// returns the bare member type-ids. Seeds the it family's demand so union
-// decoders / validationErrors find their val_ entries even when it is demand-scoped.
+// CollectFamilyEntries compiles one family's demanded cache entries into
+// entrymod entries: one per demanded (root, variant) plus the transitive
+// closure of same-family child factories they reference. Each entry's module
+// Deps carry BOTH the same-family child deps and the cross-family edges
+// (`<valHash>_<member>` lookups a decoder / validationErrors body reaches) — the
+// per-entry import closure replaces the pre-migration CrossFamilyValRoots
+// seeding pass, and the resolver's cross-family fixpoint renders the foreign
+// entries those edges name.
 //
-// The disk cache (opts.Store) is KEPT for these collection passes: as of
-// FormatVersion 2 each cached entry persists its cross-family edges as
-// CrossFamilyRefs, so a cache hit (tryReadCachedEntry) reconstructs the same
-// crossFamilyDeps a fresh walk would have produced and the edges are observed
-// without re-rendering all families on every it-cache build. DiagSink is nil'd
-// so the collection passes don't double-emit diagnostics the real validate render
-// (and the other families' real renders) already surface.
-func CrossFamilyValRoots(dump protocol.Dump, opts RenderOpts) []string {
-	var sink []string
-	// Every registry family except `it` itself (the target; runTypes and
-	// pureFns aren't typefns families to begin with) can reference a
-	// val_<member> cross-family edge.
-	for _, spec := range Families {
-		if spec.Key == "validate" {
-			continue
-		}
-		collectOpts := opts
-		collectOpts.DiagSink = nil
-		collectOpts.CrossFamilySink = &sink
-		collectOpts.ExtraRoots = nil
-		// Errors here only affect the discarded body; the real per-family
-		// render (with diagnostics + disk cache) runs separately. io.Discard
-		// never errors, so this is effectively infallible.
-		_ = spec.Render(io.Discard, dump, collectOpts)
-	}
-	itPrefix := operations.PlainHash("validate") + "_"
-	seen := make(map[string]bool, len(sink))
-	roots := make([]string, 0, len(sink))
-	for _, dep := range sink {
-		bare := strings.TrimPrefix(dep, itPrefix)
-		if bare == dep || seen[bare] {
-			continue
-		}
-		seen[bare] = true
-		roots = append(roots, bare)
-	}
-	return roots
-}
-
-// RenderFnModule is the fn-agnostic module renderer. Emits one
-// `init('hash', …);` line per supported RunType then splices the
-// result into the named skeleton. The skeleton's `init` closes over
-// `rtUtils` from its enclosing `initCache(rtUtils)`, so call sites
-// stay compact.
+// extraRoots seeds additional BARE type-ids as plain roots beyond the family's
+// own call-site demand — the resolver's cross-family fixpoint uses it to
+// render `val_<member>` entries other families' bodies reference. Each extra
+// root is collected as a plain (no-variant) entry plus its same-family closure.
 //
-// Entries are emitted in **child-before-parent** order so each
-// factory's `createRTFn(rtUtils)` invocation can resolve its
-// `utl.getRT('<childHash>')` context items against an already-
-// populated cache. The order is derived from each entry's
-// `rtDependencies` (discovered during compile) via a DFS post-order
-// walk over the input set; entries with no deps keep their input
-// position relative to each other (stable topo sort).
+// When dump.Sites is empty AND no extraRoots are given, the collector falls
+// back to emitting a factory for every interned RunType the emitter supports —
+// the unit-test (and embedded-API) shape predating demand scoping.
 //
-// Kinds the emitter's Supports gate doesn't accept are silently
-// skipped — the alternative (panicking) would crash the whole module
-// for the presence of one unsupported kind, making kind-by-kind
-// rollout impossible. The acceptance test in
-// packages/vite-plugin-runtypes/test/rt-validate.test.ts asserts on the
-// KindString case; if dispatch regresses for KindString the test fails
-// loudly there.
-//
-// Parameters:
-//   - settings: which CacheModule the factory uses for inner-closure
-//     names; the VarPrefix prefixes the outer factory's debug name
-//     inside createRTFn.
-//   - emitter: the per-fn dispatch + Args + Finalize implementation.
-//   - innerPrefix: the prefix for the INNER validator function inside
-//     each createRTFn closure.
-//   - skeleton: the cachetpl skeleton name to splice into.
-func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, skeleton string, opts RenderOpts) error {
-	var body strings.Builder
-	body.WriteString("const u = undefined;\n")
-
+// Pure-fn deps are intentionally NOT module deps: the pure fns a factory body
+// reaches register themselves at their own `registerPureFnFactory` call sites
+// (binding-injected by the plugin, or live factories without it) when the
+// defining module is imported — always before any factory materializes.
+func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, opts RenderOpts, extraRoots []string) entrymod.Graph {
 	// Single-pass id→RunType index used by the walker to deref
 	// KindRef sentinels at descent time. Cache entries store every
 	// child slot as a ref (`{kind: -1, id: …}`) per protocol.go;
 	// without the table the walker would dispatch on the ref's
 	// placeholder kind and panic. opts.RefTable (the full session cache)
-	// wins when provided so a render resolves children that the per-request
+	// wins when provided so a collect resolves children that the per-request
 	// dump.RunTypes projection may not contain.
 	refTable := opts.RefTable
 	if refTable == nil {
@@ -291,78 +147,68 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		}
 	}
 
-	type compiled struct {
-		line string
-		deps []string
-		// crossFamilyDeps mirrors entryRender.crossFamilyDeps — the
-		// cross-family `val_<member>`-style lookups this entry's body
-		// reaches (see renderEntryWithDeps). Captured for a later
-		// demand-scoping step; NOT consulted by the dangling-dep cascade
-		// or topo sort below (those operate on same-family `deps` only).
-		crossFamilyDeps []string
-	}
-	// Entries are keyed by the namespaced JS cache hash (innerPrefix +
-	// runtype ID, e.g. "val_abc123"). Sharing this key with the
-	// init registration's first arg means downstream tooling
-	// (dangling-dep cascade, topo sort) operates on the same identifier
-	// the JS side sees in rtUtils.
-	entries := make(map[string]compiled, len(dump.RunTypes))
-	order := make([]string, 0, len(dump.RunTypes))
+	graph := make(entrymod.Graph, len(dump.RunTypes))
 
-	// renderEntry compiles one (RunType, variant) into the shared entries/order
-	// maps and returns its discovered child dependencies. Idempotent via the
-	// entries dedup. Composite kinds may reach unsupported child kinds through
+	// renderEntry compiles one (RunType, variant) into the graph and returns
+	// its discovered same-family child dependencies. Idempotent via the graph
+	// dedup. Composite kinds may reach unsupported child kinds through
 	// CompileChild; the compile pass returns CodeNS from any leaf with no emit,
 	// compound parents propagate it, and the walker's IsUnsupported flag drops
-	// the factory — see codetype.go's CodeNS contract. variantKey(settings, "",
-	// nil, id) reduces to the plain `<plainFhash>_<id>` key (== innerPrefix + id).
+	// the factory — see codetype.go's CodeNS contract.
 	renderEntry := func(runType *protocol.RunType, suffix string, options []string) ([]string, bool) {
 		if runType == nil || !emitter.Supports(runType) {
 			return nil, false
 		}
 		entryID := variantKey(settings, suffix, options, runType.ID)
-		if existing, exists := entries[entryID]; exists {
-			return existing.deps, true
+		if existing, exists := graph[entryID]; exists {
+			return existing.Deps, true
 		}
 		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
-		if rendered.line == "" {
+		if rendered.argsText == "" {
 			return nil, false
 		}
-		entries[entryID] = compiled{line: rendered.line, deps: rendered.deps, crossFamilyDeps: rendered.crossFamilyDeps}
-		order = append(order, entryID)
+		graph.Add(&entrymod.Entry{
+			Key:       entryID,
+			Kind:      entrymod.KindTypeFn,
+			FamilyTag: settings.Tag,
+			ArgsText:  rendered.argsText,
+			// Same-family deps are HARD (body calls `<dep>.fn(…)`
+			// unconditionally → cascade on absence); cross-family edges are
+			// SOFT (bodies guard them with `?.fn(…) ?? true`, so a missing
+			// foreign entry degrades to a stub at runtime).
+			Deps:     append([]string(nil), rendered.deps...),
+			SoftDeps: append([]string(nil), rendered.crossFamilyDeps...),
+		})
 		return rendered.deps, true
 	}
 
 	// enqueueChildren strips the inner prefix off each namespaced dependency
 	// hash (e.g. "val_abc" → "abc") so the demand worklist can resolve the child
 	// RunType via refTable and render its (plain) factory.
-	enqueueChildren := func(deps []string, queued map[string]bool, queue *[]string) {
+	queued := make(map[string]bool)
+	var childQueue []string
+	enqueueChildren := func(deps []string) {
 		for _, dep := range deps {
 			childHash := strings.TrimPrefix(dep, innerPrefix)
 			if childHash == dep || queued[childHash] {
 				continue
 			}
 			queued[childHash] = true
-			*queue = append(*queue, childHash)
+			childQueue = append(childQueue, childHash)
 		}
 	}
 
-	if len(dump.Sites) > 0 {
+	if len(dump.Sites) > 0 || len(extraRoots) > 0 {
 		// Demand-driven: emit only the (root, variant) entries the createX call
 		// sites request for this family, plus the transitive closure of child
-		// factories they reference. This is the over-emission fix — a type only
-		// passed to getRunTypeId (or to a different family's createX) leaves no
-		// entry here. Children are always plain entries: a variant only changes
-		// the root body, and its child dep calls resolve to `<tag>_<id>`.
+		// factories they reference. A type only passed to getRunTypeId (or to a
+		// different family's createX) leaves no entry here. Children are always
+		// plain entries: a variant only changes the root body, and its child dep
+		// calls resolve to the plain `<fnHash>_<id>`.
 		demand := collectFamilyDemand(dump.Sites, settings.Tag)
-		queued := make(map[string]bool)
-		var childQueue []string
 		// Iterate demand roots in a deterministic (sorted) order — Go map
-		// iteration is randomized, and the per-entry `order` slice it feeds
-		// drives the topo sort's stable tie-breaking, so an unsorted walk makes
-		// the rendered module non-deterministic across runs (breaks the
-		// byte-identical disk-cache round-trip). Variant suffixes within a root
-		// are sorted too for the same reason.
+		// iteration is randomized; sorted roots keep walk order (and therefore
+		// disk-cache write order / diagnostics order) stable across runs.
 		rootIDs := make([]string, 0, len(demand))
 		for rootID := range demand {
 			rootIDs = append(rootIDs, rootID)
@@ -379,20 +225,17 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 			})
 			for _, demanded := range demands {
 				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options); ok {
-					enqueueChildren(deps, queued, &childQueue)
+					enqueueChildren(deps)
 				}
 			}
 		}
-		// ExtraRoots seed plain roots beyond the family's own call sites — the
-		// cross-family `val_<member>` edges other families reference (it family
-		// only). Treated exactly like worklist roots so their transitive
-		// same-family closure is pulled too; deduped against the child queue.
-		// Sorted (copy) for the same determinism reason as the demand roots —
-		// CrossFamilyValRoots aggregates them from map-iterated sinks, so the
-		// incoming order is not stable.
-		extraRoots := append([]string(nil), opts.ExtraRoots...)
-		sort.Strings(extraRoots)
-		for _, rootID := range extraRoots {
+		// extraRoots seed plain roots beyond the family's own call sites (the
+		// resolver's cross-family fixpoint). Treated exactly like worklist
+		// roots so their transitive same-family closure is pulled too. Sorted
+		// (copy) for the same determinism reason as the demand roots.
+		sortedExtra := append([]string(nil), extraRoots...)
+		sort.Strings(sortedExtra)
+		for _, rootID := range sortedExtra {
 			if queued[rootID] {
 				continue
 			}
@@ -402,7 +245,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 				continue
 			}
 			if deps, ok := renderEntry(root, "", nil); ok {
-				enqueueChildren(deps, queued, &childQueue)
+				enqueueChildren(deps)
 			}
 		}
 		for len(childQueue) > 0 {
@@ -413,14 +256,13 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 				continue
 			}
 			if deps, ok := renderEntry(child, "", nil); ok {
-				enqueueChildren(deps, queued, &childQueue)
+				enqueueChildren(deps)
 			}
 		}
 	} else {
-		// Back-compat / unit-test path: no call-site demand for this family
-		// (empty Sites, or a family not yet migrated to InjectTypeFnArgs). Emit
-		// a factory for every interned RunType the emitter supports; the
-		// dangling-dep cascade below prunes any parent whose child kind is
+		// Back-compat / unit-test path: no call-site demand for this family.
+		// Emit a factory for every interned RunType the emitter supports; the
+		// resolver-level cascade prunes any parent whose child kind is
 		// unsupported.
 		for _, runType := range dump.RunTypes {
 			if runType == nil || !emitter.Supports(runType) {
@@ -430,90 +272,7 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		}
 	}
 
-	// Dangling-dep cascade: an entry whose body holds a
-	// `<childHash>.fn(...)` reference but whose <childHash> never
-	// made it into `entries` (the child compile returned
-	// isUnsupported, OR the child's own dep cascaded out) would
-	// throw at validator-call time on `undefined.fn`. Iteratively
-	// drop entries with missing deps until the set is closed.
-	// Runs to fixpoint — removing entry X can make Y (which
-	// depended on X) unrenderable too. O(M·D·R) worst case
-	// (M entries, D deps each, R rounds bounded by dep-chain
-	// depth); typical schemas converge in 1-2 rounds.
-	for {
-		removed := 0
-		for id, entry := range entries {
-			for _, dep := range entry.deps {
-				if _, ok := entries[dep]; !ok {
-					delete(entries, id)
-					removed++
-					break
-				}
-			}
-		}
-		if removed == 0 {
-			break
-		}
-	}
-
-	// Cross-family edge collection: after the dangling cascade (so dropped
-	// entries don't contribute stale edges), append every surviving entry's
-	// crossFamilyDeps to the sink. Drives CrossFamilyValRoots — the `it`
-	// demand is seeded from the edges the OTHER demanded families actually
-	// keep. Nil sink (every normal render) is a no-op.
-	if opts.CrossFamilySink != nil {
-		for _, entry := range entries {
-			*opts.CrossFamilySink = append(*opts.CrossFamilySink, entry.crossFamilyDeps...)
-		}
-	}
-
-	// DFS post-order from each input entry to produce a stable topo
-	// sort: children land before parents.
-	visited := make(map[string]bool, len(entries))
-	var topo []string
-	var visit func(id string)
-	visit = func(id string) {
-		if visited[id] {
-			return
-		}
-		visited[id] = true
-		entry, ok := entries[id]
-		if !ok {
-			return
-		}
-		for _, dep := range entry.deps {
-			if _, ok := entries[dep]; ok {
-				visit(dep)
-			}
-		}
-		topo = append(topo, id)
-	}
-	for _, id := range order {
-		visit(id)
-	}
-
-	for _, id := range topo {
-		body.WriteString(entries[id].line)
-		body.WriteByte('\n')
-	}
-
-	// JSON-composite lines (when this module hosts them) ride after the
-	// type-walking entries. They reference primitives by fnHash via the same
-	// `init(…)`/getRT machinery, so they only need the skeleton's `init` in
-	// scope — which the splice provides.
-	if opts.ExtraBodyLines != "" {
-		body.WriteString(opts.ExtraBodyLines)
-		if !strings.HasSuffix(opts.ExtraBodyLines, "\n") {
-			body.WriteByte('\n')
-		}
-	}
-
-	out, err := cachetpl.Splice(skeleton, body.String())
-	if err != nil {
-		return err
-	}
-	_, err = io.WriteString(writer, out)
-	return err
+	return graph
 }
 
 // collectFamilyDemand groups, per structural runtype id, the distinct variant
@@ -547,83 +306,56 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]p
 }
 
 // entryRender is the result of compiling one (RunType, variant) into its
-// cache-module line. `line` is the `init(…);` statement (empty when the
-// entry is skipped — noop with no body to emit, or an unsupported leaf with
+// tuple argument text. `argsText` is the positional-arg interior (empty when
+// the entry is skipped — noop with no body to emit, or an unsupported leaf with
 // no per-family diag code). `deps` is the same-family rt-dependency hashes
-// (walker.RTDependencies, e.g. "val_<childHash>") that drive the dangling-dep
-// cascade and topo sort. `crossFamilyDeps` is the distinct cross-family RT
-// lookups the body reaches (walker.CrossFamilyDeps, e.g. a prepareForJson /
-// toBinary / validationErrors entry referencing `val_<member>` to discriminate a
-// union member) — followed by the demand-scoping step (CrossFamilyValRoots)
-// into the referenced family; it is NOT consumed by any emission/topo decision
-// in this render. `crossFamilyDeps` is populated whether the entry came from a
-// fresh walk OR a disk-cache hit: as of FormatVersion 2 the edges are persisted
-// as CrossFamilyRefs and rebuilt by tryReadCachedEntry, so a hit returns the
-// same set the walk would have produced.
+// (walker.RTDependencies, e.g. "<valHash>_<childHash>") that drive the demand
+// worklist; `crossFamilyDeps` is the distinct cross-family RT lookups the body
+// reaches (walker.CrossFamilyDeps, e.g. a prepareForJson / toBinary /
+// validationErrors entry referencing `<valHash>_<member>` to discriminate a
+// union member). Both land on the emitted module's Deps so the import closure
+// covers them; crossFamilyDeps additionally feed the resolver's cross-family
+// fixpoint, which renders the foreign entries they name. `crossFamilyDeps` is
+// populated whether the entry came from a fresh walk OR a disk-cache hit — the
+// edges are persisted as CrossFamilyRefs and rebuilt by tryReadCachedEntry.
 type entryRender struct {
-	line            string
+	argsText        string
 	deps            []string
 	crossFamilyDeps []string
 }
 
-// renderEntryWithDeps compiles one RunType into its `init(…);` line
-// and returns the discovered dependency hashes alongside (see
-// entryRender). Inner
-// function name is `<innerPrefix><hash>` (e.g. "val_abc123"); the
-// outer factory's debug name (`<VarPrefix><hash>`, e.g.
-// "g_val_abc123") is used only as the closure's printed name so
-// consumers see the same identity in stack traces. Noop bodies return
-// an empty line so the renderer skips them; consumers default to a
-// trivial fallback on the JS side.
+// renderEntryWithDeps compiles one RunType into its tuple argument text and
+// returns the discovered dependency hashes alongside (see entryRender). Inner
+// function name is `<innerPrefix><hash>` (e.g. "<valHash>_abc123"); the
+// outer factory's debug name (`g_<key>`) is used only as the closure's printed
+// name so consumers see the same identity in stack traces. Noop bodies return
+// the short-form arg text; unsupported leaves either produce an alwaysThrow
+// entry (when the emitter registers a diag code) or skip silently.
 //
 // When `variantSuffix` is non-empty (e.g. "NA"), the entry is rendered
-// under the variant cache key `<tag><variantSuffix>_<id>` and the
-// walker is primed with `VariantOptions` so the emitter's per-kind
-// dispatch can branch (e.g. skip `Array.isArray` for noIsArrayCheck,
-// emit base-kind validation for noLiterals). Variants share child
-// references with the plain entry — `InnerPrefix` stays at the
-// plain tag so child dep calls resolve to the plain `<tag>_<id>`
-// factories.
+// under the variant cache key `<variantFhash>_<id>` and the walker is primed
+// with `VariantOptions` so the emitter's per-kind dispatch can branch.
+// Variants share child references with the plain entry — `InnerPrefix`
+// stays at the plain hash so child dep calls resolve to plain factories.
 //
 // When opts.Store is non-nil and opts.Lookup is provided, the function
 // first checks the on-disk cache at <store>/<runType.ID>/<settings.Tag>.json.
 // A header structural-id mismatch, or any cached child-ref whose
 // structural id no longer maps to the same short hash, is treated as
 // a miss; we then fall through to the walker as usual and write the
-// fresh result back. Read/write errors are non-fatal — the renderer
+// fresh result back. Read/write errors are non-fatal — the collector
 // always produces output even when the cache is broken.
 func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) entryRender {
 	factoryName := variantFactoryName(settings, variantSuffix, variantOptions, runType.ID)
 	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID)
 
-	// Per-dispatch memo: a family already rendered for real in this dispatch
-	// (its compile emitted any diagnostics then) is reused as-is by the
-	// CrossFamilyValRoots collection passes — same line / deps / cross-family
-	// edges a fresh walk would produce. See RenderOpts.EntryCache.
-	if cached, hit := opts.EntryCache.get(innerName); hit {
-		return cached
-	}
-	// cacheEntry gates writes on a live DiagSink so diag-suppressed
-	// collection passes never seed the memo (their compiles drop
-	// diagnostics a later real render must still emit). The validate
-	// family never writes: it renders LAST and is excluded from the
-	// collection passes, so its entries have no possible reader.
-	cacheEntry := func(entry entryRender) entryRender {
-		if opts.DiagSink != nil && settings.Tag != validateFamilyTag {
-			opts.EntryCache.put(innerName, entry)
-		}
-		return entry
-	}
-
 	if variantSuffix == "" {
-		if cachedLine, cachedDeps, cachedCrossFamilyDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
+		if cachedArgs, cachedDeps, cachedCrossFamilyDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
 			// Disk-cache hit: the walker never runs, but the entry's
 			// cross-family edges were persisted as CrossFamilyRefs and
 			// rebuilt here (see tryReadCachedEntry / writeCachedEntry), so
-			// the hit returns the same crossFamilyDeps a fresh walk would —
-			// the demand-collection pass observes the val_<member> edges
-			// without re-rendering.
-			return cacheEntry(entryRender{line: cachedLine, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps})
+			// the hit returns the same crossFamilyDeps a fresh walk would.
+			return entryRender{argsText: cachedArgs, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps}
 		}
 	}
 
@@ -631,10 +363,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	walker.RefTable = refTable
 	walker.facts = opts.Facts
 	// InnerPrefix lets dispatch namespace child cache keys consistently
-	// with the factory registration's first arg (innerName below).
-	// Variant walkers still set this to the plain tag (e.g. `val_`) so
-	// child deps resolve to the plain entries — the variant only
-	// changes the ROOT body, not its children.
+	// with the tuple's key slot (innerName below). Variant walkers still
+	// set this to the plain hash so child deps resolve to the plain
+	// entries — the variant only changes the ROOT body, not its children.
 	walker.InnerPrefix = innerPrefix
 	if len(variantOptions) > 0 {
 		walker.VariantOptions = make(map[string]bool, len(variantOptions))
@@ -652,33 +383,32 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	if isUnsupported {
 		// Compile reached an unsupported leaf and the parent positions
 		// chose to propagate (not absorb). Render an alwaysThrow factory
-		// keyed by the leaf's per-family diag code so the JS-side init()
-		// can materialise a throwing factory with the catalog message.
-		// Surface the same code as a build-time diagnostic against every
-		// call site referencing this RT — users see the cause at build
-		// time AND at runtime. See docs/UNSUPPORTED-KINDS.md for the
-		// unified model.
+		// keyed by the leaf's per-family diag code so the JS-side tuple
+		// consumer can materialise a throwing factory with the catalog
+		// message. Surface the same code as a build-time diagnostic against
+		// every call site referencing this RT — users see the cause at build
+		// time AND at runtime. See docs/UNSUPPORTED-KINDS.md.
 		//
 		// Fallback to silent skip when the emitter registers no code
 		// for the leaf — preserves the safety net for unknown future
 		// kinds (the runtime cache miss is caught by createXxx<T>'s
-		// identity fallback).
+		// identity fallback, via the KindMissing stub module).
 		if leafProvider, ok := emitter.(LeafDiagCodeProvider); ok && walker.UnsupportedLeaf != nil {
 			if diagCode := leafProvider.DiagCodeForLeaf(walker.UnsupportedLeaf); diagCode != "" {
 				walker.EmitDiagnostic(diagCode, leafKindLabel(walker.UnsupportedLeaf))
-				line := renderAlwaysThrowEntry(runType, settings, innerName, diagCode, walker.rootProvenance)
+				argsText := renderAlwaysThrowEntry(runType, innerName, diagCode, walker.rootProvenance)
 				if variantSuffix == "" {
 					// alwaysThrow entries emit no dep calls — no same-family
 					// or cross-family edges to persist.
-					writeCachedEntry(runType, settings, innerPrefix, line, nil, nil, opts)
+					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, opts)
 				}
-				return cacheEntry(entryRender{line: line})
+				return entryRender{argsText: argsText}
 			}
 		}
-		return cacheEntry(entryRender{})
+		return entryRender{}
 	}
-	// Noop factories emit a SHORT-FORM init line: only the cache key,
-	// typeName, and isNoop=true are passed. The JS-side init() builds
+	// Noop factories emit a SHORT-FORM tuple tail: only the cache key,
+	// typeName, and isNoop=true are passed. The JS-side consumer builds
 	// the entry with a family-specific identity `fn` (`() => true` for
 	// validate, `(v, pth, er) => er` for validationErrors, `(v) => v` for
 	// prepareForJson / restoreFromJson) and leaves `code`,
@@ -693,33 +423,32 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 			"undefined", // code
 			"true",      // isNoop
 		}
-		line := "init(" + joinArgs(args) + ");"
+		argsText := joinArgs(args)
 		if variantSuffix == "" {
 			// A noop body emits no dep calls, so no same-family or
 			// cross-family lookups are registered.
-			writeCachedEntry(runType, settings, innerPrefix, line, nil, nil, opts)
+			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, opts)
 		}
-		return cacheEntry(entryRender{line: line})
+		return entryRender{argsText: argsText}
 	}
 	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
-	// The 3rd arg (`code`) carries the factory BODY — the contents
-	// between the `function(utl){ … }` braces — so a consumer holding
-	// only the serialized RTCompiledFnData can rebuild the validator
-	// via `new Function('utl', code)(rtUtils)`. The inner-validator
-	// body remains embedded in `code` (as `return function …(v){…}`).
+	// The `code` arg carries the factory BODY — the contents between the
+	// `function(utl){ … }` braces — so a consumer holding only the
+	// serialized RTCompiledFnData can rebuild the validator via
+	// `new Function('utl', code)(rtUtils)`. The inner-validator body
+	// remains embedded in `code` (as `return function …(v){…}`).
 	//
-	// The 7th arg (`createRTFn`) is OMITTED by default (rendered as
-	// the `u = undefined` alias declared once at the top of the
-	// module): the JS-side materializeRTFn rebuilds the factory from
-	// `code` on first `getRT(hash)` call. The opt-in branch under
-	// `opts.EmitCreateRTFn` writes the full `function g_<hash>(utl)
-	// {…}` declaration so runtimes without `new Function` (Cloudflare
-	// WorkerD, sandboxed iframes, etc.) can materialise validators
-	// without the dynamic-code path.
+	// The `createRTFn` arg is OMITTED by default (rendered as the
+	// `u=undefined` alias declared once at the top of each entry module):
+	// the JS-side materializeRTFn rebuilds the factory from `code` on first
+	// `getRT(hash)` call. The opt-in branch under `opts.EmitCreateRTFn`
+	// writes the full `function g_<hash>(utl){…}` declaration so runtimes
+	// without `new Function` can materialise validators without the
+	// dynamic-code path.
 	//
-	// First arg is the namespaced cache key (innerPrefix + runType.ID)
-	// so the JS-side rtFnsCache slot is distinct from the same
-	// runtype's validate / prepareForJson / … entries.
+	// First arg is the namespaced cache key (innerPrefix + runType.ID) ==
+	// the entry-module key, so the JS-side rtFnsCache slot is distinct from
+	// the same runtype's other-family entries.
 	createRTFnArg := "u"
 	if opts.EmitCreateRTFn {
 		createRTFnArg = createRTFn
@@ -735,14 +464,14 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	}
 	deps := append([]string(nil), walker.RTDependencies...)
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
-	line := "init(" + joinArgs(args) + ");"
+	argsText := joinArgs(args)
 	if variantSuffix == "" {
-		writeCachedEntry(runType, settings, innerPrefix, line, deps, crossFamilyDeps, opts)
+		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, opts)
 	}
-	return cacheEntry(entryRender{line: line, deps: deps, crossFamilyDeps: crossFamilyDeps})
+	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps}
 }
 
-// tryReadCachedEntry attempts to load a previously cached (line, deps,
+// tryReadCachedEntry attempts to load a previously cached (argsText, deps,
 // crossFamilyDeps) triple from the disk store. Returns ok=false on miss
 // for any reason: no store wired, missing file, malformed file, header
 // structural-id mismatch (hash drift), or any child OR cross-family ref
@@ -750,7 +479,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 //
 // Cached deps are rebuilt from ChildRefs by translating each
 // (structural id, hash) back to the namespaced form
-// (innerPrefix + hash) the topo sort expects. Cross-family deps are
+// (innerPrefix + hash) the demand worklist expects. Cross-family deps are
 // rebuilt from CrossFamilyRefs the same way, except each ref carries its
 // OWN (foreign) prefix — the reconstructed dep is `ref.Prefix +
 // currentHash`. Because both read-time hash checks guarantee structural
@@ -796,11 +525,11 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		}
 		crossFamilyDeps = append(crossFamilyDeps, ref.Prefix+currentHash)
 	}
-	return entry.Line, deps, crossFamilyDeps, true
+	return entry.ArgsText, deps, crossFamilyDeps, true
 }
 
 // splitNamespacedHash splits a namespaced cache hash into its family
-// prefix (everything up to and including the first `_`, e.g. "val_") and
+// prefix (everything up to and including the first `_`, e.g. "<valHash>_") and
 // the bare hash (the rest). Reports ok=false when there is no `_`
 // separator — such an id can't be reconstructed as prefix+hash on read.
 func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok bool) {
@@ -811,7 +540,7 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 	return namespaced[:idx+1], namespaced[idx+1:], true
 }
 
-// writeCachedEntry persists the freshly-rendered (line, deps,
+// writeCachedEntry persists the freshly-rendered (argsText, deps,
 // crossFamilyDeps) triple so the next build can skip the walker for this
 // (typeID, fnTag) AND still reconstruct its cross-family edges on a hit.
 // Failures are logged once to stderr and otherwise ignored — a read-only
@@ -819,16 +548,15 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 // re-attempt the write.
 //
 // deps here are the namespaced rt-dependency hashes
-// (walker.RTDependencies, e.g. "val_<childHash>"). We strip the prefix
+// (walker.RTDependencies, e.g. "<valHash>_<childHash>"). We strip the prefix
 // to recover the bare childHash and look up its structural id for the
 // ChildRefs record. crossFamilyDeps (walker.CrossFamilyDeps) are
-// foreign-prefixed namespaced hashes (e.g. `val_<member>` in a `tb` / `pj`
-// entry); we split each into its prefix (up to and including the first
-// `_`) and bare hash, resolve the bare hash to its structural id, and
-// store the triple as a CrossFamilyRef. As with ChildRefs, an
-// unresolvable ref aborts the write cleanly rather than persisting a
-// record the reader can't verify.
-func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, line string, deps []string, crossFamilyDeps []string, opts RenderOpts) {
+// foreign-prefixed namespaced hashes; we split each into its prefix (up to
+// and including the first `_`) and bare hash, resolve the bare hash to its
+// structural id, and store the triple as a CrossFamilyRef. As with
+// ChildRefs, an unresolvable ref aborts the write cleanly rather than
+// persisting a record the reader can't verify.
+func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -875,7 +603,7 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 	entry := disk.RTEntry{
 		Format:          disk.FormatVersion,
 		StructuralID:    structural,
-		Line:            line,
+		ArgsText:        argsText,
 		ChildRefs:       childRefs,
 		CrossFamilyRefs: crossFamilyRefs,
 	}
@@ -888,20 +616,6 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 	}
 }
 
-// renderThrowEntry emits the short-form init line for a runtype whose
-// JSON emit throws at RT compile time (mion's per-runtype throws —
-// never, Promise, NonSerializableRunType, the array.ts symbol[]/
-// function[] check). Shape:
-//
-//	init('<innerPrefix><runtype.ID>', '<typeName>', '<throwBody>',
-//	     false, undefined, undefined, function(utl){ throw new Error(<msg>) });
-//
-// isNoop=false (the family-specific identity stub would mask the
-// throw); code carries the throw body so deserialize* — which
-// reconstructs via `new Function('utl', code)` — throws the same
-// message; createRTFn is a function that throws when invoked, which
-// happens inside materializeRTFn during the entry's first getRT
-// lookup → throw propagates up to createPrepareForJson()-call site.
 // leafKindLabel returns a short human-readable label for an unsupported
 // leaf RunType — passed as the {0} substitution arg in the JS-side
 // catalog template for root-throw diagnostics. The label is family-
@@ -932,34 +646,31 @@ func leafKindLabel(leaf *protocol.RunType) string {
 	return "Unsupported"
 }
 
-// renderAlwaysThrowEntry emits the structured alwaysThrow init() call —
-// 8th argument is the per-family diag code; the JS-side init() consumer
-// resolves it to a human-readable message via messageForCode() and
-// constructs the throwing factory at materialise time. Replaces the
-// legacy renderThrowEntry which embedded the message as an inline
-// function body. Wire-size win: ~50 bytes saved per throw entry; the
-// JS side avoids a `new Function` parse on first use.
+// renderAlwaysThrowEntry emits the structured alwaysThrow tuple tail —
+// the 8th positional argument is the per-family diag code; the JS-side
+// tuple consumer resolves it to a human-readable message via
+// messageForCode() and constructs the throwing factory at materialise
+// time.
 //
-// 9th argument is an optional `file:line:col` hint pointing at the FIRST
+// The 9th argument is an optional `file:line:col` hint pointing at the FIRST
 // known marker call site for the type. Appended to the runtime error
 // message so a user who somehow ships an alwaysThrow factory to runtime
 // sees `[CODE] msg (at src/foo.ts:7:18)` instead of an anonymous throw.
 // When provenance is empty (orphaned entry), the slot is `undefined`.
 //
-// Shape (relative to the normal 7-arg init):
+// Shape (relative to the normal 7-arg tail):
 //
-//	init('<hash>', '<typeName>',
-//	     undefined,  // code
-//	     false,      // isNoop
-//	     undefined,  // rtDependencies
-//	     undefined,  // pureFnDependencies
-//	     undefined,  // createRTFn — JS-side derives from diagCode
-//	     '<diagCode>',
-//	     '<siteHint>')
+//	'<hash>', '<typeName>',
+//	undefined,  // code
+//	false,      // isNoop
+//	undefined,  // rtDependencies
+//	undefined,  // pureFnDependencies
+//	undefined,  // createRTFn — JS-side derives from diagCode
+//	'<diagCode>',
+//	'<siteHint>'
 //
 // See docs/UNSUPPORTED-KINDS.md "Wire format".
-func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerName string, diagCode string, provenance []diag.Site) string {
-	_ = settings
+func renderAlwaysThrowEntry(runType *protocol.RunType, innerName string, diagCode string, provenance []diag.Site) string {
 	args := []string{
 		quoteJS(innerName),
 		quoteJS(rtTypeName(runType)),
@@ -971,12 +682,12 @@ func renderAlwaysThrowEntry(runType *protocol.RunType, settings constants.CacheM
 		quoteJS(diagCode),
 		formatCallSiteHint(provenance),
 	}
-	return "init(" + joinArgs(args) + ");"
+	return joinArgs(args)
 }
 
 // formatCallSiteHint renders the first call-site as `file:line:col` for
 // the alwaysThrow 9th arg. Returns the literal `undefined` when no
-// provenance is known so the JS-side init() consumer treats the slot
+// provenance is known so the JS-side tuple consumer treats the slot
 // as absent.
 func formatCallSiteHint(provenance []diag.Site) string {
 	if len(provenance) == 0 {

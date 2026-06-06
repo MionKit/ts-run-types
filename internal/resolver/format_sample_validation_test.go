@@ -37,7 +37,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)
@@ -75,7 +75,7 @@ export const _ = createValidate<TypeFormat<string, 'stringFormat', {
 	resp := r.Dispatch(protocol.Request{
 		Op:                  protocol.OpScanFiles,
 		Files:               []string{"a.ts"},
-		IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindValidate},
+		IncludeEntryModules: true,
 	})
 	if resp.Error != "" {
 		t.Fatalf("scanFiles: %s", resp.Error)

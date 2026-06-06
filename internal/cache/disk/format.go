@@ -43,7 +43,14 @@ package disk
 // (preserve extras), while its fnHash is unchanged (the strategy token "clone" is
 // the same). A v3 `jeCL` entry bakes the old preserve body, so a hit would emit
 // the wrong (extras-preserving) encoder — it must become a miss.
-const FormatVersion = 4
+//
+// v5 is the per-entry virtual-module migration: the cached payload is now the
+// tuple ARGUMENT TEXT (`ArgsText` — the interior of the emitted entry tuple,
+// cache key onward) instead of a full `init(…);` statement, and pure-fn
+// dependency arrays inside it are always fully quoted (the skeleton-scoped
+// `k_<alias>` consts no longer exist). v4 `Line` payloads can't be spliced
+// into a tuple, so they must miss.
+const FormatVersion = 5
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
@@ -85,11 +92,13 @@ type RTEntry struct {
 	// equal this value; any mismatch (hash drift / collision extension)
 	// is a miss.
 	StructuralID string `json:"structuralID"`
-	// Line is the raw `init('<innerName>', …);` JS statement as
-	// rendered. No placeholders: hashes are baked in. Reusing the line
-	// directly requires every ChildRef to still resolve.
-	Line string `json:"line"`
-	// ChildRefs is one entry per RT-dependency hash baked into Line
+	// ArgsText is the raw tuple argument text as rendered — the entry
+	// tuple's positional args from the cache key onward (pre-migration this
+	// slot held a full `init(…);` statement). No placeholders: hashes are
+	// baked in. Reusing the text directly requires every ChildRef to still
+	// resolve.
+	ArgsText string `json:"argsText"`
+	// ChildRefs is one entry per RT-dependency hash baked into ArgsText
 	// (the `val_<childHash>` namespaced ids in walker.RTDependencies).
 	// Empty for leaf entries with no child RT calls.
 	ChildRefs []ChildRef `json:"childRefs"`

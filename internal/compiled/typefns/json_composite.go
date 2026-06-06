@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
+	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
 	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -17,29 +18,19 @@ import (
 // JSON.stringify, restoreFromJson + ukuWire + JSON.parse, …) selected by a
 // compile-time `strategy`. Every other family is a single cache entry the
 // runtime looks up by key. To make the JSON pair uniform with the rest, the
-// composition moves here: one Go-emitted entry per (typeId, strategy) that wraps
+// composition lives here: one Go-emitted entry per (typeId, strategy) that wraps
 // the underlying primitives with native JSON. The TS `createJsonEncoder` /
 // `createJsonDecoder` then collapse to the same `resolveTupleEntry` lookup as
 // binary.
 //
 // The composite entry is keyed by the strategy's composite fnHash
 // (`operations.FnHashFor(jsonEncoder|jsonDecoder op, nil, strategy)`) and looks
-// up its primitives by THEIR fnHash (`operations.PlainHash(primOp)+"_"+id`). The
-// SCANNER pulls both the composite tag AND every referenced primitive into the
-// site's demand (operations.DemandFor), so the composite body only references
-// entries the primitive modules also render. Composites do NOT walk types and
-// emit no `val_<member>` cross-family edges, so they are absent from the
-// cross-family it-source list.
-//
-// Delivery: the composite `init(…)` lines are folded into the prepareForJson
-// (encoder strategies) / restoreFromJson (decoder strategies) module bodies via
-// RenderOpts.ExtraBodyLines — both modules are already loaded into rtUtils, so
-// no new virtual module / cache-source field is needed. The skeleton's `init`
-// accepts the same arg shape every per-fn entry uses.
-
-// jsonCompositeFamily groups the composite family tags hosted by one delivery
-// module. Encoder strategies ride prepareForJson; decoder strategies ride
-// restoreFromJson.
+// up its primitives by THEIR fnHash (`operations.PlainHash(primOp)+"_"+id`).
+// Each composite's module Deps name exactly those primitive entries, so the
+// per-entry import closure pulls the primitives (and their transitive child
+// factories) whenever a composite is demanded — the scanner additionally
+// records both in the site's demand (operations.DemandFor). Composites do NOT
+// walk types and emit no `val_<member>` cross-family edges.
 type jsonCompositeFamily struct {
 	// opName is the composite operation ("jsonEncoder" / "jsonDecoder").
 	opName string
@@ -48,8 +39,8 @@ type jsonCompositeFamily struct {
 	tags []string
 }
 
-// jsonEncoderFamily is the encoder composite set (rides the prepareForJson
-// module body). jsonDecoderFamily is the decoder set (rides restoreFromJson).
+// jsonEncoderFamily / jsonDecoderFamily enumerate the per-strategy composite
+// tags of each operation.
 var (
 	jsonEncoderFamily = jsonCompositeFamily{
 		opName: "jsonEncoder",
@@ -61,24 +52,11 @@ var (
 	}
 )
 
-// JsonEncoderModule renders the JSON-encoder composite `init(…)` lines for every
-// demanded (typeId, strategy) and returns them as a single body fragment to fold
-// into the prepareForJson module via RenderOpts.ExtraBodyLines. Returns "" when
-// no createJsonEncoder site demands a composite.
-func JsonEncoderModule(dump protocol.Dump, opts RenderOpts) string {
-	return renderJsonCompositeLines(dump, opts, jsonEncoderFamily)
-}
-
-// JsonDecoderModule is the decoder sibling of JsonEncoderModule — folds into the
-// restoreFromJson module body.
-func JsonDecoderModule(dump protocol.Dump, opts RenderOpts) string {
-	return renderJsonCompositeLines(dump, opts, jsonDecoderFamily)
-}
-
-// renderJsonCompositeLines collects each composite tag's per-id demand, renders
-// one fixed `init(…)` line per (id, strategy), and joins them in a deterministic
-// order. Disk-cached per (id, compositeTag) so repeat builds skip re-rendering.
-func renderJsonCompositeLines(dump protocol.Dump, opts RenderOpts, family jsonCompositeFamily) string {
+// CollectJsonCompositeEntries collects one entry per demanded (typeId,
+// strategy) across both composite operations. Disk-cached per (id,
+// compositeTag) so repeat builds skip re-rendering.
+func CollectJsonCompositeEntries(dump protocol.Dump, opts RenderOpts) entrymod.Graph {
+	graph := entrymod.Graph{}
 	refTable := opts.RefTable
 	if refTable == nil {
 		refTable = make(map[string]*protocol.RunType, len(dump.RunTypes))
@@ -89,51 +67,54 @@ func renderJsonCompositeLines(dump protocol.Dump, opts RenderOpts, family jsonCo
 			refTable[runType.ID] = runType
 		}
 	}
-	var lines []string
-	for _, tag := range family.tags {
-		composite, ok := constants.JsonCompositeByTag(tag)
-		if !ok {
-			continue
-		}
-		// Demand for this composite tag: the scanner records one SiteDemand per
-		// createJsonEncoder/Decoder site whose strategy maps to this tag. Dedup is
-		// by id (the composite has no ValidateOptions-style sub-variant).
-		demand := collectFamilyDemand(dump.Sites, tag)
-		ids := make([]string, 0, len(demand))
-		for id := range demand {
-			ids = append(ids, id)
-		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			runType := refTable[id]
-			if runType == nil {
+	for _, family := range []jsonCompositeFamily{jsonEncoderFamily, jsonDecoderFamily} {
+		for _, tag := range family.tags {
+			composite, ok := constants.JsonCompositeByTag(tag)
+			if !ok {
 				continue
 			}
-			line := renderJsonCompositeEntry(runType, tag, composite, opts)
-			if line != "" {
-				lines = append(lines, line)
+			// Demand for this composite tag: the scanner records one SiteDemand per
+			// createJsonEncoder/Decoder site whose strategy maps to this tag. Dedup is
+			// by id (the composite has no ValidateOptions-style sub-variant).
+			demand := collectFamilyDemand(dump.Sites, tag)
+			ids := make([]string, 0, len(demand))
+			for id := range demand {
+				ids = append(ids, id)
+			}
+			sort.Strings(ids)
+			for _, id := range ids {
+				runType := refTable[id]
+				if runType == nil {
+					continue
+				}
+				if entry := collectJsonCompositeEntry(runType, tag, composite, opts); entry != nil {
+					graph.Add(entry)
+				}
 			}
 		}
 	}
-	if len(lines) == 0 {
-		return ""
-	}
-	return strings.Join(lines, "\n")
+	return graph
 }
 
-// renderJsonCompositeEntry renders (and disk-caches) one composite `init(…)`
-// line for a given runtype + strategy. The body is FIXED per strategy — it wraps
-// the primitives addressed by their fnHash with native JSON — so there is no
-// walker, no same-family deps, and no cross-family edges to persist.
-func renderJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts) string {
+// collectJsonCompositeEntry renders (and disk-caches) one composite entry for
+// a given runtype + strategy. The body is FIXED per strategy — it wraps the
+// primitives addressed by their fnHash with native JSON — so there is no
+// walker and no cross-family edges; the module Deps are the strategy's
+// primitive entries for the same id.
+func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite constants.JsonComposite, opts RenderOpts) *entrymod.Entry {
 	op, ok := operations.ByName(composite.OpName)
 	if !ok {
-		return ""
+		return nil
 	}
 	entryKey := operations.FnHashFor(op, nil, composite.Strategy) + "_" + runType.ID
 
-	if cachedLine, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
-		return cachedLine
+	// Primitive references are SOFT: the composite body resolves each via
+	// `var e = utl.getRT(key); return e ? e.fn : <fallback>` — a collapsed
+	// primitive degrades to the identity/stringify fallback, never a throw.
+	deps := jsonCompositeDeps(composite, runType.ID)
+
+	if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
+		return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: cachedArgs, SoftDeps: deps}
 	}
 
 	contextLines, innerFn := jsonCompositeBody(composite, runType.ID, entryKey)
@@ -151,23 +132,38 @@ func renderJsonCompositeEntry(runType *protocol.RunType, tag string, composite c
 		"[]",    // pureFnDependencies
 		createRTFnArg,
 	}
-	line := "init(" + joinArgs(args) + ");"
-	writeCachedCompositeEntry(runType, tag, line, opts)
-	return line
+	argsText := joinArgs(args)
+	writeCachedCompositeEntry(runType, tag, argsText, opts)
+	return &entrymod.Entry{Key: entryKey, Kind: entrymod.KindTypeFn, FamilyTag: tag, ArgsText: argsText, SoftDeps: deps}
+}
+
+// jsonCompositeDeps names the primitive entries a composite body resolves at
+// materialise time — one `<plainFhash>_<id>` per family in the strategy's
+// JsonStrategyFamilies row. These become the composite module's imports so the
+// primitives (and their transitive child factories) always load with it.
+func jsonCompositeDeps(composite constants.JsonComposite, id string) []string {
+	tags := constants.JsonStrategyFamilies[composite.Strategy]
+	deps := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		primitive, ok := operations.ByFamilyTag(tag)
+		if !ok {
+			continue
+		}
+		deps = append(deps, operations.PlainHash(primitive.Name)+"_"+id)
+	}
+	return deps
 }
 
 // jsonCompositeBody returns (contextLines, innerFnDeclaration) for a composite
 // strategy. The inner function name is the composite entry key so stack traces
 // identify it; the body is a faithful Go-side copy of createRTFunctions.ts's
-// per-strategy composition (lines 362-389 for the encoder, 421-429 for the
-// decoder), resolving each primitive to its fn (or an identity fallback when the
-// primitive entry is absent — mirrors lookupRTFn's registered-but-no-factory
-// fallback).
+// pre-migration per-strategy composition, resolving each primitive to its fn
+// (or an identity fallback when the primitive entry is absent — mirrors the
+// registered-but-no-factory fallback).
 func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string) (contextLines string, innerFn string) {
 	// resolve emits a context-item const that binds `name` to the primitive's fn
-	// (or `fallback` when the entry is missing). Mirrors lookupRTFn's identity
-	// fallback so a collapsed primitive degrades gracefully instead of throwing
-	// on `undefined.fn`.
+	// (or `fallback` when the entry is missing) so a collapsed primitive
+	// degrades gracefully instead of throwing on `undefined.fn`.
 	var ctx []string
 	resolve := func(name, primOp, fallback string) {
 		key := operations.PlainHash(primOp) + "_" + id
@@ -210,10 +206,10 @@ func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey st
 	return strings.Join(ctx, ";\n"), innerFn
 }
 
-// tryReadCachedCompositeEntry loads a previously written composite line from the
-// disk store. The composite references only entries sharing runType.ID, so the
-// header structural-id check alone proves the baked fnHashes are still valid — no
-// child/cross-family ref bookkeeping is needed.
+// tryReadCachedCompositeEntry loads a previously written composite arg text
+// from the disk store. The composite references only entries sharing
+// runType.ID, so the header structural-id check alone proves the baked
+// fnHashes are still valid — no child/cross-family ref bookkeeping is needed.
 func tryReadCachedCompositeEntry(runType *protocol.RunType, tag string, opts RenderOpts) (string, bool) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return "", false
@@ -229,14 +225,14 @@ func tryReadCachedCompositeEntry(runType *protocol.RunType, tag string, opts Ren
 	if entry.StructuralID != expectedStructural {
 		return "", false
 	}
-	return entry.Line, true
+	return entry.ArgsText, true
 }
 
-// writeCachedCompositeEntry persists a composite line under its per-strategy tag
-// so repeat builds skip re-rendering. Best-effort — failures are swallowed (the
-// shared writeCachedEntry already logs FS misconfigurations on the primitive
-// path).
-func writeCachedCompositeEntry(runType *protocol.RunType, tag string, line string, opts RenderOpts) {
+// writeCachedCompositeEntry persists a composite arg text under its
+// per-strategy tag so repeat builds skip re-rendering. Best-effort — failures
+// are swallowed (the shared writeCachedEntry already logs FS
+// misconfigurations on the primitive path).
+func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText string, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -247,7 +243,7 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, line strin
 	entry := disk.RTEntry{
 		Format:       disk.FormatVersion,
 		StructuralID: structural,
-		Line:         line,
+		ArgsText:     argsText,
 	}
 	_ = opts.Store.WriteRT(runType.ID, tag, entry)
 }
