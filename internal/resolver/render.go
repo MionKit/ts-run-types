@@ -40,6 +40,9 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		// CrossFamilyValRoots' collection passes reuse it. See the
 		// familyRenders ordering note in dispatch.go.
 		EntryCache: typefns.NewEntryRenderCache(),
+		// One predicate memo per dispatch, shared by every family render
+		// (the predicates are emitter-independent).
+		Facts: typefns.NewFactsTable(),
 	}
 }
 
