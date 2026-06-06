@@ -28,7 +28,13 @@ export function runType<T>(id?: InjectRunTypeId<T>): RunType<T> {
 /** Reflection universal reflector: `reflectRunType(value)` infers `T` from a
  *  runtime value (only its static type matters; the value is ignored at
  *  runtime). Rejects inferred-`any` at the type level, mirroring
- *  `reflectRunTypeId`. **/
+ *  `reflectRunTypeId`.
+ *
+ *  `_value` is deliberately NOT `CompTimeArgs`: unlike a composer's child SCHEMA
+ *  (a builder call that rides the carrier), this is an arbitrary runtime value
+ *  reflected for its TYPE only (`reflectRunType(someFetchedUser)`), so forcing it
+ *  literal would defeat the whole point. The composer guardrail does not apply
+ *  here — don't "complete" it by adding the brand. **/
 export function reflectRunType<T>(_value: RejectAny<T>, id?: InjectRunTypeId<T>): RunType<T> {
   return builderResult(id, {type: 'reflected'});
 }

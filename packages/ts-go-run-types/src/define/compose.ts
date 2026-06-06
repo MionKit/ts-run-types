@@ -12,19 +12,35 @@
 // `TypeFromRT` distributing over the members); `intersection` uses positional
 // type params (`A & B & …`) with `= unknown` defaults so omitted slots vanish
 // (`X & unknown = X`).
+//
+// Child schema params are branded `CompTimeArgs<…>`: the children ride the
+// carrier only and are DISCARDED at runtime (the injected marker returns the
+// reflected node), so the scanner enforces each child be a static builder call /
+// array of builder calls / module-scope `const` bound to one — a dynamic schema
+// (`cond ? a : b`, a `.map(...)`, a spread) raises a `CTA0xx` diagnostic instead
+// of silently freezing whatever type it happened to resolve to. The variadic
+// `tuple` / `func` capture their child tuple with `const T` (not a
+// `readonly [...T]` spread): intersecting a spread target with the
+// `CompTimeArgs` brand collapses the tuple to an array, so `const` + `MapTuple`'s
+// `-readonly` is the combination that keeps precise per-slot inference. `union`
+// keeps the spread — its `[number]` index flattens to a member union regardless,
+// so the brand can't widen it.
 
 import {builderResult} from './define.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {TypeFromRT} from '../runtypes/typeFromRt.ts';
-import type {InjectRunTypeId} from '../markers.ts';
+import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 
 /** Maps a tuple of `RunType` schemas to the tuple of the types they carry —
  *  homomorphic over `keyof T`, so it preserves tuple length/order with no
- *  `infer`: `[RunType<A>, RunType<B>]` → `[A, B]`. **/
-export type MapTuple<T extends readonly RunType[]> = {[K in keyof T]: TypeFromRT<T[K]>};
+ *  `infer`: `[RunType<A>, RunType<B>]` → `[A, B]`. The `-readonly` strips the
+ *  `readonly` that `const T` inference adds at the variadic composer call sites
+ *  (`tuple` / `func`), so a fixed-tuple return is mutable `[A, B]` and converges
+ *  with the type-first tuple rather than a `readonly [A, B]`. **/
+export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: TypeFromRT<T[K]>};
 
 /** An array builder — `array(string())` → `RunType<string[]>`. **/
-export function array<T>(item: RunType<T>, id?: InjectRunTypeId<T[]>): RunType<T[]> {
+export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]> {
   return builderResult(id, {type: 'array', child: item});
 }
 
@@ -41,28 +57,29 @@ export function array<T>(item: RunType<T>, id?: InjectRunTypeId<T[]>): RunType<T
  *               `RunType<[number, bigint?, ...string[]]>`.
  *  Disambiguated at runtime: an ARRAY second arg is the optional-items list, a
  *  RunType (object) second arg is the legacy rest element, a string is the
- *  injected id. The `readonly [...T]` targets capture each list as a tuple
- *  (length/order preserved); `MapTuple` recovers element types. The scanner
- *  reflects the whole tuple type off the brand, so the children ride the carrier
- *  only. **/
-export function tuple<T extends readonly RunType[]>(
-  items: readonly [...T],
+ *  injected id. Each list is captured as a tuple via `const T` (length/order
+ *  preserved) — the `CompTimeArgs` brand rules out the `readonly [...T]` spread,
+ *  which would collapse it to an array; `MapTuple` recovers element types. The
+ *  scanner reflects the whole tuple type off the brand, so the children ride the
+ *  carrier only. **/
+export function tuple<const T extends readonly RunType[]>(
+  items: CompTimeArgs<T>,
   id?: InjectRunTypeId<MapTuple<T>>
 ): RunType<MapTuple<T>>;
-export function tuple<T extends readonly RunType[], O extends readonly RunType[]>(
-  items: readonly [...T],
-  optionalItems: readonly [...O],
+export function tuple<const T extends readonly RunType[], const O extends readonly RunType[]>(
+  items: CompTimeArgs<T>,
+  optionalItems: CompTimeArgs<O>,
   id?: InjectRunTypeId<[...MapTuple<T>, ...Partial<MapTuple<O>>]>
 ): RunType<[...MapTuple<T>, ...Partial<MapTuple<O>>]>;
-export function tuple<T extends readonly RunType[], O extends readonly RunType[], R>(
-  items: readonly [...T],
-  optionalItems: readonly [...O],
-  rest: RunType<R>,
+export function tuple<const T extends readonly RunType[], const O extends readonly RunType[], R>(
+  items: CompTimeArgs<T>,
+  optionalItems: CompTimeArgs<O>,
+  rest: CompTimeArgs<RunType<R>>,
   id?: InjectRunTypeId<[...MapTuple<T>, ...Partial<MapTuple<O>>, ...R[]]>
 ): RunType<[...MapTuple<T>, ...Partial<MapTuple<O>>, ...R[]]>;
-export function tuple<T extends readonly RunType[], R>(
-  items: readonly [...T],
-  rest: RunType<R>,
+export function tuple<const T extends readonly RunType[], R>(
+  items: CompTimeArgs<T>,
+  rest: CompTimeArgs<RunType<R>>,
   id?: InjectRunTypeId<[...MapTuple<T>, ...R[]]>
 ): RunType<[...MapTuple<T>, ...R[]]>;
 export function tuple(
@@ -100,7 +117,7 @@ export function tuple(
  *  number>`. Array form, unlimited members: `MapTuple<T>[number]` is the union
  *  of the member types (`TypeFromRT` distributes over the indexed access). **/
 export function union<T extends readonly RunType[]>(
-  members: readonly [...T],
+  members: CompTimeArgs<readonly [...T]>,
   id?: InjectRunTypeId<MapTuple<T>[number]>
 ): RunType<MapTuple<T>[number]> {
   return builderResult(id, {type: 'union', children: members});
@@ -113,14 +130,14 @@ export function union<T extends readonly RunType[]>(
  *  `InjectRunTypeId` parameter. Real intersections are 2–3 types; `runType<T>()`
  *  covers anything wider. **/
 export function intersection<A, B = unknown, C = unknown, D = unknown, E = unknown, F = unknown, G = unknown, H = unknown>(
-  a: RunType<A>,
-  b?: RunType<B>,
-  c?: RunType<C>,
-  d?: RunType<D>,
-  e?: RunType<E>,
-  f?: RunType<F>,
-  g?: RunType<G>,
-  h?: RunType<H>,
+  a: CompTimeArgs<RunType<A>>,
+  b?: CompTimeArgs<RunType<B>>,
+  c?: CompTimeArgs<RunType<C>>,
+  d?: CompTimeArgs<RunType<D>>,
+  e?: CompTimeArgs<RunType<E>>,
+  f?: CompTimeArgs<RunType<F>>,
+  g?: CompTimeArgs<RunType<G>>,
+  h?: CompTimeArgs<RunType<H>>,
   id?: InjectRunTypeId<A & B & C & D & E & F & G & H>
 ): RunType<A & B & C & D & E & F & G & H> {
   return builderResult(id, {type: 'intersection', children: [a, b, c, d, e, f, g, h]});
@@ -133,10 +150,13 @@ export function intersection<A, B = unknown, C = unknown, D = unknown, E = unkno
  *     `Record` whose key is the template-literal pattern the key schema carries.
  *     The key schema's type `K` (any `string | number` subtype, incl. a
  *     template-literal pattern) becomes the index-signature key. **/
-export function record<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Record<string, V>>): RunType<Record<string, V>>;
+export function record<V>(
+  valueSchema: CompTimeArgs<RunType<V>>,
+  id?: InjectRunTypeId<Record<string, V>>
+): RunType<Record<string, V>>;
 export function record<K extends string | number, V>(
-  keySchema: RunType<K>,
-  valueSchema: RunType<V>,
+  keySchema: CompTimeArgs<RunType<K>>,
+  valueSchema: CompTimeArgs<RunType<V>>,
   id?: InjectRunTypeId<Record<K, V>>
 ): RunType<Record<K, V>>;
 export function record(arg1: RunType, arg2?: RunType | InjectRunTypeId<unknown>, arg3?: InjectRunTypeId<unknown>): RunType {
@@ -150,13 +170,17 @@ export function record(arg1: RunType, arg2?: RunType | InjectRunTypeId<unknown>,
 
 /** A `Map` builder — `map(string(), number())` → `RunType<Map<string, number>>`.
  *  Both the key and value schemas are validated per entry. **/
-export function map<K, V>(keySchema: RunType<K>, valueSchema: RunType<V>, id?: InjectRunTypeId<Map<K, V>>): RunType<Map<K, V>> {
+export function map<K, V>(
+  keySchema: CompTimeArgs<RunType<K>>,
+  valueSchema: CompTimeArgs<RunType<V>>,
+  id?: InjectRunTypeId<Map<K, V>>
+): RunType<Map<K, V>> {
   return builderResult(id, {type: 'map', index: keySchema, child: valueSchema});
 }
 
 /** A `Set` builder — `set(string())` → `RunType<Set<string>>`. Each member is
  *  validated against the value schema. **/
-export function set<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Set<V>>): RunType<Set<V>> {
+export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeId<Set<V>>): RunType<Set<V>> {
   return builderResult(id, {type: 'set', child: valueSchema});
 }
 
@@ -168,15 +192,18 @@ export function set<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Set<V>>): R
  *
  *  Always nested inside another composer, so the scanner skips it (the enclosing
  *  marker reflects the whole circular shape off its brand); the thunk exists only
- *  to break the value-level self-reference cycle and to carry `T` for inference. **/
-export function lazy<T>(thunk: () => RunType<T>, id?: InjectRunTypeId<T>): RunType<T> {
+ *  to break the value-level self-reference cycle and to carry `T` for inference.
+ *  The thunk is `CompTimeArgs` — accepted as a literal arrow leaf, so the forward
+ *  `const` it closes over (`() => Node`) is fine; the scanner stops at the arrow
+ *  and never recurses into its body. **/
+export function lazy<T>(thunk: CompTimeArgs<() => RunType<T>>, id?: InjectRunTypeId<T>): RunType<T> {
   return builderResult(id, {type: 'lazy', thunk});
 }
 
 /** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.
  *  Validates the thenable shape (the resolved value type is not checked at
  *  runtime — a pending promise's value isn't available synchronously). **/
-export function promise<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Promise<V>>): RunType<Promise<V>> {
+export function promise<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeId<Promise<V>>): RunType<Promise<V>> {
   return builderResult(id, {type: 'promise', child: valueSchema});
 }
 
@@ -193,14 +220,14 @@ export function promise<V>(valueSchema: RunType<V>, id?: InjectRunTypeId<Promise
  *  a function-typed object property is skipped entirely, a function at a tuple slot
  *  must be `undefined`, and a top-level function passes a `typeof === 'function'`
  *  gate. The builder exists so those shapes can be authored value-first. **/
-export function func<P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
-  params?: readonly [...P],
-  ret?: R,
+export function func<const P extends readonly RunType[] = [], R extends RunType = RunType<void>>(
+  params?: CompTimeArgs<P>,
+  ret?: CompTimeArgs<R>,
   id?: InjectRunTypeId<(...args: MapTuple<P>) => TypeFromRT<R>>
 ): RunType<(...args: MapTuple<P>) => TypeFromRT<R>>;
 export function func<T extends readonly unknown[], R extends RunType = RunType<void>>(
-  paramsTuple: RunType<T>,
-  ret?: R,
+  paramsTuple: CompTimeArgs<RunType<T>>,
+  ret?: CompTimeArgs<R>,
   id?: InjectRunTypeId<(...args: T) => TypeFromRT<R>>
 ): RunType<(...args: T) => TypeFromRT<R>>;
 export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType, id?: InjectRunTypeId<unknown>): RunType {
@@ -264,7 +291,7 @@ export type AssembleTemplate<P extends readonly TemplatePart[]> = P extends read
  *  string-literal segments (`'api/user/'` stays a literal, not `string`); the
  *  parts ride the carrier only. **/
 export function templateLiteral<const P extends readonly TemplatePart[]>(
-  parts: P,
+  parts: CompTimeArgs<P>,
   id?: InjectRunTypeId<AssembleTemplate<P>>
 ): RunType<AssembleTemplate<P>> {
   return builderResult(id, {type: 'templateLiteral', children: parts});
