@@ -20,10 +20,11 @@
     "pnpm": ">= 10.0.0"
   },
   "scripts": {
-    "pretest": "pnpm --filter vite-plugin-runtypes run build && pnpm run check:go-binary",
+    "pretest": "pnpm run check:go-binary && pnpm --filter vite-plugin-runtypes run build",
     "test": "vitest run",
-    "test:logs": "vitest run --reporter=default --reporter=./scripts/runtypes-logs-reporter.mjs",
     "check:go-binary": "bash scripts/check-go-binary.sh",
+    "predump:test-modules": "pnpm run check:go-binary && pnpm --filter vite-plugin-runtypes run build",
+    "dump:test-modules": "node scripts/dump-test-modules.mjs",
     "gen:ts-constants": "go run ./cmd/gen-ts-constants",
     "gen:run-type-kind": "go run ./cmd/gen-run-type-kind > packages/ts-go-run-types/src/runTypeKind.ts",
     "pregen:validation-suite-json": "pnpm --filter vite-plugin-runtypes run build",
