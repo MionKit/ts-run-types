@@ -103,6 +103,80 @@ export const UNION = {
     ],
   },
 
+  large_union_eight_arms: {
+    title: 'Large union (8 heterogeneous arms) — value-first infer fallback',
+    description:
+      'Past the 4 positional union() overloads, the value-first builder routes through the recursive UnionOf<T> infer fallback. 8 arms (literals + primitives + a {a}/{a;b} subset+superset pair) verify the fallback BOTH generates a correct validator AND converges on the type-first union id — preserving the subset/superset arms (no subtype collapse) at depth 8.',
+    isType: () => createIsType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    isTypeSchema: () =>
+      createIsType(
+        RT.union([
+          RT.literal('a'),
+          RT.literal('b'),
+          RT.number(),
+          RT.boolean(),
+          RT.literal(null),
+          RT.object({a: RT.string()}),
+          RT.object({a: RT.string(), b: RT.number()}),
+          RT.object({c: RT.bigint()}),
+        ])
+      ),
+    deserializeIsType: () =>
+      deserializeIsType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    isTypeReflect: () => {
+      const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
+      return createIsType(v);
+    },
+    deserializeIsTypeReflect: () => {
+      const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
+      return deserializeIsType(v);
+    },
+    getTypeErrors: () =>
+      createGetTypeErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    getTypeErrorsSchema: () =>
+      createGetTypeErrors(
+        RT.union([
+          RT.literal('a'),
+          RT.literal('b'),
+          RT.number(),
+          RT.boolean(),
+          RT.literal(null),
+          RT.object({a: RT.string()}),
+          RT.object({a: RT.string(), b: RT.number()}),
+          RT.object({c: RT.bigint()}),
+        ])
+      ),
+    deserializeGetTypeErrors: () =>
+      deserializeGetTypeErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    getTypeErrorsReflect: () => {
+      const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
+      return createGetTypeErrors(v);
+    },
+    deserializeGetTypeErrorsReflect: () => {
+      const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
+      return deserializeGetTypeErrors(v);
+    },
+    mockType: () => createMockType<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
+    mockTypeReflect: () => {
+      const v: 'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint} = 'a';
+      return createMockType(v);
+    },
+    getSamples: () => ({
+      valid: ['a', 'b', 42, true, null, {a: 'x'}, {a: 'x', b: 1}, {c: 10n}],
+      invalid: ['z', 'true', undefined, [], {}, {b: 1}, {a: 1}, {c: 'x'}],
+    }),
+    getExpectedErrors: () => [
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+      [{path: [], expected: 'union'}],
+    ],
+  },
+
   string_or_number: {
     title: 'Two-arm union of string and number',
     isType: () => createIsType<string | number>(),
