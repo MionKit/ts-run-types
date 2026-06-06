@@ -649,10 +649,61 @@ func (dump Dump) WriteJSON(writer io.Writer) error {
 	return encoder.Encode(dump)
 }
 
+// responseAddedFlags / responseCacheSources are the wire definitions of the
+// per-family Response fields — one row per added-flag bool and per
+// cache-source string. Hand-written on purpose: the wire keys are NOT
+// derivable from constants.CacheModules ("runTypes" maps to addedRunTypes
+// but runTypeCacheSource), and these tables ARE the wire contract.
+var responseAddedFlags = []struct {
+	key string
+	get func(*Response) bool
+}{
+	{"addedRunTypes", func(response *Response) bool { return response.AddedRunTypes }},
+	{"addedValidate", func(response *Response) bool { return response.AddedValidate }},
+	{"addedValidationErrors", func(response *Response) bool { return response.AddedValidationErrors }},
+	{"addedPrepareForJson", func(response *Response) bool { return response.AddedPrepareForJson }},
+	{"addedRestoreFromJson", func(response *Response) bool { return response.AddedRestoreFromJson }},
+	{"addedStringifyJson", func(response *Response) bool { return response.AddedStringifyJson }},
+	{"addedPrepareForJsonSafe", func(response *Response) bool { return response.AddedPrepareForJsonSafe }},
+	{"addedHasUnknownKeys", func(response *Response) bool { return response.AddedHasUnknownKeys }},
+	{"addedStripUnknownKeys", func(response *Response) bool { return response.AddedStripUnknownKeys }},
+	{"addedUnknownKeyErrors", func(response *Response) bool { return response.AddedUnknownKeyErrors }},
+	{"addedUnknownKeysToUndefined", func(response *Response) bool { return response.AddedUnknownKeysToUndefined }},
+	{"addedUnknownKeysToUndefinedWire", func(response *Response) bool { return response.AddedUnknownKeysToUndefinedWire }},
+	{"addedToBinary", func(response *Response) bool { return response.AddedToBinary }},
+	{"addedFromBinary", func(response *Response) bool { return response.AddedFromBinary }},
+	{"addedFormatTransform", func(response *Response) bool { return response.AddedFormatTransform }},
+	{"addedPureFns", func(response *Response) bool { return response.AddedPureFns }},
+}
+
+var responseCacheSources = []struct {
+	key string
+	get func(*Response) string
+}{
+	{"runTypeCacheSource", func(response *Response) string { return response.RunTypeCacheSource }},
+	{"validateCacheSource", func(response *Response) string { return response.ValidateCacheSource }},
+	{"validationErrorsCacheSource", func(response *Response) string { return response.ValidationErrorsCacheSource }},
+	{"prepareForJsonCacheSource", func(response *Response) string { return response.PrepareForJsonCacheSource }},
+	{"restoreFromJsonCacheSource", func(response *Response) string { return response.RestoreFromJsonCacheSource }},
+	{"stringifyJsonCacheSource", func(response *Response) string { return response.StringifyJsonCacheSource }},
+	{"prepareForJsonSafeCacheSource", func(response *Response) string { return response.PrepareForJsonSafeCacheSource }},
+	{"hasUnknownKeysCacheSource", func(response *Response) string { return response.HasUnknownKeysCacheSource }},
+	{"stripUnknownKeysCacheSource", func(response *Response) string { return response.StripUnknownKeysCacheSource }},
+	{"unknownKeyErrorsCacheSource", func(response *Response) string { return response.UnknownKeyErrorsCacheSource }},
+	{"unknownKeysToUndefinedCacheSource", func(response *Response) string { return response.UnknownKeysToUndefinedCacheSource }},
+	{"unknownKeysToUndefinedWireCacheSource", func(response *Response) string { return response.UnknownKeysToUndefinedWireCacheSource }},
+	{"toBinaryCacheSource", func(response *Response) string { return response.ToBinaryCacheSource }},
+	{"fromBinaryCacheSource", func(response *Response) string { return response.FromBinaryCacheSource }},
+	{"formatTransformCacheSource", func(response *Response) string { return response.FormatTransformCacheSource }},
+	{"pureFnsCacheSource", func(response *Response) string { return response.PureFnsCacheSource }},
+}
+
 // MarshalJSON serialises Response. ID is emitted only when HasID is true so
 // dump responses (which don't resolve a single id) don't carry a misleading "".
+// Map-built on purpose: encoding/json sorts map keys, so output bytes are
+// stable regardless of fill order.
 func (response Response) MarshalJSON() ([]byte, error) {
-	out := make(map[string]any, 6)
+	out := make(map[string]any, 8)
 	if response.HasID {
 		out["id"] = response.ID
 	}
@@ -662,53 +713,10 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if len(response.Added) > 0 {
 		out["added"] = response.Added
 	}
-	if response.AddedRunTypes {
-		out["addedRunTypes"] = true
-	}
-	if response.AddedValidate {
-		out["addedValidate"] = true
-	}
-	if response.AddedValidationErrors {
-		out["addedValidationErrors"] = true
-	}
-	if response.AddedPrepareForJson {
-		out["addedPrepareForJson"] = true
-	}
-	if response.AddedRestoreFromJson {
-		out["addedRestoreFromJson"] = true
-	}
-	if response.AddedStringifyJson {
-		out["addedStringifyJson"] = true
-	}
-	if response.AddedPrepareForJsonSafe {
-		out["addedPrepareForJsonSafe"] = true
-	}
-	if response.AddedHasUnknownKeys {
-		out["addedHasUnknownKeys"] = true
-	}
-	if response.AddedStripUnknownKeys {
-		out["addedStripUnknownKeys"] = true
-	}
-	if response.AddedUnknownKeyErrors {
-		out["addedUnknownKeyErrors"] = true
-	}
-	if response.AddedUnknownKeysToUndefined {
-		out["addedUnknownKeysToUndefined"] = true
-	}
-	if response.AddedUnknownKeysToUndefinedWire {
-		out["addedUnknownKeysToUndefinedWire"] = true
-	}
-	if response.AddedToBinary {
-		out["addedToBinary"] = true
-	}
-	if response.AddedFromBinary {
-		out["addedFromBinary"] = true
-	}
-	if response.AddedFormatTransform {
-		out["addedFormatTransform"] = true
-	}
-	if response.AddedPureFns {
-		out["addedPureFns"] = true
+	for _, flag := range responseAddedFlags {
+		if flag.get(&response) {
+			out[flag.key] = true
+		}
 	}
 	if len(response.Sites) > 0 {
 		out["sites"] = response.Sites
@@ -719,53 +727,10 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if len(response.RunTypes) > 0 {
 		out["runTypes"] = response.RunTypes
 	}
-	if response.RunTypeCacheSource != "" {
-		out["runTypeCacheSource"] = response.RunTypeCacheSource
-	}
-	if response.ValidateCacheSource != "" {
-		out["validateCacheSource"] = response.ValidateCacheSource
-	}
-	if response.ValidationErrorsCacheSource != "" {
-		out["validationErrorsCacheSource"] = response.ValidationErrorsCacheSource
-	}
-	if response.PrepareForJsonCacheSource != "" {
-		out["prepareForJsonCacheSource"] = response.PrepareForJsonCacheSource
-	}
-	if response.RestoreFromJsonCacheSource != "" {
-		out["restoreFromJsonCacheSource"] = response.RestoreFromJsonCacheSource
-	}
-	if response.StringifyJsonCacheSource != "" {
-		out["stringifyJsonCacheSource"] = response.StringifyJsonCacheSource
-	}
-	if response.PrepareForJsonSafeCacheSource != "" {
-		out["prepareForJsonSafeCacheSource"] = response.PrepareForJsonSafeCacheSource
-	}
-	if response.HasUnknownKeysCacheSource != "" {
-		out["hasUnknownKeysCacheSource"] = response.HasUnknownKeysCacheSource
-	}
-	if response.StripUnknownKeysCacheSource != "" {
-		out["stripUnknownKeysCacheSource"] = response.StripUnknownKeysCacheSource
-	}
-	if response.UnknownKeyErrorsCacheSource != "" {
-		out["unknownKeyErrorsCacheSource"] = response.UnknownKeyErrorsCacheSource
-	}
-	if response.UnknownKeysToUndefinedCacheSource != "" {
-		out["unknownKeysToUndefinedCacheSource"] = response.UnknownKeysToUndefinedCacheSource
-	}
-	if response.UnknownKeysToUndefinedWireCacheSource != "" {
-		out["unknownKeysToUndefinedWireCacheSource"] = response.UnknownKeysToUndefinedWireCacheSource
-	}
-	if response.ToBinaryCacheSource != "" {
-		out["toBinaryCacheSource"] = response.ToBinaryCacheSource
-	}
-	if response.FromBinaryCacheSource != "" {
-		out["fromBinaryCacheSource"] = response.FromBinaryCacheSource
-	}
-	if response.FormatTransformCacheSource != "" {
-		out["formatTransformCacheSource"] = response.FormatTransformCacheSource
-	}
-	if response.PureFnsCacheSource != "" {
-		out["pureFnsCacheSource"] = response.PureFnsCacheSource
+	for _, source := range responseCacheSources {
+		if body := source.get(&response); body != "" {
+			out[source.key] = body
+		}
 	}
 	if len(response.Diagnostics) > 0 {
 		out["diagnostics"] = response.Diagnostics
