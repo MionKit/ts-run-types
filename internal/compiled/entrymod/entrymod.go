@@ -1,7 +1,11 @@
 // Package entrymod assembles the per-entry virtual ES modules emitted by the
-// resolver: one module per cache entry (runtype node, type-fn factory, JSON
-// composite, pure fn), named `virtual:rt/<basename>.js`, exporting a single
-// positional tuple under the fixed export name `e`.
+// resolver: one module per cache entry (type-fn factory, JSON composite, pure
+// fn), named `virtual:rt/<basename>.js`, exporting a single positional tuple
+// under the fixed export name `e`. Runtype nodes are denser than fn entries
+// (one tiny row per node, heavily shared), so they ship as ROWS of THE single
+// data-bundle module (`virtual:rt/runtypes.js`, KindRunTypeBundle) aliased by
+// one facade module per reflection root (KindRunTypeFacade) — see
+// internal/compiled/runtype.CollectEntries.
 //
 // Module shape (every kind):
 //
@@ -67,6 +71,20 @@ const (
 	// "no factory" and falls back to the family identity fn, preserving the
 	// pre-migration silent-degrade semantics (tuple slot 0 = 3).
 	KindMissing Kind = 3
+	// KindRunTypeBundle — THE single runtype data module
+	// (`virtual:rt/runtypes.js`): slot 3 carries a content-hash key, slot 4 an
+	// array of headless runtype rows (one per reflection-demanded node,
+	// deduplicated app-wide), slot 2 the ONE combined footer initializer. The
+	// content-hash key (not the fixed module name) is what the runtime's
+	// processed-keys guard sees, so an evolved bundle re-registers its new
+	// rows (tuple slot 0 = 4).
+	KindRunTypeBundle Kind = 4
+	// KindRunTypeFacade — the per-reflection-root alias module
+	// (`virtual:rt/<rootId>.js`). Imports the bundle and registers nothing;
+	// it exists so the rewrite's binding-only injection keeps working — the
+	// root id rides in the key slot and the bundle rides the deps thunk
+	// (tuple slot 0 = 5).
+	KindRunTypeFacade Kind = 5
 )
 
 // Entry is one compiled cache entry awaiting module assembly.
@@ -206,6 +224,9 @@ func (graph Graph) AddMissingStubs(demanded []string) {
 // `pf/<ns>/<fn>` with non-safe bytes escaped, so the basename is a valid (and
 // readable) module specifier segment.
 func ModuleName(key string, kind Kind) string {
+	if kind == KindRunTypeBundle {
+		return constants.RunTypesBundleBasename
+	}
 	if kind != KindPureFn {
 		return key
 	}
@@ -513,6 +534,10 @@ func kindSlot(entry *Entry) (string, error) {
 		return strconv.Itoa(int(KindRunType)), nil
 	case KindPureFn:
 		return strconv.Itoa(int(KindPureFn)), nil
+	case KindRunTypeBundle:
+		return strconv.Itoa(int(KindRunTypeBundle)), nil
+	case KindRunTypeFacade:
+		return strconv.Itoa(int(KindRunTypeFacade)), nil
 	case KindTypeFn:
 		if entry.FamilyTag == "" {
 			return "", fmt.Errorf("entrymod: type-fn entry %q has no FamilyTag", entry.Key)

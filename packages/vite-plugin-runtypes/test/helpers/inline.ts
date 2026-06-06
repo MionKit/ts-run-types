@@ -255,10 +255,12 @@ export function evalEntryModules(modules: Record<string, string>): Record<string
   return tuples;
 }
 
-// instantiateRunTypes builds the RunType records from every runtype-kind
-// tuple (slot 0 === 0) and runs the footer initializers against a stub
-// registry — the same two-phase shape the marker package's initFromTuple
-// performs against the real rtUtils. Returns the flat {[id]: RunType} table.
+// instantiateRunTypes builds the RunType records from every row of the
+// runtype data-bundle tuple (slot 0 === 4; headless rows in slot 4) and runs
+// the bundle's combined footer initializer against a stub registry — the
+// same two-phase shape the marker package's initFromTuple performs against
+// the real rtUtils. Facade tuples (slot 0 === 5) carry no data and are
+// skipped. Returns the flat {[id]: RunType} table.
 export function instantiateRunTypes(tuples: Record<string, EntryTuple>): Record<string, RunType> {
   const registered: Record<string, RunType> = {};
   const stub = {
@@ -270,20 +272,21 @@ export function instantiateRunTypes(tuples: Record<string, EntryTuple>): Record<
   };
   const inis: Array<(rtu: typeof stub) => void> = [];
   for (const tuple of Object.values(tuples)) {
-    if (!Array.isArray(tuple) || tuple[0] !== 0) continue;
-    const id = tuple[3] as string;
-    registered[id] = buildRunTypeFromTuple(tuple);
+    if (!Array.isArray(tuple) || tuple[0] !== 4) continue;
+    for (const row of (tuple[4] ?? []) as readonly (readonly unknown[])[]) {
+      registered[row[0] as string] = buildRunTypeFromRow(row);
+    }
     if (typeof tuple[2] === 'function') inis.push(tuple[2] as (rtu: typeof stub) => void);
   }
   for (const ini of inis) ini(stub);
   return registered;
 }
 
-// buildRunTypeFromTuple mirrors the 20-slot construction in
-// packages/ts-go-run-types/src/runtypes/entryTuple.ts (registerRunTypeTuple):
+// buildRunTypeFromRow mirrors the 20-slot row construction in
+// packages/ts-go-run-types/src/runtypes/entryTuple.ts (registerRunTypeBundle):
 // every ref-bearing slot starts undefined and is patched by the ini pass.
-function buildRunTypeFromTuple(tuple: EntryTuple): RunType {
-  const arg = (offset: number) => tuple[3 + offset];
+function buildRunTypeFromRow(row: readonly unknown[]): RunType {
+  const arg = (offset: number) => row[offset];
   return {
     id: arg(0),
     kind: arg(1),

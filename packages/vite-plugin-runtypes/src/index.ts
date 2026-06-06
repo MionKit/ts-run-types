@@ -4,7 +4,7 @@ import {ResolverClient} from './resolver-client.ts';
 import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
 import {rewrite} from './rewrite.ts';
 import {Family, Severity, type Diagnostic} from './protocol.ts';
-import {ENTRY_MODULE_SUFFIX, VIRTUAL_MODULE_PREFIX} from './runtypes-constants.generated.ts';
+import {ENTRY_MODULE_SUFFIX, RUNTYPES_BUNDLE_BASENAME, VIRTUAL_MODULE_PREFIX} from './runtypes-constants.generated.ts';
 
 export interface PluginOptions {
   // Absolute path to the compiled ts-go-run-types binary.
@@ -141,9 +141,13 @@ export default function runtypes(options: PluginOptions) {
     },
 
     // Every cache entry is its own virtual module: `virtual:rt/<basename>.js`.
-    // Entry modules are side-effect-free (a tuple export plus imports) and
-    // content-addressed — ids embed the binary version, so a given module's
-    // source never changes and Rollup may tree-shake unreferenced ones freely.
+    // Entry modules are side-effect-free (a tuple export plus imports) and —
+    // with ONE exception — content-addressed: ids embed the binary version,
+    // so a given module's source never changes and Rollup may tree-shake
+    // unreferenced ones freely. The exception is the runtype data bundle
+    // (`virtual:rt/runtypes.js`): its content is the union of every
+    // reflection-demanded node, so handleHotUpdate invalidates it whenever a
+    // scan reports addedRunTypes.
     resolveId(this: any, source: string) {
       if (source.startsWith(VIRTUAL_MODULE_PREFIX)) {
         return {id: '\0' + source, moduleSideEffects: false};
@@ -207,7 +211,10 @@ export default function runtypes(options: PluginOptions) {
     //   3. Drop the dump memo. Entry modules themselves never need
     //      invalidating — they are content-addressed (an edited type is a
     //      NEW id, so the re-transformed user file imports a new virtual
-    //      module and the old one simply goes unreferenced).
+    //      module and the old one simply goes unreferenced) — EXCEPT the
+    //      runtype data bundle, the one mutable module: when the scan
+    //      reports addedRunTypes its row set may have changed, so it gets
+    //      invalidated in the module graph explicitly (step 4 below).
     async handleHotUpdate(this: any, ctx: any) {
       if (!resolver) return;
       const file: string = ctx.file;
@@ -236,6 +243,17 @@ export default function runtypes(options: PluginOptions) {
         result = await resolver.scanFiles([rel]);
       } catch {
         return;
+      }
+
+      // Step 4: the runtype data bundle is the single mutable virtual module
+      // (its rows are the union of all reflection-demanded nodes). New
+      // RunType nodes mean its content may have moved — invalidate so the
+      // next import re-loads from the fresh dump. Facades and every other
+      // entry module stay content-addressed and untouched.
+      if (result.addedRunTypes) {
+        const bundleId = RESOLVED_VIRTUAL_PREFIX + RUNTYPES_BUNDLE_BASENAME + ENTRY_MODULE_SUFFIX;
+        const bundleModule = ctx.server?.moduleGraph?.getModuleById?.(bundleId);
+        if (bundleModule) ctx.server.moduleGraph.invalidateModule(bundleModule);
       }
 
       // Every diagnostic flows through one wire field now; the Family

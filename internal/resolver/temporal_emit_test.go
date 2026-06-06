@@ -106,8 +106,11 @@ func TestTemporal_EmitBinaryRoundTripShape(t *testing.T) {
 }
 
 func TestTemporal_RunTypeCacheCarriesClassType(t *testing.T) {
-	resp := emitSourcesFor(t, "PlainDate")
+	// classType wiring lives in the runtype bundle, which is demand-driven on
+	// REFLECTION sites — seed via getRunTypeId, not a createX call (a
+	// createX-only file emits zero runtype modules).
+	resp := emitSourcesForFn(t, "getRunTypeId", "PlainDate")
 	if !strings.Contains(allEntrySources(*resp), "globalThis.Temporal.PlainDate") {
-		t.Fatalf("runType cache missing classType wiring globalThis.Temporal.PlainDate:\n%s", allEntrySources(*resp))
+		t.Fatalf("runType bundle missing classType wiring globalThis.Temporal.PlainDate:\n%s", allEntrySources(*resp))
 	}
 }

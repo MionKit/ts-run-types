@@ -101,6 +101,7 @@ func writeEntryModuleConstants(out *strings.Builder) {
 	fmt.Fprintf(out, "export const ENTRY_EXPORT_NAME = %q;\n", constants.EntryExportName)
 	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)
 	fmt.Fprintf(out, "export const PURE_FN_MODULE_DIR = %q;\n", constants.PureFnModuleDir)
+	fmt.Fprintf(out, "export const RUNTYPES_BUNDLE_BASENAME = %q;\n", constants.RunTypesBundleBasename)
 }
 
 // writeReflectionSubKind emits a TS `as const` map mirroring

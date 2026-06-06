@@ -2,7 +2,7 @@
 // Go side over the same inline-server pipeline the other vite-plugin
 // tests use, then evaluates the per-entry virtual modules:
 //
-//   - the runtype entry module for `string` (tuple slot 0 === 0);
+//   - the runtype bundle row for `string` (bundle tuple slot 0 === 4);
 //   - the validate entry module (slot 0 === 'val'), asserting the tuple's
 //     positional args carry every RTCompiledFnData field and that the
 //     inline factory (emitCacheFunctions=true on the shared client)
@@ -21,21 +21,22 @@ describe('vite-plugin-runtypes / validate precompiler', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits a working RTCompiledFn entry for `string`', async () => {
-    // `it` (validate) is demand-scoped — a reflection-only getRunTypeId<string>()
-    // would emit ZERO val entries. Drive the validate family directly via
-    // createValidate<string>() so the demand path renders the factory
-    // this test inspects.
+    // Both caches are demand-scoped: createValidate<string>() drives the
+    // validate family this test inspects, and getRunTypeId<string>() drives
+    // the runtype bundle (a createX-only file emits ZERO runtype modules).
     const sources = {
-      'string.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+      'string.ts': `import {createValidate, getRunTypeId} from '@mionjs/ts-go-run-types';
 createValidate<string>();
+getRunTypeId<string>();
 `,
     };
     await withInlineSources(sources, async ({client, sources: augmented}) => {
       const files = Object.keys(augmented).filter((file) => file !== 'runtypes.d.ts');
       const response = await client.scanFiles(files, {includeEntryModules: true});
 
-      expect(response.sites.length).toBe(1);
-      const site = response.sites[0];
+      expect(response.sites.length).toBe(2);
+      const site = response.sites.find((s) => s.fnId);
+      if (!site) throw new Error('expected a createValidate site');
       const fnPrefix = site.fnId;
       if (!fnPrefix) throw new Error('expected an injected fnId (fnHash) on the createValidate site');
       const cacheKey = fnPrefix + '_' + site.id;
@@ -43,7 +44,7 @@ createValidate<string>();
       const entryModules = response.entryModules ?? {};
       const tuples = evalEntryModules(entryModules);
 
-      // 1. The runtype entry module for `string` instantiates to the
+      // 1. The runtype bundle row for `string` instantiates to the
       //    expected RunType record.
       const byHash = instantiateRunTypes(tuples);
       const stringRunType = byHash[site.id];
