@@ -17,8 +17,8 @@ import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonS
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {buildVariantKey, getRTUtils, lookupRTFn} from './runtypes/rtUtils.ts';
-import type {AnyFn, RunType} from './runtypes/types.ts';
-import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
+import type {AnyFn} from './runtypes/types.ts';
+import type {CompTimeArgs, CompTimeRunType, InjectRunTypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -276,14 +276,14 @@ export const createGetTypeErrors = createRTFunctionWithOptions<GetTypeErrorsFn>(
  *  builder's own injection Site, so a standalone
  *  `createIsTypeFor(schema, {noIsArrayCheck: true})` still materialises its
  *  variant factory — no EmitOnly Site needed. **/
-export function createIsTypeFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): IsTypeFn {
+export function createIsTypeFor<T>(schema: CompTimeRunType<T>, options?: CompTimeArgs<IsTypeOptions>): IsTypeFn {
   return lookupRTFn<IsTypeFn>('createIsTypeFor', 'it', schema.id, () => true, options as Record<string, unknown> | undefined);
 }
 
 /** Builds the `getTypeErrors` validator for a value-first RunType schema —
  *  `createTypeErrorsFor(number({min: 0}))`. Same id / options handling as
  *  `createIsTypeFor`. **/
-export function createTypeErrorsFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): GetTypeErrorsFn {
+export function createTypeErrorsFor<T>(schema: CompTimeRunType<T>, options?: CompTimeArgs<IsTypeOptions>): GetTypeErrorsFn {
   return lookupRTFn<GetTypeErrorsFn>(
     'createTypeErrorsFor',
     'te',

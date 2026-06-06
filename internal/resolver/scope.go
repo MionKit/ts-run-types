@@ -123,7 +123,6 @@ func (resolver *Resolver) recordFileIDs(file string, sites []protocol.Site) {
 // dispatchDump instead.
 func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
 	ids := resolver.cache.IDsForUnion(files)
-	runTypes := resolver.cache.NodesForIDs(ids)
 	allowed := make(map[string]struct{}, len(files))
 	for _, file := range files {
 		allowed[file] = struct{}{}
@@ -134,5 +133,29 @@ func (resolver *Resolver) scopedDump(files []string) protocol.Dump {
 			sites = append(sites, site)
 		}
 	}
-	return protocol.Dump{RunTypes: runTypes, Sites: sites}
+	demands := make([]protocol.Demand, 0, len(resolver.demands))
+	for _, demand := range resolver.demands {
+		if _, ok := allowed[demand.File]; ok {
+			demands = append(demands, demand)
+		}
+	}
+	// Union the demanded ids into the projected id set so a type DEMANDED in
+	// one of these files but BUILT in another file is still a render root
+	// (its children resolve against the full-cache refTable). Without this a
+	// cross-file schema-form validator would silently fall back to identity.
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	for _, demand := range demands {
+		if demand.ID == "" {
+			continue
+		}
+		if _, ok := idSet[demand.ID]; !ok {
+			idSet[demand.ID] = struct{}{}
+			ids = append(ids, demand.ID)
+		}
+	}
+	runTypes := resolver.cache.NodesForIDs(ids)
+	return protocol.Dump{RunTypes: runTypes, Sites: sites, Demands: demands}
 }

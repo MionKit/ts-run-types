@@ -48,6 +48,13 @@ type RenderOpts struct {
 	// browser CSP without `unsafe-eval`, …) can still materialise
 	// validators. See docs/UNSUPPORTED-KINDS.md.
 	EmitCreateRTFn bool
+	// RefTable resolves child ref ids to their RunType during a render. When
+	// non-nil it is used instead of an index built from dump.RunTypes — the
+	// resolver passes the FULL session cache here so a demand-gated render
+	// (whose dump.RunTypes is a per-request projection) can always resolve a
+	// demanded type's children, even ones interned via a different file.
+	// Nil falls back to indexing dump.RunTypes (the module_test shape).
+	RefTable map[string]*protocol.RunType
 }
 
 // innerPrefix derives the inner-fn name prefix from a cache-module's
@@ -261,13 +268,18 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	// KindRef sentinels at descent time. Cache entries store every
 	// child slot as a ref (`{kind: -1, id: …}`) per protocol.go;
 	// without the table the walker would dispatch on the ref's
-	// placeholder kind and panic.
-	refTable := make(map[string]*protocol.RunType, len(dump.RunTypes))
-	for _, runType := range dump.RunTypes {
-		if runType == nil || runType.ID == "" {
-			continue
+	// placeholder kind and panic. opts.RefTable (the full session cache)
+	// wins when provided so a demand-gated render resolves children that
+	// the per-request dump.RunTypes projection may not contain.
+	refTable := opts.RefTable
+	if refTable == nil {
+		refTable = make(map[string]*protocol.RunType, len(dump.RunTypes))
+		for _, runType := range dump.RunTypes {
+			if runType == nil || runType.ID == "" {
+				continue
+			}
+			refTable[runType.ID] = runType
 		}
-		refTable[runType.ID] = runType
 	}
 
 	type compiled struct {
@@ -283,47 +295,67 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	order := make([]string, 0, len(dump.RunTypes))
 
 	// Variant fan-out: collect every (typeid, options-tuple) pair seen
-	// at a call site. The emitter sees one walker per pair so each
-	// option combination renders as a distinct cache entry keyed
-	// `<tag><variantSuffix>_<id>`. Non-variant emitters skip this —
-	// their option bag is semantically inert.
-	variantsByID := collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))
+	// at a call site (marker-form Sites) or a schema-form Demand. The
+	// emitter sees one walker per pair so each option combination renders
+	// as a distinct cache entry keyed `<tag><variantSuffix>_<id>`.
+	// Non-variant emitters skip this — their option bag is semantically inert.
+	variantsByID := collectIsTypeVariants(dump.Sites, dump.Demands, supportsIsTypeVariants(emitter))
 
-	for _, runType := range dump.RunTypes {
+	// renderRoot compiles one RunType's plain + variant entries into the
+	// shared entries/order maps. Idempotent via the entries dedup. Composite
+	// kinds may reach unsupported child kinds through CompileChild; the compile
+	// pass returns CodeNS from any leaf with no emit, compound parents
+	// propagate it, and the walker's IsUnsupported flag drops the factory —
+	// see codetype.go's CodeNS contract.
+	renderRoot := func(runType *protocol.RunType) {
 		if runType == nil || !emitter.Supports(runType) {
-			continue
+			return
 		}
-		// Composite kinds (Array, Object, Union, Tuple, …) may
-		// reach unsupported child kinds through CompileChild. Rather
-		// than walking each subtree twice (once to verify, once to
-		// compile), the compile pass itself returns CodeNS from any
-		// leaf with no emit; compound parents propagate that sentinel
-		// upward and the walker's IsUnsupported flag signals to skip
-		// the factory entirely. See codetype.go's CodeNS comment for
-		// the full contract.
-		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, "", nil)
-		if line != "" {
-			namespacedID := innerPrefix + runType.ID
-			if _, exists := entries[namespacedID]; !exists {
+		namespacedID := innerPrefix + runType.ID
+		if _, exists := entries[namespacedID]; !exists {
+			line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, "", nil)
+			if line != "" {
 				entries[namespacedID] = compiled{line: line, deps: deps}
 				order = append(order, namespacedID)
 			}
 		}
-
-		// Variant entries — same RunType, different walker per
-		// option combination. Skip emitters that don't honour any
-		// variant (variantsByID is empty for them by construction).
+		// Variant entries — same RunType, different walker per option
+		// combination. Children stay the plain entries (variant only changes
+		// the root body).
 		for _, variant := range variantsByID[runType.ID] {
-			variantLine, variantDeps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, variant.suffix, variant.options)
-			if variantLine == "" {
-				continue
-			}
 			variantID := variantKey(settings, variant.suffix, runType.ID)
 			if _, exists := entries[variantID]; exists {
 				continue
 			}
+			variantLine, variantDeps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, variant.suffix, variant.options)
+			if variantLine == "" {
+				continue
+			}
 			entries[variantID] = compiled{line: variantLine, deps: variantDeps}
 			order = append(order, variantID)
+		}
+	}
+
+	if dump.Demands != nil {
+		// Demand-gated: render every type STRUCTURALLY reachable from a used
+		// root (walk the RunType graph), then let Supports + the dangling-dep
+		// cascade prune. Structural reachability — not the per-family
+		// rtDependencies — is required because a factory can reach a SIBLING
+		// family's factory: a binary/json discriminated-union dispatches on its
+		// discriminator via the isType factory (`it_<lit>?.fn(v.k) ?? true`),
+		// a cross-family ref absent from rtDependencies. The discriminator
+		// literal IS a structural descendant of the union, so the graph walk
+		// covers it; without it the missing `it_<lit>` makes the `?? true`
+		// fallback fire and every value picks union arm 0. The closure is still
+		// ⊆ every-interned-type, so a never-validated builder emits nothing.
+		for _, runType := range reachableClosure(dump.Demands, refTable) {
+			renderRoot(runType)
+		}
+	} else {
+		// Legacy: emit a factory for every interned RunType the emitter
+		// supports (module_test builds dumps with no Demands → this path).
+		for _, runType := range dump.RunTypes {
+			renderRoot(runType)
 		}
 	}
 
@@ -391,6 +423,77 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	return err
 }
 
+// reachableClosure returns every RunType structurally reachable from the
+// demanded (used) root ids by walking the RunType graph over refTable (the full
+// session cache). Mirrors the resolver's recordFileIDs traversal — every
+// ref-carrying slot is followed — so the set covers structural children AND the
+// cross-family discriminator literals a flat-union encoder dispatches on. The
+// result is the render set for a demand-gated module (each entry still gated by
+// the emitter's Supports). Deterministic order: roots in demand order, then
+// children in first-visit order.
+func reachableClosure(demands []protocol.Demand, refTable map[string]*protocol.RunType) []*protocol.RunType {
+	seen := make(map[string]struct{}, len(refTable))
+	out := make([]*protocol.RunType, 0, len(demands))
+	var walk func(id string)
+	follow := func(ref *protocol.RunType) {
+		if ref != nil {
+			walk(ref.ID)
+		}
+	}
+	walk = func(id string) {
+		if id == "" {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		node := refTable[id]
+		if node == nil {
+			return
+		}
+		out = append(out, node)
+		follow(node.Child)
+		follow(node.Index)
+		follow(node.Return)
+		follow(node.IndexT)
+		for _, ref := range node.Children {
+			follow(ref)
+		}
+		for _, ref := range node.Parameters {
+			follow(ref)
+		}
+		for _, ref := range node.TypeArguments {
+			follow(ref)
+		}
+		for _, ref := range node.Arguments {
+			follow(ref)
+		}
+		for _, ref := range node.ExtendsArguments {
+			follow(ref)
+		}
+		for _, ref := range node.Implements {
+			follow(ref)
+		}
+		for _, ref := range node.Extends {
+			follow(ref)
+		}
+		for _, ref := range node.TypeMeta {
+			follow(ref)
+		}
+		for _, ref := range node.SafeUnionChildren {
+			follow(ref)
+		}
+		for _, ref := range node.UnionDiscriminators {
+			follow(ref)
+		}
+	}
+	for _, demand := range demands {
+		walk(demand.ID)
+	}
+	return out
+}
+
 // isTypeVariant pairs an option-tuple (the unsorted names harvested
 // from a call site) with its canonical variant suffix. The renderer
 // keys variant entries on `suffix` while the walker reads `options`
@@ -407,25 +510,34 @@ type isTypeVariant struct {
 // when `enable` is false — non-variant emitters get an empty result
 // so their inner loop matches the legacy single-entry-per-runtype
 // shape.
-func collectIsTypeVariants(sites []protocol.Site, enable bool) map[string][]isTypeVariant {
+func collectIsTypeVariants(sites []protocol.Site, demands []protocol.Demand, enable bool) map[string][]isTypeVariant {
 	if !enable {
 		return nil
 	}
 	byID := make(map[string]map[string][]string)
-	for _, site := range sites {
-		if site.ID == "" || len(site.Options) == 0 {
-			continue
+	add := func(id string, options []string) {
+		if id == "" || len(options) == 0 {
+			return
 		}
-		suffix := constants.IsTypeVariantSuffix(site.Options)
+		suffix := constants.IsTypeVariantSuffix(options)
 		if suffix == "" {
-			continue
+			return
 		}
-		if byID[site.ID] == nil {
-			byID[site.ID] = make(map[string][]string)
+		if byID[id] == nil {
+			byID[id] = make(map[string][]string)
 		}
-		if _, exists := byID[site.ID][suffix]; !exists {
-			byID[site.ID][suffix] = append([]string(nil), site.Options...)
+		if _, exists := byID[id][suffix]; !exists {
+			byID[id][suffix] = append([]string(nil), options...)
 		}
+	}
+	// Marker-form options ride on Sites; schema-form options ride on Demands.
+	// Both are deduped by (id, suffix), so a marker-form id that also appears
+	// in Demands (the classification path) collapses to one variant entry.
+	for _, site := range sites {
+		add(site.ID, site.Options)
+	}
+	for _, demand := range demands {
+		add(demand.ID, demand.Options)
 	}
 	out := make(map[string][]isTypeVariant, len(byID))
 	for id, suffixes := range byID {

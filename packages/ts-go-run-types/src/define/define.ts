@@ -170,7 +170,7 @@ export function builderResult<T>(id: InjectRunTypeId<T> | undefined, carrier: un
  *  workaround. **/
 export function string(id?: InjectRunTypeId<string>): RunType<string>;
 export function string<const P extends StringParams>(
-  formatParams: P,
+  formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'stringFormat', P>>
 ): RunType<LeafType<'stringFormat', P>>;
 export function string(formatParamsOrId?: StringParams | InjectRunTypeId<string>, id?: InjectRunTypeId<string>): RunType<string> {
@@ -183,7 +183,7 @@ export function string(formatParamsOrId?: StringParams | InjectRunTypeId<string>
  *  branded `RunType<FormatNumber<P>>`. **/
 export function number(id?: InjectRunTypeId<number>): RunType<number>;
 export function number<const P extends NumberParams>(
-  formatParams: P,
+  formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'numberFormat', P>>
 ): RunType<LeafType<'numberFormat', P>>;
 export function number(formatParamsOrId?: NumberParams | InjectRunTypeId<number>, id?: InjectRunTypeId<number>): RunType<number> {
@@ -196,7 +196,7 @@ export function number(formatParamsOrId?: NumberParams | InjectRunTypeId<number>
  *  branded `RunType<FormatBigInt<P>>`. **/
 export function bigint(id?: InjectRunTypeId<bigint>): RunType<bigint>;
 export function bigint<const P extends BigIntParams>(
-  formatParams: P,
+  formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'bigintFormat', P>>
 ): RunType<LeafType<'bigintFormat', P>>;
 export function bigint(formatParamsOrId?: BigIntParams | InjectRunTypeId<bigint>, id?: InjectRunTypeId<bigint>): RunType<bigint> {
@@ -209,7 +209,7 @@ export function bigint(formatParamsOrId?: BigIntParams | InjectRunTypeId<bigint>
  *  → branded `RunType<FormatDate<P>>`. **/
 export function date(id?: InjectRunTypeId<Date>): RunType<Date>;
 export function date<const P extends FormatParams_NativeDate>(
-  formatParams: P,
+  formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'nativeDate', P>>
 ): RunType<LeafType<'nativeDate', P>>;
 export function date(
@@ -339,7 +339,7 @@ interface TemporalBaseByTag {
 interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>> {
   (id?: InjectRunTypeId<TemporalBaseByTag[Tag]>): RunType<TemporalBaseByTag[Tag]>;
   <const P extends MinMax>(
-    formatParams: P,
+    formatParams: CompTimeArgs<P>,
     id?: InjectRunTypeId<TemporalFormatByTag<P>[Tag]>
   ): RunType<TemporalFormatByTag<P>[Tag]>;
 }
@@ -390,14 +390,17 @@ interface PropModCarrier<M extends PropModifiers, F> {
  *  intersection, which would corrupt the `__rtFormatName` / `__rtFormatParams`
  *  sentinels); `object` unwraps it. A bare `propMod(...)` is only meaningful as a
  *  field inside `object(...)`. **/
-export function propMod<const M extends PropModifiers, const F>(modifiers: M, field: F): PropModCarrier<M, F> {
+export function propMod<const M extends PropModifiers, const F>(
+  modifiers: CompTimeArgs<M>,
+  field: CompTimeArgs<F>
+): PropModCarrier<M, F> {
   return {__propMod: modifiers, __field: field};
 }
 
 /** Shortcut for `propMod({optional: true}, field)` — marks a field optional
  *  (`key?:`) inside `object(...)`. The common modifier gets a terse spelling;
  *  reach for `propMod` for `readonly` or combinations. **/
-export function optional<const F>(field: F): PropModCarrier<{optional: true}, F> {
+export function optional<const F>(field: CompTimeArgs<F>): PropModCarrier<{optional: true}, F> {
   return propMod({optional: true}, field);
 }
 
@@ -562,7 +565,7 @@ export type ModelConfigOf<T> = {-readonly [K in keyof T]-?: FieldConfigOf<NonNul
  *  nests inside another composer. The nested field builders are skipped by the
  *  scanner — the enclosing `object` marker reflects the whole shape. **/
 export function object<const C extends Record<string, unknown>>(
-  config: C,
+  config: CompTimeArgs<C>,
   id?: InjectRunTypeId<ObjectType<C>>
 ): RunType<ObjectType<C>> {
   return builderResult<ObjectType<C>>(id, config);
