@@ -9,7 +9,7 @@
 // is data for tuning an individual branch of the mapping.
 //
 // The PREAMBLE embeds the REAL `DataOnly` machinery, sliced VERBATIM out of
-// src/runtypes/types.ts between the `#region dataonly-extract` markers — so the
+// src/runtypes/dataOnly.ts between the `#region dataonly-extract` markers — so the
 // harness can never drift from the shipped type. Temporal is mirrored locally
 // (ambient stub + the `DataOnlyNativeExtra` augmentation) so the keep-Temporal
 // branch is exercised without pulling the package's module graph (which would
@@ -19,16 +19,16 @@ import * as ts from 'typescript';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 
-const TYPES_TS = fileURLToPath(new URL('../../src/runtypes/types.ts', import.meta.url));
+const DATAONLY_TS = fileURLToPath(new URL('../../src/runtypes/dataOnly.ts', import.meta.url));
 
-/** Slice the `DataOnly` machinery out of types.ts between the region markers and
- *  drop the `export` modifiers so it can live in a non-module snippet. **/
+/** Slice the `DataOnly` machinery out of dataOnly.ts between the region markers
+ *  and drop the `export` modifiers so it can live in a non-module snippet. **/
 function extractDataOnlyRegion(): string {
-  const source = readFileSync(TYPES_TS, 'utf8');
+  const source = readFileSync(DATAONLY_TS, 'utf8');
   const start = source.indexOf('// #region dataonly-extract');
   const end = source.indexOf('// #endregion dataonly-extract');
   if (start === -1 || end === -1) {
-    throw new Error('dataonly-extract region markers not found in src/runtypes/types.ts');
+    throw new Error('dataonly-extract region markers not found in src/runtypes/dataOnly.ts');
   }
   return source.slice(start, end).replace(/^export (type|interface) /gm, '$1 ');
 }
