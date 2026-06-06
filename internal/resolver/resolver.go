@@ -53,6 +53,12 @@ type Options struct {
 	// automatic fallback for single-group requests, single files, and
 	// file-resolve errors.
 	DisableParallelScan bool
+	// DisableParallelRender forces the sequential family-render loop. The
+	// zero value means parallel-on: the requested non-validate cache
+	// families render concurrently (each against sharded per-dispatch
+	// memos, merged at the join), validate always renders last and
+	// serially. SingleThreaded implies serial here too.
+	DisableParallelRender bool
 	// CacheDir, when non-empty, points at a directory under which the
 	// resolver persists per-(typeID, fnTag) RT artifacts. Typically
 	// <projectRoot>/node_modules/.cache/ts-go-run-types. The disk layer

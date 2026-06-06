@@ -262,6 +262,24 @@ func NewFactsTable() *FactsTable {
 	return table
 }
 
+// Merge folds other's verdicts into table. Used by the parallel render
+// path: each family render memoizes predicates in its own shard, and the
+// dispatcher merges the shards after the join so the validate render (and
+// its collection passes) start from the union. A verdict is a pure
+// function of the canonical node, so a key present in both shards always
+// carries the same value — the union is conflict-free. Nil-safe on both
+// sides.
+func (table *FactsTable) Merge(other *FactsTable) {
+	if table == nil || other == nil {
+		return
+	}
+	for kind := range other.verdicts {
+		for id, verdict := range other.verdicts[kind] {
+			table.verdicts[kind][id] = verdict
+		}
+	}
+}
+
 func (w *Walker) factsLookup(kind factKind, id string) (verdict bool, known bool) {
 	if w == nil || w.facts == nil {
 		return false, false

@@ -115,6 +115,18 @@ export const d = createValidate<Date>();
 const acc = new Account();
 export const idReflect = reflectRunTypeId(acc);
 `,
+		// Non-serialisable members silently drop with per-family Warning
+		// diagnostics (VL010 / VE010 / json-family codes) — multiple
+		// families emit RT-render diagnostics for the same type, which
+		// pins the cross-family diagnostic merge order in parallel mode.
+		"i_dropped.ts": `import {createValidate, createGetValidationErrors, createJsonEncoder, reflectRunTypeId} from '@mionjs/ts-go-run-types';
+export interface WithFn { name: string; onClick: () => void; }
+export const v = createValidate<WithFn>();
+export const e = createGetValidationErrors<WithFn>();
+export const enc = createJsonEncoder<WithFn>();
+const w: WithFn = {name: 'x', onClick: () => {}};
+export const idReflect = reflectRunTypeId(w);
+`,
 	}
 }
 
@@ -123,6 +135,7 @@ func parallelFixtureFiles() []string {
 	return []string{
 		"a_objects.ts", "b_unions.ts", "c_large.ts", "d_shared.ts",
 		"e_diags.ts", "f_enum_literals.ts", "g_reflect.ts", "h_classes.ts",
+		"i_dropped.ts",
 	}
 }
 
