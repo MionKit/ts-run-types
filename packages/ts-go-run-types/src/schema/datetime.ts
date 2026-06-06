@@ -11,34 +11,41 @@
 // `TemporalFormatByTag` / `TemporalBaseByTag` / `TemporalBuilderFn`) live in
 // static.ts, so this file is runtime-only.
 
-import {builderResult} from './atomic.ts';
+import {builderResult, lastInjectedId} from './atomic.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
-import type {LeafType, TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn} from './static.ts';
+import type {LeafType, BrandArg, TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn} from './static.ts';
 
 // ────────────────────────── Native Date builder ─────────────────────
 //
-// Same no-params/plain ↔ params/branded overload split as the scalar leaves in
+// Same no-params/params/params+brand overload split as the scalar leaves in
 // atomic.ts: the no-params call returns plain `RunType<Date>` (converges with the
 // type-first `Date` / `createValidate<Date>()`), the params-present call returns the
-// branded `RunType<FormatDate<P>>`.
+// transparent `RunType<FormatDate<P>>`, and the params+brand call the nominal
+// `RunType<FormatDate<P, B>>`.
 
 /** A native-`Date` field builder. `date()` → `RunType<Date>`; `date({max: 'now'})`
- *  → branded `RunType<FormatDate<P>>`. **/
+ *  → transparent `RunType<FormatDate<P>>`; `date({max: 'now'}, brand('CreatedAt'))`
+ *  → nominal `RunType<FormatDate<P, 'CreatedAt'>>`. **/
 export function date(id?: InjectRunTypeId<Date>): RunType<Date>;
 export function date<const P extends FormatParams_NativeDate>(
   formatParams: CompTimeArgs<P>,
   id?: InjectRunTypeId<LeafType<'nativeDate', P>>
 ): RunType<LeafType<'nativeDate', P>>;
+export function date<const P extends FormatParams_NativeDate, const B extends string>(
+  formatParams: CompTimeArgs<P>,
+  brandTag: BrandArg<B>,
+  id?: InjectRunTypeId<LeafType<'nativeDate', P, B>>
+): RunType<LeafType<'nativeDate', P, B>>;
 export function date(
   formatParamsOrId?: FormatParams_NativeDate | InjectRunTypeId<Date>,
+  brandOrId?: BrandArg<string> | InjectRunTypeId<Date>,
   id?: InjectRunTypeId<Date>
 ): RunType<Date> {
   const formatParams = typeof formatParamsOrId === 'object' ? formatParamsOrId : {};
-  const injectedId = typeof formatParamsOrId === 'string' ? formatParamsOrId : id;
-  return builderResult(injectedId, {type: 'date', formatParams});
+  return builderResult(lastInjectedId(formatParamsOrId, brandOrId, id), {type: 'date', formatParams});
 }
 
 // ─────────────────────────── Temporal builders ──────────────────────

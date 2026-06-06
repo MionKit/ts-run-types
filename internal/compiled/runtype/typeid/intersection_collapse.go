@@ -93,6 +93,12 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 				formatKey += FormatAnnotationStructuralKey(annotation)
 				continue
 			}
+			// A pure `{__rtFormatBrand}` member is the TS-only nominal brand: it
+			// must NOT enter the structural id (brand is id-neutral), else a
+			// branded format would stop deduping with its unbranded twin.
+			if IsFormatBrandMember(computer.typeChecker, objectMember) {
+				continue
+			}
 			brandIDs = append(brandIDs, computer.Compute(objectMember))
 		}
 		sort.Strings(brandIDs)
