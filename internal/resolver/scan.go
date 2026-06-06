@@ -440,14 +440,14 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	// invariant) so the call site keeps working; this warning is the
 	// only signal the option is redundant. Anchored at the options
 	// literal when present, falling back to the whole call.
-	if options.NoLiterals || options.NoIsArrayCheck {
+	if options.Any() {
 		resolvedKind := typeid.KindOf(state.scanChecker, typeArgument)
-		if options.NoLiterals && resolvedKind != protocol.KindLiteral {
+		if options.Has("noLiterals") && resolvedKind != protocol.KindLiteral {
 			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoLiteralsNoop); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
-		if options.NoIsArrayCheck && resolvedKind != protocol.KindArray {
+		if options.Has("noIsArrayCheck") && resolvedKind != protocol.KindArray {
 			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoArrayNoop); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
@@ -468,14 +468,11 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	//
 	// Compute the precise fnId for InjectTypeFnArgs sites — the function's base
 	// tag refined by the call-site compile-time options (ValidateOptions variant
-	// suffix for it/te, the strategy token for the JSON families). Reflection
-	// sites (InjectRunTypeId) leave injectionFnKey empty → no FnId, no function
-	// demand.
-	fnId := computeFnId(injectionFnKey, options, call, lastIndex, argsCount)
-	// Structured emit-demand for this site — what the emitter must render —
-	// computed from the operation registry (the forward replacement for
-	// reverse-parsing fnId, which an opaque hash can't support).
-	demand := computeFnDemand(injectionFnKey, options, call, lastIndex, argsCount)
+	// suffix for it/te, the strategy token for the JSON families) — plus the
+	// structured emit-demand (the forward replacement for reverse-parsing fnId,
+	// which an opaque hash can't support). Reflection sites (InjectRunTypeId)
+	// leave injectionFnKey empty → no FnId, no function demand.
+	fnId, demand := computeSiteFn(injectionFnKey, options, call, lastIndex, argsCount)
 	return pendingCall{
 		file: file,
 		// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
@@ -490,41 +487,23 @@ func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []
 	}, diagnostics, true
 }
 
-// computeFnId resolves the opaque fnHash the transformer injects as the 2nd
-// tuple element for a createX call site. Routed through operations.FnHashFor so
-// the scanner and the emitter compute the SAME hash: for a JSON family it is the
-// COMPOSITE fnHash (the per-strategy jsonEncoder/jsonDecoder entry the runtime
-// looks up); for it/te the ValidateOptions variant fnHash; for a leaf/binary
-// family the plain fnHash. operations.Canonical reads only the axis-relevant
-// input (strategy for JSON, option names for it/te, neither otherwise), so the
-// single call covers every axis. Empty fnKey (a reflection-only InjectRunTypeId
-// site) yields "".
-func computeFnId(fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) string {
+// computeSiteFn resolves both injection payloads for a createX call site in
+// one registry pass: the opaque fnId the transformer injects as the 2nd tuple
+// element, and the structured cache-entry demand the emitter must render.
+// Routed through operations.FnHashFor so the scanner and the emitter compute
+// the SAME hash: for a JSON family the COMPOSITE fnHash (the per-strategy
+// jsonEncoder/jsonDecoder entry the runtime looks up); for it/te the
+// ValidateOptions variant fnHash; for a leaf/binary family the plain fnHash.
+// operations.Canonical reads only the axis-relevant input (strategy for JSON,
+// option names for it/te, neither otherwise), so one call covers every axis.
+// Empty fnKey (a reflection-only InjectRunTypeId site) yields ("", nil).
+func computeSiteFn(fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) (string, []protocol.SiteDemand) {
 	if fnKey == "" {
-		return ""
+		return "", nil
 	}
 	op, known := operations.ByFnKey(fnKey)
 	if !known {
-		return ""
-	}
-	strategy := ""
-	if op.Axis == operations.AxisJsonStrategy {
-		strategy = extractStrategyOption(call, lastIndex, argsCount)
-	}
-	return operations.FnHashFor(op, options.Names(), strategy)
-}
-
-// computeFnDemand returns the structured cache-entry demand for a createX call
-// site — what the emitter must render — resolved from the operation registry.
-// Mirrors computeFnId's option/strategy extraction; empty fnKey (a
-// reflection-only InjectRunTypeId site) yields nil.
-func computeFnDemand(fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) []protocol.SiteDemand {
-	if fnKey == "" {
-		return nil
-	}
-	op, ok := operations.ByFnKey(fnKey)
-	if !ok {
-		return nil
+		return "", nil
 	}
 	var optionNames []string
 	var strategy string
@@ -534,9 +513,10 @@ func computeFnDemand(fnKey string, options validateOptions, call *ast.Node, last
 	case operations.AxisValidateOptions:
 		optionNames = options.Names()
 	}
+	fnId := operations.FnHashFor(op, options.Names(), strategy)
 	demands := operations.DemandFor(fnKey, optionNames, strategy)
 	if len(demands) == 0 {
-		return nil
+		return fnId, nil
 	}
 	out := make([]protocol.SiteDemand, len(demands))
 	for index, demand := range demands {
@@ -547,36 +527,51 @@ func computeFnDemand(fnKey string, options validateOptions, call *ast.Node, last
 			FnHash:        demand.FnHash,
 		}
 	}
-	return out
+	return fnId, out
 }
 
-// extractStrategyOption reads the `strategy` string property from the options
-// object literal at slot (lastIndex-1) — the JSON encoder/decoder compile-time
-// selector. Returns "" when absent or not a string literal (the resolver runs
-// at build time and can't evaluate non-literal expressions), so the caller
-// falls back to the function's default strategy.
-func extractStrategyOption(call *ast.Node, lastIndex, argsCount int) string {
+// optionsArgumentAt returns the AST node at the compile-time options slot —
+// the slot immediately before the trailing id slot — or nil when the call
+// doesn't fill it. Layout convention: options always lives at (lastIndex-1);
+// for `createValidate<T>(val?, options?, id?)` that's slot 1. Marker
+// functions without an options param (`getRunTypeId<T>(id?)`,
+// `reflectRunTypeId(_value, id?)`) are inherently safe — slot 0 holds a
+// value, which may be an object literal but won't carry known option keys.
+// Shared by the ValidateOptions / strategy extractors and the noop-option
+// diagnostic anchor.
+func optionsArgumentAt(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 	if lastIndex == 0 {
-		return ""
+		return nil
 	}
 	optionsIndex := lastIndex - 1
 	if argsCount <= optionsIndex {
-		return ""
+		return nil
 	}
 	callExpression := call.AsCallExpression()
 	if callExpression == nil || callExpression.Arguments == nil {
-		return ""
+		return nil
 	}
 	if len(callExpression.Arguments.Nodes) <= optionsIndex {
-		return ""
+		return nil
 	}
-	candidate := callExpression.Arguments.Nodes[optionsIndex]
+	return callExpression.Arguments.Nodes[optionsIndex]
+}
+
+// eachOptionProperty visits every named PropertyAssignment of the options
+// object literal at the options slot as a (name, initializer) pair. No-op
+// when the slot is unfilled or isn't an object literal — the resolver runs
+// at build time and can't evaluate non-literal expressions, so variable
+// references / spreads / calls silently yield zero options. This matches
+// mion's compile-time-baked options model (baseRunTypes.ts:82-86 hashes
+// options into the RT cache key).
+func eachOptionProperty(call *ast.Node, lastIndex, argsCount int, visit func(name string, initializer *ast.Node)) {
+	candidate := optionsArgumentAt(call, lastIndex, argsCount)
 	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
-		return ""
+		return
 	}
 	objectLiteral := candidate.AsObjectLiteralExpression()
 	if objectLiteral == nil || objectLiteral.Properties == nil {
-		return ""
+		return
 	}
 	for _, property := range objectLiteral.Properties.Nodes {
 		if property == nil || property.Kind != ast.KindPropertyAssignment {
@@ -587,18 +582,28 @@ func extractStrategyOption(call *ast.Node, lastIndex, argsCount int) string {
 			continue
 		}
 		name := propertyAssignment.Name()
-		if name == nil || name.Text() != "strategy" {
+		if name == nil || propertyAssignment.Initializer == nil {
 			continue
 		}
-		initializer := propertyAssignment.Initializer
-		if initializer == nil {
-			continue
+		visit(name.Text(), propertyAssignment.Initializer)
+	}
+}
+
+// extractStrategyOption reads the `strategy` string property from the options
+// slot — the JSON encoder/decoder compile-time selector. Returns "" when
+// absent or not a string literal, so the caller falls back to the function's
+// default strategy.
+func extractStrategyOption(call *ast.Node, lastIndex, argsCount int) string {
+	strategy := ""
+	eachOptionProperty(call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		if name != "strategy" || strategy != "" {
+			return
 		}
 		if initializer.Kind == ast.KindStringLiteral || initializer.Kind == ast.KindNoSubstitutionTemplateLiteral {
-			return initializer.Text()
+			strategy = initializer.Text()
 		}
-	}
-	return ""
+	})
+	return strategy
 }
 
 // enclosedByInjectionMarker reports whether call sits (transitively) inside the
@@ -635,111 +640,57 @@ func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 	return false
 }
 
-// validateOptions mirrors the JS-side ValidateOptions interface
-// (packages/ts-go-run-types/src/createRTFunctions.ts). Resolver-side
-// representation is a Go struct so the rest of the pipeline can read
-// fields without re-walking the AST.
+// validateOptions carries the call-site `ValidateOptions` flags set to a
+// literal `true`, keyed by their constants.ValidateOptions name. Mirrors
+// the JS-side ValidateOptions interface
+// (packages/ts-go-run-types/src/createRTFunctions.ts). Table-driven off
+// constants.ValidateOptions: a new option is extracted automatically once
+// declared there — only its per-option semantics (e.g. a noop-diagnostic
+// rule in analyzeCall) need teaching.
 type validateOptions struct {
-	NoLiterals     bool
-	NoIsArrayCheck bool
+	enabled map[string]bool
 }
 
-// Names returns the option NAMES whose value is true, in the canonical
-// declaration order from `constants.ValidateOptions`. computeFnId feeds the
-// result to `constants.ResolveFnId` to build the injected fnId's variant
-// cache-key suffix (e.g. `itNL`, `valNA`). Empty when no option is set.
+// Any reports whether at least one option was set at the call site.
+func (opts validateOptions) Any() bool { return len(opts.enabled) > 0 }
+
+// Has reports whether the named option was set to a literal `true`.
+func (opts validateOptions) Has(name string) bool { return opts.enabled[name] }
+
+// Names returns the enabled option NAMES in the canonical declaration
+// order from `constants.ValidateOptions` (the variant cache-key suffix
+// order, e.g. `itNL`, `valNA`). Empty when no option is set.
 func (opts validateOptions) Names() []string {
-	if !opts.NoLiterals && !opts.NoIsArrayCheck {
+	if len(opts.enabled) == 0 {
 		return nil
 	}
-	names := make([]string, 0, len(constants.ValidateOptions))
+	names := make([]string, 0, len(opts.enabled))
 	for _, opt := range constants.ValidateOptions {
-		switch opt.Name {
-		case "noLiterals":
-			if opts.NoLiterals {
-				names = append(names, opt.Name)
-			}
-		case "noIsArrayCheck":
-			if opts.NoIsArrayCheck {
-				names = append(names, opt.Name)
-			}
+		if opts.enabled[opt.Name] {
+			names = append(names, opt.Name)
 		}
 	}
 	return names
 }
 
-// extractValidateOptions reads literal options from the argument slot
-// immediately before the id slot, when the signature has a
-// `ValidateOptions` parameter there. The argument must be an object
-// literal — variable references / spreads / function calls are ignored
-// (return zero options) because the resolver runs at build time and
-// can't evaluate arbitrary expressions. This matches mion's
-// compile-time-baked options model (baseRunTypes.ts:82-86 hashes
-// options into the RT cache key).
-//
-// Layout convention: options always lives at slot (lastIndex - 1) — the
-// slot immediately before id. For `createValidate<T>(val?, options?, id?)`
-// that's slot 1; for any future function with `(options?, id?)` it
-// would be slot 0. Marker functions without an options param
-// (`getRunTypeId<T>(id?)`, `reflectRunTypeId(_value, id?)`) are
-// inherently safe — `reflectRunTypeId`'s slot 0 holds a value, which
-// is allowed to be an object literal but won't contain known option
-// keys, so the lookup returns zero opts.
+// extractValidateOptions reads the literal `<option>: true` properties at
+// the options slot for every option declared in constants.ValidateOptions.
 func extractValidateOptions(call *ast.Node, lastIndex, argsCount int) validateOptions {
 	var opts validateOptions
-	// Options live at the slot immediately before the id slot. If
-	// lastIndex==0 the function has no slots before id at all
-	// (e.g. getRunTypeId<T>(id?)).
-	if lastIndex == 0 {
-		return opts
-	}
-	optionsIndex := lastIndex - 1
-	// User has to fill the options slot for us to harvest anything.
-	if argsCount <= optionsIndex {
-		return opts
-	}
-	callExpression := call.AsCallExpression()
-	if callExpression == nil || callExpression.Arguments == nil {
-		return opts
-	}
-	if len(callExpression.Arguments.Nodes) <= optionsIndex {
-		return opts
-	}
-	candidate := callExpression.Arguments.Nodes[optionsIndex]
-	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
-		return opts
-	}
-	objectLiteral := candidate.AsObjectLiteralExpression()
-	if objectLiteral == nil || objectLiteral.Properties == nil {
-		return opts
-	}
-	for _, property := range objectLiteral.Properties.Nodes {
-		if property == nil || property.Kind != ast.KindPropertyAssignment {
-			continue
+	eachOptionProperty(call, lastIndex, argsCount, func(name string, initializer *ast.Node) {
+		if initializer.Kind != ast.KindTrueKeyword {
+			return
 		}
-		propertyAssignment := property.AsPropertyAssignment()
-		if propertyAssignment == nil {
-			continue
-		}
-		name := propertyAssignment.Name()
-		if name == nil {
-			continue
-		}
-		initializer := propertyAssignment.Initializer
-		if initializer == nil {
-			continue
-		}
-		switch name.Text() {
-		case "noLiterals":
-			if initializer.Kind == ast.KindTrueKeyword {
-				opts.NoLiterals = true
+		for _, option := range constants.ValidateOptions {
+			if option.Name != name {
+				continue
 			}
-		case "noIsArrayCheck":
-			if initializer.Kind == ast.KindTrueKeyword {
-				opts.NoIsArrayCheck = true
+			if opts.enabled == nil {
+				opts.enabled = make(map[string]bool, len(constants.ValidateOptions))
 			}
+			opts.enabled[name] = true
 		}
-	}
+	})
 	return opts
 }
 
@@ -809,32 +760,10 @@ func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, la
 		return diag.Diagnostic{}, false
 	}
 	anchor := call
-	if optionsNode := extractValidateOptionsCandidate(call, lastIndex, argsCount); optionsNode != nil {
+	if optionsNode := optionsArgumentAt(call, lastIndex, argsCount); optionsNode != nil {
 		anchor = optionsNode
 	}
 	return diag.New(code, textpos.NodeSite(file, sourceFile, anchor)), true
-}
-
-// extractValidateOptionsCandidate returns the AST node at the options
-// slot (slot immediately before id), or nil. Retained for the options
-// extractor below; the legacy MKR002 emit path it once fed has been
-// replaced by scanSiblingMarkers + CompTimeArgs.
-func extractValidateOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
-	if lastIndex == 0 {
-		return nil
-	}
-	optionsIndex := lastIndex - 1
-	if argsCount <= optionsIndex {
-		return nil
-	}
-	callExpression := call.AsCallExpression()
-	if callExpression == nil || callExpression.Arguments == nil {
-		return nil
-	}
-	if len(callExpression.Arguments.Nodes) <= optionsIndex {
-		return nil
-	}
-	return callExpression.Arguments.Nodes[optionsIndex]
 }
 
 // isBuilderCallPredicate returns the closure comptimeargs.CheckLiteral uses to
@@ -912,25 +841,11 @@ func (state scanState) declaredTypeFromIdentifier(node *ast.Node) (*checker.Type
 	if node == nil || node.Kind != ast.KindIdentifier {
 		return nil, false
 	}
-	symbol := state.scanChecker.GetSymbolAtLocation(node)
-	if symbol == nil {
+	typeNode, ok := comptimeargs.ConstTypeAnnotation(state.scanChecker, node)
+	if !ok {
 		return nil, false
 	}
-	for _, declaration := range symbol.Declarations {
-		if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
-			continue
-		}
-		parent := declaration.Parent
-		if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
-			continue
-		}
-		variableDecl := declaration.AsVariableDeclaration()
-		if variableDecl == nil || variableDecl.Type == nil {
-			continue
-		}
-		return checker.Checker_getTypeFromTypeNode(state.scanChecker, variableDecl.Type), true
-	}
-	return nil, false
+	return checker.Checker_getTypeFromTypeNode(state.scanChecker, typeNode), true
 }
 
 // forEachCallExpression invokes cb for every CallExpression in sourceFile,
