@@ -32,60 +32,8 @@ func (HasUnknownKeysEmitter) Args() []ArgSpec {
 	}
 }
 
-// Supports gates the renderer's top-level loop. Same set as the
-// prepareForJson / validationErrors emitters in Phase 0 (every kind a
-// real codegen pass will need to either handle or transparently
-// no-op). Atomic kinds emit empty body via Emit and Finalize folds
-// that to `return false` for the noop case.
 func (HasUnknownKeysEmitter) Supports(rt *protocol.RunType) bool {
-	if rt == nil {
-		return false
-	}
-	switch rt.Kind {
-	case protocol.KindAny, protocol.KindUnknown,
-		protocol.KindVoid,
-		protocol.KindNull, protocol.KindUndefined,
-		protocol.KindString, protocol.KindNumber, protocol.KindBoolean,
-		protocol.KindBigInt, protocol.KindSymbol,
-		protocol.KindObject, protocol.KindRegexp,
-		protocol.KindLiteral, protocol.KindEnum,
-		protocol.KindNever, protocol.KindTemplateLiteral:
-		return true
-	case protocol.KindObjectLiteral:
-		return true
-	case protocol.KindClass:
-		switch rt.SubKind {
-		case protocol.SubKindDate, protocol.SubKindNone,
-			protocol.SubKindMap, protocol.SubKindSet,
-			protocol.SubKindNonSerializable:
-			return true
-		}
-		return protocol.IsTemporalSubKind(rt.SubKind)
-	case protocol.KindArray:
-		return rt.Child != nil
-	case protocol.KindTuple:
-		return true
-	case protocol.KindTupleMember:
-		return true
-	case protocol.KindProperty, protocol.KindPropertySignature:
-		return true
-	case protocol.KindIndexSignature:
-		return true
-	case protocol.KindUnion:
-		return len(rt.Children) > 0
-	case protocol.KindIntersection:
-		return true
-	case protocol.KindPromise:
-		// mion: Promise wraps don't track unknown keys (the value is a
-		// then-able, not a plain object). Same noop stance as atomic.
-		return true
-	case protocol.KindFunction, protocol.KindMethod,
-		protocol.KindMethodSignature, protocol.KindCallSignature:
-		// Function values aren't objects with enumerable own keys to
-		// check; mion's function emit is a noop. Same here.
-		return true
-	}
-	return false
+	return unknownKeysSupports(rt)
 }
 
 func (HasUnknownKeysEmitter) IsRTInlined(ctx *InlineContext) bool {
