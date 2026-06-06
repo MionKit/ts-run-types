@@ -118,3 +118,37 @@ All candidates landed. Per-step quick-bench verdicts below; cumulative verificat
   added-flag wire signals). One real semantic near-miss was caught and pinned:
   `AddedFormatTransform` gates on value-transforming formats, NOT on `Supports`
   (see `fix(resolver)` + `TestAddedFormatTransform_GatesOnTransform`).
+
+## Pass 2 — marker / comptime-args pipeline genericity
+
+Follow-up audit of the marker machinery (find marker → resolve comptime args from
+literals → validate comptime args) across all five marker kinds.
+
+**Already generic (verified, unchanged):** one `marker.Spec` table + `DetectAny` loop
+(memoized per checker) detects every kind for BOTH the resolver scan and the purefns
+extractor; `analyzeCall` is a single parameter walk dispatching per Kind — CompTimeArgs /
+CompTimeFnArgs / PureFunction params are validated on any branded function regardless of
+the trailing-injection slot; `comptimeargs` is the one literal validator (verdict /
+literal-string / function-literal walkers; builder leaves injected via predicate so the
+package stays resolver-free); purefns deliberately bails silently on CTA failures (the
+marker layer owns those diagnostics — documented).
+
+**Fixed in this pass:**
+
+| id | what | fix | commit |
+| --- | --- | --- | --- |
+| M1 | options-slot extraction triplicated in scan.go (`extractValidateOptions` / `extractStrategyOption` / `extractValidateOptionsCandidate`) | one `optionsArgumentAt` + `eachOptionProperty` reader | refactor(scan,comptimeargs) |
+| M2 | ValidateOptions names hardcoded in 3 Go spots though `constants.ValidateOptions` is the canonical table | `validateOptions` keyed by option name (Has/Any/Names), extraction fully table-driven | refactor(scan,comptimeargs) |
+| M3 | `matchAliasSpec` / `fnKeyFromAlias` duplicated the alias→name→module preamble | shared `aliasForSpec` | refactor(marker) |
+| M4 | symbol→const-VariableDeclaration walk ×3 (comptimeargs ×2, resolver annotation honoring) | `eachConstVariableDeclaration` + exported `ConstTypeAnnotation` | refactor(scan,comptimeargs) |
+| M5 | `computeFnId` + `computeFnDemand` ran the same registry lookup + strategy extraction twice per createX site | merged `computeSiteFn` | refactor(scan,comptimeargs) |
+
+**Kept as-is (with reasons):** the two AST call-visitors (marker scan vs purefns
+extraction — deliberate perf split, PERF-WORKLOADS C4); the three comptimeargs recursive
+walkers (same skeleton, genuinely different leaf sets / return shapes); the self+union
+member match in `DetectAny` vs `FnKeyForInjectTypeFnArgs` (6 readable lines each — a
+generics helper costs more than it saves); `enclosedByInjectionMarker`'s trailing-slot
+check (legitimately narrower than the full parameter walk, reuses the verdict memo).
+
+Net: −60 LOC, bench neutral (wall +1.2% / go −1.7% / alloc +0.1%, quick run), and the
+"add a ValidateOption" workflow drops its hand-edit-the-scanner step.
