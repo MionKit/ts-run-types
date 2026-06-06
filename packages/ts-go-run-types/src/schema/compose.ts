@@ -341,7 +341,7 @@ export function callable<Fn, Props>(
  *  `templateLiteral([union([literal('a'), literal('b')]), '-', number()])` →
  *  `` RunType<`${'a' | 'b'}-${number}`> ``. Because the result is a real
  *  template-literal TYPE it nests anywhere (object property, union member) and
- *  converges with the type-first `` createIsType<`…`>() `` through the existing
+ *  converges with the type-first `` createValidate<`…`>() `` through the existing
  *  reflection — no Go-side change. The `const` type parameter captures
  *  string-literal segments (`'api/user/'` stays a literal, not `string`); the
  *  parts ride the carrier only. **/
@@ -389,7 +389,7 @@ export function optional<const F>(field: CompTimeArgs<F>): PropModCarrier<{optio
  *
  *  Like every builder, `object` returns the generic `RunType<ObjectType<C>>`:
  *  `typeof object({...})` is the run-type node, `Static<typeof …>` recovers the
- *  object type, and the value drops straight into `createIsType(...)` or nests
+ *  object type, and the value drops straight into `createValidate(...)` or nests
  *  inside another composer. The nested field builders are skipped by the scanner —
  *  the enclosing `object` marker reflects the whole shape. **/
 export function object<const C extends Record<string, unknown>>(

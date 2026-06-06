@@ -94,8 +94,8 @@ export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
  * Compile-time fn-args marker. Like `CompTimeArgs<T>` it brands a parameter so
  * the Go scanner enforces the argument is *fully literal* (`CTA0xx`), but it
  * ALSO marks this as the parameter whose literal value selects the `createX`
- * function variant — the `IsTypeOptions` bag for `createIsType` /
- * `createGetTypeErrors`, the strategy for `createJsonEncoder` /
+ * function variant — the `ValidateOptions` bag for `createValidate` /
+ * `createGetValidationErrors`, the strategy for `createJsonEncoder` /
  * `createJsonDecoder`. The scanner reads it to compute the injected fn hash
  * (see `InjectTypeFnArgs`). Phantom intersection; the value flows through
  * unwrapped.

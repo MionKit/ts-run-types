@@ -60,9 +60,9 @@ type RenderOpts struct {
 	// ExtraRoots seeds extra BARE type-ids as plain roots in the demand-driven
 	// path, in addition to the family's own call-site demand. Used ONLY for the
 	// `it` family: CrossFamilyItRoots collects the `it_<member>` cross-family
-	// edges every OTHER demanded family references (union decoders, typeErrors)
+	// edges every OTHER demanded family references (union decoders, validationErrors)
 	// and the resolver feeds the bare member ids here so `it`'s demand covers
-	// them even when no createIsType site requests them. Each id is rendered as a
+	// them even when no createValidate site requests them. Each id is rendered as a
 	// plain root (no variant) and its transitive same-family child closure is
 	// pulled too. Empty/nil for every non-`it` family — leaves their output
 	// byte-identical.
@@ -86,7 +86,7 @@ type RenderOpts struct {
 }
 
 // familyOp recovers the operation that emits entries under a cache-module's
-// family Tag (e.g. "te" → the typeErrors operation). The fnHash naming scheme
+// family Tag (e.g. "te" → the validationErrors operation). The fnHash naming scheme
 // derives every cache key from the operation registry, NEVER from settings.Tag,
 // so this lookup is the single bridge from a CacheModuleSettings to its hashes.
 // Panics on an unknown tag — every type-walking family in CacheModules has a
@@ -100,8 +100,8 @@ func familyOp(settings constants.CacheModuleSettings) operations.Operation {
 }
 
 // innerPrefix derives the inner-fn name prefix for a cache-module's family from
-// the operation registry's plain (default-variant) fnHash — e.g. the typeErrors
-// family → `<PlainHash("typeErrors")>_`. The inner validator function inside
+// the operation registry's plain (default-variant) fnHash — e.g. the validationErrors
+// family → `<PlainHash("validationErrors")>_`. The inner validator function inside
 // each createRTFn closure is named `<innerPrefix><hash>`; the same prefix
 // namespaces the JS cache key registered via the factory's first arg, and the
 // SAME plain prefix is what same-family child dep calls resolve to (so a
@@ -114,7 +114,7 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 // runtype id. For the plain variant (empty suffix) this is `<plainFhash>_<id>`;
 // for a non-empty suffix it's `<variantFhash>_<id>` — the variant fhash folds
 // the option NAMES (carried in `options`) into the hash, so e.g. the
-// noIsArrayCheck variant of isType is keyed by FnHashFor(isType, [noIsArrayCheck]).
+// noIsArrayCheck variant of validate is keyed by FnHashFor(validate, [noIsArrayCheck]).
 func variantKey(settings constants.CacheModuleSettings, suffix string, options []string, id string) string {
 	op := familyOp(settings)
 	if suffix == "" {
@@ -131,25 +131,25 @@ func variantFactoryName(settings constants.CacheModuleSettings, suffix string, o
 	return "g_" + variantKey(settings, suffix, options, id)
 }
 
-// IsTypeModule writes the runtime artifact for the isType cache module:
+// ValidateModule writes the runtime artifact for the validate cache module:
 // the hand-authored skeleton with the marker line replaced by one
-// `init(…);` call per cached RunType the IsTypeEmitter supports.
+// `init(…);` call per cached RunType the ValidateEmitter supports.
 // The skeleton's `init` closes over the surrounding `initCache(rtUtils)`
 // parameter, so the per-entry call site doesn't repeat the argument.
 //
 // Thin wrapper over RenderFnModule: every per-fn module renderer is one
 // line once the Emitter is implemented.
-func IsTypeModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
-	settings := constants.CacheModules["isType"]
-	return RenderFnModule(writer, dump, settings, IsTypeEmitter{}, innerPrefix(settings), cachetpl.SkeletonIsType, opts)
+func ValidateModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
+	settings := constants.CacheModules["validate"]
+	return RenderFnModule(writer, dump, settings, ValidateEmitter{}, innerPrefix(settings), cachetpl.SkeletonValidate, opts)
 }
 
-// TypeErrorsModule writes the runtime artifact for the typeErrors
-// cache module — sibling of IsTypeModule, same structure (skeleton +
+// ValidationErrorsModule writes the runtime artifact for the validationErrors
+// cache module — sibling of ValidateModule, same structure (skeleton +
 // generated factories), different emitter and skeleton.
-func TypeErrorsModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
-	settings := constants.CacheModules["typeErrors"]
-	return RenderFnModule(writer, dump, settings, TypeErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonTypeErrors, opts)
+func ValidationErrorsModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
+	settings := constants.CacheModules["validationErrors"]
+	return RenderFnModule(writer, dump, settings, ValidationErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonValidationErrors, opts)
 }
 
 // PrepareForJsonModule writes the runtime artifact for the prepareForJson
@@ -206,7 +206,7 @@ func StripUnknownKeysModule(writer io.Writer, dump protocol.Dump, opts RenderOpt
 
 // UnknownKeyErrorsModule writes the runtime artifact for the
 // unknownKeyErrors cache module — error accumulator (same arg shape as
-// typeErrors) that records one 'never' error per unknown key.
+// validationErrors) that records one 'never' error per unknown key.
 func UnknownKeyErrorsModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
 	settings := constants.CacheModules["unknownKeyErrors"]
 	return RenderFnModule(writer, dump, settings, UnknownKeyErrorsEmitter{}, innerPrefix(settings), cachetpl.SkeletonUnknownKeyErrors, opts)
@@ -270,11 +270,11 @@ type familyConfig struct {
 // `it` itself (the target), `runTypes` (reflection, no function body), and
 // `pureFns` (rendered by a different package). CrossFamilyItRoots renders each
 // of these demand-driven (output discarded) to harvest the `it_` edges they
-// keep, so the `it` family's demand covers the union decoders / typeErrors
+// keep, so the `it` family's demand covers the union decoders / validationErrors
 // child checks even when `it` is demand-scoped. Mirrors the family triples the
 // XxxModule wrappers above declare.
 var crossFamilyItSourceFamilies = []familyConfig{
-	{constants.CacheModules["typeErrors"], TypeErrorsEmitter{}, cachetpl.SkeletonTypeErrors},
+	{constants.CacheModules["validationErrors"], ValidationErrorsEmitter{}, cachetpl.SkeletonValidationErrors},
 	{constants.CacheModules["prepareForJson"], PrepareForJsonEmitter{}, cachetpl.SkeletonPrepareForJson},
 	{constants.CacheModules["restoreFromJson"], RestoreFromJsonEmitter{}, cachetpl.SkeletonRestoreFromJson},
 	{constants.CacheModules["stringifyJson"], StringifyJsonEmitter{}, cachetpl.SkeletonStringifyJson},
@@ -292,14 +292,14 @@ var crossFamilyItSourceFamilies = []familyConfig{
 // CrossFamilyItRoots renders every NON-it migrated family demand-driven (output
 // discarded) to collect the it_<member> cross-family edges they reference, and
 // returns the bare member type-ids. Seeds the it family's demand so union
-// decoders / typeErrors find their it_ entries even when it is demand-scoped.
+// decoders / validationErrors find their it_ entries even when it is demand-scoped.
 //
 // The disk cache (opts.Store) is KEPT for these collection passes: as of
 // FormatVersion 2 each cached entry persists its cross-family edges as
 // CrossFamilyRefs, so a cache hit (tryReadCachedEntry) reconstructs the same
 // crossFamilyDeps a fresh walk would have produced and the edges are observed
 // without re-rendering all families on every it-cache build. DiagSink is nil'd
-// so the collection passes don't double-emit diagnostics the real isType render
+// so the collection passes don't double-emit diagnostics the real validate render
 // (and the other families' real renders) already surface.
 func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
 	var sink []string
@@ -313,7 +313,7 @@ func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
 		// never errors, so this is effectively infallible.
 		_ = RenderFnModule(io.Discard, dump, family.settings, family.emitter, innerPrefix(family.settings), family.skeleton, collectOpts)
 	}
-	itPrefix := operations.PlainHash("isType") + "_"
+	itPrefix := operations.PlainHash("validate") + "_"
 	seen := make(map[string]bool, len(sink))
 	roots := make([]string, 0, len(sink))
 	for _, dep := range sink {
@@ -345,7 +345,7 @@ func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
 // skipped — the alternative (panicking) would crash the whole module
 // for the presence of one unsupported kind, making kind-by-kind
 // rollout impossible. The acceptance test in
-// packages/vite-plugin-runtypes/test/rt-isType.test.ts asserts on the
+// packages/vite-plugin-runtypes/test/rt-validate.test.ts asserts on the
 // KindString case; if dispatch regresses for KindString the test fails
 // loudly there.
 //
@@ -641,7 +641,7 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]p
 // (walker.RTDependencies, e.g. "it_<childHash>") that drive the dangling-dep
 // cascade and topo sort. `crossFamilyDeps` is the distinct cross-family RT
 // lookups the body reaches (walker.CrossFamilyDeps, e.g. a prepareForJson /
-// toBinary / typeErrors entry referencing `it_<member>` to discriminate a
+// toBinary / validationErrors entry referencing `it_<member>` to discriminate a
 // union member) — followed by the demand-scoping step (CrossFamilyItRoots)
 // into the referenced family; it is NOT consumed by any emission/topo decision
 // in this render. `crossFamilyDeps` is populated whether the entry came from a
@@ -748,7 +748,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	// Noop factories emit a SHORT-FORM init line: only the cache key,
 	// typeName, and isNoop=true are passed. The JS-side init() builds
 	// the entry with a family-specific identity `fn` (`() => true` for
-	// isType, `(v, pth, er) => er` for typeErrors, `(v) => v` for
+	// validate, `(v, pth, er) => er` for validationErrors, `(v) => v` for
 	// prepareForJson / restoreFromJson) and leaves `code`,
 	// `rtDependencies`, `pureFnDependencies`, and `createRTFn` as
 	// undefined. Same dep-call wiring works — a parent referencing the
@@ -787,7 +787,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	//
 	// First arg is the namespaced cache key (innerPrefix + runType.ID)
 	// so the JS-side rtFnsCache slot is distinct from the same
-	// runtype's isType / prepareForJson / … entries.
+	// runtype's validate / prepareForJson / … entries.
 	createRTFnArg := "u"
 	if opts.EmitCreateRTFn {
 		createRTFnArg = createRTFn

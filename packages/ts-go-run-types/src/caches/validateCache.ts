@@ -16,7 +16,7 @@
 
 'use strict';
 
-/** @typedef {import('../runtypes/types.ts').IsTypeRTFn} IsTypeRTFn */
+/** @typedef {import('../runtypes/types.ts').ValidateRTFn} ValidateRTFn */
 
 /** @param {import('../runtypes/rtUtils.ts').RTUtils} rtUtils */
 export function initCache(rtUtils) {
@@ -33,7 +33,7 @@ export function initCache(rtUtils) {
   //     plugin's `emitCacheFunctions: true`) opts back into eager closure
   //     emission for runtimes that disallow dynamic code construction.
   //   - Noop: short-form `init(rtFnHash, typeName, undefined, true)`. `fn` is
-  //     pre-populated with the family identity (`() => true` for isType).
+  //     pre-populated with the family identity (`() => true` for validate).
   //   - alwaysThrow: additionally passes `alwaysThrowCode` + `alwaysThrowSite`;
   //     `createRTFn` is replaced with `alwaysThrowFactory(code, site)` so the
   //     first materialisation throws `[code] message (at site)`.
@@ -48,10 +48,10 @@ export function initCache(rtUtils) {
     alwaysThrowCode,
     alwaysThrowSite
   ) {
-    const fn = isNoop ? noopIsType : undefined;
+    const fn = isNoop ? noopValidate : undefined;
     const resolvedCreateRTFn =
       alwaysThrowCode !== undefined ? rtUtils.alwaysThrowFactory(alwaysThrowCode, alwaysThrowSite) : createRTFn;
-    /** @type {IsTypeRTFn} */
+    /** @type {ValidateRTFn} */
     const entry = {
       rtFnHash,
       fnID: 'it',
@@ -70,10 +70,10 @@ export function initCache(rtUtils) {
     rtUtils.addToRTCache(entry);
   }
   void init;
-  function noopIsType() {
+  function noopValidate() {
     return true;
   }
-  void noopIsType;
+  void noopValidate;
 
   // #### REPLACE HERE ####
 }

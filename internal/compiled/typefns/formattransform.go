@@ -25,7 +25,7 @@ import (
 // through unchanged (transforms inside a union arm are a follow-up).
 type FormatTransformEmitter struct{}
 
-// Args mirrors isType / prepareForJson — single value arg, mutated and
+// Args mirrors validate / prepareForJson — single value arg, mutated and
 // returned.
 func (FormatTransformEmitter) Args() []ArgSpec {
 	return []ArgSpec{{Key: "vλl", Name: "v", Default: ""}}

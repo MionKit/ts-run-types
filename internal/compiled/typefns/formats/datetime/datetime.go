@@ -74,7 +74,7 @@ func (dateTimeEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []s
 	return validateMinMax(annotation.Params, dateTimeKind, splitChar)
 }
 
-func (dateTimeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (dateTimeEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -90,13 +90,13 @@ func (dateTimeEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, v�
 	structural := "((dtp) => dtp !== -1 && " +
 		dateAlias + "(" + vλl + ".substring(0,dtp)) && " +
 		timeAlias + "(" + vλl + ".substring(dtp+1)))(" + vλl + ".indexOf(" + split + "))"
-	if bounds := boundIsTypeChecks(ctx, annotation.Params, vλl, dateTimeKind, splitChar); bounds != "" {
+	if bounds := boundValidateChecks(ctx, annotation.Params, vλl, dateTimeKind, splitChar); bounds != "" {
 		return "(" + structural + " && " + bounds + ")"
 	}
 	return structural
 }
 
-func (dateTimeEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (dateTimeEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

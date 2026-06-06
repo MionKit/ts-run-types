@@ -1,7 +1,7 @@
 // @ts-nocheck
 //
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
-// See the banner at the top of `isTypeCache.ts` for the full contract.
+// See the banner at the top of `validateCache.ts` for the full contract.
 //
 // restoreFromJson cache module. Each entry takes a JSON-parsed value and
 // reconstructs the original runtime shape (Dates from ISO strings, BigInts

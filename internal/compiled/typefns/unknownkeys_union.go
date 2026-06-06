@@ -17,7 +17,7 @@ import (
 //   every object member's declared property names. A key present in
 //   member A but absent in member B is still "declared" from the union's
 //   perspective. This matches the flat encoder's structural identity
-//   (the wire merges member properties), and avoids a per-member isType
+//   (the wire merges member properties), and avoids a per-member validate
 //   walk on every cleanup call. Trade-off documented on the JS-side
 //   doc comments of the public createXxx APIs.
 //

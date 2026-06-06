@@ -3,7 +3,7 @@
 // packages/run-types/src/nodes/**/*.spec.ts (atomic, collection,
 // member, utility, native).
 //
-// **Scope: isType + getTypeErrors only.** JSON serializer cases live
+// **Scope: validate + getValidationErrors only.** JSON serializer cases live
 // in the dedicated serialization suite. Cases are organized by
 // category at the top level (ATOMIC / ARRAY / OBJECT / TUPLE / UNION /
 // TEMPLATE_LITERAL / NATIVE / CIRCULAR / UTILITY / TYPE_MAPPINGS), one

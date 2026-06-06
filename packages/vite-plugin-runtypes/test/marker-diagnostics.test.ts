@@ -3,10 +3,10 @@
 //
 //   1. response.diagnostics surfaces an MKR001 warning when a marker
 //      call's reflect-form value argument is a function-call expression
-//      (`createIsType(getX())`).
+//      (`createValidate(getX())`).
 //   2. The diagnostic message names the called function and recommends
 //      the static `ReturnType<typeof fn>` idiom.
-//   3. Legitimate identifier-argument shapes (`createIsType(v)`) do NOT
+//   3. Legitimate identifier-argument shapes (`createValidate(v)`) do NOT
 //      trigger the warning.
 //   4. The diagnostic wire format renders via formatTscDiagnostic into
 //      VS Code's `$tsc` problem-matcher line shape.
@@ -26,13 +26,13 @@ function markerDiagsOf(response: {diagnostics?: Diagnostic[]}): Diagnostic[] {
 describe('vite-plugin-runtypes / marker diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
 
-  register('warns when reflect-form arg is a function call (createIsType)', async () => {
+  register('warns when reflect-form arg is a function call (createValidate)', async () => {
     const sources = {
-      'fn-call.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'fn-call.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 function makeUser(): {id: number; name: string} {
   return {id: 1, name: 'john'};
 }
-export const _ = createIsType(makeUser());
+export const _ = createValidate(makeUser());
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -66,11 +66,11 @@ export const _ = reflectRunTypeId(getValue());
 
   register('warns for method-call arg (PropertyAccess → CallExpression)', async () => {
     const sources = {
-      'method-call.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'method-call.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 const state = {
   makeUser(): {id: number} { return {id: 1}; },
 };
-export const _ = createIsType(state.makeUser());
+export const _ = createValidate(state.makeUser());
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -84,9 +84,9 @@ export const _ = createIsType(state.makeUser());
 
   register('no warning for identifier arg', async () => {
     const sources = {
-      'identifier.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'identifier.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 const user: {id: number; name: string} = {id: 1, name: 'john'};
-export const _ = createIsType(user);
+export const _ = createValidate(user);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -97,9 +97,9 @@ export const _ = createIsType(user);
 
   register('no warning for property-access arg', async () => {
     const sources = {
-      'property.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'property.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 const outer: {user: {id: number}} = {user: {id: 1}};
-export const _ = createIsType(outer.user);
+export const _ = createValidate(outer.user);
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -110,9 +110,9 @@ export const _ = createIsType(outer.user);
 
   register('no warning for static form even when paired with a call', async () => {
     const sources = {
-      'static-return.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'static-return.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 function makeUser(): {id: number} { return {id: 1}; }
-export const _ = createIsType<ReturnType<typeof makeUser>>();
+export const _ = createValidate<ReturnType<typeof makeUser>>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -151,9 +151,9 @@ export function makeId<T>() {
 
   register('formatTscDiagnostic renders marker warnings in tsc line format', async () => {
     const sources = {
-      'fmt.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'fmt.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 function makeUser(): {id: number} { return {id: 1}; }
-export const _ = createIsType(makeUser());
+export const _ = createValidate(makeUser());
 `,
     };
     await withInlineSources(sources, async ({client}) => {

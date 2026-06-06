@@ -1,9 +1,9 @@
-# `IsTypeOptions` — backend architecture notes
+# `ValidateOptions` — backend architecture notes
 
-> **⚠️ Schema-form options updated.** The schema form is now a `createIsType` /
-> `createGetTypeErrors` **overload** (`createIsType(schema, options)`), not the
-> separate `createIsTypeFor`/`createTypeErrorsFor` functions. Options ride the
-> overload call's OWN options slot (read by `extractIsTypeOptions` like any
+> **⚠️ Schema-form options updated.** The schema form is now a `createValidate` /
+> `createGetValidationErrors` **overload** (`createValidate(schema, options)`), not the
+> separate `createValidateFor`/`createValidationErrorsFor` functions. Options ride the
+> overload call's OWN options slot (read by `extractValidateOptions` like any
 > marker), so the `schemaFormOptions` builder-fold and the `CompTimeRunType`
 > marker described below were **removed**. The runtime still dispatches on the
 > schema's `.id` (so recursive schemas use the builder's id); for a non-recursive
@@ -11,7 +11,7 @@
 > variant emitted from the call's Site resolves correctly.
 
 Snapshot of the Go-side changes that landed when `RunTypeOptions` was
-renamed to `IsTypeOptions` and decoupled from the structural type id.
+renamed to `ValidateOptions` and decoupled from the structural type id.
 This is a **working doc for future review** — some pieces here are
 known to be removable once tangential issues are addressed; those are
 flagged inline under **TO REVISIT**.
@@ -19,7 +19,7 @@ flagged inline under **TO REVISIT**.
 ## Goal
 
 Make the structural type id a pure function of `T` only. Options the
-caller passes to `createIsType<T>(…, options)` (and friends) parameterise
+caller passes to `createValidate<T>(…, options)` (and friends) parameterise
 the **generated function**, not the **type**. Idempotency invariants:
 
 - Same `T`, any option combination → same `Site.ID`.
@@ -30,8 +30,8 @@ the **generated function**, not the **type**. Idempotency invariants:
 The first two are now fully enforced. The third is also enforced
 directly: the earlier typeid mismatch (schema vs marker forms hashing
 differently) was fixed **at the source** — the leaf builders no longer
-brand their no-params return — so `createIsTypeFor(RT.array(RT.string()))`
-and `createIsType<string[]>()` resolve to one id. See
+brand their no-params return — so `createValidateFor(RT.array(RT.string()))`
+and `createValidate<string[]>()` resolve to one id. See
 [SCHEMA-FORM-TYPEID-CONVERGENCE.md](SCHEMA-FORM-TYPEID-CONVERGENCE.md)
 and §3 below.
 
@@ -40,7 +40,7 @@ and §3 below.
 [internal/protocol/protocol.go](../internal/protocol/protocol.go) — one
 new field on the wire shape:
 
-- **`Options []string`** — per-call-site `IsTypeOptions` tuple
+- **`Options []string`** — per-call-site `ValidateOptions` tuple
   (sorted by registry order, true booleans only). Empty for calls
   without options.
 
@@ -65,11 +65,11 @@ was deleted entirely from
 ## 3. Schema-form options ride on the builder's Site (DONE)
 
 **Primary (only) path:** [`scanCall`](../internal/resolver/scan.go) — the
-InjectRunTypeId-marker walk. `extractIsTypeOptions` populates
-`Site.Options` for the marker forms (`createIsType<T>(…, options)`).
+InjectRunTypeId-marker walk. `extractValidateOptions` populates
+`Site.Options` for the marker forms (`createValidate<T>(…, options)`).
 
-**Schema forms** (`createIsTypeFor(schema, options)` /
-`createTypeErrorsFor`) are NOT markers — they read `schema.id` at
+**Schema forms** (`createValidateFor(schema, options)` /
+`createValidationErrorsFor`) are NOT markers — they read `schema.id` at
 runtime. That id is owned by the **builder** call (`RT.array(…)`,
 `RT.regexp()`, `RT.object({…})`), which IS a marker and resolves the
 id — including recursive interning the type alone can't reproduce. To
@@ -77,9 +77,9 @@ make a schema-form `options` call
 materialise its variant factory, [`scanCall`](../internal/resolver/scan.go)
 folds the enclosing factory's options onto **that builder's own Site**:
 [`schemaFormOptions`](../internal/resolver/scan.go) checks whether the
-builder sits at slot 0 of a `createIsTypeFor` / `createTypeErrorsFor`
+builder sits at slot 0 of a `createValidateFor` / `createValidationErrorsFor`
 call ([`isSchemaFormFactory`](../internal/resolver/scan.go) +
-[`readIsTypeOptionsLiteral`](../internal/resolver/scan.go)) and ORs its
+[`readValidateOptionsLiteral`](../internal/resolver/scan.go)) and ORs its
 option bits into the builder Site's `Options`. No second Site, no
 `EmitOnly`, no rewriter filter.
 
@@ -103,10 +103,10 @@ The variant fan-out itself (§4) is independent and stays.
 
 [internal/compiled/typefns/module.go](../internal/compiled/typefns/module.go):
 
-- **`collectIsTypeVariants(sites, enable)`** — groups `dump.Sites` by
+- **`collectValidateVariants(sites, enable)`** — groups `dump.Sites` by
   `(typeid, canonical-suffix)`, deduplicating option tuples. Only
-  enabled for emitters that honour variants (`supportsIsTypeVariants`
-  gate; today only `IsTypeEmitter` and `TypeErrorsEmitter`).
+  enabled for emitters that honour variants (`supportsValidateVariants`
+  gate; today only `ValidateEmitter` and `ValidationErrorsEmitter`).
 - **`RenderFnModule`** — inner loop iterates `(RunType, variant)`
   pairs. One plain entry plus N variant entries per id.
 - **`renderEntryWithDeps`** — gained `variantSuffix string,
@@ -164,49 +164,49 @@ variant body is cheap to re-render, so this is fine.
 
 [internal/constants/constants.go](../internal/constants/constants.go):
 
-- **`IsTypeOption`** struct (`Name`, `Letter`) and **`IsTypeOptions`**
+- **`ValidateOption`** struct (`Name`, `Letter`) and **`ValidateOptions`**
   ordered slice. Declaration order is load-bearing — variant suffix
   concatenates letters in this order so existing variant keys stay
   stable as new options append to the tail.
-- **`IsTypeVariantSuffix(names []string) string`** — canonical suffix
+- **`ValidateVariantSuffix(names []string) string`** — canonical suffix
   builder.
 - Mirrored byte-for-byte on the JS side via
-  [`isTypeOptionsConstants.generated.ts`](../packages/ts-go-run-types/src/runtypes/isTypeOptionsConstants.generated.ts)
-  (`buildIsTypeVariantSuffix`).
+  [`validateOptionsConstants.generated.ts`](../packages/ts-go-run-types/src/runtypes/validateOptionsConstants.generated.ts)
+  (`buildValidateVariantSuffix`).
 - **`gen-ts-constants`** now writes TWO files in one invocation:
   the full registry for the Vite plugin (unchanged shape) and the
-  IsTypeOptions-only file for the marker package's runtime cache-key
+  ValidateOptions-only file for the marker package's runtime cache-key
   construction.
 
 ## 8. Build-time diagnostics
 
 [internal/diag/codes_marker.go](../internal/diag/codes_marker.go):
 
-- **`MKR004`** (`CodeIsTypeOptionsNoLiteralsNoop`) — `noLiterals: true`
+- **`MKR004`** (`CodeValidateOptionsNoLiteralsNoop`) — `noLiterals: true`
   requested on a non-literal type. Warning severity.
-- **`MKR005`** (`CodeIsTypeOptionsNoArrayNoop`) — `noIsArrayCheck: true`
+- **`MKR005`** (`CodeValidateOptionsNoArrayNoop`) — `noIsArrayCheck: true`
   requested on a non-array type. Warning severity.
 
 Emitted by
-[`noopIsTypeOptionDiag`](../internal/resolver/scan.go), anchored at the
+[`noopValidateOptionDiag`](../internal/resolver/scan.go), anchored at the
 options-literal node. The variant factory is still materialised
 (always-emit invariant — JS can't tell at runtime whether an option
 is meaningful for a given T), so the diagnostic is the only signal.
 
 ## Test coverage
 
-- Go: `TestResolver_IsTypeOptions_DoNotChangeID` and
-  `TestResolver_IsTypeOptions_NoLiteralsNoop` in
+- Go: `TestResolver_ValidateOptions_DoNotChangeID` and
+  `TestResolver_ValidateOptions_NoLiteralsNoop` in
   [atomic_test.go](../internal/resolver/atomic_test.go).
-- Go: `TestIsTypeModule_ArrayNoIsArrayCheck` rewritten to drive the
+- Go: `TestValidateModule_ArrayNoIsArrayCheck` rewritten to drive the
   variant via `dump.Sites` instead of the legacy `rt.Flags` field.
-- JS: [`isTypeOptionsDispatch.test.ts`](../packages/ts-go-run-types/test/adapters/isTypeOptionsDispatch.test.ts)
+- JS: [`validateOptionsDispatch.test.ts`](../packages/ts-go-run-types/test/adapters/validateOptionsDispatch.test.ts)
   — type-id idempotency, variant dispatch identity, behaviour
   divergence, schema/marker convergence, combo-variant suffix.
 - JS: previously-`'not-supported'` schema-form slots in
   [Array.ts](../packages/ts-go-run-types/test/suites/validation/Array.ts)
-  (`string_array_noIsArrayCheck`) are now real `createIsTypeFor` /
-  `createTypeErrorsFor` calls.
+  (`string_array_noIsArrayCheck`) are now real `createValidateFor` /
+  `createValidationErrorsFor` calls.
 
 ## Open questions for future review
 
@@ -221,7 +221,7 @@ is meaningful for a given T), so the diagnostic is the only signal.
    variant body instead of throwing.
 3. **Variant disk caching (§6).** Only if/when re-rendering shows up
    in profiles.
-4. **`supportsIsTypeVariants` gate.** Currently a hard-coded type
-   switch on `IsTypeEmitter` / `TypeErrorsEmitter`. If a third family
-   ever honours `IsTypeOptions`, this becomes a capability method on
+4. **`supportsValidateVariants` gate.** Currently a hard-coded type
+   switch on `ValidateEmitter` / `ValidationErrorsEmitter`. If a third family
+   ever honours `ValidateOptions`, this becomes a capability method on
    the `Emitter` interface — cheap refactor.

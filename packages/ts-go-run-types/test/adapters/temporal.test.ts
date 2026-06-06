@@ -2,15 +2,15 @@
 // Temporal instances (provided by the polyfill global wired in test/setup.ts;
 // native on Node 26+). Types resolve via test/temporal-ambient.d.ts.
 //
-// Covers: isType (instanceof), getTypeErrors, JSON round-trip
+// Covers: validate (instanceof), getValidationErrors, JSON round-trip
 // (encode→decode equality via the type's own equals()), binary round-trip,
 // and mock validity. One block per Temporal type for the core matrix, plus
 // targeted edge cases.
 
 import {describe, expect, it} from 'vitest';
 import {
-  createIsType,
-  createGetTypeErrors,
+  createValidate,
+  createGetValidationErrors,
   createMockType,
   createJsonEncoder,
   createJsonDecoder,
@@ -34,31 +34,31 @@ const samples = {
   Duration: () => T.Duration.from('P1Y2M10DT2H30M'),
 };
 
-describe('Temporal isType — instanceof', () => {
+describe('Temporal validate — instanceof', () => {
   it('PlainDate accepts a PlainDate, rejects others', () => {
-    const isType = createIsType<Temporal.PlainDate>();
-    expect(isType(samples.PlainDate())).toBe(true);
-    expect(isType(samples.Instant())).toBe(false);
-    expect(isType('2020-08-24')).toBe(false); // a string is not a PlainDate
-    expect(isType(null)).toBe(false);
+    const validate = createValidate<Temporal.PlainDate>();
+    expect(validate(samples.PlainDate())).toBe(true);
+    expect(validate(samples.Instant())).toBe(false);
+    expect(validate('2020-08-24')).toBe(false); // a string is not a PlainDate
+    expect(validate(null)).toBe(false);
   });
 
   it('Instant accepts an Instant, rejects a ZonedDateTime', () => {
-    const isType = createIsType<Temporal.Instant>();
-    expect(isType(samples.Instant())).toBe(true);
-    expect(isType(samples.ZonedDateTime())).toBe(false);
+    const validate = createValidate<Temporal.Instant>();
+    expect(validate(samples.Instant())).toBe(true);
+    expect(validate(samples.ZonedDateTime())).toBe(false);
   });
 
   it('Duration accepts a Duration', () => {
-    const isType = createIsType<Temporal.Duration>();
-    expect(isType(samples.Duration())).toBe(true);
-    expect(isType(samples.PlainDate())).toBe(false);
+    const validate = createValidate<Temporal.Duration>();
+    expect(validate(samples.Duration())).toBe(true);
+    expect(validate(samples.PlainDate())).toBe(false);
   });
 });
 
-describe('Temporal getTypeErrors', () => {
+describe('Temporal getValidationErrors', () => {
   it('PlainDate — no errors for valid, one error for invalid', () => {
-    const getErrors = createGetTypeErrors<Temporal.PlainDate>();
+    const getErrors = createGetValidationErrors<Temporal.PlainDate>();
     expect(getErrors(samples.PlainDate())).toEqual([]);
     expect(getErrors('nope').length).toBe(1);
   });
@@ -224,26 +224,26 @@ describe('Temporal binary round-trip — numeric precision & calendar fallback',
   });
 });
 
-describe('Temporal mock — every generated value passes isType', () => {
+describe('Temporal mock — every generated value passes validate', () => {
   const ITER = 30;
   it('PlainDate', () => {
-    const isType = createIsType<Temporal.PlainDate>();
+    const validate = createValidate<Temporal.PlainDate>();
     const mock = createMockType<Temporal.PlainDate>();
-    for (let i = 0; i < ITER; i++) expect(isType(mock())).toBe(true);
+    for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('Instant', () => {
-    const isType = createIsType<Temporal.Instant>();
+    const validate = createValidate<Temporal.Instant>();
     const mock = createMockType<Temporal.Instant>();
-    for (let i = 0; i < ITER; i++) expect(isType(mock())).toBe(true);
+    for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('Duration', () => {
-    const isType = createIsType<Temporal.Duration>();
+    const validate = createValidate<Temporal.Duration>();
     const mock = createMockType<Temporal.Duration>();
-    for (let i = 0; i < ITER; i++) expect(isType(mock())).toBe(true);
+    for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
   it('ZonedDateTime', () => {
-    const isType = createIsType<Temporal.ZonedDateTime>();
+    const validate = createValidate<Temporal.ZonedDateTime>();
     const mock = createMockType<Temporal.ZonedDateTime>();
-    for (let i = 0; i < ITER; i++) expect(isType(mock())).toBe(true);
+    for (let i = 0; i < ITER; i++) expect(validate(mock())).toBe(true);
   });
 });

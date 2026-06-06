@@ -16,7 +16,7 @@ describe('vite-plugin-runtypes / bounded-scope contract', () => {
   runTest(
     'unreferenced type aliases do not appear in the rendered cache',
     {
-      'scope.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'scope.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 
 // Referenced — has a marker call; should be projected.
 type Referenced = {a: string; b: number};
@@ -28,7 +28,7 @@ type UnusedA = {x: bigint};                  // ReflectionKind.bigint
 type UnusedB = {y: Date};                    // class with date subkind
 export type UnusedC = boolean[];             // array of boolean
 
-export const check = createIsType<Referenced>();
+export const check = createValidate<Referenced>();
 `,
     },
     async (sources) => {

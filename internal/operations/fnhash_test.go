@@ -7,7 +7,7 @@ import (
 )
 
 // expectedCanonicalKeyCount is a canary: 12 AxisNone ops (7 public leaf + 5
-// internal primitives) × 1, plus 2 IsTypeOptions ops × 4 subsets, plus
+// internal primitives) × 1, plus 2 ValidateOptions ops × 4 subsets, plus
 // jsonEncoder's 3 + jsonDecoder's 2 strategies = 12 + 8 + 5. If this trips,
 // an operation was added/removed without updating the count (and you should
 // re-confirm the collision guard still holds).
@@ -36,32 +36,32 @@ func TestFnHashCollisionFree(t *testing.T) {
 }
 
 func TestFnHashDeterministic(t *testing.T) {
-	isType, _ := ByName("isType")
-	a := FnHashFor(isType, []string{"noLiterals"}, "")
-	b := FnHashFor(isType, []string{"noLiterals"}, "")
+	validate, _ := ByName("validate")
+	a := FnHashFor(validate, []string{"noLiterals"}, "")
+	b := FnHashFor(validate, []string{"noLiterals"}, "")
 	if a != b {
 		t.Fatalf("FnHashFor not deterministic: %q vs %q", a, b)
 	}
 }
 
 func TestCanonicalOptionOrderIndependent(t *testing.T) {
-	isType, _ := ByName("isType")
-	forward := Canonical(isType, []string{"noLiterals", "noIsArrayCheck"}, "")
-	reverse := Canonical(isType, []string{"noIsArrayCheck", "noLiterals"}, "")
+	validate, _ := ByName("validate")
+	forward := Canonical(validate, []string{"noLiterals", "noIsArrayCheck"}, "")
+	reverse := Canonical(validate, []string{"noIsArrayCheck", "noLiterals"}, "")
 	if forward != reverse {
 		t.Fatalf("Canonical is option-order-dependent: %q vs %q", forward, reverse)
 	}
-	if FnHashFor(isType, []string{"noLiterals", "noIsArrayCheck"}, "") != FnHashFor(isType, []string{"noIsArrayCheck", "noLiterals"}, "") {
+	if FnHashFor(validate, []string{"noLiterals", "noIsArrayCheck"}, "") != FnHashFor(validate, []string{"noIsArrayCheck", "noLiterals"}, "") {
 		t.Fatal("FnHashFor is option-order-dependent")
 	}
 }
 
 func TestCanonicalDistinguishesOptionSets(t *testing.T) {
-	isType, _ := ByName("isType")
-	plain := FnHashFor(isType, nil, "")
-	noLiterals := FnHashFor(isType, []string{"noLiterals"}, "")
+	validate, _ := ByName("validate")
+	plain := FnHashFor(validate, nil, "")
+	noLiterals := FnHashFor(validate, []string{"noLiterals"}, "")
 	if plain == noLiterals {
-		t.Fatal("plain and noLiterals isType must hash differently")
+		t.Fatal("plain and noLiterals validate must hash differently")
 	}
 }
 
@@ -70,9 +70,9 @@ func TestFnHashVersionSensitive(t *testing.T) {
 	defer func() { constants.Version = original }()
 
 	constants.Version = "v1.test"
-	one := FnHash("isType|")
+	one := FnHash("validate|")
 	constants.Version = "v2.test"
-	two := FnHash("isType|")
+	two := FnHash("validate|")
 	if one == two {
 		t.Fatalf("FnHash not version-sensitive: %q == %q across versions", one, two)
 	}
@@ -80,8 +80,8 @@ func TestFnHashVersionSensitive(t *testing.T) {
 
 func TestByFnKey(t *testing.T) {
 	cases := map[string]string{
-		"it":          "isType",
-		"te":          "typeErrors",
+		"it":          "validate",
+		"te":          "validationErrors",
 		"jsonEncoder": "jsonEncoder",
 		"jsonDecoder": "jsonDecoder",
 		"tb":          "toBinary",
@@ -113,8 +113,8 @@ func TestByFamilyTag(t *testing.T) {
 }
 
 func TestPlainHashMatchesDefaultVariant(t *testing.T) {
-	isType, _ := ByName("isType")
-	if PlainHash("isType") != FnHashFor(isType, nil, "") {
+	validate, _ := ByName("validate")
+	if PlainHash("validate") != FnHashFor(validate, nil, "") {
 		t.Fatal("PlainHash must equal the default-variant fnHash")
 	}
 	// jsonEncoder's plain form is its default strategy.

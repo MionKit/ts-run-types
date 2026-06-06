@@ -12,7 +12,7 @@ must land atomically (a half-flip mismatches scanner/emitter/runtime).
   tag-based keys:
   - `operations.FnHashFor(op, optionNames, strategy) string` — the entry's fhash.
   - `operations.PlainHash(name string) string` — default-variant fhash by op
-    name (e.g. `PlainHash("isType")`, `PlainHash("prepareForJson")`).
+    name (e.g. `PlainHash("validate")`, `PlainHash("prepareForJson")`).
   - `operations.ByFamilyTag(tag) (Operation, bool)` / `ByFnKey` / `ByName`.
   - `operations.DemandFor(fnKey, optionNames, strategy) []Demand{FamilyTag,
     VariantSuffix, Options, FnHash}` — currently returns ONLY primitive families
@@ -50,12 +50,12 @@ must land atomically (a half-flip mismatches scanner/emitter/runtime).
   foreign families' it-edges don't).
 
 ### 2. Cross-family `it_` references
-- `json_prepare.go` `unionMemberIsTypeCheck` and `typeerrors.go` build the
-  union-discriminator / child isType lookup name. Replace the literal `it_`
-  (`constants.CacheModules["isType"].Tag + "_"`) with
-  `operations.PlainHash("isType") + "_"`.
+- `json_prepare.go` `unionMemberValidateCheck` and `typeerrors.go` build the
+  union-discriminator / child validate lookup name. Replace the literal `it_`
+  (`constants.CacheModules["validate"].Tag + "_"`) with
+  `operations.PlainHash("validate") + "_"`.
 - `module.go` `CrossFamilyItRoots` strips `"it_"` to recover bare member ids;
-  replace with stripping `operations.PlainHash("isType") + "_"`.
+  replace with stripping `operations.PlainHash("validate") + "_"`.
 
 ### 3. JSON composite codegen in Go (the new piece)
 Today there is NO jsonEncoder/jsonDecoder cache entry. Add composite entries so

@@ -21,7 +21,7 @@
 //
 // Builtins (Date / Map / Set / RegExp / nonSerializable) are NOT routed
 // through this registry — those arms are handled structurally by the
-// emitters and are not overridable. isType / getTypeErrors are unaffected:
+// emitters and are not overridable. validate / getValidationErrors are unaffected:
 // they always validate the class by its structural shape.
 
 /** Custom serializer/deserializer pair for one user-defined class. */

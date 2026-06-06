@@ -58,8 +58,8 @@ export {
   CACHE_MODULES,
   RUNTYPES_VAR_PREFIX,
   RUNTYPES_MODULE_NAME,
-  ISTYPE_VAR_PREFIX,
-  ISTYPE_MODULE_NAME,
+  VALIDATE_VAR_PREFIX,
+  VALIDATE_MODULE_NAME,
   type CacheModuleSettings,
 } from './runtypes-constants.generated.ts';
 
@@ -251,8 +251,8 @@ export interface FormatAnnotation {
 // shortcut: when present every other kind is treated as requested.
 export type CacheKind =
   | 'runType'
-  | 'isType'
-  | 'typeErrors'
+  | 'validate'
+  | 'validationErrors'
   | 'prepareForJson'
   | 'restoreFromJson'
   | 'stringifyJson'
@@ -297,16 +297,16 @@ export interface Response {
   added?: RunType[];
   // Per-cache "did this scan change anything?" signals consumed by the
   // Vite plugin's handleHotUpdate. `addedRunTypes` is true when this
-  // scan interned new RunTypes; `addedIsType` when at least one of
-  // those is supported by the IsType emitter; `addedPureFns` when
+  // scan interned new RunTypes; `addedValidate` when at least one of
+  // those is supported by the Validate emitter; `addedPureFns` when
   // any pure-fn entry's bodyHash flipped or appeared.
   addedRunTypes?: boolean;
-  addedIsType?: boolean;
-  // Sibling of addedIsType — true when at least one newly-interned
-  // RunType has a supported emitTypeErrors arm, so the typeErrors
+  addedValidate?: boolean;
+  // Sibling of addedValidate — true when at least one newly-interned
+  // RunType has a supported emitTypeErrors arm, so the validationErrors
   // cache module needs invalidating.
-  addedTypeErrors?: boolean;
-  // Sibling of addedIsType for the JSON serializer pair. Set when at
+  addedValidationErrors?: boolean;
+  // Sibling of addedValidate for the JSON serializer pair. Set when at
   // least one newly-interned RunType has a supported emit arm in the
   // matching emitter — the Vite plugin invalidates each cache module
   // independently based on its own flag.
@@ -314,7 +314,7 @@ export interface Response {
   addedRestoreFromJson?: boolean;
   addedStringifyJson?: boolean;
   addedPrepareForJsonSafe?: boolean;
-  // Siblings of addedIsType for the unknown-keys family ported from
+  // Siblings of addedValidate for the unknown-keys family ported from
   // mion's emitHasUnknownKeys et al. Set when at least one newly-interned
   // RunType has a supported emit arm in the matching emitter.
   addedHasUnknownKeys?: boolean;
@@ -322,12 +322,12 @@ export interface Response {
   addedUnknownKeyErrors?: boolean;
   addedUnknownKeysToUndefined?: boolean;
   addedUnknownKeysToUndefinedWire?: boolean;
-  // Siblings of addedIsType for the binary serializer pair. Set when at
+  // Siblings of addedValidate for the binary serializer pair. Set when at
   // least one newly-interned RunType has a supported emit arm in the
   // matching emitter.
   addedToBinary?: boolean;
   addedFromBinary?: boolean;
-  // Sibling of addedIsType for the `format` transform family — true when
+  // Sibling of addedValidate for the `format` transform family — true when
   // a newly-interned RunType carries a value-transforming format.
   addedFormatTransform?: boolean;
   addedPureFns?: boolean;
@@ -347,22 +347,22 @@ export interface Response {
   // 'virtual:runtypes-cache'` and look entries up by
   // `cache[RUNTYPES_VAR_PREFIX + id]`.
   runTypeCacheSource?: string;
-  // Sibling of `runTypeCacheSource` carrying the precompiled isType
+  // Sibling of `runTypeCacheSource` carrying the precompiled validate
   // validator factories. Body shape:
-  //   export function get_isType_<hash>(utl){…}
+  //   export function get_validate_<hash>(utl){…}
   // Consumers import the factory and invoke it themselves with whatever
   // `utl` they want bound into the closure — the module never
   // pre-invokes a factory. Populated by `dump` and on `scanFiles` when
-  // the caller opts into `'isType'` (or `'all'`).
-  isTypeCacheSource?: string;
-  // Sibling of `isTypeCacheSource` carrying the precompiled typeErrors
+  // the caller opts into `'validate'` (or `'all'`).
+  validateCacheSource?: string;
+  // Sibling of `validateCacheSource` carrying the precompiled validationErrors
   // validator factories. Body shape:
-  //   export function get_typeErrors_<hash>(utl){…}
-  // Same consumer pattern as isTypeCacheSource — populated by `dump`
-  // and on `scanFiles` when the caller opts into `'typeErrors'`
+  //   export function get_validationErrors_<hash>(utl){…}
+  // Same consumer pattern as validateCacheSource — populated by `dump`
+  // and on `scanFiles` when the caller opts into `'validationErrors'`
   // (or `'all'`).
-  typeErrorsCacheSource?: string;
-  // Siblings of `isTypeCacheSource` for the JSON serializer pair. Same
+  validationErrorsCacheSource?: string;
+  // Siblings of `validateCacheSource` for the JSON serializer pair. Same
   // factory shape, same consumer pattern — populated by `dump` and on
   // `scanFiles` when the caller opts into the matching cache kind
   // (or `'all'`).
@@ -370,7 +370,7 @@ export interface Response {
   restoreFromJsonCacheSource?: string;
   stringifyJsonCacheSource?: string;
   prepareForJsonSafeCacheSource?: string;
-  // Siblings of `isTypeCacheSource` for the unknown-keys family —
+  // Siblings of `validateCacheSource` for the unknown-keys family —
   // bodies of the four cache modules emitted by the matching emitters.
   // Same factory shape, same consumer pattern — populated by `dump` and
   // on `scanFiles` when the caller opts into the matching cache kind
@@ -380,12 +380,12 @@ export interface Response {
   unknownKeyErrorsCacheSource?: string;
   unknownKeysToUndefinedCacheSource?: string;
   unknownKeysToUndefinedWireCacheSource?: string;
-  // Siblings of isTypeCacheSource for the binary serializer pair —
+  // Siblings of validateCacheSource for the binary serializer pair —
   // bodies of the toBinary / fromBinary cache modules. Same factory
   // shape, same consumer pattern.
   toBinaryCacheSource?: string;
   fromBinaryCacheSource?: string;
-  // Sibling of isTypeCacheSource for the `format` transform family
+  // Sibling of validateCacheSource for the `format` transform family
   // (createFormatTransform<T>). Same factory shape, same consumer pattern.
   formatTransformCacheSource?: string;
   // Sibling of `runTypeCacheSource` carrying the pure-fn cache the Go

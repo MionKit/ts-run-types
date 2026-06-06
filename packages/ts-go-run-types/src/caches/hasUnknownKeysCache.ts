@@ -1,7 +1,7 @@
 // @ts-nocheck
 //
 // ⚠️  SYNC BOUNDARY — NOT AUTO-GENERATED, MUST STAY ALIGNED WITH THE GO EMITTER
-// See the banner at the top of `isTypeCache.ts` for the full contract.
+// See the banner at the top of `validateCache.ts` for the full contract.
 //
 // hasUnknownKeys cache module. `(v, opts)` arg shape; each entry returns
 // boolean — whether `v` has any property not declared in the schema.

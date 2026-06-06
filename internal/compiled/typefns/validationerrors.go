@@ -10,7 +10,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// TypeErrorsEmitter implements the `typeErrors` rt function — produces
+// ValidationErrorsEmitter implements the `validationErrors` rt function — produces
 // a validator that accumulates RunTypeError entries into the third arg
 // `er` instead of returning a boolean. The factory shape it emits:
 //
@@ -20,24 +20,24 @@ import (
 //	  return function te_<hash>(v,pth=[],er=[]){ <body>; return er }
 //	}
 //
-// Mirrors `IsTypeEmitter` (istype.go) but with the three-arg shape and
+// Mirrors `ValidateEmitter` (istype.go) but with the three-arg shape and
 // a finalize that always returns `er`. Each arm of the kind switch
 // mirrors the corresponding mion `emitTypeErrors` method under
 // mion/packages/run-types/src/nodes/**.
-type TypeErrorsEmitter struct{}
+type ValidationErrorsEmitter struct{}
 
-// typeErrorsPureFnFilePath is the source path the resolver expects for
+// validationErrorsPureFnFilePath is the source path the resolver expects for
 // the `cpf_newRunTypeErr` pure-fn registration. The JS side registers
-// the factory in run-types-pure-fns.ts (the same file isType uses for
+// the factory in run-types-pure-fns.ts (the same file validate uses for
 // its own pure-fn deps), and the Go-side integrity check on
 // PureFnDependencies resolves it through the same path.
-const typeErrorsPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-fns.ts"
+const validationErrorsPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-fns.ts"
 
-// Args returns the three parameters the inner typeErrors function takes.
+// Args returns the three parameters the inner validationErrors function takes.
 // Mirrors mion's `rtErrorArgs` (run-types/src/constants.functions.ts:47):
 // vλl=v (current value), pλth=pth (path accumulator, default []),
 // εrr=er (error accumulator, default []).
-func (TypeErrorsEmitter) Args() []ArgSpec {
+func (ValidationErrorsEmitter) Args() []ArgSpec {
 	return []ArgSpec{
 		{Key: "vλl", Name: "v", Default: ""},
 		{Key: "pλth", Name: "pth", Default: "[]"},
@@ -45,11 +45,11 @@ func (TypeErrorsEmitter) Args() []ArgSpec {
 	}
 }
 
-// Supports mirrors IsTypeEmitter.Supports — every kind the isType
-// emitter handles should have a typeErrors arm too. The set grows
+// Supports mirrors ValidateEmitter.Supports — every kind the validate
+// emitter handles should have a validationErrors arm too. The set grows
 // kind-by-kind as the implementation phases roll out; current scope
 // is atomic + array + object/member + class (non-Date).
-func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
+func (ValidationErrorsEmitter) Supports(rt *protocol.RunType) bool {
 	if rt == nil {
 		return false
 	}
@@ -82,7 +82,7 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		return protocol.IsTemporalSubKind(rt.SubKind)
 	case protocol.KindPromise:
 		// Mion treats Promise<T> as a thenable check — the wrapped T
-		// isn't validated synchronously. Same as the isType emit.
+		// isn't validated synchronously. Same as the validate emit.
 		return true
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return true
@@ -93,7 +93,7 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		// Function-flavoured kinds emit `typeof v === 'function'` at
 		// top level (same as mion's nodes/function/function.ts). As
 		// children of an object they're skipped via the function-
-		// property-dropped rule in emitObjectTypeErrors.
+		// property-dropped rule in emitObjectValidationErrors.
 		return true
 	case protocol.KindTuple:
 		return true
@@ -101,24 +101,24 @@ func (TypeErrorsEmitter) Supports(rt *protocol.RunType) bool {
 		return true
 	case protocol.KindUnion:
 		// mion:nodes/collection/union.ts:emitTypeErrors — delegates to
-		// the isType validator for the boolean check, emits a single
+		// the validate validator for the boolean check, emits a single
 		// 'union' error if the whole shape fails. Per-arm error
 		// breakdown is intentionally NOT a feature of mion's
-		// typeErrors. Same set of supported unions as isType (gate on
+		// validationErrors. Same set of supported unions as validate (gate on
 		// non-empty children).
 		return len(rt.Children) > 0
 	case protocol.KindTemplateLiteral:
-		// Same gate as IsTypeEmitter — non-empty Literal payload.
+		// Same gate as ValidateEmitter — non-empty Literal payload.
 		return rt.Literal != nil
 	}
 	return false
 }
 
-// AnyTypeErrorsSupported reports whether at least one runtype in the
-// slice is supported by the TypeErrors emitter. Used by the resolver
-// to set the AddedTypeErrors wire signal alongside AddedIsType.
-func AnyTypeErrorsSupported(runTypes []*protocol.RunType) bool {
-	emitter := TypeErrorsEmitter{}
+// AnyValidationErrorsSupported reports whether at least one runtype in the
+// slice is supported by the ValidationErrors emitter. Used by the resolver
+// to set the AddedValidationErrors wire signal alongside AddedValidate.
+func AnyValidationErrorsSupported(runTypes []*protocol.RunType) bool {
+	emitter := ValidationErrorsEmitter{}
 	for _, rt := range runTypes {
 		if emitter.Supports(rt) {
 			return true
@@ -128,16 +128,16 @@ func AnyTypeErrorsSupported(runTypes []*protocol.RunType) bool {
 }
 
 // IsRTInlined delegates to DefaultIsRTInlined — same heuristics as
-// isType (mion shares the predicate across all rt fns via
+// validate (mion shares the predicate across all rt fns via
 // BaseRunType.isRTInlined).
-func (TypeErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
+func (ValidationErrorsEmitter) IsRTInlined(ctx *InlineContext) bool {
 	return DefaultIsRTInlined(ctx)
 }
 
-// ReturnName is `er` — typeErrors accumulates errors into the third
-// arg and returns it. Differs from isType which returns the first arg
+// ReturnName is `er` — validationErrors accumulates errors into the third
+// arg and returns it. Differs from validate which returns the first arg
 // (`v`). See Walker.returnName for how this is consumed.
-func (TypeErrorsEmitter) ReturnName() string {
+func (ValidationErrorsEmitter) ReturnName() string {
 	return "er"
 }
 
@@ -149,8 +149,8 @@ func (TypeErrorsEmitter) ReturnName() string {
 //
 // Unsupported kinds emit CodeNS — the walker latches the signal and
 // the renderer drops the factory entirely. Same contract as
-// IsTypeEmitter.
-func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
+// ValidateEmitter.
+func (e ValidationErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expectedCType CodeType) RTCode {
 	base := e.emitKindDefault(rt, ctx, expectedCType)
 	// Format annotations append a format-specific error-push statement
 	// after the base-kind check. Only spliced when (a) a format emitter
@@ -160,11 +160,11 @@ func (e TypeErrorsEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, expected
 	// branch did NOT fire — we guard with the base's positive
 	// predicate so format errors only surface for values of the right
 	// underlying kind. `pth` is the runtime path argument the
-	// typeErrors validator receives; format errors push relative to
+	// validationErrors validator receives; format errors push relative to
 	// that, mirroring mion's getCallJitFormatErr behaviour.
 	if base.Type == CodeS && rt != nil && rt.FormatAnnotation != nil {
 		if emitter, ok := formats.LookupForRunType(rt); ok {
-			check := emitter.EmitTypeErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er", ctx)
+			check := emitter.EmitValidationErrorsCheck(rt.FormatAnnotation, ctx.Vλl, "pth", "er", ctx)
 			if check != "" {
 				guard := baseKindGuard(rt, ctx.Vλl)
 				if guard == "" {
@@ -209,7 +209,7 @@ func baseKindGuard(rt *protocol.RunType, vλl string) string {
 	return ""
 }
 
-func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
+func (ValidationErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ CodeType) RTCode {
 	if rt == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -267,7 +267,7 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 
 	case protocol.KindVoid:
 		// mion:nodes/atomic/void.ts:emitTypeErrors — void accepts
-		// only undefined; null is rejected (matches isType).
+		// only undefined; null is rejected (matches validate).
 		return RTCode{
 			Code: "if (" + v + " !== undefined) " + callRTErr(ctx, "void", ""),
 			Type: CodeS,
@@ -294,7 +294,7 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 
 	case protocol.KindObject:
 		// mion:nodes/atomic/object.ts — strict TS `object` type:
-		// non-null and not a primitive. Same gate as isType.
+		// non-null and not a primitive. Same gate as validate.
 		return RTCode{
 			Code: "if (!(typeof " + v + " === 'object' && " + v + " !== null)) " + callRTErr(ctx, "objectLiteral", ""),
 			Type: CodeS,
@@ -308,7 +308,7 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		}
 
 	case protocol.KindLiteral:
-		return emitLiteralTypeErrors(rt, ctx)
+		return emitLiteralValidationErrors(rt, ctx)
 
 	case protocol.KindEnum:
 		// mion:nodes/atomic/enum.ts:emitTypeErrors — OR-chain of
@@ -323,7 +323,7 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		for _, item := range rt.Values {
 			lit, err := jsLiteralFromAny(item)
 			if err != nil {
-				panic(fmt.Sprintf("typefns: typeErrors emit for KindEnum: %v", err))
+				panic(fmt.Sprintf("typefns: validationErrors emit for KindEnum: %v", err))
 			}
 			parts = append(parts, v+" === "+lit)
 		}
@@ -352,13 +352,13 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		if rt.SubKind == protocol.SubKindNone {
 			// Non-Date user classes — same emit as KindObjectLiteral
 			// per mion's class.ts (extends InterfaceRunType).
-			return emitObjectTypeErrors(rt, ctx, v)
+			return emitObjectValidationErrors(rt, ctx, v)
 		}
 		if rt.SubKind == protocol.SubKindMap {
-			return emitMapTypeErrors(rt, ctx, v)
+			return emitMapValidationErrors(rt, ctx, v)
 		}
 		if rt.SubKind == protocol.SubKindSet {
-			return emitSetTypeErrors(rt, ctx, v)
+			return emitSetValidationErrors(rt, ctx, v)
 		}
 		if rt.SubKind == protocol.SubKindNonSerializable {
 			// mion: nodes/native/nonSerializable.ts:21-22 —
@@ -378,13 +378,13 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		}
 
 	case protocol.KindObjectLiteral:
-		return emitObjectTypeErrors(rt, ctx, v)
+		return emitObjectValidationErrors(rt, ctx, v)
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
-		return emitPropertyTypeErrors(rt, ctx, v)
+		return emitPropertyValidationErrors(rt, ctx, v)
 
 	case protocol.KindIndexSignature:
-		return emitIndexSignatureTypeErrors(rt, ctx, v)
+		return emitIndexSignatureValidationErrors(rt, ctx, v)
 
 	case protocol.KindFunction, protocol.KindMethod,
 		protocol.KindMethodSignature, protocol.KindCallSignature:
@@ -397,16 +397,16 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		}
 
 	case protocol.KindTuple:
-		return emitTupleTypeErrors(rt, ctx, v)
+		return emitTupleValidationErrors(rt, ctx, v)
 
 	case protocol.KindTupleMember:
-		return emitTupleMemberTypeErrors(rt, ctx, v)
+		return emitTupleMemberValidationErrors(rt, ctx, v)
 
 	case protocol.KindUnion:
-		return emitUnionTypeErrors(rt, ctx, v)
+		return emitUnionValidationErrors(rt, ctx, v)
 
 	case protocol.KindTemplateLiteral:
-		return emitTemplateLiteralTypeErrors(rt, ctx, v)
+		return emitTemplateLiteralValidationErrors(rt, ctx, v)
 
 	case protocol.KindArray:
 		// mion:nodes/member/array.ts:emitTypeErrors. Allocates a loop
@@ -467,12 +467,12 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 }
 
 // EmitDependencyCall returns the JS expression that invokes a
-// pre-rendered child typeErrors entry. Wraps the call with a
+// pre-rendered child validationErrors entry. Wraps the call with a
 // `pth.push(...) ; <call> ; pth.splice(-N)` envelope when the current
 // static-path segments are non-empty so the child's errors carry the
 // right access-path prefix. Mirrors mion's `BaseFnCompiler.callDependency`
 // branch at rtFnCompiler.ts:388-397.
-func (TypeErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
+func (ValidationErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string, ctx *EmitContext) string {
 	pthArg := ctx.ArgName("pλth")
 	errArg := ctx.ArgName("εrr")
 	callCode := ctx.emitDepCall(childID, ctx.Vλl+","+pthArg+","+errArg, "")
@@ -493,7 +493,7 @@ func (TypeErrorsEmitter) EmitDependencyCall(rt *protocol.RunType, childID string
 // otherwise the walker has already appended `return er` via the
 // statement-shape handling in handleCodeInterpolation, so we just
 // normalise whitespace and return.
-func (TypeErrorsEmitter) Finalize(rawCode string) (string, bool) {
+func (ValidationErrorsEmitter) Finalize(rawCode string) (string, bool) {
 	code := normaliseWhitespace(rawCode)
 	trimmed := strings.TrimSpace(code)
 	if trimmed == "" {
@@ -518,7 +518,7 @@ func (TypeErrorsEmitter) Finalize(rawCode string) (string, bool) {
 // path but should appear in the error). Empty `extra` → no trailing
 // segment, AccessPathLiteral handles the empty-array short-circuit.
 func callRTErr(ctx *EmitContext, expected string, extra string) string {
-	ctx.AddPureFnDependency("mion", "newRunTypeErr", typeErrorsPureFnFilePath)
+	ctx.AddPureFnDependency("mion", "newRunTypeErr", validationErrorsPureFnFilePath)
 	key := pureFnAlias("newRunTypeErr")
 	if !ctx.HasContextItem(key) {
 		// rtUtils.getPureFn takes a single composite key
@@ -541,31 +541,31 @@ func callRTErr(ctx *EmitContext, expected string, extra string) string {
 	return key + "(" + strings.Join(args, ",") + ")"
 }
 
-// emitLiteralTypeErrors mirrors mion's compileTypeErrorsLiteral
+// emitLiteralValidationErrors mirrors mion's compileValidationErrorsLiteral
 // (nodes/atomic/literal.ts:107). Reuses emitLiteral's branching for
 // the bigint / symbol / regexp / primitive cases — emitLiteral returns
-// a JS boolean expression (the isType check); we wrap it in
-// `if (!(<expr>)) <error>`. With the noLiterals IsTypeOptions variant,
+// a JS boolean expression (the validate check); we wrap it in
+// `if (!(<expr>)) <error>`. With the noLiterals ValidateOptions variant,
 // the predicate switches to the base-kind check (e.g. `typeof v ===
 // 'string'`) and the error label downgrades to the base kind too —
 // matches the `it` variant's behaviour so the user sees the same
 // notion of "expected" between the two factories.
-func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
+func emitLiteralValidationErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	noLiterals := ctx.HasVariantOption("noLiterals")
-	var isTypeExpr RTCode
+	var validateExpr RTCode
 	if noLiterals {
-		isTypeExpr = emitLiteralBaseKind(rt, ctx.Vλl)
+		validateExpr = emitLiteralBaseKind(rt, ctx.Vλl)
 	} else {
-		isTypeExpr = emitLiteral(rt, ctx.Vλl)
+		validateExpr = emitLiteral(rt, ctx.Vλl)
 	}
 	// Propagate CodeNS (unsupported leaf) — `emitLiteralBaseKind`
 	// returns this for the symbol-literal arm so the renderer can
 	// emit an alwaysThrow factory at the root, matching the plain
 	// KindSymbol behaviour.
-	if isTypeExpr.Type == CodeNS {
+	if validateExpr.Type == CodeNS {
 		return RTCode{Code: "", Type: CodeNS}
 	}
-	if isTypeExpr.Code == "" {
+	if validateExpr.Code == "" {
 		return RTCode{Code: "", Type: CodeS}
 	}
 	expectedLabel := "literal"
@@ -573,7 +573,7 @@ func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 		expectedLabel = literalBaseKindLabel(rt)
 	}
 	return RTCode{
-		Code: "if (!(" + isTypeExpr.Code + ")) " + callRTErr(ctx, expectedLabel, ""),
+		Code: "if (!(" + validateExpr.Code + ")) " + callRTErr(ctx, expectedLabel, ""),
 		Type: CodeS,
 	}
 }
@@ -581,7 +581,7 @@ func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
 // literalBaseKindLabel returns the `expected` label that pairs with
 // the `noLiterals` variant body for a literal RunType — picks the
 // base atomic kind's name (`'string'`, `'number'`, …) so the
-// typeErrors output reads consistently with the validated shape.
+// validationErrors output reads consistently with the validated shape.
 func literalBaseKindLabel(rt *protocol.RunType) string {
 	flagSet := make(map[string]bool, len(rt.Flags))
 	for _, flag := range rt.Flags {
@@ -604,7 +604,7 @@ func literalBaseKindLabel(rt *protocol.RunType) string {
 	return "literal"
 }
 
-// emitObjectTypeErrors mirrors mion's
+// emitObjectValidationErrors mirrors mion's
 // nodes/collection/interface.ts:emitTypeErrors. Builds the canonical
 // object-shape statement: a `typeof === 'object' && !== null` guard
 // (or `typeof === 'function'` for callable interfaces) that emits an
@@ -612,7 +612,7 @@ func literalBaseKindLabel(rt *protocol.RunType) string {
 // statement.
 //
 // Children are filtered the same way mion's getRTChildren filters
-// (matching emitObjectIsType in istype.go): static + method-shaped
+// (matching emitObjectValidate in istype.go): static + method-shaped
 // kinds dropped; PropertySignature wrapping a function-typed value
 // also dropped via its own empty emit.
 //
@@ -624,7 +624,7 @@ func literalBaseKindLabel(rt *protocol.RunType) string {
 // rather than slipping through the bare `typeof === 'object'` check.
 // Mirrors interface.ts:allOptionalCode. Suppressed for callable
 // shapes (the value is a Function, not an Object).
-func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitObjectValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	// Detect a CallSignature child for the callable-interface case.
 	var callSigChild *protocol.RunType
 	for _, child := range rt.Children {
@@ -639,11 +639,11 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCo
 	}
 
 	// Publish sibling-named-prop set for any index-signature child
-	// (see emitObjectIsType for the rationale).
+	// (see emitObjectValidate for the rationale).
 	publishSiblingNamedKeysForIndexSig(rt, ctx)
 
 	// Compile per-child error-accumulation code, filtering the same
-	// way emitObjectIsType does, AND track whether all contributing
+	// way emitObjectValidate does, AND track whether all contributing
 	// children are optional so we can add the allOptionalCode guard.
 	var childrenParts []string
 	allOptional := true
@@ -685,7 +685,7 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCo
 	} else {
 		objectCheck = "typeof " + v + " === 'object' && " + v + " !== null"
 	}
-	// allOptionalCode guard — same shape as emitObjectIsType. Without
+	// allOptionalCode guard — same shape as emitObjectValidate. Without
 	// it, `{}` validators would accept `[]`, `new Date()`, `new Map()`,
 	// etc. since those all pass `typeof === 'object' && !== null`.
 	if callSigChild == nil && (!hasContributingChild || allOptional) {
@@ -713,12 +713,12 @@ func emitObjectTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCo
 	}
 }
 
-// emitPropertyTypeErrors handles KindProperty / KindPropertySignature.
+// emitPropertyValidationErrors handles KindProperty / KindPropertySignature.
 // Sets the child accessor + child path literal (the property name as a
 // JS string literal) before recursing, then wraps the child code in
 // an optional guard if the property is optional. Mirrors mion's
 // nodes/member/property.ts:emitTypeErrors.
-func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitPropertyValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -756,13 +756,13 @@ func emitPropertyTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RT
 	return childRT
 }
 
-// emitIndexSignatureTypeErrors handles KindIndexSignature. Loops
-// `for (const k in v)` and runs each value's typeErrors with the key
+// emitIndexSignatureValidationErrors handles KindIndexSignature. Loops
+// `for (const k in v)` and runs each value's validationErrors with the key
 // var as the path segment. Template-literal key constraints emit a
 // per-key regex.test that records a 'never' error for keys that don't
 // match the pattern. Mirrors mion's
 // nodes/member/indexProperty.ts:emitTypeErrors.
-func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitIndexSignatureValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}
@@ -777,7 +777,7 @@ func emitIndexSignatureTypeErrors(rt *protocol.RunType, ctx *EmitContext, v stri
 		return RTCode{Code: "", Type: CodeS}
 	}
 	// Template-literal key regex (`{[k: `api/${string}`]: T}`) lifted
-	// into the closure prologue, same shape as the isType emit.
+	// into the closure prologue, same shape as the validate emit.
 	keyRegexVar := ""
 	if rt.Index != nil {
 		indexResolved := ctx.ResolveRef(rt.Index)
@@ -852,7 +852,7 @@ func rtTypeNameForKind(kind protocol.ReflectionKind) string {
 	return ""
 }
 
-// emitTupleTypeErrors mirrors mion's
+// emitTupleValidationErrors mirrors mion's
 // nodes/collection/tuple.ts:emitTypeErrors. Body shape (CodeS):
 //
 //	if (!Array.isArray(v) [|| v.length > N]) {
@@ -865,7 +865,7 @@ func rtTypeNameForKind(kind protocol.ReflectionKind) string {
 // empty array is the only valid value). Rest-bearing tuples skip the
 // upper-length-bound check; rest-member emit handles the per-element
 // loop and accumulates errors with the loop counter as the path.
-func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitTupleValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if len(rt.Children) == 0 {
 		// Empty tuple — only the empty array passes.
 		return RTCode{
@@ -903,7 +903,7 @@ func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCod
 }
 
 // cpf_safeIterableKey is registered via the JS-side run-types-pure-fns
-// alongside cpf_newRunTypeErr. emitMapTypeErrors references it to wrap
+// alongside cpf_newRunTypeErr. emitMapValidationErrors references it to wrap
 // runtime keys into safe-for-JSON values (mirroring mion's
 // _safeKey helper at run-types-pure-fns.ts:97 — primitives pass
 // through, objects/symbols/etc become null so the path is still
@@ -911,7 +911,7 @@ func emitTupleTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCod
 func mapSafeKeyContextItem(ctx *EmitContext) string {
 	key := pureFnAlias("safeIterableKey")
 	if !ctx.HasContextItem(key) {
-		ctx.AddPureFnDependency("mion", "safeIterableKey", typeErrorsPureFnFilePath)
+		ctx.AddPureFnDependency("mion", "safeIterableKey", validationErrorsPureFnFilePath)
 		// Literal duplicated in body + closure — see callRTErr for the
 		// reason `k_<alias>` hoist is restricted to pureFnDependencies.
 		ctx.SetContextItem(key, "const "+key+" = utl.getPureFn('mion::safeIterableKey')")
@@ -919,7 +919,7 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 	return key
 }
 
-// emitMapTypeErrors mirrors mion's nodes/native/map emitTypeErrors.
+// emitMapValidationErrors mirrors mion's nodes/native/map emitTypeErrors.
 // Body shape (CodeS):
 //
 //	if (!(v instanceof Map)) {
@@ -936,7 +936,7 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 // `cpf_safeIterableKey` sanitisation), the entry index, and a `failed`
 // marker indicating which side of the entry the error came from.
 // Matches mion's getStaticPathLiteral output.
-func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitMapValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	keyType, valueType := mapKeyValueTypes(rt, ctx)
 	entryVar := ctx.NextLocalVar("entry")
 	idxVar := ctx.NextLocalVar("i")
@@ -1012,51 +1012,51 @@ func emitMapTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 	}
 }
 
-// emitTemplateLiteralTypeErrors mirrors mion's
+// emitTemplateLiteralValidationErrors mirrors mion's
 // nodes/collection/templateLiteral.ts:emitTypeErrors. Reuses
-// emitTemplateLiteralIsType to get the boolean expression
+// emitTemplateLiteralValidate to get the boolean expression
 // (`typeof v === 'string' && reTL.test(v)`), wraps in
 // `if (!<expr>) callRTErr('templateLiteral')`.
-func emitTemplateLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	isTypeExpr := emitTemplateLiteralIsType(rt, ctx, v)
-	if isTypeExpr.Code == "" {
+func emitTemplateLiteralValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+	validateExpr := emitTemplateLiteralValidate(rt, ctx, v)
+	if validateExpr.Code == "" {
 		return RTCode{Code: "", Type: CodeS}
 	}
 	return RTCode{
-		Code: "if (!(" + isTypeExpr.Code + ")) " + callRTErr(ctx, "templateLiteral", ""),
+		Code: "if (!(" + validateExpr.Code + ")) " + callRTErr(ctx, "templateLiteral", ""),
 		Type: CodeS,
 	}
 }
 
-// emitUnionTypeErrors mirrors mion's
+// emitUnionValidationErrors mirrors mion's
 // nodes/collection/union.ts:emitTypeErrors. The validator delegates
-// to the isType boolean check — `if (!it_<hash>.fn(v)) <err>`.
+// to the validate boolean check — `if (!it_<hash>.fn(v)) <err>`.
 // Per-arm error breakdown is explicitly NOT a feature of mion's
-// typeErrors (mion's stance: a union failure is one error, not N).
+// validationErrors (mion's stance: a union failure is one error, not N).
 //
 // The cross-fn lookup happens at runtime via the shared rtUtils
 // cache. We register a closure-prologue context item but DO NOT add
-// the isType hash to walker.RTDependencies — the dangling-dep
+// the validate hash to walker.RTDependencies — the dangling-dep
 // cascade in module.go operates per-fn (entries map only carries
-// typeErrors entries), so a typeErrors entry can't satisfy an
-// isType dep ref. The runtime load order (isType cache → typeErrors
+// validationErrors entries), so a validationErrors entry can't satisfy an
+// validate dep ref. The runtime load order (validate cache → validationErrors
 // cache) means the entry is always populated by the time the
-// typeErrors closure invokes `utl.getRT('it_<hash>')`.
-func emitUnionTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
-	isTypeHash := operations.PlainHash("isType") + "_" + rt.ID
-	ctx.registerRTLookup(isTypeHash)
+// validationErrors closure invokes `utl.getRT('it_<hash>')`.
+func emitUnionValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+	validateHash := operations.PlainHash("validate") + "_" + rt.ID
+	ctx.registerRTLookup(validateHash)
 	return RTCode{
-		Code: "if (!" + isTypeHash + ".fn(" + v + ")) " + callRTErr(ctx, "union", ""),
+		Code: "if (!" + validateHash + ".fn(" + v + ")) " + callRTErr(ctx, "union", ""),
 		Type: CodeS,
 	}
 }
 
-// emitSetTypeErrors mirrors mion's nodes/native/set emitTypeErrors.
+// emitSetValidationErrors mirrors mion's nodes/native/set emitTypeErrors.
 // Same pattern as Map but with a single item type and `.values()`
 // iteration. Path segment for an item error: {key: safe(item), index}
 // — mion set.ts getStaticPathLiteral parity (no `failed` marker, unlike
 // Map's key/value split).
-func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitSetValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	itemType := setItemType(rt, ctx)
 	itemVar := ctx.NextLocalVar("item")
 	idxVar := ctx.NextLocalVar("i")
@@ -1101,12 +1101,12 @@ func emitSetTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode 
 	}
 }
 
-// emitTupleMemberTypeErrors mirrors mion's
+// emitTupleMemberValidationErrors mirrors mion's
 // nodes/member/tupleMember.ts:emitTypeErrors. Sets the element
 // accessor (`v[i]`) + path literal (the position index) before
 // recursing into the wrapped child. Rest members produce a for-loop
 // in their own emit; optional members get the undefined-guard wrap.
-func emitTupleMemberTypeErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+func emitTupleMemberValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
 	if rt.Child == nil {
 		return RTCode{Code: "", Type: CodeS}
 	}

@@ -82,8 +82,8 @@ Notes that affect validation/serialization design:
 
 - All eight expose `toJSON()` (returns the canonical string) and a static
   `from(stringOrObject)`. `from` **throws** on an invalid string — useful for a
-  cheap validity check, but a throwing validator is not how `isType` works
-  (isType returns a boolean), so see §4.1.
+  cheap validity check, but a throwing validator is not how `validate` works
+  (validate returns a boolean), so see §4.1.
 - `ZonedDateTime` carries an **IANA time zone id** in `[...]` and optionally a
   `[u-ca=calendar]` annotation; its string is the richest.
 - `Duration` is the same ISO-8601 duration grammar this repo **already parses**
@@ -139,8 +139,8 @@ Every family is rendered by a Go emitter under
 
 | Family                                                                                      | Emitter file                                            | What a builtin-class arm must do                                      |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------- |
-| `isType`                                                                                    | `istype.go`                                             | base validity predicate (boolean expr)                                |
-| `getTypeErrors`                                                                             | `typeerrors.go`                                         | push a typed error on failure (statement)                             |
+| `validate`                                                                                    | `istype.go`                                             | base validity predicate (boolean expr)                                |
+| `getValidationErrors`                                                                             | `typeerrors.go`                                         | push a typed error on failure (statement)                             |
 | `prepareForJson`                                                                            | `json_prepare.go`                                       | produce a JSON-serializable form                                      |
 | `prepareForJsonSafe` / `…Preserve`                                                          | `json_prepare_safe.go`, `json_prepare_safe_preserve.go` | safe (non-mutating) variants                                          |
 | `restoreFromJson`                                                                           | `json_restore.go`                                       | reconstruct the instance from JSON                                    |
@@ -219,8 +219,8 @@ types if a Temporal format family is offered.
 
 | Family          | Date arm (verbatim behaviour)                                                 | Temporal analogue                                     |
 | --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------- | -------------------- |
-| isType          | `(v instanceof Date && !isNaN(v.getTime()))` (`istype.go:296`)                | `v instanceof Temporal.PlainDate` (+ optional bounds) |
-| getTypeErrors   | `if (!(v instanceof Date)                                                     |                                                       | isNaN(v.getTime())) <pushErr>` (`typeerrors.go:326`) | same shape, per type |
+| validate          | `(v instanceof Date && !isNaN(v.getTime()))` (`istype.go:296`)                | `v instanceof Temporal.PlainDate` (+ optional bounds) |
+| getValidationErrors   | `if (!(v instanceof Date)                                                     |                                                       | isNaN(v.getTime())) <pushErr>` (`typeerrors.go:326`) | same shape, per type |
 | prepareForJson  | **no-op** `""` — JSON.stringify calls `Date.toJSON()` (`json_prepare.go:220`) | **no-op** — Temporal types have `toJSON()` too        |
 | restoreFromJson | `v = new Date(v)` (`json_restore.go:177`)                                     | `v = Temporal.<T>.from(v)`                            |
 | stringifyJson   | `'"'+v.toJSON()+'"'` (`json_stringify.go:219`)                                | `'"'+v.toJSON()+'"'` (identical)                      |
@@ -235,7 +235,7 @@ and binary needs a string path instead of the float64 epoch path.
 
 ## 4. Per-concern design
 
-### 4.1 isType / getTypeErrors
+### 4.1 validate / getValidationErrors
 
 Base check per type: `v instanceof Temporal.<T>`. Temporal instances are always
 valid (unlike `Date`, there is no "Invalid Temporal" — `from` throws rather
@@ -382,7 +382,7 @@ adding Temporal.
    resolves in the patched tsgo (§5.2), and prototype namespace-qualified
    detection (§5.1) with an id-stability test for existing builtins.
 2. **Phase 1 — plain types, value-only (no formats).** New SubKinds; shared
-   builtin table; isType/getTypeErrors (`instanceof`), prepare/stringify/restore
+   builtin table; validate/getValidationErrors (`instanceof`), prepare/stringify/restore
    (`toJSON`/`from`), string-based binary, mock. All eight types.
 3. **Phase 2 — Temporal format family (`FormatTemporalX<P>`).** Add the names to
    the §3.1 brand-lift tables + `TypeFormatBase`; min/max via `Temporal.<T>.compare`
@@ -402,7 +402,7 @@ adding Temporal.
   (the `date` case wires `unsafeEncoder`/`safeEncoder`/`safeDecoder`/
   `binaryEncoder`/`binaryDecoder` + `getTestData` with a `new Date(...)`) — add
   one analogous case per Temporal type with `getTestData: () => ({values:
-[Temporal.<T>.from('…')]})`. Plus isType/getTypeErrors with real Temporal
+[Temporal.<T>.from('…')]})`. Plus validate/getValidationErrors with real Temporal
   instances, round-trip equality via `Temporal.<T>.equals` (Temporal instances
   are not deep-equal by value the way Dates compare — use the type's own
   `equals`/`compare`), binary round-trip, and mock validity. Paired static +
@@ -419,7 +419,7 @@ adding Temporal.
 | Shared builtin table + replace scattered switches | medium refactor    | **medium** (id stability)   |
 | Namespace-qualified scanner detection             | new logic          | **high** (the main unknown) |
 | lib resolution / ambient overlay                  | config or overlay  | **high** (gates everything) |
-| isType / getTypeErrors arms (×8)                  | small per type     | low                         |
+| validate / getValidationErrors arms (×8)                  | small per type     | low                         |
 | prepare / stringify / restore arms (×8)           | small, Date-shaped | low                         |
 | binary arms (×8, string-based)                    | medium             | low–medium                  |
 | mock builders (×8)                                | small per type     | low                         |

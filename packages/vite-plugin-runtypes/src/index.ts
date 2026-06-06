@@ -45,12 +45,12 @@ const MARKER_MODULE = '@mionjs/ts-go-run-types';
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
 const CACHE_FILE_RE =
-  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|toBinaryCache|fromBinaryCache|formatTransformCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+  /[/\\]caches[/\\](runTypesCache|validateCache|getValidationErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|toBinaryCache|fromBinaryCache|formatTransformCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',
-  isTypeCache: 'isType',
-  getTypeErrorsCache: 'typeErrors',
+  validateCache: 'validate',
+  getValidationErrorsCache: 'validationErrors',
   prepareForJsonCache: 'prepareForJson',
   restoreFromJsonCache: 'restoreFromJson',
   stringifyJsonCache: 'stringifyJson',
@@ -121,8 +121,8 @@ export default function runtypes(options: PluginOptions) {
         // Diagnostic surfacing — partitioned across two transforms so each
         // diagnostic emits exactly once per build pass and Rollup's
         // dedupe sees one source per finding:
-        //   - `runType` cache: every non-PureFn family (marker, isType,
-        //     typeErrors, all JSON / binary families, unknown-keys).
+        //   - `runType` cache: every non-PureFn family (marker, validate,
+        //     validationErrors, all JSON / binary families, unknown-keys).
         //     `runType` is the first cache touched by every project that
         //     uses the marker, so this is the natural "first build pass"
         //     emission point.
@@ -162,7 +162,7 @@ export default function runtypes(options: PluginOptions) {
     //   2. Re-scan the changed file so the cache is up to date AND we
     //      get per-cache "did this scan change anything?" signals.
     //   3. Invalidate only the cache modules whose backing data grew
-    //      (addedRunTypes / addedIsType / addedPureFns), then return
+    //      (addedRunTypes / addedValidate / addedPureFns), then return
     //      the changed user file batched with those invalidated modules
     //      so Vite ships them in a single HMR message. The cache
     //      module's `accept` callback fires before the user file's swap,
@@ -214,8 +214,8 @@ export default function runtypes(options: PluginOptions) {
       if (moduleGraph) {
         const kindsToInvalidate: CacheKind[] = [];
         if (result.addedRunTypes) kindsToInvalidate.push('runType');
-        if (result.addedIsType) kindsToInvalidate.push('isType');
-        if (result.addedTypeErrors) kindsToInvalidate.push('typeErrors');
+        if (result.addedValidate) kindsToInvalidate.push('validate');
+        if (result.addedValidationErrors) kindsToInvalidate.push('validationErrors');
         if (result.addedPrepareForJson) kindsToInvalidate.push('prepareForJson');
         if (result.addedRestoreFromJson) kindsToInvalidate.push('restoreFromJson');
         if (result.addedStringifyJson) kindsToInvalidate.push('stringifyJson');
@@ -249,8 +249,8 @@ export default function runtypes(options: PluginOptions) {
 function pickCacheSource(
   dump: {
     runTypeCacheSource?: string;
-    isTypeCacheSource?: string;
-    typeErrorsCacheSource?: string;
+    validateCacheSource?: string;
+    validationErrorsCacheSource?: string;
     prepareForJsonCacheSource?: string;
     restoreFromJsonCacheSource?: string;
     stringifyJsonCacheSource?: string;
@@ -268,8 +268,8 @@ function pickCacheSource(
   kind: CacheKind
 ): string | undefined {
   if (kind === 'runType') return dump.runTypeCacheSource;
-  if (kind === 'isType') return dump.isTypeCacheSource;
-  if (kind === 'typeErrors') return dump.typeErrorsCacheSource;
+  if (kind === 'validate') return dump.validateCacheSource;
+  if (kind === 'validationErrors') return dump.validationErrorsCacheSource;
   if (kind === 'prepareForJson') return dump.prepareForJsonCacheSource;
   if (kind === 'restoreFromJson') return dump.restoreFromJsonCacheSource;
   if (kind === 'stringifyJson') return dump.stringifyJsonCacheSource;
@@ -360,8 +360,8 @@ export type {PluginOptions as Options};
 export {
   RUNTYPES_VAR_PREFIX,
   RUNTYPES_MODULE_NAME,
-  ISTYPE_VAR_PREFIX,
-  ISTYPE_MODULE_NAME,
+  VALIDATE_VAR_PREFIX,
+  VALIDATE_MODULE_NAME,
   CACHE_MODULES,
   type CacheModuleSettings,
 } from './runtypes-constants.generated.ts';

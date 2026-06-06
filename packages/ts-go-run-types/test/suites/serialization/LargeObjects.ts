@@ -465,7 +465,7 @@ export const LARGE_OBJECTS = {
   object_union_5: {
     title: 'discriminated union of 5 large object members',
     description:
-      'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an isType walk per candidate member.',
+      'Five-member union of distinct event shapes. The flat encoder should win clearly here — non-flat runs an validate walk per candidate member.',
     mutateEncoder: () => {
       interface ProductEvent {
         kind: 'product';

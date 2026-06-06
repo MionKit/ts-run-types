@@ -1,9 +1,9 @@
 // Package typefns ports mion's RTFnCompiler to Go so validator functions
-// (isType, typeErrors, prepareForJson, …) can be precompiled at build
+// (validate, validationErrors, prepareForJson, …) can be precompiled at build
 // time and shipped as static JS source instead of being assembled at
 // runtime via `new Function`.
 //
-// Currently implements `isType` for every mion node category (atomic,
+// Currently implements `validate` for every mion node category (atomic,
 // array, tuple, union, intersection-collapsed, object literal, class,
 // property, method, index signature, call signature, function, template
 // literal, Map/Set/Promise/Awaited). The walker + dispatcher in
@@ -17,7 +17,7 @@
 //   - mion/packages/run-types/src/lib/createRTFunction.ts (closure assembly)
 //   - mion/packages/run-types/src/rtCompilers/json/stringifyJson.ts (the
 //     "single big switch over ReflectionKind" dispatch pattern this
-//     package uses for `EmitIsType`).
+//     package uses for `EmitValidate`).
 package typefns
 
 // CodeType matches mion's CodeTypes enum
@@ -52,7 +52,7 @@ const (
 	//
 	// The renderer's contract: when a top-level Walker.Compile()
 	// returns isUnsupported=true, no factory is emitted for that
-	// RunType — the runtime cache miss is caught by createIsType's
+	// RunType — the runtime cache miss is caught by createValidate's
 	// hasRunType-but-no-rt fallback and degrades to `() => true`,
 	// which mirrors mion's "no validator available" stance.
 	CodeNS CodeType = "NS"

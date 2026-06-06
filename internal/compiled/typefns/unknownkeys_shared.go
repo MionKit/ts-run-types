@@ -9,7 +9,7 @@ import (
 
 // unknownKeysPureFnFilePath is the source path the resolver expects for
 // the cpf_getUnknownKeysFromArray / cpf_hasUnknownKeysFromArray
-// pure-fn registrations. Same file as the typeErrors pure-fns
+// pure-fn registrations. Same file as the validationErrors pure-fns
 // (run-types-pure-fns.ts) — the dependency check uses this for integrity
 // validation.
 const unknownKeysPureFnFilePath = "packages/ts-go-run-types/src/run-types-pure-fns.ts"
@@ -302,7 +302,7 @@ func siblingNamedKeysCtxKey(idxSig *protocol.RunType) string {
 // (mion/packages/run-types/src/nodes/member/indexProperty.ts:166-173,
 // nodes/collection/interface.ts:getNamedChildren).
 //
-// Called from every per-family object emit (isType, typeErrors,
+// Called from every per-family object emit (validate, validationErrors,
 // hasUnknownKeys, stripUnknownKeys, unknownKeyErrors,
 // unknownKeysToUndefined) when the object mixes named props with an
 // index signature. Each family compiles into its own walker with its

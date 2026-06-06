@@ -4,8 +4,8 @@
 > marker, the value-ref back-tracing, the `protocol.Demand` plumbing, and the
 > demand-gated `RenderFnModule` walk) was **removed**. Factory emission is back to
 > the pre-`bba7451` **emit-all** behaviour: every interned RunType the emitter
-> `Supports` gets a factory. Schema-form validators are now a `createIsType` /
-> `createGetTypeErrors` **overload** taking a `RunType<T>` first arg — reflecting
+> `Supports` gets a factory. Schema-form validators are now a `createValidate` /
+> `createGetValidationErrors` **overload** taking a `RunType<T>` first arg — reflecting
 > `T` like the type-first marker, dispatching on the schema's runtime `.id` — with
 > no ref-tracing and no demand. The over-emission this doc set out to fix is a
 > known, accepted trade-off (re-introducing `Site`-driven gating, without
@@ -58,7 +58,7 @@ for _, runType := range dump.RunTypes {            // every interned id
   *"one factory **per cached RunType** the precompiler knows how to
   handle."*
 - The only thing keyed off actual call sites is the **variant** fan-out
-  (`collectIsTypeVariants(dump.Sites)`) — i.e. `IsTypeOptions` tuples like
+  (`collectValidateVariants(dump.Sites)`) — i.e. `ValidateOptions` tuples like
   `itNA_<id>`. Base factories are not call-site-driven at all.
 
 ### Dimension B — families: all eagerly wired
@@ -69,8 +69,8 @@ bundler can't tree-shake them):
 
 ```ts
 const _utils = getRTUtils();
-initIsTypeCache(_utils);
-initGetTypeErrorsCache(_utils);
+initValidateCache(_utils);
+initGetValidationErrorsCache(_utils);
 initHasUnknownKeysCache(_utils);
 // … 13 families …
 initFormatTransformCache(_utils);
@@ -78,7 +78,7 @@ initFormatTransformCache(_utils);
 // don't get pulled into bundles that never reference the binary enc/dec.
 ```
 
-Each `initXCache` lives in a cache file (`./caches/isTypeCache.ts`, …)
+Each `initXCache` lives in a cache file (`./caches/validateCache.ts`, …)
 whose body the Vite plugin replaces at build time with the fully-rendered
 module via `dump({includeCacheSources: [kind]})`
 ([`index.ts`](../packages/vite-plugin-runtypes/src/index.ts),
@@ -100,13 +100,13 @@ a little startup CPU. It does not reduce generation work or bundle size.
 
 ## 2. Why it ended up this way
 
-- **Schema forms weren't observable.** `createIsTypeFor` / `createTypeErrorsFor`
+- **Schema forms weren't observable.** `createValidateFor` / `createValidationErrorsFor`
   are not markers (no `InjectRunTypeId` slot), so historically the scanner
   had no `(family, id)` signal for them — emitting per-interned-id sidesteps
   needing one. (As of the convergence work, the scanner *does* recognise
   these calls — see §3.1.)
 - **The builder is family-agnostic.** A given `RT.object({…})` interns one
-  type but carries no family; the same schema can feed isType, typeErrors,
+  type but carries no family; the same schema can feed validate, validationErrors,
   or json. So the type→factory mapping can't come from the builder alone.
 - **Simplicity.** "Emit everything the checker interned" needs no demand
   graph and can't under-emit (which would throw at runtime). The cost is
@@ -122,17 +122,17 @@ real call site, plus the per-family dependency closure of those types.
 A `(family, id)` is demanded wherever a `createX` is called. The signal
 already exists at both call shapes:
 
-- **Marker forms** (`createIsType<T>()`, `createGetTypeErrors<T>()`,
+- **Marker forms** (`createValidate<T>()`, `createGetValidationErrors<T>()`,
   `createJsonEncoder<T>()`, …): the scanner already resolves family + id
   directly — each is a marker with a Site.
-- **Schema forms** (`createIsTypeFor(schema)`, `createTypeErrorsFor(schema)`,
+- **Schema forms** (`createValidateFor(schema)`, `createValidationErrorsFor(schema)`,
   …): already recognised by
   [`isSchemaFormFactory`](../internal/resolver/scan.go) — the same
   parent-walk that
   [`schemaFormOptions`](../internal/resolver/scan.go) uses to fold
   options. The builder owns the id, so `(family, builderId)` is knowable
   at that site. (Family is read from the enclosing factory's name:
-  `createIsTypeFor → it`, `createTypeErrorsFor → te`, etc.)
+  `createValidateFor → it`, `createValidationErrorsFor → te`, etc.)
 
 Output: a `map[family]set[typeId]` (or a `set[(family, typeId)]`) carried
 on the `Dump`.
@@ -150,7 +150,7 @@ ids **within the same family**. The closure is still vastly smaller than
 
 `RenderFnModule` iterates `demandClosure[family]` instead of
 `dump.RunTypes`. The `emitter.Supports` capability gate and the
-`collectIsTypeVariants(dump.Sites)` variant fan-out stay exactly as they
+`collectValidateVariants(dump.Sites)` variant fan-out stay exactly as they
 are — they layer cleanly on top of the smaller base set.
 
 ### 3.4 Make the runtime wiring demand-driven too
@@ -186,7 +186,7 @@ are unchanged — we stop *emitting* unreferenced keys, not rename them.
   still says "emittable for this kind." An unsupported demanded kind keeps
   its existing unsupported/`alwaysThrow` behaviour (see
   [UNSUPPORTED-KINDS.md](UNSUPPORTED-KINDS.md)).
-- **Variants are already demand-driven.** `collectIsTypeVariants` reads
+- **Variants are already demand-driven.** `collectValidateVariants` reads
   `dump.Sites`, so option variants are *already* call-site-scoped — this
   change just makes **base** factories match that model.
 - **Diagnostics provenance.** `buildProvenanceSites` maps id → marker
@@ -203,8 +203,8 @@ are unchanged — we stop *emitting* unreferenced keys, not rename them.
 
 ## 6. How to verify when implemented
 
-- A fixture that declares many runtypes but calls `createIsType` on a few:
-  assert the rendered isType module contains factories only for the
+- A fixture that declares many runtypes but calls `createValidate` on a few:
+  assert the rendered validate module contains factories only for the
   demanded ids + their dependency closure (not every interned id).
 - A project that never imports a given family: assert that family's cache
   module is absent from the bundle (Dimension B).

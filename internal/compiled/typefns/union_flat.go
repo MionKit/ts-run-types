@@ -21,7 +21,7 @@ import (
 //     its key is defined on `v` at encode time. Decode mirrors the
 //     encode: walk the merged set, decode every defined key.
 //
-// The optimisation avoids the per-object `isType` walk on encode for
+// The optimisation avoids the per-object `validate` walk on encode for
 // the common "discriminated bag of N large classes" shape — instead of
 // running N property-set checks to pick a member index, the emitter
 // runs the per-property transforms directly and uses the `-1` sentinel
@@ -85,10 +85,10 @@ func emitUnionPrepareForJsonFlat(rt *protocol.RunType, ctx *EmitContext, v strin
 		if prepareRT.Type == CodeNS {
 			return RTCode{Code: "", Type: CodeNS}
 		}
-		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
+		guard := validateExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, isTypeExpr)
+			guard = objectGuard(v, validateExpr)
 		}
 		body := strings.TrimSpace(prepareRT.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
@@ -178,10 +178,10 @@ func emitMergedPropPrepare(mp FlatMergedProp, accessor string, ctx *EmitContext)
 		if cand.Resolved == nil {
 			continue
 		}
-		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
+		guard := validateExpr
 		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = objectGuard(accessor, isTypeExpr)
+			guard = objectGuard(accessor, validateExpr)
 		}
 		body := strings.TrimSpace(jc.Code)
 		if body != "" && !strings.HasSuffix(body, ";") && !strings.HasSuffix(body, "}") {
@@ -357,10 +357,10 @@ func emitUnionStringifyJsonFlat(rt *protocol.RunType, ctx *EmitContext, v string
 		if childRT.Code == "" {
 			continue
 		}
-		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
+		guard := validateExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, isTypeExpr)
+			guard = objectGuard(v, validateExpr)
 		}
 		var emitted string
 		if layout.AtomicNeedsTuple {
@@ -542,15 +542,15 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 		// Decoder won't emit any sub-dispatch (all candidates noop on
 		// both halves) — emit a single dispatch that returns one of the
 		// candidate codes without the [subIdx, value] wrap. Multiple
-		// candidates means multiple isType arms still, but they all
+		// candidates means multiple validate arms still, but they all
 		// resolve to JSON.parse-recoverable forms.
 		errVar := flatUnionEncodeErrorVar(ctx)
 		arms := make([]string, 0, len(candidates))
 		for _, cand := range candidates {
-			isTypeExpr := unionMemberIsTypeCheck(cand.resolved, ctx, accessor)
-			guard := isTypeExpr
+			validateExpr := unionMemberValidateCheck(cand.resolved, ctx, accessor)
+			guard := validateExpr
 			if isObjectLikeKind(cand.resolved.Kind) {
-				guard = objectGuard(accessor, isTypeExpr)
+				guard = objectGuard(accessor, validateExpr)
 			}
 			arms = append(arms, "if ("+guard+") return "+cand.code+";")
 		}
@@ -575,10 +575,10 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 	errVar := flatUnionEncodeErrorVar(ctx)
 	arms := make([]string, 0, len(candidates))
 	for i, cand := range candidates {
-		isTypeExpr := unionMemberIsTypeCheck(cand.resolved, ctx, accessor)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(cand.resolved, ctx, accessor)
+		guard := validateExpr
 		if isObjectLikeKind(cand.resolved.Kind) {
-			guard = objectGuard(accessor, isTypeExpr)
+			guard = objectGuard(accessor, validateExpr)
 		}
 		arm := "if (" + guard + ") return '[" + strconv.Itoa(i) + ",' + " + cand.code + " + ']';"
 		arms = append(arms, arm)

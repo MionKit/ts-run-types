@@ -148,7 +148,7 @@ func readBigIntParam(params map[string]any, key string) (*big.Int, bool) {
 }
 
 // bigIntLiteral renders a bigint param as a JS bigint literal (raw
-// decimal + `n`) for emitted source — isType comparisons and error `val`.
+// decimal + `n`) for emitted source — validate comparisons and error `val`.
 // Keeps full precision; never round-trips through float64.
 func bigIntLiteral(params map[string]any, key string) (string, bool) {
 	rawString, ok := bigIntRawString(params, key)

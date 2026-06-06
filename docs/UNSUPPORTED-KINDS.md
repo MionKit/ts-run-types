@@ -19,7 +19,7 @@ Rather than silently producing a half-working factory (or worse, a lossy one tha
 
 The pipeline applies exactly two rules:
 
-1. **Property / PropertySignature children that are unsupported are dropped silently from the parent's emit**, with a build-time **Warning**-severity diagnostic naming the dropped member. The rest of the object's validator / serializer continues to work. This is **by design** — dropping a `() => void` property from an `isType` validator matches what JSON already does on the wire, so the validator's "shape" is the data-only projection of the type. See [CLAUDE.md](../CLAUDE.md) "isType contract — serializable data only" for the semantic guarantee.
+1. **Property / PropertySignature children that are unsupported are dropped silently from the parent's emit**, with a build-time **Warning**-severity diagnostic naming the dropped member. The rest of the object's validator / serializer continues to work. This is **by design** — dropping a `() => void` property from an `validate` validator matches what JSON already does on the wire, so the validator's "shape" is the data-only projection of the type. See [CLAUDE.md](../CLAUDE.md) "validate contract — serializable data only" for the semantic guarantee.
 2. **Everywhere else** (root, array element, tuple slot, union member, function param / return, Map key / value, Set member, index signature value, intersection) **propagates upward to the root, where the factory is rendered as an `alwaysThrow` entry**. Calling `createXxx<T>()` for that T throws at the call site with a code like `[PJ001] Never type cannot be encoded to JSON. (at src/foo.ts:7:18)`. The runtime error includes the **first known marker call site** so the user can jump straight to the offending source even if they didn't see the build-time error.
 
 This mirrors mion's `getRTChildren` filter — the only "skip" in the upstream library is property-level absorption; everything else throws.
@@ -29,7 +29,7 @@ This mirrors mion's `getRTChildren` filter — the only "skip" in the upstream l
 - Property drops emit at **Warning** — surfaced via `this.warn()` in the Vite plugin's build log + IDE Problems panel. Does not halt the build.
 - Root-position / array-element / other propagating throws emit at **Error** — surfaced via `this.warn()` for visibility, AND `this.error()` once at the end of the diagnostic pass so the build **halts**. HMR is more lenient (warning only) so dev sessions survive in-progress edits.
 
-**These diagnostics fan out per _demanded_ `(family, type)` pair, not per interned type.** Now that the function caches are demand-driven (each `createX` site carries structured demand — `protocol.Site.Demand` — alongside its injected `[typeId, fnHash]` tuple via the `InjectTypeFnArgs<T, Fn>` marker; see [CLAUDE.md](../CLAUDE.md) → "Two injection markers"), a family's unsupported-kind diagnostics are only computed for the types that family's own call sites request. A type reached **only** via `getRunTypeId` / `reflectRunTypeId` (pure reflection, never validated or serialized) triggers **no** function-family diagnostics at all — reflection keeps the unsupported node (see the `notSupported` flag below) without ever rendering an emitter for it. This is a correctness improvement: no more spurious build-halting **Error** diagnostics for types that are merely reflected. The `it` family is the cross-family exception (union decoders + `typeErrors` reference `it_<member>`), so its demand — and thus its diagnostics — also covers the `it_` members other demanded families pull in.
+**These diagnostics fan out per _demanded_ `(family, type)` pair, not per interned type.** Now that the function caches are demand-driven (each `createX` site carries structured demand — `protocol.Site.Demand` — alongside its injected `[typeId, fnHash]` tuple via the `InjectTypeFnArgs<T, Fn>` marker; see [CLAUDE.md](../CLAUDE.md) → "Two injection markers"), a family's unsupported-kind diagnostics are only computed for the types that family's own call sites request. A type reached **only** via `getRunTypeId` / `reflectRunTypeId` (pure reflection, never validated or serialized) triggers **no** function-family diagnostics at all — reflection keeps the unsupported node (see the `notSupported` flag below) without ever rendering an emitter for it. This is a correctness improvement: no more spurious build-halting **Error** diagnostics for types that are merely reflected. The `it` family is the cross-family exception (union decoders + `validationErrors` reference `it_<member>`), so its demand — and thus its diagnostics — also covers the `it_` members other demanded families pull in.
 
 ## Why these rules
 
@@ -48,7 +48,7 @@ This mirrors mion's `getRTChildren` filter — the only "skip" in the upstream l
 | `KindSymbol`                                                                | Runtime identity not round-trippable; not comparable across realms | `XX005`                      |
 | Future kinds without an emit                                                | Walker falls through                                               | (unregistered → silent skip) |
 
-> **`KindPromise` is validation-supported — the one exception in this table.** `isType` / `getTypeErrors` (`IT` / `TE`) do **not** throw on `Promise<T>`; they validate it structurally as a thenable (`typeof v === 'object' && v !== null && typeof v.then === 'function'`) because a Promise is a real runtime value with a checkable shape (a caller who wants the resolved value uses `Awaited<P>`, which tsgo resolves to `T`). Only the **serialization** families (`PJ` / `PJS` / `PJP` / `RJ` / `SJ` / `TB` / `FB`) treat `Promise` as unsupported and throw, because the async value can't be sampled synchronously. `KindSymbol` and `KindFunction`/`KindMethod` remain unsupported for **all** families including validation.
+> **`KindPromise` is validation-supported — the one exception in this table.** `validate` / `getValidationErrors` (`IT` / `TE`) do **not** throw on `Promise<T>`; they validate it structurally as a thenable (`typeof v === 'object' && v !== null && typeof v.then === 'function'`) because a Promise is a real runtime value with a checkable shape (a caller who wants the resolved value uses `Awaited<P>`, which tsgo resolves to `T`). Only the **serialization** families (`PJ` / `PJS` / `PJP` / `RJ` / `SJ` / `TB` / `FB`) treat `Promise` as unsupported and throw, because the async value can't be sampled synchronously. `KindSymbol` and `KindFunction`/`KindMethod` remain unsupported for **all** families including validation.
 
 `XX` is the per-family prefix. Each RT function family has its own:
 
@@ -59,8 +59,8 @@ This mirrors mion's `getRTChildren` filter — the only "skip" in the upstream l
 - `SJ` — stringifyJson
 - `TB` — toBinary
 - `FB` — fromBinary
-- `IT` — isType
-- `TE` — typeErrors
+- `IT` — validate
+- `TE` — validationErrors
 
 So the same logical throw (Never at root) surfaces as `PJ001` under prepareForJson, `SJ001` under stringifyJson, `TB001` under toBinary, etc. Users reading their build log can grep by family prefix.
 

@@ -62,7 +62,7 @@ func IsSchemaLeafCall(typeChecker *checker.Checker, markerModule string, call *a
 // matched via the type's own symbol (the interface case) or its alias symbol
 // (defensive, in case a future declaration aliases it), both gated on the
 // declaring module. Exported so the resolver can tell a schema-overload arg
-// (`createIsType(schemaConst)`, declared `RunType<T>`) from a reflect-form value.
+// (`createValidate(schemaConst)`, declared `RunType<T>`) from a reflect-form value.
 func IsRunType(tsType *checker.Type, markerModule string) bool {
 	if tsType == nil {
 		return false

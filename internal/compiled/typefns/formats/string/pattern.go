@@ -62,10 +62,10 @@ func samplesFromValue(raw any) []string {
 	return nil
 }
 
-// namedPatternIsType is the isType body for a pattern format (domain /
+// namedPatternValidate is the validate body for a pattern format (domain /
 // email / url): the AND of any length bounds and the regex test, plus
 // build-time mockSample validation. Empty when neither is present.
-func namedPatternIsType(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl string) string {
+func namedPatternValidate(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl string) string {
 	if annotation == nil {
 		return ""
 	}
@@ -77,7 +77,7 @@ func namedPatternIsType(ctx formats.EmitContext, annotation *protocol.FormatAnno
 	return strings.Join(conditions, " && ")
 }
 
-// namedPatternErrors is the typeErrors body for a pattern format. One
+// namedPatternErrors is the validationErrors body for a pattern format. One
 // push per failing length bound, plus one for the pattern, each tagged
 // with the format name.
 func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr, name string) string {
@@ -95,7 +95,7 @@ func namedPatternErrors(ctx formats.EmitContext, annotation *protocol.FormatAnno
 
 // emitPatternTest hoists `const re_N = new RegExp(source, flags)` into
 // the factory prologue and returns the `re_N.test(vλl)` expression.
-// Mirrors the template-literal isType emitter's hoist pattern so the
+// Mirrors the template-literal validate emitter's hoist pattern so the
 // regex compiles once per factory, not per validator call.
 func emitPatternTest(ctx formats.EmitContext, source, flags, vλl string) string {
 	reVar := ctx.NextLocalVar("reFmt")

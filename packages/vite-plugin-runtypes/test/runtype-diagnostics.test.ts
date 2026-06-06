@@ -94,18 +94,18 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     });
   });
 
-  register('emits child-position warning for function-typed property under isType', async () => {
-    // `it` is demand-driven, so seed it via createIsType (a reflection-only
-    // getRunTypeId would emit no it_ entry and thus no isType diagnostic).
+  register('emits child-position warning for function-typed property under validate', async () => {
+    // `it` is demand-driven, so seed it via createValidate (a reflection-only
+    // getRunTypeId would emit no it_ entry and thus no validate diagnostic).
     const sources = {
-      'fn-prop.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'fn-prop.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
-export const _ = createIsType<User>();
+export const _ = createValidate<User>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['isType'],
+        includeCacheSources: ['validate'],
       });
       const diags = runtypeDiagsOf(response);
       const dropped = diags.find((d) => (d.code === 'IT010' || d.code === 'IT011') && d.args?.[0] === 'onClick');
@@ -132,7 +132,7 @@ export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
     });
   });
 
-  register('emits TE020 warning diagnostic for typeErrors on root any/unknown', async () => {
+  register('emits TE020 warning diagnostic for validationErrors on root any/unknown', async () => {
     const sources = {
       'any.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<any>();
@@ -140,7 +140,7 @@ export const _ = getRunTypeId<any>();
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['typeErrors'],
+        includeCacheSources: ['validationErrors'],
       });
       const diags = runtypeDiagsOf(response);
       const warning = diags.find((d) => d.code === 'TE020');
@@ -153,21 +153,21 @@ export const _ = getRunTypeId<any>();
     });
   });
 
-  register('emits IT021 warning diagnostic for isType on root any/unknown', async () => {
-    // `it` is demand-driven, so seed it via createIsType<unknown>() (a
+  register('emits IT021 warning diagnostic for validate on root any/unknown', async () => {
+    // `it` is demand-driven, so seed it via createValidate<unknown>() (a
     // reflection-only getRunTypeId would emit no it_ entry, no IT021).
     const sources = {
-      'any-istype.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
-export const _ = createIsType<unknown>();
+      'any-istype.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+export const _ = createValidate<unknown>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
       const response = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['isType'],
+        includeCacheSources: ['validate'],
       });
       const diags = runtypeDiagsOf(response);
       const warning = diags.find((d) => d.code === 'IT021');
-      // IT021 is the isType-family parallel to TE020 — root any/unknown
+      // IT021 is the validate-family parallel to TE020 — root any/unknown
       // produces a validator that returns true for every value; surface
       // a warning so the user knows the schema is no longer enforced.
       expect(warning).toBeDefined();
@@ -268,26 +268,26 @@ export const _b = createBinaryEncoder<[number, symbol]>();
   // ResolverClient with the production default and pins the smaller
   // emit shape.
   register('default emit (no inline createRTFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
-    // `it` is demand-driven, so seed it via createIsType<User>() — a
+    // `it` is demand-driven, so seed it via createValidate<User>() — a
     // reflection-only getRunTypeId would emit no it_ entries to inspect.
     const sources = {
-      'mini.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+      'mini.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
 interface User { name: string; age: number; tags: string[]; }
-export const _ = createIsType<User>();
+export const _ = createValidate<User>();
 `,
     };
-    // Slice 4: the isType family prefix is the opaque fnHash the scanner
-    // injected into the createIsType site's `fnId`, not the readable `it`
+    // Slice 4: the validate family prefix is the opaque fnHash the scanner
+    // injected into the createValidate site's `fnId`, not the readable `it`
     // tag. Captured from the first scan so both the inline-factory and the
     // one-shot init-line assertions stay correct across version-isolated hashes.
     let itPrefix = '';
     await withInlineSources(sources, async ({client}) => {
       const inlineOn = await client.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['isType'],
+        includeCacheSources: ['validate'],
       });
-      const inlineOnBody = inlineOn.isTypeCacheSource ?? '';
+      const inlineOnBody = inlineOn.validateCacheSource ?? '';
       const itSite = inlineOn.sites.find((s) => s.fnId);
-      if (!itSite?.fnId) throw new Error('expected a createIsType site with an injected fnId');
+      if (!itSite?.fnId) throw new Error('expected a createValidate site with an injected fnId');
       itPrefix = itSite.fnId;
       // The default shared client runs with emitCacheFunctions=true so
       // we get the inline factory here as a baseline.
@@ -305,12 +305,12 @@ export const _ = createIsType<User>();
     try {
       await oneShot.setSources({'runtypes.d.ts': RUNTYPES_DTS, ...sources});
       const response = await oneShot.scanFiles(Object.keys(sources), {
-        includeCacheSources: ['isType'],
+        includeCacheSources: ['validate'],
       });
-      const body = response.isTypeCacheSource ?? '';
+      const body = response.validateCacheSource ?? '';
       // arg-7 should be the `u` alias for every non-noop, non-
       // alwaysThrow entry. Sanity-check by scanning init lines — keyed by the
-      // opaque isType fnHash prefix (`<itPrefix>_<id>`).
+      // opaque validate fnHash prefix (`<itPrefix>_<id>`).
       const initPrefix = "init('" + itPrefix + '_';
       const initLines = body.split('\n').filter((line) => line.startsWith(initPrefix));
       expect(initLines.length, 'expected at least one init line for User').toBeGreaterThan(0);

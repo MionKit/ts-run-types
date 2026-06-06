@@ -3,18 +3,18 @@
 // the source type `T` it represents); `Static<typeof X>` recovers `T`:
 //
 //   import {string, number, boolean, bigint, date, temporal} from '@mionjs/ts-go-run-types/schema';
-//   import {createIsType, type Static} from '@mionjs/ts-go-run-types';
+//   import {createValidate, type Static} from '@mionjs/ts-go-run-types';
 //
 //   const Name = string({minLength: 1, maxLength: 50}); // RunType<FormatString<…>>
 //   type Name  = Static<typeof Name>;                   // FormatString<…>
-//   const isName = createIsType(Name);                  // validator from the schema
+//   const isName = createValidate(Name);                  // validator from the schema
 //
 // The leaf builder's carried `T` is sourced from the leaf reverse map
 // (static.ts `LeafType`) keyed by format name — the single place the format→type
 // mapping lives. The Go scanner reflects the SAME branded type off the builder's
 // `InjectRunTypeId<…>` brand as the type-first surface, so a value-first leaf and
 // the hand-written `Format*<P>` form converge on one structural id; the runtime
-// then resolves the same precompiled factory (see createIsType).
+// then resolves the same precompiled factory (see createValidate).
 //
 // The date/time leaf builders (`date` / `temporal.*`) live in datetime.ts;
 // composition (`object` / `array` / `union` / … and the property modifiers
@@ -69,7 +69,7 @@ export function presetBuilder<T>(tag: string): (id?: InjectRunTypeId<T>) => RunT
 // Each parameterised leaf builder is TWO overloads: the no-params call returns
 // the PLAIN base type (`RunType<string>`), so a value-first leaf converges on the
 // SAME structural id as the type-first plain type and as a marker-form
-// `createIsType<string>()`; the params-present call returns the branded
+// `createValidate<string>()`; the params-present call returns the branded
 // `RunType<LeafType<…>>`. A single impl discriminates on the first arg — the
 // injected id (a string) lands at slot 0 for the no-params overload, at slot 1
 // for the params-present overload (the Go scanner derives each from the resolved
@@ -153,7 +153,7 @@ export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
 /** A `symbol` builder — `symbol()` → `RunType<symbol>`. Provided for
  *  composition/parity; symbol identity is not round-trippable, so the Go side
  *  emits an unsupported validator (docs/UNSUPPORTED-KINDS.md) — a standalone
- *  `createIsType(symbol())` throws the same way the type-first `symbol` case
+ *  `createValidate(symbol())` throws the same way the type-first `symbol` case
  *  does. **/
 export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
   return builderResult(id, {type: 'symbol', formatParams: {}});
@@ -161,7 +161,7 @@ export function symbol(id?: InjectRunTypeId<symbol>): RunType<symbol> {
 
 // Top / bottom atomic builders — `any` / `unknown` / `never` / `void`. Dedicated
 // builders: each carries its kind off the trailing `InjectRunTypeId<…>` brand, so
-// the scanner reflects the SAME kind as the type-first `createIsType<any>()` /
+// the scanner reflects the SAME kind as the type-first `createValidate<any>()` /
 // `<never>` / … surface and the value-first form converges on one structural id.
 
 /** An `any` builder — `any()` → `RunType<any>` (no-op validator; every value
@@ -191,7 +191,7 @@ export function voidType(id?: InjectRunTypeId<void>): RunType<void> {
 
 /** A class builder — `classType(MyClass)` → `RunType<MyClass>`. `Instance` infers
  *  directly from the constructor's instance type, so it converges with the
- *  type-first `createIsType<MyClass>()`. isType matches by SHAPE (data properties;
+ *  type-first `createValidate<MyClass>()`. validate matches by SHAPE (data properties;
  *  methods skipped), NOT `instanceof` — a plain object of the right shape passes.
  *  For a GENERIC class the instance type is pinned explicitly
  *  (`classType<Box<number>>(Box)`); otherwise it infers the unparameterised

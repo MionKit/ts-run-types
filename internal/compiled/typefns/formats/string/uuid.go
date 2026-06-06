@@ -32,11 +32,11 @@ func init() {
 func (uuidEmitter) Name() string                  { return "uuid" }
 func (uuidEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-// EmitIsTypeCheck returns `cpf_isUUID(v, {version: '<v>'})`. The
+// EmitValidateCheck returns `cpf_isUUID(v, {version: '<v>'})`. The
 // `cpf_isUUID` const is hoisted into the factory prologue via a
 // context item; the pure-fn dependency is recorded so the JS-side
 // cache wires up the registered factory.
-func (uuidEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (uuidEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -51,12 +51,12 @@ func (uuidEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl s
 	return aliasKey + "(" + vλl + ",{version:" + strconv.Quote(version) + "})"
 }
 
-// EmitTypeErrorsCheck — UUID has a single, opaque "is or isn't a
+// EmitValidationErrorsCheck — UUID has a single, opaque "is or isn't a
 // valid UUID" outcome. We push one TypeFormatError carrying the
 // `version` param when the call fails. Path-relative is `pth`; the
 // formatPath array gets a `'version'` trailing segment so consumers
 // see which param drove the failure.
-func (uuidEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (uuidEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}

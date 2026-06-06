@@ -1,5 +1,5 @@
 // Runtime mock-value generator. Walks a RunType graph and produces a value
-// that passes `isType<T>` for the same `T`. Direct port of mion's mockType.ts.
+// that passes `validate<T>` for the same `T`. Direct port of mion's mockType.ts.
 //
 // Unlike other RT families, mocking is NOT compiled per-type — the walker is
 // a runtime interpreter over `runTypesCache`.
@@ -168,11 +168,11 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       throw new Error('Mock enum member is not supported.');
     case RunTypeKind.class: {
       // Disambiguate via `subKind`. User-defined classes fall through to
-      // the objectLiteral builder (isType matches structurally).
+      // the objectLiteral builder (validate matches structurally).
       const subKind = runType.subKind as number | undefined;
       if (subKind === RunTypeSubKind.date) {
         // FormatDate<{min,max}> brands a Date with bounds; honor them so the
-        // mock re-passes isType. Falls back to the global mock-option range
+        // mock re-passes validate. Falls back to the global mock-option range
         // when the type carries no nativeDate format annotation.
         const dateParams = runType.formatAnnotation?.name === 'nativeDate' ? runType.formatAnnotation.params : undefined;
         if (
@@ -195,7 +195,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
       if (subKind === RunTypeSubKind.set) return mockSet(runType, options, stack);
       if (isTemporalSubKind(subKind)) {
         // FormatTemporalX<{min,max,gt,lt}> brands an orderable Temporal type
-        // with bounds; honor them so the mock re-passes isType.
+        // with bounds; honor them so the mock re-passes validate.
         const bounds = temporalBoundsFromAnnotation(runType.formatAnnotation);
         return mockTemporal(subKind as number, bounds);
       }
@@ -327,7 +327,7 @@ function mockSwitch(runType: RunType, options: RunTypeMockOptions, stack: RunTyp
     case RunTypeKind.callSignature:
     case RunTypeKind.method:
     case RunTypeKind.methodSignature:
-      // The mock isn't expected to satisfy `isType<Function>` — function-typed
+      // The mock isn't expected to satisfy `validate<Function>` — function-typed
       // cases are marked `mockTypeExpect: 'skip'` in the test adapter.
       return undefined;
     default:

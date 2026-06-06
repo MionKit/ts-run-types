@@ -1,6 +1,6 @@
 // Reflection-AST shape suite (audit follow-up T8). Asserts the *shape* of the
 // emitted `virtual:runtypes-cache` entries for representative kinds — coverage
-// that was previously only incidental to the isType / serialization round-trips.
+// that was previously only incidental to the validate / serialization round-trips.
 // Each structural scenario is paired (static getRunTypeId<T>() + reflect
 // reflectRunTypeId(v)) per the marker coverage rule (CLAUDE.md); the literal-
 // rehydration cases use the single form that actually captures the literal

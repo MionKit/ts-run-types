@@ -3,14 +3,14 @@ package diag
 // RunType RT-compiler codes. Per-family prefixes so users reading their
 // build log can tell which RT family produced a diagnostic without
 // reading the message: SJ010 is unambiguously "stringifyJson dropped a
-// member"; IT010 is "isType dropped a member"; even if both messages are
+// member"; IT010 is "validate dropped a member"; even if both messages are
 // otherwise identical.
 //
 // Numeric suffix convention within each family:
 //   001-009 — root-position errors (the rendered factory throws on call)
 //   010+    — child-position warnings (silent skips made visible)
 
-// isType family.
+// validate family.
 const (
 	CodeISNonSerializableRoot = "IT001"
 	CodeISSymbolRoot          = "IT002"
@@ -21,7 +21,7 @@ const (
 	CodeISRootAnyUnknown      = "IT021"
 )
 
-// typeErrors family.
+// validationErrors family.
 const (
 	CodeTENonSerializableRoot = "TE001"
 	CodeTESymbolRoot          = "TE002"
@@ -145,8 +145,8 @@ const (
 // serializer is registered for the class name: the class is serialized
 // structurally (declared props in, prototype-less plain object out). The
 // user can register a custom (de)serializer via registerClassSerializer to
-// opt into round-tripping a real instance. NOT emitted for isType /
-// getTypeErrors, builtins (Date/Map/Set/RegExp/nonSerializable), or
+// opt into round-tripping a real instance. NOT emitted for validate /
+// getValidationErrors, builtins (Date/Map/Set/RegExp/nonSerializable), or
 // anonymous classes. Args: [className].
 const (
 	CodeCLSStructuralFallback = "CLS001"
@@ -185,8 +185,8 @@ func init() {
 	// Root any/unknown — noop validators that accept every value. Warning
 	// severity (not Info): the user opted into a permissive type, often
 	// without realising the runtime is no longer enforcing the schema.
-	register(Definition{Code: CodeTERootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "typeErrors root any/unknown — identity fallback"})
-	register(Definition{Code: CodeISRootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "isType root any/unknown — identity fallback"})
+	register(Definition{Code: CodeTERootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "validationErrors root any/unknown — identity fallback"})
+	register(Definition{Code: CodeISRootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "validate root any/unknown — identity fallback"})
 
 	// Format-family — a mockSample that contradicts its own pattern is a
 	// type-definition bug; surface it as an error.

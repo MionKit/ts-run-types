@@ -36,7 +36,7 @@ if (_hot) {
 }
 
 // `pureFn.ts` MUST evaluate before any cache factory that references pure-fn
-// helpers (e.g. typeErrors needs `mion::newRunTypeErr`).
+// helpers (e.g. validationErrors needs `mion::newRunTypeErr`).
 export {registerPureFnFactory} from './runtypes/pureFn.ts';
 
 // Custom class serializer registry — register a serialize/deserialize pair
@@ -67,14 +67,14 @@ export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 // JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
 // level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
 export {
-  // createIsType / createGetTypeErrors are overloaded: a value-first `RunType`
+  // createValidate / createGetValidationErrors are overloaded: a value-first `RunType`
   // schema as the first arg (the value a `define` builder returns) is a distinct
   // overload from the type/value reflection form — both reflect `T`.
-  createIsType,
-  type IsTypeFn,
-  type IsTypeOptions,
-  createGetTypeErrors,
-  type GetTypeErrorsFn,
+  createValidate,
+  type ValidateFn,
+  type ValidateOptions,
+  createGetValidationErrors,
+  type GetValidationErrorsFn,
   type RunTypeError,
   type TypeFormatError,
   type RunTypeErrorPathSegment,

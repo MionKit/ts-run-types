@@ -1,15 +1,15 @@
-// End-to-end acceptance test for the v1 isType precompiler. Drives the
+// End-to-end acceptance test for the v1 validate precompiler. Drives the
 // Go side over the same inline-server pipeline the other vite-plugin
 // tests use, then evaluates both rendered modules:
 //
 //   - virtual:runtypes-cache  → look up the cache entry assigned to `string`
-//   - virtual:runtypes-isType → register the precompiled RTCompiledFn
+//   - virtual:runtypes-validate → register the precompiled RTCompiledFn
 //     entry into a stubbed RTUtils cache and assert the entry's
 //     `.fn(value)` validator behaves correctly for true / false /
 //     undefined inputs.
 //
-// Sibling test packages/ts-go-run-types/test/createIsType.test.ts
-// exercises the same module through the public `createIsType<T>()`
+// Sibling test packages/ts-go-run-types/test/createValidate.test.ts
+// exercises the same module through the public `createValidate<T>()`
 // API. This file goes a level lower: it asserts the rendered output
 // shape (every `RTCompiledFnData` field is populated, the cache map
 // and the auto-registered rtUtils cache point at the same object),
@@ -37,17 +37,17 @@ interface RTEntry {
   fn: (value: unknown) => boolean;
 }
 
-describe('vite-plugin-runtypes / isType precompiler', () => {
+describe('vite-plugin-runtypes / validate precompiler', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits a working RTCompiledFn entry for `string`', async () => {
-    // `it` (isType) is demand-scoped — a reflection-only getRunTypeId<string>()
-    // would emit ZERO it_ entries. Drive the isType family directly via
-    // createIsType<string>() so the demand path renders the `it_<id>` factory
+    // `it` (validate) is demand-scoped — a reflection-only getRunTypeId<string>()
+    // would emit ZERO it_ entries. Drive the validate family directly via
+    // createValidate<string>() so the demand path renders the `it_<id>` factory
     // this test inspects.
     const sources = {
-      'string.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
-createIsType<string>();
+      'string.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
+createValidate<string>();
 `,
     };
     await withInlineSources(sources, async ({client, sources: augmented}) => {
@@ -66,26 +66,26 @@ createIsType<string>();
       expect(stringRunType).toBeDefined();
       expect(stringRunType.kind).toBe(5); // ReflectionKind.string
 
-      // 2. Evaluate the isType module via its initCache(rtUtils) export.
+      // 2. Evaluate the validate module via its initCache(rtUtils) export.
       //    The stub records every `addToRTCache` call and the returned
       //    cache map is keyed by the namespaced `rtFnHash`
       //    (`<fnHash>_<id>`) — see internal/compiled/typefns/module.go which
-      //    namespaces the cache key per fn so isType / typeErrors /
+      //    namespaces the cache key per fn so validate / validationErrors /
       //    prepareForJson entries for the same runtype don't collide
       //    in the shared rtFnsCache. Slice 4: the family prefix is the opaque
-      //    isType fnHash the scanner injected into this site's `fnId`, not the
+      //    validate fnHash the scanner injected into this site's `fnId`, not the
       //    readable `it` tag — derive the key from `site.fnId` so the test
       //    stays correct across version-isolated hashes.
-      const isTypeSource = response.isTypeCacheSource;
-      if (!isTypeSource) throw new Error('expected isTypeCacheSource in response');
-      const {byHash: isTypeCache, registered} = evalIsTypeModule(isTypeSource);
+      const validateSource = response.validateCacheSource;
+      if (!validateSource) throw new Error('expected validateCacheSource in response');
+      const {byHash: validateCache, registered} = evalValidateModule(validateSource);
 
       // Both the returned map entry and the stub-registered cache entry
       // must point at the same `RTCompiledFn` object — there's no copy.
       const fnPrefix = site.fnId;
-      if (!fnPrefix) throw new Error('expected an injected fnId (fnHash) on the createIsType site');
+      if (!fnPrefix) throw new Error('expected an injected fnId (fnHash) on the createValidate site');
       const cacheKey = fnPrefix + '_' + site.id;
-      const fromCache = isTypeCache[cacheKey];
+      const fromCache = validateCache[cacheKey];
       const fromRegistry = registered[cacheKey];
       expect(fromCache).toBeDefined();
       expect(fromRegistry).toBeDefined();
@@ -143,12 +143,12 @@ function evalRunTypesModule(source: string): Record<string, RunType> {
   return registered;
 }
 
-// evalIsTypeModule evaluates the rendered isType module, calls its
+// evalValidateModule evaluates the rendered validate module, calls its
 // `initCache(rtUtils)` export against a stub rtUtils, and returns
 // the stub's record of every `addToRTCache(entry)` call keyed by
 // `rtFnHash`. With cache state now living in rtUtils only, the
 // stub's table IS the cache.
-function evalIsTypeModule(source: string): {byHash: Record<string, RTEntry>; registered: Record<string, RTEntry>} {
+function evalValidateModule(source: string): {byHash: Record<string, RTEntry>; registered: Record<string, RTEntry>} {
   const registered: Record<string, RTEntry> = {};
   // The cache module no longer materialises `entry.fn` eagerly — the
   // real rtUtils does it lazily on first `getRT(hash)` call (see

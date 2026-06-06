@@ -34,9 +34,9 @@ func (m rootCodeMap) codeFor(leaf *protocol.RunType) string {
 	case protocol.KindSymbol:
 		return m.symbol
 	case protocol.KindLiteral:
-		// A symbol-flavored literal under the `noLiterals` IsTypeOptions
+		// A symbol-flavored literal under the `noLiterals` ValidateOptions
 		// variant degrades to the bare-symbol validator — same misleading
-		// shape as plain `createIsType<symbol>()`, so we route to the
+		// shape as plain `createValidate<symbol>()`, so we route to the
 		// symbol root code and let the alwaysThrow path emit the same
 		// diagnostic. See istype.go's emitLiteralBaseKind symbol arm.
 		for _, flag := range leaf.Flags {
@@ -207,7 +207,7 @@ func (FromBinaryEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
 	return fromBinaryRootCodes.codeFor(leaf)
 }
 
-var isTypeCodes = map[DiagSlot]string{
+var validateCodes = map[DiagSlot]string{
 	SlotNonSerializableRoot: diag.CodeISNonSerializableRoot,
 	SlotFunctionPropDropped: diag.CodeISFunctionPropDropped,
 	SlotMethodDropped:       diag.CodeISMethodDropped,
@@ -216,20 +216,20 @@ var isTypeCodes = map[DiagSlot]string{
 	SlotRootAnyUnknown:      diag.CodeISRootAnyUnknown,
 }
 
-func (IsTypeEmitter) DiagCodeFor(slot DiagSlot) string { return isTypeCodes[slot] }
+func (ValidateEmitter) DiagCodeFor(slot DiagSlot) string { return validateCodes[slot] }
 
-var isTypeRootCodes = rootCodeMap{
-	never:           "", // isType validates Never as "no inhabitants" — handled by existing never arm, not unsupported
+var validateRootCodes = rootCodeMap{
+	never:           "", // validate validates Never as "no inhabitants" — handled by existing never arm, not unsupported
 	nonSerializable: diag.CodeISNonSerializableRoot,
-	function:        "", // isType validates function-kinds as `typeof === 'function'` — supported
+	function:        "", // validate validates function-kinds as `typeof === 'function'` — supported
 	symbol:          diag.CodeISSymbolRoot,
 }
 
-func (IsTypeEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
-	return isTypeRootCodes.codeFor(leaf)
+func (ValidateEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return validateRootCodes.codeFor(leaf)
 }
 
-var typeErrorsCodes = map[DiagSlot]string{
+var validationErrorsCodes = map[DiagSlot]string{
 	SlotNonSerializableRoot: diag.CodeTENonSerializableRoot,
 	SlotFunctionPropDropped: diag.CodeTEFunctionPropDropped,
 	SlotMethodDropped:       diag.CodeTEMethodDropped,
@@ -238,17 +238,17 @@ var typeErrorsCodes = map[DiagSlot]string{
 	SlotRootAnyUnknown:      diag.CodeTERootAnyUnknown,
 }
 
-func (TypeErrorsEmitter) DiagCodeFor(slot DiagSlot) string { return typeErrorsCodes[slot] }
+func (ValidationErrorsEmitter) DiagCodeFor(slot DiagSlot) string { return validationErrorsCodes[slot] }
 
-var typeErrorsRootCodes = rootCodeMap{
+var validationErrorsRootCodes = rootCodeMap{
 	never:           "",
 	nonSerializable: diag.CodeTENonSerializableRoot,
 	function:        "",
 	symbol:          diag.CodeTESymbolRoot,
 }
 
-func (TypeErrorsEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
-	return typeErrorsRootCodes.codeFor(leaf)
+func (ValidationErrorsEmitter) DiagCodeForLeaf(leaf *protocol.RunType) string {
+	return validationErrorsRootCodes.codeFor(leaf)
 }
 
 var hasUnknownKeysCodes = map[DiagSlot]string{

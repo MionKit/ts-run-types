@@ -181,7 +181,7 @@ function randomUUIDv7(): string {
 
 // Date / Time / DateTime mocking lives in ./mockDateTimeBounds.ts — it must
 // honor the min/max bounds (absolute or relative now±P) so the mock re-passes
-// isType, which requires mirroring the validator's per-kind key scale.
+// validate, which requires mirroring the validator's per-kind key scale.
 
 // ──────────────────────────────── IP ────────────────────────────────
 

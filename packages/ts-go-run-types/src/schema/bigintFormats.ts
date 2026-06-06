@@ -3,7 +3,7 @@
 // Sibling of atomic.ts's generic `bigint({…})` leaf: these carry the CONCRETE
 // named alias from `../formats/bigintFormats.ts`, so the Go scanner reflects the
 // SAME branded type off each builder's `InjectRunTypeId<…>` brand as the type-first
-// `createIsType<FormatBigInt64>()` surface and the two converge on one structural
+// `createValidate<FormatBigInt64>()` surface and the two converge on one structural
 // id. All are fixed presets (no user params) → a single no-arg overload via
 // `presetBuilder`. For ad-hoc constraints use `bigint({min, max, …})`.
 

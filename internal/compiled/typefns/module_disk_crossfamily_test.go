@@ -87,7 +87,7 @@ func TestRenderFnModule_DiskCache_CrossFamilyRoundTrip(t *testing.T) {
 	if len(entry.CrossFamilyRefs) != len(wantCross) {
 		t.Fatalf("persisted CrossFamilyRefs count: got %d (%+v) want %d", len(entry.CrossFamilyRefs), entry.CrossFamilyRefs, len(wantCross))
 	}
-	wantPrefix := operations.PlainHash("isType") + "_"
+	wantPrefix := operations.PlainHash("validate") + "_"
 	gotRefDeps := make([]string, 0, len(entry.CrossFamilyRefs))
 	for _, ref := range entry.CrossFamilyRefs {
 		if ref.Prefix != wantPrefix {
@@ -251,7 +251,7 @@ func TestRenderFnModule_DiskCache_FormatV1IsMiss(t *testing.T) {
 	}
 
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}}}
-	rendered := renderEntryWithDeps(dump.RunTypes[0], constants.CacheModules["isType"], IsTypeEmitter{}, "it_", buildRefTable(dump.RunTypes), RenderOpts{Store: store, Lookup: lookup}, "", nil)
+	rendered := renderEntryWithDeps(dump.RunTypes[0], constants.CacheModules["validate"], ValidateEmitter{}, "it_", buildRefTable(dump.RunTypes), RenderOpts{Store: store, Lookup: lookup}, "", nil)
 	if rendered.line == v1["line"] {
 		t.Errorf("v1 file should be a miss under FormatVersion %d, but the stale v1 line was returned", disk.FormatVersion)
 	}

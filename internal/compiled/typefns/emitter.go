@@ -14,7 +14,7 @@ type ArgSpec struct {
 }
 
 // Emitter is the per-fn implementation surface. One Emitter per rt
-// function id (isType, typeErrors, prepareForJson, …). All fn-specific
+// function id (validate, validationErrors, prepareForJson, …). All fn-specific
 // logic lives behind this interface; the Walker (walker.go) drives
 // traversal without knowing which fn is being emitted.
 //
@@ -23,8 +23,8 @@ type ArgSpec struct {
 type Emitter interface {
 	// Args returns the inner function's parameter list. The first
 	// entry's Name is the base value accessor — the Walker uses it as
-	// the starting Vλl for the root frame. isType:
-	// `[{Key:"vλl", Name:"v", Default:""}]`. typeErrors will be:
+	// the starting Vλl for the root frame. validate:
+	// `[{Key:"vλl", Name:"v", Default:""}]`. validationErrors will be:
 	// `[{vλl,v,""}, {pλth,pth,"[]"}, {εrr,er,"[]"}]`.
 	Args() []ArgSpec
 
@@ -80,15 +80,15 @@ type Emitter interface {
 	// vλl"), and returns the final body string + an isNoop flag the
 	// renderer uses to skip noop factories entirely.
 	//
-	//   isType: empty/"true"/"return true" → ("return true", true)
-	//   typeErrors: empty → ("return εrr", true)
+	//   validate: empty/"true"/"return true" → ("return true", true)
+	//   validationErrors: empty → ("return εrr", true)
 	//   prepareForJson et al: empty → ("return v", true)
 	Finalize(rawCode string) (code string, isNoop bool)
 
 	// ReturnName is the JS identifier the walker appends after a
-	// statement-shaped body via `… return <ReturnName>`. For isType /
+	// statement-shaped body via `… return <ReturnName>`. For validate /
 	// prepareForJson / format / mock this is the first arg's Name
-	// (`v`). For typeErrors the accumulator is the third arg (`er`),
+	// (`v`). For validationErrors the accumulator is the third arg (`er`),
 	// so the emitter overrides this method to return `"er"` instead.
 	ReturnName() string
 }
@@ -176,8 +176,8 @@ func (ctx *EmitContext) SetChildAccessor(accessor string) {
 // pushStack frame inherits. Symmetric with SetChildAccessor — collection
 // emitters call it before each CompileChild so the child frame's
 // PathLiteral reflects the property name, tuple index, or loop counter
-// the child sits at relative to the parent. Used by typeErrors-style
-// emitters to build access-path arrays for error reporting; isType
+// the child sits at relative to the parent. Used by validationErrors-style
+// emitters to build access-path arrays for error reporting; validate
 // ignores it.
 func (ctx *EmitContext) SetChildPathLiteral(literal string) {
 	ctx.walker.setChildPathLiteral(literal)
@@ -186,7 +186,7 @@ func (ctx *EmitContext) SetChildPathLiteral(literal string) {
 // AccessPathLiteral returns a JS array-literal expression listing every
 // non-empty PathLiteral on the current stack, with `extra` appended as a
 // trailing segment when non-empty. Empty path → empty string (caller
-// omits the argument). Used by typeErrors emitters when calling
+// omits the argument). Used by validationErrors emitters when calling
 // cpf_newRunTypeErr to embed the static path segments at error sites.
 //
 // Mirrors mion's `getAccessPath` + `getAccessPathLiteral`
@@ -204,7 +204,7 @@ func (ctx *EmitContext) AccessPathLiteral(extra string) string {
 
 // AccessPathLength returns the number of static path segments the
 // current stack contributes (with `extra` counted when non-empty).
-// Used by typeErrors EmitDependencyCall to size the `pth.splice(-N)`
+// Used by validationErrors EmitDependencyCall to size the `pth.splice(-N)`
 // pop that unwinds the path after a dependency-call returns. Mirrors
 // mion's `getAccessPathLength` (rtFnCompiler.ts implicit via array
 // length on getAccessPath result).
@@ -244,7 +244,7 @@ func (ctx *EmitContext) registerRTLookup(childID string) {
 	}
 	// Capture cross-family lookups as tracked dependency edges. A lookup
 	// is cross-family when childID's tag prefix differs from this walker's
-	// own InnerPrefix (e.g. a prepareForJson/toBinary/typeErrors body
+	// own InnerPrefix (e.g. a prepareForJson/toBinary/validationErrors body
 	// resolving `it_<member>`). recordCrossFamilyDep applies that prefix
 	// gate, so same-family lookups (also funnelled through here by
 	// emitDepCall) stay in RTDependencies and only genuine cross-family
@@ -280,7 +280,7 @@ func (ctx *EmitContext) emitDepCall(childID, argsExpr, assignTo string) string {
 // at `utl.getPureFn(<namespace>, <fnName>)`. The walker forwards each
 // dependency to the resolver's integrity check at end of compilation —
 // see internal/compiled/typefns/walker.go's AddPureFnDependency for the
-// recording contract. Used by typeErrors to register `cpf_newRunTypeErr`
+// recording contract. Used by validationErrors to register `cpf_newRunTypeErr`
 // before emitting calls into it.
 func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) {
 	ctx.walker.AddPureFnDependency(namespace, fnName, filePath)
@@ -289,7 +289,7 @@ func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) 
 // DiagSlot identifies a RT-throw / silent-skip site by its semantic
 // shape rather than its per-family code. Emitters expose a DiagCodeFor
 // map keyed by these slots so that emit code shared across multiple
-// emitters (e.g. json_prepare_safe.go shared by the isType / typeErrors
+// emitters (e.g. json_prepare_safe.go shared by the validate / validationErrors
 // drop-slot machinery) emits diagnostics under the correct per-family
 // prefix.
 type DiagSlot string
@@ -402,7 +402,7 @@ func (ctx *EmitContext) EmitDiagnostic(code string, args ...string) {
 // ArgName looks up the JS identifier the inner function uses for a
 // conceptual arg slot ("vλl", "pλth", "εrr") via the emitter's Args
 // list. Returns "" when the slot isn't declared on this emitter — eg
-// isType has no "pλth" / "εrr", so callers gating on those slots
+// validate has no "pλth" / "εrr", so callers gating on those slots
 // short-circuit cleanly without panicking. Mirrors mion's
 // `this.args.<key>` access (rtFnCompiler.ts:671).
 func (ctx *EmitContext) ArgName(key string) string {

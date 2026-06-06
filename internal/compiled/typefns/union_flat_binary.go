@@ -85,16 +85,16 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 
 	var clauses []string
 
-	// Atomic members — `if (isType) { writeDiscriminator(idx); encode; }`.
+	// Atomic members — `if (validate) { writeDiscriminator(idx); encode; }`.
 	for _, m := range layout.AtomicMembers {
 		childRT := ctx.CompileChild(m.Ref, CodeS)
 		if childRT.Type == CodeNS {
 			return RTCode{Code: "", Type: CodeNS}
 		}
-		isTypeExpr := unionMemberIsTypeCheck(m.Resolved, ctx, v)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(m.Resolved, ctx, v)
+		guard := validateExpr
 		if isObjectLikeKind(m.Resolved.Kind) {
-			guard = objectGuard(v, isTypeExpr)
+			guard = objectGuard(v, validateExpr)
 		}
 		body := writeDiscriminator(ser, width, m.OriginalIndex)
 		if childRT.Code != "" {
@@ -183,7 +183,7 @@ func emitUnionToBinaryFlat(rt *protocol.RunType, ctx *EmitContext, v, ser string
 // emitMergedPropToBinary mirrors emitMergedPropPrepare for the binary
 // wire shape. Single-candidate: delegate to the candidate's toBinary.
 // Multi-candidate: write a sub-discriminator (always uint8 since per-
-// prop candidate counts are small) + candidate bytes, gated by isType.
+// prop candidate counts are small) + candidate bytes, gated by validate.
 func emitMergedPropToBinary(mp FlatMergedProp, accessor string, ctx *EmitContext, ser string) (string, bool) {
 	if len(mp.Candidates) == 1 {
 		ctx.SetChildAccessor(accessor)
@@ -208,10 +208,10 @@ func emitMergedPropToBinary(mp FlatMergedProp, accessor string, ctx *EmitContext
 		if jc.Type == CodeNS {
 			return "", false
 		}
-		isTypeExpr := unionMemberIsTypeCheck(cand.Resolved, ctx, accessor)
-		guard := isTypeExpr
+		validateExpr := unionMemberValidateCheck(cand.Resolved, ctx, accessor)
+		guard := validateExpr
 		if isObjectLikeKind(cand.Resolved.Kind) {
-			guard = objectGuard(accessor, isTypeExpr)
+			guard = objectGuard(accessor, validateExpr)
 		}
 		body := ser + ".view.setUint8(" + ser + ".index++, " + strconv.Itoa(i) + ")"
 		if jc.Code != "" {

@@ -1,38 +1,38 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const ARRAY = {
   string_array: {
     title: 'Array of strings',
-    isTypeNotes: [
+    validateNotes: [
       'Top-level value must be an actual array (`Array.isArray`).',
       'Every element must satisfy the element type — the empty array `[]` is valid.',
     ],
-    isType: () => createIsType<string[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.string())),
-    deserializeIsType: () => deserializeIsType<string[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string[]>(),
+    validateDataOnly: () => createValidate<DataOnly<string[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.string())),
+    deserializeValidate: () => deserializeValidate<string[]>(),
+    validateReflect: () => {
       const v: string[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[]>(),
+    getValidationErrorsReflect: () => {
       const v: string[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string[]>(),
     mockTypeReflect: () => {
@@ -44,7 +44,7 @@ export const ARRAY = {
       // The mixed-types invalid `['hello', 'world', {hello: 'world'}]`
       // is the carry-over from mion's "simple array hasUnknownKeys on
       // array with non objects" block — the object element fails the
-      // string check, so the whole array fails isType.
+      // string check, so the whole array fails validate.
       invalid: ['hello', ['hello', 2], ['hello', 'world', {hello: 'world'}], null, undefined, [42], [null]],
     }),
     getExpectedErrors: () => [
@@ -61,29 +61,29 @@ export const ARRAY = {
   number_array: {
     title: 'Array of numbers (rejects Infinity / NaN per element)',
     description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
-    isType: () => createIsType<number[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<number[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.number())),
-    deserializeIsType: () => deserializeIsType<number[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<number[]>(),
+    validateDataOnly: () => createValidate<DataOnly<number[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.number())),
+    deserializeValidate: () => deserializeValidate<number[]>(),
+    validateReflect: () => {
       const v: number[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: number[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<number[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<number[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.number())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<number[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<number[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<number[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.number())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<number[]>(),
+    getValidationErrorsReflect: () => {
       const v: number[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: number[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<number[]>(),
     mockTypeReflect: () => {
@@ -109,29 +109,29 @@ export const ARRAY = {
 
   boolean_array: {
     title: 'Array of booleans',
-    isType: () => createIsType<boolean[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<boolean[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.boolean())),
-    deserializeIsType: () => deserializeIsType<boolean[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<boolean[]>(),
+    validateDataOnly: () => createValidate<DataOnly<boolean[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.boolean())),
+    deserializeValidate: () => deserializeValidate<boolean[]>(),
+    validateReflect: () => {
       const v: boolean[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: boolean[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<boolean[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<boolean[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.boolean())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<boolean[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<boolean[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.boolean())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<boolean[]>(),
+    getValidationErrorsReflect: () => {
       const v: boolean[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: boolean[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<boolean[]>(),
     mockTypeReflect: () => {
@@ -155,29 +155,29 @@ export const ARRAY = {
 
   bigint_array: {
     title: 'Array of bigints',
-    isType: () => createIsType<bigint[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<bigint[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.bigint())),
-    deserializeIsType: () => deserializeIsType<bigint[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<bigint[]>(),
+    validateDataOnly: () => createValidate<DataOnly<bigint[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.bigint())),
+    deserializeValidate: () => deserializeValidate<bigint[]>(),
+    validateReflect: () => {
       const v: bigint[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: bigint[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<bigint[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<bigint[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.bigint())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<bigint[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<bigint[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.bigint())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<bigint[]>(),
+    getValidationErrorsReflect: () => {
       const v: bigint[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: bigint[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<bigint[]>(),
     mockTypeReflect: () => {
@@ -201,30 +201,30 @@ export const ARRAY = {
   date_array: {
     title: 'Array of Dates (rejects Invalid Date per element)',
     description: 'from mion serialization-suite ARRAYS.array_date',
-    isTypeNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
-    isType: () => createIsType<Date[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Date[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.date())),
-    deserializeIsType: () => deserializeIsType<Date[]>(),
-    isTypeReflect: () => {
+    validateNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
+    validate: () => createValidate<Date[]>(),
+    validateDataOnly: () => createValidate<DataOnly<Date[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.date())),
+    deserializeValidate: () => deserializeValidate<Date[]>(),
+    validateReflect: () => {
       const v: Date[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Date[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Date[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Date[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.date())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Date[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.date())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date[]>(),
+    getValidationErrorsReflect: () => {
       const v: Date[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Date[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Date[]>(),
     mockTypeReflect: () => {
@@ -246,29 +246,29 @@ export const ARRAY = {
 
   regexp_array: {
     title: 'Array of RegExps',
-    isType: () => createIsType<RegExp[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<RegExp[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.regexp())),
-    deserializeIsType: () => deserializeIsType<RegExp[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<RegExp[]>(),
+    validateDataOnly: () => createValidate<DataOnly<RegExp[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.regexp())),
+    deserializeValidate: () => deserializeValidate<RegExp[]>(),
+    validateReflect: () => {
       const v: RegExp[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: RegExp[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RegExp[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<RegExp[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.regexp())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<RegExp[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<RegExp[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<RegExp[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.regexp())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<RegExp[]>(),
+    getValidationErrorsReflect: () => {
       const v: RegExp[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: RegExp[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<RegExp[]>(),
     mockTypeReflect: () => {
@@ -292,30 +292,30 @@ export const ARRAY = {
   undefined_array: {
     title: 'Array of undefined values',
     description: 'from mion serialization-suite ARRAYS.undefined_in_array',
-    isTypeNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
-    isType: () => createIsType<undefined[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<undefined[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.literal(undefined))),
-    deserializeIsType: () => deserializeIsType<undefined[]>(),
-    isTypeReflect: () => {
+    validateNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
+    validate: () => createValidate<undefined[]>(),
+    validateDataOnly: () => createValidate<DataOnly<undefined[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.literal(undefined))),
+    deserializeValidate: () => deserializeValidate<undefined[]>(),
+    validateReflect: () => {
       const v: undefined[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: undefined[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<undefined[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<undefined[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.literal(undefined))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<undefined[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<undefined[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.literal(undefined))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<undefined[]>(),
+    getValidationErrorsReflect: () => {
       const v: undefined[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: undefined[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<undefined[]>(),
     mockTypeReflect: () => {
@@ -339,30 +339,30 @@ export const ARRAY = {
 
   null_array: {
     title: 'Array of nulls',
-    isTypeNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
-    isType: () => createIsType<null[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<null[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.literal(null))),
-    deserializeIsType: () => deserializeIsType<null[]>(),
-    isTypeReflect: () => {
+    validateNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
+    validate: () => createValidate<null[]>(),
+    validateDataOnly: () => createValidate<DataOnly<null[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.literal(null))),
+    deserializeValidate: () => deserializeValidate<null[]>(),
+    validateReflect: () => {
       const v: null[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: null[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<null[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<null[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.literal(null))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<null[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<null[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<null[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.literal(null))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<null[]>(),
+    getValidationErrorsReflect: () => {
       const v: null[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: null[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<null[]>(),
     mockTypeReflect: () => {
@@ -387,29 +387,29 @@ export const ARRAY = {
   array_generic: {
     title: 'Generic Array<T> form (same emit as T[])',
     description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
-    isType: () => createIsType<Array<string>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Array<string>>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.string())),
-    deserializeIsType: () => deserializeIsType<Array<string>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Array<string>>(),
+    validateDataOnly: () => createValidate<DataOnly<Array<string>>>(),
+    validateSchema: () => createValidate(RT.array(RT.string())),
+    deserializeValidate: () => deserializeValidate<Array<string>>(),
+    validateReflect: () => {
       const v: Array<string> = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Array<string> = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Array<string>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Array<string>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Array<string>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Array<string>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Array<string>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Array<string>>(),
+    getValidationErrorsReflect: () => {
       const v: Array<string> = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Array<string> = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Array<string>>(),
     mockTypeReflect: () => {
@@ -432,29 +432,29 @@ export const ARRAY = {
     title: 'Two-dimensional string array (multi-level dependency call)',
     description:
       'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getRT(...).fn(v[i0]))',
-    isType: () => createIsType<string[][]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string[][]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.array(RT.string()))),
-    deserializeIsType: () => deserializeIsType<string[][]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string[][]>(),
+    validateDataOnly: () => createValidate<DataOnly<string[][]>>(),
+    validateSchema: () => createValidate(RT.array(RT.array(RT.string()))),
+    deserializeValidate: () => deserializeValidate<string[][]>(),
+    validateReflect: () => {
       const v: string[][] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string[][] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string[][]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[][]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.array(RT.string()))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string[][]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[][]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.array(RT.string()))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[][]>(),
+    getValidationErrorsReflect: () => {
       const v: string[][] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string[][] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string[][]>(),
     mockTypeReflect: () => {
@@ -471,7 +471,7 @@ export const ARRAY = {
         ],
       ],
       // mion Block 5 path-error samples: top-level array-of-string
-      // fails isType when the type is string[][], same for plain
+      // fails validate when the type is string[][], same for plain
       // string. `['hello']` is "first element is `'hello'` which is
       // not an array".
       invalid: [[['hello', 2]], ['hello'], ['hello', 'world'], 'hello', null, undefined, [[null]], [[42]]],
@@ -498,29 +498,29 @@ export const ARRAY = {
   string_array_3d: {
     title: 'Three-dimensional string array (depth stress)',
     description: 'depth stress for the dependency-call layer',
-    isType: () => createIsType<string[][][]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string[][][]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.array(RT.array(RT.string())))),
-    deserializeIsType: () => deserializeIsType<string[][][]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<string[][][]>(),
+    validateDataOnly: () => createValidate<DataOnly<string[][][]>>(),
+    validateSchema: () => createValidate(RT.array(RT.array(RT.array(RT.string())))),
+    deserializeValidate: () => deserializeValidate<string[][][]>(),
+    validateReflect: () => {
       const v: string[][][] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string[][][] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string[][][]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[][][]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.array(RT.array(RT.string())))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][][]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string[][][]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[][][]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.array(RT.array(RT.string())))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[][][]>(),
+    getValidationErrorsReflect: () => {
       const v: string[][][] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string[][][] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string[][][]>(),
     mockTypeReflect: () => {
@@ -549,34 +549,34 @@ export const ARRAY = {
     title: 'Array with noIsArrayCheck (Array.isArray guard stripped)',
     description:
       'noIsArrayCheck strips the Array.isArray guard; hashes distinctly from plain string_array — same samples, different validator',
-    isTypeNotes: [
+    validateNotes: [
       'With `{noIsArrayCheck: true}`, the `Array.isArray` guard is stripped — non-array inputs may slip through.',
       'Use only when the caller has already verified the value is an array; the validator trusts the shape and only walks elements.',
     ],
-    isType: () => createIsType<string[]>(undefined, {noIsArrayCheck: true}),
-    isTypeDataOnly: () => createIsType<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
-    deserializeIsType: () => deserializeIsType<string[]>(undefined, {noIsArrayCheck: true}),
-    isTypeReflect: () => {
+    validate: () => createValidate<string[]>(undefined, {noIsArrayCheck: true}),
+    validateDataOnly: () => createValidate<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
+    deserializeValidate: () => deserializeValidate<string[]>(undefined, {noIsArrayCheck: true}),
+    validateReflect: () => {
       const v: string[] = [];
-      return createIsType(v, {noIsArrayCheck: true});
+      return createValidate(v, {noIsArrayCheck: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string[] = [];
-      return deserializeIsType(v, {noIsArrayCheck: true});
+      return deserializeValidate(v, {noIsArrayCheck: true});
     },
-    isTypeSchema: () => createIsType(RT.array(RT.string()), {noIsArrayCheck: true}),
-    getTypeErrors: () => createGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
-    getTypeErrorsReflect: () => {
+    validateSchema: () => createValidate(RT.array(RT.string()), {noIsArrayCheck: true}),
+    getValidationErrors: () => createGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true}),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string[]>(undefined, {noIsArrayCheck: true}),
+    getValidationErrorsReflect: () => {
       const v: string[] = [];
-      return createGetTypeErrors(v, {noIsArrayCheck: true});
+      return createGetValidationErrors(v, {noIsArrayCheck: true});
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string[] = [];
-      return deserializeGetTypeErrors(v, {noIsArrayCheck: true});
+      return deserializeGetValidationErrors(v, {noIsArrayCheck: true});
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string()), {noIsArrayCheck: true}),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string()), {noIsArrayCheck: true}),
     mockType: () => createMockType<string[]>(undefined, undefined),
     mockTypeReflect: () => {
       const v: string[] = [];
@@ -598,30 +598,30 @@ export const ARRAY = {
   object_array: {
     title: 'Array of object literals',
     description:
-      "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
-    isType: () => createIsType<{a: string}[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<{a: string}[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.object({a: RT.string()}))),
-    deserializeIsType: () => deserializeIsType<{a: string}[]>(),
-    isTypeReflect: () => {
+      "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass validate (unknown-key handling is a different adapter).",
+    validate: () => createValidate<{a: string}[]>(),
+    validateDataOnly: () => createValidate<DataOnly<{a: string}[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.object({a: RT.string()}))),
+    deserializeValidate: () => deserializeValidate<{a: string}[]>(),
+    validateReflect: () => {
       const v: {a: string}[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: {a: string}[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<{a: string}[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string}[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.object({a: RT.string()}))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string}[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<{a: string}[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string}[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.object({a: RT.string()}))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string}[]>(),
+    getValidationErrorsReflect: () => {
       const v: {a: string}[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: {a: string}[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<{a: string}[]>(),
     mockTypeReflect: () => {
@@ -647,29 +647,29 @@ export const ARRAY = {
   union_array: {
     title: 'Array of unions (OR-chain per element)',
     description: 'array of union — each element validates against the union OR-chain.',
-    isType: () => createIsType<(string | number)[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<(string | number)[]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.union([RT.string(), RT.number()]))),
-    deserializeIsType: () => deserializeIsType<(string | number)[]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<(string | number)[]>(),
+    validateDataOnly: () => createValidate<DataOnly<(string | number)[]>>(),
+    validateSchema: () => createValidate(RT.array(RT.union([RT.string(), RT.number()]))),
+    deserializeValidate: () => deserializeValidate<(string | number)[]>(),
+    validateReflect: () => {
       const v: (string | number)[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: (string | number)[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<(string | number)[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<(string | number)[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.union([RT.string(), RT.number()]))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | number)[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<(string | number)[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<(string | number)[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.union([RT.string(), RT.number()]))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<(string | number)[]>(),
+    getValidationErrorsReflect: () => {
       const v: (string | number)[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: (string | number)[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<(string | number)[]>(),
     mockTypeReflect: () => {
@@ -702,29 +702,29 @@ export const ARRAY = {
   tuple_array: {
     title: 'Array of tuples',
     description: 'array of tuples — exercises tuple under array dependency call.',
-    isType: () => createIsType<[string, number][]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<[string, number][]>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.tuple([RT.string(), RT.number()]))),
-    deserializeIsType: () => deserializeIsType<[string, number][]>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<[string, number][]>(),
+    validateDataOnly: () => createValidate<DataOnly<[string, number][]>>(),
+    validateSchema: () => createValidate(RT.array(RT.tuple([RT.string(), RT.number()]))),
+    deserializeValidate: () => deserializeValidate<[string, number][]>(),
+    validateReflect: () => {
       const v: [string, number][] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: [string, number][] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[string, number][]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.tuple([RT.string(), RT.number()]))),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<[string, number][]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<[string, number][]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.tuple([RT.string(), RT.number()]))),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<[string, number][]>(),
+    getValidationErrorsReflect: () => {
       const v: [string, number][] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: [string, number][] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<[string, number][]>(),
     mockTypeReflect: () => {
@@ -763,59 +763,59 @@ export const ARRAY = {
     title: 'Self-referential array (CircularArray = CircularArray[])',
     description:
       "mion array.spec.ts 'Array circular ref'. Self-referential array — handled via the always-non-inlined KindArray policy plus the isSelf branch in EmitDependencyCall (emits the inner-function-name directly, no .fn).",
-    isTypeNotes:
+    validateNotes:
       'Self-referential arrays are validated recursively — depth is bounded only by the caller-supplied value, not the type definition.',
-    isType: () => {
+    validate: () => {
       type CircularArray = CircularArray[];
-      return createIsType<CircularArray>();
+      return createValidate<CircularArray>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type CircularArray = CircularArray[];
-      return createIsType<DataOnly<CircularArray>>();
+      return createValidate<DataOnly<CircularArray>>();
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type CircularArray = CircularArray[];
-      return deserializeIsType<CircularArray>();
+      return deserializeValidate<CircularArray>();
     },
-    isTypeReflect: () => {
-      type CircularArray = CircularArray[];
-      const v: CircularArray = [];
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type CircularArray = CircularArray[];
       const v: CircularArray = [];
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    isTypeSchema: () => {
+    deserializeValidateReflect: () => {
+      type CircularArray = CircularArray[];
+      const v: CircularArray = [];
+      return deserializeValidate(v);
+    },
+    validateSchema: () => {
       const ca = RT.circular((self) => RT.array(self));
-      return createIsType(ca);
+      return createValidate(ca);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       type CircularArray = CircularArray[];
-      return createGetTypeErrors<CircularArray>();
+      return createGetValidationErrors<CircularArray>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       type CircularArray = CircularArray[];
-      return createGetTypeErrors<DataOnly<CircularArray>>();
+      return createGetValidationErrors<DataOnly<CircularArray>>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsSchema: () => {
       const ca = RT.circular((self) => RT.array(self));
-      return createGetTypeErrors(ca);
+      return createGetValidationErrors(ca);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type CircularArray = CircularArray[];
-      return deserializeGetTypeErrors<CircularArray>();
+      return deserializeGetValidationErrors<CircularArray>();
     },
-    getTypeErrorsReflect: () => {
-      type CircularArray = CircularArray[];
-      const v: CircularArray = [];
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type CircularArray = CircularArray[];
       const v: CircularArray = [];
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type CircularArray = CircularArray[];
+      const v: CircularArray = [];
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type CircularArray = CircularArray[];
@@ -855,15 +855,15 @@ export const ARRAY = {
     title: 'Recursive object whose cycle closes via an array property',
     description:
       'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — same dependency-call mechanism as the basic circular interface; the array property d?: ObjectType[] closes the cycle via Array → Object.',
-    isType: () => {
+    validate: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return createIsType<ObjectType>();
+      return createValidate<ObjectType>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return createIsType<DataOnly<ObjectType>>();
+      return createValidate<DataOnly<ObjectType>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       const ot = RT.circular((self) =>
         RT.object({
           a: RT.string(),
@@ -871,31 +871,31 @@ export const ARRAY = {
           d: RT.optional(RT.array(self)),
         })
       );
-      return createIsType(ot);
+      return createValidate(ot);
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return deserializeIsType<ObjectType>();
+      return deserializeValidate<ObjectType>();
     },
-    isTypeReflect: () => {
-      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      const v: ObjectType = {a: 'hello'};
-      return createIsType(v);
-    },
-    deserializeIsTypeReflect: () => {
+    validateReflect: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       const v: ObjectType = {a: 'hello'};
-      return deserializeIsType(v);
+      return createValidate(v);
     },
-    getTypeErrors: () => {
+    deserializeValidateReflect: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return createGetTypeErrors<ObjectType>();
+      const v: ObjectType = {a: 'hello'};
+      return deserializeValidate(v);
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrors: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return createGetTypeErrors<DataOnly<ObjectType>>();
+      return createGetValidationErrors<ObjectType>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsDataOnly: () => {
+      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+      return createGetValidationErrors<DataOnly<ObjectType>>();
+    },
+    getValidationErrorsSchema: () => {
       const ot = RT.circular((self) =>
         RT.object({
           a: RT.string(),
@@ -903,21 +903,21 @@ export const ARRAY = {
           d: RT.optional(RT.array(self)),
         })
       );
-      return createGetTypeErrors(ot);
+      return createGetValidationErrors(ot);
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      return deserializeGetTypeErrors<ObjectType>();
+      return deserializeGetValidationErrors<ObjectType>();
     },
-    getTypeErrorsReflect: () => {
-      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      const v: ObjectType = {a: 'hello'};
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       const v: ObjectType = {a: 'hello'};
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+      const v: ObjectType = {a: 'hello'};
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
@@ -961,41 +961,41 @@ export const ARRAY = {
   symbol_array: {
     title: 'Array of symbols (non-serializable — factory throws)',
     description:
-      'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148): mion throws at RT-compile. The port propagates CodeNS from the symbol element to the root, rendering an alwaysThrow factory (T3), so createIsType<symbol[]>() / createGetTypeErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
-    isTypeNotes:
+      'mion ARRAYS.non_serializable_in_array — `Arrays can not have non serializable types` (nodes/member/array.ts:148): mion throws at RT-compile. The port propagates CodeNS from the symbol element to the root, rendering an alwaysThrow factory (T3), so createValidate<symbol[]>() / createGetValidationErrors<symbol[]>() throw on first call — consistent with the unified rule (non-property positions throw). As a *property* child a non-serializable array drops the property instead.',
+    validateNotes:
       'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
-    isType: () => createIsType<symbol[]>(),
-    isTypeDataOnly: () => createIsType<DataOnly<symbol[]>>(),
+    validate: () => createValidate<symbol[]>(),
+    validateDataOnly: () => createValidate<DataOnly<symbol[]>>(),
     // Non-serializable array element (symbol) propagates to the root → alwaysThrow.
     // `RT.array(RT.symbol())` resolves the same factory, so the schema thunk throws.
-    isTypeSchema: () => createIsType(RT.array(RT.symbol())),
-    deserializeIsType: () => deserializeIsType<symbol[]>(),
-    isTypeReflect: () => {
+    validateSchema: () => createValidate(RT.array(RT.symbol())),
+    deserializeValidate: () => deserializeValidate<symbol[]>(),
+    validateReflect: () => {
       const v: symbol[] = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: symbol[] = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<symbol[]>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<symbol[]>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.symbol())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<symbol[]>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<symbol[]>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<symbol[]>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.symbol())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<symbol[]>(),
+    getValidationErrorsReflect: () => {
       const v: symbol[] = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: symbol[] = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<symbol[]>(),
     mockTypeReflect: () => {
       const v: symbol[] = [];
       return createMockType(v);
     },
-    // isType/getTypeErrors throw at factory creation (alwaysThrow). The
+    // validate/getValidationErrors throw at factory creation (alwaysThrow). The
     // mock can still construct an array of symbols, but there is no
     // validator to check it against.
     mockTypeExpect: 'skip',
@@ -1007,31 +1007,31 @@ export const ARRAY = {
     title: 'Readonly array (ReadonlyArray<T> / readonly T[])',
     description:
       '`readonly T[]` and `ReadonlyArray<T>` are the same type at runtime — the readonly bit is a TS-only modifier erased at emit. Regression check that both forms produce the same validator as the bare `T[]` shape.',
-    isTypeNotes:
+    validateNotes:
       'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
-    isType: () => createIsType<ReadonlyArray<string>>(),
-    isTypeDataOnly: () => createIsType<DataOnly<ReadonlyArray<string>>>(),
-    isTypeSchema: () => createIsType(RT.array(RT.string())),
-    deserializeIsType: () => deserializeIsType<ReadonlyArray<string>>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<ReadonlyArray<string>>(),
+    validateDataOnly: () => createValidate<DataOnly<ReadonlyArray<string>>>(),
+    validateSchema: () => createValidate(RT.array(RT.string())),
+    deserializeValidate: () => deserializeValidate<ReadonlyArray<string>>(),
+    validateReflect: () => {
       const v: ReadonlyArray<string> = [];
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: ReadonlyArray<string> = [];
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<ReadonlyArray<string>>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<ReadonlyArray<string>>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string())),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<ReadonlyArray<string>>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<ReadonlyArray<string>>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<ReadonlyArray<string>>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.string())),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<ReadonlyArray<string>>(),
+    getValidationErrorsReflect: () => {
       const v: ReadonlyArray<string> = [];
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: ReadonlyArray<string> = [];
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<ReadonlyArray<string>>(),
     mockTypeReflect: () => {

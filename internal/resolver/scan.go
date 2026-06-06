@@ -286,7 +286,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if inReflectForm {
 		argZero := callExpression.Arguments.Nodes[0]
 		// FUNCTION-CALL-ARGUMENT ANTI-PATTERN: passing a call expression
-		// as the reflect-form value (`createIsType(getX())`) invokes the
+		// as the reflect-form value (`createValidate(getX())`) invokes the
 		// function at runtime purely for type inference — side effects,
 		// exceptions, async work, all fire for nothing. The validator
 		// still works (T comes from the inferred return type), but the
@@ -306,12 +306,12 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// the apparent type at the call site is `typeof literal`, not the
 		// declared union/enum. Reading the annotation directly makes the
 		// reflect-form hash equal to the static-form hash for the natural
-		// `const v: T = literal; createIsType(v);` idiom. Non-identifier
+		// `const v: T = literal; createValidate(v);` idiom. Non-identifier
 		// reflect-form args (property access, function calls, element
 		// access) don't go through const-binding CFA and don't exhibit
 		// the trap, so they fall through to the apparent-type path.
 		// Skip annotation honoring for the SCHEMA overload: when argZero is a
-		// RunType-typed const (`createIsType(schemaConst)` where
+		// RunType-typed const (`createValidate(schemaConst)` where
 		// `const schemaConst: RunType<T> = …`), the declared type is `RunType<T>`,
 		// but the injection's typeArgument is already the UNWRAPPED `T` (inferred
 		// from the schema overload's `RunType<T>` param). Overriding it with
@@ -321,8 +321,8 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			typeArgument = annotated
 		}
 	}
-	options := extractIsTypeOptions(call, lastIndex, argsCount)
-	// No-op IsTypeOptions diagnostics — warn the user when an option is
+	options := extractValidateOptions(call, lastIndex, argsCount)
+	// No-op ValidateOptions diagnostics — warn the user when an option is
 	// requested but provably has no effect on the resolved type. The
 	// emitter still produces the variant factory (always-emit
 	// invariant) so the call site keeps working; this warning is the
@@ -331,32 +331,32 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	if options.NoLiterals || options.NoIsArrayCheck {
 		resolvedKind := typeid.KindOf(resolver.checker, typeArgument)
 		if options.NoLiterals && resolvedKind != protocol.KindLiteral {
-			if diagnostic, ok := resolver.noopIsTypeOptionDiag(file, call, lastIndex, argsCount, diag.CodeIsTypeOptionsNoLiteralsNoop); ok {
+			if diagnostic, ok := resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoLiteralsNoop); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
 		if options.NoIsArrayCheck && resolvedKind != protocol.KindArray {
-			if diagnostic, ok := resolver.noopIsTypeOptionDiag(file, call, lastIndex, argsCount, diag.CodeIsTypeOptionsNoArrayNoop); ok {
+			if diagnostic, ok := resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoArrayNoop); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
 	}
 	// Structural id resolution — purely a function of the resolved TS
-	// type. `IsTypeOptions` (`noLiterals` / `noIsArrayCheck`) does NOT
+	// type. `ValidateOptions` (`noLiterals` / `noIsArrayCheck`) does NOT
 	// fold into the id; instead, the option set folds into the injected
 	// `fnId` variant suffix below (e.g. `itNL`, `itNA`) and the emitter
 	// renders one factory per (typeid, fnId) pair under the canonical
 	// variant cache key (e.g. `itNL_<id>`, `itNA_<id>`). Same invariant
 	// the encoder strategy / decoder strategy already honour. See
 	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
-	// `IsTypeVariantSuffix` helper in internal/constants.
+	// `ValidateVariantSuffix` helper in internal/constants.
 	// Structural id — a pure function of the resolved TS type. RegExp has no
 	// literal type in TS (`/abc/i` widens to `RegExp` even under `as const`), so
 	// `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the same
 	// KindRegexp id — id stays ≡ f(T).
 	id := resolver.cache.AssignID(typeArgument)
 	// Compute the precise fnId for InjectTypeFnArgs sites — the function's base
-	// tag refined by the call-site compile-time options (IsTypeOptions variant
+	// tag refined by the call-site compile-time options (ValidateOptions variant
 	// suffix for it/te, the strategy token for the JSON families). Reflection
 	// sites (InjectRunTypeId) leave injectionFnKey empty → no FnId, no function
 	// demand.
@@ -383,12 +383,12 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 // tuple element for a createX call site. Routed through operations.FnHashFor so
 // the scanner and the emitter compute the SAME hash: for a JSON family it is the
 // COMPOSITE fnHash (the per-strategy jsonEncoder/jsonDecoder entry the runtime
-// looks up); for it/te the IsTypeOptions variant fnHash; for a leaf/binary
+// looks up); for it/te the ValidateOptions variant fnHash; for a leaf/binary
 // family the plain fnHash. operations.Canonical reads only the axis-relevant
 // input (strategy for JSON, option names for it/te, neither otherwise), so the
 // single call covers every axis. Empty fnKey (a reflection-only InjectRunTypeId
 // site) yields "".
-func computeFnId(fnKey string, options isTypeOptions, call *ast.Node, lastIndex, argsCount int) string {
+func computeFnId(fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) string {
 	if fnKey == "" {
 		return ""
 	}
@@ -407,7 +407,7 @@ func computeFnId(fnKey string, options isTypeOptions, call *ast.Node, lastIndex,
 // site — what the emitter must render — resolved from the operation registry.
 // Mirrors computeFnId's option/strategy extraction; empty fnKey (a
 // reflection-only InjectRunTypeId site) yields nil.
-func computeFnDemand(fnKey string, options isTypeOptions, call *ast.Node, lastIndex, argsCount int) []protocol.SiteDemand {
+func computeFnDemand(fnKey string, options validateOptions, call *ast.Node, lastIndex, argsCount int) []protocol.SiteDemand {
 	if fnKey == "" {
 		return nil
 	}
@@ -420,7 +420,7 @@ func computeFnDemand(fnKey string, options isTypeOptions, call *ast.Node, lastIn
 	switch op.Axis {
 	case operations.AxisJsonStrategy:
 		strategy = extractStrategyOption(call, lastIndex, argsCount)
-	case operations.AxisIsTypeOptions:
+	case operations.AxisValidateOptions:
 		optionNames = options.Names()
 	}
 	demands := operations.DemandFor(fnKey, optionNames, strategy)
@@ -524,25 +524,25 @@ func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
 	return false
 }
 
-// isTypeOptions mirrors the JS-side IsTypeOptions interface
+// validateOptions mirrors the JS-side ValidateOptions interface
 // (packages/ts-go-run-types/src/createRTFunctions.ts). Resolver-side
 // representation is a Go struct so the rest of the pipeline can read
 // fields without re-walking the AST.
-type isTypeOptions struct {
+type validateOptions struct {
 	NoLiterals     bool
 	NoIsArrayCheck bool
 }
 
 // Names returns the option NAMES whose value is true, in the canonical
-// declaration order from `constants.IsTypeOptions`. computeFnId feeds the
+// declaration order from `constants.ValidateOptions`. computeFnId feeds the
 // result to `constants.ResolveFnId` to build the injected fnId's variant
 // cache-key suffix (e.g. `itNL`, `itNA`). Empty when no option is set.
-func (opts isTypeOptions) Names() []string {
+func (opts validateOptions) Names() []string {
 	if !opts.NoLiterals && !opts.NoIsArrayCheck {
 		return nil
 	}
-	names := make([]string, 0, len(constants.IsTypeOptions))
-	for _, opt := range constants.IsTypeOptions {
+	names := make([]string, 0, len(constants.ValidateOptions))
+	for _, opt := range constants.ValidateOptions {
 		switch opt.Name {
 		case "noLiterals":
 			if opts.NoLiterals {
@@ -557,9 +557,9 @@ func (opts isTypeOptions) Names() []string {
 	return names
 }
 
-// extractIsTypeOptions reads literal options from the argument slot
+// extractValidateOptions reads literal options from the argument slot
 // immediately before the id slot, when the signature has a
-// `IsTypeOptions` parameter there. The argument must be an object
+// `ValidateOptions` parameter there. The argument must be an object
 // literal — variable references / spreads / function calls are ignored
 // (return zero options) because the resolver runs at build time and
 // can't evaluate arbitrary expressions. This matches mion's
@@ -567,15 +567,15 @@ func (opts isTypeOptions) Names() []string {
 // options into the RT cache key).
 //
 // Layout convention: options always lives at slot (lastIndex - 1) — the
-// slot immediately before id. For `createIsType<T>(val?, options?, id?)`
+// slot immediately before id. For `createValidate<T>(val?, options?, id?)`
 // that's slot 1; for any future function with `(options?, id?)` it
 // would be slot 0. Marker functions without an options param
 // (`getRunTypeId<T>(id?)`, `reflectRunTypeId(_value, id?)`) are
 // inherently safe — `reflectRunTypeId`'s slot 0 holds a value, which
 // is allowed to be an object literal but won't contain known option
 // keys, so the lookup returns zero opts.
-func extractIsTypeOptions(call *ast.Node, lastIndex, argsCount int) isTypeOptions {
-	var opts isTypeOptions
+func extractValidateOptions(call *ast.Node, lastIndex, argsCount int) validateOptions {
+	var opts validateOptions
 	// Options live at the slot immediately before the id slot. If
 	// lastIndex==0 the function has no slots before id at all
 	// (e.g. getRunTypeId<T>(id?)).
@@ -691,18 +691,18 @@ func (resolver *Resolver) checkCompTimeArgs(file string, argumentNode *ast.Node)
 	}
 }
 
-// noopIsTypeOptionDiag builds a Warning diagnostic anchored at the
+// noopValidateOptionDiag builds a Warning diagnostic anchored at the
 // options-literal node (slot lastIndex-1) when present, falling back
-// to the whole call expression. Used by the no-op IsTypeOption check
+// to the whole call expression. Used by the no-op ValidateOption check
 // to report MKR004 / MKR005 — the option survives downstream
 // (always-emit invariant), so this is purely advisory.
-func (resolver *Resolver) noopIsTypeOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diag.Diagnostic, bool) {
+func (resolver *Resolver) noopValidateOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diag.Diagnostic, bool) {
 	sourceFile := ast.GetSourceFileOfNode(call)
 	if sourceFile == nil {
 		return diag.Diagnostic{}, false
 	}
 	anchor := call
-	if optionsNode := extractIsTypeOptionsCandidate(call, lastIndex, argsCount); optionsNode != nil {
+	if optionsNode := extractValidateOptionsCandidate(call, lastIndex, argsCount); optionsNode != nil {
 		anchor = optionsNode
 	}
 	startLine, startCol := scanLineCol(sourceFile, anchor.Pos())
@@ -713,11 +713,11 @@ func (resolver *Resolver) noopIsTypeOptionDiag(file string, call *ast.Node, last
 	), true
 }
 
-// extractIsTypeOptionsCandidate returns the AST node at the options
+// extractValidateOptionsCandidate returns the AST node at the options
 // slot (slot immediately before id), or nil. Retained for the options
 // extractor below; the legacy MKR002 emit path it once fed has been
 // replaced by scanSiblingMarkers + CompTimeArgs.
-func extractIsTypeOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
+func extractValidateOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 	if lastIndex == 0 {
 		return nil
 	}
@@ -748,7 +748,7 @@ func (resolver *Resolver) isBuilderCallPredicate() func(*ast.Node) bool {
 }
 
 // markerDiagFunctionCallArg builds an MKR001 diagnostic flagging a reflect-form
-// marker call that received a function-call argument (`createIsType(getX())`).
+// marker call that received a function-call argument (`createValidate(getX())`).
 // The function gets invoked at runtime purely so TypeScript can infer T from
 // its return type, which can produce side effects, exceptions, or async work
 // for no reason. The recommended replacement is the static form using

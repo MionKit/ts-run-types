@@ -14,13 +14,13 @@
 > [`@mionjs/ts-go-run-types/schema`](../packages/ts-go-run-types/src/schema/atomic.ts),
 > imported as a namespace: `import * as RT from '@mionjs/ts-go-run-types/schema'`
 > (there is **no** root `RunType` export — that name is the core wire-protocol
-> node type + the `RunTypeKind`/`RunTypeError`/`IsTypeOptions` public family).
+> node type + the `RunTypeKind`/`RunTypeError`/`ValidateOptions` public family).
 >
 > **Update — RunType-construct / marker model
 > ([value-first-marker-refactor.md](value-first-marker-refactor.md), Tiers 1–3
 > implemented):** each builder now RETURNS its branded format type directly, so
 > `typeof Model` IS the model type (no `ModelType<…>` hop on the forward path)
-> and the validator is `createIsType<typeof Model>()`. Builders are also
+> and the validator is `createValidate<typeof Model>()`. Builders are also
 > injectable markers — a standalone `RT.string({maxLength: 5})` / `RT.object({…})`
 > resolves to the live RunType node the type compiler produces — and the inverse
 > `RT.reflectModel<T>()` reconstructs a discriminated runtime model from the
@@ -55,7 +55,7 @@
 > _property-level_ composition DSL (`{type: 'array', of: …}`) is **not** pursued
 > — it would reinvent the TS type system as values and requires a recursive
 > `infer`, a checker-perf cost we explicitly avoid. What's still parked: a value
-> call form (`Model.isType(x)`). `PlainMonthDay` / `Duration` have no format
+> call form (`Model.validate(x)`). `PlainMonthDay` / `Duration` have no format
 > family (no ordering ⇒ no min/max), so they are outside this surface too. See
 > "Spike results" for what the de-risking experiment found.
 
@@ -70,7 +70,7 @@ Formats and constraints can be expressed two ways:
     email: FormatEmail;
     age: number;
   };
-  const isUser = createIsType<User>();
+  const isUser = createValidate<User>();
   ```
 - **Value-first** — compose per-type builders; the type is derived from the model:
   ```ts
@@ -81,7 +81,7 @@ Formats and constraints can be expressed two ways:
     nick: RT.optional(RT.string({maxLength: 50})),
   });
   type User = typeof UserModel; // builders return the brand — already the model type
-  const isUser = createIsType<User>();
+  const isUser = createValidate<User>();
   ```
 
 Both are useful for different audiences. The question this doc answers: **should
@@ -180,7 +180,7 @@ Two residual nuances:
 
 This is _the_ decision under every version of the idea.
 
-- **Reflect the mapped type** (`createIsType<ModelType<typeof UserModel>>()`):
+- **Reflect the mapped type** (`createValidate<ModelType<typeof UserModel>>()`):
   works for every _literal_ constraint (`maxLength` is captured via `const`
   generics and lifted into the brand). `pattern: /.../ ` erases to `RegExp` in
   the _type_ — but see below: the value declaration behind that erased type is
@@ -189,7 +189,7 @@ This is _the_ decision under every version of the idea.
 - **Reflect the config value's AST** (the Go binary traces the `object({…})`
   call and reads the literals directly): the fork's "other" branch — a separate
   value-AST front-end. It would be needed for a _value call form_
-  (`Model.isType(x)`) where there's no type to reflect, but it turned out **not**
+  (`Model.validate(x)`) where there's no type to reflect, but it turned out **not**
   to be needed for regex.
 
 The spike's surprise (see "Spike results → (c)"): the value-first direction did
@@ -217,8 +217,8 @@ one. A large amount of real code already _has_ types — GraphQL codegen,
 reflect an _existing_ `User`, not re-declare it.
 
 ```
-type-first:   createIsType<User>()            ─┐
-                                                ├─→  RunType graph  ─→  isType / typeErrors / mock emitters
+type-first:   createValidate<User>()            ─┐
+                                                ├─→  RunType graph  ─→  validate / validationErrors / mock emitters
 value-first:  object({...}) + ModelType<...>  ─┘     (one engine, shared dedup + structural ids)
 ```
 
@@ -250,7 +250,7 @@ thin adapter rather than a second validator.
 > **not to be needed**. The shipped surface lowers entirely through the **type
 > channel**: `RT.object(...)` + the builders compose a `const`-narrow config
 > object, `RT.ModelType<typeof Model>` maps it to the same branded `TypeFormat`
-> types the type-first surface already reflects, and `createIsType<RT.ModelType<…>>()`
+> types the type-first surface already reflects, and `createValidate<RT.ModelType<…>>()`
 > reflects that _type_ — no new Go front-end, no value call form, no new rewrite
 > rule. The only Go change was a small additive read so an inline `pattern: /…/`
 > value is recovered from the property declaration the type system preserves (see
@@ -264,7 +264,7 @@ thin adapter rather than a second validator.
   `{regexp: /.../, mockSamples: [...]}` from a call's object-literal arg. The
   shipped regex support reuses exactly this walk, pointed at the `pattern` value
   a builder stored.
-- **The RunType graph + isType/typeErrors/mock emitters** — the engine,
+- **The RunType graph + validate/validationErrors/mock emitters** — the engine,
   untouched.
 - **Discriminator → type** is plain TS conditionals (the shipped `FieldType`
   mapping).
@@ -279,9 +279,9 @@ design record for if/when a value call form is added._
 1. **A value-config → RunType front-end.** Read the config object's AST and build
    the RunType graph from it directly. The shipped path instead reflects the
    `ModelType<…>` _type_, so this Go front-end was never built.
-2. **A call / rewrite shape.** A value call form (`UserModel.isType(x)` /
-   `createIsType(UserModel)`) keyed off the runtime config. Still parked; the
-   shipped path uses the existing `createIsType<RT.ModelType<…>>()` marker.
+2. **A call / rewrite shape.** A value call form (`UserModel.validate(x)` /
+   `createValidate(UserModel)`) keyed off the runtime config. Still parked; the
+   shipped path uses the existing `createValidate<RT.ModelType<…>>()` marker.
 3. **A plugin nuance.** Unlike `registerPureFnFactory` (whose factory the plugin
    nulls out), a value-call config would need to **survive at runtime** intact —
    a "scan-and-keep" rewrite. Moot until the value call form lands; the builder
@@ -341,7 +341,7 @@ validator" from "which mock data", which is the right separation anyway.
 The smallest spike that proves the whole thesis at once:
 
 > Hand-write `object` + `ModelType` for `string`/`number`/`date` discriminators,
-> point `createIsType<ModelType<typeof model>>()` at flat / nested / regex
+> point `createValidate<ModelType<typeof model>>()` at flat / nested / regex
 > models, and check: (a) does the Go binary reflect it correctly, (b) compile
 > time + error quality, (c) what happens to the inline regex — which concretely
 > decides whether the value-AST front-end is required.
@@ -352,7 +352,7 @@ This spike is **done** — it shipped as Option A. Results below.
 
 Implemented in
 [`packages/ts-go-run-types/src/schema/`](../packages/ts-go-run-types/src/schema/atomic.ts);
-covered by `test/adapters/valueFirst{IsType,Convergence}.test.ts` and the
+covered by `test/adapters/valueFirst{Validate,Convergence}.test.ts` and the
 `object`/builder cases in `test/typesafety.test.ts`.
 
 > **API note:** the spike was first built as an inline discriminated-config
@@ -385,7 +385,7 @@ checker.)
 
 **Convergence holds (the dual-front-end requirement).** A value-first model and
 the hand-written type-first equivalent resolve to the **same structural id → the
-same cached validator** (`createIsType<ModelType<…>>() === createIsType<TypeFirst>()`).
+same cached validator** (`createValidate<ModelType<…>>() === createValidate<TypeFirst>()`).
 The one wrinkle: the `object<const C>` capture stamps `readonly` on every config
 property, which propagates to the mapped type and diverges the property node's
 id from the (mutable) type-first form — the _format type itself was already
@@ -430,7 +430,7 @@ fork anticipated. The only thing an inline `/…/` lacks is `mockSamples`, so
 
 ### What's still parked (Option B proper)
 
-A **value call form** (`Model.isType(x)` / `createIsType(Model)` keyed off the
+A **value call form** (`Model.validate(x)` / `createValidate(Model)` keyed off the
 runtime config) with its "scan-and-keep" rewrite, and the **object / array /
 union / named-format discriminators**. The params-cache de-dup below is
 orthogonal. Regex — the case the fork thought _only_ a value-AST scan could

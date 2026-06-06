@@ -229,7 +229,7 @@ type RunType struct {
 	// TypeFormat<Base, Name, Params, ...> marker from
 	// `@mionjs/ts-go-run-types/formats`. Mirrors mion's FormatAnnotation
 	// (packages/run-types/src/lib/formats.ts) — the name + params pair
-	// that drives format-aware emit for isType / typeErrors. The
+	// that drives format-aware emit for validate / validationErrors. The
 	// structural id folds Name + canonicalised Params into the hash so
 	// two distinct param sets produce two distinct cache entries;
 	// equivalent param sets (regardless of key order) collapse to one.
@@ -352,8 +352,8 @@ type CacheKind string
 
 const (
 	CacheKindRunType                    CacheKind = "runType"
-	CacheKindIsType                     CacheKind = "isType"
-	CacheKindTypeErrors                 CacheKind = "typeErrors"
+	CacheKindValidate                     CacheKind = "validate"
+	CacheKindValidationErrors                 CacheKind = "validationErrors"
 	CacheKindPrepareForJson             CacheKind = "prepareForJson"
 	CacheKindRestoreFromJson            CacheKind = "restoreFromJson"
 	CacheKindStringifyJson              CacheKind = "stringifyJson"
@@ -404,18 +404,18 @@ type Response struct {
 	// handleHotUpdate to decide whether the runTypes cache module needs
 	// invalidating after a user-file change.
 	AddedRunTypes bool `json:"addedRunTypes,omitempty"`
-	// AddedIsType is true when at least one of the newly-interned RunTypes
-	// is supported by the IsType emitter — i.e. the isType cache module
+	// AddedValidate is true when at least one of the newly-interned RunTypes
+	// is supported by the Validate emitter — i.e. the validate cache module
 	// would render at least one new entry. Set independently of
 	// AddedRunTypes so cache-by-cache invalidation stays surgical.
-	AddedIsType bool `json:"addedIsType,omitempty"`
-	// AddedTypeErrors mirrors AddedIsType but for the TypeErrors emitter —
+	AddedValidate bool `json:"addedValidate,omitempty"`
+	// AddedValidationErrors mirrors AddedValidate but for the ValidationErrors emitter —
 	// true when at least one newly-interned RunType has a supported
 	// emitTypeErrors arm. Lets the Vite plugin's handleHotUpdate
-	// invalidate the typeErrors cache module independently of the
-	// isType / runTypes modules.
-	AddedTypeErrors bool `json:"addedTypeErrors,omitempty"`
-	// AddedPrepareForJson / AddedRestoreFromJson mirror AddedIsType for
+	// invalidate the validationErrors cache module independently of the
+	// validate / runTypes modules.
+	AddedValidationErrors bool `json:"addedValidationErrors,omitempty"`
+	// AddedPrepareForJson / AddedRestoreFromJson mirror AddedValidate for
 	// the JSON serializer pair. True when at least one newly-interned
 	// RunType has a supported emit arm in the corresponding emitter.
 	AddedPrepareForJson  bool `json:"addedPrepareForJson,omitempty"`
@@ -431,7 +431,7 @@ type Response struct {
 	// (wire format identical to prepareForJson + JSON.stringify).
 	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
-	// / AddedUnknownKeysToUndefined mirror AddedIsType for the
+	// / AddedUnknownKeysToUndefined mirror AddedValidate for the
 	// unknown-keys family ported from mion's
 	// emitHasUnknownKeys / emitStripUnknownKeys / emitUnknownKeyErrors /
 	// emitUnknownKeysToUndefined methods on InterfaceRunType. Set per
@@ -450,7 +450,7 @@ type Response struct {
 	// RunType has a supported emit arm in the corresponding emitter.
 	AddedToBinary   bool `json:"addedToBinary,omitempty"`
 	AddedFromBinary bool `json:"addedFromBinary,omitempty"`
-	// AddedFormatTransform mirrors AddedIsType for the `format` transform emitter —
+	// AddedFormatTransform mirrors AddedValidate for the `format` transform emitter —
 	// true when a newly-interned RunType carries a value-transforming
 	// format (string transform / domain/ip/url lowercasing).
 	AddedFormatTransform bool `json:"addedFormatTransform,omitempty"`
@@ -462,23 +462,23 @@ type Response struct {
 	Replacements       []Replacement `json:"replacements,omitempty"`
 	RunTypes           []*RunType    `json:"runTypes,omitempty"`
 	RunTypeCacheSource string        `json:"runTypeCacheSource,omitempty"`
-	// IsTypeCacheSource is the rendered body of the `virtual:runtypes-isType`
-	// module — one `export function get_isType_<hash>(utl){…}` factory
+	// ValidateCacheSource is the rendered body of the `virtual:runtypes-validate`
+	// module — one `export function get_validate_<hash>(utl){…}` factory
 	// per cached RunType the precompiler knows how to handle. Sibling of
 	// RunTypeCacheSource: populated under the same projection (full cache
 	// for OpDump, scoped to request files for OpScanFiles when the
-	// caller opts into CacheKindIsType / CacheKindAll via
+	// caller opts into CacheKindValidate / CacheKindAll via
 	// IncludeCacheSources).
-	IsTypeCacheSource string `json:"isTypeCacheSource,omitempty"`
-	// TypeErrorsCacheSource is the rendered body of the
-	// `virtual:runtypes-typeErrors` module — one
+	ValidateCacheSource string `json:"validateCacheSource,omitempty"`
+	// ValidationErrorsCacheSource is the rendered body of the
+	// `virtual:runtypes-validationErrors` module — one
 	// `factory(rtFnHash, typeName, code, isNoop, deps, …)` call per
-	// cached RunType the precompiler's TypeErrorsEmitter knows how to
-	// handle. Sibling of IsTypeCacheSource, same projection semantics.
-	TypeErrorsCacheSource string `json:"typeErrorsCacheSource,omitempty"`
+	// cached RunType the precompiler's ValidationErrorsEmitter knows how to
+	// handle. Sibling of ValidateCacheSource, same projection semantics.
+	ValidationErrorsCacheSource string `json:"validationErrorsCacheSource,omitempty"`
 	// PrepareForJsonCacheSource / RestoreFromJsonCacheSource are the
 	// rendered bodies of the JSON serializer/deserializer pair. Same
-	// factory shape and projection semantics as IsTypeCacheSource.
+	// factory shape and projection semantics as ValidateCacheSource.
 	PrepareForJsonCacheSource  string `json:"prepareForJsonCacheSource,omitempty"`
 	RestoreFromJsonCacheSource string `json:"restoreFromJsonCacheSource,omitempty"`
 	// StringifyJsonCacheSource is the rendered body of the
@@ -494,7 +494,7 @@ type Response struct {
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
 	// RT functions ported from mion's emitHasUnknownKeys et al. Same
-	// factory shape and projection semantics as IsTypeCacheSource.
+	// factory shape and projection semantics as ValidateCacheSource.
 	HasUnknownKeysCacheSource         string `json:"hasUnknownKeysCacheSource,omitempty"`
 	StripUnknownKeysCacheSource       string `json:"stripUnknownKeysCacheSource,omitempty"`
 	UnknownKeyErrorsCacheSource       string `json:"unknownKeyErrorsCacheSource,omitempty"`
@@ -511,7 +511,7 @@ type Response struct {
 	FromBinaryCacheSource string `json:"fromBinaryCacheSource,omitempty"`
 	// FormatTransformCacheSource is the rendered body of the `virtual:runtypes-format`
 	// module — the `format` transform RT family (createFormatTransform<T>). Same
-	// factory shape and projection semantics as IsTypeCacheSource.
+	// factory shape and projection semantics as ValidateCacheSource.
 	FormatTransformCacheSource string `json:"formatTransformCacheSource,omitempty"`
 	// PureFnsCacheSource is the rendered body of the
 	// `virtual:runtypes-pure-fns` module — one
@@ -621,11 +621,11 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedRunTypes {
 		out["addedRunTypes"] = true
 	}
-	if response.AddedIsType {
-		out["addedIsType"] = true
+	if response.AddedValidate {
+		out["addedValidate"] = true
 	}
-	if response.AddedTypeErrors {
-		out["addedTypeErrors"] = true
+	if response.AddedValidationErrors {
+		out["addedValidationErrors"] = true
 	}
 	if response.AddedPrepareForJson {
 		out["addedPrepareForJson"] = true
@@ -678,11 +678,11 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.RunTypeCacheSource != "" {
 		out["runTypeCacheSource"] = response.RunTypeCacheSource
 	}
-	if response.IsTypeCacheSource != "" {
-		out["isTypeCacheSource"] = response.IsTypeCacheSource
+	if response.ValidateCacheSource != "" {
+		out["validateCacheSource"] = response.ValidateCacheSource
 	}
-	if response.TypeErrorsCacheSource != "" {
-		out["typeErrorsCacheSource"] = response.TypeErrorsCacheSource
+	if response.ValidationErrorsCacheSource != "" {
+		out["validationErrorsCacheSource"] = response.ValidationErrorsCacheSource
 	}
 	if response.PrepareForJsonCacheSource != "" {
 		out["prepareForJsonCacheSource"] = response.PrepareForJsonCacheSource

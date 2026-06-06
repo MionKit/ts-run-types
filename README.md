@@ -63,7 +63,7 @@ For the family-by-family comparison against the original `@mionjs/run-types` / `
 | [internal/marker](internal/marker/)                                  | `InjectRunTypeId<T>` sentinel detection (name + module check); filters free type parameters.                    |
 | [internal/compiled/runtype/](internal/compiled/runtype/)             | `*checker.Type` → reflection-shape `Type`; pointer + structural dedup; JSON/TS-module renderers.                |
 | [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) | Structural-id computer mirroring mion's `_createTypeId`; deterministic, cycle-aware.                         |
-| [internal/compiled/typefns/](internal/compiled/typefns/)             | Per-fn AOT emitters (isType, typeErrors, JSON, binary, formats, …).                                             |
+| [internal/compiled/typefns/](internal/compiled/typefns/)             | Per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …).                                             |
 | [internal/hashid](internal/hashid/)                                  | xxhash3 → short base36 hash dictionary; configurable length.                                                   |
 | [internal/constants](internal/constants/)                            | Cross-package constants (cache module settings). Mirrored to TS via `cmd/gen-ts-constants`.                    |
 | [internal/protocol](internal/protocol/)                              | Wire types: `Request`, `Response`, `Type`, `Site`, `Dump`.                                                     |
@@ -92,11 +92,11 @@ const sayHelloId = reflectRunTypeId(sayHelloFn);
 
 // 3. User-defined wrapper — declare the same trailing InjectRunTypeId<T> param,
 //    the transformer treats it identically.
-function isType<T>(val: unknown, id?: InjectRunTypeId<T>): boolean {
+function validate<T>(val: unknown, id?: InjectRunTypeId<T>): boolean {
   // ... validate via cache[RUNTYPES_VAR_PREFIX + id!] ...
   return true;
 }
-isType<User>(payload);
+validate<User>(payload);
 ```
 
 The transformer rewrites each call to:
@@ -105,7 +105,7 @@ The transformer rewrites each call to:
 getRunTypeId<string>('Lk7Px9');
 getRunTypeId<{id: number; name: string}>('abc123');
 reflectRunTypeId(sayHelloFn, 'qzPnXt');
-isType<User>(payload, 'mNr4Vw');
+validate<User>(payload, 'mNr4Vw');
 ```
 
 A free type parameter (a call inside a generic body where the marker's `T` is the wrapper's own type variable) is _skipped_ — the wrapper must propagate by declaring `id?: InjectRunTypeId<T>` itself and the injection happens at the wrapper's own call sites.

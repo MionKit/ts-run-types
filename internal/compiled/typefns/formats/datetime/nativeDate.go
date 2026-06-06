@@ -37,19 +37,19 @@ func (nativeDateEmitter) ValidateParams(annotation *protocol.FormatAnnotation) [
 	return validateMinMax(annotation.Params, dateTimeKind, "T")
 }
 
-// EmitIsTypeCheck returns the bound comparison expression. The base-kind
+// EmitValidateCheck returns the bound comparison expression. The base-kind
 // Date check (instanceof Date && !isNaN(getTime())) is emitted by the host
 // class arm; this only adds the min/max guard. The value's comparison key
 // is the Date's epoch ms directly (no string parsing), compared against a
 // baked absolute epoch or cpf_relativeNowKey for a relative bound.
-func (nativeDateEmitter) EmitIsTypeCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
+func (nativeDateEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
 	return nativeDateBoundChecks(ctx, annotation.Params, vλl)
 }
 
-func (nativeDateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
+func (nativeDateEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotation, vλl, pathExpr, errorsArr string, ctx formats.EmitContext) string {
 	if annotation == nil {
 		return ""
 	}
@@ -61,5 +61,5 @@ func (nativeDateEmitter) EmitTypeErrorsCheck(annotation *protocol.FormatAnnotati
 // nativeDateBoundChecks builds the AND-able min/max/gt/lt expression over a
 // Date value's getTime(). Returns "" when no bound is set.
 func nativeDateBoundChecks(ctx formats.EmitContext, params map[string]any, vλl string) string {
-	return boundIsTypeChecksFromKey(ctx, params, vλl+".getTime()", dateTimeKind, "T")
+	return boundValidateChecksFromKey(ctx, params, vλl+".getTime()", dateTimeKind, "T")
 }

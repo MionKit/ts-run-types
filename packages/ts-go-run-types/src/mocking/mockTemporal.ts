@@ -1,5 +1,5 @@
 // Mock builders for the 8 builtin Temporal types. Each produces a random
-// VALID instance of its type so the mock walker's output re-passes isType
+// VALID instance of its type so the mock walker's output re-passes validate
 // (which is just `v instanceof Temporal.X`). Dispatched from mockType.ts's
 // KindClass arm keyed on the Temporal SubKinds.
 //

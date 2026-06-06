@@ -1,35 +1,35 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
+import {createValidate, createGetValidationErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
-import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
+import {deserializeValidate, deserializeGetValidationErrors} from '../../util/deserializeRTFunctions.ts';
 
 export const ATOMIC = {
   any: {
     title: 'Any type — every value passes',
-    isTypeNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
-    isType: () => createIsType<any>(),
-    isTypeDataOnly: () => createIsType<DataOnly<any>>(),
-    isTypeSchema: () => createIsType(RT.any()),
-    deserializeIsType: () => deserializeIsType<any>(),
-    isTypeReflect: () => {
+    validateNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
+    validate: () => createValidate<any>(),
+    validateDataOnly: () => createValidate<DataOnly<any>>(),
+    validateSchema: () => createValidate(RT.any()),
+    deserializeValidate: () => deserializeValidate<any>(),
+    validateReflect: () => {
       const v: any = null;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: any = null;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<any>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<any>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.any()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<any>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<any>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<any>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.any()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<any>(),
+    getValidationErrorsReflect: () => {
       const v: any = null;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: any = null;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<any>(),
     mockTypeReflect: () => {
@@ -46,29 +46,29 @@ export const ATOMIC = {
   bigint: {
     title: 'BigInt primitive',
     description: 'Infinity and -Infinity rejected (typeof gate)',
-    isType: () => createIsType<bigint>(),
-    isTypeDataOnly: () => createIsType<DataOnly<bigint>>(),
-    isTypeSchema: () => createIsType(RT.bigint()),
-    deserializeIsType: () => deserializeIsType<bigint>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<bigint>(),
+    validateDataOnly: () => createValidate<DataOnly<bigint>>(),
+    validateSchema: () => createValidate(RT.bigint()),
+    deserializeValidate: () => deserializeValidate<bigint>(),
+    validateReflect: () => {
       const v: bigint = 1n;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: bigint = 1n;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<bigint>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<bigint>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.bigint()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<bigint>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<bigint>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.bigint()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<bigint>(),
+    getValidationErrorsReflect: () => {
       const v: bigint = 1n;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: bigint = 1n;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<bigint>(),
     mockTypeReflect: () => {
@@ -92,31 +92,31 @@ export const ATOMIC = {
 
   boolean: {
     title: 'Boolean primitive (strict typeof)',
-    isTypeNotes:
+    validateNotes:
       'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
-    isType: () => createIsType<boolean>(),
-    isTypeDataOnly: () => createIsType<DataOnly<boolean>>(),
-    isTypeSchema: () => createIsType(RT.boolean()),
-    deserializeIsType: () => deserializeIsType<boolean>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<boolean>(),
+    validateDataOnly: () => createValidate<DataOnly<boolean>>(),
+    validateSchema: () => createValidate(RT.boolean()),
+    deserializeValidate: () => deserializeValidate<boolean>(),
+    validateReflect: () => {
       const v: boolean = true;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: boolean = true;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<boolean>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<boolean>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.boolean()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<boolean>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<boolean>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.boolean()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<boolean>(),
+    getValidationErrorsReflect: () => {
       const v: boolean = true;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: boolean = true;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<boolean>(),
     mockTypeReflect: () => {
@@ -140,33 +140,33 @@ export const ATOMIC = {
   date: {
     title: 'Date instance (rejects Invalid Date)',
     description: 'Invalid Date instances (getTime() === NaN) rejected',
-    isTypeNotes: [
+    validateNotes: [
       'Must be an actual Date instance (instanceof Date).',
       'Invalid Date instances are rejected — e.g., `new Date("not-a-date")` or `new Date(NaN)`, whose `.getTime()` returns NaN.',
     ],
-    isType: () => createIsType<Date>(),
-    isTypeDataOnly: () => createIsType<DataOnly<Date>>(),
-    isTypeSchema: () => createIsType(RT.date()),
-    deserializeIsType: () => deserializeIsType<Date>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<Date>(),
+    validateDataOnly: () => createValidate<DataOnly<Date>>(),
+    validateSchema: () => createValidate(RT.date()),
+    deserializeValidate: () => deserializeValidate<Date>(),
+    validateReflect: () => {
       const v: Date = new Date();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: Date = new Date();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<Date>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Date>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.date()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<Date>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<Date>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.date()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<Date>(),
+    getValidationErrorsReflect: () => {
       const v: Date = new Date();
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: Date = new Date();
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<Date>(),
     mockTypeReflect: () => {
@@ -183,115 +183,115 @@ export const ATOMIC = {
   enum_mixed: {
     title: 'Enum with mixed numeric and string members',
     description: 'enum Color {Red, Green="green", Blue=2} — numeric reverse-mapping + string values',
-    isTypeNotes: [
+    validateNotes: [
       'Validator accepts the underlying enum VALUES (0, "green", 2 for Color {Red, Green="green", Blue=2}).',
       'Enum member NAMES as strings ("Red", "Green", "Blue") are NOT accepted — these are TS-only handles, not runtime values.',
     ],
     // The value-first `RT.enum(Color)` carries the enum's value-UNION (kind union),
-    // while the type-first `createIsType<Color>()` is the named `KindEnum`: they
+    // while the type-first `createValidate<Color>()` is the named `KindEnum`: they
     // validate identically but are structurally distinct by design (a value-first
     // builder can't reconstruct the nominal enum's member-name metadata). See the
     // enum builder doc in src/schema/atomic.ts.
     idDivergent: true,
-    isType: () => {
+    validate: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return createIsType<Color>();
+      return createValidate<Color>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return createIsType<DataOnly<Color>>();
+      return createValidate<DataOnly<Color>>();
     },
-    isTypeSchema: () => {
+    validateSchema: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return createIsType(RT.enum(Color));
+      return createValidate(RT.enum(Color));
     },
-    deserializeIsType: () => {
+    deserializeValidate: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return deserializeIsType<Color>();
+      return deserializeValidate<Color>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
       const v: Color = Color.Red;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
       const v: Color = Color.Red;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return createGetTypeErrors<Color>();
+      return createGetValidationErrors<Color>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return createGetTypeErrors<DataOnly<Color>>();
+      return createGetValidationErrors<DataOnly<Color>>();
     },
-    getTypeErrorsSchema: () => {
+    getValidationErrorsSchema: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return createGetTypeErrors(RT.enum(Color));
+      return createGetValidationErrors(RT.enum(Color));
     },
-    deserializeGetTypeErrors: () => {
+    deserializeGetValidationErrors: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
-      return deserializeGetTypeErrors<Color>();
+      return deserializeGetValidationErrors<Color>();
     },
-    getTypeErrorsReflect: () => {
-      enum Color {
-        Red,
-        Green = 'green',
-        Blue = 2,
-      }
-      const v: Color = Color.Red;
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       enum Color {
         Red,
         Green = 'green',
         Blue = 2,
       }
       const v: Color = Color.Red;
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      enum Color {
+        Red,
+        Green = 'green',
+        Blue = 2,
+      }
+      const v: Color = Color.Red;
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       enum Color {
@@ -336,30 +336,30 @@ export const ATOMIC = {
 
   literal_2: {
     title: 'Numeric literal type (strict equality)',
-    isTypeNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
-    isType: () => createIsType<2>(),
-    isTypeDataOnly: () => createIsType<DataOnly<2>>(),
-    isTypeSchema: () => createIsType(RT.literal(2)),
-    deserializeIsType: () => deserializeIsType<2>(),
-    isTypeReflect: () => {
+    validateNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
+    validate: () => createValidate<2>(),
+    validateDataOnly: () => createValidate<DataOnly<2>>(),
+    validateSchema: () => createValidate(RT.literal(2)),
+    deserializeValidate: () => deserializeValidate<2>(),
+    validateReflect: () => {
       const v = 2 as const;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = 2 as const;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<2>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<2>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(2)),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<2>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<2>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(2)),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<2>(),
+    getValidationErrorsReflect: () => {
       const v = 2 as const;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = 2 as const;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<2>(),
     mockTypeReflect: () => {
@@ -377,30 +377,30 @@ export const ATOMIC = {
 
   literal_a: {
     title: 'String literal type (case-sensitive)',
-    isTypeNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
-    isType: () => createIsType<'a'>(),
-    isTypeDataOnly: () => createIsType<DataOnly<'a'>>(),
-    isTypeSchema: () => createIsType(RT.literal('a')),
-    deserializeIsType: () => deserializeIsType<'a'>(),
-    isTypeReflect: () => {
+    validateNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
+    validate: () => createValidate<'a'>(),
+    validateDataOnly: () => createValidate<DataOnly<'a'>>(),
+    validateSchema: () => createValidate(RT.literal('a')),
+    deserializeValidate: () => deserializeValidate<'a'>(),
+    validateReflect: () => {
       const v = 'a' as const;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = 'a' as const;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<'a'>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<'a'>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal('a')),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<'a'>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<'a'>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<'a'>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal('a')),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<'a'>(),
+    getValidationErrorsReflect: () => {
       const v = 'a' as const;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = 'a' as const;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<'a'>(),
     mockTypeReflect: () => {
@@ -419,31 +419,31 @@ export const ATOMIC = {
 
   literal_true: {
     title: 'Boolean literal type (only true)',
-    isTypeNotes:
+    validateNotes:
       'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
-    isType: () => createIsType<true>(),
-    isTypeDataOnly: () => createIsType<DataOnly<true>>(),
-    isTypeSchema: () => createIsType(RT.literal(true)),
-    deserializeIsType: () => deserializeIsType<true>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<true>(),
+    validateDataOnly: () => createValidate<DataOnly<true>>(),
+    validateSchema: () => createValidate(RT.literal(true)),
+    deserializeValidate: () => deserializeValidate<true>(),
+    validateReflect: () => {
       const v = true as const;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = true as const;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<true>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<true>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(true)),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<true>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<true>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(true)),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<true>(),
+    getValidationErrorsReflect: () => {
       const v = true as const;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = true as const;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<true>(),
     mockTypeReflect: () => {
@@ -461,30 +461,30 @@ export const ATOMIC = {
 
   literal_1n: {
     title: 'BigInt literal type (only 1n)',
-    isTypeNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
-    isType: () => createIsType<1n>(),
-    isTypeDataOnly: () => createIsType<DataOnly<1n>>(),
-    isTypeSchema: () => createIsType(RT.literal(1n)),
-    deserializeIsType: () => deserializeIsType<1n>(),
-    isTypeReflect: () => {
+    validateNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
+    validate: () => createValidate<1n>(),
+    validateDataOnly: () => createValidate<DataOnly<1n>>(),
+    validateSchema: () => createValidate(RT.literal(1n)),
+    deserializeValidate: () => deserializeValidate<1n>(),
+    validateReflect: () => {
       const v = 1n as const;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = 1n as const;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<1n>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<1n>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(1n)),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<1n>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<1n>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(1n)),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<1n>(),
+    getValidationErrorsReflect: () => {
       const v = 1n as const;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = 1n as const;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<1n>(),
     mockTypeReflect: () => {
@@ -504,58 +504,58 @@ export const ATOMIC = {
   literal_symbol: {
     title: 'Symbol literal type (matched by description)',
     // DataOnly<unique symbol> collapses to `never` (symbols are non-data), so
-    // createIsType<DataOnly<T>>() can't reproduce the symbol validator.
+    // createValidate<DataOnly<T>>() can't reproduce the symbol validator.
     dataOnlyDivergent: true,
     description: 'symbol identity via description match (mion semantics)',
-    isTypeNotes:
+    validateNotes:
       'TS DIVERGENCE: Symbol literal types are matched by `description`, not by unique-symbol identity. A different `Symbol("hello")` instance with the same description WILL satisfy the type. Strict TS treats each `typeof sym` as a unique-symbol referring to that exact value.',
-    isType: () => {
+    validate: () => {
       const sym = Symbol('hello');
-      return createIsType<typeof sym>();
+      return createValidate<typeof sym>();
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       const sym = Symbol('hello');
-      return createIsType<DataOnly<typeof sym>>();
+      return createValidate<DataOnly<typeof sym>>();
     },
     // No value-first builder for a unique-symbol literal (matched by description);
     // `RT.symbol()` is the bare-symbol kind, which is unsupported at root anyway.
-    isTypeSchema: 'not-supported',
-    deserializeIsType: () => {
+    validateSchema: 'not-supported',
+    deserializeValidate: () => {
       const sym = Symbol('hello');
-      return deserializeIsType<typeof sym>();
+      return deserializeValidate<typeof sym>();
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       const sym = Symbol('hello');
-      return createGetTypeErrors<typeof sym>();
+      return createGetValidationErrors<typeof sym>();
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       const sym = Symbol('hello');
-      return createGetTypeErrors<DataOnly<typeof sym>>();
+      return createGetValidationErrors<DataOnly<typeof sym>>();
     },
-    getTypeErrorsSchema: 'not-supported',
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: 'not-supported',
+    deserializeGetValidationErrors: () => {
       const sym = Symbol('hello');
-      return deserializeGetTypeErrors<typeof sym>();
+      return deserializeGetValidationErrors<typeof sym>();
     },
-    getTypeErrorsReflect: () => {
-      const sym = Symbol('hello');
-      const v: typeof sym = sym;
-      return createGetTypeErrors(v);
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return deserializeGetTypeErrors(v);
+      return createGetValidationErrors(v);
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      const sym = Symbol('hello');
+      const v: typeof sym = sym;
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => {
       const sym = Symbol('hello');
@@ -585,30 +585,30 @@ export const ATOMIC = {
 
   never: {
     title: 'Never — no value passes',
-    isTypeNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
-    isType: () => createIsType<never>(),
-    isTypeDataOnly: () => createIsType<DataOnly<never>>(),
-    isTypeSchema: () => createIsType(RT.never()),
-    deserializeIsType: () => deserializeIsType<never>(),
-    isTypeReflect: () => {
+    validateNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
+    validate: () => createValidate<never>(),
+    validateDataOnly: () => createValidate<DataOnly<never>>(),
+    validateSchema: () => createValidate(RT.never()),
+    deserializeValidate: () => deserializeValidate<never>(),
+    validateReflect: () => {
       const v: never = null as never;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: never = null as never;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<never>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<never>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.never()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<never>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<never>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<never>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.never()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<never>(),
+    getValidationErrorsReflect: () => {
       const v: never = null as never;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: never = null as never;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<never>(),
     mockTypeReflect: () => {
@@ -637,31 +637,31 @@ export const ATOMIC = {
   null: {
     title: 'Null primitive (distinct from undefined)',
     description: 'null and undefined are distinct',
-    isTypeNotes:
+    validateNotes:
       'Strict === null check. `undefined`, `0`, `""`, `false`, `NaN`, `{}`, `[]` and other "falsy" or "nullish-feeling" values are all rejected.',
-    isType: () => createIsType<null>(),
-    isTypeDataOnly: () => createIsType<DataOnly<null>>(),
-    isTypeSchema: () => createIsType(RT.literal(null)),
-    deserializeIsType: () => deserializeIsType<null>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<null>(),
+    validateDataOnly: () => createValidate<DataOnly<null>>(),
+    validateSchema: () => createValidate(RT.literal(null)),
+    deserializeValidate: () => deserializeValidate<null>(),
+    validateReflect: () => {
       const v: null = null;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: null = null;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<null>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<null>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(null)),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<null>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<null>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<null>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(null)),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<null>(),
+    getValidationErrorsReflect: () => {
       const v: null = null;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: null = null;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<null>(),
     mockTypeReflect: () => {
@@ -688,33 +688,33 @@ export const ATOMIC = {
   number: {
     title: 'Number primitive (rejects NaN and Infinity)',
     description: 'Infinity and -Infinity rejected (Number.isFinite)',
-    isTypeNotes: [
+    validateNotes: [
       'Uses `Number.isFinite(v)` rather than bare `typeof v === "number"`.',
       '`NaN`, `Infinity`, and `-Infinity` are rejected even though they pass `typeof === "number"`.',
     ],
-    isType: () => createIsType<number>(),
-    isTypeDataOnly: () => createIsType<DataOnly<number>>(),
-    isTypeSchema: () => createIsType(RT.number()),
-    deserializeIsType: () => deserializeIsType<number>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<number>(),
+    validateDataOnly: () => createValidate<DataOnly<number>>(),
+    validateSchema: () => createValidate(RT.number()),
+    deserializeValidate: () => deserializeValidate<number>(),
+    validateReflect: () => {
       const v: number = 42;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: number = 42;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<number>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<number>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.number()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<number>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<number>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<number>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.number()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<number>(),
+    getValidationErrorsReflect: () => {
       const v: number = 42;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: number = 42;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<number>(),
     mockTypeReflect: () => {
@@ -738,37 +738,37 @@ export const ATOMIC = {
   object: {
     title: 'Object type — any non-null non-primitive value',
     description: 'null rejected despite JS typeof null === "object"',
-    isTypeNotes: [
+    validateNotes: [
       'Emit is `typeof v === "object" && v !== null` — strict TS semantics (any non-primitive non-null value).',
       'Arrays, Date instances, RegExp, Map, Set, and class instances all PASS — they are TS-`object` per the spec.',
       '`null` is explicitly rejected (despite `typeof null === "object"` in JavaScript).',
       '`object` here does NOT mean "plain object literal" — if you need that semantic, use a specific object shape or an index-signature type.',
     ],
-    isType: () => createIsType<object>(),
-    isTypeDataOnly: () => createIsType<DataOnly<object>>(),
+    validate: () => createValidate<object>(),
+    validateDataOnly: () => createValidate<DataOnly<object>>(),
     // No value-first builder for the TS `object` primitive (any non-null
     // non-primitive) — `RT.object(...)` is the shape composer, a different kind.
-    isTypeSchema: 'not-supported',
-    deserializeIsType: () => deserializeIsType<object>(),
-    isTypeReflect: () => {
+    validateSchema: 'not-supported',
+    deserializeValidate: () => deserializeValidate<object>(),
+    validateReflect: () => {
       const v: object = {};
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: object = {};
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<object>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<object>>(),
-    getTypeErrorsSchema: 'not-supported',
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<object>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<object>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<object>>(),
+    getValidationErrorsSchema: 'not-supported',
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<object>(),
+    getValidationErrorsReflect: () => {
       const v: object = {};
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: object = {};
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<object>(),
     mockTypeReflect: () => {
@@ -791,31 +791,31 @@ export const ATOMIC = {
 
   regexp: {
     title: 'RegExp instance',
-    isTypeNotes: 'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
-    isType: () => createIsType<RegExp>(),
-    isTypeDataOnly: () => createIsType<DataOnly<RegExp>>(),
-    isTypeSchema: () => createIsType(RT.regexp()),
-    deserializeIsType: () => deserializeIsType<RegExp>(),
-    isTypeReflect: () => {
+    validateNotes: 'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
+    validate: () => createValidate<RegExp>(),
+    validateDataOnly: () => createValidate<DataOnly<RegExp>>(),
+    validateSchema: () => createValidate(RT.regexp()),
+    deserializeValidate: () => deserializeValidate<RegExp>(),
+    validateReflect: () => {
       const v: RegExp = /abc/;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: RegExp = /abc/;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<RegExp>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<RegExp>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<RegExp>(),
+    getValidationErrors: () => createGetValidationErrors<RegExp>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<RegExp>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.regexp()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<RegExp>(),
     // Reflect thunks omitted: `const v: RegExp = /abc/` narrows to the
     // literal-regex type T = /abc/, which produces `expected: 'literal'`
     // instead of `'regexp'` and diverges from the static form. The
-    // isType validator's body coincides for valid + invalid samples
-    // so isType tests pass; typeErrors reports the kindname directly
+    // validate validator's body coincides for valid + invalid samples
+    // so validate tests pass; validationErrors reports the kindname directly
     // and the divergence surfaces. Cases that DON'T narrow (Date,
     // symbol(...)) keep their reflect form.
-    // Reflect thunks omitted for the same narrowing reason as getTypeErrors
+    // Reflect thunks omitted for the same narrowing reason as getValidationErrors
     // above — `const v: RegExp = /abc/` narrows to the literal-regex type
     // and would dispatch to the regexp-literal arm instead.
     mockType: () => createMockType<RegExp>(),
@@ -837,30 +837,30 @@ export const ATOMIC = {
 
   string: {
     title: 'String primitive',
-    isTypeNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
-    isType: () => createIsType<string>(),
-    isTypeDataOnly: () => createIsType<DataOnly<string>>(),
-    isTypeSchema: () => createIsType(RT.string()),
-    deserializeIsType: () => deserializeIsType<string>(),
-    isTypeReflect: () => {
+    validateNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
+    validate: () => createValidate<string>(),
+    validateDataOnly: () => createValidate<DataOnly<string>>(),
+    validateSchema: () => createValidate(RT.string()),
+    deserializeValidate: () => deserializeValidate<string>(),
+    validateReflect: () => {
       const v: string = 'hello';
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: string = 'hello';
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<string>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<string>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<string>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<string>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.string()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<string>(),
+    getValidationErrorsReflect: () => {
       const v: string = 'hello';
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: string = 'hello';
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<string>(),
     mockTypeReflect: () => {
@@ -881,33 +881,33 @@ export const ATOMIC = {
 
   symbol: {
     title: 'Symbol primitive',
-    isTypeNotes:
+    validateNotes:
       'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes IT002 / TE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
-    isType: () => createIsType<symbol>(),
-    isTypeDataOnly: () => createIsType<DataOnly<symbol>>(),
+    validate: () => createValidate<symbol>(),
+    validateDataOnly: () => createValidate<DataOnly<symbol>>(),
     // Bare symbol is unsupported at root — the value-first `RT.symbol()` resolves
     // the same alwaysThrow factory, so this thunk throws like the type-first form.
-    isTypeSchema: () => createIsType(RT.symbol()),
-    deserializeIsType: () => deserializeIsType<symbol>(),
-    isTypeReflect: () => {
+    validateSchema: () => createValidate(RT.symbol()),
+    deserializeValidate: () => deserializeValidate<symbol>(),
+    validateReflect: () => {
       const v: symbol = Symbol();
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: symbol = Symbol();
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<symbol>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<symbol>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.symbol()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<symbol>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<symbol>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<symbol>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.symbol()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<symbol>(),
+    getValidationErrorsReflect: () => {
       const v: symbol = Symbol();
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: symbol = Symbol();
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<symbol>(),
     mockTypeReflect: () => {
@@ -921,30 +921,30 @@ export const ATOMIC = {
   undefined: {
     title: 'Undefined primitive (distinct from null)',
     description: 'undefined and null are distinct',
-    isTypeNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
-    isType: () => createIsType<undefined>(),
-    isTypeDataOnly: () => createIsType<DataOnly<undefined>>(),
-    isTypeSchema: () => createIsType(RT.literal(undefined)),
-    deserializeIsType: () => deserializeIsType<undefined>(),
-    isTypeReflect: () => {
+    validateNotes: 'Strict === undefined check. `null`, `0`, `""`, `false`, `{}`, `[]` are all rejected.',
+    validate: () => createValidate<undefined>(),
+    validateDataOnly: () => createValidate<DataOnly<undefined>>(),
+    validateSchema: () => createValidate(RT.literal(undefined)),
+    deserializeValidate: () => deserializeValidate<undefined>(),
+    validateReflect: () => {
       const v: undefined = undefined;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: undefined = undefined;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<undefined>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<undefined>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(undefined)),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<undefined>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<undefined>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(undefined)),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<undefined>(),
+    getValidationErrorsReflect: () => {
       const v: undefined = undefined;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: undefined = undefined;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<undefined>(),
     mockTypeReflect: () => {
@@ -970,29 +970,29 @@ export const ATOMIC = {
   void: {
     title: 'Void — accepts undefined, rejects null',
     description: 'void accepts undefined (and bare function return); rejects null',
-    isType: () => createIsType<void>(),
-    isTypeDataOnly: () => createIsType<DataOnly<void>>(),
-    isTypeSchema: () => createIsType(RT.void()),
-    deserializeIsType: () => deserializeIsType<void>(),
-    isTypeReflect: () => {
+    validate: () => createValidate<void>(),
+    validateDataOnly: () => createValidate<DataOnly<void>>(),
+    validateSchema: () => createValidate(RT.void()),
+    deserializeValidate: () => deserializeValidate<void>(),
+    validateReflect: () => {
       const v: void = undefined;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: void = undefined;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<void>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<void>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.void()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<void>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<void>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<void>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.void()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<void>(),
+    getValidationErrorsReflect: () => {
       const v: void = undefined;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: void = undefined;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<void>(),
     mockTypeReflect: () => {
@@ -1020,35 +1020,35 @@ export const ATOMIC = {
   literal_2_noLiterals: {
     title: 'Numeric literal with noLiterals (degrades to number)',
     description: 'degrades to number — Number.isFinite check',
-    isTypeNotes:
+    validateNotes:
       'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
-    isType: () => createIsType<2>(undefined, {noLiterals: true}),
-    isTypeDataOnly: () => createIsType<DataOnly<2>>(undefined, {noLiterals: true}),
+    validate: () => createValidate<2>(undefined, {noLiterals: true}),
+    validateDataOnly: () => createValidate<DataOnly<2>>(undefined, {noLiterals: true}),
     // Value-first mirror of the type-first form: the SAME literal id carrying the
     // SAME {noLiterals} option — both resolve the `itNL_<literal-2 id>` variant.
     // (noLiterals keeps the literal's structural id and folds into the variant
     // key; it does NOT degrade to `number`'s id before hashing.)
-    isTypeSchema: () => createIsType(RT.literal(2), {noLiterals: true}),
-    deserializeIsType: () => deserializeIsType<2>(undefined, {noLiterals: true}),
-    isTypeReflect: () => {
+    validateSchema: () => createValidate(RT.literal(2), {noLiterals: true}),
+    deserializeValidate: () => deserializeValidate<2>(undefined, {noLiterals: true}),
+    validateReflect: () => {
       const v = 2 as const;
-      return createIsType(v, {noLiterals: true});
+      return createValidate(v, {noLiterals: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = 2 as const;
-      return deserializeIsType(v, {noLiterals: true});
+      return deserializeValidate(v, {noLiterals: true});
     },
-    getTypeErrors: () => createGetTypeErrors<2>(undefined, {noLiterals: true}),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<2>>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(2), {noLiterals: true}),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(undefined, {noLiterals: true}),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<2>(undefined, {noLiterals: true}),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<2>>(undefined, {noLiterals: true}),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(2), {noLiterals: true}),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<2>(undefined, {noLiterals: true}),
+    getValidationErrorsReflect: () => {
       const v = 2 as const;
-      return createGetTypeErrors(v, {noLiterals: true});
+      return createGetValidationErrors(v, {noLiterals: true});
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = 2 as const;
-      return deserializeGetTypeErrors(v, {noLiterals: true});
+      return deserializeGetValidationErrors(v, {noLiterals: true});
     },
     mockType: () => createMockType<2>(undefined, undefined),
     mockTypeReflect: () => {
@@ -1067,31 +1067,31 @@ export const ATOMIC = {
   literal_a_noLiterals: {
     title: 'String literal with noLiterals (degrades to string)',
     description: 'degrades to string — typeof check',
-    isTypeNotes:
+    validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
-    isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
-    isTypeDataOnly: () => createIsType<DataOnly<'a'>>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.literal('a'), {noLiterals: true}),
-    deserializeIsType: () => deserializeIsType<'a'>(undefined, {noLiterals: true}),
-    isTypeReflect: () => {
+    validate: () => createValidate<'a'>(undefined, {noLiterals: true}),
+    validateDataOnly: () => createValidate<DataOnly<'a'>>(undefined, {noLiterals: true}),
+    validateSchema: () => createValidate(RT.literal('a'), {noLiterals: true}),
+    deserializeValidate: () => deserializeValidate<'a'>(undefined, {noLiterals: true}),
+    validateReflect: () => {
       const v = 'a' as const;
-      return createIsType(v, {noLiterals: true});
+      return createValidate(v, {noLiterals: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = 'a' as const;
-      return deserializeIsType(v, {noLiterals: true});
+      return deserializeValidate(v, {noLiterals: true});
     },
-    getTypeErrors: () => createGetTypeErrors<'a'>(undefined, {noLiterals: true}),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<'a'>>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal('a'), {noLiterals: true}),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<'a'>(undefined, {noLiterals: true}),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<'a'>(undefined, {noLiterals: true}),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<'a'>>(undefined, {noLiterals: true}),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal('a'), {noLiterals: true}),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<'a'>(undefined, {noLiterals: true}),
+    getValidationErrorsReflect: () => {
       const v = 'a' as const;
-      return createGetTypeErrors(v, {noLiterals: true});
+      return createGetValidationErrors(v, {noLiterals: true});
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = 'a' as const;
-      return deserializeGetTypeErrors(v, {noLiterals: true});
+      return deserializeGetValidationErrors(v, {noLiterals: true});
     },
     mockType: () => createMockType<'a'>(undefined, undefined),
     mockTypeReflect: () => {
@@ -1110,56 +1110,56 @@ export const ATOMIC = {
   literal_regexp_noLiterals: {
     title: 'RegExp literal with noLiterals (degrades to RegExp)',
     description: 'degrades to RegExp — instanceof check',
-    isTypeNotes:
+    validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `RegExp`. Any RegExp instance passes (constructor form `new RegExp(...)` included); source + flags are no longer matched.',
-    isType: () => {
+    validate: () => {
       const reg = /abc/i;
-      return createIsType<typeof reg>(undefined, {noLiterals: true});
+      return createValidate<typeof reg>(undefined, {noLiterals: true});
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       const reg = /abc/i;
-      return createIsType<DataOnly<typeof reg>>(undefined, {noLiterals: true});
+      return createValidate<DataOnly<typeof reg>>(undefined, {noLiterals: true});
     },
     // Value-first mirror: RegExp base kind + the SAME {noLiterals} option, so both
     // resolve the `itNL_<regexp id>` variant. (No RegExp-literal kind exists since
     // PR #76, so `typeof /abc/i` is plain `RegExp` — `RT.regexp()` is the match.)
-    isTypeSchema: () => createIsType(RT.regexp(), {noLiterals: true}),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.regexp(), {noLiterals: true}),
+    deserializeValidate: () => {
       const reg = /abc/i;
-      return deserializeIsType<typeof reg>(undefined, {noLiterals: true});
+      return deserializeValidate<typeof reg>(undefined, {noLiterals: true});
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       const reg = /abc/i;
       const v: typeof reg = reg;
-      return createIsType(v, {noLiterals: true});
+      return createValidate(v, {noLiterals: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const reg = /abc/i;
       const v: typeof reg = reg;
-      return deserializeIsType(v, {noLiterals: true});
+      return deserializeValidate(v, {noLiterals: true});
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       const reg = /abc/i;
-      return createGetTypeErrors<typeof reg>(undefined, {noLiterals: true});
+      return createGetValidationErrors<typeof reg>(undefined, {noLiterals: true});
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       const reg = /abc/i;
-      return createGetTypeErrors<DataOnly<typeof reg>>(undefined, {noLiterals: true});
+      return createGetValidationErrors<DataOnly<typeof reg>>(undefined, {noLiterals: true});
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp(), {noLiterals: true}),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.regexp(), {noLiterals: true}),
+    deserializeGetValidationErrors: () => {
       const reg = /abc/i;
-      return deserializeGetTypeErrors<typeof reg>(undefined, {noLiterals: true});
+      return deserializeGetValidationErrors<typeof reg>(undefined, {noLiterals: true});
     },
-    getTypeErrorsReflect: () => {
-      const reg = /abc/i;
-      const v: typeof reg = reg;
-      return createGetTypeErrors(v, {noLiterals: true});
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       const reg = /abc/i;
       const v: typeof reg = reg;
-      return deserializeGetTypeErrors(v, {noLiterals: true});
+      return createGetValidationErrors(v, {noLiterals: true});
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      const reg = /abc/i;
+      const v: typeof reg = reg;
+      return deserializeGetValidationErrors(v, {noLiterals: true});
     },
     mockType: () => {
       const reg = /abc/i;
@@ -1182,31 +1182,31 @@ export const ATOMIC = {
   literal_true_noLiterals: {
     title: 'Boolean literal with noLiterals (degrades to boolean)',
     description: 'degrades to boolean — typeof check',
-    isTypeNotes:
+    validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
-    isType: () => createIsType<true>(undefined, {noLiterals: true}),
-    isTypeDataOnly: () => createIsType<DataOnly<true>>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.literal(true), {noLiterals: true}),
-    deserializeIsType: () => deserializeIsType<true>(undefined, {noLiterals: true}),
-    isTypeReflect: () => {
+    validate: () => createValidate<true>(undefined, {noLiterals: true}),
+    validateDataOnly: () => createValidate<DataOnly<true>>(undefined, {noLiterals: true}),
+    validateSchema: () => createValidate(RT.literal(true), {noLiterals: true}),
+    deserializeValidate: () => deserializeValidate<true>(undefined, {noLiterals: true}),
+    validateReflect: () => {
       const v = true as const;
-      return createIsType(v, {noLiterals: true});
+      return createValidate(v, {noLiterals: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = true as const;
-      return deserializeIsType(v, {noLiterals: true});
+      return deserializeValidate(v, {noLiterals: true});
     },
-    getTypeErrors: () => createGetTypeErrors<true>(undefined, {noLiterals: true}),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<true>>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(true), {noLiterals: true}),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(undefined, {noLiterals: true}),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<true>(undefined, {noLiterals: true}),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<true>>(undefined, {noLiterals: true}),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(true), {noLiterals: true}),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<true>(undefined, {noLiterals: true}),
+    getValidationErrorsReflect: () => {
       const v = true as const;
-      return createGetTypeErrors(v, {noLiterals: true});
+      return createGetValidationErrors(v, {noLiterals: true});
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = true as const;
-      return deserializeGetTypeErrors(v, {noLiterals: true});
+      return deserializeGetValidationErrors(v, {noLiterals: true});
     },
     mockType: () => createMockType<true>(undefined, undefined),
     mockTypeReflect: () => {
@@ -1226,31 +1226,31 @@ export const ATOMIC = {
   literal_1n_noLiterals: {
     title: 'BigInt literal with noLiterals (degrades to bigint)',
     description: 'degrades to bigint — typeof check',
-    isTypeNotes:
+    validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
-    isType: () => createIsType<1n>(undefined, {noLiterals: true}),
-    isTypeDataOnly: () => createIsType<DataOnly<1n>>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.literal(1n), {noLiterals: true}),
-    deserializeIsType: () => deserializeIsType<1n>(undefined, {noLiterals: true}),
-    isTypeReflect: () => {
+    validate: () => createValidate<1n>(undefined, {noLiterals: true}),
+    validateDataOnly: () => createValidate<DataOnly<1n>>(undefined, {noLiterals: true}),
+    validateSchema: () => createValidate(RT.literal(1n), {noLiterals: true}),
+    deserializeValidate: () => deserializeValidate<1n>(undefined, {noLiterals: true}),
+    validateReflect: () => {
       const v = 1n as const;
-      return createIsType(v, {noLiterals: true});
+      return createValidate(v, {noLiterals: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v = 1n as const;
-      return deserializeIsType(v, {noLiterals: true});
+      return deserializeValidate(v, {noLiterals: true});
     },
-    getTypeErrors: () => createGetTypeErrors<1n>(undefined, {noLiterals: true}),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<1n>>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(1n), {noLiterals: true}),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(undefined, {noLiterals: true}),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<1n>(undefined, {noLiterals: true}),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<1n>>(undefined, {noLiterals: true}),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.literal(1n), {noLiterals: true}),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<1n>(undefined, {noLiterals: true}),
+    getValidationErrorsReflect: () => {
       const v = 1n as const;
-      return createGetTypeErrors(v, {noLiterals: true});
+      return createGetValidationErrors(v, {noLiterals: true});
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v = 1n as const;
-      return deserializeGetTypeErrors(v, {noLiterals: true});
+      return deserializeGetValidationErrors(v, {noLiterals: true});
     },
     mockType: () => createMockType<1n>(undefined, undefined),
     mockTypeReflect: () => {
@@ -1270,55 +1270,55 @@ export const ATOMIC = {
   literal_symbol_noLiterals: {
     title: 'Symbol literal with noLiterals (degrades to symbol)',
     description: 'degrades to bare symbol — unsupported at root',
-    isTypeNotes:
+    validateNotes:
       '`{noLiterals: true}` degrades the literal to its base type `symbol`, which is unsupported at root (see the `symbol` case above). The factory is rendered as alwaysThrow; the first `createXxx<typeof sym>()` call throws.',
-    isType: () => {
+    validate: () => {
       const sym = Symbol('hello');
-      return createIsType<typeof sym>(undefined, {noLiterals: true});
+      return createValidate<typeof sym>(undefined, {noLiterals: true});
     },
-    isTypeDataOnly: () => {
+    validateDataOnly: () => {
       const sym = Symbol('hello');
-      return createIsType<DataOnly<typeof sym>>(undefined, {noLiterals: true});
+      return createValidate<DataOnly<typeof sym>>(undefined, {noLiterals: true});
     },
     // Degrades to bare symbol (unsupported at root) — `RT.symbol()` resolves the
     // same alwaysThrow factory, so the schema thunk throws like the type-first form.
-    isTypeSchema: () => createIsType(RT.symbol()),
-    deserializeIsType: () => {
+    validateSchema: () => createValidate(RT.symbol()),
+    deserializeValidate: () => {
       const sym = Symbol('hello');
-      return deserializeIsType<typeof sym>(undefined, {noLiterals: true});
+      return deserializeValidate<typeof sym>(undefined, {noLiterals: true});
     },
-    isTypeReflect: () => {
+    validateReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return createIsType(v, {noLiterals: true});
+      return createValidate(v, {noLiterals: true});
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return deserializeIsType(v, {noLiterals: true});
+      return deserializeValidate(v, {noLiterals: true});
     },
-    getTypeErrors: () => {
+    getValidationErrors: () => {
       const sym = Symbol('hello');
-      return createGetTypeErrors<typeof sym>(undefined, {noLiterals: true});
+      return createGetValidationErrors<typeof sym>(undefined, {noLiterals: true});
     },
-    getTypeErrorsDataOnly: () => {
+    getValidationErrorsDataOnly: () => {
       const sym = Symbol('hello');
-      return createGetTypeErrors<DataOnly<typeof sym>>(undefined, {noLiterals: true});
+      return createGetValidationErrors<DataOnly<typeof sym>>(undefined, {noLiterals: true});
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.symbol()),
-    deserializeGetTypeErrors: () => {
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.symbol()),
+    deserializeGetValidationErrors: () => {
       const sym = Symbol('hello');
-      return deserializeGetTypeErrors<typeof sym>(undefined, {noLiterals: true});
+      return deserializeGetValidationErrors<typeof sym>(undefined, {noLiterals: true});
     },
-    getTypeErrorsReflect: () => {
-      const sym = Symbol('hello');
-      const v: typeof sym = sym;
-      return createGetTypeErrors(v, {noLiterals: true});
-    },
-    deserializeGetTypeErrorsReflect: () => {
+    getValidationErrorsReflect: () => {
       const sym = Symbol('hello');
       const v: typeof sym = sym;
-      return deserializeGetTypeErrors(v, {noLiterals: true});
+      return createGetValidationErrors(v, {noLiterals: true});
+    },
+    deserializeGetValidationErrorsReflect: () => {
+      const sym = Symbol('hello');
+      const v: typeof sym = sym;
+      return deserializeGetValidationErrors(v, {noLiterals: true});
     },
     mockType: () => {
       const sym = Symbol('hello');
@@ -1334,36 +1334,36 @@ export const ATOMIC = {
   },
 
   // `unknown` — like `any`, every value passes. UnknownRunType
-  // extends AnyRunType in mion (no isType emit), so both kinds
+  // extends AnyRunType in mion (no validate emit), so both kinds
   // collapse to a noop validator. Mion's own suite skips this; we
   // include it here for full TS keyword coverage so a regression
   // can't silently change the always-pass semantics.
   unknown: {
     title: 'Unknown type — every value passes',
-    isTypeNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
-    isType: () => createIsType<unknown>(),
-    isTypeDataOnly: () => createIsType<DataOnly<unknown>>(),
-    isTypeSchema: () => createIsType(RT.unknown()),
-    deserializeIsType: () => deserializeIsType<unknown>(),
-    isTypeReflect: () => {
+    validateNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
+    validate: () => createValidate<unknown>(),
+    validateDataOnly: () => createValidate<DataOnly<unknown>>(),
+    validateSchema: () => createValidate(RT.unknown()),
+    deserializeValidate: () => deserializeValidate<unknown>(),
+    validateReflect: () => {
       const v: unknown = null;
-      return createIsType(v);
+      return createValidate(v);
     },
-    deserializeIsTypeReflect: () => {
+    deserializeValidateReflect: () => {
       const v: unknown = null;
-      return deserializeIsType(v);
+      return deserializeValidate(v);
     },
-    getTypeErrors: () => createGetTypeErrors<unknown>(),
-    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<unknown>>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.unknown()),
-    deserializeGetTypeErrors: () => deserializeGetTypeErrors<unknown>(),
-    getTypeErrorsReflect: () => {
+    getValidationErrors: () => createGetValidationErrors<unknown>(),
+    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<unknown>>(),
+    getValidationErrorsSchema: () => createGetValidationErrors(RT.unknown()),
+    deserializeGetValidationErrors: () => deserializeGetValidationErrors<unknown>(),
+    getValidationErrorsReflect: () => {
       const v: unknown = null;
-      return createGetTypeErrors(v);
+      return createGetValidationErrors(v);
     },
-    deserializeGetTypeErrorsReflect: () => {
+    deserializeGetValidationErrorsReflect: () => {
       const v: unknown = null;
-      return deserializeGetTypeErrors(v);
+      return deserializeGetValidationErrors(v);
     },
     mockType: () => createMockType<unknown>(),
     mockTypeReflect: () => {

@@ -20,8 +20,8 @@ import (
 func renderToString(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := IsTypeModule(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
-		t.Fatalf("IsTypeModule: %v", err)
+	if err := ValidateModule(&buf, dump, RenderOpts{EmitCreateRTFn: true}); err != nil {
+		t.Fatalf("ValidateModule: %v", err)
 	}
 	return buf.String()
 }
@@ -33,15 +33,15 @@ func renderToString(t *testing.T, dump protocol.Dump) string {
 func renderToStringDefault(t *testing.T, dump protocol.Dump) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := IsTypeModule(&buf, dump, RenderOpts{}); err != nil {
-		t.Fatalf("IsTypeModule: %v", err)
+	if err := ValidateModule(&buf, dump, RenderOpts{}); err != nil {
+		t.Fatalf("ValidateModule: %v", err)
 	}
 	return buf.String()
 }
 
-// TestIsTypeModule_SkeletonPresent — the rendered body must include the
+// TestValidateModule_SkeletonPresent — the rendered body must include the
 // hand-authored skeleton wrappers, with the marker replaced.
-func TestIsTypeModule_SkeletonPresent(t *testing.T) {
+func TestValidateModule_SkeletonPresent(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	for _, fragment := range []string{
 		"'use strict';",
@@ -59,7 +59,7 @@ func TestIsTypeModule_SkeletonPresent(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_NoSideEffectImport(t *testing.T) {
+func TestValidateModule_NoSideEffectImport(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	if strings.Contains(out, "import ") {
 		t.Errorf("rendered module must not import anything at top-level (pure module), got:\n%s", out)
@@ -69,7 +69,7 @@ func TestIsTypeModule_NoSideEffectImport(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_EmptyDump(t *testing.T) {
+func TestValidateModule_EmptyDump(t *testing.T) {
 	out := renderToString(t, protocol.Dump{})
 	if strings.Contains(out, "export const") {
 		t.Errorf("module no longer emits named export consts; got:\n%s", out)
@@ -79,7 +79,7 @@ func TestIsTypeModule_EmptyDump(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_SingleEntryShape(t *testing.T) {
+func TestValidateModule_SingleEntryShape(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
@@ -102,13 +102,13 @@ func TestIsTypeModule_SingleEntryShape(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_SingleEntryShape_DefaultEmit pins the
+// TestValidateModule_SingleEntryShape_DefaultEmit pins the
 // production-default shape: arg-7 is the `u = undefined` alias and
 // no `function g_<hash>(utl){…}` closure leaks into the module. The
 // body lives only in the quoted `code` arg-3 string; the JS-side
 // materializeRTFn rebuilds the factory via `new Function('utl',
 // code)` on first lookup.
-func TestIsTypeModule_SingleEntryShape_DefaultEmit(t *testing.T) {
+func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{{ID: "abc123", Kind: protocol.KindString}},
 	}
@@ -131,15 +131,15 @@ func TestIsTypeModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_AtomicEmitBodies asserts the emit body for each
+// TestValidateModule_AtomicEmitBodies asserts the emit body for each
 // atomic kind we ported from mion. One row per kind keeps the
 // regression surface explicit — drift in any single arm of
-// IsTypeEmitter.Emit lands as a focused failure here.
+// ValidateEmitter.Emit lands as a focused failure here.
 //
 // Bodies must match the corresponding mion node's emitIsType output
 // (mion-run-types:packages/run-types/src/nodes/atomic/<name>.ts).
 // `return ` prefix is added by the walker / Finalize.
-func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
+func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 	rows := []struct {
 		name string
 		rt   *protocol.RunType
@@ -190,11 +190,11 @@ func TestIsTypeModule_AtomicEmitBodies(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_LiteralEmitBodies covers the literal sub-cases
+// TestValidateModule_LiteralEmitBodies covers the literal sub-cases
 // (mion:literal.ts:88-105). One row per literal flavour: string,
 // number, boolean, bigint (via Flags), symbol (via Flags + map),
 // regexp (via map).
-func TestIsTypeModule_LiteralEmitBodies(t *testing.T) {
+func TestValidateModule_LiteralEmitBodies(t *testing.T) {
 	rows := []struct {
 		name string
 		rt   *protocol.RunType
@@ -236,12 +236,12 @@ func TestIsTypeModule_LiteralEmitBodies(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_EnumEmitBody covers KindEnum's mixed-value chain
+// TestValidateModule_EnumEmitBody covers KindEnum's mixed-value chain
 // (mion:nodes/atomic/enum.ts:14). Uses the Color enum from
 // enum.spec.ts: {Red=0, Green='green', Blue=2}. The Values slice
 // carries the resolved values in declaration order; chain order
 // follows.
-func TestIsTypeModule_EnumEmitBody(t *testing.T) {
+func TestValidateModule_EnumEmitBody(t *testing.T) {
 	rt := &protocol.RunType{
 		ID:     "enm",
 		Kind:   protocol.KindEnum,
@@ -254,11 +254,11 @@ func TestIsTypeModule_EnumEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_ArrayEmitBody covers KindArray's canonical block
+// TestValidateModule_ArrayEmitBody covers KindArray's canonical block
 // (mion:nodes/member/array.ts:emitIsType). The outer array renders an
 // Array.isArray guard, a numbered for-loop, and an inlined child check
 // since the child (string) is atomic — no dependency call needed.
-func TestIsTypeModule_ArrayEmitBody(t *testing.T) {
+func TestValidateModule_ArrayEmitBody(t *testing.T) {
 	// emit walks the *protocol.RunType graph as-given (not via cache
 	// resolution) so the Child slot here is inlined as a KindString
 	// rather than a KindRef sentinel — same shape the renderer sees
@@ -282,7 +282,7 @@ func TestIsTypeModule_ArrayEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_NestedArrayDependencyCall covers `string[][]` — the
+// TestValidateModule_NestedArrayDependencyCall covers `string[][]` — the
 // first multi-level case in the suite. The outer array's body must
 // invoke the inner array's pre-compiled validator via the dependency-
 // call layer:
@@ -294,7 +294,7 @@ func TestIsTypeModule_ArrayEmitBody(t *testing.T) {
 //   - The outer body contains `<innerHash>.fn(v[i0])` at the element
 //     check position.
 //   - Both modules render (inner first, outer second — topo sort).
-func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
+func TestValidateModule_NestedArrayDependencyCall(t *testing.T) {
 	inner := &protocol.RunType{
 		ID:    "inn",
 		Kind:  protocol.KindArray,
@@ -336,16 +336,16 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_ArrayNoIsArrayCheck — when a createIsType site requests the
-// `noIsArrayCheck` IsTypeOptions variant for an array runtype, the
+// TestValidateModule_ArrayNoIsArrayCheck — when a createValidate site requests the
+// `noIsArrayCheck` ValidateOptions variant for an array runtype, the
 // emitter fans out an extra `itNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. A plain
-// createIsType site still emits the guarded `it_<id>` factory. Mirrors
+// createValidate site still emits the guarded `it_<id>` factory. Mirrors
 // mion's `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
 // demand-scoped: the scanner attaches each site's structured Demand, so the
 // plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
 // not the legacy Site.Options back-compat fan-out.)
-func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
+func TestValidateModule_ArrayNoIsArrayCheck(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
 			{
@@ -355,9 +355,9 @@ func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 			},
 		},
 		Sites: []protocol.Site{
-			// Plain createIsType<T[]>() — demands the guarded `it_an1`.
+			// Plain createValidate<T[]>() — demands the guarded `it_an1`.
 			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "it"}}},
-			// createIsType<T[]>(undefined, {noIsArrayCheck: true}) — demands
+			// createValidate<T[]>(undefined, {noIsArrayCheck: true}) — demands
 			// the `itNA_an1` variant whose body omits the Array.isArray guard.
 			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "it", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
 		},
@@ -368,11 +368,11 @@ func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 	// Plain `<itHash>_an1` factory MUST keep the guard — the variant key
 	// dispatch is the only path that strips it.
 	if !strings.Contains(out, plainKey) {
-		t.Errorf("plain isType entry must be emitted, got:\n%s", out)
+		t.Errorf("plain validate entry must be emitted, got:\n%s", out)
 	}
 	// The noIsArrayCheck-variant factory MUST exist alongside the plain one.
 	if !strings.Contains(out, variantKeyNA) {
-		t.Errorf("variant isType entry %q must be emitted, got:\n%s", variantKeyNA, out)
+		t.Errorf("variant validate entry %q must be emitted, got:\n%s", variantKeyNA, out)
 	}
 	// The variant body has the for-loop but no Array.isArray guard.
 	// The plain body has both. Find the variant's `init(...)` line and
@@ -405,12 +405,12 @@ func extractInitLine(out, key string) string {
 	return out[start : start+end+2]
 }
 
-// TestIsTypeModule_InterfaceEmitBody covers KindObjectLiteral —
+// TestValidateModule_InterfaceEmitBody covers KindObjectLiteral —
 // the canonical interface check (`typeof v === 'object' && v !== null`)
 // AND-chained with each PropertySignature child's check. Atomic
 // children inline directly; the resolver normally hands child slots
 // as KindRef sentinels which the walker derefs via the RefTable.
-func TestIsTypeModule_InterfaceEmitBody(t *testing.T) {
+func TestValidateModule_InterfaceEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
 	propA := &protocol.RunType{
@@ -446,10 +446,10 @@ func TestIsTypeModule_InterfaceEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_OptionalPropertyEmitBody checks the optional guard
+// TestValidateModule_OptionalPropertyEmitBody checks the optional guard
 // wrap — `(v.<name> === undefined || <childCheck>)`. Mirrors mion's
 // PropertyRunType.emitIsType when src.optional is set.
-func TestIsTypeModule_OptionalPropertyEmitBody(t *testing.T) {
+func TestValidateModule_OptionalPropertyEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	propA := &protocol.RunType{
 		ID:         "pA",
@@ -471,12 +471,12 @@ func TestIsTypeModule_OptionalPropertyEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_FunctionPropertyDropped — properties whose wrapped
+// TestValidateModule_FunctionPropertyDropped — properties whose wrapped
 // value is function-flavoured are dropped from the parent's AND
 // chain. Mirrors mion's `getRTChild → undefined` short-circuit for
 // methods. The interface body therefore reduces to the basic
 // typeof-object guard + the non-function siblings.
-func TestIsTypeModule_FunctionPropertyDropped(t *testing.T) {
+func TestValidateModule_FunctionPropertyDropped(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	fnRT := &protocol.RunType{ID: "fn", Kind: protocol.KindFunction}
 	propName := &protocol.RunType{
@@ -510,10 +510,10 @@ func TestIsTypeModule_FunctionPropertyDropped(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_IndexSignatureEmitBody covers KindIndexSignature —
+// TestValidateModule_IndexSignatureEmitBody covers KindIndexSignature —
 // the for-in iteration over the object's own keys with a value-type
 // check. Mirrors mion's IndexSignatureRunType.emitIsType.
-func TestIsTypeModule_IndexSignatureEmitBody(t *testing.T) {
+func TestValidateModule_IndexSignatureEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	idx := &protocol.RunType{
 		ID:    "ix",
@@ -537,9 +537,9 @@ func TestIsTypeModule_IndexSignatureEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_FunctionTopLevelEmitBody — a free-standing function
+// TestValidateModule_FunctionTopLevelEmitBody — a free-standing function
 // runtype emits the bare `typeof === 'function'` check.
-func TestIsTypeModule_FunctionTopLevelEmitBody(t *testing.T) {
+func TestValidateModule_FunctionTopLevelEmitBody(t *testing.T) {
 	dump := protocol.Dump{RunTypes: []*protocol.RunType{{ID: "fn1", Kind: protocol.KindFunction}}}
 	out := renderToString(t, dump)
 	if !strings.Contains(out, "return typeof v === 'function'") {
@@ -547,10 +547,10 @@ func TestIsTypeModule_FunctionTopLevelEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_TupleEmitBody covers KindTuple. Body shape (CodeRB)
+// TestValidateModule_TupleEmitBody covers KindTuple. Body shape (CodeRB)
 // is: Array.isArray guard → length-bound guard (when no rest) → per-
 // member check sequence → return true.
-func TestIsTypeModule_TupleEmitBody(t *testing.T) {
+func TestValidateModule_TupleEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
 	pos0 := 0
@@ -590,9 +590,9 @@ func TestIsTypeModule_TupleEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_TupleOptionalMember — optional tuple element wraps
+// TestValidateModule_TupleOptionalMember — optional tuple element wraps
 // with `(v[i] === undefined || (childCheck))`.
-func TestIsTypeModule_TupleOptionalMember(t *testing.T) {
+func TestValidateModule_TupleOptionalMember(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	pos0 := 0
 	member0 := &protocol.RunType{
@@ -614,9 +614,9 @@ func TestIsTypeModule_TupleOptionalMember(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_UnionAtomicEmitBody — union of atomic types
+// TestValidateModule_UnionAtomicEmitBody — union of atomic types
 // produces an OR-chain.
-func TestIsTypeModule_UnionAtomicEmitBody(t *testing.T) {
+func TestValidateModule_UnionAtomicEmitBody(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	numberRT := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
 	un := &protocol.RunType{
@@ -635,11 +635,11 @@ func TestIsTypeModule_UnionAtomicEmitBody(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_UnionObjectsShareNullGuard — when union members
+// TestValidateModule_UnionObjectsShareNullGuard — when union members
 // include object-like kinds, the emit lifts the
 // `typeof === 'object' && !== null` guard outside their OR-chain so a
 // null input short-circuits before any property access.
-func TestIsTypeModule_UnionObjectsShareNullGuard(t *testing.T) {
+func TestValidateModule_UnionObjectsShareNullGuard(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	propA := &protocol.RunType{
 		ID:         "pA",
@@ -668,7 +668,7 @@ func TestIsTypeModule_UnionObjectsShareNullGuard(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
+func TestValidateModule_UnsupportedKindSkipped(t *testing.T) {
 	// KindIntersection stays unsupported — mion resolves intersections
 	// at compile time into ObjectLiteral / Never, so the emitter never
 	// renders an Intersection factory. KindUnion with no children also
@@ -693,13 +693,13 @@ func TestIsTypeModule_UnsupportedKindSkipped(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_CodeNSPropagation covers the bubble-up semantics
+// TestValidateModule_CodeNSPropagation covers the bubble-up semantics
 // the renderer relies on now that the per-entry `subtreeFullySupported`
 // pre-walk is gone. Each row asserts that an unsupported leaf
 // somewhere in the subtree causes the top-level factory to be silently
 // skipped (no panic, no malformed code), while sibling supported
 // entries in the same dump still render normally.
-func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
+func TestValidateModule_CodeNSPropagation(t *testing.T) {
 	stringRT := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	// KindIntersection is unsupported at the leaf — used here as a
 	// stand-in for "any future kind without an emit". We could equally
@@ -827,7 +827,7 @@ func TestIsTypeModule_CodeNSPropagation(t *testing.T) {
 	})
 }
 
-func TestIsTypeModule_NilRunTypeSkipped(t *testing.T) {
+func TestValidateModule_NilRunTypeSkipped(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
 			nil,
@@ -841,7 +841,7 @@ func TestIsTypeModule_NilRunTypeSkipped(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_DeterministicOutput(t *testing.T) {
+func TestValidateModule_DeterministicOutput(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
 			{ID: "a", Kind: protocol.KindString},
@@ -855,7 +855,7 @@ func TestIsTypeModule_DeterministicOutput(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_TypeNameUsesDeclaredOverride(t *testing.T) {
+func TestValidateModule_TypeNameUsesDeclaredOverride(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
 			{ID: "x", Kind: protocol.KindString, TypeName: "MyBrandedString"},
@@ -915,7 +915,7 @@ func TestPureFnDepsJS_EmptyAndPopulated(t *testing.T) {
 	}
 }
 
-func TestIsTypeModule_PureFnDepsRendered(t *testing.T) {
+func TestValidateModule_PureFnDepsRendered(t *testing.T) {
 	deps := pureFnDepsJS([]protocol.PureFnDep{
 		{Namespace: "mion", FunctionName: "asJSONString", FilePath: "/some/abs/run-types-pure-fns.ts"},
 	})
