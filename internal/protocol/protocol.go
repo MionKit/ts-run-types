@@ -531,6 +531,14 @@ type Site struct {
 	// reversible. One entry for a simple family / it-te variant; several for a
 	// composite JSON strategy. Empty for reflection-only sites.
 	Demand []SiteDemand `json:"demand,omitempty"`
+	// Module, when non-empty, is the bundle-module BASENAME this site's entry
+	// rides in (allSingle module mode): the rewrite imports the entry as a
+	// NAMED export of `virtual:rt/<Module>.js` instead of renaming the
+	// per-entry module's fixed `e`. Empty in default/allModules mode. Derived
+	// statically from mode + site shape, so it is present on every scanFiles
+	// response — including the plain transform path that skips entry-module
+	// collection.
+	Module string `json:"module,omitempty"`
 }
 
 // SiteDemand is one cache entry a createX site requires: the family + variant to
@@ -560,6 +568,10 @@ type Replacement struct {
 	// the substituted expression to resolve — e.g.
 	// `virtual:rt/pf/mion/foo.js`. Empty for plain text substitutions.
 	ImportFrom string `json:"importFrom,omitempty"`
+	// Named marks Text as a NAMED export of ImportFrom (allSingle module
+	// mode, where the pure-fn entry rides the `pf` bundle): the plugin
+	// imports `{<Text>}` directly instead of renaming the fixed `e`.
+	Named bool `json:"named,omitempty"`
 }
 
 // Dump is the build-end manifest written to runtypes-cache.json.

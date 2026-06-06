@@ -44,9 +44,11 @@ import type {RTUtils} from './rtUtils.ts';
 import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
-// family tag string instead. Runtype nodes don't ship as standalone modules:
-// they ride as headless ROWS of the single data bundle (kind 4), aliased per
-// reflection root by facade modules (kind 5).
+// family tag string instead. Runtype nodes normally ride as headless ROWS of
+// the single data bundle (kind 4), aliased per reflection root by facade
+// modules (kind 5); kind 0 is the standalone per-node module form emitted
+// only under `moduleMode: 'allModules'`.
+const KIND_RUN_TYPE = 0;
 const KIND_PURE_FN = 2;
 const KIND_MISSING = 3;
 const KIND_RUN_TYPE_BUNDLE = 4;
@@ -105,6 +107,16 @@ const RUN_TYPE_FIELD_KEYS = [
  *  RUN_TYPE_FIELD_KEYS). Rows carry no tuple head — the bundle module hosts
  *  the shared deps thunk and the single combined ini. **/
 export type RunTypeRowRecord = Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number]>;
+
+/** Named view of a standalone per-node runtype module (kind 0 — emitted only
+ *  under `moduleMode: 'allModules'`): the shared head plus the same scalar
+ *  identification fields a bundle row carries; the per-entry ini patches this
+ *  one node's ref slots. **/
+export interface RunTypeRecord extends RunTypeRowRecord {
+  entryKind: typeof KIND_RUN_TYPE;
+  deps: EntryDepsThunk;
+  ini: RunTypeIni | undefined;
+}
 
 /** Named view of THE runtype data-bundle module (`virtual:rt/runtypes.js`):
  *  every reflection-demanded node as one headless row plus one combined
@@ -193,6 +205,7 @@ const ENTRY_HEAD_KEYS = ['entryKind', 'deps', 'ini'] as const;
 type RunTypeRowRequiredKeys = readonly ['id', 'kind'];
 type RunTypeRowTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
 
+export const RUN_TYPE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, ...RUN_TYPE_FIELD_KEYS] as const;
 export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows'] as const;
 export const RUN_TYPE_FACADE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
@@ -225,6 +238,13 @@ export type RunTypeRow = readonly [
   ...Partial<TupleFrom<RunTypeRowRecord, RunTypeRowTrimmedKeys>>,
 ];
 
+/** Positional tuple of a standalone per-node runtype module (allModules
+ *  mode) — the head plus the row fields, trailing-undefined slots trimmed. **/
+export type RunTypeTuple = readonly [
+  ...TupleFrom<RunTypeRecord, readonly [...typeof ENTRY_HEAD_KEYS, ...RunTypeRowRequiredKeys]>,
+  ...Partial<TupleFrom<RunTypeRecord, RunTypeRowTrimmedKeys>>,
+];
+
 /** Positional tuple of the runtype data-bundle module — derived from
  *  RunTypeBundleRecord. **/
 export type RunTypeBundleTuple = readonly [...TupleFrom<RunTypeBundleRecord, typeof RUN_TYPE_BUNDLE_TUPLE_KEYS>];
@@ -246,7 +266,7 @@ export type PureFnTuple = readonly [...TupleFrom<PureFnRecord, typeof PURE_FN_TU
 export type MissingTuple = readonly [...TupleFrom<MissingRecord, typeof MISSING_TUPLE_KEYS>];
 
 /** One emitted entry-module tuple — the union every consumer handles. **/
-export type EntryTuple = RunTypeBundleTuple | RunTypeFacadeTuple | FnTypeTuple | PureFnTuple | MissingTuple;
+export type EntryTuple = RunTypeTuple | RunTypeBundleTuple | RunTypeFacadeTuple | FnTypeTuple | PureFnTuple | MissingTuple;
 
 // Fixed-head slot indexes, pinned at compile time against every keys array so
 // a layout edit that moves a head slot fails the build here, not at runtime.
@@ -440,11 +460,48 @@ function registerTuple(utils: RTUtils, tuple: EntryTuple): boolean {
   const slot0 = tuple[SLOT_KIND];
   if (typeof slot0 === 'string') return registerTypeFnTuple(utils, tuple as FnTypeTuple);
   if (slot0 === KIND_RUN_TYPE_BUNDLE) return registerRunTypeBundle(utils, tuple as RunTypeBundleTuple);
+  if (slot0 === KIND_RUN_TYPE) return registerRunTypeTuple(utils, tuple as RunTypeTuple);
   if (slot0 === KIND_PURE_FN) return registerPureFnTuple(utils, tuple as PureFnTuple);
   // A facade only carries its root id — the data arrived through its bundle
   // dep. Missing stubs and unknown future kinds register nothing either.
   if (slot0 === KIND_RUN_TYPE_FACADE) return false;
   return false;
+}
+
+// runTypeEntryFromRecord builds the registered RunType from its wire-carried
+// identification fields: every ref-bearing slot starts undefined and is
+// patched by the matching ini (the bundle's combined footer, or the per-node
+// module's own ini in allModules mode).
+function runTypeEntryFromRecord(record: RunTypeRowRecord): RunType {
+  return {
+    ...record,
+    child: undefined,
+    index: undefined,
+    return: undefined,
+    indexType: undefined,
+    parameters: undefined,
+    children: undefined,
+    safeUnionChildren: undefined,
+    unionDiscriminators: undefined,
+    typeMeta: undefined,
+    typeArguments: undefined,
+    arguments: undefined,
+    extendsArguments: undefined,
+    implements: undefined,
+    extends: undefined,
+    classType: undefined,
+  };
+}
+
+// registerRunTypeTuple registers one standalone per-node runtype module
+// (kind 0 — allModules mode): the record's identification fields ride the
+// tuple after the head; the node's ini patches its ref slots in phase 2.
+// Re-registration is skipped so footer-patched entries are never reset.
+function registerRunTypeTuple(utils: RTUtils, tuple: RunTypeTuple): boolean {
+  const record = tupleToRecord<RunTypeRecord>(RUN_TYPE_TUPLE_KEYS, tuple);
+  if (utils.hasRunType(record.id)) return false;
+  utils.addRunType(record.id, runTypeEntryFromRecord(record));
+  return true;
 }
 
 // registerRunTypeBundle registers every headless row of the data bundle —
@@ -461,25 +518,7 @@ function registerRunTypeBundle(utils: RTUtils, tuple: RunTypeBundleTuple): boole
   for (const row of rows) {
     const record = tupleToRecord<RunTypeRowRecord>(RUN_TYPE_FIELD_KEYS, row);
     if (utils.hasRunType(record.id)) continue;
-    const entry: RunType = {
-      ...record,
-      child: undefined,
-      index: undefined,
-      return: undefined,
-      indexType: undefined,
-      parameters: undefined,
-      children: undefined,
-      safeUnionChildren: undefined,
-      unionDiscriminators: undefined,
-      typeMeta: undefined,
-      typeArguments: undefined,
-      arguments: undefined,
-      extendsArguments: undefined,
-      implements: undefined,
-      extends: undefined,
-      classType: undefined,
-    };
-    utils.addRunType(record.id, entry);
+    utils.addRunType(record.id, runTypeEntryFromRecord(record));
     added = true;
   }
   return added;

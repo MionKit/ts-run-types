@@ -80,6 +80,13 @@ type Options struct {
 	// inline-factory path (via createValidate<T>) and the new-Function
 	// path (via deserializeValidate<T>) on every case.
 	EmitCreateRTFn bool
+	// ModuleMode selects how cache entries group into virtual modules:
+	// constants.ModuleModeDefault (or empty — runtype bundle + per-entry fn
+	// modules), ModuleModeAllSingle (per-family bundles, fewest modules), or
+	// ModuleModeAllModules (per-node runtype modules too — the pre-bundle
+	// layout). Validated at the CLI boundary; unknown values behave as
+	// default.
+	ModuleMode string
 }
 
 // Resolver owns a Program and answers type queries against it. The serializer

@@ -110,7 +110,7 @@ func TestReplacements_SwapsFactoryArgForBinding(t *testing.T) {
 		FactoryArgStart: 50,
 		FactoryArgEnd:   100,
 	}}
-	got := Replacements(entries)
+	got := Replacements(entries, false)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 replacement, got %d (%+v)", len(got), got)
 	}
@@ -133,7 +133,7 @@ func TestReplacements_SkipsEntriesWithoutBounds(t *testing.T) {
 		{Namespace: "a", FunctionName: "b", FilePath: "/x.ts"},                      // missing bounds
 		{Namespace: "c", FunctionName: "d", FactoryArgStart: 10, FactoryArgEnd: 20}, // missing FilePath
 	}
-	if got := Replacements(entries); len(got) != 0 {
+	if got := Replacements(entries, false); len(got) != 0 {
 		t.Errorf("expected zero replacements for malformed entries, got %+v", got)
 	}
 }

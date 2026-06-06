@@ -16,6 +16,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -135,7 +136,12 @@ func elapsedMs(start time.Time) float64 {
 // the global dangling-dep cascade, and missing stubs for demanded keys that
 // didn't survive. Returns the rendered modules keyed by module BASENAME.
 func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns.RenderOpts, pureFnGraph entrymod.Graph, metrics *protocol.Metrics) (map[string]string, error) {
-	graph := runtype.CollectEntries(dump)
+	var graph entrymod.Graph
+	if resolver.opts.ModuleMode == constants.ModuleModeAllModules {
+		graph = runtype.CollectEntriesPerNode(dump)
+	} else {
+		graph = runtype.CollectEntries(dump)
+	}
 
 	familyGraphs, err := resolver.collectFamilies(dump, rtOpts, metrics)
 	if err != nil {
@@ -155,10 +161,22 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	// KindMissing stubs so the imports the plugin injected still resolve, and
 	// the runtime degrades to the family identity fn exactly as before.
 	graph.Cascade()
-	graph.AddMissingStubs(demandedEntryKeys(dump.Sites))
+	demanded, demandTags := demandedEntryKeys(dump.Sites)
+	graph.AddMissingStubs(demanded)
+	// allSingle: a dropped demanded key must stay importable at the bundle
+	// the site's import points at (Site.Module) — tag its stub so the
+	// grouping routes it into that family bundle. Untagged stubs (soft-dep
+	// fallbacks no site demanded) keep their own per-entry module.
+	if resolver.opts.ModuleMode == constants.ModuleModeAllSingle {
+		for key, entry := range graph {
+			if entry.Kind == entrymod.KindMissing && entry.FamilyTag == "" {
+				entry.FamilyTag = demandTags[key]
+			}
+		}
+	}
 
 	renderStart := time.Now()
-	modules, err := entrymod.Render(graph)
+	modules, err := entrymod.RenderGrouped(graph, resolver.moduleGrouping())
 	if metrics != nil {
 		metrics.RenderMs["entryModules"] = elapsedMs(renderStart)
 	}
@@ -332,10 +350,14 @@ func (resolver *Resolver) resolveCrossFamilyEdges(graph entrymod.Graph, dump pro
 // `<fnHash>_<typeId>` key for every createX site (reflection sites import the
 // runtype entry, which always exists for interned types). The stub pass turns
 // any demanded key that didn't survive collection into a resolvable
-// KindMissing module.
-func demandedEntryKeys(sites []protocol.Site) []string {
+// KindMissing module. The second return maps each demanded key to its
+// family tag (the Demand entry whose FnHash keyed the site) — allSingle mode
+// uses it to place dropped-key stubs inside the family bundle the site's
+// import points at.
+func demandedEntryKeys(sites []protocol.Site) ([]string, map[string]string) {
 	var keys []string
 	seen := map[string]bool{}
+	tags := map[string]string{}
 	for _, site := range sites {
 		if site.ID == "" || site.FnId == "" {
 			continue
@@ -344,10 +366,75 @@ func demandedEntryKeys(sites []protocol.Site) []string {
 		if !seen[key] {
 			seen[key] = true
 			keys = append(keys, key)
+			for _, demand := range site.Demand {
+				if demand.FnHash == site.FnId {
+					tags[key] = demand.FamilyTag
+					break
+				}
+			}
 		}
 	}
 	sort.Strings(keys)
-	return keys
+	return keys, tags
+}
+
+// moduleGrouping returns the entrymod.Grouping for the resolver's module
+// mode. Nil (everything per-entry, the runtype bundle shaping its own module
+// via CollectEntries) for default/allModules; the allSingle partition
+// otherwise: fn/composite entries ride `fns/<familyTag>` bundles, pure fns
+// the `pf` bundle, the reflection facades fold into the runtypes bundle, and
+// missing stubs follow their demanding site's family (per-entry when no site
+// demanded them — soft-dep stubs keep their own resolvable module).
+func (resolver *Resolver) moduleGrouping() entrymod.Grouping {
+	if resolver.opts.ModuleMode != constants.ModuleModeAllSingle {
+		return nil
+	}
+	return func(entry *entrymod.Entry) string {
+		switch entry.Kind {
+		case entrymod.KindTypeFn:
+			return constants.FnsBundleDir + "/" + entry.FamilyTag
+		case entrymod.KindMissing:
+			if entry.FamilyTag != "" {
+				return constants.FnsBundleDir + "/" + entry.FamilyTag
+			}
+			return ""
+		case entrymod.KindPureFn:
+			return constants.PureFnModuleDir
+		case entrymod.KindRunTypeBundle, entrymod.KindRunTypeFacade:
+			return constants.RunTypesBundleBasename
+		}
+		return ""
+	}
+}
+
+// stampSiteModules annotates sites with the bundle basename their entry rides
+// in under allSingle mode (Site.Module). The mapping is mode-static —
+// reflection sites point at the runtypes bundle, createX sites at their
+// demand family's bundle — so the plain transform scan (no entry-module
+// collection) stamps identically to the dump path. Returns a copy when
+// stamping occurs; other modes pass sites through untouched.
+func (resolver *Resolver) stampSiteModules(sites []protocol.Site) []protocol.Site {
+	if resolver.opts.ModuleMode != constants.ModuleModeAllSingle || len(sites) == 0 {
+		return sites
+	}
+	out := make([]protocol.Site, len(sites))
+	copy(out, sites)
+	for i := range out {
+		if out[i].ID == "" {
+			continue
+		}
+		if out[i].FnId == "" {
+			out[i].Module = constants.RunTypesBundleBasename
+			continue
+		}
+		for _, demand := range out[i].Demand {
+			if demand.FnHash == out[i].FnId {
+				out[i].Module = constants.FnsBundleDir + "/" + demand.FamilyTag
+				break
+			}
+		}
+	}
+	return out
 }
 
 // dispatch is the un-instrumented op switch. metrics may be nil (the
@@ -389,7 +476,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
 		response := protocol.Response{
-			Sites:         sites,
+			Sites:         resolver.stampSiteModules(sites),
 			Replacements:  pureFnReplacements,
 			AddedRunTypes: addedRunTypes,
 			AddedPureFns:  addedPureFns,
@@ -466,7 +553,7 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		}
 		fullDump := protocol.Dump{
 			RunTypes: resolver.cache.Dump(),
-			Sites:    resolver.Sites(),
+			Sites:    resolver.stampSiteModules(resolver.Sites()),
 		}
 		response := protocol.Response{
 			RunTypes: fullDump.RunTypes,
@@ -587,7 +674,7 @@ func (resolver *Resolver) extractPureFnsForScan(files []string) (entries []puref
 			changed = true
 		}
 	}
-	replacements = purefns.Replacements(entries)
+	replacements = purefns.Replacements(entries, resolver.opts.ModuleMode == constants.ModuleModeAllSingle)
 	return entries, diagnostics, replacements, changed
 }
 

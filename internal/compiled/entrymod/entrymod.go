@@ -283,11 +283,35 @@ func ImportSpecifier(basename string) string {
 	return constants.VirtualModulePrefix + basename + constants.EntryModuleSuffix
 }
 
+// Grouping assigns an entry to a bundle module: a non-empty return is the
+// bundle BASENAME the entry rides in (as a named export under
+// ExportName(entry)); empty means the entry gets its own per-entry module.
+// nil Grouping == everything per-entry (default module mode).
+type Grouping func(*Entry) string
+
+// ExportName is the named-export identifier a bundled entry exports under —
+// BindingName over the entry's per-entry basename, so the identifier the
+// rewrite splices at call sites (`__rt_<basename>`) IS the export name and
+// bundle imports never rename.
+func ExportName(entry *Entry) string {
+	return BindingName(ModuleName(entry.Key, entry.Kind))
+}
+
 // Render assembles one ES module source per entry and returns them keyed by
 // MODULE BASENAME (== the `virtual:rt/<basename>.js` segment the Vite plugin
 // resolves). Callers run Cascade + AddMissingStubs first; a dep that still
 // doesn't resolve here is a programmer error and fails loudly.
 func Render(graph Graph) (map[string]string, error) {
+	return RenderGrouped(graph, nil)
+}
+
+// RenderGrouped assembles the graph's modules under a grouping: entries the
+// grouping maps to the same bundle basename render into ONE module (each as a
+// named export), everything else renders per-entry exactly as Render. Bundle
+// members reference same-bundle deps as direct const identifiers; deps living
+// elsewhere import as usual (`e`-rename for per-entry modules, named import
+// for other bundles).
+func RenderGrouped(graph Graph, grouping Grouping) (map[string]string, error) {
 	keys := make([]string, 0, len(graph))
 	for key := range graph {
 		keys = append(keys, key)
@@ -299,14 +323,40 @@ func Render(graph Graph) (map[string]string, error) {
 		return nil, err
 	}
 
+	groupOf := make(map[string]string, len(graph))
+	bundles := make(map[string][]string)
+	if grouping != nil {
+		for _, key := range keys {
+			if bundle := grouping(graph[key]); bundle != "" {
+				groupOf[key] = bundle
+				bundles[bundle] = append(bundles[bundle], key)
+			}
+		}
+	}
+
 	out := make(map[string]string, len(graph))
 	for _, key := range keys {
+		if groupOf[key] != "" {
+			continue
+		}
 		entry := graph[key]
-		source, err := renderModule(graph, entry, order)
+		source, err := renderModule(graph, entry, order, groupOf)
 		if err != nil {
 			return nil, err
 		}
 		out[ModuleName(entry.Key, entry.Kind)] = source
+	}
+	bundleNames := make([]string, 0, len(bundles))
+	for name := range bundles {
+		bundleNames = append(bundleNames, name)
+	}
+	sort.Strings(bundleNames)
+	for _, name := range bundleNames {
+		source, err := renderBundle(graph, name, bundles[name], order, groupOf)
+		if err != nil {
+			return nil, err
+		}
+		out[name] = source
 	}
 	return out, nil
 }
@@ -463,8 +513,34 @@ func directDeps(graph Graph, entry *Entry, order levels) ([]string, error) {
 	return deps, nil
 }
 
+// depBinding resolves the identifier a module references for one dep, writing
+// the matching import line into imports (deduped per identifier): per-entry
+// deps import `e` renamed positionally (d1…dN); bundled deps import their
+// named export from the bundle (no rename — the export name IS the binding).
+// Same-bundle deps (selfBundle non-empty) reference the sibling const
+// directly with no import at all.
+func depBinding(graph Graph, depKey string, position int, selfBundle string, groupOf map[string]string, imports *strings.Builder, imported map[string]bool) string {
+	target := graph[depKey]
+	bundle := groupOf[depKey]
+	if bundle != "" && bundle == selfBundle {
+		return ExportName(target)
+	}
+	if bundle != "" {
+		name := ExportName(target)
+		if !imported[name] {
+			imported[name] = true
+			imports.WriteString("import {" + name + "} from " + jsquote.Single(ImportSpecifier(bundle)) + ";\n")
+		}
+		return name
+	}
+	name := "d" + strconv.Itoa(position)
+	imports.WriteString("import {" + constants.EntryExportName + " as " + name + "} from " +
+		jsquote.Single(ImportSpecifier(ModuleName(target.Key, target.Kind))) + ";\n")
+	return name
+}
+
 // renderModule emits one entry's module source.
-func renderModule(graph Graph, entry *Entry, order levels) (string, error) {
+func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]string) (string, error) {
 	var body strings.Builder
 
 	// Missing stubs: no imports, no deps thunk, no args — just the key.
@@ -481,21 +557,23 @@ func renderModule(graph Graph, entry *Entry, order levels) (string, error) {
 	}
 
 	// Import block — the direct deps, in (level, alpha) order. Binding names
-	// are positional (d1…dN); the export name is fixed so importers always
-	// rename.
+	// are positional (d1…dN) for per-entry deps; bundled deps arrive as named
+	// imports.
+	var imports strings.Builder
+	imported := make(map[string]bool)
+	bindings := make([]string, len(deps))
 	for i, key := range deps {
-		target := graph[key]
-		body.WriteString("import {" + constants.EntryExportName + " as d" + strconv.Itoa(i+1) + "} from " +
-			jsquote.Single(ImportSpecifier(ModuleName(target.Key, target.Kind))) + ";\n")
+		bindings[i] = depBinding(graph, key, i+1, "", groupOf, &imports, imported)
 	}
+	body.WriteString(imports.String())
 
 	body.WriteString("const u=undefined;\n")
 
 	// deps() thunk — direct deps in import order, self last via the export
 	// binding (the runtime's recursive walk skips it).
 	body.WriteString("const deps=()=>[")
-	for i := range deps {
-		body.WriteString("d" + strconv.Itoa(i+1) + ",")
+	for _, binding := range bindings {
+		body.WriteString(binding + ",")
 	}
 	body.WriteString(constants.EntryExportName + "];\n")
 
@@ -524,6 +602,73 @@ func renderModule(graph Graph, entry *Entry, order levels) (string, error) {
 	}
 	body.WriteString("];\n")
 	return body.String(), nil
+}
+
+// renderBundle emits ONE module carrying every member entry as a named
+// export. Same module shape per member as renderModule's tuple, but the deps
+// thunk inlines into the tuple (no shared `deps` identifier to collide on),
+// same-bundle deps are direct const references, and per-member ini fns are
+// index-suffixed. Members render leaves-first (level, alpha) so the source
+// reads in dependency order; correctness doesn't depend on it (thunks are
+// lazy, inis run post-registration).
+func renderBundle(graph Graph, name string, memberKeys []string, order levels, groupOf map[string]string) (string, error) {
+	members := append([]string(nil), memberKeys...)
+	sort.SliceStable(members, func(i, j int) bool {
+		if order[members[i]] != order[members[j]] {
+			return order[members[i]] < order[members[j]]
+		}
+		return members[i] < members[j]
+	})
+
+	var imports strings.Builder
+	var body strings.Builder
+	imported := make(map[string]bool)
+	position := 0
+	body.WriteString("const u=undefined;\n")
+	for memberIndex, key := range members {
+		entry := graph[key]
+		exportName := ExportName(entry)
+		if entry.Kind == KindMissing {
+			body.WriteString("export const " + exportName + "=[" +
+				strconv.Itoa(int(KindMissing)) + ",u,u," + jsquote.Single(entry.Key) + "];\n")
+			continue
+		}
+		deps, err := directDeps(graph, entry, order)
+		if err != nil {
+			return "", err
+		}
+		bindings := make([]string, len(deps))
+		for i, dep := range deps {
+			position++
+			bindings[i] = depBinding(graph, dep, position, name, groupOf, &imports, imported)
+		}
+		iniSlot := "u"
+		if entry.InitBody != "" {
+			iniName := "ini" + strconv.Itoa(memberIndex)
+			body.WriteString("function " + iniName + "(rtu){const c=(id)=>rtu.useRunType(id);\n")
+			body.WriteString(entry.InitBody)
+			if !strings.HasSuffix(entry.InitBody, "\n") {
+				body.WriteByte('\n')
+			}
+			body.WriteString("}\n")
+			iniSlot = iniName
+		}
+		slot0, err := kindSlot(entry)
+		if err != nil {
+			return "", err
+		}
+		body.WriteString("export const " + exportName + "=[" + slot0 + ",()=>[")
+		for _, binding := range bindings {
+			body.WriteString(binding + ",")
+		}
+		body.WriteString(exportName + "]," + iniSlot)
+		if entry.ArgsText != "" {
+			body.WriteByte(',')
+			body.WriteString(entry.ArgsText)
+		}
+		body.WriteString("];\n")
+	}
+	return imports.String() + body.String(), nil
 }
 
 // kindSlot renders tuple slot 0: the numeric kind, or the quoted family tag

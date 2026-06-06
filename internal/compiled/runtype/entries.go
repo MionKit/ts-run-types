@@ -79,6 +79,33 @@ func CollectEntries(dump protocol.Dump) entrymod.Graph {
 	return graph
 }
 
+// CollectEntriesPerNode is the allModules-mode collector: one entrymod.Entry
+// per cached RunType (the pre-bundle layout). Tuple args reuse
+// renderFactoryArgs verbatim, the per-entry init body reuses writeFooter, and
+// Deps collects the KindRef ids the footer references so the assembler
+// imports each child's module. Every interned runtype gets an entry — demand
+// scoping happens at the dump layer (scopedDump for scanFiles, full cache for
+// dump). Measured slower than the bundle on dense reflection graphs (the
+// reason the bundle replaced it) — kept as the allModules escape hatch.
+func CollectEntriesPerNode(dump protocol.Dump) entrymod.Graph {
+	graph := make(entrymod.Graph, len(dump.RunTypes))
+	for _, runType := range dump.RunTypes {
+		if runType == nil || runType.ID == "" {
+			continue
+		}
+		var footer strings.Builder
+		writeFooter(&footer, runType)
+		graph.Add(&entrymod.Entry{
+			Key:      runType.ID,
+			Kind:     entrymod.KindRunType,
+			ArgsText: strings.Join(renderFactoryArgs(runType), ","),
+			InitBody: footer.String(),
+			Deps:     collectRefDeps(runType),
+		})
+	}
+	return graph
+}
+
 // reflectionRoots returns the deduped, sorted ids of every reflection-only
 // site — sites injecting the bare id (FnId empty), i.e. getRunTypeId /
 // reflectRunTypeId / value-first builders / createMockType. createX sites
