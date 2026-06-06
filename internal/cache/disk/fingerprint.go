@@ -17,8 +17,7 @@ import (
 // the resulting fingerprint moves and the previous cache is naturally
 // orphaned.
 type FingerprintInputs struct {
-	HashLength        int
-	LiteralHashLength int
+	HashLength int
 	// EmitCreateRTFn mirrors typefns.RenderOpts.EmitCreateRTFn —
 	// modules emitted with the inline factory have a different `Line`
 	// payload (arg-7 carries the full closure) than the default
@@ -33,16 +32,14 @@ type FingerprintInputs struct {
 // human-friendly, wide enough that collisions are not a practical
 // concern.
 //
-// The "v2" version tag was bumped from "v1" when the MarkerName /
-// MarkerModule inputs were dropped (the --marker-name / --marker-module
-// CLI flags went away with the marker migration). Bumping ensures
-// caches written by older binaries land under a different prefix.
+// The version tag bumps whenever an input is dropped, so caches written
+// by older binaries land under a different prefix: "v1"→"v2" dropped the
+// MarkerName / MarkerModule inputs (marker migration), "v2"→"v3" dropped
+// LiteralHashLength (literal ids merged into the single hash dictionary).
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v2\n")
+	sb.WriteString("v3\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
-	sb.WriteByte('\n')
-	sb.WriteString(strconv.Itoa(inputs.LiteralHashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(strconv.FormatBool(inputs.EmitCreateRTFn))
 	sb.WriteByte('\n')

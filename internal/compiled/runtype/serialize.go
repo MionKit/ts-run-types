@@ -32,12 +32,11 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// Options configures the serializer's hash budget. Zero values use the
-// hashid defaults (6 / 5 chars). Larger values reduce collision probability
+// Options configures the serializer's hash budget. Zero value uses the
+// hashid default (7 chars). Larger values reduce collision probability
 // in big codebases at the cost of source-code size.
 type Options struct {
-	HashLength        int
-	LiteralHashLength int
+	HashLength int
 }
 
 func (opts Options) hashLength() int {
@@ -45,13 +44,6 @@ func (opts Options) hashLength() int {
 		return opts.HashLength
 	}
 	return hashid.DefaultLength
-}
-
-func (opts Options) literalHashLength() int {
-	if opts.LiteralHashLength > 0 {
-		return opts.LiteralHashLength
-	}
-	return hashid.DefaultLiteralLength
 }
 
 // Cache holds the interned type table.
@@ -88,7 +80,6 @@ type Cache struct {
 	fileTypeIDs map[string]map[string]struct{}
 
 	dict        *hashid.Dict
-	literals    *hashid.Dict
 	typeChecker *checker.Checker
 	idComputer  *typeid.Computer
 
@@ -122,7 +113,6 @@ func NewCache(typeChecker *checker.Checker, opts Options) *Cache {
 		nodes:        make(map[string]*protocol.RunType),
 		fileTypeIDs:  make(map[string]map[string]struct{}),
 		dict:         hashid.New(),
-		literals:     hashid.New(),
 		typeChecker:  typeChecker,
 		idComputer:   typeid.New(typeChecker),
 		inProgress:   make(map[string]bool),
@@ -150,7 +140,7 @@ func (cache *Cache) putNode(id string, node *protocol.RunType) {
 // entries are render-ready without a per-dispatch PopulateFamily pass.
 func (cache *Cache) NodesView() map[string]*protocol.RunType { return cache.nodes }
 
-// Clear drops every interned type and resets the hash dictionaries. Used by
+// Clear drops every interned type and resets the hash dictionary. Used by
 // the resolver when a `resetCache` op arrives, or implicitly when a fresh
 // session is established. Safe to call concurrently with… nothing — the
 // cache is not thread-safe (same constraint as the package as a whole).
@@ -162,7 +152,6 @@ func (cache *Cache) Clear() {
 	cache.insertOrder = cache.insertOrder[:0]
 	cache.fileTypeIDs = make(map[string]map[string]struct{})
 	cache.dict = hashid.New()
-	cache.literals = hashid.New()
 	cache.foreignComputers = nil
 	cache.inProgress = make(map[string]bool)
 	cache.circularIDs = make(map[string]bool)
@@ -298,9 +287,9 @@ func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 	if id, ok := cache.byStructural[structural]; ok {
 		return id
 	}
-	id, err := cache.uniqueLiteralDict(structural, cache.opts.literalHashLength())
+	id, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
-		id = "x_at_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
+		id = "x_at_" + hashid.QuickHash(structural, cache.opts.hashLength(), "")
 	}
 	cache.intern(structural, id)
 	cache.putNode(id, &protocol.RunType{ID: id, Kind: kind})
@@ -395,23 +384,17 @@ func (cache *Cache) intern(structural, id string) {
 
 // versionSalt prefixes every hash input so the same structural id maps
 // to different short hashes across binary versions. Folded into the
-// rolling hash via UniqueSalted — never retained per id, so the dicts
-// store only the bare structural string (which shares its backing bytes
+// rolling hash via UniqueSalted — never retained per id, so the dict
+// stores only the bare structural string (which shares its backing bytes
 // with byStructural's copy). Read at call time (not a package var):
 // version_test.go swaps constants.Version mid-process to pin the
 // embedding behavior. The tiny transient concat happens once per
 // dict-miss, i.e. once per new node.
 func versionSalt() string { return constants.Version + "|" }
 
-// uniqueDict assigns a short hash for structural via the main dict.
+// uniqueDict assigns a short hash for structural via the dict.
 func (cache *Cache) uniqueDict(structural string, length int) (string, error) {
 	return cache.dict.UniqueSalted(versionSalt(), structural, length)
-}
-
-// uniqueLiteralDict is uniqueDict for the literal-budget dict — same
-// version-embedding, separate hash table for literal-typed ids.
-func (cache *Cache) uniqueLiteralDict(structural string, length int) (string, error) {
-	return cache.literals.UniqueSalted(versionSalt(), structural, length)
 }
 
 // NodesForIDs returns the canonical *RunType entries for the given ids, in
@@ -451,14 +434,8 @@ func (cache *Cache) assignID(tsType *checker.Type) string {
 		return id
 	}
 
-	// Hash the structural id. Literal kinds use the shorter literal-budget.
-	var id string
-	var err error
-	if isLiteralStructural(structural) {
-		id, err = cache.uniqueLiteralDict(structural, cache.opts.literalHashLength())
-	} else {
-		id, err = cache.uniqueDict(structural, cache.opts.hashLength())
-	}
+	// Hash the structural id.
+	id, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
 		// Unrecoverable hash exhaustion — fall back to a hash of the
 		// structural string. The structural form contains `:` separators,
@@ -502,13 +479,6 @@ func (cache *Cache) internEmpty(kind protocol.ReflectionKind, markerName string)
 	cache.intern(structural, id)
 	cache.putNode(id, &protocol.RunType{ID: id, Kind: kind, Flags: []string{markerName}})
 	return id
-}
-
-func isLiteralStructural(structural string) bool {
-	// Per typeid.dispatch, literals start with the kind number followed by a colon.
-	// The literal kind is `protocol.KindLiteral`. Encoded as "13:..." when we
-	// renumber to ReflectionKind values. Use a byte check rather than parsing.
-	return len(structural) > 3 && structural[0] == '1' && structural[1] == '3' && structural[2] == ':'
 }
 
 // ---------------------------------------------------------------------------

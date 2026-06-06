@@ -24,10 +24,8 @@ const (
 	hashChars  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	prime      = uint32(37)
 
-	// DefaultLength is the starting hash length for type ids.
-	DefaultLength = 6
-	// DefaultLiteralLength is the starting hash length for literal-typed ids.
-	DefaultLiteralLength = 5
+	// DefaultLength is the starting hash length for type ids (literals included).
+	DefaultLength = 7
 
 	// hashIncrement: collision attempt N grows the length by N*hashIncrement.
 	hashIncrement = 2
