@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/compiled/typefns/formats"
+	"github.com/mionkit/ts-run-types/internal/jsquote"
 )
 
 // pureFnAlias binds this package's pure-fn source path into the shared
@@ -58,11 +59,11 @@ func messageLiteral(params map[string]any, name string) string {
 	if name != "pattern" {
 		if obj, ok := params[name].(map[string]any); ok {
 			if msg, ok := obj["errorMessage"].(string); ok && msg != "" {
-				return quoteJSDoubleLocal(msg)
+				return jsquote.Double(msg)
 			}
 		}
 	}
-	return quoteJSDoubleLocal(defaultFormatMessages[name])
+	return jsquote.Double(defaultFormatMessages[name])
 }
 
 // jsParamsLiteral renders a params map as a deterministic JS object

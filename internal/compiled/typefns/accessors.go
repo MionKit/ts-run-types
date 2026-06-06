@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mionkit/ts-run-types/internal/jsquote"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -22,33 +23,10 @@ func propertyAccessor(parent, name string, safe bool) string {
 	return parent + "[" + quoteJS(name) + "]"
 }
 
-// quoteJSDouble produces a double-quoted JS string literal. Used for
-// the regex-source string we pass to `new RegExp(...)` — double
-// quotes avoid the escaping noise that single-quoting regex sources
-// produces (regexes are dense with backslashes already).
-func quoteJSDouble(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('"')
-	for _, r := range s {
-		switch r {
-		case '\\':
-			b.WriteString(`\\`)
-		case '"':
-			b.WriteString(`\"`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	b.WriteByte('"')
-	return b.String()
-}
+// quoteJSDouble produces a double-quoted JS string literal — shorthand
+// for the shared jsquote.Double (regex sources are dense with
+// backslashes; double quotes keep them readable).
+func quoteJSDouble(s string) string { return jsquote.Double(s) }
 
 // positionStr returns the tuple element's index as a JS literal.
 // Falls back to "0" when Position is nil (defensive — shouldn't

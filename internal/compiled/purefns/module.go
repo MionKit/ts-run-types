@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mionkit/ts-run-types/internal/cachetpl"
+	"github.com/mionkit/ts-run-types/internal/jsquote"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -30,13 +31,13 @@ func PureFnsModule(writer io.Writer, entries []Entry) error {
 	var body strings.Builder
 	for _, entry := range entries {
 		body.WriteString("factory(")
-		body.WriteString(quoteJS(entry.Key()))
+		body.WriteString(jsquote.Single(entry.Key()))
 		body.WriteByte(',')
-		body.WriteString(quoteJS(entry.BodyHash))
+		body.WriteString(jsquote.Single(entry.BodyHash))
 		body.WriteByte(',')
 		body.WriteString(paramNamesJS(entry.ParamNames))
 		body.WriteByte(',')
-		body.WriteString(quoteJS(entry.Code))
+		body.WriteString(jsquote.Single(entry.Code))
 		body.WriteByte(',')
 		body.WriteString(depKeysJS(entry.PureFnDependencies))
 		body.WriteByte(',')
@@ -98,36 +99,9 @@ func depKeysJS(keys []string) string {
 	}
 	parts := make([]string, len(keys))
 	for i, key := range keys {
-		parts[i] = quoteJS(key)
+		parts[i] = jsquote.Single(key)
 	}
 	return "[" + strings.Join(parts, ",") + "]"
-}
-
-// quoteJS renders s as a single-quoted JS string literal. Mirrors the same
-// helper in internal/typefns/quote.go (kept private to this package to avoid
-// a cross-package edge for one tiny helper).
-func quoteJS(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('\'')
-	for _, r := range s {
-		switch r {
-		case '\\':
-			b.WriteString(`\\`)
-		case '\'':
-			b.WriteString(`\'`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	b.WriteByte('\'')
-	return b.String()
 }
 
 func paramNamesJS(names []string) string {
@@ -136,7 +110,7 @@ func paramNamesJS(names []string) string {
 	}
 	parts := make([]string, len(names))
 	for i, name := range names {
-		parts[i] = quoteJS(name)
+		parts[i] = jsquote.Single(name)
 	}
 	return "[" + strings.Join(parts, ",") + "]"
 }
