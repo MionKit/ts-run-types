@@ -127,6 +127,19 @@ func (ctx *EmitContext) IsRoot() bool {
 	return ctx.walker != nil && len(ctx.walker.Stack) == 1
 }
 
+// HasVariantOption reports whether the current walker is rendering
+// the variant identified by `name` (e.g. "noLiterals",
+// "noIsArrayCheck"). Always false for plain walkers. Root-scoped:
+// child compiles dispatch through dep calls to plain factories, so
+// only the variant root's own emit sees `true` — nested same-kind
+// nodes inside a variant render with the option turned OFF.
+func (ctx *EmitContext) HasVariantOption(name string) bool {
+	if ctx.walker == nil || ctx.walker.VariantOptions == nil {
+		return false
+	}
+	return ctx.walker.VariantOptions[name]
+}
+
 // ResolveRef dereferences a KindRef sentinel via the walker's ref
 // table. Returns the input unchanged when it isn't a ref; nil when
 // the ref points at a missing entry. Useful for emit decisions that

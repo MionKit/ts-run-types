@@ -358,7 +358,14 @@ func (IsTypeEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ C
 
 	case protocol.KindLiteral:
 		// mion:nodes/atomic/literal.ts:70-71 (emitIsType) +
-		// literal.ts:88-105 (compileIsLiteral).
+		// literal.ts:88-105 (compileIsLiteral). With the noLiterals
+		// IsTypeOption set, the literal degrades to its base-kind
+		// check (`'a'` → `typeof v === 'string'`, etc.) so the user
+		// can validate a wider runtime shape without changing the
+		// type id — see `emitLiteralBaseKind`.
+		if ctx.HasVariantOption("noLiterals") {
+			return emitLiteralBaseKind(rt, v)
+		}
 		return emitLiteral(rt, v)
 
 	case protocol.KindArray:
@@ -391,7 +398,7 @@ func (IsTypeEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext, _ C
 		if rt.Child == nil {
 			return RTCode{Code: "", Type: CodeE}
 		}
-		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
+		noIsArrayCheck := ctx.HasVariantOption("noIsArrayCheck")
 		iVar := ctx.NextLocalVar("i")
 		resVar := ctx.NextLocalVar("res")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
@@ -1427,6 +1434,55 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 		panic(fmt.Sprintf("typefns: isType literal emit: %v", err))
 	}
 	return RTCode{Code: v + " === " + lit, Type: CodeE}
+}
+
+// emitLiteralBaseKind emits the BASE-kind validator for a literal — the
+// shape the `noLiterals` IsTypeOptions variant produces. The variant
+// pairs with the canonical literal type id (no swap on the resolver
+// side), so the same `T = 'a'` can serve both:
+//
+//   - plain `it_<id>`     → `v === 'a'`        (literal-exact)
+//   - variant `itNL_<id>` → `typeof v === 'string'` (base-kind)
+//
+// Base-kind picked from `rt.Flags` markers (`bigint`/`symbol`/`regexp`)
+// or — when no marker is set — from the Go-side type of `rt.Literal`.
+// Boolean → `typeof v === 'boolean'`; number → `Number.isFinite(v)`
+// (mirrors the KindNumber arm, NaN/Infinity rejected like atomic
+// number); string → `typeof v === 'string'`.
+func emitLiteralBaseKind(rt *protocol.RunType, v string) RTCode {
+	flagSet := make(map[string]bool, len(rt.Flags))
+	for _, flag := range rt.Flags {
+		flagSet[flag] = true
+	}
+	if flagSet["bigint"] {
+		return RTCode{Code: "typeof " + v + " === 'bigint'", Type: CodeE}
+	}
+	if flagSet["symbol"] {
+		// Mirrors the plain KindSymbol arm: bare `typeof v === 'symbol'`
+		// is misleading (accepts every symbol regardless of identity),
+		// so the unsupported sentinel propagates to an alwaysThrow
+		// factory at the root. See the KindSymbol case above.
+		return RTCode{Code: "", Type: CodeNS}
+	}
+	if entry, isMap := rt.Literal.(map[string]any); isMap {
+		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
+			return RTCode{Code: "(" + v + " instanceof RegExp)", Type: CodeE}
+		}
+	}
+	switch rt.Literal.(type) {
+	case bool:
+		return RTCode{Code: "typeof " + v + " === 'boolean'", Type: CodeE}
+	case int64, float64:
+		return RTCode{Code: "Number.isFinite(" + v + ")", Type: CodeE}
+	case string:
+		return RTCode{Code: "typeof " + v + " === 'string'", Type: CodeE}
+	}
+	// Unknown literal shape — fall back to the literal-exact check so
+	// the variant body still validates something. The no-op diagnostic
+	// (emitted at scan time when noLiterals lands on a non-literal
+	// type) should catch this case; this branch is the defensive
+	// fallback for an unforeseen literal encoding.
+	return emitLiteral(rt, v)
 }
 
 // jsLiteralFromAny mirrors the primitive subset of mion's

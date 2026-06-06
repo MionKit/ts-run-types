@@ -8,7 +8,9 @@ import (
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/microsoft/typescript-go/shim/tspath"
 	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
+	"github.com/mionkit/ts-run-types/internal/compiled/runtype/typeid"
 	"github.com/mionkit/ts-run-types/internal/comptimeargs"
+	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/protocol"
@@ -114,6 +116,21 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 			if ok {
 				sites = append(sites, site)
 				resolver.sites = append(resolver.sites, site)
+				// Schema-form parity: when this builder call sits at the
+				// schema slot of an enclosing `createIsTypeFor` /
+				// `createTypeErrorsFor` whose options arg carries
+				// IsTypeOptions, emit an extra EmitOnly Site so the
+				// emitter materialises the variant factory under THIS
+				// builder's structural id. Without this, the runtime
+				// schema-form lookup at `<tag><variantSuffix>_<schemaID>`
+				// misses (the marker form's variant lives under the
+				// marker form's id, which is a different structural
+				// shape for branded builder results like
+				// `FormatString<{}>[]` vs plain `string[]`).
+				if extraSite, ok := resolver.schemaFormVariantSite(file, call, site); ok {
+					sites = append(sites, extraSite)
+					resolver.sites = append(resolver.sites, extraSite)
+				}
 			}
 			return true
 		})
@@ -295,69 +312,44 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			typeArgument = annotated
 		}
 	}
-	options := extractRunTypeOptions(call, lastIndex, argsCount)
-	// noLiterals semantics (literal.ts:28-54): the literal node swaps to
-	// its base-kind runtype for validation purposes. We mirror this at
-	// resolver time by walking the literal type up to its base type
-	// before assigning the id — the existing emit code then handles
-	// the base kind unchanged, no per-arm noLiterals branching needed.
-	//
-	// Two escape hatches are needed because tsgo's
-	// getBaseTypeOfLiteralType doesn't cover them:
-	//   1. Unique ESSymbol → plain symbol (KindSymbol). tsgo returns
-	//      the type unchanged for TypeFlagsUniqueESSymbol because
-	//      there's no `c.esSymbolType` lookup in that switch arm.
-	//   2. Regex-literal harvest is suppressed here so a `typeof reg`
-	//      with `reg = /abc/i` resolves through the normal type-checker
-	//      path to the generic RegExp class (KindRegexp).
-	id := ""
-	if options.NoLiterals {
-		flags := checker.Type_flags(typeArgument)
-		if flags&checker.TypeFlagsUniqueESSymbol != 0 {
-			// Escape hatch #1.
-			id = resolver.cache.SerializeAtomicKind(protocol.KindSymbol)
-		} else {
-			typeArgument = checker.Checker_getBaseTypeOfLiteralType(resolver.checker, typeArgument)
+	options := extractIsTypeOptions(call, lastIndex, argsCount)
+	// No-op IsTypeOptions diagnostics — warn the user when an option is
+	// requested but provably has no effect on the resolved type. The
+	// emitter still produces the variant factory (always-emit
+	// invariant) so the call site keeps working; this warning is the
+	// only signal the option is redundant. Anchored at the options
+	// literal when present, falling back to the whole call.
+	if options.NoLiterals || options.NoIsArrayCheck {
+		resolvedKind := typeid.KindOf(resolver.checker, typeArgument)
+		if options.NoLiterals && resolvedKind != protocol.KindLiteral {
+			if diagnostic, ok := resolver.noopIsTypeOptionDiag(file, call, lastIndex, argsCount, diag.CodeIsTypeOptionsNoLiteralsNoop); ok {
+				diagnostics = append(diagnostics, diagnostic)
+			}
+		}
+		if options.NoIsArrayCheck && resolvedKind != protocol.KindArray {
+			if diagnostic, ok := resolver.noopIsTypeOptionDiag(file, call, lastIndex, argsCount, diag.CodeIsTypeOptionsNoArrayNoop); ok {
+				diagnostics = append(diagnostics, diagnostic)
+			}
 		}
 	}
-	if id == "" && !options.NoLiterals {
-		// Regex-literal harvest — TS has no regex-literal type, so the
-		// marker scanner reconstructs one from the AST when it can.
-		if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
-			id = resolver.cache.SerializeRegexLiteral(source, flags)
-		}
+	// Structural id resolution — purely a function of the resolved TS
+	// type. `IsTypeOptions` (`noLiterals` / `noIsArrayCheck`) does NOT
+	// fold into the id; instead, the option set rides alongside via
+	// `protocol.Site.Options` and the emitter renders one factory per
+	// (typeid, option-tuple) pair under the canonical variant cache
+	// key (e.g. `itNL_<id>`, `itNA_<id>`). Same invariant the encoder
+	// strategy / decoder strategy already honour. See
+	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
+	// `IsTypeVariantSuffix` helper in internal/constants.
+	id := ""
+	// Regex-literal harvest — TS has no regex-literal type, so the
+	// marker scanner reconstructs one from the AST when it can.
+	if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
+		id = resolver.cache.SerializeRegexLiteral(source, flags)
 	}
 	if id == "" {
 		id = resolver.cache.AssignID(typeArgument)
 	}
-	// noIsArrayCheck (mion's RunTypeOptions.noIsArrayCheck) lives on
-	// the array node's emit, not on the type itself, so the resolver
-	// forks a synthetic array RunType that carries the option as a
-	// Flag and points at the same element child. Distinct id → distinct
-	// RT cache entry → distinct compiled validator with the
-	// `Array.isArray` guard stripped (per istype.go's KindArray arm).
-	// `string[]` and `string[] + {noIsArrayCheck: true}` therefore
-	// hash to two different ids and compile to two different bodies,
-	// matching mion's options-aware hash at baseRunTypes.ts:82-86.
-	if options.NoIsArrayCheck {
-		if wrapped, ok := resolver.cache.SerializeArrayWithFlags(id, []string{"noIsArrayCheck"}); ok {
-			id = wrapped
-		}
-	}
-	// NOTE on encoder/decoder options (strategy / stripExtras):
-	// These are NOT folded into the runtype id. Doing so would make
-	// `getRunTypeId<T>()` and `createJsonEncoder<T>({strategy:
-	// 'mutate'})` resolve to DIFFERENT ids for the same `T` — breaking
-	// the invariant that one type has one canonical typeid. Instead,
-	// the runtime dispatches options via the RT-family PREFIX:
-	//   - clone+strip    → lookup `pjs_<id>`  (prepareForJsonSafe)
-	//   - clone+preserve → lookup `pjsp_<id>` (prepareForJsonSafePreserve)
-	//   - mutate+strip   → compose `uku_<id>` + `pj_<id>`
-	//   - mutate+preserve→ lookup `pj_<id>`   (prepareForJson)
-	//   - direct         → lookup `sj_<id>`   (stringifyJson)
-	// Each prefix gives the call site a distinct function id while
-	// keeping the type's id canonical. See createRTFunctions.ts's
-	// createJsonEncoder dispatch.
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -367,6 +359,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		ID:         id,
 		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
+		Options:    options.Names(),
 	}, diagnostics, true
 }
 
@@ -426,7 +419,7 @@ func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
 // harvest a RegularExpressionLiteral directly, recurse through a TypeQuery,
 // or resolve an Identifier to its const variable declaration's initializer.
 func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCount int) (string, string, bool) {
-	_ = paramIndex // retained for symmetry with extractRunTypeOptions
+	_ = paramIndex // retained for symmetry with extractIsTypeOptions
 	callExpression := call.AsCallExpression()
 	if callExpression == nil {
 		return "", "", false
@@ -448,18 +441,42 @@ func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, 
 	return resolver.traceRegexLiteral(node, 0)
 }
 
-// runTypeOptions mirrors the JS-side RunTypeOptions interface
-// (packages/ts-go-run-types/src/createIsType.ts). Resolver-side
+// isTypeOptions mirrors the JS-side IsTypeOptions interface
+// (packages/ts-go-run-types/src/createRTFunctions.ts). Resolver-side
 // representation is a Go struct so the rest of the pipeline can read
 // fields without re-walking the AST.
-type runTypeOptions struct {
+type isTypeOptions struct {
 	NoLiterals     bool
 	NoIsArrayCheck bool
 }
 
-// extractRunTypeOptions reads literal options from the argument slot
+// Names returns the option NAMES whose value is true, in the canonical
+// declaration order from `constants.IsTypeOptions`. The result is the
+// payload for `protocol.Site.Options` — the emitter consumes it to
+// build the variant cache-key suffix. Empty when no option is set.
+func (opts isTypeOptions) Names() []string {
+	if !opts.NoLiterals && !opts.NoIsArrayCheck {
+		return nil
+	}
+	names := make([]string, 0, len(constants.IsTypeOptions))
+	for _, opt := range constants.IsTypeOptions {
+		switch opt.Name {
+		case "noLiterals":
+			if opts.NoLiterals {
+				names = append(names, opt.Name)
+			}
+		case "noIsArrayCheck":
+			if opts.NoIsArrayCheck {
+				names = append(names, opt.Name)
+			}
+		}
+	}
+	return names
+}
+
+// extractIsTypeOptions reads literal options from the argument slot
 // immediately before the id slot, when the signature has a
-// `RunTypeOptions` parameter there. The argument must be an object
+// `IsTypeOptions` parameter there. The argument must be an object
 // literal — variable references / spreads / function calls are ignored
 // (return zero options) because the resolver runs at build time and
 // can't evaluate arbitrary expressions. This matches mion's
@@ -474,8 +491,8 @@ type runTypeOptions struct {
 // inherently safe — `reflectRunTypeId`'s slot 0 holds a value, which
 // is allowed to be an object literal but won't contain known option
 // keys, so the lookup returns zero opts.
-func extractRunTypeOptions(call *ast.Node, lastIndex, argsCount int) runTypeOptions {
-	var opts runTypeOptions
+func extractIsTypeOptions(call *ast.Node, lastIndex, argsCount int) isTypeOptions {
+	var opts isTypeOptions
 	// Options live at the slot immediately before the id slot. If
 	// lastIndex==0 the function has no slots before id at all
 	// (e.g. getRunTypeId<T>(id?)).
@@ -591,11 +608,148 @@ func (resolver *Resolver) checkCompTimeArgs(file string, argumentNode *ast.Node)
 	}
 }
 
-// extractRunTypeOptionsCandidate returns the AST node at the options
+// schemaFormVariantSite returns an EmitOnly Site for the schema's id
+// when `call` sits at slot 0 of an enclosing `createIsTypeFor` or
+// `createTypeErrorsFor` whose options arg is a literal `IsTypeOptions`
+// bag. Walks up `call.Parent` looking for the enclosing CallExpression
+// whose resolved callee Symbol is one of the recognised schema-form
+// factories; if found, harvests the options literal and emits a Site
+// carrying `originalSite.ID` + Options + `EmitOnly: true`. Returns
+// `_, false` when the enclosing context doesn't match — no extra Site
+// to emit.
+//
+// The synthetic Site's `Pos = 0` (rewriter skips EmitOnly sites). The
+// emitter consumes `(ID, Options)` to fan out the variant cache entry
+// alongside the plain entry for `originalSite.ID`.
+func (resolver *Resolver) schemaFormVariantSite(file string, call *ast.Node, originalSite protocol.Site) (protocol.Site, bool) {
+	parent := call.Parent
+	if parent == nil || parent.Kind != ast.KindCallExpression {
+		return protocol.Site{}, false
+	}
+	parentCall := parent.AsCallExpression()
+	if parentCall == nil || parentCall.Arguments == nil || len(parentCall.Arguments.Nodes) < 2 {
+		return protocol.Site{}, false
+	}
+	if parentCall.Arguments.Nodes[0] != call {
+		// Builder is not at slot 0 of the parent — not a schema-form
+		// call (e.g. it's nested deeper inside an option literal).
+		return protocol.Site{}, false
+	}
+	if !resolver.isSchemaFormFactory(parent) {
+		return protocol.Site{}, false
+	}
+	optionsNode := parentCall.Arguments.Nodes[1]
+	if optionsNode == nil || optionsNode.Kind != ast.KindObjectLiteralExpression {
+		return protocol.Site{}, false
+	}
+	opts := readIsTypeOptionsLiteral(optionsNode)
+	names := opts.Names()
+	if len(names) == 0 {
+		return protocol.Site{}, false
+	}
+	return protocol.Site{
+		File:     file,
+		Pos:      0,
+		ID:       originalSite.ID,
+		Options:  names,
+		EmitOnly: true,
+	}, true
+}
+
+// isSchemaFormFactory reports whether `call` resolves to
+// `createIsTypeFor` or `createTypeErrorsFor` exported from
+// `@mionjs/ts-go-run-types`. The check walks the resolved signature's
+// declaration Symbol: name match + declaration source file's
+// package.json must carry the marker package's name (same gate the
+// `InjectRunTypeId` scanner uses).
+func (resolver *Resolver) isSchemaFormFactory(call *ast.Node) bool {
+	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
+	if signature == nil {
+		return false
+	}
+	declaration := checker.Signature_declaration(signature)
+	if declaration == nil {
+		return false
+	}
+	symbol := declaration.Symbol()
+	if symbol == nil {
+		return false
+	}
+	name := symbol.Name
+	if name != "createIsTypeFor" && name != "createTypeErrorsFor" {
+		return false
+	}
+	return marker.DeclaredInModule(symbol, marker.DefaultModule)
+}
+
+// readIsTypeOptionsLiteral parses an `IsTypeOptions` object literal
+// node into the resolver's internal Go struct. Mirrors the slot-0
+// dispatch in `extractIsTypeOptions` but takes the literal node
+// directly (no signature traversal needed — the caller already knows
+// the slot).
+func readIsTypeOptionsLiteral(node *ast.Node) isTypeOptions {
+	var opts isTypeOptions
+	if node == nil || node.Kind != ast.KindObjectLiteralExpression {
+		return opts
+	}
+	objectLiteral := node.AsObjectLiteralExpression()
+	if objectLiteral == nil || objectLiteral.Properties == nil {
+		return opts
+	}
+	for _, property := range objectLiteral.Properties.Nodes {
+		if property == nil || property.Kind != ast.KindPropertyAssignment {
+			continue
+		}
+		propertyAssignment := property.AsPropertyAssignment()
+		if propertyAssignment == nil {
+			continue
+		}
+		nameNode := propertyAssignment.Name()
+		initializer := propertyAssignment.Initializer
+		if nameNode == nil || initializer == nil {
+			continue
+		}
+		switch nameNode.Text() {
+		case "noLiterals":
+			if initializer.Kind == ast.KindTrueKeyword {
+				opts.NoLiterals = true
+			}
+		case "noIsArrayCheck":
+			if initializer.Kind == ast.KindTrueKeyword {
+				opts.NoIsArrayCheck = true
+			}
+		}
+	}
+	return opts
+}
+
+// noopIsTypeOptionDiag builds a Warning diagnostic anchored at the
+// options-literal node (slot lastIndex-1) when present, falling back
+// to the whole call expression. Used by the no-op IsTypeOption check
+// to report MKR004 / MKR005 — the option survives downstream
+// (always-emit invariant), so this is purely advisory.
+func (resolver *Resolver) noopIsTypeOptionDiag(file string, call *ast.Node, lastIndex, argsCount int, code string) (diag.Diagnostic, bool) {
+	sourceFile := ast.GetSourceFileOfNode(call)
+	if sourceFile == nil {
+		return diag.Diagnostic{}, false
+	}
+	anchor := call
+	if optionsNode := extractIsTypeOptionsCandidate(call, lastIndex, argsCount); optionsNode != nil {
+		anchor = optionsNode
+	}
+	startLine, startCol := scanLineCol(sourceFile, anchor.Pos())
+	endLine, endCol := scanLineCol(sourceFile, anchor.End())
+	return diag.New(
+		code,
+		diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
+	), true
+}
+
+// extractIsTypeOptionsCandidate returns the AST node at the options
 // slot (slot immediately before id), or nil. Retained for the options
 // extractor below; the legacy MKR002 emit path it once fed has been
 // replaced by scanSiblingMarkers + CompTimeArgs.
-func extractRunTypeOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
+func extractIsTypeOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 	if lastIndex == 0 {
 		return nil
 	}

@@ -433,7 +433,7 @@ func (TypeErrorsEmitter) emitKindDefault(rt *protocol.RunType, ctx *EmitContext,
 		// below returns CodeNS (leaf = the element), propagated upward by the
 		// `childRT.Type == CodeNS` check → alwaysThrow at root, absorb at a
 		// property. (T3; matches istype.go's array arm.)
-		noIsArrayCheck := hasFlag(rt.Flags, "noIsArrayCheck")
+		noIsArrayCheck := ctx.HasVariantOption("noIsArrayCheck")
 		iVar := ctx.NextLocalVar("i")
 		ctx.SetChildAccessor(v + "[" + iVar + "]")
 		ctx.SetChildPathLiteral(iVar)
@@ -545,16 +545,68 @@ func callRTErr(ctx *EmitContext, expected string, extra string) string {
 // (nodes/atomic/literal.ts:107). Reuses emitLiteral's branching for
 // the bigint / symbol / regexp / primitive cases — emitLiteral returns
 // a JS boolean expression (the isType check); we wrap it in
-// `if (!(<expr>)) <error>`.
+// `if (!(<expr>)) <error>`. With the noLiterals IsTypeOptions variant,
+// the predicate switches to the base-kind check (e.g. `typeof v ===
+// 'string'`) and the error label downgrades to the base kind too —
+// matches the `it` variant's behaviour so the user sees the same
+// notion of "expected" between the two factories.
 func emitLiteralTypeErrors(rt *protocol.RunType, ctx *EmitContext) RTCode {
-	isTypeExpr := emitLiteral(rt, ctx.Vλl)
+	noLiterals := ctx.HasVariantOption("noLiterals")
+	var isTypeExpr RTCode
+	if noLiterals {
+		isTypeExpr = emitLiteralBaseKind(rt, ctx.Vλl)
+	} else {
+		isTypeExpr = emitLiteral(rt, ctx.Vλl)
+	}
+	// Propagate CodeNS (unsupported leaf) — `emitLiteralBaseKind`
+	// returns this for the symbol-literal arm so the renderer can
+	// emit an alwaysThrow factory at the root, matching the plain
+	// KindSymbol behaviour.
+	if isTypeExpr.Type == CodeNS {
+		return RTCode{Code: "", Type: CodeNS}
+	}
 	if isTypeExpr.Code == "" {
 		return RTCode{Code: "", Type: CodeS}
 	}
+	expectedLabel := "literal"
+	if noLiterals {
+		expectedLabel = literalBaseKindLabel(rt)
+	}
 	return RTCode{
-		Code: "if (!(" + isTypeExpr.Code + ")) " + callRTErr(ctx, "literal", ""),
+		Code: "if (!(" + isTypeExpr.Code + ")) " + callRTErr(ctx, expectedLabel, ""),
 		Type: CodeS,
 	}
+}
+
+// literalBaseKindLabel returns the `expected` label that pairs with
+// the `noLiterals` variant body for a literal RunType — picks the
+// base atomic kind's name (`'string'`, `'number'`, …) so the
+// typeErrors output reads consistently with the validated shape.
+func literalBaseKindLabel(rt *protocol.RunType) string {
+	flagSet := make(map[string]bool, len(rt.Flags))
+	for _, flag := range rt.Flags {
+		flagSet[flag] = true
+	}
+	if flagSet["bigint"] {
+		return "bigint"
+	}
+	if flagSet["symbol"] {
+		return "symbol"
+	}
+	if entry, isMap := rt.Literal.(map[string]any); isMap {
+		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
+			return "regexp"
+		}
+	}
+	switch rt.Literal.(type) {
+	case bool:
+		return "boolean"
+	case int64, float64:
+		return "number"
+	case string:
+		return "string"
+	}
+	return "literal"
 }
 
 // emitObjectTypeErrors mirrors mion's

@@ -7,7 +7,7 @@
 > [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts),
 > imported as a namespace: `import * as RT from '@mionjs/ts-go-run-types/define'`
 > (there is **no** root `RunType` export — that name is the core wire-protocol
-> node type + the `RunTypeKind`/`RunTypeError`/`RunTypeOptions` public family).
+> node type + the `RunTypeKind`/`RunTypeError`/`IsTypeOptions` public family).
 >
 > **Update — RunType-construct / marker model
 > ([value-first-marker-refactor.md](value-first-marker-refactor.md), Tiers 1–3

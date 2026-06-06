@@ -2,7 +2,7 @@ import type {IsTypeFn, GetTypeErrorsFn, RunTypeError, MockTypeFn} from '@mionjs/
 
 /** Thunk that returns the variant's function, OR the `'not-supported'`
  *  sentinel marking the variant as deliberately unsupported on this case
- *  (e.g. a value-first schema for a case that needs a `RunTypeOptions` flag
+ *  (e.g. a value-first schema for a case that needs an `IsTypeOptions` flag
  *  the value-first builders can't carry).
  *
  *  - Field omitted entirely → "not implemented" gap (test title suffixed
@@ -50,7 +50,7 @@ export interface ValidationCase {
    *  reflecting a type — the value-first authoring path. Run against the same
    *  samples as `isType`. Present only on leaf-buildable cases. Set to
    *  `'not-supported'` to mark a case whose schema variant CANNOT be authored
-   *  value-first (e.g. depends on a `RunTypeOptions` flag the builders can't
+   *  value-first (e.g. depends on an `IsTypeOptions` flag the builders can't
    *  carry) — the assert logs once and the title shows `(not supported)`. **/
   isTypeSchema?: Thunk<IsTypeFn>;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —

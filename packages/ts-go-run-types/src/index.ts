@@ -60,7 +60,7 @@ export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 export {
   createIsType,
   type IsTypeFn,
-  type RunTypeOptions,
+  type IsTypeOptions,
   createGetTypeErrors,
   // Schema-form validators — take a value-first `RunType` schema (the value a
   // `define` builder returns) instead of reflecting a type/value.

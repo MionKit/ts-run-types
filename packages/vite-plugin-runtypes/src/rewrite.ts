@@ -41,7 +41,10 @@ export async function rewrite(file: string, code: string, resolver: ResolverClie
   // span edits keyed on `start`. Both share the same offset space.
   type Edit = {kind: 'site'; pos: number; site: Site} | {kind: 'replace'; start: number; end: number; text: string};
   const edits: Edit[] = [
-    ...sites.map<Edit>((site) => ({kind: 'site', pos: site.pos, site})),
+    // EmitOnly sites carry a (typeid, options) pair the Go emitter uses
+    // to materialise a variant factory; they do NOT correspond to a
+    // call-site rewrite, so skip them from the patcher's edit list.
+    ...sites.filter((site) => !site.emitOnly).map<Edit>((site) => ({kind: 'site', pos: site.pos, site})),
     ...replacements.map<Edit>((rep) => ({
       kind: 'replace',
       start: rep.start,

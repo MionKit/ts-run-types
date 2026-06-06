@@ -555,12 +555,30 @@ type Response struct {
 // is the number of arguments the user already wrote — when it's less than
 // ParamIndex the patcher pads with `undefined` so the id lands in the
 // right slot.
+//
+// Options is the sorted, lexicographic list of short opt tokens harvested
+// from the call-site `IsTypeOptions` object literal — see the
+// `IsTypeOptionTokens` table in internal/constants. The emitter consumes
+// this to decide which per-(typeId, variant) factories to render under
+// the canonical `<tag><variant>_<id>` cache key (e.g. `itNA_<id>`).
+// Empty when the call site has no options or the options bag is absent
+// from the function's signature.
 type Site struct {
-	File       string `json:"file"`
-	Pos        int    `json:"pos"`
-	ID         string `json:"id"`
-	ParamIndex int    `json:"paramIndex,omitempty"`
-	ArgsCount  int    `json:"argsCount,omitempty"`
+	File       string   `json:"file"`
+	Pos        int      `json:"pos"`
+	ID         string   `json:"id"`
+	ParamIndex int      `json:"paramIndex,omitempty"`
+	ArgsCount  int      `json:"argsCount,omitempty"`
+	Options    []string `json:"options,omitempty"`
+	// EmitOnly marks a Site that exists solely to drive variant
+	// emission for a runtype id — no source rewrite needed. Used for
+	// schema-form callers like `createIsTypeFor(schema, options)`
+	// where the runtime already reads `schema.id` directly; the Site
+	// just informs the emitter that the (id, options) pair was
+	// observed at a call site, so the corresponding variant factory
+	// is materialised in the cache. The Vite-plugin rewriter skips
+	// EmitOnly sites.
+	EmitOnly bool `json:"emitOnly,omitempty"`
 }
 
 // Replacement is a byte-range rewrite on a source file: replace the

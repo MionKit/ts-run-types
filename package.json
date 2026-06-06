@@ -24,7 +24,7 @@
     "test": "vitest run",
     "test:logs": "vitest run --reporter=default --reporter=./scripts/runtypes-logs-reporter.mjs",
     "check:go-binary": "bash scripts/check-go-binary.sh",
-    "gen:ts-constants": "go run ./cmd/gen-ts-constants > packages/vite-plugin-runtypes/src/runtypes-constants.generated.ts",
+    "gen:ts-constants": "go run ./cmd/gen-ts-constants",
     "gen:run-type-kind": "go run ./cmd/gen-run-type-kind > packages/ts-go-run-types/src/runTypeKind.ts",
     "pregen:validation-suite-json": "pnpm --filter vite-plugin-runtypes run build",
     "gen:validation-suite-json": "node scripts/export-validation-suite.mjs",

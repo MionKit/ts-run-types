@@ -3,8 +3,10 @@ package diag
 // Marker-scanner codes (MKRxxx). Issued by the resolver when a marker call
 // compiles correctly but uses an anti-pattern.
 const (
-	CodeMarkerFunctionCallArg   = "MKR001"
-	CodeMarkerFreeTypeParameter = "MKR003"
+	CodeMarkerFunctionCallArg     = "MKR001"
+	CodeMarkerFreeTypeParameter   = "MKR003"
+	CodeIsTypeOptionsNoLiteralsNoop = "MKR004"
+	CodeIsTypeOptionsNoArrayNoop    = "MKR005"
 )
 
 // CompTimeArgs-marker codes (CTAxxx). Issued by the resolver when a
@@ -29,6 +31,8 @@ func init() {
 	for _, definition := range []Definition{
 		{Code: CodeMarkerFunctionCallArg, Family: FamilyMarker, Severity: SeverityWarning, Title: "Marker invokes a function just to read its return type"},
 		{Code: CodeMarkerFreeTypeParameter, Family: FamilyMarker, Severity: SeverityError, Title: "Marker call inside a generic function — type argument is unresolved"},
+		{Code: CodeIsTypeOptionsNoLiteralsNoop, Family: FamilyMarker, Severity: SeverityWarning, Title: "`IsTypeOptions.noLiterals` has no effect on this type — the option is a no-op"},
+		{Code: CodeIsTypeOptionsNoArrayNoop, Family: FamilyMarker, Severity: SeverityWarning, Title: "`IsTypeOptions.noIsArrayCheck` has no effect on this type — the option is a no-op"},
 		{Code: CodeCompTimeArgsNonLiteral, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> argument must be a literal at the call site or const-bound to a literal"},
 		{Code: CodeCompTimeArgsDepthExceeded, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> literal nesting exceeds depth cap (16) — refactor to flatten"},
 		{Code: CodeCompTimeArgsForbiddenConstruct, Family: FamilyMarker, Severity: SeverityError, Title: "CompTimeArgs<T> literal contains a forbidden construct (spread, computed property, function call, ternary, template substitution)"},

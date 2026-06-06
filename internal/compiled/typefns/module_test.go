@@ -337,28 +337,65 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 	}
 }
 
-// TestIsTypeModule_ArrayNoIsArrayCheck — when the noIsArrayCheck flag
-// is set on the array RunType, the leading `if (!Array.isArray(v))
-// return false;` guard is omitted. Mirrors mion's `comp.opts.noIsArrayCheck`
-// branch in array.ts:emitIsType.
+// TestIsTypeModule_ArrayNoIsArrayCheck — when a Site requests the
+// `noIsArrayCheck` IsTypeOptions variant for an array runtype, the
+// emitter fans out an extra `itNA_<id>` factory whose body omits the
+// leading `if (!Array.isArray(v)) return false;` guard. The plain
+// `it_<id>` factory still emits the guarded body. Mirrors mion's
+// `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType, but driven
+// by Site.Options rather than the legacy RunType.Flags fold.
 func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
 			{
 				ID:    "an1",
 				Kind:  protocol.KindArray,
-				Flags: []string{"noIsArrayCheck"},
 				Child: &protocol.RunType{ID: "str", Kind: protocol.KindString},
 			},
 		},
+		Sites: []protocol.Site{
+			{File: "call.ts", Pos: 0, ID: "an1", Options: []string{"noIsArrayCheck"}},
+		},
 	}
 	out := renderToString(t, dump)
-	if strings.Contains(out, "Array.isArray") {
-		t.Errorf("noIsArrayCheck array must omit `Array.isArray(…)` guard, got:\n%s", out)
+	// Plain `it_an1` factory MUST keep the guard — the variant key
+	// dispatch is the only path that strips it.
+	if !strings.Contains(out, "it_an1") {
+		t.Errorf("plain isType entry must be emitted, got:\n%s", out)
 	}
-	if !strings.Contains(out, "for (let i0 = 0;") {
-		t.Errorf("noIsArrayCheck array must still emit element loop, got:\n%s", out)
+	// Variant `itNA_an1` factory MUST exist alongside the plain one.
+	if !strings.Contains(out, "itNA_an1") {
+		t.Errorf("variant isType entry `itNA_an1` must be emitted, got:\n%s", out)
 	}
+	// The variant body has the for-loop but no Array.isArray guard.
+	// The plain body has both. Find the variant's `init(...)` line and
+	// assert the guard is absent from it.
+	variantLine := extractInitLine(out, "itNA_an1")
+	if variantLine == "" {
+		t.Fatalf("no init('itNA_an1', …) line found in:\n%s", out)
+	}
+	if strings.Contains(variantLine, "Array.isArray") {
+		t.Errorf("itNA variant must omit `Array.isArray(…)` guard, got:\n%s", variantLine)
+	}
+	if !strings.Contains(variantLine, "for (let i0 = 0;") {
+		t.Errorf("itNA variant must still emit element loop, got:\n%s", variantLine)
+	}
+}
+
+// extractInitLine returns the substring of `out` corresponding to the
+// `init('<key>', …);` call for the given cache key. Returns "" when
+// no such call is present.
+func extractInitLine(out, key string) string {
+	needle := "init('" + key + "'"
+	start := strings.Index(out, needle)
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(out[start:], ");")
+	if end < 0 {
+		return out[start:]
+	}
+	return out[start : start+end+2]
 }
 
 // TestIsTypeModule_InterfaceEmitBody covers KindObjectLiteral —
