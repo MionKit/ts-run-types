@@ -165,21 +165,6 @@ func formatPatternFromSymbol(typeChecker *checker.Checker, symbol *ast.Symbol) (
 	return nil, false
 }
 
-// resolveImportAlias follows import-alias symbols to the original
-// declaration's symbol, so `typeof importedConst` resolves to the const
-// (whose declaration carries the initializer) rather than the import
-// specifier. Bounded against pathological alias chains.
-func resolveImportAlias(typeChecker *checker.Checker, symbol *ast.Symbol) *ast.Symbol {
-	for i := 0; i < 16 && symbol != nil && symbol.Flags&ast.SymbolFlagsAlias != 0; i++ {
-		next := checker.Checker_getImmediateAliasedSymbol(typeChecker, symbol)
-		if next == nil || next == symbol {
-			break
-		}
-		symbol = next
-	}
-	return symbol
-}
-
 // constInitializerOf resolves an identifier to the initializer of the
 // `const` it names. Returns nil for non-identifiers, non-const
 // bindings, or initializer-less declarations (a `declare const` in a
@@ -196,7 +181,7 @@ func constInitializerOf(typeChecker *checker.Checker, node *ast.Node) *ast.Node 
 	// declaration is the import specifier, not the const — follow the
 	// alias to the original (e.g. a pattern const in string-patterns.ts
 	// referenced from stringFormats.ts), then run the shared const walk.
-	symbol = resolveImportAlias(typeChecker, symbol)
+	symbol = comptimeargs.ResolveImportAlias(typeChecker, symbol)
 	var initializer *ast.Node
 	comptimeargs.EachConstVariableDeclaration(symbol, func(variableDeclaration *ast.VariableDeclaration) bool {
 		initializer = variableDeclaration.Initializer
@@ -256,7 +241,7 @@ func formatPatternFromInitializer(typeChecker *checker.Checker, initializer *ast
 	}
 	switch node.Kind {
 	case ast.KindRegularExpressionLiteral:
-		if source, flags, ok := traceRegexpExpr(typeChecker, node, 0); ok {
+		if source, flags, ok := comptimeargs.TraceRegexpLiteral(typeChecker, node); ok {
 			return map[string]any{"source": source, "flags": flags}, true
 		}
 	case ast.KindObjectLiteralExpression:
@@ -294,26 +279,26 @@ func formatPatternFromObjectLiteral(typeChecker *checker.Checker, argument *ast.
 		}
 		switch assignment.Name().Text() {
 		case "regexp":
-			if source, flags, ok := traceRegexpExpr(typeChecker, assignment.Initializer, 0); ok {
+			if source, flags, ok := comptimeargs.TraceRegexpLiteral(typeChecker, assignment.Initializer); ok {
 				out["source"] = source
 				out["flags"] = flags
 			}
 		case "source":
 			// The {source, flags} overload of registerFormatPattern — both
 			// passed as string literals at the call site.
-			if value, ok := stringLiteralValue(assignment.Initializer); ok {
+			if value, ok := comptimeargs.StringLiteralValue(assignment.Initializer); ok {
 				out["source"] = value
 			}
 		case "flags":
-			if value, ok := stringLiteralValue(assignment.Initializer); ok {
+			if value, ok := comptimeargs.StringLiteralValue(assignment.Initializer); ok {
 				out["flags"] = value
 			}
 		case "mockSamples":
-			if samples := stringArrayLiteral(assignment.Initializer); len(samples) > 0 {
+			if samples := comptimeargs.StringArrayLiteralValue(assignment.Initializer); len(samples) > 0 {
 				out["mockSamples"] = samples
 			}
 		case "message":
-			if message, ok := stringLiteralValue(assignment.Initializer); ok {
+			if message, ok := comptimeargs.StringLiteralValue(assignment.Initializer); ok {
 				out["message"] = message
 			}
 		}
@@ -322,101 +307,6 @@ func formatPatternFromObjectLiteral(typeChecker *checker.Checker, argument *ast.
 		return nil, false
 	}
 	return out, true
-}
-
-// stringArrayLiteral resolves an array-literal of string literals to a
-// []any of their values. Non-string elements are skipped.
-func stringArrayLiteral(node *ast.Node) []any {
-	if node == nil || node.Kind != ast.KindArrayLiteralExpression {
-		return nil
-	}
-	array := node.AsArrayLiteralExpression()
-	if array == nil || array.Elements == nil {
-		return nil
-	}
-	out := make([]any, 0, len(array.Elements.Nodes))
-	for _, element := range array.Elements.Nodes {
-		if value, ok := stringLiteralValue(element); ok {
-			out = append(out, value)
-		}
-	}
-	return out
-}
-
-// stringLiteralValue returns the value of a string-literal expression
-// (unwrapping as/paren), or ("", false) for anything else.
-func stringLiteralValue(node *ast.Node) (string, bool) {
-	for node != nil {
-		switch node.Kind {
-		case ast.KindAsExpression:
-			node = node.AsAsExpression().Expression
-		case ast.KindParenthesizedExpression:
-			node = node.AsParenthesizedExpression().Expression
-		case ast.KindStringLiteral, ast.KindNoSubstitutionTemplateLiteral:
-			return node.Text(), true
-		default:
-			return "", false
-		}
-	}
-	return "", false
-}
-
-// traceRegexpExpr handles the EXPRESSION-position trace: a regex
-// literal directly, or a const identifier resolved to its initializer.
-// Mirrors the unwrap/identifier/const logic in scan.go's
-// traceRegexLiteral. Used to recover the `regexp` literal inside a
-// registerFormatPattern({regexp: /…/, …}) call.
-func traceRegexpExpr(typeChecker *checker.Checker, node *ast.Node, depth int) (string, string, bool) {
-	if node == nil || depth > 16 {
-		return "", "", false
-	}
-	switch node.Kind {
-	case ast.KindRegularExpressionLiteral:
-		literal := node.AsRegularExpressionLiteral()
-		if literal == nil {
-			return "", "", false
-		}
-		source, flags := splitRegexpLiteralText(literal.Text)
-		return source, flags, true
-	case ast.KindIdentifier:
-		symbol := typeChecker.GetSymbolAtLocation(node)
-		if symbol == nil {
-			return "", "", false
-		}
-		symbol = resolveImportAlias(typeChecker, symbol)
-		for _, declaration := range symbol.Declarations {
-			if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
-				continue
-			}
-			// Only `const` bindings are traceable: let/var can be reassigned,
-			// so the initializer no longer pins the value.
-			parent := declaration.Parent
-			if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
-				continue
-			}
-			variableDeclaration := declaration.AsVariableDeclaration()
-			if variableDeclaration == nil || variableDeclaration.Initializer == nil {
-				continue
-			}
-			return traceRegexpExpr(typeChecker, variableDeclaration.Initializer, depth+1)
-		}
-	}
-	return "", "", false
-}
-
-// splitRegexpLiteralText splits "/abc/i" into source ("abc") and flags
-// ("i"). Copy of scan.go's splitRegexLiteralText — kept local to avoid a
-// resolver→typeid import edge for a four-line helper.
-func splitRegexpLiteralText(text string) (source, flags string) {
-	if !strings.HasPrefix(text, "/") {
-		return text, ""
-	}
-	body := text[1:]
-	lastSlash := strings.LastIndex(body, "/")
-	if lastSlash < 0 {
-		return body, ""
-	}
-	return body[:lastSlash], body[lastSlash+1:]
 }
 
 // literalValueFromType extracts a Go value from a literal-typed *checker.Type.
