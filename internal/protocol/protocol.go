@@ -560,13 +560,29 @@ type Site struct {
 	ID         string `json:"id"`
 	ParamIndex int    `json:"paramIndex,omitempty"`
 	ArgsCount  int    `json:"argsCount,omitempty"`
-	// FnId is the precise compile-time function selector for a createX call
-	// site routed through the InjectTypeFnArgs<T, Fn> marker — e.g. "it",
-	// "itNL", "stripMutate". Empty for reflection-only InjectRunTypeId sites
-	// (getRunTypeId / reflectRunTypeId / builders). The transformer injects
-	// `[id, fnId]` as a tuple when this is set; the emitter reads it (via
-	// constants.DemandsForFnId) to render only the demanded function families.
+	// FnId is the value the transformer injects as the 2nd tuple element for a
+	// createX call site routed through the InjectTypeFnArgs<T, Fn> marker (the
+	// readable family/variant token today; an opaque fn hash after the hashed-id
+	// migration). Empty for reflection-only InjectRunTypeId sites (getRunTypeId /
+	// reflectRunTypeId / builders), which inject the bare id string.
 	FnId string `json:"fnId,omitempty"`
+	// Demand is the structured set of cache entries this createX site requires,
+	// computed by the scanner from the operation registry. The emitter renders
+	// from this directly rather than reverse-parsing FnId — a hash isn't
+	// reversible. One entry for a simple family / it-te variant; several for a
+	// composite JSON strategy. Empty for reflection-only sites.
+	Demand []SiteDemand `json:"demand,omitempty"`
+}
+
+// SiteDemand is one cache entry a createX site requires: the family + variant to
+// render plus the fnHash that entry is keyed by. FamilyTag/VariantSuffix/Options
+// drive the emitter's rendering; FnHash names the entry once the hashed-id
+// migration lands (carried forward now).
+type SiteDemand struct {
+	FamilyTag     string   `json:"family"`
+	VariantSuffix string   `json:"variant,omitempty"`
+	Options       []string `json:"options,omitempty"`
+	FnHash        string   `json:"fnHash,omitempty"`
 }
 
 // Replacement is a byte-range rewrite on a source file: replace the
