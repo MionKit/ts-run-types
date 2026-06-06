@@ -1215,7 +1215,14 @@ func boolJS(b bool) string {
 // createRTFn arg is multi-line; padding around commas would not align
 // readably across long entries, so emit them flush.
 func joinArgs(args []string) string {
-	var b []byte
+	if len(args) == 0 {
+		return ""
+	}
+	total := len(args) - 1
+	for _, a := range args {
+		total += len(a)
+	}
+	b := make([]byte, 0, total)
 	for i, a := range args {
 		if i > 0 {
 			b = append(b, ',')
