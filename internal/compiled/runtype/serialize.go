@@ -956,6 +956,18 @@ func (cache *Cache) projectClass(tsType *checker.Type, node *protocol.RunType) {
 			}
 		}
 	}
+	// Builtin classes (Date / Map / Set / RegExp / the non-serializable set)
+	// project ATOMICALLY — subKind + classRef (+ the Map/Set element
+	// Arguments captured above) fully describe them: every consumer
+	// (emitters, mocking, reflection) keys on subKind and never walks lib
+	// members. Expanding the lib interface would intern dozens of
+	// method/parameter nodes per builtin (Date alone: ~66 nodes, dragging
+	// in lib.scripthost's VarDate) whose shape would also vary with the
+	// loaded TS libs — dead weight with an unstable structural id.
+	// Temporal builtins take the same early exit further up.
+	if node.ClassRef != nil && node.ClassRef.Builtin != "" {
+		return
+	}
 	// Populate ExtendsArguments — ES6 single-inheritance, so at most one
 	// base type. The TS checker has already merged inherited members into
 	// GetPropertiesOfType below; ExtendsArguments lets consumers walk the
