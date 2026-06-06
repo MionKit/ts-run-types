@@ -294,53 +294,92 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	entries := make(map[string]compiled, len(dump.RunTypes))
 	order := make([]string, 0, len(dump.RunTypes))
 
-	// Variant fan-out: collect every (typeid, options-tuple) pair seen at a
-	// call site (Sites). The emitter sees one walker per pair so each option
-	// combination renders as a distinct cache entry keyed
-	// `<tag><variantSuffix>_<id>`. Non-variant emitters skip this — their
-	// option bag is semantically inert.
-	variantsByID := collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))
-
-	// renderRoot compiles one RunType's plain + variant entries into the
-	// shared entries/order maps. Idempotent via the entries dedup. Composite
-	// kinds may reach unsupported child kinds through CompileChild; the compile
-	// pass returns CodeNS from any leaf with no emit, compound parents
-	// propagate it, and the walker's IsUnsupported flag drops the factory —
-	// see codetype.go's CodeNS contract.
-	renderRoot := func(runType *protocol.RunType) {
+	// renderEntry compiles one (RunType, variant) into the shared entries/order
+	// maps and returns its discovered child dependencies. Idempotent via the
+	// entries dedup. Composite kinds may reach unsupported child kinds through
+	// CompileChild; the compile pass returns CodeNS from any leaf with no emit,
+	// compound parents propagate it, and the walker's IsUnsupported flag drops
+	// the factory — see codetype.go's CodeNS contract. variantKey(settings, "",
+	// id) reduces to the plain `<tag>_<id>` key (== innerPrefix + id).
+	renderEntry := func(runType *protocol.RunType, suffix string, options []string) ([]string, bool) {
 		if runType == nil || !emitter.Supports(runType) {
-			return
+			return nil, false
 		}
-		namespacedID := innerPrefix + runType.ID
-		if _, exists := entries[namespacedID]; !exists {
-			line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, "", nil)
-			if line != "" {
-				entries[namespacedID] = compiled{line: line, deps: deps}
-				order = append(order, namespacedID)
-			}
+		entryID := variantKey(settings, suffix, runType.ID)
+		if existing, exists := entries[entryID]; exists {
+			return existing.deps, true
 		}
-		// Variant entries — same RunType, different walker per option
-		// combination. Children stay the plain entries (variant only changes
-		// the root body).
-		for _, variant := range variantsByID[runType.ID] {
-			variantID := variantKey(settings, variant.suffix, runType.ID)
-			if _, exists := entries[variantID]; exists {
+		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
+		if line == "" {
+			return nil, false
+		}
+		entries[entryID] = compiled{line: line, deps: deps}
+		order = append(order, entryID)
+		return deps, true
+	}
+
+	// enqueueChildren strips the inner prefix off each namespaced dependency
+	// hash (e.g. "it_abc" → "abc") so the demand worklist can resolve the child
+	// RunType via refTable and render its (plain) factory.
+	enqueueChildren := func(deps []string, queued map[string]bool, queue *[]string) {
+		for _, dep := range deps {
+			childHash := strings.TrimPrefix(dep, innerPrefix)
+			if childHash == dep || queued[childHash] {
 				continue
 			}
-			variantLine, variantDeps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, variant.suffix, variant.options)
-			if variantLine == "" {
-				continue
-			}
-			entries[variantID] = compiled{line: variantLine, deps: variantDeps}
-			order = append(order, variantID)
+			queued[childHash] = true
+			*queue = append(*queue, childHash)
 		}
 	}
 
-	// Emit a factory for every interned RunType the emitter supports; the
-	// dangling-dep cascade below prunes any parent whose child kind is
-	// unsupported.
-	for _, runType := range dump.RunTypes {
-		renderRoot(runType)
+	if len(dump.Sites) > 0 && constants.IsFamilyMigrated(settings.Tag) {
+		// Demand-driven: emit only the (root, variant) entries the createX call
+		// sites request for this family, plus the transitive closure of child
+		// factories they reference. This is the over-emission fix — a type only
+		// passed to getRunTypeId (or to a different family's createX) leaves no
+		// entry here. Children are always plain entries: a variant only changes
+		// the root body, and its child dep calls resolve to `<tag>_<id>`.
+		demand := collectFamilyDemand(dump.Sites, settings.Tag)
+		queued := make(map[string]bool)
+		var childQueue []string
+		for rootID, demands := range demand {
+			root := refTable[rootID]
+			if root == nil {
+				continue
+			}
+			for _, demanded := range demands {
+				if deps, ok := renderEntry(root, demanded.VariantSuffix, demanded.Options); ok {
+					enqueueChildren(deps, queued, &childQueue)
+				}
+			}
+		}
+		for len(childQueue) > 0 {
+			childHash := childQueue[len(childQueue)-1]
+			childQueue = childQueue[:len(childQueue)-1]
+			child := refTable[childHash]
+			if child == nil {
+				continue
+			}
+			if deps, ok := renderEntry(child, "", nil); ok {
+				enqueueChildren(deps, queued, &childQueue)
+			}
+		}
+	} else {
+		// Back-compat / unit-test path: no call-site demand for this family
+		// (empty Sites, or a family not yet migrated to InjectTypeFnArgs). Emit
+		// a factory for every interned RunType the emitter supports; the
+		// dangling-dep cascade below prunes any parent whose child kind is
+		// unsupported. Variant fan-out keys on the legacy Site.Options.
+		variantsByID := collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))
+		for _, runType := range dump.RunTypes {
+			if runType == nil || !emitter.Supports(runType) {
+				continue
+			}
+			renderEntry(runType, "", nil)
+			for _, variant := range variantsByID[runType.ID] {
+				renderEntry(runType, variant.suffix, variant.options)
+			}
+		}
 	}
 
 	// Dangling-dep cascade: an entry whose body holds a
@@ -405,6 +444,37 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	}
 	_, err = io.WriteString(writer, out)
 	return err
+}
+
+// collectFamilyDemand groups, per structural runtype id, the distinct variant
+// demands a family receives from createX call sites. Each Site's FnId (e.g.
+// "it", "itNL", "stripMutate") expands via constants.DemandsForFnId to one or
+// more (tag, variantSuffix, options) demands; only those whose tag matches
+// familyTag are kept. Dedup is by variant suffix so the same type requested
+// with the same options at N call sites yields a single entry.
+func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]constants.FnDemand {
+	bySuffix := make(map[string]map[string]constants.FnDemand)
+	for _, site := range sites {
+		if site.ID == "" || site.FnId == "" {
+			continue
+		}
+		for _, demanded := range constants.DemandsForFnId(site.FnId) {
+			if demanded.Tag != familyTag {
+				continue
+			}
+			if bySuffix[site.ID] == nil {
+				bySuffix[site.ID] = make(map[string]constants.FnDemand)
+			}
+			bySuffix[site.ID][demanded.VariantSuffix] = demanded
+		}
+	}
+	out := make(map[string][]constants.FnDemand, len(bySuffix))
+	for id, suffixes := range bySuffix {
+		for _, demanded := range suffixes {
+			out[id] = append(out[id], demanded)
+		}
+	}
+	return out
 }
 
 // isTypeVariant pairs an option-tuple (the unsorted names harvested

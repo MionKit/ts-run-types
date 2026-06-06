@@ -29,9 +29,9 @@ type boundCase struct {
 // snippet and returns the FMT002 diagnostics.
 func scanBoundCase(t *testing.T, format, params string) []diag.Diagnostic {
 	t.Helper()
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {createIsType} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = getRunTypeId<TypeFormat<string, '` + format + `', ` + params + `>>();
+export const _ = createIsType<TypeFormat<string, '` + format + `', ` + params + `>>();
 `
 	return scanForFormatParamDiagnostics(t, code)
 }

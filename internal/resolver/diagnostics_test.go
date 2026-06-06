@@ -191,8 +191,8 @@ export const _ = getRunTypeId<User>();
 // KindSymbol — `getRunTypeId<symbol>()` produces an alwaysThrow factory
 // (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<symbol>();
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+export const _ = createIsType<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -252,9 +252,9 @@ export const _ = getRunTypeId<never>();
 // TypeScript parses the member as a method or a property — both flow
 // through the same family prefix (IT) so consumers can grep by prefix.
 func TestDiag_SilentSkip_FunctionMember_IsType(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
-export const _ = getRunTypeId<User>();
+export const _ = createIsType<User>();
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{

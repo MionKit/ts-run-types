@@ -17,8 +17,8 @@ import (
 // cache source, and returns the response.
 func emitSourcesFor(t *testing.T, typeName string, kinds ...protocol.CacheKind) *protocol.Response {
 	t.Helper()
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<Temporal.` + typeName + `>();
+	code := `import {createIsType} from '@mionjs/ts-go-run-types';
+export const _ = createIsType<Temporal.` + typeName + `>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeCacheSources: kinds})
