@@ -12,6 +12,7 @@ import {TEMPLATE_LITERALS} from './TemplateLiterals.ts';
 import {OTHERS} from './Others.ts';
 import {EXTRA_PARAMS} from './ExtraParams.ts';
 import {LARGE_OBJECTS} from './LargeObjects.ts';
+import {DATETIME} from './DateTime.ts';
 import type {SerializationCase} from './types.ts';
 
 export const SERIALIZATION_SPEC = {
@@ -29,6 +30,7 @@ export const SERIALIZATION_SPEC = {
   OTHERS,
   EXTRA_PARAMS,
   LARGE_OBJECTS,
+  DATETIME,
 } as const satisfies Record<string, Record<string, SerializationCase>>;
 
 export * from './types.ts';
