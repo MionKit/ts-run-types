@@ -223,11 +223,7 @@ function createRTFunctionWithOptions<F extends AnyFn>(
  *  `createUnknownKeysToUndefined`, `createFormatTransform`). The
  *  injected id sits at slot 1; the cache key is the plain
  *  `<prefix>_<id>`. **/
-function createRTFunction<F extends AnyFn>(
-  fnName: string,
-  prefix: string,
-  identityFn: F
-): (val?: unknown, id?: string) => F {
+function createRTFunction<F extends AnyFn>(fnName: string, prefix: string, identityFn: F): (val?: unknown, id?: string) => F {
   return (val, id) => {
     void val;
     return resolveRTEntry(fnName, prefix, identityFn, id, undefined);
@@ -273,15 +269,20 @@ export const createGetTypeErrors = createRTFunctionWithOptions<GetTypeErrorsFn>(
 
 /** Builds the `isType` validator for a value-first RunType schema —
  *  `createIsTypeFor(string({maxLength: 5}))`. Accepts the same
- *  `IsTypeOptions` bag as the marker form so schema and marker calls
- *  for the same `T` share one structural id and converge on the same
- *  variant cache key when given the same options. **/
+ *  `IsTypeOptions` bag as the marker form. The BUILDER owns the structural
+ *  id (read here as `schema.id`); once the leaf builders converge (no-params
+ *  overloads) it equals the marker-form id, so schema and marker calls for
+ *  the same `T` share one entry. The Go scanner folds these options onto the
+ *  builder's own injection Site, so a standalone
+ *  `createIsTypeFor(schema, {noIsArrayCheck: true})` still materialises its
+ *  variant factory — no EmitOnly Site needed. **/
 export function createIsTypeFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): IsTypeFn {
   return lookupRTFn<IsTypeFn>('createIsTypeFor', 'it', schema.id, () => true, options as Record<string, unknown> | undefined);
 }
 
 /** Builds the `getTypeErrors` validator for a value-first RunType schema —
- *  `createTypeErrorsFor(number({min: 0}))`. **/
+ *  `createTypeErrorsFor(number({min: 0}))`. Same id / options handling as
+ *  `createIsTypeFor`. **/
 export function createTypeErrorsFor<RT extends RunType>(schema: RT, options?: IsTypeOptions): GetTypeErrorsFn {
   return lookupRTFn<GetTypeErrorsFn>(
     'createTypeErrorsFor',
@@ -298,11 +299,12 @@ export function createTypeErrorsFor<RT extends RunType>(schema: RT, options?: Is
 // emitter silently ignores; dropping it surfaces the limitation at
 // the type-checker level.
 
-export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>(
-  'createHasUnknownKeys',
-  'huk',
-  () => false
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => HasUnknownKeysFn;
+export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <
+  T,
+>(
+  val?: T,
+  id?: InjectRunTypeId<T>
+) => HasUnknownKeysFn;
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',

@@ -204,12 +204,6 @@ export interface Site {
   paramIndex?: number;
   argsCount?: number;
   options?: string[];
-  /** EmitOnly Sites exist solely to drive variant emission for a
-   *  runtype id — no source rewrite needed. Emitted by the Go scanner
-   *  for schema-form callers (`createIsTypeFor(schema, options)`)
-   *  where the runtime already reads `schema.id` directly. The
-   *  rewriter must skip these. **/
-  emitOnly?: boolean;
 }
 
 // Replacement is a byte-range rewrite on a source file: replace
