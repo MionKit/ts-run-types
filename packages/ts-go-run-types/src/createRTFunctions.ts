@@ -1,21 +1,11 @@
 // Home for every RT-backed factory exported by this package. Each
 // `createXxx<T>()` is a thin wrapper over the private `createRTFunction`
-// generic; only the cache-key prefix, identity fallback, and return type
-// vary per family. The rtUtils singleton is the only cache.
+// generic; only the identity fallback and return type vary per family. The
+// rtUtils singleton is the only cache; entries arrive as per-entry virtual
+// module tuples injected at each call site (see runtypes/entryTuple.ts).
 
-import {initCache as initValidateCache} from './caches/validateCache.ts';
-import {initCache as initGetValidationErrorsCache} from './caches/getValidationErrorsCache.ts';
-import {initCache as initHasUnknownKeysCache} from './caches/hasUnknownKeysCache.ts';
-import {initCache as initStripUnknownKeysCache} from './caches/stripUnknownKeysCache.ts';
-import {initCache as initUnknownKeyErrorsCache} from './caches/unknownKeyErrorsCache.ts';
-import {initCache as initUnknownKeysToUndefinedCache} from './caches/unknownKeysToUndefinedCache.ts';
-import {initCache as initUnknownKeysToUndefinedWireCache} from './caches/unknownKeysToUndefinedWireCache.ts';
-import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache.ts';
-import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
-import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
-import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
-import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
-import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
+import {isRunTypeSchema} from './runtypes/rtUtils.ts';
+import {resolveEntryTupleFn} from './runtypes/entryTuple.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {DataOnly} from './runtypes/dataOnly.ts';
 import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
@@ -153,88 +143,40 @@ export type JsonDecoderStrategy = 'strip' | 'preserve';
 export type JsonDecoderOptions = {strategy?: JsonDecoderStrategy};
 
 // =============================================================================
-// Cache bootstrap
-// =============================================================================
-// initCache is idempotent (addToRTCache overwrites by rtFnHash), so HMR can
-// safely re-run any of these. Each call only registers entries; fn closures
-// are built lazily by materializeRTFn on first getRT() lookup.
-
-const _utils = getRTUtils();
-initValidateCache(_utils);
-initGetValidationErrorsCache(_utils);
-initHasUnknownKeysCache(_utils);
-initStripUnknownKeysCache(_utils);
-initUnknownKeyErrorsCache(_utils);
-initUnknownKeysToUndefinedCache(_utils);
-initUnknownKeysToUndefinedWireCache(_utils);
-initPrepareForJsonCache(_utils);
-initRestoreFromJsonCache(_utils);
-initStringifyJsonCache(_utils);
-initPrepareForJsonSafeCache(_utils);
-initFormatTransformCache(_utils);
-// Binary cache init lives in `./createBinary.ts` so binary cache modules
-// don't get pulled into bundles that never reference the binary encoder/decoder.
-
-// =============================================================================
 // Private generic factories
 // =============================================================================
 
-/** Resolves the per-(id, fnId) closure for a createX factory routed through the
- *  InjectTypeFnArgs marker. The plugin injects a `[typeId, fnId]` tuple at the
- *  trailing slot; this reads it and resolves `fnId + '_' + typeId` directly —
- *  the fnId already encodes the family (+ ValidateOptions variant for it/te, e.g.
- *  `it`, `itNL`), so no key is recomputed here (this replaces the old
- *  `buildVariantKey` round-trip). Slot 0 (`val`) may be a value-first schema
- *  whose runtime `.id` overrides the injected typeId (correct even for recursive
- *  schemas); the fnId still comes from the injected tuple. `fallbackPrefix` is
- *  the bare family tag used defensively when no tuple/fnId is present. **/
-function resolveTupleEntry<F extends AnyFn>(
-  fnName: string,
-  fallbackPrefix: string,
-  identityFn: F,
-  val: unknown,
-  args: unknown
-): F {
-  const tuple = args as [string, string] | undefined;
-  const injectedId = tuple ? tuple[0] : undefined;
-  const fnId = tuple ? tuple[1] : undefined;
-  const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
-  if (effectiveId === undefined) {
-    throw new Error(
-      `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
-    );
-  }
-  const utils = getRTUtils();
-  const key = (fnId ?? fallbackPrefix) + '_' + effectiveId;
-  const entry = utils.getRT(key);
-  if (entry) return entry.fn as F;
-  if (utils.hasRunType(effectiveId)) return identityFn;
-  throw new Error(
-    `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
-  );
+/** Resolves the compiled closure for a createX factory routed through the
+ *  InjectTypeFnArgs marker. The plugin injects the entry-module tuple at the
+ *  trailing slot; `resolveEntryTupleFn` registers the tuple's dep closure and
+ *  resolves its exact cache key (`<fnHash>_<typeId>`, variants pre-baked at
+ *  build time). Slot 0 (`val`) may be a value-first schema whose runtime
+ *  `.id` overrides the injected typeId (correct even for recursive schemas);
+ *  the family fnHash still comes from the injected tuple's key. **/
+function resolveTupleEntry<F extends AnyFn>(fnName: string, identityFn: F, val: unknown, args: unknown): F {
+  const schemaId = isRunTypeSchema(val) ? val.id : undefined;
+  return resolveEntryTupleFn(fnName, identityFn, schemaId, args);
 }
 
-/** Returns the per-(id, fnId) closure for an option-carrying createX factory
+/** Returns the compiled closure for an option-carrying createX factory
  *  (`createValidate` / `createGetValidationErrors`, 3-arg `(val, options, args)`). The
- *  injected `[typeId, fnId]` tuple sits at the trailing slot; options @slot1 are
- *  baked into the fnId at build time so the runtime ignores them. **/
+ *  injected entry tuple sits at the trailing slot; options @slot1 are baked
+ *  into the tuple's key at build time so the runtime ignores them. **/
 function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
-  fallbackPrefix: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, args?: unknown) => F {
-  return (val, _options, args) => resolveTupleEntry(fnName, fallbackPrefix, identityFn, val, args);
+  return (val, _options, args) => resolveTupleEntry(fnName, identityFn, val, args);
 }
 
-/** Returns the per-(id, fnId) closure for a leaf family that does NOT honour
+/** Returns the compiled closure for a leaf family that does NOT honour
  *  `ValidateOptions` — every non-validator factory (`createHasUnknownKeys`,
  *  `createStripUnknownKeys`, `createUnknownKeyErrors`,
  *  `createUnknownKeysToUndefined`, `createFormatTransform`). The injected
- *  `[typeId, fnId]` tuple sits at slot 1; the fnId is the plain family tag (no
- *  variant axis). Slot 0 may be a value-first schema (`createStripUnknownKeys(rt)`)
- *  whose `.id` overrides the injected typeId. **/
-function createRTFunction<F extends AnyFn>(fnName: string, prefix: string, identityFn: F): (val?: unknown, args?: unknown) => F {
-  return (val, args) => resolveTupleEntry(fnName, prefix, identityFn, val, args);
+ *  entry tuple sits at slot 1. Slot 0 may be a value-first schema
+ *  (`createStripUnknownKeys(rt)`) whose `.id` overrides the injected typeId. **/
+function createRTFunction<F extends AnyFn>(fnName: string, identityFn: F): (val?: unknown, args?: unknown) => F {
+  return (val, args) => resolveTupleEntry(fnName, identityFn, val, args);
 }
 
 // =============================================================================
@@ -261,7 +203,6 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 // injected id @slot2).
 export const createValidate = createTypeFnArgsFunction<ValidateFn>(
   'createValidate',
-  'val',
   // The runtime fallback is a plain `() => true`; `ValidateFn` is now a type
   // guard, so cast through `unknown` (a direct cast is rejected — a boolean fn
   // doesn't structurally overlap a type predicate).
@@ -275,7 +216,6 @@ export const createValidate = createTypeFnArgsFunction<ValidateFn>(
 
 export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationErrorsFn>(
   'createGetValidationErrors',
-  'verr',
   getValidationErrorsIdentity
 ) as unknown as (<T>(
   schema: RunType<T>,
@@ -292,28 +232,24 @@ export const createGetValidationErrors = createTypeFnArgsFunction<GetValidationE
 
 export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>(
   'createHasUnknownKeys',
-  'huk',
   () => false
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn);
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
-  'suk',
   identityValueFn
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn);
 
 export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
-  'uke',
   unknownKeyErrorsIdentity
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn);
 
 export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
-  'uku',
   identityValueFn
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn);
@@ -322,7 +258,6 @@ export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefi
 // fallback covers both noop-format types and the no-plugin case.
 export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>>(
   'createFormatTransform',
-  'fmt',
   identityValueFn
 ) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'fmt'>) => FormatTransformFn<T>) &
   (<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>) => FormatTransformFn<T>);
@@ -367,7 +302,7 @@ export function createJsonEncoder<T>(
   options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', '', jsonStringifyFallback, valOrSchema, id);
+  return resolveTupleEntry<JsonEncoderFn>('createJsonEncoder', jsonStringifyFallback, valOrSchema, id);
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
@@ -399,31 +334,8 @@ export function createJsonDecoder<T>(
   // (identity on clean DTOs). Runtime is unchanged; this is the type boundary.
   return resolveTupleEntry<JsonDecoderFn<DataOnly<T>>>(
     'createJsonDecoder',
-    '',
     jsonParseFallback as JsonDecoderFn<DataOnly<T>>,
     valOrSchema,
     id
   );
-}
-
-// =============================================================================
-// HMR — refresh the RT registry whenever any cache module re-evaluates.
-// Tree-shaken at bundle time. Binary HMR lives in `./createBinary.ts`.
-// =============================================================================
-
-type HMR = {accept(dep: string, cb: (mod: {initCache?(j: unknown): void} | undefined) => void): void};
-const hot = (import.meta as unknown as {hot?: HMR}).hot;
-if (hot) {
-  hot.accept('./caches/validateCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/getValidationErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/hasUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/stripUnknownKeysCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/unknownKeyErrorsCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/unknownKeysToUndefinedCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/unknownKeysToUndefinedWireCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/prepareForJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/formatTransformCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }

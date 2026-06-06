@@ -83,11 +83,24 @@ func buildVitePluginConstants() string {
 	}
 
 	out.WriteString("\n")
+	writeEntryModuleConstants(out)
+	out.WriteString("\n")
 	writeReflectionSubKind(out)
 	out.WriteString("\n")
 	writeNonSerializableGlobals(out)
 
 	return out.String()
+}
+
+// writeEntryModuleConstants emits the per-entry virtual-module settings the
+// plugin's resolveId/load hooks and the rewrite's import injection consume.
+func writeEntryModuleConstants(out *strings.Builder) {
+	out.WriteString("// Per-entry virtual-module settings — see internal/compiled/entrymod.\n")
+	fmt.Fprintf(out, "export const VIRTUAL_MODULE_PREFIX = %q;\n", constants.VirtualModulePrefix)
+	fmt.Fprintf(out, "export const ENTRY_MODULE_SUFFIX = %q;\n", constants.EntryModuleSuffix)
+	fmt.Fprintf(out, "export const ENTRY_EXPORT_NAME = %q;\n", constants.EntryExportName)
+	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)
+	fmt.Fprintf(out, "export const PURE_FN_MODULE_DIR = %q;\n", constants.PureFnModuleDir)
 }
 
 // writeReflectionSubKind emits a TS `as const` map mirroring
