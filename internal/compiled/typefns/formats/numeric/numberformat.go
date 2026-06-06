@@ -63,19 +63,19 @@ func numberConditions(params map[string]any, vλl string) []string {
 		conditions = append(conditions, "!Number.isInteger("+vλl+")")
 	}
 	if value, ok := readNumberParam(params, "max"); ok {
-		conditions = append(conditions, vλl+" <= "+formatNumber(value))
+		conditions = append(conditions, vλl+" <= "+formats.FormatNumber(value))
 	}
 	if value, ok := readNumberParam(params, "min"); ok {
-		conditions = append(conditions, vλl+" >= "+formatNumber(value))
+		conditions = append(conditions, vλl+" >= "+formats.FormatNumber(value))
 	}
 	if value, ok := readNumberParam(params, "lt"); ok {
-		conditions = append(conditions, vλl+" < "+formatNumber(value))
+		conditions = append(conditions, vλl+" < "+formats.FormatNumber(value))
 	}
 	if value, ok := readNumberParam(params, "gt"); ok {
-		conditions = append(conditions, vλl+" > "+formatNumber(value))
+		conditions = append(conditions, vλl+" > "+formats.FormatNumber(value))
 	}
 	if value, ok := readNumberParam(params, "multipleOf"); ok {
-		conditions = append(conditions, "("+vλl+" % "+formatNumber(value)+" === 0)")
+		conditions = append(conditions, "("+vλl+" % "+formats.FormatNumber(value)+" === 0)")
 	}
 	return conditions
 }
@@ -93,30 +93,30 @@ func (numberFormatEmitter) EmitValidationErrorsCheck(annotation *protocol.Format
 	var statements []string
 	if value, ok := boolParam(params, "integer"); ok && value {
 		statements = append(statements,
-			"if (!Number.isInteger("+vλl+")) "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "integer", "true"))
+			"if (!Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "integer", "true"))
 	} else if value, ok := boolParam(params, "float"); ok && value {
 		statements = append(statements,
-			"if (Number.isInteger("+vλl+")) "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "float", "true"))
+			"if (Number.isInteger("+vλl+")) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "float", "true"))
 	}
 	if value, ok := readNumberParam(params, "max"); ok {
 		statements = append(statements,
-			"if ("+vλl+" > "+formatNumber(value)+") "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "max", formatNumber(value)))
+			"if ("+vλl+" > "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "max", formats.FormatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "min"); ok {
 		statements = append(statements,
-			"if ("+vλl+" < "+formatNumber(value)+") "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "min", formatNumber(value)))
+			"if ("+vλl+" < "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "min", formats.FormatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "lt"); ok {
 		statements = append(statements,
-			"if ("+vλl+" >= "+formatNumber(value)+") "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "lt", formatNumber(value)))
+			"if ("+vλl+" >= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "lt", formats.FormatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "gt"); ok {
 		statements = append(statements,
-			"if ("+vλl+" <= "+formatNumber(value)+") "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "gt", formatNumber(value)))
+			"if ("+vλl+" <= "+formats.FormatNumber(value)+") "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "gt", formats.FormatNumber(value)))
 	}
 	if value, ok := readNumberParam(params, "multipleOf"); ok {
 		statements = append(statements,
-			"if (("+vλl+" % "+formatNumber(value)+" !== 0)) "+formatErrCall(pathExpr, errorsArr, "number", numberFormatName, "multipleOf", formatNumber(value)))
+			"if (("+vλl+" % "+formats.FormatNumber(value)+" !== 0)) "+formats.FormatErrCall(pathExpr, errorsArr, "number", numberFormatName, "multipleOf", formats.FormatNumber(value)))
 	}
 	return strings.Join(statements, ";")
 }

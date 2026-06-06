@@ -142,7 +142,7 @@ func boundTypeErrorChecksFromKey(ctx formats.EmitContext, params map[string]any,
 		}
 		boundVal, _ := stringParam(params, bound.key)
 		stmt := "if (!(" + valueKey + " " + bound.op + " " + expr + ")) " +
-			formatErrCall(pathExpr, errorsArr, expected, fmtName, bound.key, strconv.Quote(boundVal))
+			formats.FormatErrCall(pathExpr, errorsArr, expected, fmtName, bound.key, strconv.Quote(boundVal))
 		if stmts == "" {
 			stmts = stmt
 		} else {

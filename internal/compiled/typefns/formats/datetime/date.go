@@ -109,7 +109,7 @@ func (dateEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnnotati
 	alias := pureFnAlias(ctx, fnName)
 	call := alias + "(" + vλl + ")"
 	stmt := "if (!(" + call + ")) " +
-		formatErrCall(pathExpr, errorsArr, "string", "date", "format", strconv.Quote(format))
+		formats.FormatErrCall(pathExpr, errorsArr, "string", "date", "format", strconv.Quote(format))
 	if bounds := boundTypeErrorChecks(ctx, annotation.Params, vλl, pathExpr, errorsArr, "date", dateKind, format); bounds != "" {
 		stmt = stmt + ";" + bounds
 	}

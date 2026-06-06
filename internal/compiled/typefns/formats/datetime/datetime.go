@@ -108,7 +108,7 @@ func (dateTimeEmitter) EmitValidationErrorsCheck(annotation *protocol.FormatAnno
 	timeAlias := pureFnAlias(ctx, timeFn)
 	split := strconv.Quote(splitChar)
 	errFor := func(paramName string) string {
-		return formatErrCall(pathExpr, errorsArr, "string", "dateTime", paramName, split)
+		return formats.FormatErrCall(pathExpr, errorsArr, "string", "dateTime", paramName, split)
 	}
 	stmt := "const dtSplit=" + vλl + ".indexOf(" + split + ");" +
 		"if (dtSplit===-1) " + errFor("splitChar") + ";" +

@@ -13,30 +13,8 @@ import (
 // date/time ones moved here.)
 const dateTimePureFnFilePath = "packages/ts-go-run-types/src/formats/datetime/dateTime-pure-fns.ts"
 
-// pureFnAlias registers a pure-fn dependency in the `mionFormats`
-// namespace, hoists the `const pf_<fnName> = utl.getPureFn(...)`
-// declaration into the factory prologue (deduped), and returns the alias
-// the emitted body uses. Sibling of the string package's helper of the
-// same name, but registers against dateTimePureFnFilePath.
+// pureFnAlias binds this package's pure-fn source path into the shared
+// formats.PureFnAlias helper.
 func pureFnAlias(ctx formats.EmitContext, fnName string) string {
-	ctx.AddPureFnDependency("mionFormats", fnName, dateTimePureFnFilePath)
-	alias := "pf_" + fnName
-	if !ctx.HasContextItem(alias) {
-		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
-	}
-	return alias
-}
-
-// formatErrCall emits a statement that pushes the canonical nested
-// RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
-// onto the errors array. Mirrors the string package's helper exactly
-// (kept local to avoid a cross-package export); see that copy for the
-// full rationale on emitting inline rather than via a pure fn.
-func formatErrCall(pathExpr, errorsArr, expected, fmtName, paramName, paramValLiteral string) string {
-	path := pathExpr
-	if path == "" {
-		path = "pth"
-	}
-	return errorsArr + ".push({expected:'" + expected + "',path:[..." + path + "]," +
-		"format:{name:'" + fmtName + "',formatPath:['" + paramName + "'],val:" + paramValLiteral + "}})"
+	return formats.PureFnAlias(ctx, fnName, dateTimePureFnFilePath)
 }
