@@ -191,3 +191,15 @@ getRunTypeId<TypeFormat<string, 'stringFormat', {pattern: {source: '^[a-z-]+$'; 
 		t.Fatalf("value-first inline regex (%s) must converge with type-first {source,flags} (%s)", valueFirst.ID, typeFirst.ID)
 	}
 }
+
+// `satisfies`-wrapped pattern values must recover exactly like bare ones —
+// the recovery shares comptimeargs.UnwrapWrappers with the CompTimeArgs
+// validation, so a wrapper the validation accepts can't silently drop the
+// pattern at recovery time.
+func TestFormatPattern_ValueFirstSatisfiesObject(t *testing.T) {
+	pattern := scanValueFirstPattern(t,
+		`const M = { digits: { type: 'string' as const, pattern: ({source: '^[0-9]+$', flags: 'g'} satisfies {source: string; flags?: string}) } };`, "digits")
+	if pattern == nil || pattern["source"] != "^[0-9]+$" || pattern["flags"] != "g" {
+		t.Fatalf("satisfies-wrapped {source,flags} value not recovered: %#v", pattern)
+	}
+}
