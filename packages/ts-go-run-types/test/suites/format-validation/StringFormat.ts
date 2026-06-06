@@ -1,6 +1,12 @@
 import type {FormatValidationCase} from './types.ts';
 import '@mionjs/ts-go-run-types/formats';
-import {createValidate, createGetValidationErrors, createMockType, registerFormatPattern, type DataOnly} from '@mionjs/ts-go-run-types';
+import {
+  createValidate,
+  createGetValidationErrors,
+  createMockType,
+  registerFormatPattern,
+  type DataOnly,
+} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {
   FormatString,
@@ -109,7 +115,8 @@ export const STRING_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
     validateSchema: () => createValidate(RT.string({allowedChars: {val: '0123456789abcdef'}})),
     getValidationErrors: () => createGetValidationErrors<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedChars: {val: '0123456789abcdef'}})),
     mockType: () => createMockType<FormatString<{allowedChars: {val: '0123456789abcdef'}}>>(),
     getSamples: () => ({valid: ['deadbeef', '0042'], invalid: ['xyz', 'dead beef', '']}),
@@ -121,7 +128,8 @@ export const STRING_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
     validateSchema: () => createValidate(RT.string({allowedChars: {val: 'abc', ignoreCase: true}})),
     getValidationErrors: () => createGetValidationErrors<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedChars: {val: 'abc', ignoreCase: true}})),
     mockType: () => createMockType<FormatString<{allowedChars: {val: 'abc'; ignoreCase: true}}>>(),
     getSamples: () => ({valid: ['ABC', 'aAbBcC'], invalid: ['abcd']}),
@@ -161,7 +169,8 @@ export const STRING_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
     validateSchema: () => createValidate(RT.string({allowedValues: {val: ['red', 'green', 'blue']}})),
     getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['red', 'green', 'blue']}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['red', 'green', 'blue']}}>>(),
     getSamples: () => ({valid: ['red', 'blue'], invalid: ['yellow', 'RED', 'redgreen']}),
@@ -172,10 +181,12 @@ export const STRING_FORMAT = {
     validate: () => createValidate<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
     validateSchema: () => createValidate(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
-    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.string({allowedValues: {val: ['red', 'green'], ignoreCase: true}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['red', 'green']; ignoreCase: true}}>>(),
     getSamples: () => ({valid: ['RED', 'Green'], invalid: ['blue']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'Invalid value'}],
@@ -186,7 +197,8 @@ export const STRING_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
     validateSchema: () => createValidate(RT.string({allowedValues: {val: ['a.b', 'c+d']}})),
     getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['a.b', 'c+d']}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['a.b', 'c+d']}}>>(),
     getSamples: () => ({valid: ['a.b', 'c+d'], invalid: ['axb', 'ccd']}),
@@ -204,7 +216,9 @@ export const STRING_FORMAT = {
     getValidationErrors: () =>
       createGetValidationErrors<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>>(),
+      createGetValidationErrors<
+        DataOnly<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>
+      >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(RT.string({disallowedValues: {val: ['admin', 'root'], mockSamples: ['alice', 'bob']}})),
     mockType: () => createMockType<FormatString<{disallowedValues: {val: ['admin', 'root']; mockSamples: ['alice', 'bob']}}>>(),
@@ -217,12 +231,15 @@ export const STRING_FORMAT = {
   string_customErrorMessage: {
     title: 'FormatString allowedValues — custom errorMessage surfaces as format.val',
     validate: () => createValidate<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
-    validateDataOnly: () => createValidate<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
     validateSchema: () => createValidate(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
-    getValidationErrors: () => createGetValidationErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.string({allowedValues: {val: ['a', 'b'], errorMessage: 'pick a or b'}})),
     mockType: () => createMockType<FormatString<{allowedValues: {val: ['a', 'b']; errorMessage: 'pick a or b'}}>>(),
     getSamples: () => ({valid: ['a', 'b'], invalid: ['c']}),
     expectedFormatErrors: () => [{name: 'stringFormat', val: 'pick a or b'}],
@@ -389,10 +406,12 @@ export const STRING_FORMAT = {
     validateDataOnly: () =>
       createValidate<DataOnly<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
-    getValidationErrors: () => createGetValidationErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.stringDate({format: 'YYYY-MM-DD', min: '2020-01-01', max: '2020-12-31'})),
     // mockType must respect the bounds — assertMockType re-validates every
     // generated value through validate, so an out-of-range mock would fail.
     mockType: () => createMockType<FormatStringDate<{format: 'YYYY-MM-DD'; min: '2020-01-01'; max: '2020-12-31'}>>(),
@@ -456,7 +475,8 @@ export const STRING_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
     validateSchema: () => createValidate(RT.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
     getValidationErrors: () => createGetValidationErrors<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.stringTime({format: 'HH:mm', min: '09:00', max: '17:00'})),
     mockType: () => createMockType<FormatStringTime<{format: 'HH:mm'; min: '09:00'; max: '17:00'}>>(),
     getSamples: () => ({
@@ -487,10 +507,12 @@ export const STRING_FORMAT = {
   },
   dateTime_custom: {
     title: 'FormatStringDateTime — custom nested layouts + splitChar',
-    validate: () => createValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
+    validate: () =>
+      createValidate<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     validateDataOnly: () =>
       createValidate<DataOnly<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>>(),
-    validateSchema: () => createValidate(RT.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
+    validateSchema: () =>
+      createValidate(RT.stringDateTime({date: {format: 'DD-MM-YYYY'}, time: {format: 'HH:mm'}, splitChar: ' '})),
     getValidationErrors: () =>
       createGetValidationErrors<FormatStringDateTime<{date: {format: 'DD-MM-YYYY'}; time: {format: 'HH:mm'}; splitChar: ' '}>>(),
     getValidationErrorsDataOnly: () =>

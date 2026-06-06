@@ -3,11 +3,7 @@
 // binary is the representative codec, delegating to its shared helper.
 import {describe, it} from 'vitest';
 import {LARGE_OBJECTS} from './LargeObjects.ts';
-import {
-  assertBinaryRoundTrip,
-  assertSchemaJsonRoundTrip,
-  assertSchemaBinaryRoundTrip,
-} from '../../util/serializationAsserts.ts';
+import {assertBinaryRoundTrip, assertSchemaJsonRoundTrip, assertSchemaBinaryRoundTrip} from '../../util/serializationAsserts.ts';
 
 describe('serialization / LargeObjects', () => {
   for (const c of Object.values(LARGE_OBJECTS)) {

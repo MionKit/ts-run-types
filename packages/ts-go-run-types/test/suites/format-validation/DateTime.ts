@@ -149,7 +149,8 @@ export const DATETIME = {
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
     validateSchema: () => createValidate(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
-    getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>>(),
     getValidationErrorsSchema: () =>
@@ -175,10 +176,12 @@ export const DATETIME = {
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
     validateSchema: () => createValidate(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
-    getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.instant({gt: '2020-01-01T00:00:00Z', lt: '2020-12-31T23:59:59Z'})),
     mockType: () => createMockType<FormatTemporalInstant<{gt: '2020-01-01T00:00:00Z'; lt: '2020-12-31T23:59:59Z'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-06-15T12:00:00Z')],
@@ -202,7 +205,8 @@ export const DATETIME = {
     getValidationErrors: () => createGetValidationErrors<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.instant({min: 'now-PT8760000H', max: 'now+PT8760000H'})),
     mockType: () => createMockType<FormatTemporalInstant<{min: 'now-PT8760000H'; max: 'now+PT8760000H'}>>(),
     getSamples: () => ({
       valid: [T.Instant.from('2020-06-15T12:00:00Z')],
@@ -225,7 +229,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     getSamples: () => ({
@@ -248,7 +253,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({gt: '2020-01-01', lt: '2020-12-31'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{gt: '2020-01-01'; lt: '2020-12-31'}>>(),
     getSamples: () => ({
@@ -271,7 +277,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: '2020-01-01', lt: '2020-01-10'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{min: '2020-01-01'; lt: '2020-01-10'}>>(),
     getSamples: () => ({
@@ -293,7 +300,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({gt: '2020-01-01', max: '2020-01-10'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{gt: '2020-01-01'; max: '2020-01-10'}>>(),
     getSamples: () => ({
@@ -393,7 +401,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainDate({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatTemporalPlainDate<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
@@ -453,7 +462,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
     mockType: () => createMockType<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     getSamples: () => ({
@@ -476,7 +486,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainTime({gt: '09:00:00', lt: '17:00:00'})),
     mockType: () => createMockType<FormatTemporalPlainTime<{gt: '09:00:00'; lt: '17:00:00'}>>(),
     getSamples: () => ({
@@ -504,7 +515,9 @@ export const DATETIME = {
     getValidationErrors: () =>
       createGetValidationErrors<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>>(),
+      createGetValidationErrors<
+        DataOnly<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>
+      >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     mockType: () => createMockType<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
@@ -598,7 +611,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
     mockType: () => createMockType<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     getSamples: () => ({
@@ -621,7 +635,8 @@ export const DATETIME = {
     validateDataOnly: () => createValidate<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
     validateSchema: () => createValidate(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth({gt: '2020-01', lt: '2020-12'})),
     mockType: () => createMockType<FormatTemporalPlainYearMonth<{gt: '2020-01'; lt: '2020-12'}>>(),
     getSamples: () => ({
@@ -646,7 +661,8 @@ export const DATETIME = {
     getValidationErrors: () => createGetValidationErrors<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.temporal.plainYearMonth({min: 'now-P1000Y', max: 'now+P1000Y'})),
     mockType: () => createMockType<FormatTemporalPlainYearMonth<{min: 'now-P1000Y'; max: 'now+P1000Y'}>>(),
     getSamples: () => ({
       valid: [T.PlainYearMonth.from('2020-06')],
@@ -665,13 +681,16 @@ export const DATETIME = {
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validate: () => createValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    validate: () =>
+      createValidate<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>>(),
     validateSchema: () =>
       createValidate(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
     getValidationErrors: () =>
-      createGetValidationErrors<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+      createGetValidationErrors<
+        FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>
+      >(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<
         DataOnly<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>
@@ -696,10 +715,12 @@ export const DATETIME = {
     // identity; DataOnly's structural object projection mangles them, so
     // createValidate<DataOnly<T>>() diverges.
     dataOnlyDivergent: true,
-    validate: () => createValidate<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
+    validate: () =>
+      createValidate<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     validateDataOnly: () =>
       createValidate<DataOnly<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>>(),
-    validateSchema: () => createValidate(RT.temporal.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
+    validateSchema: () =>
+      createValidate(RT.temporal.zonedDateTime({gt: '2020-01-01T00:00:00[UTC]', lt: '2020-12-31T23:59:59[UTC]'})),
     getValidationErrors: () =>
       createGetValidationErrors<FormatTemporalZonedDateTime<{gt: '2020-01-01T00:00:00[UTC]'; lt: '2020-12-31T23:59:59[UTC]'}>>(),
     getValidationErrorsDataOnly: () =>

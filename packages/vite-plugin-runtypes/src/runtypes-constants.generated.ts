@@ -9,72 +9,72 @@ export interface CacheModuleSettings {
 }
 
 export const CACHE_MODULES = {
-  formatTransform: {name: "formatTransformModule", varPrefix: "g_fmt_", tag: "fmt"},
-  fromBinary: {name: "fromBinaryModule", varPrefix: "g_fb_", tag: "fb"},
-  hasUnknownKeys: {name: "hasUnknownKeysModule", varPrefix: "g_huk_", tag: "huk"},
-  prepareForJson: {name: "prepareForJsonModule", varPrefix: "g_pj_", tag: "pj"},
-  prepareForJsonSafe: {name: "prepareForJsonSafeModule", varPrefix: "g_pjs_", tag: "pjs"},
-  pureFns: {name: "pureFnsModule", varPrefix: "", tag: ""},
-  restoreFromJson: {name: "restoreFromJsonModule", varPrefix: "g_rj_", tag: "rj"},
-  runTypes: {name: "runTypesModule", varPrefix: "t_", tag: "t"},
-  stringifyJson: {name: "stringifyJsonModule", varPrefix: "g_sj_", tag: "sj"},
-  stripUnknownKeys: {name: "stripUnknownKeysModule", varPrefix: "g_suk_", tag: "suk"},
-  toBinary: {name: "toBinaryModule", varPrefix: "g_tb_", tag: "tb"},
-  unknownKeyErrors: {name: "unknownKeyErrorsModule", varPrefix: "g_uke_", tag: "uke"},
-  unknownKeysToUndefined: {name: "unknownKeysToUndefinedModule", varPrefix: "g_uku_", tag: "uku"},
-  unknownKeysToUndefinedWire: {name: "unknownKeysToUndefinedWireModule", varPrefix: "g_ukuw_", tag: "ukuw"},
-  validate: {name: "validateModule", varPrefix: "g_val_", tag: "val"},
-  validationErrors: {name: "validationErrorsModule", varPrefix: "g_verr_", tag: "verr"},
+  formatTransform: {name: 'formatTransformModule', varPrefix: 'g_fmt_', tag: 'fmt'},
+  fromBinary: {name: 'fromBinaryModule', varPrefix: 'g_fb_', tag: 'fb'},
+  hasUnknownKeys: {name: 'hasUnknownKeysModule', varPrefix: 'g_huk_', tag: 'huk'},
+  prepareForJson: {name: 'prepareForJsonModule', varPrefix: 'g_pj_', tag: 'pj'},
+  prepareForJsonSafe: {name: 'prepareForJsonSafeModule', varPrefix: 'g_pjs_', tag: 'pjs'},
+  pureFns: {name: 'pureFnsModule', varPrefix: '', tag: ''},
+  restoreFromJson: {name: 'restoreFromJsonModule', varPrefix: 'g_rj_', tag: 'rj'},
+  runTypes: {name: 'runTypesModule', varPrefix: 't_', tag: 't'},
+  stringifyJson: {name: 'stringifyJsonModule', varPrefix: 'g_sj_', tag: 'sj'},
+  stripUnknownKeys: {name: 'stripUnknownKeysModule', varPrefix: 'g_suk_', tag: 'suk'},
+  toBinary: {name: 'toBinaryModule', varPrefix: 'g_tb_', tag: 'tb'},
+  unknownKeyErrors: {name: 'unknownKeyErrorsModule', varPrefix: 'g_uke_', tag: 'uke'},
+  unknownKeysToUndefined: {name: 'unknownKeysToUndefinedModule', varPrefix: 'g_uku_', tag: 'uku'},
+  unknownKeysToUndefinedWire: {name: 'unknownKeysToUndefinedWireModule', varPrefix: 'g_ukuw_', tag: 'ukuw'},
+  validate: {name: 'validateModule', varPrefix: 'g_val_', tag: 'val'},
+  validationErrors: {name: 'validationErrorsModule', varPrefix: 'g_verr_', tag: 'verr'},
 } as const satisfies Record<string, CacheModuleSettings>;
 
-export const FORMATTRANSFORM_VAR_PREFIX = "g_fmt_";
-export const FORMATTRANSFORM_MODULE_NAME = "formatTransformModule";
-export const FORMATTRANSFORM_TAG = "fmt";
-export const FROMBINARY_VAR_PREFIX = "g_fb_";
-export const FROMBINARY_MODULE_NAME = "fromBinaryModule";
-export const FROMBINARY_TAG = "fb";
-export const HASUNKNOWNKEYS_VAR_PREFIX = "g_huk_";
-export const HASUNKNOWNKEYS_MODULE_NAME = "hasUnknownKeysModule";
-export const HASUNKNOWNKEYS_TAG = "huk";
-export const PREPAREFORJSON_VAR_PREFIX = "g_pj_";
-export const PREPAREFORJSON_MODULE_NAME = "prepareForJsonModule";
-export const PREPAREFORJSON_TAG = "pj";
-export const PREPAREFORJSONSAFE_VAR_PREFIX = "g_pjs_";
-export const PREPAREFORJSONSAFE_MODULE_NAME = "prepareForJsonSafeModule";
-export const PREPAREFORJSONSAFE_TAG = "pjs";
-export const PUREFNS_VAR_PREFIX = "";
-export const PUREFNS_MODULE_NAME = "pureFnsModule";
-export const PUREFNS_TAG = "";
-export const RESTOREFROMJSON_VAR_PREFIX = "g_rj_";
-export const RESTOREFROMJSON_MODULE_NAME = "restoreFromJsonModule";
-export const RESTOREFROMJSON_TAG = "rj";
-export const RUNTYPES_VAR_PREFIX = "t_";
-export const RUNTYPES_MODULE_NAME = "runTypesModule";
-export const RUNTYPES_TAG = "t";
-export const STRINGIFYJSON_VAR_PREFIX = "g_sj_";
-export const STRINGIFYJSON_MODULE_NAME = "stringifyJsonModule";
-export const STRINGIFYJSON_TAG = "sj";
-export const STRIPUNKNOWNKEYS_VAR_PREFIX = "g_suk_";
-export const STRIPUNKNOWNKEYS_MODULE_NAME = "stripUnknownKeysModule";
-export const STRIPUNKNOWNKEYS_TAG = "suk";
-export const TOBINARY_VAR_PREFIX = "g_tb_";
-export const TOBINARY_MODULE_NAME = "toBinaryModule";
-export const TOBINARY_TAG = "tb";
-export const UNKNOWNKEYERRORS_VAR_PREFIX = "g_uke_";
-export const UNKNOWNKEYERRORS_MODULE_NAME = "unknownKeyErrorsModule";
-export const UNKNOWNKEYERRORS_TAG = "uke";
-export const UNKNOWNKEYSTOUNDEFINED_VAR_PREFIX = "g_uku_";
-export const UNKNOWNKEYSTOUNDEFINED_MODULE_NAME = "unknownKeysToUndefinedModule";
-export const UNKNOWNKEYSTOUNDEFINED_TAG = "uku";
-export const UNKNOWNKEYSTOUNDEFINEDWIRE_VAR_PREFIX = "g_ukuw_";
-export const UNKNOWNKEYSTOUNDEFINEDWIRE_MODULE_NAME = "unknownKeysToUndefinedWireModule";
-export const UNKNOWNKEYSTOUNDEFINEDWIRE_TAG = "ukuw";
-export const VALIDATE_VAR_PREFIX = "g_val_";
-export const VALIDATE_MODULE_NAME = "validateModule";
-export const VALIDATE_TAG = "val";
-export const VALIDATIONERRORS_VAR_PREFIX = "g_verr_";
-export const VALIDATIONERRORS_MODULE_NAME = "validationErrorsModule";
-export const VALIDATIONERRORS_TAG = "verr";
+export const FORMATTRANSFORM_VAR_PREFIX = 'g_fmt_';
+export const FORMATTRANSFORM_MODULE_NAME = 'formatTransformModule';
+export const FORMATTRANSFORM_TAG = 'fmt';
+export const FROMBINARY_VAR_PREFIX = 'g_fb_';
+export const FROMBINARY_MODULE_NAME = 'fromBinaryModule';
+export const FROMBINARY_TAG = 'fb';
+export const HASUNKNOWNKEYS_VAR_PREFIX = 'g_huk_';
+export const HASUNKNOWNKEYS_MODULE_NAME = 'hasUnknownKeysModule';
+export const HASUNKNOWNKEYS_TAG = 'huk';
+export const PREPAREFORJSON_VAR_PREFIX = 'g_pj_';
+export const PREPAREFORJSON_MODULE_NAME = 'prepareForJsonModule';
+export const PREPAREFORJSON_TAG = 'pj';
+export const PREPAREFORJSONSAFE_VAR_PREFIX = 'g_pjs_';
+export const PREPAREFORJSONSAFE_MODULE_NAME = 'prepareForJsonSafeModule';
+export const PREPAREFORJSONSAFE_TAG = 'pjs';
+export const PUREFNS_VAR_PREFIX = '';
+export const PUREFNS_MODULE_NAME = 'pureFnsModule';
+export const PUREFNS_TAG = '';
+export const RESTOREFROMJSON_VAR_PREFIX = 'g_rj_';
+export const RESTOREFROMJSON_MODULE_NAME = 'restoreFromJsonModule';
+export const RESTOREFROMJSON_TAG = 'rj';
+export const RUNTYPES_VAR_PREFIX = 't_';
+export const RUNTYPES_MODULE_NAME = 'runTypesModule';
+export const RUNTYPES_TAG = 't';
+export const STRINGIFYJSON_VAR_PREFIX = 'g_sj_';
+export const STRINGIFYJSON_MODULE_NAME = 'stringifyJsonModule';
+export const STRINGIFYJSON_TAG = 'sj';
+export const STRIPUNKNOWNKEYS_VAR_PREFIX = 'g_suk_';
+export const STRIPUNKNOWNKEYS_MODULE_NAME = 'stripUnknownKeysModule';
+export const STRIPUNKNOWNKEYS_TAG = 'suk';
+export const TOBINARY_VAR_PREFIX = 'g_tb_';
+export const TOBINARY_MODULE_NAME = 'toBinaryModule';
+export const TOBINARY_TAG = 'tb';
+export const UNKNOWNKEYERRORS_VAR_PREFIX = 'g_uke_';
+export const UNKNOWNKEYERRORS_MODULE_NAME = 'unknownKeyErrorsModule';
+export const UNKNOWNKEYERRORS_TAG = 'uke';
+export const UNKNOWNKEYSTOUNDEFINED_VAR_PREFIX = 'g_uku_';
+export const UNKNOWNKEYSTOUNDEFINED_MODULE_NAME = 'unknownKeysToUndefinedModule';
+export const UNKNOWNKEYSTOUNDEFINED_TAG = 'uku';
+export const UNKNOWNKEYSTOUNDEFINEDWIRE_VAR_PREFIX = 'g_ukuw_';
+export const UNKNOWNKEYSTOUNDEFINEDWIRE_MODULE_NAME = 'unknownKeysToUndefinedWireModule';
+export const UNKNOWNKEYSTOUNDEFINEDWIRE_TAG = 'ukuw';
+export const VALIDATE_VAR_PREFIX = 'g_val_';
+export const VALIDATE_MODULE_NAME = 'validateModule';
+export const VALIDATE_TAG = 'val';
+export const VALIDATIONERRORS_VAR_PREFIX = 'g_verr_';
+export const VALIDATIONERRORS_MODULE_NAME = 'validationErrorsModule';
+export const VALIDATIONERRORS_TAG = 'verr';
 
 export const REFLECTION_SUB_KIND = {
   mapKey: 1801,
@@ -88,34 +88,34 @@ export const REFLECTION_SUB_KIND = {
 export type ReflectionSubKind = (typeof REFLECTION_SUB_KIND)[keyof typeof REFLECTION_SUB_KIND];
 
 export const NON_SERIALIZABLE_GLOBALS = [
-  "Error",
-  "EvalError",
-  "RangeError",
-  "ReferenceError",
-  "SyntaxError",
-  "TypeError",
-  "URIError",
-  "AggregateError",
-  "WeakMap",
-  "WeakSet",
-  "DataView",
-  "ArrayBuffer",
-  "SharedArrayBuffer",
-  "Float32Array",
-  "Float64Array",
-  "Int8Array",
-  "Int16Array",
-  "Int32Array",
-  "Uint8Array",
-  "Uint8ClampedArray",
-  "Uint16Array",
-  "Uint32Array",
-  "BigInt64Array",
-  "BigUint64Array",
-  "Generator",
-  "GeneratorFunction",
-  "AsyncGenerator",
-  "Iterator",
-  "AsyncGeneratorFunction",
-  "AsyncIterator",
+  'Error',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+  'AggregateError',
+  'WeakMap',
+  'WeakSet',
+  'DataView',
+  'ArrayBuffer',
+  'SharedArrayBuffer',
+  'Float32Array',
+  'Float64Array',
+  'Int8Array',
+  'Int16Array',
+  'Int32Array',
+  'Uint8Array',
+  'Uint8ClampedArray',
+  'Uint16Array',
+  'Uint32Array',
+  'BigInt64Array',
+  'BigUint64Array',
+  'Generator',
+  'GeneratorFunction',
+  'AsyncGenerator',
+  'Iterator',
+  'AsyncGeneratorFunction',
+  'AsyncIterator',
 ] as const;

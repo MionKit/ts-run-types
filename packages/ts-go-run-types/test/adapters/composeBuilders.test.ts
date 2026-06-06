@@ -262,7 +262,9 @@ describe('utility builders — convergence with type-first', () => {
   // type-first id — a `string()`/`number()`/`date()` builder carries `FormatX<{}>`,
   // which converges with `FormatX<{}>`, not the bare kind (see header).
   it('partial(model) converges with Partial<T>', () => {
-    expect(createValidate(partial(object({a: boolean(), b: boolean()})))).toBe(createValidate<Partial<{a: boolean; b: boolean}>>());
+    expect(createValidate(partial(object({a: boolean(), b: boolean()})))).toBe(
+      createValidate<Partial<{a: boolean; b: boolean}>>()
+    );
   });
 
   it('required(model) converges with Required<T>', () => {
@@ -302,7 +304,9 @@ describe('utility builders — convergence with type-first', () => {
   });
 
   it('readonly(model) converges with Readonly<T>', () => {
-    expect(createValidate(readonly(object({a: boolean(), b: boolean()})))).toBe(createValidate<Readonly<{a: boolean; b: boolean}>>());
+    expect(createValidate(readonly(object({a: boolean(), b: boolean()})))).toBe(
+      createValidate<Readonly<{a: boolean; b: boolean}>>()
+    );
   });
 
   it('returnType(fn) converges with ReturnType<F>', () => {

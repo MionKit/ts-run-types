@@ -168,7 +168,7 @@ func (<FnName>Emitter) Finalize(raw string) (string, bool) { /* append return <R
 **Architectural rule**: keep the entire switch in this one file.
 Don't split kind logic across per-kind files — the convention is
 "one giant switch per RT fn family." Look at
-`internal/compiled/typefns/istype.go` and `typeerrors.go` as templates.
+`internal/compiled/typefns/validate.go` and `validationerrors.go` as templates.
 
 If the function needs path tracking (e.g. errors need to report
 "where in the value"), use the path-tracking infrastructure already
@@ -200,7 +200,7 @@ plumbing exactly:
   one-liner that calls `RenderFnModule(w, dump,
   CacheModules["<fnname>"], <FnName>Emitter{}, "<fnname>_",
   cachetpl.Skeleton<FnName>)` plus `Any<FnName>Supported(runTypes)`
-  helper alongside `AnyIsTypeSupported`
+  helper alongside `AnyValidateSupported`
 
 ## Step 7 — JS-side adapter
 
@@ -219,7 +219,7 @@ Three new files + two edits:
 - NEW `packages/ts-go-run-types/src/caches/<fnName>Cache.ts` —
   hand-authored skeleton with the `// #### REPLACE HERE ####` marker
   exactly where the Go renderer should splice in the factory calls.
-  Mirror `isTypeCache.ts` / `getTypeErrorsCache.ts` shape.
+  Mirror `validateCache.ts` / `getValidationErrorsCache.ts` shape.
 
 - `packages/ts-go-run-types/src/caches/skeletons.go` — extend the
   `//go:embed` directive to include `<fnName>Cache.ts`
@@ -420,8 +420,8 @@ pnpm run pre-publish-test
 - `mion/packages/run-types/src/lib/rtFnCompiler.ts`
 
 **Existing Go emitters as templates:**
-- `internal/compiled/typefns/istype.go`
-- `internal/compiled/typefns/typeerrors.go`
+- `internal/compiled/typefns/validate.go`
+- `internal/compiled/typefns/validationerrors.go`
 
 **Walker + emitter interface:**
 - `internal/compiled/typefns/walker.go`
@@ -436,12 +436,12 @@ pnpm run pre-publish-test
 - `internal/resolver/render.go`
 
 **JS adapter templates:**
-- `packages/ts-go-run-types/src/createRTFunctions.ts` (exports `createIsType`, `createGetTypeErrors`, `createJsonEncoder`, `createJsonDecoder`, and format helpers)
+- `packages/ts-go-run-types/src/createRTFunctions.ts` (exports `createValidate`, `createGetValidationErrors`, `createJsonEncoder`, `createJsonDecoder`, and format helpers)
 - `packages/ts-go-run-types/src/createBinary.ts` (exports `createBinaryEncoder`, `createBinaryDecoder`)
 
 **Cache skeletons:**
-- `packages/ts-go-run-types/src/caches/isTypeCache.ts`
-- `packages/ts-go-run-types/src/caches/getTypeErrorsCache.ts`
+- `packages/ts-go-run-types/src/caches/validateCache.ts`
+- `packages/ts-go-run-types/src/caches/getValidationErrorsCache.ts`
 - `packages/ts-go-run-types/src/caches/skeletons.go`
 
 **Index:**
