@@ -1,5 +1,7 @@
 # Cross-family RT dependency capture
 
+> **Superseded (historical).** The readable-tag fnId scheme and the `MigratedFamilies` gate referenced below were later replaced by the opaque-`fnHash` scheme (the `internal/operations` registry + Go-emitted JSON composites; all families demand-driven, gated only on `len(dump.Sites) > 0`). See [CLAUDE.md](../CLAUDE.md) → "Two injection markers + demand-driven function caches" for the current model. The cross-family-edge capture mechanism this doc designed is still in force.
+
 Status: **ready to implement** (delegated, focused unit).
 Parent: `docs/DEMAND-DRIVEN-FN-CACHES.md` (Slice D prerequisite, item D0pre).
 
