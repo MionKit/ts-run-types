@@ -27,7 +27,7 @@ import (
 type ValidationErrorsEmitter struct{}
 
 // validationErrorsPureFnFilePath is the source path the resolver expects for
-// the `cpf_newRunTypeErr` pure-fn registration. The JS side registers
+// the `pf_newRunTypeErr` pure-fn registration. The JS side registers
 // the factory in run-types-pure-fns.ts (the same file validate uses for
 // its own pure-fn deps), and the Go-side integrity check on
 // PureFnDependencies resolves it through the same path.
@@ -502,7 +502,7 @@ func (ValidationErrorsEmitter) Finalize(rawCode string) (string, bool) {
 	return code, false
 }
 
-// callRTErr builds the JS call to cpf_newRunTypeErr that appends one
+// callRTErr builds the JS call to pf_newRunTypeErr that appends one
 // RunTypeError entry to the `er` array. Mirrors mion's
 // RTErrorsFnCompiler.callRTErr / callRTErrWithPath
 // (rtFnCompiler.ts:610-629).
@@ -902,8 +902,8 @@ func emitTupleValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string)
 	}
 }
 
-// cpf_safeIterableKey is registered via the JS-side run-types-pure-fns
-// alongside cpf_newRunTypeErr. emitMapValidationErrors references it to wrap
+// pf_safeIterableKey is registered via the JS-side run-types-pure-fns
+// alongside pf_newRunTypeErr. emitMapValidationErrors references it to wrap
 // runtime keys into safe-for-JSON values (mirroring mion's
 // _safeKey helper at run-types-pure-fns.ts:97 — primitives pass
 // through, objects/symbols/etc become null so the path is still
@@ -933,7 +933,7 @@ func mapSafeKeyContextItem(ctx *EmitContext) string {
 //	}
 //
 // Path segments are JS object literals carrying the runtime key (after
-// `cpf_safeIterableKey` sanitisation), the entry index, and a `failed`
+// `pf_safeIterableKey` sanitisation), the entry index, and a `failed`
 // marker indicating which side of the entry the error came from.
 // Matches mion's getStaticPathLiteral output.
 func emitMapValidationErrors(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {

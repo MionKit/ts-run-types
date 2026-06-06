@@ -187,7 +187,7 @@ func (ctx *EmitContext) SetChildPathLiteral(literal string) {
 // non-empty PathLiteral on the current stack, with `extra` appended as a
 // trailing segment when non-empty. Empty path → empty string (caller
 // omits the argument). Used by validationErrors emitters when calling
-// cpf_newRunTypeErr to embed the static path segments at error sites.
+// pf_newRunTypeErr to embed the static path segments at error sites.
 //
 // Mirrors mion's `getAccessPath` + `getAccessPathLiteral`
 // (rtFnCompiler.ts:677-681) — same join, same `extra` semantics.
@@ -280,7 +280,7 @@ func (ctx *EmitContext) emitDepCall(childID, argsExpr, assignTo string) string {
 // at `utl.getPureFn(<namespace>, <fnName>)`. The walker forwards each
 // dependency to the resolver's integrity check at end of compilation —
 // see internal/compiled/typefns/walker.go's AddPureFnDependency for the
-// recording contract. Used by validationErrors to register `cpf_newRunTypeErr`
+// recording contract. Used by validationErrors to register `pf_newRunTypeErr`
 // before emitting calls into it.
 func (ctx *EmitContext) AddPureFnDependency(namespace, fnName, filePath string) {
 	ctx.walker.AddPureFnDependency(namespace, fnName, filePath)

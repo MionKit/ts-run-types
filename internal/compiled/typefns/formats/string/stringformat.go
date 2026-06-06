@@ -178,7 +178,7 @@ func valuesSource(vals []string) string {
 	return "^(?:" + strings.Join(escaped, "|") + ")$"
 }
 
-// lengthErrorStatements returns the `if (fail) cpf_formatErr(...)`
+// lengthErrorStatements returns the `if (fail) pf_formatErr(...)`
 // statements for whichever length bounds are set. fmtName tags the
 // emitted format error (stringFormat / domain / email / url …).
 func lengthErrorStatements(ctx formats.EmitContext, params map[string]any, vλl, pathExpr, errorsArr, fmtName string) []string {

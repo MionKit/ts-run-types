@@ -24,7 +24,7 @@ import type {
   RestoreFromJsonFn,
   StringifyJsonFn,
 } from '../createRTFunctions.ts';
-import type {ToBinaryFn, FromBinaryFn} from '../createBinary.ts';
+import type {ToBinaryFn, FromBinaryFn} from '../createRTFBinary.ts';
 // `DataOnly` (and its helpers) live in their own module — load-bearing and
 // exhaustively tested (see ./dataOnly.ts + test/types/dataonly.compile.test.ts).
 import type {DataOnly} from './dataOnly.ts';

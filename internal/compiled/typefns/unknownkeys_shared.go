@@ -8,7 +8,7 @@ import (
 )
 
 // unknownKeysPureFnFilePath is the source path the resolver expects for
-// the cpf_getUnknownKeysFromArray / cpf_hasUnknownKeysFromArray
+// the pf_getUnknownKeysFromArray / pf_hasUnknownKeysFromArray
 // pure-fn registrations. Same file as the validationErrors pure-fns
 // (run-types-pure-fns.ts) — the dependency check uses this for integrity
 // validation.

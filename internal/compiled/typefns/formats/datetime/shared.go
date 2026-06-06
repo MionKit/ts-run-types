@@ -5,8 +5,8 @@ import (
 )
 
 // dateTimePureFnFilePath is the canonical source path the resolver
-// registers the date/time pure fns under (cpf_isDateString_*,
-// cpf_isTimeString_*, cpf_relativeNowMs, cpf_*StrToMs). Matches the file
+// registers the date/time pure fns under (pf_isDateString_*,
+// pf_isTimeString_*, pf_relativeNowMs, pf_*StrToMs). Matches the file
 // where the JS-side `registerPureFnFactory('mionFormats', …)` calls
 // live — keep these in sync when either side moves. (The string-format
 // pure fns stay at ../string/string-formats-pure-fns.ts; only the
@@ -14,13 +14,13 @@ import (
 const dateTimePureFnFilePath = "packages/ts-go-run-types/src/formats/datetime/dateTime-pure-fns.ts"
 
 // pureFnAlias registers a pure-fn dependency in the `mionFormats`
-// namespace, hoists the `const cpf_<fnName> = utl.getPureFn(...)`
+// namespace, hoists the `const pf_<fnName> = utl.getPureFn(...)`
 // declaration into the factory prologue (deduped), and returns the alias
 // the emitted body uses. Sibling of the string package's helper of the
 // same name, but registers against dateTimePureFnFilePath.
 func pureFnAlias(ctx formats.EmitContext, fnName string) string {
 	ctx.AddPureFnDependency("mionFormats", fnName, dateTimePureFnFilePath)
-	alias := "cpf_" + fnName
+	alias := "pf_" + fnName
 	if !ctx.HasContextItem(alias) {
 		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
 	}

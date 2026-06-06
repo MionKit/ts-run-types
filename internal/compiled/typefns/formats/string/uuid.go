@@ -9,18 +9,18 @@ import (
 
 // uuidEmitter implements the format named "uuid" — FormatUUIDv4 /
 // FormatUUIDv7 in `@mionjs/ts-go-run-types/formats`. The validator
-// dispatches to the `cpf_isUUID` pure fn that ships with the JS
+// dispatches to the `pf_isUUID` pure fn that ships with the JS
 // package, passing the version-pinned params at the call site.
 //
 // Why a pure fn rather than inline JS: the UUID character-class
 // check runs a tight 36-character loop; inlining its body at every
 // call site would explode the cache module's bytes. Mion's
 // equivalent (packages/type-formats/src/string/uuid.runtype.ts)
-// makes the same call out to cpf_isUUID for the same reason.
+// makes the same call out to pf_isUUID for the same reason.
 type uuidEmitter struct{}
 
 // typeFormatsPureFnFilePath is the canonical source path the
-// resolver registers cpf_isUUID under. Matches the file where the
+// resolver registers pf_isUUID under. Matches the file where the
 // JS-side `registerPureFnFactory('mionFormats', 'isUUID', ...)` call
 // lives — keep these in sync when either side moves.
 const typeFormatsPureFnFilePath = "packages/ts-go-run-types/src/formats/string/string-formats-pure-fns.ts"
@@ -32,8 +32,8 @@ func init() {
 func (uuidEmitter) Name() string                  { return "uuid" }
 func (uuidEmitter) Kind() protocol.ReflectionKind { return protocol.KindString }
 
-// EmitValidateCheck returns `cpf_isUUID(v, {version: '<v>'})`. The
-// `cpf_isUUID` const is hoisted into the factory prologue via a
+// EmitValidateCheck returns `pf_isUUID(v, {version: '<v>'})`. The
+// `pf_isUUID` const is hoisted into the factory prologue via a
 // context item; the pure-fn dependency is recorded so the JS-side
 // cache wires up the registered factory.
 func (uuidEmitter) EmitValidateCheck(annotation *protocol.FormatAnnotation, vλl string, ctx formats.EmitContext) string {

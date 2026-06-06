@@ -65,7 +65,7 @@ export interface TypeFormatError {
 export interface RunTypeError {
   path: RunTypeErrorPathSegment[];
   expected: string;
-  /** Present when a TypeFormat constraint failed (emitted via cpf_formatErr). */
+  /** Present when a TypeFormat constraint failed (emitted via pf_formatErr). */
   format?: TypeFormatError;
 }
 

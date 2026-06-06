@@ -9,7 +9,7 @@ import (
 )
 
 // pureFnAlias registers a pure-fn dependency in the `mionFormats`
-// namespace, hoists the `const cpf_<fnName> = utl.getPureFn(...)`
+// namespace, hoists the `const pf_<fnName> = utl.getPureFn(...)`
 // declaration into the factory prologue (deduped), and returns the
 // alias the emitted body uses. Shared by every string-format emitter
 // that dispatches to a pure fn (uuid / date / time / ip / domain /
@@ -17,7 +17,7 @@ import (
 // picked up by the JS-side pure-fn extractor, not declared here.
 func pureFnAlias(ctx formats.EmitContext, fnName string) string {
 	ctx.AddPureFnDependency("mionFormats", fnName, typeFormatsPureFnFilePath)
-	alias := "cpf_" + fnName
+	alias := "pf_" + fnName
 	if !ctx.HasContextItem(alias) {
 		ctx.SetContextItem(alias, "const "+alias+" = utl.getPureFn('mionFormats::"+fnName+"')")
 	}
@@ -27,11 +27,11 @@ func pureFnAlias(ctx formats.EmitContext, fnName string) string {
 // formatErrCall emits a statement that pushes the canonical nested
 // RunTypeError — `{expected, path, format: {name, formatPath, val}}` —
 // onto the errors array. This is the shape the base validationErrors path
-// (cpf_newRunTypeErr) and consumers expect (mirrors mion's cpf_formatErr
+// (pf_newRunTypeErr) and consumers expect (mirrors mion's pf_formatErr
 // output); a bare `{name, formatPath, val}` push would not conform to
 // RunTypeError and is invisible to consumers reading `.path`/`.format`.
 //
-// Emitted INLINE rather than via a pure fn: the cpf_formatErr pure fn
+// Emitted INLINE rather than via a pure fn: the pf_formatErr pure fn
 // lives in the marker package's run-types-pure-fns.ts, which isn't part
 // of a consumer's program (nothing imports it), so a getPureFn lookup
 // would resolve to undefined at runtime. The inline object literal has

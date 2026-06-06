@@ -108,7 +108,7 @@ export {
   type BinaryDecoderOptions,
   type ToBinaryFn,
   type FromBinaryFn,
-} from './createBinary.ts';
+} from './createRTFBinary.ts';
 
 // Mock-value generator re-exported from `./mocking/` so bundlers can drop the
 // whole mock subtree when consumers don't reference `createMockType`.

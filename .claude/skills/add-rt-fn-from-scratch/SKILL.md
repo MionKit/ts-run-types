@@ -130,6 +130,7 @@ Don't split kind logic across per-kind files — the convention is
 for file shape (not for semantics).
 
 If the function needs path tracking, use `EmitContext`:
+
 - `ctx.SetChildPathLiteral(literal)` — set BEFORE `ctx.CompileChild`
 - `ctx.AccessPathLiteral(extra)` — get current path as JS array literal
 
@@ -145,12 +146,12 @@ plumbing exactly:
 
 - `internal/constants/constants.go` — add `<fnname>` entry to
   `CacheModules` with `Name: "<fnname>Module"` and `VarPrefix:
-  "<fnname>_"`
+"<fnname>_"`
 - `internal/cachetpl/splice.go` — add `Skeleton<FnName>` constant
   pointing at `<fnname>Cache.ts`
 - `internal/protocol/protocol.go` — add `CacheKind<FnName> CacheKind
-  = "<fnname>"`; add `<FnName>CacheSource string` and `Added<FnName>
-  bool` to `Response`; extend `MarshalJSON`
+= "<fnname>"`; add `<FnName>CacheSource string` and `Added<FnName>
+bool` to `Response`; extend `MarshalJSON`
 - `internal/resolver/dispatch.go` — wire `want<FnName>` flag mirroring
   `wantIsType`; honour `CacheKind<FnName>` in `OpScanFiles` + `OpDump`
 - `internal/resolver/render.go` — add `render<FnName>Module(dump)`
@@ -178,7 +179,7 @@ Three new files + two edits:
   new cache. **Load-order matters**: if the new fn uses pure fns,
   import `pureFn.ts` BEFORE the new factory. Pure fns must register
   first, otherwise the cache's `createRTFn` closures fail with
-  `cpf_<name> is not a function` at runtime. Then re-export
+  `pf_<name> is not a function` at runtime. Then re-export
   `create<FnName>`, `deserialize<FnName>`, and any new types.
 
 ## Step 7 — Vite plugin wiring
@@ -230,7 +231,7 @@ family:
 - **Validators returning bool**: no expected thunk — pass = `true`
   for `valid`, `false` for `invalid`
 - **Validators returning errors**: `getExpected<FnName>: () =>
-  <ErrorShape>[][]` indexed parallel to `getSamples().invalid`
+<ErrorShape>[][]` indexed parallel to `getSamples().invalid`
 - **Serializers**: no expected thunk — success = round-trip. Adapter
   asserts `deserialize(serialize(v))` deeply equals `v` for every
   valid sample. Invalid samples are not exercised.
@@ -293,6 +294,7 @@ Implement one kind category at a time, in this order:
 11. type-mappings
 
 Each phase ends green end-to-end before moving on:
+
 - Go build + Go tests pass
 - Adapter test for the new fn passes for kinds shipped so far
 - All previously-shipped fn adapter tests still pass
@@ -335,15 +337,18 @@ pnpm run pre-publish-test
 ## Reference files (read-only citations)
 
 **Existing Go emitters as templates for file shape (NOT semantics):**
+
 - `internal/compiled/typefns/validate.go`
 - `internal/compiled/typefns/validationerrors.go`
 
 **Walker + emitter interface:**
+
 - `internal/compiled/typefns/walker.go`
 - `internal/compiled/typefns/emitter.go`
 - `internal/compiled/typefns/module.go`
 
 **Cache registration:**
+
 - `internal/constants/constants.go`
 - `internal/cachetpl/splice.go`
 - `internal/protocol/protocol.go`
@@ -351,25 +356,31 @@ pnpm run pre-publish-test
 - `internal/resolver/render.go`
 
 **JS adapter templates:**
+
 - `packages/ts-go-run-types/src/createRTFunctions.ts` (exports `createValidate`, `createGetValidationErrors`, `createJsonEncoder`, `createJsonDecoder`, and format helpers)
 - `packages/ts-go-run-types/src/createBinary.ts` (exports `createBinaryEncoder`, `createBinaryDecoder`)
 
 **Cache skeletons:**
+
 - `packages/ts-go-run-types/src/caches/validateCache.ts`
 - `packages/ts-go-run-types/src/caches/getValidationErrorsCache.ts`
 - `packages/ts-go-run-types/src/caches/skeletons.go`
 
 **Pure fns:**
+
 - `packages/ts-go-run-types/src/run-types-pure-fns.ts`
 
 **Index:**
+
 - `packages/ts-go-run-types/src/index.ts`
 
 **Vite plugin:**
+
 - `packages/vite-plugin-runtypes/src/index.ts`
 - `packages/vite-plugin-runtypes/src/protocol.ts`
 
 **Test suite + adapters:**
+
 - `packages/ts-go-run-types/test/suites/validation/` (isType/getTypeErrors)
 - `packages/ts-go-run-types/test/suites/serialization/` (JSON families)
 - `packages/ts-go-run-types/test/suites/validation/isType.test.ts`
