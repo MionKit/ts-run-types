@@ -55,6 +55,10 @@ importers:
         version: link:../vite-plugin-runtypes
 
   packages/vite-plugin-runtypes:
+    dependencies:
+      magic-string:
+        specifier: 0.30.21
+        version: 0.30.21
     devDependencies:
       vite:
         specifier: 5.4.10

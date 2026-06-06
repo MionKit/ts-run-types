@@ -199,7 +199,10 @@ export default function runtypes(options: PluginOptions) {
       const result = await rewrite(rel, code, scanner ?? resolver);
       if (result.sites.length === 0 && result.replacements.length === 0) return null;
 
-      return {code: result.code, map: null};
+      // The MagicString-generated map lets Vite chain our edits into the
+      // composite source map, so breakpoints and stack traces land on the
+      // user's ORIGINAL lines despite the injected import block + bindings.
+      return {code: result.code, map: result.map ?? null};
     },
 
     // handleHotUpdate is the HMR pivot. When a user file changes:
