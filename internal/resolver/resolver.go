@@ -101,11 +101,39 @@ type Resolver struct {
 	// EVERY dump; with the cache only never-seen files pay the AST walk.
 	// Dropped on SetProgram / Reset together with the Program.
 	pureFnFileCache *purefns.FileCache
+	// markerVerdicts memoizes marker.DetectAny by parameter type pointer.
+	// The scanner runs DetectAny for every parameter of every resolved
+	// call signature — five spec checks each with a brand-property
+	// checker lookup — and the same param types repeat across call sites
+	// constantly. Pure function of (checker, type, opts); the checker is
+	// fixed per Program, so this dies with it (SetProgram / Reset).
+	markerVerdicts map[*checker.Type]markerVerdict
 	// rtStore is the on-disk RT artifact cache shared by every
 	// renderXxxModule call. nil when CacheDir was empty — the renderer
 	// treats nil as "no cache wired", so test paths that build a
 	// resolver without a CacheDir keep the original semantics.
 	rtStore *disk.Store
+}
+
+// markerVerdict is one memoized marker.DetectAny result. typeArg is the
+// brand's first type argument when matched (nil otherwise).
+type markerVerdict struct {
+	kind    marker.Kind
+	typeArg *checker.Type
+	matched bool
+}
+
+// detectMarker is marker.DetectAny memoized by parameter type pointer —
+// see the markerVerdicts field doc.
+func (resolver *Resolver) detectMarker(paramType *checker.Type) (marker.Kind, *checker.Type, bool) {
+	if verdict, seen := resolver.markerVerdicts[paramType]; seen {
+		return verdict.kind, verdict.typeArg, verdict.matched
+	}
+	kind, typeArg, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
+	if resolver.markerVerdicts != nil {
+		resolver.markerVerdicts[paramType] = markerVerdict{kind: kind, typeArg: typeArg, matched: matched}
+	}
+	return kind, typeArg, matched
 }
 
 // newRTStore builds the on-disk store for opts, returning nil when
@@ -157,6 +185,7 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 		pureFnHashes:    map[string]string{},
 		scannedFiles:    map[string]struct{}{},
 		pureFnFileCache: purefns.NewFileCache(),
+		markerVerdicts:  map[*checker.Type]markerVerdict{},
 		rtStore:         newRTStore(opts),
 	}, nil
 }
@@ -175,6 +204,7 @@ func NewServer(opts Options) *Resolver {
 		pureFnHashes:    map[string]string{},
 		scannedFiles:    map[string]struct{}{},
 		pureFnFileCache: purefns.NewFileCache(),
+		markerVerdicts:  map[*checker.Type]markerVerdict{},
 		rtStore:         newRTStore(opts),
 	}
 }
@@ -202,6 +232,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.sites = resolver.sites[:0]
 	resolver.scannedFiles = map[string]struct{}{}
 	resolver.pureFnFileCache = purefns.NewFileCache()
+	resolver.markerVerdicts = map[*checker.Type]markerVerdict{}
 	return nil
 }
 
@@ -229,6 +260,7 @@ func (resolver *Resolver) Reset() {
 	resolver.pureFnHashes = map[string]string{}
 	resolver.scannedFiles = map[string]struct{}{}
 	resolver.pureFnFileCache = purefns.NewFileCache()
+	resolver.markerVerdicts = map[*checker.Type]markerVerdict{}
 }
 
 func (resolver *Resolver) Close() {
