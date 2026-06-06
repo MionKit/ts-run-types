@@ -939,14 +939,14 @@ export const ATOMIC = {
   literal_2_noLiterals: {
     title: 'Numeric literal with noLiterals (degrades to number)',
     description: 'degrades to number — Number.isFinite check',
-    // schema + type-first converge in behaviour, but the {noLiterals} option puts
-    // the type-first form in a distinct cache variant — not a structural-id
-    // divergence, so out of scope for the id-integrity suite.
-    idDivergent: true,
     isTypeNotes:
       'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
     isType: () => createIsType<2>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.number()),
+    // Value-first mirror of the type-first form: the SAME literal id carrying the
+    // SAME {noLiterals} option — both resolve the `itNL_<literal-2 id>` variant.
+    // (noLiterals keeps the literal's structural id and folds into the variant
+    // key; it does NOT degrade to `number`'s id before hashing.)
+    isTypeSchema: () => createIsType(RT.literal(2), {noLiterals: true}),
     deserializeIsType: () => deserializeIsType<2>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = 2 as const;
@@ -957,7 +957,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<2>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.number()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(2), {noLiterals: true}),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<2>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = 2 as const;
@@ -984,12 +984,10 @@ export const ATOMIC = {
   literal_a_noLiterals: {
     title: 'String literal with noLiterals (degrades to string)',
     description: 'degrades to string — typeof check',
-    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
-
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
     isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.string()),
+    isTypeSchema: () => createIsType(RT.literal('a'), {noLiterals: true}),
     deserializeIsType: () => deserializeIsType<'a'>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = 'a' as const;
@@ -1000,7 +998,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<'a'>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal('a'), {noLiterals: true}),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<'a'>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = 'a' as const;
@@ -1027,17 +1025,16 @@ export const ATOMIC = {
   literal_regexp_noLiterals: {
     title: 'RegExp literal with noLiterals (degrades to RegExp)',
     description: 'degrades to RegExp — instanceof check',
-    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
-
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `RegExp`. Any RegExp instance passes (constructor form `new RegExp(...)` included); source + flags are no longer matched.',
     isType: () => {
       const reg = /abc/i;
       return createIsType<typeof reg>(undefined, {noLiterals: true});
     },
-    // noLiterals degrades the regexp-literal to its base `RegExp` — the value-first
-    // `RT.regexp()` IS that base kind (like the other *_noLiterals schema thunks).
-    isTypeSchema: () => createIsType(RT.regexp()),
+    // Value-first mirror: RegExp base kind + the SAME {noLiterals} option, so both
+    // resolve the `itNL_<regexp id>` variant. (No RegExp-literal kind exists since
+    // PR #76, so `typeof /abc/i` is plain `RegExp` — `RT.regexp()` is the match.)
+    isTypeSchema: () => createIsType(RT.regexp(), {noLiterals: true}),
     deserializeIsType: () => {
       const reg = /abc/i;
       return deserializeIsType<typeof reg>(undefined, {noLiterals: true});
@@ -1056,7 +1053,7 @@ export const ATOMIC = {
       const reg = /abc/i;
       return createGetTypeErrors<typeof reg>(undefined, {noLiterals: true});
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp(), {noLiterals: true}),
     deserializeGetTypeErrors: () => {
       const reg = /abc/i;
       return deserializeGetTypeErrors<typeof reg>(undefined, {noLiterals: true});
@@ -1092,12 +1089,10 @@ export const ATOMIC = {
   literal_true_noLiterals: {
     title: 'Boolean literal with noLiterals (degrades to boolean)',
     description: 'degrades to boolean — typeof check',
-    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
-
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
     isType: () => createIsType<true>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.boolean()),
+    isTypeSchema: () => createIsType(RT.literal(true), {noLiterals: true}),
     deserializeIsType: () => deserializeIsType<true>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = true as const;
@@ -1108,7 +1103,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<true>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.boolean()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(true), {noLiterals: true}),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<true>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = true as const;
@@ -1136,12 +1131,10 @@ export const ATOMIC = {
   literal_1n_noLiterals: {
     title: 'BigInt literal with noLiterals (degrades to bigint)',
     description: 'degrades to bigint — typeof check',
-    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
-
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
     isType: () => createIsType<1n>(undefined, {noLiterals: true}),
-    isTypeSchema: () => createIsType(RT.bigint()),
+    isTypeSchema: () => createIsType(RT.literal(1n), {noLiterals: true}),
     deserializeIsType: () => deserializeIsType<1n>(undefined, {noLiterals: true}),
     isTypeReflect: () => {
       const v = 1n as const;
@@ -1152,7 +1145,7 @@ export const ATOMIC = {
       return deserializeIsType(v, {noLiterals: true});
     },
     getTypeErrors: () => createGetTypeErrors<1n>(undefined, {noLiterals: true}),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.bigint()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.literal(1n), {noLiterals: true}),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<1n>(undefined, {noLiterals: true}),
     getTypeErrorsReflect: () => {
       const v = 1n as const;
