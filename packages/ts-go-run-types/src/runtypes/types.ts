@@ -234,8 +234,6 @@ interface FormData {
 // VERBATIM by test/types/dataonlyHarness.ts (sliced between these markers) to
 // build the per-branch instantiation-budget test. Keep the region
 // self-contained: it may reference only `lib` types + its own declarations.
-// prettier-ignore
-type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | FormData | ArrayBuffer | SharedArrayBuffer | DataView | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
 
 /** Augmentation hook for native / host classes that `DataOnly` must KEEP
  *  verbatim (the RT validates them by identity / `instanceof`, never by
@@ -248,22 +246,38 @@ type Native = Date | RegExp | URL | URLSearchParams | Blob | File | FileList | F
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DataOnlyNativeExtra {}
 
-/** Native / host classes kept verbatim by `DataOnly`, plus the augmentable
- *  `DataOnlyNativeExtra` tail (Temporal, …). With nothing augmenting it the
- *  tail is `never`, so this is just `Native`. **/
-type DataOnlyNative = Native | DataOnlyNativeExtra[keyof DataOnlyNativeExtra];
+/** Built-in classes `DataOnly` KEEPS verbatim — only the ones the AOT validator
+ *  checks by IDENTITY (`instanceof`): `Date` (SubKindDate) and `RegExp` (real
+ *  `instanceof RegExp` emit). `Map`/`Set` are kept separately in the keep-union
+ *  below. The augmentable `DataOnlyNativeExtra` tail folds in Temporal; with
+ *  nothing augmenting it the tail is `never`, so this is just `Date | RegExp`.
+ *
+ *  Deliberately NOT here (the old broad `Native` union grouped them wrongly):
+ *   - `ArrayBuffer`/`SharedArrayBuffer`/`DataView` + every typed array are
+ *     `SubKindNonSerializable` in the emitter → unsupported, so `DataOnly`
+ *     STRIPS them (listed in `DataOnlyStripped`);
+ *   - `URL`/`URLSearchParams`/`Blob`/`File`/`FileList`/`FormData` are plain
+ *     classes the emitter validates STRUCTURALLY (`ClassRef{Name}`), so they
+ *     fall through to the object branch and project to their data shape —
+ *     neither kept verbatim nor stripped. **/
+type DataOnlyNative = Date | RegExp | DataOnlyNativeExtra[keyof DataOnlyNativeExtra];
 
 /** Kinds the AOT validator treats as NON-DATA and strips (docs/UNSUPPORTED-KINDS.md
  *  "the unsupported set"):
  *   - `symbol` — runtime identity, not round-trippable;
  *   - any callable / constructable value (function, method, class value);
  *   - `Promise` / thenables — `isType` validates inbound public-API *data*,
- *     which never carries promises; a thenable is not data.
+ *     which never carries promises; a thenable is not data;
+ *   - the non-serialisable built-ins — `ArrayBuffer`/`SharedArrayBuffer`/
+ *     `DataView` and every typed array (`Int8Array`…`BigUint64Array`). These are
+ *     `SubKindNonSerializable` in the Go emitter, i.e. unsupported for EVERY
+ *     family (incl. isType/getTypeErrors): the validator drops them at a
+ *     property and `alwaysThrow`s at root — exactly the `never` semantics.
  *
- *  (`WeakMap`/`WeakSet` are intentionally absent: a real `Set` is structurally
- *  assignable to `WeakSet<any>`, so listing it here would wrongly strip `Set`.
- *  They fall through to the object branch and project to `{}`, exactly as
- *  before.)
+ *  (`WeakMap`/`WeakSet` are intentionally absent: a real `Map`/`Set` is
+ *  structurally assignable to them, so listing them would wrongly strip
+ *  `Map`/`Set`. They fall through to the object branch and project to `{}`,
+ *  exactly as before.)
  *
  *  At a PROPERTY slot these drop silently; at a PROPAGATING slot (root, array
  *  element, tuple slot, union member) they collapse the projection to `never`.
@@ -279,7 +293,14 @@ type DataOnlyStripped =
   // `Promise<any>` — the latter's `T`-in-`then` contravariance means
   // `Promise<string> extends Promise<any>` does not hold, so it would miss.
   // The `never[]` params keep the check variance-free, matching every Promise.
-  | {then: (...args: never[]) => unknown};
+  | {then: (...args: never[]) => unknown}
+  // Non-serialisable built-ins (SubKindNonSerializable → unsupported). The
+  // binary buffers, plus `ArrayBufferView` — the one lib type every typed array
+  // AND `DataView` extend (`{ buffer; byteLength; byteOffset }`) — so all 12
+  // collapse to a single cheap check instead of a 12-arm union.
+  | ArrayBuffer
+  | SharedArrayBuffer
+  | ArrayBufferView;
 
 /** Recursion-budget decrement for `DataOnly`: `_DataOnlyDepth[N]` is `N - 1`
  *  (and `_DataOnlyDepth[0]` is `never`, never reached — the `Depth extends 0`
@@ -293,9 +314,9 @@ type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
  *  AOT emitter treats as non-data (see CLAUDE.md "isType contract — serializable
  *  data only" + docs/UNSUPPORTED-KINDS.md):
  *   - `DataOnlyStripped` kinds (symbol / function / constructor / promise /
- *     `never`) → `never`;
- *   - primitives, `Date`/`RegExp`/typed-array/native (+ augmented Temporal),
- *     and `Map`/`Set` → kept verbatim;
+ *     non-serialisable built-ins / `never`) → `never`;
+ *   - primitives, `Date`/`RegExp` (+ augmented Temporal), and `Map`/`Set` →
+ *     kept verbatim (the validator checks these by identity);
  *   - `any` / `unknown` (and broad `object`) → kept (the emitter best-effort
  *     accepts the broad kinds — the validator emits `true`);
  *   - arrays + tuples → recurse per element/slot, preserving array-ness, slot

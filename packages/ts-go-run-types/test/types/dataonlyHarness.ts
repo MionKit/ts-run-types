@@ -59,24 +59,11 @@ interface DataOnlyNativeExtra {
 }
 `;
 
-// Minimal stubs for the handful of DOM/host classes `Native` names, so the
-// harness can compile against `lib.es2023` ALONE — dropping `lib.dom` cuts the
-// per-case baseline (and bind time) by an order of magnitude, sharpening the
-// DataOnly-attributable signal. (The typed arrays / ArrayBuffer / DataView /
-// SharedArrayBuffer that `Native` also names live in `lib.es2023` already.)
-//
-// Each carries a UNIQUE `__host` brand: real DOM types are richly nominal, but a
-// loose structural stub (e.g. `{ length: number }`) would be matched by any
-// array — sending arrays down the keep-branch instead of the array branch. The
-// brand keeps them distinct so the keep-vs-project routing matches production.
-const HOST_STUBS = `
-interface URL { readonly __host: 'URL' }
-interface URLSearchParams { readonly __host: 'URLSearchParams' }
-interface Blob { readonly __host: 'Blob' }
-interface File { readonly __host: 'File' }
-interface FileList { readonly __host: 'FileList' }
-interface FormData { readonly __host: 'FormData' }
-`;
+// The DataOnly region now names only `lib.es2023` types (Date / RegExp / the
+// binary buffers / typed arrays / Map / Set) — no DOM types — so the harness
+// compiles against `lib.es2023` ALONE. Dropping `lib.dom` cuts the per-case
+// baseline (and bind time) by an order of magnitude, sharpening the
+// DataOnly-attributable instantiation signal.
 
 // Type-level assertion helpers used by the snippets.
 const ASSERT_PREAMBLE = `
@@ -86,7 +73,7 @@ type ExpectFalse<T extends false> = T;
 type Assignable<A, B> = A extends B ? true : false;
 `;
 
-const PREAMBLE = `${HOST_STUBS}\n${TEMPORAL_PREAMBLE}\n${extractDataOnlyRegion()}\n${ASSERT_PREAMBLE}\n`;
+const PREAMBLE = `${TEMPORAL_PREAMBLE}\n${extractDataOnlyRegion()}\n${ASSERT_PREAMBLE}\n`;
 // Line count of everything we prepend — used to rebase diagnostic line numbers.
 const PREAMBLE_LINES = PREAMBLE.split('\n').length - 1;
 
