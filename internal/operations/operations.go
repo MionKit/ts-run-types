@@ -83,8 +83,15 @@ var registry = []Operation{
 	// constants.CacheModules in the JSON-composite slice).
 	{
 		Name: "jsonEncoder", Axis: AxisJsonStrategy, Public: true, FnKey: "jsonEncoder",
-		DefaultStrategy: "stripClone",
-		Strategies:      []string{"clone", "stripClone", "mutate", "stripMutate", "direct"},
+		// `clone` is the default and is shape-derived: it builds a NEW value from
+		// the declared type shape (never `{...v}`), so undeclared keys are dropped
+		// for free — a clone is stripped by construction. That makes a separate
+		// "strip" variant of clone (the old `stripClone`) redundant, and the
+		// mutate-with-strip variant (`stripMutate`) unnecessary; both were removed.
+		// `mutate` transforms in place (preserves undeclared keys, no allocation);
+		// `direct` is the single-pass stringifyJson (always strips).
+		DefaultStrategy: "clone",
+		Strategies:      []string{"clone", "mutate", "direct"},
 	},
 	{
 		Name: "jsonDecoder", Axis: AxisJsonStrategy, Public: true, FnKey: "jsonDecoder",

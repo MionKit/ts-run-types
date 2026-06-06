@@ -59,3 +59,14 @@ instead of:
 const result = {...v};
 result.c = prepareForJSOn(result.c);
 ```
+
+**DONE.** A clone built from the declared type shape (`{a: v.a, b: prepareForJson(v.b)}`, never `{...v}`) drops undeclared keys by construction — a clone is **stripped for free**, so a separate "strip" variant of clone is redundant. The shape-derived clone already existed as the `prepareForJsonSafe` emitter (`internal/compiled/typefns/json_prepare_safe.go` → `buildSafeObjectLiteral`); the only `{...v}` spread was the deliberate preserve-extras path.
+
+Acting on this, the JSON-encoder strategy set was collapsed to **`clone` | `mutate` | `direct`** (`JsonEncoderStrategy` in `packages/ts-go-run-types/src/createRTFunctions.ts`):
+
+- `clone` (new default) is shape-derived and **strips** undeclared keys. It now wraps `prepareForJsonSafe` (was `prepareForJsonSafePreserve`).
+- `stripClone` was removed — it was just `clone`-that-strips, which is now what `clone` is.
+- `stripMutate` was removed — the mutate-with-strip variant (`unknownKeysToUndefined` + `prepareForJson`) is unnecessary; use `clone` to strip, or `mutate` to keep extras.
+- `mutate` (in-place, preserves extras) and `direct` (single-pass) are unchanged.
+
+Disk cache format bumped to **v4** (the `clone` composite body changed pjsp→pjs while its fnHash is unchanged, so stale `jeCL` entries must miss). The internal `prepareForJsonSafePreserve` primitive (pjsp) remains in the registry but is no longer selected by any public strategy — a candidate for a follow-up dead-code removal (it also touches the plugin protocol + diagnostics).

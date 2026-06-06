@@ -13,17 +13,13 @@ export interface SerializationCase {
 
   /** Encoder thunks — one per `createJsonEncoder` strategy exercised by the
    *  suite (the field name IS the strategy):
-   *  - `stripCloneEncoder` — strategy 'stripClone' (clone, strips extras; default).
-   *  - `cloneEncoder` — strategy 'clone' (clone, preserves extras).
-   *  - `stripMutateEncoder` — strategy 'stripMutate' (mutate, strips extras).
-   *  - `mutateEncoder` — strategy 'mutate' (mutate, preserves extras).
+   *  - `cloneEncoder` — strategy 'clone' (shape-derived clone, strips extras; default).
+   *  - `mutateEncoder` — strategy 'mutate' (mutate in place, preserves extras).
    *  - `directEncoder` — strategy 'direct' (single-pass, always strips).
    *  Decoder pairing: every strip/direct encoder pairs with `stripDecoder`;
    *  `mutateEncoder` (preserve) pairs with `preserveDecoder` — the only path
    *  that preserves undeclared keys through the round-trip. **/
-  stripCloneEncoder: () => JsonEncoderFn;
   cloneEncoder: () => JsonEncoderFn;
-  stripMutateEncoder: () => JsonEncoderFn;
   directEncoder: () => JsonEncoderFn;
   mutateEncoder: () => JsonEncoderFn;
 
@@ -34,7 +30,7 @@ export interface SerializationCase {
    *  a non-matching round-trip as a "value not supported by JSON"
    *  signal. Only the `direct + *` pairings consult this flag (direct
    *  uses single-pass `stringifyJson` which emits the unparseable
-   *  literal). The mutate / clone / stripMutate / stripClone paths all
+   *  literal). The mutate / clone paths all
    *  route through `JSON.stringify` where `JSON.stringify(Infinity)`
    *  returns `"null"` (not a throw) and `deserializedValues` already
    *  handles the round-trip. **/
@@ -68,15 +64,15 @@ export interface SerializationCase {
    *  Mirrors mion's `getTestData` shape. **/
   getTestData: () => {values: unknown[]; deserializedValues?: unknown[]};
 
-  /** Optional override consumed by the **stripClone** path adapter
-   *  (`stripUnknownKeys + prepareForJson + JSON.stringify` /
+  /** Optional override consumed by the **clone** (shape-derived, strips)
+   *  path adapter (`prepareForJsonSafe + JSON.stringify` /
    *  `JSON.parse + (stripUnknownKeys | unknownKeyErrors) + restoreFromJson`).
    *
-   *  Provide only when the stripClone path produces a different observable
+   *  Provide only when the clone path produces a different observable
    *  than the mutate path — typically when an input carries extras
    *  that are stripped pre-serialise (so `deserializedValues`
    *  reflects the cleaned shape). For ~90% of cases (no extras,
-   *  identical behaviour between paths) leave this unset; the stripClone
+   *  identical behaviour between paths) leave this unset; the clone
    *  adapter falls back to `getTestData`.
    *
    *  Mirrors the split between mion's jsonSpec (prepareForJson +
@@ -155,8 +151,8 @@ export interface SerializationCase {
    *  proving the value-first authoring path resolves the same compiled factory as
    *  the type-first `<T>` form. The model is duplicated across the four BY DESIGN —
    *  every thunk stays self-contained + single-purpose (benchmarking, code
-   *  extraction, doc-gen). The JSON pair uses the default strategy (stripClone
-   *  encoder / strip decoder), mirroring `stripCloneEncoder` / `stripDecoder`.
+   *  extraction, doc-gen). The JSON pair uses the default strategy (clone
+   *  encoder / strip decoder), mirroring `cloneEncoder` / `stripDecoder`.
    *  `'not-supported'` when no `RT.*` builder can express the type; omit a field
    *  entirely → the suite reports "(not implemented)" for that variant. **/
   schemaEncoder?: SchemaThunk<JsonEncoderFn>;

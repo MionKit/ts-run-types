@@ -144,7 +144,7 @@ export function assertSerializerIdIntegrity(c: SerializationCase): void {
   const schemaEncoder = resolveThunk(c.schemaEncoder);
   if (schemaEncoder && !c.factoryThrows) {
     const schemaEncode = schemaEncoder();
-    const typeEncode = c.stripCloneEncoder();
+    const typeEncode = c.cloneEncoder();
     const {values} = (c.getTestDataForStringify ?? c.getTestData)();
     values.forEach((reference, i) => {
       const fromSchema = schemaEncode(deepCloneForRoundTrip(reference));

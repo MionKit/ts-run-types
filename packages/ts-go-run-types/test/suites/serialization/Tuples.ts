@@ -7,9 +7,6 @@ export const TUPLES = {
     title: 'tuple',
     mutateEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () =>
-      createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(),
     directEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(),
     preserveDecoder: () => createJsonDecoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'preserve'}),
@@ -31,8 +28,6 @@ export const TUPLES = {
     title: 'tuple with optional params',
     mutateEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(),
     directEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(),
     preserveDecoder: () => createJsonDecoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'preserve'}),
@@ -53,8 +48,6 @@ export const TUPLES = {
     title: 'tuple rest parameter',
     mutateEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<[number, ...bigint[]]>(),
     directEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<[number, ...bigint[]]>(),
     preserveDecoder: () => createJsonDecoder<[number, ...bigint[]]>(undefined, {strategy: 'preserve'}),
@@ -72,8 +65,6 @@ export const TUPLES = {
       'Function-typed tuple slots are unsupported at every serialization family: tuple positions are structural, so the previous silent drop produced lossy output (functions became null / undefined depending on path). The factory is now rendered as alwaysThrow.',
     mutateEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'clone'}),
-    stripMutateEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'stripMutate'}),
-    stripCloneEncoder: () => createJsonEncoder<[number, () => any]>(),
     directEncoder: () => createJsonEncoder<[number, () => any]>(undefined, {strategy: 'direct'}),
     stripDecoder: () => createJsonDecoder<[number, () => any]>(),
     preserveDecoder: () => createJsonDecoder<[number, () => any]>(undefined, {strategy: 'preserve'}),
@@ -98,14 +89,6 @@ export const TUPLES = {
     cloneEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createJsonEncoder<TupleCircular>(undefined, {strategy: 'clone'});
-    },
-    stripMutateEncoder: () => {
-      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonEncoder<TupleCircular>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createJsonEncoder<TupleCircular>();
     },
     directEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -174,20 +157,6 @@ export const TUPLES = {
       }
       return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'clone'});
     },
-    stripMutateEncoder: () => {
-      interface ICircularTuple {
-        name: string;
-        parent?: [string, ICircularTuple];
-      }
-      return createJsonEncoder<ICircularTuple>(undefined, {strategy: 'stripMutate'});
-    },
-    stripCloneEncoder: () => {
-      interface ICircularTuple {
-        name: string;
-        parent?: [string, ICircularTuple];
-      }
-      return createJsonEncoder<ICircularTuple>();
-    },
     directEncoder: () => {
       interface ICircularTuple {
         name: string;
@@ -224,13 +193,21 @@ export const TUPLES = {
       return createBinaryDecoder<ICircularTuple>();
     },
     schemaEncoder: () =>
-      createJsonEncoder(RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))),
+      createJsonEncoder(
+        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+      ),
     schemaDecoder: () =>
-      createJsonDecoder(RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))),
+      createJsonDecoder(
+        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+      ),
     schemaBinaryEncoder: () =>
-      createBinaryEncoder(RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))),
+      createBinaryEncoder(
+        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+      ),
     schemaBinaryDecoder: () =>
-      createBinaryDecoder(RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))),
+      createBinaryDecoder(
+        RT.circular((self) => RT.object({name: RT.string(), parent: RT.optional(RT.tuple([RT.string(), self]))}))
+      ),
     getTestData: () => {
       interface ICircularTuple {
         name: string;

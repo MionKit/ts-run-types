@@ -127,13 +127,11 @@ var CacheModules = CacheModuleGroup{
 // jsonCompositeTags maps "op|strategy" → tag. JsonCompositeByTag reverses it so
 // the composite emitter recovers (operation, strategy) from a demand's tag.
 var jsonCompositeTags = map[string]string{
-	"jsonEncoder|clone":       "jeCL",
-	"jsonEncoder|stripClone":  "jeSC",
-	"jsonEncoder|mutate":      "jeMU",
-	"jsonEncoder|stripMutate": "jeSM",
-	"jsonEncoder|direct":      "jeDI",
-	"jsonDecoder|strip":       "jdST",
-	"jsonDecoder|preserve":    "jdPR",
+	"jsonEncoder|clone":    "jeCL",
+	"jsonEncoder|mutate":   "jeMU",
+	"jsonEncoder|direct":   "jeDI",
+	"jsonDecoder|strip":    "jdST",
+	"jsonDecoder|preserve": "jdPR",
 }
 
 // JsonComposite identifies one JSON composite family: the operation name
@@ -243,13 +241,16 @@ func IsTypeVariantSuffix(names []string) string {
 // composes. Shared by the scanner (emit), the emitter (demand), and mirrored to
 // the TS runtime via gen-ts-constants.
 var JsonStrategyFamilies = map[string][]string{
-	"direct":      {"sj"},
-	"stripClone":  {"pjs"},
-	"clone":       {"pjsp"},
-	"mutate":      {"pj"},
-	"stripMutate": {"pj", "uku"},
-	"strip":       {"rj", "ukuw"},
-	"preserve":    {"rj"},
+	"direct": {"sj"},
+	// `clone` is shape-derived (prepareForJsonSafe builds a new value from the
+	// declared shape), so it strips undeclared keys by construction — no separate
+	// strip pass / strip variant is needed. (Was {"pjsp"} when `clone` preserved
+	// extras; the preserve variant and the `stripClone`/`stripMutate` strategies
+	// were removed.)
+	"clone":    {"pjs"},
+	"mutate":   {"pj"},
+	"strip":    {"rj", "ukuw"},
+	"preserve": {"rj"},
 }
 
 // Version is the binary version, injected at build time via

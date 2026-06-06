@@ -131,19 +131,19 @@ export type JsonEncoderFn = (value: unknown) => string | undefined;
 /** Parse function returned by `createJsonDecoder<T>()`. **/
 export type JsonDecoderFn<T = unknown> = (serialized: string) => T;
 
-/** Caller-controlled `strategy` for `createJsonEncoder<T>()`. One enum folds the
- *  walk mode and whether undeclared keys are stripped:
+/** Caller-controlled `strategy` for `createJsonEncoder<T>()`. The walk mode:
  *
- *  - `'stripClone'` (default): walk the type, build a new value dropping
- *    undeclared keys, hand to native `JSON.stringify`. Non-mutating.
- *  - `'clone'`: same clone walk, but undeclared keys are PRESERVED on the wire.
- *  - `'stripMutate'`: transform leaves in place dropping undeclared keys, then
- *    `JSON.stringify`. Mutates the input, no clone allocation.
- *  - `'mutate'`: same in-place transform, undeclared keys PRESERVED.
+ *  - `'clone'` (default): walk the type and build a NEW value from the declared
+ *    shape (`{a: v.a, b: prepareForJson(v.b)}`, never `{...v}`), then hand to
+ *    native `JSON.stringify`. Because the clone is built from the type shape,
+ *    undeclared keys are dropped by construction — a clone is stripped for free,
+ *    so there is no separate "strip" variant. Non-mutating.
+ *  - `'mutate'`: transform leaves in place (no clone allocation), then
+ *    `JSON.stringify`. Mutates the input and PRESERVES undeclared keys on the wire.
  *  - `'direct'`: single-pass `stringifyJson` RT. Never mutates, no clone
  *    allocation, slower on non-trivial shapes; always strips undeclared keys.
  */
-export type JsonEncoderStrategy = 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct';
+export type JsonEncoderStrategy = 'clone' | 'mutate' | 'direct';
 export type JsonEncoderOptions = {strategy?: JsonEncoderStrategy};
 
 /** Caller-controlled `strategy` for `createJsonDecoder<T>()`. The decoder always
@@ -345,7 +345,7 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 const jsonParseFallback: JsonDecoderFn = (s) => JSON.parse(s);
 
-/** Returns a JSON encoder for `T`. Default `strategy: 'stripClone'`. See
+/** Returns a JSON encoder for `T`. Default `strategy: 'clone'`. See
  *  `JsonEncoderStrategy` for the full matrix. Accepts either a value-first
  *  schema (`createJsonEncoder(rt)`) or the value/static form.
  *
