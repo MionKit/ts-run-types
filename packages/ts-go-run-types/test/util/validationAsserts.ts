@@ -403,16 +403,24 @@ export function assertMockTypeReflect(c: AssertableCase): void {
 }
 
 // =========================================================================
-// format-validation getValidationErrors — single variant (static, format payload)
+// format-validation getValidationErrors — 4 variants (static / reflect /
+// deserialize-static / deserialize-reflect), all asserting the format payload
 // =========================================================================
 
-/** Format getValidationErrors — asserts valid samples produce no errors and each
- *  invalid sample carries the expected `format` payload (name, optional `val`,
- *  optional `formatPath` tail) via the case's index-parallel
- *  `expectedFormatErrors`. Matches on the format payload, not a full
- *  RunTypeError deep-equal — robust against incidental fields in the envelope. **/
-export function assertFormatGetValidationErrorsStatic(c: FormatValidationCase): void {
-  const factory = resolveThunk(c.getValidationErrors);
+/** Shared core for the format-payload getValidationErrors asserts. All four forms
+ *  resolve a getValidationErrors factory that differs ONLY in how T is supplied
+ *  (type-first, reflected from a value, or rebuilt from compiled data) and assert
+ *  the SAME format payload — proving a bounded/branded format survives every
+ *  resolution path and still reports the same `format` error (name, optional `val`,
+ *  optional `formatPath` tail) via the case's index-parallel `expectedFormatErrors`.
+ *  Matches on the format payload, not a full RunTypeError deep-equal — robust
+ *  against incidental fields in the envelope. **/
+function assertFormatGetValidationErrorsVia(
+  c: FormatValidationCase,
+  thunk: ValidationCase['getValidationErrors'],
+  label: string
+): void {
+  const factory = resolveThunk(thunk);
   if (!factory) return;
   if (!c.expectedFormatErrors) throw new Error(`case ${c.title}: missing expectedFormatErrors thunk`);
 
@@ -427,27 +435,44 @@ export function assertFormatGetValidationErrorsStatic(c: FormatValidationCase): 
   const getErr = factory();
 
   valid.forEach((v, i) => {
-    expect(getErr(v), `${c.title}: valid[${i}] → no errors`).toEqual([]);
+    expect(getErr(v), `${c.title} [${label}]: valid[${i}] → no errors`).toEqual([]);
   });
 
   invalid.forEach((v, i) => {
     const errors = getErr(v);
-    expect(errors.length, `${c.title}: invalid[${i}] should produce at least one error`).toBeGreaterThan(0);
+    expect(errors.length, `${c.title} [${label}]: invalid[${i}] should produce at least one error`).toBeGreaterThan(0);
 
     const exp = expected[i];
     if (!exp) return;
 
     const formatErr = errors.find((entry) => entry.format?.name === exp.name)?.format;
-    expect(formatErr, `${c.title}: invalid[${i}] should carry a '${exp.name}' format error`).toBeDefined();
+    expect(formatErr, `${c.title} [${label}]: invalid[${i}] should carry a '${exp.name}' format error`).toBeDefined();
 
     if (exp.val !== undefined) {
-      expect(formatErr?.val, `${c.title}: invalid[${i}] format.val`).toEqual(exp.val);
+      expect(formatErr?.val, `${c.title} [${label}]: invalid[${i}] format.val`).toEqual(exp.val);
     }
     if (exp.formatPathTail !== undefined) {
       const path = formatErr?.formatPath;
-      expect(path?.[path.length - 1], `${c.title}: invalid[${i}] format.formatPath tail`).toBe(exp.formatPathTail);
+      expect(path?.[path.length - 1], `${c.title} [${label}]: invalid[${i}] format.formatPath tail`).toBe(exp.formatPathTail);
     }
   });
+}
+
+/** Static form — type-first `createGetValidationErrors<Format…>()`. **/
+export function assertFormatGetValidationErrorsStatic(c: FormatValidationCase): void {
+  assertFormatGetValidationErrorsVia(c, c.getValidationErrors, 'format');
+}
+/** Reflect form — `createGetValidationErrors(value)`, T inferred from a value. **/
+export function assertFormatGetValidationErrorsReflect(c: FormatValidationCase): void {
+  assertFormatGetValidationErrorsVia(c, c.getValidationErrorsReflect, 'format-reflect');
+}
+/** Deserialize-static form — getValidationErrors rebuilt from RTCompiledFnData.code. **/
+export function assertFormatGetValidationErrorsDeserializeStatic(c: FormatValidationCase): void {
+  assertFormatGetValidationErrorsVia(c, c.deserializeGetValidationErrors, 'format-deserialize-static');
+}
+/** Deserialize-reflect form. **/
+export function assertFormatGetValidationErrorsDeserializeReflect(c: FormatValidationCase): void {
+  assertFormatGetValidationErrorsVia(c, c.deserializeGetValidationErrorsReflect, 'format-deserialize-reflect');
 }
 
 // =========================================================================
