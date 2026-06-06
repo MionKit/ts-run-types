@@ -10,8 +10,7 @@ if this is correct we need to ensure the golang backend reads the params and gen
 
 ## generalize collectIsTypeVariants
 
-generalize collectIsTypeVariants in internal/compiled/typefns/module.go to be a generic function and collect function compile params
-maybe a new marker CompFunctionOpts<T>
+**DONE.** `collectIsTypeVariants` no longer exists — variant collection is now the generic `collectFamilyDemand` (works for any family), driven by structured `protocol.Site.Demand`, which carries each cache entry's compile params (the `IsTypeOptions` set / JSON strategy) the scanner computes from the operation registry. The "maybe a new marker `CompFunctionOpts<T>`" idea was realized as `CompTimeFnArgs<T>` (the fn-selecting variant of `CompTimeArgs` that brands the compile-params slot). See CLAUDE.md → "Two injection markers + demand-driven function caches" and `docs/SLICE4-HASHED-NAMING.md`.
 
 ## make DataOnly more general and reflect actual validation logic, (in fact we could make validate an scenario of this)
 
