@@ -199,7 +199,7 @@ func (ctx *EmitContext) AccessPathLiteral(extra string) string {
 	if len(segments) == 0 {
 		return ""
 	}
-	return "[" + joinComma(segments) + "]"
+	return "[" + joinArgs(segments) + "]"
 }
 
 // AccessPathLength returns the number of static path segments the
@@ -414,26 +414,3 @@ func (ctx *EmitContext) ArgName(key string) string {
 	return ""
 }
 
-// joinComma is a private helper to concatenate path-literal segments
-// without depending on strings.Join (avoids an import here; the file
-// otherwise stays import-free).
-func joinComma(parts []string) string {
-	switch len(parts) {
-	case 0:
-		return ""
-	case 1:
-		return parts[0]
-	}
-	total := 0
-	for _, p := range parts {
-		total += len(p) + 1
-	}
-	buf := make([]byte, 0, total)
-	for i, p := range parts {
-		if i > 0 {
-			buf = append(buf, ',')
-		}
-		buf = append(buf, p...)
-	}
-	return string(buf)
-}

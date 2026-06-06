@@ -25,7 +25,7 @@
 | id | site | what | approach | est. LOC | risk | status |
 | --- | --- | --- | --- | --- | --- | --- |
 | S1 | `runtype/serialize.go:1416` + `runtype/typeid/typeid.go:530` | `stripUndefined` duplicated across the two packages | export `typeid.StripUndefined` (keep prealloc body), delete serialize copy | −17 | minimal | landed |
-| S2 | `typefns/emitter.go:420` + `typefns/module.go:1238` | `joinComma` ≡ `joinArgs` (same package) | keep `joinArgs`, add len-0/1 fast paths, delete `joinComma` | −20 | low | pending |
+| S2 | `typefns/emitter.go:420` + `typefns/module.go:1238` | `joinComma` ≡ `joinArgs` (same package) | keep `joinArgs`, add len-0/1 fast paths, delete `joinComma` | −20 | low | landed |
 | S3 | `formats/{string,datetime,numeric}/shared.go` | `formatErrCall` ×3, `formatNumber` ×2, `pureFnAlias` ×2 byte-identical | exported helpers in formats root (`formats/emit.go`) | −50 | low | pending |
 | S4 | `purefns/walker.go:472` vs `resolver/scan.go:911` (+6 site-building blocks) | naive O(bytes) `lineCol` duplicates the optimized line-map `scanLineCol`; repeated Pos/End→`diag.Site` blocks | new tiny `internal/textpos`: `LineCol` + `NodeSite`; purefns gets the line-map win | −55 | low | pending |
 | S5 | `typefns/module.go:206-356` | partial registry (`familyConfig` + `crossFamilyItSourceFamilies`) duplicates the wrapper triples | `FamilySpec` registry in `typefns/families.go` (order load-bearing, validate LAST) | +55/−45 | low | pending |
@@ -89,3 +89,4 @@ switches and the render engine** — reviewed and intentionally kept:
 | step | commit | LOC delta | bench verdict |
 | --- | --- | --- | --- |
 | S1 | refactor(typeid): share StripUndefined with the serializer | −17 | neutral (wall +2.1%, go −0.8%, alloc +0.0%) |
+| S2 | refactor(typefns): fold joinComma into joinArgs | −20 | neutral (wall +2.7%, go −0.8%, alloc −0.0%) |
