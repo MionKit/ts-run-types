@@ -565,7 +565,9 @@ func optionsArgumentAt(call *ast.Node, lastIndex, argsCount int) *ast.Node {
 // mion's compile-time-baked options model (baseRunTypes.ts:82-86 hashes
 // options into the RT cache key).
 func eachOptionProperty(call *ast.Node, lastIndex, argsCount int, visit func(name string, initializer *ast.Node)) {
-	candidate := optionsArgumentAt(call, lastIndex, argsCount)
+	// Unwrap `as const` / parens / `satisfies` so extraction accepts
+	// exactly what the slot's CompTimeFnArgs validation accepted.
+	candidate := comptimeargs.UnwrapWrappers(optionsArgumentAt(call, lastIndex, argsCount))
 	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
 		return
 	}

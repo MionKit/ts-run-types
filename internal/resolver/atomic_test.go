@@ -1636,3 +1636,34 @@ createValidate(array(string()), {noIsArrayCheck: true});
 		t.Errorf("schema-form options not observed: Site[2].FnId = %q, want %q (validate/noIsArrayCheck)", variant.FnId, wantVariant)
 	}
 }
+
+// TestResolver_ValidateOptions_AsConstExtracted pins the wrapper-unwrap
+// asymmetry fix: `{noLiterals: true} as const` passes the options slot's
+// CompTimeArgs validation (which unwraps `as`/parens/`satisfies`), so the
+// option EXTRACTION must read it too — before the fix the extractor saw
+// the AsExpression node, silently read zero options, and the MKR004 noop
+// warning below never fired.
+func TestResolver_ValidateOptions_AsConstExtracted(t *testing.T) {
+	const dts = `declare module '@mionjs/ts-go-run-types' {
+  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
+  export function createValidate<T>(val?: T, options?: CompTimeArgs<ValidateOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+}
+`
+	const code = `import {createValidate} from '@mionjs/ts-go-run-types';
+createValidate<string>(undefined, {noLiterals: true} as const);
+`
+	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"call.ts"}})
+	if resp.Error != "" {
+		t.Fatalf("scanFiles: %s", resp.Error)
+	}
+	for _, d := range resp.Diagnostics {
+		if d.Code == diag.CodeValidateOptionsNoLiteralsNoop {
+			return
+		}
+	}
+	t.Fatalf("expected %s for as-const {noLiterals:true} on a non-literal type (option must be extracted through the wrapper), got: %+v",
+		diag.CodeValidateOptionsNoLiteralsNoop, resp.Diagnostics)
+}
