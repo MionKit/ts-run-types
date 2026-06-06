@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -11,6 +11,7 @@ export const ARRAY = {
       'Every element must satisfy the element type — the empty array `[]` is valid.',
     ],
     isType: () => createIsType<string[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<string[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.string())),
     deserializeIsType: () => deserializeIsType<string[]>(),
     isTypeReflect: () => {
@@ -22,6 +23,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(),
     getTypeErrorsReflect: () => {
@@ -60,6 +62,7 @@ export const ARRAY = {
     title: 'Array of numbers (rejects Infinity / NaN per element)',
     description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
     isType: () => createIsType<number[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<number[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.number())),
     deserializeIsType: () => deserializeIsType<number[]>(),
     isTypeReflect: () => {
@@ -71,6 +74,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<number[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<number[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.number())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<number[]>(),
     getTypeErrorsReflect: () => {
@@ -106,6 +110,7 @@ export const ARRAY = {
   boolean_array: {
     title: 'Array of booleans',
     isType: () => createIsType<boolean[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<boolean[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.boolean())),
     deserializeIsType: () => deserializeIsType<boolean[]>(),
     isTypeReflect: () => {
@@ -117,6 +122,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<boolean[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<boolean[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.boolean())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<boolean[]>(),
     getTypeErrorsReflect: () => {
@@ -150,6 +156,7 @@ export const ARRAY = {
   bigint_array: {
     title: 'Array of bigints',
     isType: () => createIsType<bigint[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<bigint[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.bigint())),
     deserializeIsType: () => deserializeIsType<bigint[]>(),
     isTypeReflect: () => {
@@ -161,6 +168,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<bigint[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<bigint[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.bigint())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<bigint[]>(),
     getTypeErrorsReflect: () => {
@@ -195,6 +203,7 @@ export const ARRAY = {
     description: 'from mion serialization-suite ARRAYS.array_date',
     isTypeNotes: 'Each element goes through the atomic `Date` check — Invalid Date instances (`getTime() === NaN`) fail.',
     isType: () => createIsType<Date[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<Date[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.date())),
     deserializeIsType: () => deserializeIsType<Date[]>(),
     isTypeReflect: () => {
@@ -206,6 +215,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Date[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Date[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.date())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date[]>(),
     getTypeErrorsReflect: () => {
@@ -237,6 +247,7 @@ export const ARRAY = {
   regexp_array: {
     title: 'Array of RegExps',
     isType: () => createIsType<RegExp[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<RegExp[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.regexp())),
     deserializeIsType: () => deserializeIsType<RegExp[]>(),
     isTypeReflect: () => {
@@ -248,6 +259,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<RegExp[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<RegExp[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.regexp())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<RegExp[]>(),
     getTypeErrorsReflect: () => {
@@ -282,6 +294,7 @@ export const ARRAY = {
     description: 'from mion serialization-suite ARRAYS.undefined_in_array',
     isTypeNotes: 'Every element must strictly === undefined. `null` and other falsy values are rejected per-element.',
     isType: () => createIsType<undefined[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<undefined[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.literal(undefined))),
     deserializeIsType: () => deserializeIsType<undefined[]>(),
     isTypeReflect: () => {
@@ -293,6 +306,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<undefined[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<undefined[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.literal(undefined))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<undefined[]>(),
     getTypeErrorsReflect: () => {
@@ -327,6 +341,7 @@ export const ARRAY = {
     title: 'Array of nulls',
     isTypeNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
     isType: () => createIsType<null[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<null[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.literal(null))),
     deserializeIsType: () => deserializeIsType<null[]>(),
     isTypeReflect: () => {
@@ -338,6 +353,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<null[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<null[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.literal(null))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<null[]>(),
     getTypeErrorsReflect: () => {
@@ -372,6 +388,7 @@ export const ARRAY = {
     title: 'Generic Array<T> form (same emit as T[])',
     description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
     isType: () => createIsType<Array<string>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<Array<string>>>(),
     isTypeSchema: () => createIsType(RT.array(RT.string())),
     deserializeIsType: () => deserializeIsType<Array<string>>(),
     isTypeReflect: () => {
@@ -383,6 +400,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Array<string>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Array<string>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Array<string>>(),
     getTypeErrorsReflect: () => {
@@ -415,6 +433,7 @@ export const ARRAY = {
     description:
       'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getRT(...).fn(v[i0]))',
     isType: () => createIsType<string[][]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<string[][]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.array(RT.string()))),
     deserializeIsType: () => deserializeIsType<string[][]>(),
     isTypeReflect: () => {
@@ -426,6 +445,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string[][]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[][]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.array(RT.string()))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][]>(),
     getTypeErrorsReflect: () => {
@@ -479,6 +499,7 @@ export const ARRAY = {
     title: 'Three-dimensional string array (depth stress)',
     description: 'depth stress for the dependency-call layer',
     isType: () => createIsType<string[][][]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<string[][][]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.array(RT.array(RT.string())))),
     deserializeIsType: () => deserializeIsType<string[][][]>(),
     isTypeReflect: () => {
@@ -490,6 +511,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string[][][]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[][][]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.array(RT.array(RT.string())))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[][][]>(),
     getTypeErrorsReflect: () => {
@@ -532,6 +554,7 @@ export const ARRAY = {
       'Use only when the caller has already verified the value is an array; the validator trusts the shape and only walks elements.',
     ],
     isType: () => createIsType<string[]>(undefined, {noIsArrayCheck: true}),
+    isTypeDataOnly: () => createIsType<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
     deserializeIsType: () => deserializeIsType<string[]>(undefined, {noIsArrayCheck: true}),
     isTypeReflect: () => {
       const v: string[] = [];
@@ -543,6 +566,7 @@ export const ARRAY = {
     },
     isTypeSchema: () => createIsType(RT.array(RT.string()), {noIsArrayCheck: true}),
     getTypeErrors: () => createGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<string[]>>(undefined, {noIsArrayCheck: true}),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[]>(undefined, {noIsArrayCheck: true}),
     getTypeErrorsReflect: () => {
       const v: string[] = [];
@@ -576,6 +600,7 @@ export const ARRAY = {
     description:
       "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass isType (unknown-key handling is a different adapter).",
     isType: () => createIsType<{a: string}[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<{a: string}[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.object({a: RT.string()}))),
     deserializeIsType: () => deserializeIsType<{a: string}[]>(),
     isTypeReflect: () => {
@@ -587,6 +612,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: string}[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<{a: string}[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.object({a: RT.string()}))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string}[]>(),
     getTypeErrorsReflect: () => {
@@ -622,6 +648,7 @@ export const ARRAY = {
     title: 'Array of unions (OR-chain per element)',
     description: 'array of union — each element validates against the union OR-chain.',
     isType: () => createIsType<(string | number)[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<(string | number)[]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.union([RT.string(), RT.number()]))),
     deserializeIsType: () => deserializeIsType<(string | number)[]>(),
     isTypeReflect: () => {
@@ -633,6 +660,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<(string | number)[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<(string | number)[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.union([RT.string(), RT.number()]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | number)[]>(),
     getTypeErrorsReflect: () => {
@@ -675,6 +703,7 @@ export const ARRAY = {
     title: 'Array of tuples',
     description: 'array of tuples — exercises tuple under array dependency call.',
     isType: () => createIsType<[string, number][]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<[string, number][]>>(),
     isTypeSchema: () => createIsType(RT.array(RT.tuple([RT.string(), RT.number()]))),
     deserializeIsType: () => deserializeIsType<[string, number][]>(),
     isTypeReflect: () => {
@@ -686,6 +715,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<[string, number][]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.tuple([RT.string(), RT.number()]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
     getTypeErrorsReflect: () => {
@@ -739,6 +769,10 @@ export const ARRAY = {
       type CircularArray = CircularArray[];
       return createIsType<CircularArray>();
     },
+    isTypeDataOnly: () => {
+      type CircularArray = CircularArray[];
+      return createIsType<DataOnly<CircularArray>>();
+    },
     deserializeIsType: () => {
       type CircularArray = CircularArray[];
       return deserializeIsType<CircularArray>();
@@ -760,6 +794,10 @@ export const ARRAY = {
     getTypeErrors: () => {
       type CircularArray = CircularArray[];
       return createGetTypeErrors<CircularArray>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type CircularArray = CircularArray[];
+      return createGetTypeErrors<DataOnly<CircularArray>>();
     },
     getTypeErrorsSchema: () => {
       const ca = RT.circular((self) => RT.array(self));
@@ -821,6 +859,10 @@ export const ARRAY = {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       return createIsType<ObjectType>();
     },
+    isTypeDataOnly: () => {
+      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+      return createIsType<DataOnly<ObjectType>>();
+    },
     isTypeSchema: () => {
       const ot = RT.circular((self) =>
         RT.object({
@@ -848,6 +890,10 @@ export const ARRAY = {
     getTypeErrors: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       return createGetTypeErrors<ObjectType>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
+      return createGetTypeErrors<DataOnly<ObjectType>>();
     },
     getTypeErrorsSchema: () => {
       const ot = RT.circular((self) =>
@@ -919,6 +965,7 @@ export const ARRAY = {
     isTypeNotes:
       'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
     isType: () => createIsType<symbol[]>(),
+    isTypeDataOnly: () => createIsType<DataOnly<symbol[]>>(),
     // Non-serializable array element (symbol) propagates to the root → alwaysThrow.
     // `RT.array(RT.symbol())` resolves the same factory, so the schema thunk throws.
     isTypeSchema: () => createIsType(RT.array(RT.symbol())),
@@ -932,6 +979,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<symbol[]>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<symbol[]>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.symbol())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<symbol[]>(),
     getTypeErrorsReflect: () => {
@@ -962,6 +1010,7 @@ export const ARRAY = {
     isTypeNotes:
       'Readonly modifier has NO runtime impact — the validator is identical to `T[]`. The compiler enforces readonly at write sites; the validator only checks the value shape.',
     isType: () => createIsType<ReadonlyArray<string>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<ReadonlyArray<string>>>(),
     isTypeSchema: () => createIsType(RT.array(RT.string())),
     deserializeIsType: () => deserializeIsType<ReadonlyArray<string>>(),
     isTypeReflect: () => {
@@ -973,6 +1022,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<ReadonlyArray<string>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<ReadonlyArray<string>>>(),
     getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<ReadonlyArray<string>>(),
     getTypeErrorsReflect: () => {

@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -15,6 +15,14 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       return createIsType<Prefixed<Source>>();
+    },
+    isTypeDataOnly: () => {
+      interface Source {
+        id: number;
+        name: string;
+      }
+      type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
+      return createIsType<DataOnly<Prefixed<Source>>>();
     },
     isTypeSchema: () => createIsType(RT.object({user_id: RT.number(), user_name: RT.string()})),
     deserializeIsType: () => {
@@ -50,6 +58,14 @@ export const TYPE_MAPPINGS = {
       }
       type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
       return createGetTypeErrors<Prefixed<Source>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Source {
+        id: number;
+        name: string;
+      }
+      type Prefixed<T> = {[K in keyof T as `user_${K & string}`]: T[K]};
+      return createGetTypeErrors<DataOnly<Prefixed<Source>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({user_id: RT.number(), user_name: RT.string()})),
     deserializeGetTypeErrors: () => {
@@ -133,6 +149,15 @@ export const TYPE_MAPPINGS = {
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       return createIsType<MongoForm<Source>>();
     },
+    isTypeDataOnly: () => {
+      interface Source {
+        id: number;
+        name: string;
+        createdAt: Date;
+      }
+      type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
+      return createIsType<DataOnly<MongoForm<Source>>>();
+    },
     isTypeSchema: () => createIsType(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
     deserializeIsType: () => {
       interface Source {
@@ -171,6 +196,15 @@ export const TYPE_MAPPINGS = {
       }
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       return createGetTypeErrors<MongoForm<Source>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Source {
+        id: number;
+        name: string;
+        createdAt: Date;
+      }
+      type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
+      return createGetTypeErrors<DataOnly<MongoForm<Source>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
     deserializeGetTypeErrors: () => {
@@ -258,6 +292,15 @@ export const TYPE_MAPPINGS = {
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       return createIsType<Public<Source>>();
     },
+    isTypeDataOnly: () => {
+      interface Source {
+        id: number;
+        name: string;
+        secret: string;
+      }
+      type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
+      return createIsType<DataOnly<Public<Source>>>();
+    },
     isTypeSchema: () => createIsType(RT.object({id: RT.number(), name: RT.string()})),
     deserializeIsType: () => {
       interface Source {
@@ -296,6 +339,15 @@ export const TYPE_MAPPINGS = {
       }
       type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
       return createGetTypeErrors<Public<Source>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Source {
+        id: number;
+        name: string;
+        secret: string;
+      }
+      type Public<T> = {[K in keyof T as K extends 'secret' ? never : K]: T[K]};
+      return createGetTypeErrors<DataOnly<Public<Source>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({id: RT.number(), name: RT.string()})),
     deserializeGetTypeErrors: () => {

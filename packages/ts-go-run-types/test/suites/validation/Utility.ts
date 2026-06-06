@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -17,6 +17,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createIsType<Partial<Person>>();
+    },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createIsType<DataOnly<Partial<Person>>>();
     },
     isTypeSchema: () => createIsType(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
     deserializeIsType: () => {
@@ -52,6 +60,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createGetTypeErrors<Partial<Person>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createGetTypeErrors<DataOnly<Partial<Person>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.partial(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}))),
@@ -143,6 +159,14 @@ export const UTILITY = {
       }
       return createIsType<Required<MaybePerson>>();
     },
+    isTypeDataOnly: () => {
+      interface MaybePerson {
+        name?: string;
+        age?: number;
+        createdAt?: Date;
+      }
+      return createIsType<DataOnly<Required<MaybePerson>>>();
+    },
     isTypeSchema: () =>
       createIsType(
         RT.required(RT.object({name: RT.optional(RT.string()), age: RT.optional(RT.number()), createdAt: RT.optional(RT.date())}))
@@ -180,6 +204,14 @@ export const UTILITY = {
         createdAt?: Date;
       }
       return createGetTypeErrors<Required<MaybePerson>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface MaybePerson {
+        name?: string;
+        age?: number;
+        createdAt?: Date;
+      }
+      return createGetTypeErrors<DataOnly<Required<MaybePerson>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
@@ -274,6 +306,14 @@ export const UTILITY = {
       }
       return createIsType<Pick<Person, 'name' | 'createdAt'>>();
     },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createIsType<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
+    },
     isTypeSchema: () =>
       createIsType(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
     deserializeIsType: () => {
@@ -309,6 +349,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createGetTypeErrors<Pick<Person, 'name' | 'createdAt'>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createGetTypeErrors<DataOnly<Pick<Person, 'name' | 'createdAt'>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.pick(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['name', 'createdAt'])),
@@ -393,6 +441,14 @@ export const UTILITY = {
       }
       return createIsType<Omit<Person, 'age'>>();
     },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createIsType<DataOnly<Omit<Person, 'age'>>>();
+    },
     isTypeSchema: () => createIsType(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
     deserializeIsType: () => {
       interface Person {
@@ -427,6 +483,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createGetTypeErrors<Omit<Person, 'age'>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createGetTypeErrors<DataOnly<Omit<Person, 'age'>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.omit(RT.object({name: RT.string(), age: RT.number(), createdAt: RT.date()}), ['age'])),
@@ -493,6 +557,7 @@ export const UTILITY = {
     title: 'Exclude<U, X> on a string-literal union',
     description: 'mion utility/exclude.spec.ts (atomic case) — excludes union members. Resolves to "name" | "createdAt".',
     isType: () => createIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
     isTypeSchema: () =>
       createIsType(RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))),
     deserializeIsType: () => deserializeIsType<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
@@ -505,6 +570,7 @@ export const UTILITY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Exclude<'name' | 'age' | 'createdAt', 'age'>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Exclude<'name' | 'age' | 'createdAt', 'age'>>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
         RT.exclude(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')]), RT.literal('age'))
@@ -544,6 +610,7 @@ export const UTILITY = {
     description:
       'mion utility/extract.spec.ts (atomic case) — extracts matching union members. Resolves to "name" | "createdAt".',
     isType: () => createIsType<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
     isTypeSchema: () =>
       createIsType(
         RT.extract(
@@ -561,6 +628,7 @@ export const UTILITY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
         RT.extract(
@@ -608,6 +676,13 @@ export const UTILITY = {
         | {kind: 'triangle'; base: number; height: number};
       return createIsType<Exclude<Shape, {kind: 'circle'}>>();
     },
+    isTypeDataOnly: () => {
+      type Shape =
+        | {kind: 'circle'; radius: number}
+        | {kind: 'square'; x: number}
+        | {kind: 'triangle'; base: number; height: number};
+      return createIsType<DataOnly<Exclude<Shape, {kind: 'circle'}>>>();
+    },
     isTypeSchema: () =>
       createIsType(
         RT.exclude(
@@ -648,6 +723,13 @@ export const UTILITY = {
         | {kind: 'square'; x: number}
         | {kind: 'triangle'; base: number; height: number};
       return createGetTypeErrors<Exclude<Shape, {kind: 'circle'}>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type Shape =
+        | {kind: 'circle'; radius: number}
+        | {kind: 'square'; x: number}
+        | {kind: 'triangle'; base: number; height: number};
+      return createGetTypeErrors<DataOnly<Exclude<Shape, {kind: 'circle'}>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
@@ -728,6 +810,7 @@ export const UTILITY = {
     title: 'NonNullable<T> — strips null and undefined from a union',
     description: 'mion utility/nonNullable.spec.ts — removes null + undefined from a union.',
     isType: () => createIsType<NonNullable<string | number | null | undefined>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<NonNullable<string | number | null | undefined>>>(),
     isTypeSchema: () =>
       createIsType(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
     deserializeIsType: () => deserializeIsType<NonNullable<string | number | null | undefined>>(),
@@ -740,6 +823,7 @@ export const UTILITY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<NonNullable<string | number | null | undefined>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<NonNullable<string | number | null | undefined>>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.nonNullable(RT.union([RT.string(), RT.number(), RT.literal(null), RT.literal(undefined)]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<NonNullable<string | number | null | undefined>>(),
@@ -778,6 +862,10 @@ export const UTILITY = {
       type Fn = (a: number, b: boolean) => Date;
       return createIsType<ReturnType<Fn>>();
     },
+    isTypeDataOnly: () => {
+      type Fn = (a: number, b: boolean) => Date;
+      return createIsType<DataOnly<ReturnType<Fn>>>();
+    },
     isTypeSchema: () => createIsType(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
     deserializeIsType: () => {
       type Fn = (a: number, b: boolean) => Date;
@@ -796,6 +884,10 @@ export const UTILITY = {
     getTypeErrors: () => {
       type Fn = (a: number, b: boolean) => Date;
       return createGetTypeErrors<ReturnType<Fn>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type Fn = (a: number, b: boolean) => Date;
+      return createGetTypeErrors<DataOnly<ReturnType<Fn>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.returnType(RT.func([RT.number(), RT.boolean()], RT.date()))),
     deserializeGetTypeErrors: () => {
@@ -848,6 +940,13 @@ export const UTILITY = {
       }
       return createIsType<Readonly<Person>>();
     },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      return createIsType<DataOnly<Readonly<Person>>>();
+    },
     isTypeSchema: () => createIsType(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
     deserializeIsType: () => {
       interface Person {
@@ -878,6 +977,13 @@ export const UTILITY = {
         age: number;
       }
       return createGetTypeErrors<Readonly<Person>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      return createGetTypeErrors<DataOnly<Readonly<Person>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.readonly(RT.object({name: RT.string(), age: RT.number()}))),
     deserializeGetTypeErrors: () => {
@@ -960,6 +1066,14 @@ export const UTILITY = {
       }
       return createIsType<Partial<Person> & Required<Pick<Person, 'name'>>>();
     },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createIsType<DataOnly<Partial<Person> & Required<Pick<Person, 'name'>>>>();
+    },
     isTypeSchema: () =>
       createIsType(
         RT.intersection(
@@ -1000,6 +1114,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createGetTypeErrors<Partial<Person> & Required<Pick<Person, 'name'>>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createGetTypeErrors<DataOnly<Partial<Person> & Required<Pick<Person, 'name'>>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
@@ -1085,6 +1207,7 @@ export const UTILITY = {
     title: 'Omit<T, K> preserves optionality of remaining props',
     description: 'Omit preserves the optionality of remaining properties — resolves to {b?: number; c: boolean}.',
     isType: () => createIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    isTypeDataOnly: () => createIsType<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
     isTypeSchema: () => createIsType(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
     deserializeIsType: () => deserializeIsType<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
     isTypeReflect: () => {
@@ -1096,6 +1219,7 @@ export const UTILITY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
+    getTypeErrorsDataOnly: () => createGetTypeErrors<DataOnly<Omit<{a: string; b?: number; c: boolean}, 'a'>>>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(RT.omit(RT.object({a: RT.string(), b: RT.optional(RT.number()), c: RT.boolean()}), ['a'])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Omit<{a: string; b?: number; c: boolean}, 'a'>>(),
@@ -1145,6 +1269,14 @@ export const UTILITY = {
       }
       return createIsType<keyof Person>();
     },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createIsType<DataOnly<keyof Person>>();
+    },
     isTypeSchema: () => createIsType(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
     deserializeIsType: () => {
       interface Person {
@@ -1179,6 +1311,14 @@ export const UTILITY = {
         createdAt: Date;
       }
       return createGetTypeErrors<keyof Person>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+        createdAt: Date;
+      }
+      return createGetTypeErrors<DataOnly<keyof Person>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.literal('name'), RT.literal('age'), RT.literal('createdAt')])),
     deserializeGetTypeErrors: () => {
@@ -1249,6 +1389,10 @@ export const UTILITY = {
       const config = {url: 'http://example.com', port: 8080};
       return createIsType<typeof config>();
     },
+    isTypeDataOnly: () => {
+      const config = {url: 'http://example.com', port: 8080};
+      return createIsType<DataOnly<typeof config>>();
+    },
     isTypeSchema: () => createIsType(RT.object({url: RT.string(), port: RT.number()})),
     deserializeIsType: () => {
       const config = {url: 'http://example.com', port: 8080};
@@ -1265,6 +1409,10 @@ export const UTILITY = {
     getTypeErrors: () => {
       const config = {url: 'http://example.com', port: 8080};
       return createGetTypeErrors<typeof config>();
+    },
+    getTypeErrorsDataOnly: () => {
+      const config = {url: 'http://example.com', port: 8080};
+      return createGetTypeErrors<DataOnly<typeof config>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.object({url: RT.string(), port: RT.number()})),
     deserializeGetTypeErrors: () => {
@@ -1320,6 +1468,13 @@ export const UTILITY = {
       }
       return createIsType<Person['name']>();
     },
+    isTypeDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      return createIsType<DataOnly<Person['name']>>();
+    },
     isTypeSchema: () => createIsType(RT.string()),
     deserializeIsType: () => {
       interface Person {
@@ -1350,6 +1505,13 @@ export const UTILITY = {
         age: number;
       }
       return createGetTypeErrors<Person['name']>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Person {
+        name: string;
+        age: number;
+      }
+      return createGetTypeErrors<DataOnly<Person['name']>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
     deserializeGetTypeErrors: () => {
@@ -1410,6 +1572,10 @@ export const UTILITY = {
       type IsString<T> = T extends string ? boolean : number;
       return createIsType<IsString<'hello'>>();
     },
+    isTypeDataOnly: () => {
+      type IsString<T> = T extends string ? boolean : number;
+      return createIsType<DataOnly<IsString<'hello'>>>();
+    },
     isTypeSchema: () => createIsType(RT.boolean()),
     deserializeIsType: () => {
       type IsString<T> = T extends string ? boolean : number;
@@ -1428,6 +1594,10 @@ export const UTILITY = {
     getTypeErrors: () => {
       type IsString<T> = T extends string ? boolean : number;
       return createGetTypeErrors<IsString<'hello'>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type IsString<T> = T extends string ? boolean : number;
+      return createGetTypeErrors<DataOnly<IsString<'hello'>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.boolean()),
     deserializeGetTypeErrors: () => {
@@ -1479,6 +1649,14 @@ export const UTILITY = {
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       return createIsType<Nullable<Source>>();
     },
+    isTypeDataOnly: () => {
+      interface Source {
+        a: string;
+        b: number;
+      }
+      type Nullable<T> = {[K in keyof T]: T[K] | null};
+      return createIsType<DataOnly<Nullable<Source>>>();
+    },
     isTypeSchema: () =>
       createIsType(RT.object({a: RT.union([RT.string(), RT.literal(null)]), b: RT.union([RT.number(), RT.literal(null)])})),
     deserializeIsType: () => {
@@ -1514,6 +1692,14 @@ export const UTILITY = {
       }
       type Nullable<T> = {[K in keyof T]: T[K] | null};
       return createGetTypeErrors<Nullable<Source>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Source {
+        a: string;
+        b: number;
+      }
+      type Nullable<T> = {[K in keyof T]: T[K] | null};
+      return createGetTypeErrors<DataOnly<Nullable<Source>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
@@ -1610,6 +1796,22 @@ export const UTILITY = {
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
       return createIsType<UserForm>();
     },
+    isTypeDataOnly: () => {
+      type FieldFor<T> = T extends string
+        ? {kind: 'text'; value: string}
+        : T extends number
+          ? {kind: 'number'; value: number; min?: number}
+          : T extends boolean
+            ? {kind: 'checkbox'; value: boolean}
+            : never;
+      interface User {
+        name: string;
+        age: number;
+        admin: boolean;
+      }
+      type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+      return createIsType<DataOnly<UserForm>>();
+    },
     isTypeSchema: () =>
       createIsType(
         RT.object({
@@ -1691,6 +1893,22 @@ export const UTILITY = {
       }
       type UserForm = {[K in keyof User]: FieldFor<User[K]>};
       return createGetTypeErrors<UserForm>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type FieldFor<T> = T extends string
+        ? {kind: 'text'; value: string}
+        : T extends number
+          ? {kind: 'number'; value: number; min?: number}
+          : T extends boolean
+            ? {kind: 'checkbox'; value: boolean}
+            : never;
+      interface User {
+        name: string;
+        age: number;
+        admin: boolean;
+      }
+      type UserForm = {[K in keyof User]: FieldFor<User[K]>};
+      return createGetTypeErrors<DataOnly<UserForm>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
@@ -1852,6 +2070,10 @@ export const UTILITY = {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createIsType<Wrap<string | number>>();
     },
+    isTypeDataOnly: () => {
+      type Wrap<T> = T extends any ? {w: T} : never;
+      return createIsType<DataOnly<Wrap<string | number>>>();
+    },
     isTypeSchema: () => createIsType(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
     deserializeIsType: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
@@ -1870,6 +2092,10 @@ export const UTILITY = {
     getTypeErrors: () => {
       type Wrap<T> = T extends any ? {w: T} : never;
       return createGetTypeErrors<Wrap<string | number>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type Wrap<T> = T extends any ? {w: T} : never;
+      return createGetTypeErrors<DataOnly<Wrap<string | number>>>();
     },
     getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.object({w: RT.string()}), RT.object({w: RT.number()})])),
     deserializeGetTypeErrors: () => {
@@ -1923,6 +2149,14 @@ export const UTILITY = {
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       return createIsType<DeepPartial<Settings>>();
     },
+    isTypeDataOnly: () => {
+      interface Settings {
+        display: {theme: 'light' | 'dark'; brightness: number};
+        audio: {volume: number; muted: boolean};
+      }
+      type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+      return createIsType<DataOnly<DeepPartial<Settings>>>();
+    },
     isTypeSchema: () =>
       createIsType(
         RT.object({
@@ -1968,6 +2202,14 @@ export const UTILITY = {
       }
       type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
       return createGetTypeErrors<DeepPartial<Settings>>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Settings {
+        display: {theme: 'light' | 'dark'; brightness: number};
+        audio: {volume: number; muted: boolean};
+      }
+      type DeepPartial<T> = {[K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]};
+      return createGetTypeErrors<DataOnly<DeepPartial<Settings>>>();
     },
     getTypeErrorsSchema: () =>
       createGetTypeErrors(

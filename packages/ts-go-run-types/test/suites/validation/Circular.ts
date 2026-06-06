@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type DataOnly} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -18,6 +18,15 @@ export const CIRCULAR = {
         d?: Date;
       }
       return createIsType<Circular>();
+    },
+    isTypeDataOnly: () => {
+      interface Circular {
+        n: number;
+        s: string;
+        c?: Circular;
+        d?: Date;
+      }
+      return createIsType<DataOnly<Circular>>();
     },
     isTypeSchema: () => {
       const cir = RT.circular((self) =>
@@ -67,6 +76,15 @@ export const CIRCULAR = {
         d?: Date;
       }
       return createGetTypeErrors<Circular>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface Circular {
+        n: number;
+        s: string;
+        c?: Circular;
+        d?: Date;
+      }
+      return createGetTypeErrors<DataOnly<Circular>>();
     },
     getTypeErrorsSchema: () => {
       const cir = RT.circular((self) =>
@@ -171,6 +189,10 @@ export const CIRCULAR = {
       type CuArray = (CuArray | Date | number | string)[];
       return createIsType<CuArray>();
     },
+    isTypeDataOnly: () => {
+      type CuArray = (CuArray | Date | number | string)[];
+      return createIsType<DataOnly<CuArray>>();
+    },
     deserializeIsType: () => {
       type CuArray = (CuArray | Date | number | string)[];
       return deserializeIsType<CuArray>();
@@ -188,6 +210,10 @@ export const CIRCULAR = {
     getTypeErrors: () => {
       type CuArray = (CuArray | Date | number | string)[];
       return createGetTypeErrors<CuArray>();
+    },
+    getTypeErrorsDataOnly: () => {
+      type CuArray = (CuArray | Date | number | string)[];
+      return createGetTypeErrors<DataOnly<CuArray>>();
     },
     getTypeErrorsSchema: () => {
       const cu = RT.circular((self) => RT.array(RT.union([self, RT.date(), RT.number(), RT.string()])));
@@ -262,6 +288,12 @@ export const CIRCULAR = {
       }
       return createIsType<CircularTuple>();
     },
+    isTypeDataOnly: () => {
+      interface CircularTuple {
+        tuple: [bigint, CircularTuple?];
+      }
+      return createIsType<DataOnly<CircularTuple>>();
+    },
     isTypeSchema: () => {
       const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
       return createIsType(ct);
@@ -291,6 +323,12 @@ export const CIRCULAR = {
         tuple: [bigint, CircularTuple?];
       }
       return createGetTypeErrors<CircularTuple>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface CircularTuple {
+        tuple: [bigint, CircularTuple?];
+      }
+      return createGetTypeErrors<DataOnly<CircularTuple>>();
     },
     getTypeErrorsSchema: () => {
       const ct = RT.circular((self) => RT.object({tuple: RT.tuple([RT.bigint()], [self])}));
@@ -372,6 +410,12 @@ export const CIRCULAR = {
       }
       return createIsType<CircularIndex>();
     },
+    isTypeDataOnly: () => {
+      interface CircularIndex {
+        index: {[key: string]: CircularIndex};
+      }
+      return createIsType<DataOnly<CircularIndex>>();
+    },
     isTypeSchema: () => {
       const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
       return createIsType(ci);
@@ -401,6 +445,12 @@ export const CIRCULAR = {
         index: {[key: string]: CircularIndex};
       }
       return createGetTypeErrors<CircularIndex>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface CircularIndex {
+        index: {[key: string]: CircularIndex};
+      }
+      return createGetTypeErrors<DataOnly<CircularIndex>>();
     },
     getTypeErrorsSchema: () => {
       const ci = RT.circular((self) => RT.object({index: RT.record(self)}));
@@ -479,6 +529,12 @@ export const CIRCULAR = {
       }
       return createIsType<CircularDeep>();
     },
+    isTypeDataOnly: () => {
+      interface CircularDeep {
+        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+      }
+      return createIsType<DataOnly<CircularDeep>>();
+    },
     isTypeSchema: () => {
       const cd = RT.circular((self) =>
         RT.object({
@@ -514,6 +570,12 @@ export const CIRCULAR = {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
       }
       return createGetTypeErrors<CircularDeep>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface CircularDeep {
+        deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
+      }
+      return createGetTypeErrors<DataOnly<CircularDeep>>();
     },
     getTypeErrorsSchema: () => {
       const cd = RT.circular((self) =>
@@ -610,6 +672,18 @@ export const CIRCULAR = {
       }
       return createIsType<RootNotCircular>();
     },
+    isTypeDataOnly: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      return createIsType<DataOnly<RootNotCircular>>();
+    },
     isTypeSchema: () => {
       // The recursive child is a `circular(...)`; the non-circular root is a plain
       // schema referencing it — no hand-written types at all.
@@ -678,6 +752,18 @@ export const CIRCULAR = {
         ciChild: ICircularDeep;
       }
       return createGetTypeErrors<RootNotCircular>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface RootNotCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+      }
+      return createGetTypeErrors<DataOnly<RootNotCircular>>();
     },
     getTypeErrorsSchema: () => {
       const icd = RT.circular((self) =>
@@ -845,6 +931,27 @@ export const CIRCULAR = {
       }
       return createIsType<RootCircular>();
     },
+    isTypeDataOnly: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      return createIsType<DataOnly<RootCircular>>();
+    },
     isTypeSchema: () => {
       // Mutual recursion, no types: each type's OWN back-edge uses `self`;
       // cross-references to an already-declared run-type are plain const refs.
@@ -967,6 +1074,27 @@ export const CIRCULAR = {
         ciDate: ICircularDate;
       }
       return createGetTypeErrors<RootCircular>();
+    },
+    getTypeErrorsDataOnly: () => {
+      interface ICircularDeep {
+        name: string;
+        big: bigint;
+        embedded: {hello: string; child?: ICircularDeep};
+      }
+      interface ICircularDate {
+        date: Date;
+        month: number;
+        year: number;
+        embedded?: ICircularDate;
+        deep?: ICircularDeep;
+      }
+      interface RootCircular {
+        isRoot: true;
+        ciChild: ICircularDeep;
+        ciRoort?: RootCircular;
+        ciDate: ICircularDate;
+      }
+      return createGetTypeErrors<DataOnly<RootCircular>>();
     },
     getTypeErrorsSchema: () => {
       const icd = RT.circular((self) =>

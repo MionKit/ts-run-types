@@ -17,7 +17,7 @@ export {getRTUtils, getRTFnCaches, type RTUtils} from './runtypes/rtUtils.ts';
 // The generic runtime type node + the helper that recovers the source TS type
 // a `RunType<T>` carries (`Static<typeof schema>`). Both are part of the
 // value-first surface: builders return `RunType<T>`, `Static` maps back.
-export {type RunType} from './runtypes/types.ts';
+export {type RunType, type DataOnly} from './runtypes/types.ts';
 export {type Static} from './schema/static.ts';
 
 // Populate the run-type registry from the precompiled cache module before any
