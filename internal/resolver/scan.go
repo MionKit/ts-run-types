@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -796,23 +797,21 @@ func callExpressionName(callNode *ast.Node) string {
 }
 
 // scanLineCol returns (1-based line, 1-based column) for byte offset pos
-// inside sourceFile. Mirrors purefns.lineCol — duplicated here to avoid a
-// resolver→purefns import dependency for one helper.
+// inside sourceFile. Backed by the SourceFile's lazily-computed (and
+// per-file cached) ECMA line map + binary search — the previous
+// implementation re-walked the file's bytes up to pos on every call,
+// which made per-dispatch provenance O(sites × file size).
 func scanLineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
-	src := sourceFile.Text()
-	if pos > len(src) {
-		pos = len(src)
+	if pos > len(sourceFile.Text()) {
+		pos = len(sourceFile.Text())
 	}
-	line, col := 1, 1
-	for i := 0; i < pos; i++ {
-		if src[i] == '\n' {
-			line++
-			col = 1
-		} else {
-			col++
-		}
+	lineMap := sourceFile.ECMALineMap()
+	// Greatest index whose line start is <= pos.
+	idx := sort.Search(len(lineMap), func(i int) bool { return int(lineMap[i]) > pos }) - 1
+	if idx < 0 {
+		return 1, pos + 1
 	}
-	return line, col
+	return idx + 1, pos - int(lineMap[idx]) + 1
 }
 
 // declaredTypeFromIdentifier returns the resolved type of the type annotation

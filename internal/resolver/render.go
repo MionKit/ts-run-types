@@ -46,21 +46,14 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 // fullRefTable indexes every interned RunType by id for the typefns renderers.
 // A render seeds its roots from the (possibly scoped) dump but must resolve those
 // roots' child KindRef sentinels against the FULL session cache — a root can
-// reference children interned while scanning a different file. Built once per
-// dispatch and shared across every family render.
+// reference children interned while scanning a different file. This is the
+// cache's own live table (read-only contract — see Cache.NodesView), so no
+// per-dispatch rebuild/sort/re-stamp happens anymore.
 func (resolver *Resolver) fullRefTable() map[string]*protocol.RunType {
 	if resolver == nil || resolver.cache == nil {
 		return nil
 	}
-	nodes := resolver.cache.Dump()
-	refTable := make(map[string]*protocol.RunType, len(nodes))
-	for _, node := range nodes {
-		if node == nil || node.ID == "" {
-			continue
-		}
-		refTable[node.ID] = node
-	}
-	return refTable
+	return resolver.cache.NodesView()
 }
 
 // buildProvenanceSites converts the resolver's protocol.Site list into
