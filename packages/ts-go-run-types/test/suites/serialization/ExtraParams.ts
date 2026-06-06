@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const EXTRA_PARAMS = {
@@ -15,6 +16,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
     getTestData: () => ({
       values: [{declared: 'x', extra: 'hello'}],
       // Unsafe: extra preserved through round-trip.
@@ -38,6 +43,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
     jsonStringifyThrows: true,
     getTestData: () => ({values: [{declared: 'x', extra: 123n}]}),
     getTestDataForStringify: () => ({
@@ -59,6 +68,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
     getTestData: () => ({
       values: [{declared: 'x', sym: Symbol('extra')}],
       // JSON.stringify drops the symbol — restored shape has no `sym`.
@@ -80,6 +93,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{declared: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{declared: string}>(),
     binaryDecoder: () => createBinaryDecoder<{declared: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({declared: RT.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({declared: RT.string()})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({declared: RT.string()})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({declared: RT.string()})),
     getTestData: () => ({
       values: [{declared: 'x', fn: () => 0}],
       deserializedValues: [{declared: 'x'}],
@@ -100,6 +117,10 @@ export const EXTRA_PARAMS = {
     preserveDecoder: () => createJsonDecoder<{outer: {declared: string}}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{outer: {declared: string}}>(),
     binaryDecoder: () => createBinaryDecoder<{outer: {declared: string}}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({outer: RT.object({declared: RT.string()})})),
+    schemaDecoder: () => createJsonDecoder(RT.object({outer: RT.object({declared: RT.string()})})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({outer: RT.object({declared: RT.string()})})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({outer: RT.object({declared: RT.string()})})),
     getTestData: () => ({
       values: [{outer: {declared: 'x', extra: 'y'}}],
       // Unsafe: nested extra preserved.

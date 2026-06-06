@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const OBJECTS = {
@@ -103,6 +104,58 @@ export const OBJECTS = {
         "weird prop name \n?>'\\\t\r": string;
         optionalString?: string;
       }>(),
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          big: RT.bigint(),
+          stringArray: RT.array(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          optionalString: RT.optional(RT.string()),
+        })
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          big: RT.bigint(),
+          stringArray: RT.array(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          optionalString: RT.optional(RT.string()),
+        })
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          big: RT.bigint(),
+          stringArray: RT.array(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          optionalString: RT.optional(RT.string()),
+        })
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          big: RT.bigint(),
+          stringArray: RT.array(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          optionalString: RT.optional(RT.string()),
+        })
+      ),
     getTestData: () => {
       const value = {
         startDate: new Date('2000-08-06T02:13:00.000Z'),
@@ -217,6 +270,50 @@ export const OBJECTS = {
           b8?: N; b9?: N; b10?: N; b11?: N; b12?: N; b13?: N; b14?: N; b15?: N;
         };
       return createBinaryDecoder<ManyOptional>();
+    },
+    schemaEncoder: () => {
+      const n = () => RT.optional(RT.number());
+      return createJsonEncoder(
+        RT.object({
+          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
+          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
+          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
+          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+        })
+      );
+    },
+    schemaDecoder: () => {
+      const n = () => RT.optional(RT.number());
+      return createJsonDecoder(
+        RT.object({
+          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
+          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
+          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
+          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+        })
+      );
+    },
+    schemaBinaryEncoder: () => {
+      const n = () => RT.optional(RT.number());
+      return createBinaryEncoder(
+        RT.object({
+          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
+          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
+          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
+          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+        })
+      );
+    },
+    schemaBinaryDecoder: () => {
+      const n = () => RT.optional(RT.number());
+      return createBinaryDecoder(
+        RT.object({
+          a0: n(), a1: n(), a2: n(), a3: n(), a4: n(), a5: n(), a6: n(), a7: n(),
+          a8: n(), a9: n(), a10: n(), a11: n(), a12: n(), a13: n(), a14: n(), a15: n(),
+          b0: n(), b1: n(), b2: n(), b3: n(), b4: n(), b5: n(), b6: n(), b7: n(),
+          b8: n(), b9: n(), b10: n(), b11: n(), b12: n(), b13: n(), b14: n(), b15: n(),
+        })
+      );
     },
     getTestData: () => ({
       values: [{a0: 0, a1: 1, b0: 16, a8: 8, b7: 23, b15: 31}, {a0: 0, b8: 24}, {}],
@@ -386,6 +483,78 @@ export const OBJECTS = {
       }
       return createBinaryDecoder<MySerializableClass>();
     },
+    schemaEncoder: () => {
+      class MySerializableClass {
+        name: string;
+        surname: string;
+        id: number;
+        startDate: Date;
+        constructor() {
+          this.name = 'John';
+          this.surname = 'Doe';
+          this.id = 0;
+          this.startDate = new Date('2000-08-06T02:13:00.000Z');
+        }
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonEncoder(RT.classType(MySerializableClass));
+    },
+    schemaDecoder: () => {
+      class MySerializableClass {
+        name: string;
+        surname: string;
+        id: number;
+        startDate: Date;
+        constructor() {
+          this.name = 'John';
+          this.surname = 'Doe';
+          this.id = 0;
+          this.startDate = new Date('2000-08-06T02:13:00.000Z');
+        }
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonDecoder(RT.classType(MySerializableClass));
+    },
+    schemaBinaryEncoder: () => {
+      class MySerializableClass {
+        name: string;
+        surname: string;
+        id: number;
+        startDate: Date;
+        constructor() {
+          this.name = 'John';
+          this.surname = 'Doe';
+          this.id = 0;
+          this.startDate = new Date('2000-08-06T02:13:00.000Z');
+        }
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createBinaryEncoder(RT.classType(MySerializableClass));
+    },
+    schemaBinaryDecoder: () => {
+      class MySerializableClass {
+        name: string;
+        surname: string;
+        id: number;
+        startDate: Date;
+        constructor() {
+          this.name = 'John';
+          this.surname = 'Doe';
+          this.id = 0;
+          this.startDate = new Date('2000-08-06T02:13:00.000Z');
+        }
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createBinaryDecoder(RT.classType(MySerializableClass));
+    },
     getTestData: () => {
       class MySerializableClass {
         name: string;
@@ -489,6 +658,42 @@ export const OBJECTS = {
         extendedProp: string = 'extended';
       }
       return createBinaryDecoder<ExtendedClass>();
+    },
+    schemaEncoder: () => {
+      class BaseClass {
+        baseProp: string = 'base';
+      }
+      class ExtendedClass extends BaseClass {
+        extendedProp: string = 'extended';
+      }
+      return createJsonEncoder(RT.classType(ExtendedClass));
+    },
+    schemaDecoder: () => {
+      class BaseClass {
+        baseProp: string = 'base';
+      }
+      class ExtendedClass extends BaseClass {
+        extendedProp: string = 'extended';
+      }
+      return createJsonDecoder(RT.classType(ExtendedClass));
+    },
+    schemaBinaryEncoder: () => {
+      class BaseClass {
+        baseProp: string = 'base';
+      }
+      class ExtendedClass extends BaseClass {
+        extendedProp: string = 'extended';
+      }
+      return createBinaryEncoder(RT.classType(ExtendedClass));
+    },
+    schemaBinaryDecoder: () => {
+      class BaseClass {
+        baseProp: string = 'base';
+      }
+      class ExtendedClass extends BaseClass {
+        extendedProp: string = 'extended';
+      }
+      return createBinaryDecoder(RT.classType(ExtendedClass));
     },
     getTestData: () => {
       class BaseClass {
@@ -630,6 +835,62 @@ export const OBJECTS = {
       }
       return createBinaryDecoder<NonSerializableClass>();
     },
+    schemaEncoder: () => {
+      class NonSerializableClass {
+        constructor(
+          public name: string,
+          public surname: string,
+          public id: number,
+          public startDate: Date
+        ) {}
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonEncoder(RT.classType(NonSerializableClass));
+    },
+    schemaDecoder: () => {
+      class NonSerializableClass {
+        constructor(
+          public name: string,
+          public surname: string,
+          public id: number,
+          public startDate: Date
+        ) {}
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createJsonDecoder(RT.classType(NonSerializableClass));
+    },
+    schemaBinaryEncoder: () => {
+      class NonSerializableClass {
+        constructor(
+          public name: string,
+          public surname: string,
+          public id: number,
+          public startDate: Date
+        ) {}
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createBinaryEncoder(RT.classType(NonSerializableClass));
+    },
+    schemaBinaryDecoder: () => {
+      class NonSerializableClass {
+        constructor(
+          public name: string,
+          public surname: string,
+          public id: number,
+          public startDate: Date
+        ) {}
+        getFullName() {
+          return `${this.name} ${this.surname}`;
+        }
+      }
+      return createBinaryDecoder(RT.classType(NonSerializableClass));
+    },
     getTestData: () => {
       class NonSerializableClass {
         constructor(
@@ -658,6 +919,10 @@ export const OBJECTS = {
     preserveDecoder: () => createJsonDecoder<{a: string; b: number; c: undefined}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b: number; c: undefined}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b: number; c: undefined}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({a: RT.string(), b: RT.number(), c: RT.literal(undefined)})),
+    schemaDecoder: () => createJsonDecoder(RT.object({a: RT.string(), b: RT.number(), c: RT.literal(undefined)})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: RT.string(), b: RT.number(), c: RT.literal(undefined)})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: RT.string(), b: RT.number(), c: RT.literal(undefined)})),
     getTestData: () => ({
       values: [{a: 'hello', b: 42, c: undefined}],
       deserializedValues: [{a: 'hello', b: 42}],
@@ -674,6 +939,10 @@ export const OBJECTS = {
     preserveDecoder: () => createJsonDecoder<{a: string; b?: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a: string; b?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a: string; b?: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({a: RT.string(), b: RT.optional(RT.string())})),
+    schemaDecoder: () => createJsonDecoder(RT.object({a: RT.string(), b: RT.optional(RT.string())})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: RT.string(), b: RT.optional(RT.string())})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: RT.string(), b: RT.optional(RT.string())})),
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}]}),
   },
   all_optional_fields: {
@@ -687,6 +956,10 @@ export const OBJECTS = {
     preserveDecoder: () => createJsonDecoder<{a?: string; b?: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{a?: string; b?: string}>(),
     binaryDecoder: () => createBinaryDecoder<{a?: string; b?: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.string())})),
+    schemaDecoder: () => createJsonDecoder(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.string())})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.string())})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.string())})),
     getTestData: () => ({values: [{a: 'helloA', b: 'helloB'}, {a: 'helloA'}, {}]}),
   },
   extras_passthrough_unsafe: {
@@ -810,6 +1083,66 @@ export const OBJECTS = {
         deep: {a: string; b: number};
         '?other weird p': {c: string; d: number};
       }>(),
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          stringArray: RT.array(RT.string()),
+          bigInt: RT.bigint(),
+          optionalString: RT.optional(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          deep: RT.object({a: RT.string(), b: RT.number()}),
+          '?other weird p': RT.object({c: RT.string(), d: RT.number()}),
+        })
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          stringArray: RT.array(RT.string()),
+          bigInt: RT.bigint(),
+          optionalString: RT.optional(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          deep: RT.object({a: RT.string(), b: RT.number()}),
+          '?other weird p': RT.object({c: RT.string(), d: RT.number()}),
+        })
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          stringArray: RT.array(RT.string()),
+          bigInt: RT.bigint(),
+          optionalString: RT.optional(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          deep: RT.object({a: RT.string(), b: RT.number()}),
+          '?other weird p': RT.object({c: RT.string(), d: RT.number()}),
+        })
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.object({
+          startDate: RT.date(),
+          quantity: RT.number(),
+          name: RT.string(),
+          nullValue: RT.literal(null),
+          stringArray: RT.array(RT.string()),
+          bigInt: RT.bigint(),
+          optionalString: RT.optional(RT.string()),
+          "weird prop name \n?>'\\\t\r": RT.string(),
+          deep: RT.object({a: RT.string(), b: RT.number()}),
+          '?other weird p': RT.object({c: RT.string(), d: RT.number()}),
+        })
+      ),
     getTestData: () => {
       const startDate = new Date('2000-08-06T02:13:00.000Z');
       const objectWithExtraParams = {
@@ -927,6 +1260,22 @@ export const OBJECTS = {
       }
       return createBinaryDecoder<ICircular>();
     },
+    schemaEncoder: () => {
+      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      return createJsonEncoder(ic);
+    },
+    schemaDecoder: () => {
+      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      return createJsonDecoder(ic);
+    },
+    schemaBinaryEncoder: () => {
+      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      return createBinaryEncoder(ic);
+    },
+    schemaBinaryDecoder: () => {
+      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
+      return createBinaryDecoder(ic);
+    },
     getTestData: () => ({values: [{name: 'hello', child: {name: 'world'}}]}),
   },
   interface_circular_array: {
@@ -993,6 +1342,22 @@ export const OBJECTS = {
         children?: ICircularArray[];
       }
       return createBinaryDecoder<ICircularArray>();
+    },
+    schemaEncoder: () => {
+      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      return createJsonEncoder(ica);
+    },
+    schemaDecoder: () => {
+      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      return createJsonDecoder(ica);
+    },
+    schemaBinaryEncoder: () => {
+      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      return createBinaryEncoder(ica);
+    },
+    schemaBinaryDecoder: () => {
+      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
+      return createBinaryDecoder(ica);
     },
     getTestData: () => ({
       values: [
@@ -1101,6 +1466,30 @@ export const OBJECTS = {
         };
       }
       return createBinaryDecoder<ICircularDeep>();
+    },
+    schemaEncoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      return createJsonEncoder(icd);
+    },
+    schemaDecoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      return createJsonDecoder(icd);
+    },
+    schemaBinaryEncoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      return createBinaryEncoder(icd);
+    },
+    schemaBinaryDecoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      return createBinaryDecoder(icd);
     },
     getTestData: () => ({
       values: [
@@ -1222,6 +1611,34 @@ export const OBJECTS = {
         ciChild: ICircularDeep;
       }
       return createBinaryDecoder<RootNotCircular>();
+    },
+    schemaEncoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      return createJsonEncoder(root);
+    },
+    schemaDecoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      return createJsonDecoder(root);
+    },
+    schemaBinaryEncoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      return createBinaryEncoder(root);
+    },
+    schemaBinaryDecoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      return createBinaryDecoder(root);
     },
     getTestData: () => ({
       values: [
@@ -1428,6 +1845,54 @@ export const OBJECTS = {
       }
       return createBinaryDecoder<RootCircular>();
     },
+    schemaEncoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const icDate = RT.circular((self) =>
+        RT.object({date: RT.date(), month: RT.number(), year: RT.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      );
+      const root = RT.circular((self) =>
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      );
+      return createJsonEncoder(root);
+    },
+    schemaDecoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const icDate = RT.circular((self) =>
+        RT.object({date: RT.date(), month: RT.number(), year: RT.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      );
+      const root = RT.circular((self) =>
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      );
+      return createJsonDecoder(root);
+    },
+    schemaBinaryEncoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const icDate = RT.circular((self) =>
+        RT.object({date: RT.date(), month: RT.number(), year: RT.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      );
+      const root = RT.circular((self) =>
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      );
+      return createBinaryEncoder(root);
+    },
+    schemaBinaryDecoder: () => {
+      const icd = RT.circular((self) =>
+        RT.object({name: RT.string(), big: RT.bigint(), embedded: RT.object({hello: RT.string(), child: RT.optional(self)})})
+      );
+      const icDate = RT.circular((self) =>
+        RT.object({date: RT.date(), month: RT.number(), year: RT.number(), embedded: RT.optional(self), deep: RT.optional(icd)})
+      );
+      const root = RT.circular((self) =>
+        RT.object({isRoot: RT.literal(true), ciChild: icd, ciRoort: RT.optional(self), ciDate: icDate})
+      );
+      return createBinaryDecoder(root);
+    },
     getTestData: () => {
       interface ICircularDeep {
         name: string;
@@ -1523,6 +1988,10 @@ export const OBJECTS = {
       }
       return createBinaryDecoder<ObjectWithMethods>();
     },
+    schemaEncoder: () => createJsonEncoder(RT.object({name: RT.string(), methodProp: RT.func([], RT.any())})),
+    schemaDecoder: () => createJsonDecoder(RT.object({name: RT.string(), methodProp: RT.func([], RT.any())})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.object({name: RT.string(), methodProp: RT.func([], RT.any())})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.object({name: RT.string(), methodProp: RT.func([], RT.any())})),
     getTestData: () => {
       interface ObjectWithMethods {
         name: string;

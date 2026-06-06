@@ -13,6 +13,7 @@
 // native-date format runtime.
 
 import type {SerializationCase} from './types.ts';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import '@mionjs/ts-go-run-types/formats';
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
 import type {FormatDate} from '@mionjs/ts-go-run-types/formats';
@@ -46,6 +47,10 @@ export const DATETIME = {
       createJsonDecoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     binaryDecoder: () => createBinaryDecoder<FormatDate<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    schemaEncoder: () => createJsonEncoder(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaDecoder: () => createJsonDecoder(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.date({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     getTestData: () => ({values: [new Date(Date.UTC(2020, 5, 15))]}),
   },
 
@@ -76,6 +81,12 @@ export const DATETIME = {
       }),
     binaryEncoder: () => createBinaryEncoder<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
     binaryDecoder: () => createBinaryDecoder<FormatTemporalInstant<{min: '2020-01-01T00:00:00Z'; max: '2020-12-31T23:59:59Z'}>>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(RT.temporal.instant({min: '2020-01-01T00:00:00Z', max: '2020-12-31T23:59:59Z'})),
     getTestData: () => ({values: [T.Instant.from('2020-06-15T12:00:00Z')]}),
   },
 
@@ -95,6 +106,10 @@ export const DATETIME = {
       createJsonDecoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
     binaryDecoder: () => createBinaryDecoder<FormatTemporalPlainDate<{min: '2020-01-01'; max: '2020-12-31'}>>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainDate({min: '2020-01-01', max: '2020-12-31'})),
     getTestData: () => ({values: [T.PlainDate.from('2020-06-15')]}),
   },
 
@@ -114,6 +129,10 @@ export const DATETIME = {
       createJsonDecoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
     binaryDecoder: () => createBinaryDecoder<FormatTemporalPlainTime<{min: '09:00:00'; max: '17:00:00'}>>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainTime({min: '09:00:00', max: '17:00:00'})),
     getTestData: () => ({values: [T.PlainTime.from('12:30:00')]}),
   },
 
@@ -147,6 +166,14 @@ export const DATETIME = {
       createBinaryEncoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
     binaryDecoder: () =>
       createBinaryDecoder<FormatTemporalPlainDateTime<{min: '2020-01-01T00:00:00'; max: '2020-12-31T23:59:59'}>>(),
+    schemaEncoder: () =>
+      createJsonEncoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaDecoder: () =>
+      createJsonDecoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(RT.temporal.plainDateTime({min: '2020-01-01T00:00:00', max: '2020-12-31T23:59:59'})),
     getTestData: () => ({values: [T.PlainDateTime.from('2020-06-15T12:00:00')]}),
   },
 
@@ -166,6 +193,10 @@ export const DATETIME = {
       createJsonDecoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
     binaryDecoder: () => createBinaryDecoder<FormatTemporalPlainYearMonth<{min: '2020-01'; max: '2020-12'}>>(),
+    schemaEncoder: () => createJsonEncoder(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
+    schemaDecoder: () => createJsonDecoder(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.temporal.plainYearMonth({min: '2020-01', max: '2020-12'})),
     getTestData: () => ({values: [T.PlainYearMonth.from('2020-06')]}),
   },
 
@@ -204,6 +235,14 @@ export const DATETIME = {
       createBinaryEncoder<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
     binaryDecoder: () =>
       createBinaryDecoder<FormatTemporalZonedDateTime<{min: '2020-01-01T00:00:00[UTC]'; max: '2020-12-31T23:59:59[UTC]'}>>(),
+    schemaEncoder: () =>
+      createJsonEncoder(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    schemaDecoder: () =>
+      createJsonDecoder(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(RT.temporal.zonedDateTime({min: '2020-01-01T00:00:00[UTC]', max: '2020-12-31T23:59:59[UTC]'})),
     getTestData: () => ({values: [T.ZonedDateTime.from('2020-06-15T12:00:00[UTC]')]}),
   },
 } as const satisfies Record<string, SerializationCase>;
