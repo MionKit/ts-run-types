@@ -1,11 +1,18 @@
 # Value-first format & constraint definitions
 
+> **⚠️ UPDATED — package reorganized; `reflectModel` removed.** The value-first
+> surface moved from `src/define/` to **`src/schema/`** (`atomic.ts` leaf builders
+> + `compose.ts` composers/`object` + `utility.ts` + `static.ts` types). The
+> inverse `reflectModel<T>()` and the `ModelType` / `FieldConfig` / `FieldFormatMap`
+> config↔type bridge were **removed**, as were the `runType` / `reflectRunType`
+> reflectors; `TypeFromRT` is now **`Static`**. References below to those are historical.
+
 > **Status: shipped for every LEAF format.**
 > The value-first authoring surface — a Zod/TypeBox-style BUILDER API
 > (`RT.object({ name: RT.string({maxLength: 50}) })`) ships today for flat models
 > over the **type channel**, via
-> [`@mionjs/ts-go-run-types/define`](../packages/ts-go-run-types/src/define/define.ts),
-> imported as a namespace: `import * as RT from '@mionjs/ts-go-run-types/define'`
+> [`@mionjs/ts-go-run-types/schema`](../packages/ts-go-run-types/src/schema/atomic.ts),
+> imported as a namespace: `import * as RT from '@mionjs/ts-go-run-types/schema'`
 > (there is **no** root `RunType` export — that name is the core wire-protocol
 > node type + the `RunTypeKind`/`RunTypeError`/`IsTypeOptions` public family).
 >
@@ -67,7 +74,7 @@ Formats and constraints can be expressed two ways:
   ```
 - **Value-first** — compose per-type builders; the type is derived from the model:
   ```ts
-  import * as RT from '@mionjs/ts-go-run-types/define';
+  import * as RT from '@mionjs/ts-go-run-types/schema';
   const UserModel = RT.object({
     name: RT.string({minLength: 1, maxLength: 50}),
     age: RT.number({min: 0, max: 120}),
@@ -344,7 +351,7 @@ This spike is **done** — it shipped as Option A. Results below.
 ## Spike results
 
 Implemented in
-[`packages/ts-go-run-types/src/define/`](../packages/ts-go-run-types/src/define/define.ts);
+[`packages/ts-go-run-types/src/schema/`](../packages/ts-go-run-types/src/schema/atomic.ts);
 covered by `test/adapters/valueFirst{IsType,Convergence}.test.ts` and the
 `object`/builder cases in `test/typesafety.test.ts`.
 

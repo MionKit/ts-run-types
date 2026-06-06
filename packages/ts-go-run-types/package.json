@@ -44,11 +44,11 @@
       "import": "./dist/formats/datetime/temporalFormats.js",
       "require": "./dist/formats/datetime/temporalFormats.cjs"
     },
-    "./define": {
-      "source": "./src/define/index.ts",
-      "types": "./dist/define/index.d.ts",
-      "import": "./dist/define/index.js",
-      "require": "./dist/define/index.cjs"
+    "./schema": {
+      "source": "./src/schema/index.ts",
+      "types": "./dist/schema/index.d.ts",
+      "import": "./dist/schema/index.js",
+      "require": "./dist/schema/index.cjs"
     }
   },
   "files": [

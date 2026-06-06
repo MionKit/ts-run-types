@@ -1,5 +1,10 @@
 # Schema-form ⇄ marker-form typeid convergence
 
+> **⚠️ Note (package reorganized):** the value-first surface moved `src/define/` →
+> **`src/schema/`** — `define.ts` is now `atomic.ts` (leaf builders), `compose.ts`
+> holds the composers + `object`, and `static.ts` holds the type helpers (incl.
+> `LeafType`); `TypeFromRT` is now `Static`. File line numbers below are approximate.
+
 > **Status: LANDED — schema form is now a `createIsType` overload.** Convergence
 > still holds (`createIsType(RT.array(RT.string()))` resolves the same id as
 > `createIsType<string[]>()`), but the mechanism changed when `CompTimeRunType`
@@ -46,7 +51,7 @@ The parameterised format builders default their generic `P` to
 `Record<string, never>`:
 
 ```ts
-// packages/ts-go-run-types/src/define/define.ts:158-163
+// packages/ts-go-run-types/src/schema/atomic.ts:158-163
 export function string<const P extends StringParams = Record<string, never>>(
   formatParams: P = {} as P,
   id?: InjectRunTypeId<LeafType<'stringFormat', P>>
@@ -123,7 +128,7 @@ No patcher changes needed.
 All ten parameterised format builders that default `P`. Same shape,
 same fix.
 
-### In [define.ts](../packages/ts-go-run-types/src/define/define.ts)
+### In [define.ts](../packages/ts-go-run-types/src/schema/atomic.ts)
 
 | line | builder | branded type today | should be |
 | --- | --- | --- | --- |
@@ -132,7 +137,7 @@ same fix.
 | 174 | `bigint` | `LeafType<'bigintFormat', P>` | overload: `bigint` ↔ `LeafType<…>` |
 | 182 | `date` | `LeafType<'nativeDate', P>` | overload: `Date` ↔ `LeafType<…>` |
 
-### In `temporalBuilder` (factory at [define.ts:290-295](../packages/ts-go-run-types/src/define/define.ts))
+### In `temporalBuilder` (factory at [define.ts:290-295](../packages/ts-go-run-types/src/schema/atomic.ts))
 
 The factory produces six members of `temporal.*`. Each one currently
 returns `RunType<LeafType<'temporal<Name>', P>>` for any P (including
@@ -155,22 +160,21 @@ These builders already return a plain (unbranded) type and produce the
 same structural id as their marker-form equivalent. No change needed:
 
 - `boolean`, `symbol`, `any`, `unknown`, `never`, `voidType`
-  ([define.ts:191-258](../packages/ts-go-run-types/src/define/define.ts))
-- `literal<V>` ([define.ts:200-205](../packages/ts-go-run-types/src/define/define.ts))
-- `regexp` ([define.ts:217-219](../packages/ts-go-run-types/src/define/define.ts))
+  ([define.ts:191-258](../packages/ts-go-run-types/src/schema/atomic.ts))
+- `literal<V>` ([define.ts:200-205](../packages/ts-go-run-types/src/schema/atomic.ts))
+- `regexp` ([define.ts:217-219](../packages/ts-go-run-types/src/schema/atomic.ts))
   — separately handled by the regex-literal AST harvest path
-- `classType<Instance>` ([define.ts:269-274](../packages/ts-go-run-types/src/define/define.ts))
-- Every composer in [compose.ts](../packages/ts-go-run-types/src/define/compose.ts)
+- `classType<Instance>` ([define.ts:269-274](../packages/ts-go-run-types/src/schema/atomic.ts))
+- Every composer in [compose.ts](../packages/ts-go-run-types/src/schema/compose.ts)
   (`array`, `tuple`, `union`, `intersection`, `record`, `map`, `set`,
   `lazy`, `promise`, `func`) — they propagate `T` from
   `RunType<T>` items, so the convergence flows transparently from the
   fixed leaves.
-- Every utility in [utility.ts](../packages/ts-go-run-types/src/define/utility.ts)
+- Every utility in [utility.ts](../packages/ts-go-run-types/src/schema/utility.ts)
   (`partial`, `required`, `readonlyType`, `nonNullable`, `pick`,
   `omit`, `exclude`, `extract`, `returnType`, `parameters`) — same
   propagation.
-- `runType<T>()`, `reflectRunType<T>(value)`, `reflectModel<T>(value)`,
-  `object`, `propMod`, `optional` — already converge or operate at the
+- `object`, `propMod`, `optional` — already converge or operate at the
   composition layer.
 
 ## Go-side amendments after the fix
@@ -261,13 +265,13 @@ and stays as-is:
    variable, brand-aware downstream code). Grep for direct uses of
    `LeafType<'stringFormat'`, `FormatString<` etc. in test suites
    and product code.
-3. **`TypeFromRT<typeof RT.string()>`** changes from
+3. **`Static<typeof RT.string()>`** changes from
    `FormatString<{}>` to plain `string`. Any test asserting the
    former needs updating. This is a **semantic improvement** (the
    unparameterised builder reflects the actual plain type), but it
    IS a public-surface type change.
 4. **The `LeafTypeByFormatName` registry** in
-   [leafTypes.ts](../packages/ts-go-run-types/src/define/leafTypes.ts)
+   [leafTypes.ts](../packages/ts-go-run-types/src/schema/static.ts)
    stays untouched — it's used by params-present overload 2. The
    no-params overload 1 just doesn't go through it.
 

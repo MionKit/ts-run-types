@@ -30,9 +30,8 @@ export type InjectRunTypeId<T> = string & {
 //
 // Pattern: `0 extends 1 & T` is true ONLY when T is `any`.
 type IsAny<T> = 0 extends 1 & T ? true : false;
-// Exported so the value-first builders (`runType` / `reflectRunType` in
-// define/reflect.ts) reject `any` at the type level the same way `getRunTypeId`
-// / `reflectRunTypeId` do — one source of truth for the rejection brand.
+// The reflection markers below (`getRunTypeId` / `reflectRunTypeId`) use this to
+// reject `any` at the type level — one source of truth for the rejection brand.
 export type RejectAny<T> =
   IsAny<T> extends true ? ['ts-go-run-types error: `T` is `any` — annotate the value or type argument explicitly.'] : T;
 
