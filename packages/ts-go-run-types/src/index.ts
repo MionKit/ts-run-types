@@ -1,12 +1,5 @@
 // Public entry point for @mionjs/ts-go-run-types.
-export {
-  type InjectRunTypeId,
-  type CompTimeArgs,
-  type CompTimeRunType,
-  type PureFunction,
-  getRunTypeId,
-  reflectRunTypeId,
-} from './markers.ts';
+export {type InjectRunTypeId, type CompTimeArgs, type PureFunction, getRunTypeId, reflectRunTypeId} from './markers.ts';
 
 // RT registry — exported BEFORE `./createRTFunctions.ts` so rtUtils is a
 // real function by the time downstream cache modules call `initCache(getRTUtils())`
@@ -65,14 +58,13 @@ export {RunTypeKind, type RunTypeKindValue} from './runTypeKind.ts';
 // JSON I/O collapses to `createJsonEncoder` + `createJsonDecoder`; the lower-
 // level prepareForJson / restoreFromJson / stringifyJson primitives stay internal.
 export {
+  // createIsType / createGetTypeErrors are overloaded: a value-first `RunType`
+  // schema as the first arg (the value a `define` builder returns) is a distinct
+  // overload from the type/value reflection form — both reflect `T`.
   createIsType,
   type IsTypeFn,
   type IsTypeOptions,
   createGetTypeErrors,
-  // Schema-form validators — take a value-first `RunType` schema (the value a
-  // `define` builder returns) instead of reflecting a type/value.
-  createIsTypeFor,
-  createTypeErrorsFor,
   type GetTypeErrorsFn,
   type RunTypeError,
   type TypeFormatError,

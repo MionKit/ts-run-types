@@ -1,12 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {
-  createIsType,
-  createGetTypeErrors,
-  createIsTypeFor,
-  createTypeErrorsFor,
-  createMockType,
-  type RunType,
-} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -18,7 +11,7 @@ export const TUPLE = {
       'Each slot runs the atomic check for its declared type.',
     ],
     isType: () => createIsType<[string, number]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string(), RT.number()])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[string, number]>(),
     isTypeReflect: () => {
       const v: [string, number] = ['hello', 1];
@@ -29,7 +22,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string, number]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string(), RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number]>(),
     getTypeErrorsReflect: () => {
       const v: [string, number] = ['hello', 1];
@@ -92,7 +85,7 @@ export const TUPLE = {
     description: 'mion tuple.spec.ts "validate tuple"',
     isType: () => createIsType<[Date, number, string, null, string[], bigint]>(),
     isTypeSchema: () =>
-      createIsTypeFor(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createIsType(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
     deserializeIsType: () => deserializeIsType<[Date, number, string, null, string[], bigint]>(),
     isTypeReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
@@ -104,7 +97,7 @@ export const TUPLE = {
     },
     getTypeErrors: () => createGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
+      createGetTypeErrors(RT.tuple([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[Date, number, string, null, string[], bigint]>(),
     getTypeErrorsReflect: () => {
       const v: [Date, number, string, null, string[], bigint] = [new Date(), 123, 'hello', null, ['a'], 1n];
@@ -150,7 +143,7 @@ export const TUPLE = {
     isTypeNotes:
       'Optional tuple slots may be absent OR explicitly `undefined`. Trailing-only — TS grammar disallows `[A, B?, C]` (required after optional).',
     isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
     isTypeReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
@@ -161,7 +154,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
     getTypeErrorsReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
@@ -199,7 +192,7 @@ export const TUPLE = {
     title: 'Tuple as array element (tuple inside array dependency call)',
     description: 'array of tuples — exercises tuple inside array dependency call',
     isType: () => createIsType<[string, number][]>(),
-    isTypeSchema: () => createIsTypeFor(RT.array(RT.tuple([RT.string(), RT.number()]))),
+    isTypeSchema: () => createIsType(RT.array(RT.tuple([RT.string(), RT.number()]))),
     deserializeIsType: () => deserializeIsType<[string, number][]>(),
     isTypeReflect: () => {
       const v: [string, number][] = [];
@@ -210,7 +203,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string, number][]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.tuple([RT.string(), RT.number()]))),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.tuple([RT.string(), RT.number()]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string, number][]>(),
     getTypeErrorsReflect: () => {
       const v: [string, number][] = [];
@@ -261,7 +254,7 @@ export const TUPLE = {
     isTypeNotes:
       'A trailing rest segment absorbs any number of trailing elements (including zero). Each trailing element must satisfy the rest type.',
     isType: () => createIsType<[number, ...string[]]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number()], RT.string())),
+    isTypeSchema: () => createIsType(RT.tuple([RT.number()], RT.string())),
     deserializeIsType: () => deserializeIsType<[number, ...string[]]>(),
     isTypeReflect: () => {
       const v: [number, ...string[]] = [3];
@@ -272,7 +265,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, ...string[]]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number()], RT.string())),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number()], RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, ...string[]]>(),
     getTypeErrorsReflect: () => {
       const v: [number, ...string[]] = [3];
@@ -324,7 +317,7 @@ export const TUPLE = {
         [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
         [RT.lazy((): RunType<TupleCircular> => tc)]
       );
-      return createIsTypeFor(tc);
+      return createIsType(tc);
     },
     deserializeIsType: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -350,7 +343,7 @@ export const TUPLE = {
         [RT.date(), RT.number(), RT.string(), RT.literal(null), RT.array(RT.string()), RT.bigint()],
         [RT.lazy((): RunType<TupleCircular> => tc)]
       );
-      return createTypeErrorsFor(tc);
+      return createGetTypeErrors(tc);
     },
     deserializeGetTypeErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
@@ -415,7 +408,7 @@ export const TUPLE = {
     description:
       "Multiple trailing optionals — TS grammar requires optionals to come after required elements (`[A, B?, C]` is a TS error), so the canonical 'optional middle' form is a chain of trailing optionals. Each TupleMember.Optional flag fires its own `(v[i] === undefined || childCheck)` wrap independently.",
     isType: () => createIsType<[number, bigint?, boolean?, number?]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[number, bigint?, boolean?, number?]>(),
     isTypeReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
@@ -426,7 +419,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, bigint?, boolean?, number?]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number()], [RT.bigint(), RT.boolean(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, bigint?, boolean?, number?]>(),
     getTypeErrorsReflect: () => {
       const v: [number, bigint?, boolean?, number?] = [3];
@@ -483,7 +476,7 @@ export const TUPLE = {
     description:
       "Named tuple labels — `[name: string, age: number]` is the same shape as `[string, number]` at runtime (labels are TS-only metadata, erased at emit). Carried as a regression check that label syntax doesn't affect the validator shape.",
     isType: () => createIsType<[name: string, age: number]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string(), RT.number()])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<[name: string, age: number]>(),
     isTypeReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
@@ -494,7 +487,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[name: string, age: number]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string(), RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[name: string, age: number]>(),
     getTypeErrorsReflect: () => {
       const v: [name: string, age: number] = ['Alice', 30];
@@ -544,7 +537,7 @@ export const TUPLE = {
       'This is the opposite of the object-property case (where function-typed props are skipped entirely): tuples enforce `=== undefined` because tuple position is structural.',
     ],
     isType: () => createIsType<[number, () => any]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.number(), RT.func([], RT.any())])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.number(), RT.func([], RT.any())])),
     deserializeIsType: () => deserializeIsType<[number, () => any]>(),
     isTypeReflect: () => {
       const v: [number, () => any] = [3, () => null];
@@ -555,7 +548,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[number, () => any]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.number(), RT.func([], RT.any())])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.number(), RT.func([], RT.any())])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[number, () => any]>(),
     getTypeErrorsReflect: () => {
       const v: [number, () => any] = [3, () => null];
@@ -602,7 +595,7 @@ export const TUPLE = {
     description:
       "Zero-length tuple — the validator accepts only `[]` (Array.isArray + length === 0). Edge case for the tuple emit; mirrors mion's `children.length === 0` branch.",
     isType: () => createIsType<[]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([])),
+    isTypeSchema: () => createIsType(RT.tuple([])),
     deserializeIsType: () => deserializeIsType<[]>(),
     isTypeReflect: () => {
       const v: [] = [];
@@ -613,7 +606,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[]>(),
     getTypeErrorsReflect: () => {
       const v: [] = [];
@@ -648,7 +641,7 @@ export const TUPLE = {
     description:
       'One-slot tuple — corner case for the length-bound check (length must be exactly 1 modulo optional / rest). Exercises the same emit shape as multi-element tuples but with a single member.',
     isType: () => createIsType<[string]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string()])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.string()])),
     deserializeIsType: () => deserializeIsType<[string]>(),
     isTypeReflect: () => {
       const v: [string] = ['x'];
@@ -659,7 +652,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<[string]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<[string]>(),
     getTypeErrorsReflect: () => {
       const v: [string] = ['x'];
@@ -697,7 +690,7 @@ export const TUPLE = {
     description:
       '`readonly [T, U]` — readonly modifier on a tuple type. As with arrays, the readonly bit is TS-only and erased at runtime; the validator is identical to the bare `[T, U]` shape.',
     isType: () => createIsType<readonly [string, number]>(),
-    isTypeSchema: () => createIsTypeFor(RT.tuple([RT.string(), RT.number()])),
+    isTypeSchema: () => createIsType(RT.tuple([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<readonly [string, number]>(),
     isTypeReflect: () => {
       const v: readonly [string, number] = ['x', 1];
@@ -708,7 +701,7 @@ export const TUPLE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<readonly [string, number]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.tuple([RT.string(), RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.tuple([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<readonly [string, number]>(),
     getTypeErrorsReflect: () => {
       const v: readonly [string, number] = ['x', 1];

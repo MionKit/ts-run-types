@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createIsTypeFor, createTypeErrorsFor, createMockType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -9,7 +9,7 @@ export const NATIVE = {
     description:
       'mion native/map — `v instanceof Map` plus iteration over `v.entries()` checking each key and value against K / V.',
     isType: () => createIsType<Map<string, number>>(),
-    isTypeSchema: () => createIsTypeFor(RT.map(RT.string(), RT.number())),
+    isTypeSchema: () => createIsType(RT.map(RT.string(), RT.number())),
     deserializeIsType: () => deserializeIsType<Map<string, number>>(),
     isTypeReflect: () => {
       const v: Map<string, number> = new Map();
@@ -20,7 +20,7 @@ export const NATIVE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Map<string, number>>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.map(RT.string(), RT.number())),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.map(RT.string(), RT.number())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Map<string, number>>(),
     getTypeErrorsReflect: () => {
       const v: Map<string, number> = new Map();
@@ -71,7 +71,7 @@ export const NATIVE = {
     title: 'Set of strings',
     description: 'mion native/set — `v instanceof Set` plus iteration over `v.values()`.',
     isType: () => createIsType<Set<string>>(),
-    isTypeSchema: () => createIsTypeFor(RT.set(RT.string())),
+    isTypeSchema: () => createIsType(RT.set(RT.string())),
     deserializeIsType: () => deserializeIsType<Set<string>>(),
     isTypeReflect: () => {
       const v: Set<string> = new Set();
@@ -82,7 +82,7 @@ export const NATIVE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Set<string>>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.set(RT.string())),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.set(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Set<string>>(),
     getTypeErrorsReflect: () => {
       const v: Set<string> = new Set();
@@ -133,7 +133,7 @@ export const NATIVE = {
       'The wrapped type T is NOT validated — the promise has not resolved yet. Use `Awaited<P>` if you have the resolved value and want to validate it.',
     ],
     isType: () => createIsType<Promise<string>>(),
-    isTypeSchema: () => createIsTypeFor(RT.promise(RT.string())),
+    isTypeSchema: () => createIsType(RT.promise(RT.string())),
     deserializeIsType: () => deserializeIsType<Promise<string>>(),
     isTypeReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
@@ -144,7 +144,7 @@ export const NATIVE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Promise<string>>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.promise(RT.string())),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.promise(RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Promise<string>>(),
     getTypeErrorsReflect: () => {
       const v: Promise<string> = Promise.resolve('x');
@@ -188,7 +188,7 @@ export const NATIVE = {
     isTypeNotes:
       '`Awaited<P>` is resolved at the type-checker layer to the resolved value type — `Awaited<Promise<string>>` becomes plain `string`. The validator is identical to the atomic-string emit; a real Promise does NOT satisfy it.',
     isType: () => createIsType<Awaited<Promise<string>>>(),
-    isTypeSchema: () => createIsTypeFor(RT.string()),
+    isTypeSchema: () => createIsType(RT.string()),
     deserializeIsType: () => deserializeIsType<Awaited<Promise<string>>>(),
     isTypeReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';
@@ -199,7 +199,7 @@ export const NATIVE = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Awaited<Promise<string>>>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.string()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.string()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Awaited<Promise<string>>>(),
     getTypeErrorsReflect: () => {
       const v: Awaited<Promise<string>> = 'hello';

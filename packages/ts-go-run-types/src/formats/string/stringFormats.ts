@@ -113,6 +113,16 @@ export interface StringParams {
   replaceAll?: {searchValue: string; replaceValue: string};
 }
 
+// StringParamsValueFirst — the value-first `string()` builder's params: identical
+// to StringParams except `pattern` accepts ONLY the inline `StringPatternArgs`
+// literal (`{source, flags?, mockSamples}`), never the OPAQUE `FormatPattern`
+// (`registerFormatPattern(...)`) value. The opaque form's source/flags are erased
+// to `string` in the type — fine for the type-first `FormatString<{pattern: typeof
+// x}>` path (the scanner recovers them via the `typeof` symbol's AST), but a
+// value-first builder reflects `T`, so the literals must live IN `T` (the inline
+// form) for the reflected id to be faithful.
+export type StringParamsValueFirst = Omit<StringParams, 'pattern'> & {pattern?: StringPatternArgs};
+
 // FormatString — the branded string alias users annotate with:
 // `FormatString<{maxLength: 32}>`. `BrandName` produces a nominal type
 // when needed (mion's convention).

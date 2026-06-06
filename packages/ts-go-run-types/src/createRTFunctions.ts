@@ -17,8 +17,8 @@ import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonS
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {buildVariantKey, getRTUtils, lookupRTFn} from './runtypes/rtUtils.ts';
-import type {AnyFn} from './runtypes/types.ts';
-import type {CompTimeArgs, CompTimeRunType, InjectRunTypeId} from './index.ts';
+import type {AnyFn, RunType} from './runtypes/types.ts';
+import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -201,6 +201,14 @@ function resolveRTEntry<F extends AnyFn>(
   );
 }
 
+/** Runtime guard for the SCHEMA overload of `createIsType` / `createGetTypeErrors`
+ *  (`createIsType(rt)`): a value-first RunType schema carries both `id` and
+ *  `kind`. Plain reflected values (the value/static form) don't carry `kind`, so
+ *  they fall through to the injected id. **/
+function isRunTypeSchema(val: unknown): val is RunType {
+  return typeof val === 'object' && val !== null && typeof (val as RunType).id === 'string' && 'kind' in val;
+}
+
 /** Returns the per-id closure for a family that honours `IsTypeOptions`
  *  — currently `createIsType` and `createGetTypeErrors`. The `options`
  *  slot drives the variant cache-key suffix so the same structural id
@@ -212,8 +220,15 @@ function createRTFunctionWithOptions<F extends AnyFn>(
   identityFn: F
 ): (val?: unknown, options?: unknown, id?: string) => F {
   return (val, options, id) => {
-    void val;
-    return resolveRTEntry(fnName, prefix, identityFn, id, options as Record<string, unknown> | undefined);
+    // SCHEMA overload (`createIsType(rt)`): dispatch on the schema's runtime
+    // `.id` (the value-first builder's structural id) rather than the injected
+    // id. For a non-recursive schema the two coincide (convergence), but the
+    // injected id is reflected from the inferred `T`, which can diverge into a
+    // broken factory for a RECURSIVE schema; the builder's `.id` is always the
+    // correct, emitted entry. The value/static forms pass a non-RunType `val`
+    // (or undefined) and fall through to the injected id.
+    const effectiveId = isRunTypeSchema(val) ? val.id : id;
+    return resolveRTEntry(fnName, prefix, identityFn, effectiveId, options as Record<string, unknown> | undefined);
   };
 }
 
@@ -242,56 +257,29 @@ const identityValueFn = (v: unknown) => v;
 const getTypeErrorsIdentity: GetTypeErrorsFn = () => [];
 const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 
-export const createIsType = createRTFunctionWithOptions<IsTypeFn>('createIsType', 'it', () => true) as unknown as <T>(
-  val?: T,
+// Two overloads, schema form FIRST (TS resolves intersected call signatures
+// top-to-bottom, and a `RunType<T>` arg must be tried before the `val?: T`
+// reflection form, which would otherwise absorb it as `T = RunType<…>`):
+//   - SCHEMA form `createIsType(rt)` — a value-first builder schema. `T` is
+//     inferred from `rt: RunType<T>` and reflected off the trailing
+//     `InjectRunTypeId<T>`, exactly like the type/value forms. No `schema.id`
+//     read, no ref-tracing — the call IS the injection site.
+//   - VALUE / static form `createIsType<T>()` / `createIsType(value)`.
+// Both share the runtime impl (`val`/`schema` @slot0 ignored, options @slot1,
+// injected id @slot2).
+export const createIsType = createRTFunctionWithOptions<IsTypeFn>('createIsType', 'it', () => true) as unknown as (<T>(
+  schema: RunType<T>,
   options?: CompTimeArgs<IsTypeOptions>,
   id?: InjectRunTypeId<T>
-) => IsTypeFn;
+) => IsTypeFn) &
+  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => IsTypeFn);
 
 export const createGetTypeErrors = createRTFunctionWithOptions<GetTypeErrorsFn>(
   'createGetTypeErrors',
   'te',
   getTypeErrorsIdentity
-) as unknown as <T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn;
-
-// =============================================================================
-// Schema-form validators (value-first `define` builders).
-//
-// These take a `RunType` SCHEMA (the value a builder returns, e.g.
-// `string({maxLength: 5})`) rather than reflecting a type/value, so the markers
-// above (`createIsType` / `createGetTypeErrors`) stay untouched. They are PURE
-// RUNTIME: the build already emitted the per-family factory for the schema's
-// type (the binary emits one factory per cached RunType, regardless of which
-// marker reflected it — the builder's own `InjectRunTypeId` is enough), so we
-// just read the schema node's `id` and resolve `<prefix>_<id>` via lookupRTFn —
-// the same lookup `createRTFunction` performs with an injected id.
-// =============================================================================
-
-/** Builds the `isType` validator for a value-first RunType schema —
- *  `createIsTypeFor(string({maxLength: 5}))`. Accepts the same
- *  `IsTypeOptions` bag as the marker form. The BUILDER owns the structural
- *  id (read here as `schema.id`); once the leaf builders converge (no-params
- *  overloads) it equals the marker-form id, so schema and marker calls for
- *  the same `T` share one entry. The Go scanner folds these options onto the
- *  builder's own injection Site, so a standalone
- *  `createIsTypeFor(schema, {noIsArrayCheck: true})` still materialises its
- *  variant factory — no EmitOnly Site needed. **/
-export function createIsTypeFor<T>(schema: CompTimeRunType<T>, options?: CompTimeArgs<IsTypeOptions>): IsTypeFn {
-  return lookupRTFn<IsTypeFn>('createIsTypeFor', 'it', schema.id, () => true, options as Record<string, unknown> | undefined);
-}
-
-/** Builds the `getTypeErrors` validator for a value-first RunType schema —
- *  `createTypeErrorsFor(number({min: 0}))`. Same id / options handling as
- *  `createIsTypeFor`. **/
-export function createTypeErrorsFor<T>(schema: CompTimeRunType<T>, options?: CompTimeArgs<IsTypeOptions>): GetTypeErrorsFn {
-  return lookupRTFn<GetTypeErrorsFn>(
-    'createTypeErrorsFor',
-    'te',
-    schema.id,
-    getTypeErrorsIdentity,
-    options as Record<string, unknown> | undefined
-  );
-}
+) as unknown as (<T>(schema: RunType<T>, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn) &
+  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn);
 
 // IsTypeOptions does not affect these families' validators — the
 // options bag is exclusive to `createIsType` / `createGetTypeErrors`.

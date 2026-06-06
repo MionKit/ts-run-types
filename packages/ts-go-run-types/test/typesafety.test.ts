@@ -335,9 +335,10 @@ function assertionsNewBuilders(): void {
   const _recTpl: RunType<Record<`api/${string}`, boolean>> = RT.record(RT.templateLiteral(['api/', RT.string()]), RT.boolean());
   void _recTpl;
 
-  // regexp(/literal/): the TS type stays RegExp (source+flags precision is a
-  // scanner concern); regexp() with no arg is the same RegExp type.
-  const _reLit: RunType<RegExp> = RT.regexp(/abc/i);
+  // regexp({source, flags}): carried T is the `RegexLiteralType<S,F>` brand
+  // (= `RegExp & {…}`), assignable to RunType<RegExp>; regexp() with no arg is
+  // bare RegExp. Source/flags ride as literal type args (not from the AST).
+  const _reLit: RunType<RegExp> = RT.regexp({source: 'abc', flags: 'i', mockSamples: ['abc']});
   void _reLit;
 
   // templateLiteral: produces a REAL template-literal type that must converge

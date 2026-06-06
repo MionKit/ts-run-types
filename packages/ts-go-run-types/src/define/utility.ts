@@ -4,7 +4,7 @@
 // for the APPLIED utility type via the trailing `InjectRunTypeId` marker: the
 // brand `InjectRunTypeId<UtilityType<…>>` carries the resolved utility type, and
 // tsgo natively resolves Partial / Pick / Omit / … to a concrete shape BEFORE the
-// Go scanner computes the structural id — so `createIsTypeFor(partial(model))`
+// Go scanner computes the structural id — so `createIsType(partial(model))`
 // converges with the type-first `createIsType<Partial<T>>()` on one structural id
 // (one engine, two front doors). The children ride the carrier only (the scanner
 // reflects the whole resolved type off the brand); no Go-side change.

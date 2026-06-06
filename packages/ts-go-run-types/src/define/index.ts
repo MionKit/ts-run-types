@@ -81,7 +81,7 @@ export {
 // Utility-type builders — Partial / Required / Pick / Omit / Exclude / Extract /
 // NonNullable / Readonly / ReturnType + Parameters. Each brands the RESOLVED
 // stdlib utility type; tsgo resolves it before the Go scanner computes the id, so
-// `createIsTypeFor(partial(model))` converges with `createIsType<Partial<T>>()`.
+// `createIsType(partial(model))` converges with `createIsType<Partial<T>>()`.
 // `readonlyType` is re-aliased as `readonly` for a natural `RT.readonly(model)`.
 export {
   partial,

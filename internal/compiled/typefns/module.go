@@ -294,12 +294,12 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	entries := make(map[string]compiled, len(dump.RunTypes))
 	order := make([]string, 0, len(dump.RunTypes))
 
-	// Variant fan-out: collect every (typeid, options-tuple) pair seen
-	// at a call site (marker-form Sites) or a schema-form Demand. The
-	// emitter sees one walker per pair so each option combination renders
-	// as a distinct cache entry keyed `<tag><variantSuffix>_<id>`.
-	// Non-variant emitters skip this — their option bag is semantically inert.
-	variantsByID := collectIsTypeVariants(dump.Sites, dump.Demands, supportsIsTypeVariants(emitter))
+	// Variant fan-out: collect every (typeid, options-tuple) pair seen at a
+	// call site (Sites). The emitter sees one walker per pair so each option
+	// combination renders as a distinct cache entry keyed
+	// `<tag><variantSuffix>_<id>`. Non-variant emitters skip this — their
+	// option bag is semantically inert.
+	variantsByID := collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))
 
 	// renderRoot compiles one RunType's plain + variant entries into the
 	// shared entries/order maps. Idempotent via the entries dedup. Composite
@@ -336,27 +336,11 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		}
 	}
 
-	if dump.Demands != nil {
-		// Demand-gated: render every type STRUCTURALLY reachable from a used
-		// root (walk the RunType graph), then let Supports + the dangling-dep
-		// cascade prune. Structural reachability — not the per-family
-		// rtDependencies — is required because a factory can reach a SIBLING
-		// family's factory: a binary/json discriminated-union dispatches on its
-		// discriminator via the isType factory (`it_<lit>?.fn(v.k) ?? true`),
-		// a cross-family ref absent from rtDependencies. The discriminator
-		// literal IS a structural descendant of the union, so the graph walk
-		// covers it; without it the missing `it_<lit>` makes the `?? true`
-		// fallback fire and every value picks union arm 0. The closure is still
-		// ⊆ every-interned-type, so a never-validated builder emits nothing.
-		for _, runType := range reachableClosure(dump.Demands, refTable) {
-			renderRoot(runType)
-		}
-	} else {
-		// Legacy: emit a factory for every interned RunType the emitter
-		// supports (module_test builds dumps with no Demands → this path).
-		for _, runType := range dump.RunTypes {
-			renderRoot(runType)
-		}
+	// Emit a factory for every interned RunType the emitter supports; the
+	// dangling-dep cascade below prunes any parent whose child kind is
+	// unsupported.
+	for _, runType := range dump.RunTypes {
+		renderRoot(runType)
 	}
 
 	// Dangling-dep cascade: an entry whose body holds a
@@ -423,77 +407,6 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	return err
 }
 
-// reachableClosure returns every RunType structurally reachable from the
-// demanded (used) root ids by walking the RunType graph over refTable (the full
-// session cache). Mirrors the resolver's recordFileIDs traversal — every
-// ref-carrying slot is followed — so the set covers structural children AND the
-// cross-family discriminator literals a flat-union encoder dispatches on. The
-// result is the render set for a demand-gated module (each entry still gated by
-// the emitter's Supports). Deterministic order: roots in demand order, then
-// children in first-visit order.
-func reachableClosure(demands []protocol.Demand, refTable map[string]*protocol.RunType) []*protocol.RunType {
-	seen := make(map[string]struct{}, len(refTable))
-	out := make([]*protocol.RunType, 0, len(demands))
-	var walk func(id string)
-	follow := func(ref *protocol.RunType) {
-		if ref != nil {
-			walk(ref.ID)
-		}
-	}
-	walk = func(id string) {
-		if id == "" {
-			return
-		}
-		if _, ok := seen[id]; ok {
-			return
-		}
-		seen[id] = struct{}{}
-		node := refTable[id]
-		if node == nil {
-			return
-		}
-		out = append(out, node)
-		follow(node.Child)
-		follow(node.Index)
-		follow(node.Return)
-		follow(node.IndexT)
-		for _, ref := range node.Children {
-			follow(ref)
-		}
-		for _, ref := range node.Parameters {
-			follow(ref)
-		}
-		for _, ref := range node.TypeArguments {
-			follow(ref)
-		}
-		for _, ref := range node.Arguments {
-			follow(ref)
-		}
-		for _, ref := range node.ExtendsArguments {
-			follow(ref)
-		}
-		for _, ref := range node.Implements {
-			follow(ref)
-		}
-		for _, ref := range node.Extends {
-			follow(ref)
-		}
-		for _, ref := range node.TypeMeta {
-			follow(ref)
-		}
-		for _, ref := range node.SafeUnionChildren {
-			follow(ref)
-		}
-		for _, ref := range node.UnionDiscriminators {
-			follow(ref)
-		}
-	}
-	for _, demand := range demands {
-		walk(demand.ID)
-	}
-	return out
-}
-
 // isTypeVariant pairs an option-tuple (the unsorted names harvested
 // from a call site) with its canonical variant suffix. The renderer
 // keys variant entries on `suffix` while the walker reads `options`
@@ -510,7 +423,7 @@ type isTypeVariant struct {
 // when `enable` is false — non-variant emitters get an empty result
 // so their inner loop matches the legacy single-entry-per-runtype
 // shape.
-func collectIsTypeVariants(sites []protocol.Site, demands []protocol.Demand, enable bool) map[string][]isTypeVariant {
+func collectIsTypeVariants(sites []protocol.Site, enable bool) map[string][]isTypeVariant {
 	if !enable {
 		return nil
 	}
@@ -530,14 +443,9 @@ func collectIsTypeVariants(sites []protocol.Site, demands []protocol.Demand, ena
 			byID[id][suffix] = append([]string(nil), options...)
 		}
 	}
-	// Marker-form options ride on Sites; schema-form options ride on Demands.
-	// Both are deduped by (id, suffix), so a marker-form id that also appears
-	// in Demands (the classification path) collapses to one variant entry.
+	// Options ride on Sites, deduped by (id, suffix).
 	for _, site := range sites {
 		add(site.ID, site.Options)
-	}
-	for _, demand := range demands {
-		add(demand.ID, demand.Options)
 	}
 	out := make(map[string][]isTypeVariant, len(byID))
 	for id, suffixes := range byID {

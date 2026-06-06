@@ -13,8 +13,6 @@
 // the same trailing parameter on the wrapper and the transformer treats it
 // identically.
 
-import type {RunType} from './runtypes/types.ts';
-
 /**
  * Sentinel marker. `T` is a phantom type parameter used only by the checker /
  * transformer; at runtime an `InjectRunTypeId<T>` is just a short alphanumeric
@@ -77,21 +75,6 @@ export function reflectRunTypeId<T>(_value: RejectAny<T>, id?: InjectRunTypeId<T
  * Violations produce `CTA0xx` diagnostics.
  */
 export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
-
-/**
- * Schema-reference marker. Brands a `createXFor` parameter as "this argument is
- * a `RunType` schema whose structural id must be resolvable at build time": the
- * Go scanner traces it back to the value-first builder call that created it and
- * records a demand so that builder's factories get emitted (demand-driven
- * emission). It is a PURE alias of `RunType<T>` — no phantom brand — because
- * detection rides on the alias symbol name alone and `RunType<T>` never
- * distributes over a union (so the alias always survives). The referenced schema
- * must be a builder call or a module-scope `const` bound to one; a dynamic
- * reference (`cond ? a : b`, a loop) can't be resolved at build time and
- * produces an `MKR006` diagnostic. Runtime shape is just `RunType<T>`, so the
- * value still carries `.id`.
- */
-export type CompTimeRunType<T> = RunType<T>;
 
 /**
  * Pure-function marker. Brands a function-typed parameter so the Go scanner

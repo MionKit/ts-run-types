@@ -1,12 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {
-  createIsType,
-  createGetTypeErrors,
-  createIsTypeFor,
-  createTypeErrorsFor,
-  createMockType,
-  type RunType,
-} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/define';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -19,7 +12,7 @@ export const UNION = {
       'Each arm runs its full atomic check: numbers reject NaN / Infinity, Dates reject Invalid Date, etc.',
     ],
     isType: () => createIsType<Date | number | string | null | bigint>(),
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+    isTypeSchema: () => createIsType(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
     deserializeIsType: () => deserializeIsType<Date | number | string | null | bigint>(),
     isTypeReflect: () => {
       const v: Date | number | string | null | bigint = 123;
@@ -31,7 +24,7 @@ export const UNION = {
     },
     getTypeErrors: () => createGetTypeErrors<Date | number | string | null | bigint>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
+      createGetTypeErrors(RT.union([RT.date(), RT.number(), RT.string(), RT.literal(null), RT.bigint()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Date | number | string | null | bigint>(),
     getTypeErrorsReflect: () => {
       const v: Date | number | string | null | bigint = 123;
@@ -67,7 +60,7 @@ export const UNION = {
     description: 'mion union.spec.ts "validate union discriminator string"',
     isTypeNotes: 'Literal string unions are case-sensitive. Only the exact strings declared in the union pass.',
     isType: () => createIsType<'UNO' | 'DOS' | 'TRES'>(),
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+    isTypeSchema: () => createIsType(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
     deserializeIsType: () => deserializeIsType<'UNO' | 'DOS' | 'TRES'>(),
     isTypeReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
@@ -78,7 +71,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<'UNO' | 'DOS' | 'TRES'>(),
     getTypeErrorsReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
@@ -113,7 +106,7 @@ export const UNION = {
   string_or_number: {
     title: 'Two-arm union of string and number',
     isType: () => createIsType<string | number>(),
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.string(), RT.number()])),
+    isTypeSchema: () => createIsType(RT.union([RT.string(), RT.number()])),
     deserializeIsType: () => deserializeIsType<string | number>(),
     isTypeReflect: () => {
       const v: string | number = 'hello';
@@ -124,7 +117,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string | number>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.string(), RT.number()])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.string(), RT.number()])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | number>(),
     getTypeErrorsReflect: () => {
       const v: string | number = 'hello';
@@ -161,7 +154,7 @@ export const UNION = {
     isTypeNotes:
       'Mixed-element arrays (e.g., `["a", 1]`) FAIL — no single arm matches the whole array. The union is over array types, not element types.',
     isType: () => createIsType<string[] | number[] | boolean[]>(),
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
+    isTypeSchema: () => createIsType(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
     deserializeIsType: () => deserializeIsType<string[] | number[] | boolean[]>(),
     isTypeReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
@@ -173,7 +166,7 @@ export const UNION = {
     },
     getTypeErrors: () => createGetTypeErrors<string[] | number[] | boolean[]>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
+      createGetTypeErrors(RT.union([RT.array(RT.string()), RT.array(RT.number()), RT.array(RT.boolean())])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string[] | number[] | boolean[]>(),
     getTypeErrorsReflect: () => {
       const v: string[] | number[] | boolean[] = ['a'];
@@ -210,7 +203,7 @@ export const UNION = {
     isTypeNotes:
       'Each element runs the full union OR-chain independently. Mixed-type arrays pass as long as every element matches some arm.',
     isType: () => createIsType<(string | bigint | boolean | Date)[]>(),
-    isTypeSchema: () => createIsTypeFor(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
+    isTypeSchema: () => createIsType(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
     deserializeIsType: () => deserializeIsType<(string | bigint | boolean | Date)[]>(),
     isTypeReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
@@ -221,7 +214,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<(string | bigint | boolean | Date)[]>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<(string | bigint | boolean | Date)[]>(),
     getTypeErrorsReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
@@ -266,7 +259,7 @@ export const UNION = {
       "mion union.spec.ts 'Union Obj'. Object-typed union members go through the dependency-call layer with the shared `typeof === 'object' && !== null` guard lifted out of the OR-chain.",
     isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
       ),
     deserializeIsType: () => deserializeIsType<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
@@ -280,7 +273,7 @@ export const UNION = {
     },
     getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
       ),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
@@ -325,7 +318,7 @@ export const UNION = {
       'Each arm is validated in full; the discriminator literal narrows which arm matches. A value passes if it fully satisfies AT LEAST ONE arm.',
     isType: () => createIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([RT.object({kind: RT.literal('a'), n: RT.number()}), RT.object({kind: RT.literal('b'), s: RT.string()})])
       ),
     deserializeIsType: () => deserializeIsType<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
@@ -339,7 +332,7 @@ export const UNION = {
     },
     getTypeErrors: () => createGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([RT.object({kind: RT.literal('a'), n: RT.number()}), RT.object({kind: RT.literal('b'), s: RT.string()})])
       ),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{kind: 'a'; n: number} | {kind: 'b'; s: string}>(),
@@ -400,7 +393,7 @@ export const UNION = {
         RT.object({a: RT.optional(RT.lazy((): RunType<UnionC> => uc)), b: RT.optional(RT.string())}),
         RT.array(RT.lazy((): RunType<UnionC> => uc)),
       ]);
-      return createIsTypeFor(uc);
+      return createIsType(uc);
     },
     isType: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
@@ -469,7 +462,7 @@ export const UNION = {
       'mion union.spec.ts "Union with objects containing methods" — methods are skipped from each branch via the property-emit function-skip rule (the AND chain inside each object reduces to the data-only props).',
     isType: () => createIsType<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([
           RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
           RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
@@ -492,7 +485,7 @@ export const UNION = {
     },
     getTypeErrors: () => createGetTypeErrors<{name: string; getName(): string} | {age: number; getAge(): number}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([
           RT.object({name: RT.string(), getName: RT.func([], RT.string())}),
           RT.object({age: RT.number(), getAge: RT.func([], RT.number())}),
@@ -544,7 +537,7 @@ export const UNION = {
     description:
       'mion intersection.spec.ts — tsgo / deepkit resolves intersections to ObjectLiteral at the type-checker level, so the cache never carries a KindIntersection that needs validation. Runtime behavior matches `{a: string; b: number}` byte-for-byte.',
     isType: () => createIsType<{a: string} & {b: number}>(),
-    isTypeSchema: () => createIsTypeFor(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
+    isTypeSchema: () => createIsType(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
     deserializeIsType: () => deserializeIsType<{a: string} & {b: number}>(),
     isTypeReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
@@ -555,7 +548,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: string} & {b: number}>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: string} & {b: number}>(),
     getTypeErrorsReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
@@ -602,7 +595,7 @@ export const UNION = {
       "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
     isType: () => createIsType<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([
           RT.object({a: RT.string(), aa: RT.boolean()}),
           RT.object({b: RT.number()}),
@@ -620,7 +613,7 @@ export const UNION = {
     },
     getTypeErrors: () => createGetTypeErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([
           RT.object({a: RT.string(), aa: RT.boolean()}),
           RT.object({b: RT.number()}),
@@ -673,7 +666,7 @@ export const UNION = {
       "mion union.spec.ts 'validate union same prop with different types' — same prop name (`prop`) carries an arm-dependent value type, gated by the literal-string discriminator.",
     isType: () => createIsType<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([
           RT.object({type: RT.literal('a'), prop: RT.boolean()}),
           RT.object({type: RT.literal('b'), prop: RT.number()}),
@@ -699,7 +692,7 @@ export const UNION = {
     getTypeErrors: () =>
       createGetTypeErrors<{type: 'a'; prop: boolean} | {type: 'b'; prop: number} | {type: 'c'; prop: string}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([
           RT.object({type: RT.literal('a'), prop: RT.boolean()}),
           RT.object({type: RT.literal('b'), prop: RT.number()}),
@@ -766,7 +759,7 @@ export const UNION = {
     isType: () =>
       createIsType<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([
           RT.array(RT.string()),
           RT.array(RT.number()),
@@ -797,7 +790,7 @@ export const UNION = {
     getTypeErrors: () =>
       createGetTypeErrors<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([
           RT.array(RT.string()),
           RT.array(RT.number()),
@@ -871,7 +864,7 @@ export const UNION = {
     description:
       "mion union.spec.ts 'validate union with merged properties' — single shared prop with different value types; `a` accepts boolean OR number.",
     isType: () => createIsType<{a: boolean} | {a: number}>(),
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
+    isTypeSchema: () => createIsType(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
     deserializeIsType: () => deserializeIsType<{a: boolean} | {a: number}>(),
     isTypeReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
@@ -882,7 +875,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{a: boolean} | {a: number}>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{a: boolean} | {a: number}>(),
     getTypeErrorsReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};
@@ -925,7 +918,7 @@ export const UNION = {
         | {[key: string]: bigint; b: bigint}
       >(),
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([
           RT.array(RT.string()),
           RT.object({a: RT.string(), aa: RT.boolean()}),
@@ -969,7 +962,7 @@ export const UNION = {
         | {[key: string]: bigint; b: bigint}
       >(),
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([
           RT.array(RT.string()),
           RT.object({a: RT.string(), aa: RT.boolean()}),
@@ -1048,7 +1041,7 @@ export const UNION = {
     isTypeNotes:
       '`T | any` collapses to `any` at the type-checker layer — the validator becomes a no-op that always returns true. `T | unknown` behaves the same way. If you want a real fallback that still narrows, use a concrete sibling type.',
     isType: () => createIsType<string | any>(),
-    isTypeSchema: () => createIsTypeFor(RT.any()),
+    isTypeSchema: () => createIsType(RT.any()),
     deserializeIsType: () => deserializeIsType<string | any>(),
     isTypeReflect: () => {
       const v: string | any = 'hello';
@@ -1059,7 +1052,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string | any>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.any()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.any()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | any>(),
     getTypeErrorsReflect: () => {
       const v: string | any = 'hello';
@@ -1087,7 +1080,7 @@ export const UNION = {
     description:
       "mion union.spec.ts 'support union with unknown type' — tsgo collapses `T | unknown` to `unknown`, so any value passes.",
     isType: () => createIsType<string | unknown>(),
-    isTypeSchema: () => createIsTypeFor(RT.unknown()),
+    isTypeSchema: () => createIsType(RT.unknown()),
     deserializeIsType: () => deserializeIsType<string | unknown>(),
     isTypeReflect: () => {
       const v: string | unknown = 'hello';
@@ -1098,7 +1091,7 @@ export const UNION = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<string | unknown>(),
-    getTypeErrorsSchema: () => createTypeErrorsFor(RT.unknown()),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.unknown()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<string | unknown>(),
     getTypeErrorsReflect: () => {
       const v: string | unknown = 'hello';
@@ -1136,7 +1129,7 @@ export const UNION = {
       }
       return createIsType<SmallObj | LargeObj>();
     },
-    isTypeSchema: () => createIsTypeFor(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
+    isTypeSchema: () => createIsType(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
     deserializeIsType: () => {
       interface SmallObj {
         a: string;
@@ -1180,7 +1173,7 @@ export const UNION = {
       return createGetTypeErrors<SmallObj | LargeObj>();
     },
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
+      createGetTypeErrors(RT.union([RT.object({a: RT.string()}), RT.object({a: RT.string(), b: RT.number()})])),
     deserializeGetTypeErrors: () => {
       interface SmallObj {
         a: string;
@@ -1270,7 +1263,7 @@ export const UNION = {
       return createIsType<Tiny | Medium | Large>();
     },
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([
           RT.object({x: RT.string()}),
           RT.object({x: RT.string(), y: RT.number()}),
@@ -1340,7 +1333,7 @@ export const UNION = {
       return createGetTypeErrors<Tiny | Medium | Large>();
     },
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([
           RT.object({x: RT.string()}),
           RT.object({x: RT.string(), y: RT.number()}),
@@ -1460,7 +1453,7 @@ export const UNION = {
       return createIsType<Base | Extended | Unrelated>();
     },
     isTypeSchema: () =>
-      createIsTypeFor(
+      createIsType(
         RT.union([RT.object({id: RT.string()}), RT.object({id: RT.string(), name: RT.string()}), RT.object({value: RT.number()})])
       ),
     deserializeIsType: () => {
@@ -1518,7 +1511,7 @@ export const UNION = {
       return createGetTypeErrors<Base | Extended | Unrelated>();
     },
     getTypeErrorsSchema: () =>
-      createTypeErrorsFor(
+      createGetTypeErrors(
         RT.union([RT.object({id: RT.string()}), RT.object({id: RT.string(), name: RT.string()}), RT.object({value: RT.number()})])
       ),
     deserializeGetTypeErrors: () => {

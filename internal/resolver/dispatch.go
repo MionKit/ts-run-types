@@ -254,7 +254,6 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		fullDump := protocol.Dump{
 			RunTypes: resolver.cache.Dump(),
 			Sites:    resolver.Sites(),
-			Demands:  resolver.Demands(),
 		}
 		response := protocol.Response{
 			RunTypes: fullDump.RunTypes,
