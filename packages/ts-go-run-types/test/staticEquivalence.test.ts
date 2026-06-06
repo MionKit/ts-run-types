@@ -2,7 +2,7 @@
 // value-first schema models — across the whole builder surface. Each case binds a
 // schema to a `const`, then asserts `Static<typeof schema>` is mutually assignable
 // (both directions) with the hand-written type-first equivalent. This is the
-// type-level twin of the runtime convergence suite (valueFirstConvergence.test.ts).
+// type-level twin of the runtime convergence suite (test/suites/id-integrity/).
 //
 // `assertMutual<S, T>()` is the helper form of the cross-assignment:
 //     const _a: S = (x as T);   // T → S

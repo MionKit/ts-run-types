@@ -8,8 +8,8 @@
 // `Static<typeof Model>` recovers the model type — which is fed to
 // `createIsType` / `createGetTypeErrors`, the SAME path as the type-first
 // surface, proving the value-first front-end lowers to the identical RunType
-// graph (same-hash convergence is asserted in
-// test/adapters/valueFirstConvergence.test.ts).
+// graph (same-hash convergence is asserted across all suites in
+// test/suites/id-integrity/).
 //
 // Per the CLAUDE.md marker-coverage rule every case carries BOTH forms:
 //   - static  `createIsType<Static<typeof Model>>()`
