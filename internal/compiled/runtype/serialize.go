@@ -339,19 +339,25 @@ func (cache *Cache) intern(structural, id string) {
 	cache.byID[id] = structural
 }
 
-// uniqueDict assigns a short hash for structural via the main dict,
-// embedding constants.Version in the hashing input so the same
-// structural id maps to different short hashes across binary versions.
-// The Dict's own reverse map stays keyed by the salted form (internal
-// detail); callers needing the raw structural use byStructural / byID.
+// versionSalt prefixes every hash input so the same structural id maps
+// to different short hashes across binary versions. Folded into the
+// rolling hash via UniqueSalted — never retained per id, so the dicts
+// store only the bare structural string (which shares its backing bytes
+// with byStructural's copy). Read at call time (not a package var):
+// version_test.go swaps constants.Version mid-process to pin the
+// embedding behavior. The tiny transient concat happens once per
+// dict-miss, i.e. once per new node.
+func versionSalt() string { return constants.Version + "|" }
+
+// uniqueDict assigns a short hash for structural via the main dict.
 func (cache *Cache) uniqueDict(structural string, length int) (string, error) {
-	return cache.dict.Unique(constants.Version+"|"+structural, length)
+	return cache.dict.UniqueSalted(versionSalt(), structural, length)
 }
 
 // uniqueLiteralDict is uniqueDict for the literal-budget dict — same
 // version-embedding, separate hash table for literal-typed ids.
 func (cache *Cache) uniqueLiteralDict(structural string, length int) (string, error) {
-	return cache.literals.Unique(constants.Version+"|"+structural, length)
+	return cache.literals.UniqueSalted(versionSalt(), structural, length)
 }
 
 // NodesForIDs returns the canonical *RunType entries for the given ids, in

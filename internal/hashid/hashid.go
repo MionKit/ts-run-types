@@ -40,14 +40,25 @@ const (
 // valid JS identifier prefix. `prev` lets a collision-extension continue
 // the previous hash chain rather than restart — pass "" for a fresh hash.
 func QuickHash(input string, length int, prev string) string {
+	return QuickHashSalted("", input, length, prev)
+}
+
+// QuickHashSalted is QuickHash over the byte sequence salt+input without
+// materializing the concatenation — the rolling hash consumes the salt
+// bytes first, so the result is byte-identical to QuickHash(salt+input).
+// Lets Dict.UniqueSalted avoid retaining a salted copy of every id.
+func QuickHashSalted(salt, input string, length int, prev string) string {
 	if length < 1 {
 		length = 1
 	}
 	var hash uint32
+	// Go's uint32 multiplication wraps mod 2^32 — same low-32 bits as
+	// JS's Math.imul + `>>> 0`. ASCII inputs only (our structural ids
+	// are all ASCII) so byte-indexing matches charCodeAt semantics.
+	for i := 0; i < len(salt); i++ {
+		hash = hash*prime + uint32(salt[i])
+	}
 	for i := 0; i < len(input); i++ {
-		// Go's uint32 multiplication wraps mod 2^32 — same low-32 bits as
-		// JS's Math.imul + `>>> 0`. ASCII inputs only (our structural ids
-		// are all ASCII) so byte-indexing matches charCodeAt semantics.
 		hash = hash*prime + uint32(input[i])
 	}
 	result := []byte(prev)
@@ -90,13 +101,24 @@ func New() *Dict {
 // return the same hash. Two distinct ids that hash to the same string at
 // `length` cause the second call to extend the length and re-hash.
 func (dict *Dict) Unique(id string, length int) (string, error) {
+	return dict.UniqueSalted("", id, length)
+}
+
+// UniqueSalted is Unique with the hash computed over salt+id while the
+// dictionary stores only the bare `id`. The salt MUST be constant for the
+// lifetime of one Dict (ours is the binary-version prefix) — entries from
+// different salts would otherwise collide on the same key space. Storing
+// the unsalted id halves the retained text per entry: the id string
+// shares its backing bytes with the caller's copy instead of pinning a
+// fresh salted concatenation.
+func (dict *Dict) UniqueSalted(salt, id string, length int) (string, error) {
 	if existing, ok := dict.reverse[id]; ok {
 		return existing, nil
 	}
 	if length < 1 {
 		length = DefaultLength
 	}
-	hash := QuickHash(id, length, "")
+	hash := QuickHashSalted(salt, id, length, "")
 	counter := 1
 	for {
 		owner, taken := dict.entries[hash]
@@ -113,7 +135,7 @@ func (dict *Dict) Unique(id string, length int) (string, error) {
 		}
 		// Collision: grow length and continue the hash chain.
 		length += counter * hashIncrement
-		hash = QuickHash(id, length, hash)
+		hash = QuickHashSalted(salt, id, length, hash)
 		counter++
 		if counter > MaxCollisions {
 			return "", fmt.Errorf("hashid: too many collisions for %q (last hash %q)", id, hash)
