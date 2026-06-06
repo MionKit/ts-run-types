@@ -15,8 +15,8 @@
 // import (registers the format pure-fns the cache module reaches).
 
 import {describe, expect, it} from 'vitest';
-import {getRunTypeId, reflectRunTypeId, getRTUtils, type TypeFromRT} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/define';
+import {getRunTypeId, reflectRunTypeId, getRTUtils, type Static} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {FormatString, FormatNumber} from '@mionjs/ts-go-run-types/formats';
 import '@mionjs/ts-go-run-types/formats';
 
@@ -53,7 +53,7 @@ describe('value-first / builders return the live RunType (Tier 2)', () => {
 
   it('object() returns the live composite RunType for the whole model — static', () => {
     const Model = RT.object({name: RT.string({maxLength: 5}), age: RT.number({min: 0})});
-    const canonical = getRTUtils().getRunType(getRunTypeId<TypeFromRT<typeof Model>>());
+    const canonical = getRTUtils().getRunType(getRunTypeId<Static<typeof Model>>());
     expect(canonical).toBeDefined();
     // The nested string/number builders are skipped by the scanner; `object`
     // alone resolves the composite node — so the model value IS that node.
@@ -62,7 +62,7 @@ describe('value-first / builders return the live RunType (Tier 2)', () => {
 
   it('object() composite RunType converges via reflect form', () => {
     const Model = RT.object({name: RT.string({maxLength: 5}), age: RT.number({min: 0})});
-    const probe = {name: 'x', age: 1} as unknown as TypeFromRT<typeof Model>;
+    const probe = {name: 'x', age: 1} as unknown as Static<typeof Model>;
     const canonical = getRTUtils().getRunType(reflectRunTypeId(probe));
     expect(canonical).toBeDefined();
     expect(Model as unknown).toBe(canonical);

@@ -1,7 +1,18 @@
 # Value-first builders → RunType-construct / marker refactor
 
+> **⚠️ UPDATED — Tier 3 + config bridge removed; package reorganized.** The
+> value-first surface moved from `src/define/` to **`src/schema/`** (subpath
+> `@mionjs/ts-go-run-types/schema`), split into `atomic.ts` (leaf builders),
+> `compose.ts` (composers + `object` + `propMod`/`optional`), `utility.ts`, and
+> `static.ts` (every type-level helper). **Tier 3 `reflectModel<T>()` and the
+> entire `ModelType` / `ModelConfig` / `FieldConfig` / `FieldFormatMap` config↔type
+> bridge were REMOVED** (redundant — the RunType node + `Static<T>` already carry
+> the model), as were the universal reflectors `runType<T>()` /
+> `reflectRunType(value)`. The `TypeFromRT<RT>` extractor is now **`Static<RT>`**.
+> The Tier-3 / config-bridge sections below are retained for historical context only.
+
 > **Status: IMPLEMENTED (Tiers 1–3).** This refactor of the
-> `@mionjs/ts-go-run-types/define` package has shipped: each builder returns its
+> `@mionjs/ts-go-run-types/schema` package has shipped: each builder returns its
 > branded format type directly (Tier 1), is an injectable marker that resolves to
 > the live RunType node (Tier 2), and the inverse `reflectModel<T>()` (Tier 3)
 > reconstructs a discriminated runtime model from the RunType. The
@@ -94,7 +105,7 @@ The full proof-of-concept source is in [Appendix A](#appendix-a--proof-of-concep
 
 ## Current status (what exists today)
 
-All in [`packages/ts-go-run-types/src/define/define.ts`](../packages/ts-go-run-types/src/define/define.ts):
+All in [`packages/ts-go-run-types/src/schema/atomic.ts`](../packages/ts-go-run-types/src/schema/atomic.ts):
 
 - **Builders** (`string`, `number`, `bigint`, `date`, `boolean`, the 6
   `temporal.*`, `optional`, `object`) — runtime identities returning plain config
@@ -285,7 +296,7 @@ The earlier worry was that unifying on a single discriminator would force foldin
    key is ever wanted, it is `FormatAnnotation.name` / the `__rtFormatName`
    brand string (`'stringFormat'`, `'numberFormat'`, `'nativeDate'`,
    `'temporalInstant'`, …) — already a single-axis label the Go side keys off
-   ([`define.ts`](../packages/ts-go-run-types/src/define/define.ts) notes "the Go
+   ([`define.ts`](../packages/ts-go-run-types/src/schema/atomic.ts) notes "the Go
    side keys off the brand's `__rtFormatName`, not this tag").
 
 **Conclusion: do not refactor the kind/subKind protocol for this work.**

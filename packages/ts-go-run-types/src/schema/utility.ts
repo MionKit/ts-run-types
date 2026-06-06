@@ -9,7 +9,7 @@
 // (one engine, two front doors). The children ride the carrier only (the scanner
 // reflects the whole resolved type off the brand); no Go-side change.
 
-import {builderResult} from './define.ts';
+import {builderResult} from './atomic.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 

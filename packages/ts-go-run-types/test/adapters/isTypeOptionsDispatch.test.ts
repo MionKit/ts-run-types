@@ -23,7 +23,7 @@
 
 import {describe, expect, it} from 'vitest';
 import {createIsType, createGetTypeErrors, getRunTypeId, reflectRunTypeId} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/define';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 
 describe('IsTypeOptions — type-id stays structural across option combinations', () => {
   it('static and reflect forms of the same T share the same id', () => {

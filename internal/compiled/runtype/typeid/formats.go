@@ -59,7 +59,7 @@ func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type
 }
 
 // regexp-brand sentinel property names — mirror the value-first `regexp` builder's
-// `RegexLiteralType<Source, Flags>` brand (packages/ts-go-run-types/src/define).
+// `RegexLiteralType<Source, Flags>` brand (packages/ts-go-run-types/src/schema).
 const (
 	regexSourceProp = "__rtRegexSource"
 	regexFlagsProp  = "__rtRegexFlags"
@@ -260,8 +260,8 @@ func unwrapExpr(node *ast.Node) *ast.Node {
 // propertyInitializer returns the value expression a property declaration
 // binds, or nil when the declaration has no value initializer (e.g. a
 // PropertySignature in a type). Lets the pattern recovery reach the value a
-// value-first config wrote (`pattern: /…/`) through the symbol declaration the
-// homomorphic Omit/Pick mapped type behind `ModelType` preserves.
+// value-first config wrote (`pattern: /…/`) through the symbol declaration a
+// homomorphic Omit/Pick mapped type preserves.
 func propertyInitializer(declaration *ast.Node) *ast.Node {
 	switch declaration.Kind {
 	case ast.KindPropertyAssignment:
