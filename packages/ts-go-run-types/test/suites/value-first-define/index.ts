@@ -27,12 +27,19 @@ import {
   createGetTypeErrors,
   registerFormatPattern,
   type Static,
-  type IsTypeFn,
   type GetTypeErrorsFn,
 } from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType} from '../../util/deserializeRTFunctions.ts';
 import '@mionjs/ts-go-run-types/formats';
+
+/** isType validator field shape, widened to the plain boolean-returning call
+ *  shape. `IsTypeFn<T>` is an invariantly-checked type guard (`value is
+ *  DataOnly<T>`), so a concrete `IsTypeFn<SomeModel>` does NOT flow into a bare
+ *  `IsTypeFn` (`IsTypeFn<unknown>`) field; the boolean supertype every
+ *  `IsTypeFn<T>` satisfies sidesteps that. Mirrors `IsTypeThunk` in
+ *  `../validation/types.ts`. **/
+type AnyIsTypeFn = (value: unknown) => boolean;
 
 /** A value-first case: the four isType thunks (static / reflect / their
  *  deserialize companions), a getTypeErrors thunk, and the shared samples.
@@ -40,10 +47,10 @@ import '@mionjs/ts-go-run-types/formats';
  *  shared adapter helpers. **/
 export interface ValueFirstCase {
   title: string;
-  isType: () => IsTypeFn;
-  isTypeReflect: () => IsTypeFn;
-  deserializeIsType: () => IsTypeFn;
-  deserializeIsTypeReflect: () => IsTypeFn;
+  isType: () => AnyIsTypeFn;
+  isTypeReflect: () => AnyIsTypeFn;
+  deserializeIsType: () => AnyIsTypeFn;
+  deserializeIsTypeReflect: () => AnyIsTypeFn;
   getTypeErrors: () => GetTypeErrorsFn;
   getSamples: () => {valid: unknown[]; invalid: unknown[]};
 }
