@@ -1,6 +1,7 @@
 # Demand-driven function caches (`InjectTypeFnArgs` marker)
 
-Status: **planned** — investigation complete and confirmed; implementation pending.
+Status: **ready to implement** — investigation complete and confirmed; design
+decisions taken. Execution tracked in the Task list at the bottom of this doc.
 Owner item: `docs/TODOS.md` §2 ("createIsType and other functions are not
 parsing compiler options, instead they are generating all families at once").
 
@@ -71,6 +72,13 @@ today read only at runtime (`createRTFunctions.ts`).
   to emit AND gives the runtime the exact lookup key — removing today's
   duplicated key construction (Go derives the variant suffix into
   `Site.Options`; the JS runtime recomputes it via `buildVariantKey`).
+- **Migration surface:** all 11 function factories move to `InjectTypeFnArgs`
+  (`createIsType`, `createGetTypeErrors`, `createHasUnknownKeys`,
+  `createStripUnknownKeys`, `createUnknownKeyErrors`,
+  `createUnknownKeysToUndefined`, `createFormatTransform`, `createJsonEncoder`,
+  `createJsonDecoder`, `createBinaryEncoder`, `createBinaryDecoder`). The
+  reflection entry points stay on `InjectRunTypeId<T>` (`getRunTypeId`,
+  `reflectRunTypeId`, value-first RT builders, `createMockType`).
 
 ## Prior art — the reusable template (`IsTypeOptions` variants)
 
@@ -140,6 +148,9 @@ per-site `fnId` assertions; do not delete it.
   `FnId string` (empty ⇒ reflection-only `InjectRunTypeId` site).
 - Preserve the value-first **schema overload** demand (dispatch on `rt.id`);
   add a recursive-schema regression test.
+- `Site.Options` becomes redundant once `it`/`te` migrate (the `fnId` encodes
+  the variant). Keep it during the phased rollout for back-compat; remove it in
+  Slice D once every family reads `FnId`.
 
 **Phase 3 — injection**
 - `packages/vite-plugin-runtypes/src/protocol.ts` `Site` + `rewrite.ts`:
@@ -171,6 +182,28 @@ per-site `fnId` assertions; do not delete it.
   the non-demanded families; refresh `docs/UNSUPPORTED-KINDS.md` +
   `docs/ARCHITECTURE.md` (the marker now carries a function id).
 
+## Rollout sequencing (slices)
+
+The six phases ship in four reviewable slices, each green on its own. Other
+families ride the back-compat all-emit path until their slice lands, so the
+tree stays correct throughout.
+
+- **Slice A — foundation + `it`/`te`.** New marker + registry (Phase 1), scanner
+  `FnId` for `it`/`te` (Phase 2), tuple injection (Phase 3), demand-driven
+  emission generalised but only `it`/`te` migrated off the back-compat path
+  (Phase 4), runtime for `createIsType`/`createGetTypeErrors` (Phase 5). This
+  proves the whole vertical on the template family.
+- **Slice B — single-family fan-out.** Migrate `huk`/`suk`/`uke`/`uku`/`fmt`
+  and `tb`/`fb` (no comptime variant axis — `fnId` = base tag).
+- **Slice C — JSON precise strategy.** `createJsonEncoder`/`createJsonDecoder`:
+  read the `strategy` literal → `fnId` → 1–2 families. Update
+  `TestResolver_EncoderOptionsShareTypeID`.
+- **Slice D — cleanup + docs.** Drop `Site.Options` + the
+  `createRTFunctionWithOptions`/`buildVariantKey` duplication; decide the fate
+  of the back-compat all-emit fallback (keep as the documented "no-demand"
+  render mode for unit tests, or remove); full zero-over-emission regression
+  test; refresh `docs/` + `CLAUDE.md`.
+
 ## Risks / watch-items
 - Public marker API change — additive (new marker; `InjectRunTypeId` keeps its
   meaning for reflection), but every `createX` signature changes.
@@ -180,3 +213,68 @@ per-site `fnId` assertions; do not delete it.
   type; after the fix they fan out only for demanded `(family, type)` pairs —
   this removes spurious build-halting diagnostics for types only reflected,
   which is a correctness improvement to call out in the changelog.
+
+## Task list (tracker)
+
+Check items off as they land. Each slice ends green (`go test ./internal/...`
++ the plugin/marker JS suites) before the next begins.
+
+### Slice A — foundation + `it`/`te`
+- [ ] A1 `internal/constants/constants.go`: add `BrandInjectTypeFnArgs` + the
+  compile-function registry (`Fn` → base tag + comptime axis; `(Fn, fnId) →
+  []familyTag`) + a `ResolveFnId(fn, comptimeArgs) (fnId string, families
+  []string)` helper.
+- [ ] A2 `internal/marker/marker.go`: add `KindInjectTypeFnArgs` spec +
+  `DefaultInjectTypeFnArgsName` + brand; surface both `T` and `Fn` type-args.
+- [ ] A3 `packages/ts-go-run-types/src/markers.ts`: add
+  `export type InjectTypeFnArgs<T, Fn extends string>` (phantom brand).
+- [ ] A4 `cmd/gen-ts-constants`: mirror the registry; `pnpm run gen:ts-constants`.
+- [ ] A5 `internal/protocol/protocol.go`: add `Site.FnId string`.
+- [ ] A6 `internal/resolver/scan.go`: detect `InjectTypeFnArgs` trailing slot;
+  read `Fn` + IsTypeOptions literal → `fnId` (`it`/`itNL`/…); set `Site.FnId`.
+  Generalise `extractIsTypeOptions` into the shared comptime-args reader.
+- [ ] A7 Preserve schema-overload demand (`rt.id`); add recursive-schema test.
+- [ ] A8 `packages/vite-plugin-runtypes/src/protocol.ts`: add `Site.fnId?`.
+- [ ] A9 `rewrite.ts` `buildInsertion`: emit `["typeId","fnId"]` when `fnId` is
+  present; bare `"typeId"` string otherwise.
+- [ ] A10 `internal/compiled/typefns/module.go`: generalise
+  `collectIsTypeVariants` → `collectVariants(familyTag)` keyed on `Site.FnId`;
+  worklist-seed from demanded roots + transitive `RTDependencies` closure;
+  keep the no-`FnId` ⇒ all-RunTypes back-compat path; migrate only `it`/`te`.
+- [ ] A11 `createRTFunctions.ts`: `createIsType`/`createGetTypeErrors` read the
+  `[typeId, fnId]` tuple and look up `fnId + '_' + typeId` directly.
+- [ ] A12 Update Go overlays (`inline_test.go`, `internal/testfixtures/*`) +
+  JS inline helper to declare `InjectTypeFnArgs` for `it`/`te`.
+- [ ] A13 Build binary; `go test ./internal/...` green; rebuild vite plugin;
+  `pnpm --filter vite-plugin-runtypes test` + marker pkg tests green.
+- [ ] A14 Regression: a `getRunTypeId`-only file emits **zero** `it_`/`te_`
+  entries; paired static/reflect `createIsType` tests still pass.
+
+### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`uku`/`fmt`, `tb`/`fb`)
+- [ ] B1 Migrate these factory signatures to `InjectTypeFnArgs<T, Fn>` (`markers`
+  + `createRTFunctions.ts` / `createBinary.ts`).
+- [ ] B2 Scanner: no comptime axis → `fnId` = base tag.
+- [ ] B3 Emission: drop these families from the back-compat path (now demand-driven).
+- [ ] B4 Runtime: these `createX` read the tuple (`createRTFunction` no-options path).
+- [ ] B5 Overlays/tests/build green.
+
+### Slice C — JSON precise strategy
+- [ ] C1 Registry: `jsonEncoder`/`jsonDecoder` strategy → families (Go + TS mirror).
+- [ ] C2 Scanner: read `strategy` CompTimeArgs literal → `fnId` = strategy token.
+- [ ] C3 Emission: expand strategy `fnId` → 1–2 families for these two.
+- [ ] C4 Runtime: `createJsonEncoder`/`Decoder` read `fnId`(strategy) → compose.
+- [ ] C5 Update `TestResolver_EncoderOptionsShareTypeID` (keep id-sharing; add
+  per-site `fnId` assertions).
+- [ ] C6 Tests/build green.
+
+### Slice D — cleanup + docs
+- [ ] D1 Remove `Site.Options` + the `createRTFunctionWithOptions` /
+  `buildVariantKey` duplication now subsumed by `fnId`.
+- [ ] D2 Decide the back-compat all-emit fallback's fate (keep as documented
+  no-demand render mode for unit tests, or remove + migrate those tests).
+- [ ] D3 Full regression: `getRunTypeId`-only AND single-`createX` files emit
+  zero entries in every non-demanded family.
+- [ ] D4 Refresh `docs/UNSUPPORTED-KINDS.md`, `docs/ARCHITECTURE.md`, the
+  CLAUDE.md marker section; flip this doc's status to `done`.
+- [ ] D5 `pnpm run lint && pnpm run format`; final `go test ./internal/...`
+  + `pnpm test` green.
