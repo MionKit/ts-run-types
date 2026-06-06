@@ -162,9 +162,12 @@ func main() {
 	// Stdio decoder/encoder is built up front because in inline-sources mode
 	// we consume one handshake line from stdin BEFORE constructing the
 	// Program, then keep the same decoder for the request loop so any bytes
-	// buffered by the JSON decoder past the handshake aren't lost.
+	// buffered by the JSON decoder past the handshake aren't lost. Stdout is
+	// buffered (flushed once per response in serveRequests) so a large
+	// response doesn't degrade into many small pipe writes.
 	stdinDec := json.NewDecoder(bufio.NewReader(os.Stdin))
-	stdoutEnc := json.NewEncoder(os.Stdout)
+	stdoutBuf := bufio.NewWriter(os.Stdout)
+	stdoutEnc := json.NewEncoder(stdoutBuf)
 
 	resolverOpts := resolver.Options{
 		HashLength:        hashLength,
@@ -229,7 +232,7 @@ func main() {
 	case daemon:
 		runDaemon(r, socketPath)
 	default:
-		serveRequests(r, stdinDec, stdoutEnc)
+		serveRequests(r, stdinDec, stdoutEnc, stdoutBuf.Flush)
 	}
 
 	// Optional file outputs after stdin is drained. Both formats share one
@@ -252,10 +255,14 @@ func main() {
 }
 
 func runOneShot(r *resolver.Resolver, in io.Reader, out io.Writer) {
-	serveRequests(r, json.NewDecoder(bufio.NewReader(in)), json.NewEncoder(out))
+	outBuf := bufio.NewWriter(out)
+	serveRequests(r, json.NewDecoder(bufio.NewReader(in)), json.NewEncoder(outBuf), outBuf.Flush)
 }
 
-func serveRequests(r *resolver.Resolver, dec *json.Decoder, enc *json.Encoder) {
+// serveRequests drains the request stream, dispatching each and encoding
+// the response. flush runs after every response so the buffered writer's
+// bytes reach the client before the next read blocks.
+func serveRequests(r *resolver.Resolver, dec *json.Decoder, enc *json.Encoder, flush func() error) {
 	for {
 		var req protocol.Request
 		if err := dec.Decode(&req); err != nil {
@@ -263,11 +270,15 @@ func serveRequests(r *resolver.Resolver, dec *json.Decoder, enc *json.Encoder) {
 				break
 			}
 			_ = enc.Encode(protocol.Response{Error: fmt.Sprintf("decode: %v", err)})
+			_ = flush()
 			continue
 		}
 		resp := r.Dispatch(req)
 		if err := enc.Encode(resp); err != nil {
 			fatal("encode: %v", err)
+		}
+		if err := flush(); err != nil {
+			fatal("flush: %v", err)
 		}
 	}
 }
