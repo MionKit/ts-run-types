@@ -72,6 +72,55 @@ today read only at runtime (`createRTFunctions.ts`).
   duplicated key construction (Go derives the variant suffix into
   `Site.Options`; the JS runtime recomputes it via `buildVariantKey`).
 
+## Prior art — the reusable template (`IsTypeOptions` variants)
+
+`createIsType` / `createGetTypeErrors` are the **only** functions that already
+extract a compile-time arg at the call site to generate a *specific* variant
+factory in the cache (distinct key + distinct body). This is the pipeline to
+lift and generalise:
+
+1. **extract** — `extractIsTypeOptions(call, lastIndex, argsCount)` reads the
+   object literal in the slot before the id (`internal/resolver/scan.go:438`).
+2. **record** — `Site.Options = options.Names()` (`scan.go:350`).
+3. **registry** — `constants.IsTypeOptions` + `IsTypeVariantSuffix(names)` →
+   `NL`/`NA`/`NLA` (`constants.go:141`); mirrored to TS as
+   `buildIsTypeVariantSuffix` via `gen-ts-constants`.
+4. **fan-out** — `collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))`,
+   gated to `IsTypeEmitter`/`TypeErrorsEmitter` (`module.go:302,72,426`).
+5. **render per variant** — `renderEntryWithDeps(…, suffix, options)` → key
+   `<tag><suffix>_<id>` (`itNL_<id>`); primes `walker.VariantOptions`
+   (`module.go:330,518`).
+6. **codegen branches** — `ctx.HasVariantOption("noLiterals")` changes the body
+   (`emitter.go:136`; `istype.go:366,401`; `typeerrors.go:436,554`).
+7. **runtime rebuilds the same key** — `createRTFunctionWithOptions` →
+   `buildVariantKey(prefix, id, options)` (`rtUtils.ts:207`,
+   `createRTFunctions.ts:209`).
+
+What this template tells us:
+- ✅ The **option** (variant within a family) is already comptime and drives
+  emission — **lift it**: generalise `collectIsTypeVariants` →
+  `collectVariants(familyTag)` and drop the `supportsIsTypeVariants` gate.
+- ❌ The **family** (`'it'`) is hardcoded in the runtime wrapper and
+  over-emitted — the `Fn` type-arg promotes it to comptime (the core fix).
+- ♻️ Step 7 is a **duplication** — the runtime re-derives the variant key from
+  the runtime options arg. Injecting the finished `fnId` lets the runtime read
+  it from the tuple, collapsing the `createRTFunctionWithOptions` vs
+  `createRTFunction` split + `buildVariantKey` into one path.
+
+So the generalisation is: `extractIsTypeOptions` → a generic
+"comptime fn-args → fnId" step (reuse the `comptimeargs` validator for
+const-trace robustness), and `IsTypeVariantSuffix` → one case of the shared
+`(Fn, comptime-args) → fnId` registry.
+
+**Alignment checkpoint — `createJsonEncoder`/`createJsonDecoder`.** These do NOT
+use the template today (strategy is runtime-only). The test
+`TestResolver_EncoderOptionsShareTypeID` (`internal/resolver/atomic_test.go:1077`)
+pins "all strategy shapes share one type-id; runtime dispatches by family
+prefix". Under "precise immediately" the **invariant stays** (strategy must not
+fold into the type-id — it selects the family, not the id) but the dispatch
+moves to comptime: update the test to keep the id-sharing assertion and add
+per-site `fnId` assertions; do not delete it.
+
 ## Phased changes
 
 **Phase 1 — shared registry + new marker (foundation)**
