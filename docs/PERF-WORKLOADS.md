@@ -145,25 +145,32 @@ Full walks over the **checker.Type graph**: `typeid.Compute` (+cycle sub-walk) a
 | G13 | `program.go:87 NewInferred` | fresh FS/host per setSources → libs re-read+re-parsed per bench cycle | share base FS (and investigate `NewCachedFSCompilerHost` shim) |
 | G14 | `scan.go:44 scanAllProgramFiles` | scans lib/ambient `.d.ts` for call sites | skip declaration files |
 
-## 6. Ranked candidate list (Step 3 input)
+## 6. Ranked candidate list (Step 3 input) — profile-ranked
 
-Ranking = static cost share × bench observability × risk. Profile shares filled by the Step 2 system (see `bench/`).
+Measured on the Step-2 system (commit `9b395b0` baselines, see `bench/results/`):
 
-| id | candidate | gain axis | risk | expected visibility |
+- **Render/all micro-bench**: `RenderFnModule` 38.7% CPU cum and **80.9% of alloc_space** (527MB); `renderValidateModule` 20% CPU of which **`CrossFamilyValRoots` 16%** (13 discarded renders); GC workers ≈35% CPU (churn-bound); `purefns.findCalls` 8.7% CPU — OpDump re-extracts purefns over ALL program files per dump (`render.go:renderPureFnsModule` with `ranExtraction=false`).
+- **ScanWithCaches/large**: `Walker.dispatch` 34.6% of alloc objects (per-node `EmitContext` + `orderedItems` maps + dep strings); `Walker.Compile` 17% CPU.
+- **Macro validation suite (real tsconfig, 2254 sites)**: Go dispatch 511ms = markerScan 402ms (79%; inside it `checker.getResolvedSignature` ≈21% of total CPU — tsgo's lazy checking, the work we exist to force) + **prep 80ms (16%)** (provenance `scanLineCol` byte scans + fullRefTable + 15 added-passes) + renders 21ms.
+- **Micro per-case**: wall 5.2ms vs Go-side 0.46ms — ≈4.7ms request/response encode+IPC gap (`Added` payload, unbuffered stdout, Node parse).
+
+Execution order for Step 3 (re-ranked by measured share × risk):
+
+| # | candidate | measured share | gain axis | risk |
 | --- | --- | --- | --- | --- |
-| C1 | Lazy rtRenderOpts/provenance/refTable (G2+G3, line index G1) | CPU per dispatch | low | scanFiles-without-cache path (vite transform shape) |
-| C2 | Kill/cheapen `CrossFamilyValRoots` double-render (§2.7) — derive `val_` edges without 13 discarded renders, or share entry compiles across families per dispatch | CPU | medium | any validate render (every suite case) |
-| C3 | Canonical-node **facts table**: memoize T1/T2 (+future bits) by `rt.ID` per session | CPU | low | JSON/safe families with object/union fan-out |
-| C4 | Single AST walk per file feeding both marker scan + purefns (§2.2+§2.4) | CPU | medium | every scanFiles |
-| C5 | `DetectAny` memo by param-type pointer (G12) | CPU | low | call-heavy files |
-| C6 | Fold 15 `AnyXxxSupported` passes into one (T6) | CPU (minor) | low | every scanFiles |
-| C7 | PopulateFamily once at intern (G4) | CPU (minor) | low | dump-heavy flows |
-| C8 | `Added` payload gating (G9) + buffered stdout (G10) | wire/alloc | low | scan-heavy sessions |
-| C9 | hashid/Cache structural-string dedup (G8 step 1: single salted copy) | retained mem | low | large-type suites |
-| C10 | Shared base FS across `NewInferred` (G13) | CPU (bench/HMR loop) | medium | inline-server cycles |
-| C11 | Skip `.d.ts` in scanAllProgramFiles (G14) | CPU | low | first dump |
-| C12 | Micro: G5/G6/G7/G11 | alloc | trivial | projection-heavy |
-| C13 | Structural id → fixed-width hash key (G8 step 2) | retained mem | high | deferred unless profiles demand |
+| O1 (C2) | Per-dispatch entry-render cache + validate-last ordering → kill `CrossFamilyValRoots`'s 13 duplicate renders when those families render anyway | 16% CPU of render dispatch + alloc cut | CPU+alloc | medium |
+| O2 (C1+G1) | Lazy rtRenderOpts/provenance/refTable when no cache requested; per-file line index for `scanLineCol` | prep = 16% of macro dispatch | CPU | low |
+| O3 (new) | Memoize purefns extraction per session file-set (OpDump path) | 8.7% CPU render bench | CPU | low |
+| O4 (C12+) | Render alloc micro-pass: `joinArgs` prealloc, lazy `orderedItems`, `strconv` for Sprintf, quoteJS sizing | GC ≈35% CPU is churn-bound | alloc | trivial |
+| O5 (C3) | Canonical-node facts table for T1/T2 (`isJsonCompatible`/`isExtraProof`) | inside Walker share | CPU | low |
+| O6 (C5) | `DetectAny` memo by param-type pointer | part of scanCall's ~9% non-checker share | CPU | low |
+| O7 (C8+G10) | Gate `Added` payload behind request flag; buffered stdout | 4.7ms/req IPC gap | wire/alloc | low |
+| O8 (C9) | hashid salted-copy dedup (single stored copy) | retention (≈4× structural text) | retained mem | low |
+| O9 (C6+C7) | Fold 15 `AnyXxxSupported` passes; PopulateFamily once at intern | minor | CPU | low |
+| — (C4) | Single AST walk for marker scan + purefns per scanFiles | bundled with O3/O6 evidence | CPU | medium |
+| — (C10) | Shared base FS across `NewInferred` | bench/HMR loop | CPU | medium |
+| — (C11) | Skip `.d.ts` in scanAllProgramFiles | first dump | CPU | low |
+| — (C13) | Structural id → fixed-width hash key | retention | high — deferred |
 
 ## 7. Memory model notes
 
