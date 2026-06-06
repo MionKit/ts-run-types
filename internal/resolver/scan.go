@@ -55,6 +55,13 @@ func (resolver *Resolver) scanAllProgramFiles() {
 		if sf == nil {
 			continue
 		}
+		// Declaration files cannot contain call expressions, so scanning
+		// them can never produce a site — but the lib .d.ts ASTs are by
+		// far the largest in the Program, and the first dump used to walk
+		// every one of them through forEachCallExpression for nothing.
+		if sf.IsDeclarationFile {
+			continue
+		}
 		fileName := sf.FileName()
 		if _, seen := resolver.scannedFiles[fileName]; seen {
 			continue
