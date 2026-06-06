@@ -755,7 +755,7 @@ export const ARRAY = {
     },
     isTypeSchema: () => {
       type CircularArray = CircularArray[];
-      const ca: RunType<CircularArray> = RT.array(RT.lazy((): RunType<CircularArray> => ca));
+      const ca: RunType<CircularArray> = RT.array(RT.lazy<typeof ca>(() => ca));
       return createIsType(ca);
     },
     getTypeErrors: () => {
@@ -823,7 +823,7 @@ export const ARRAY = {
       const ot: RunType<ObjectType> = RT.object({
         a: RT.string(),
         deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
-        d: RT.optional(RT.array(RT.lazy((): RunType<ObjectType> => ot))),
+        d: RT.optional(RT.array(RT.lazy<typeof ot>(() => ot))),
       });
       return createIsType(ot);
     },

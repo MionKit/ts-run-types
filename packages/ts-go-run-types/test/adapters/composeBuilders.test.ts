@@ -193,7 +193,10 @@ describe('compose builders — lazy (recursive self-reference)', () => {
       value: number;
       next: LNode | null;
     }
-    const LNodeSchema: RunType<LNode> = object({value: number(), next: union([lazy(() => LNodeSchema), literal(null)])});
+    const LNodeSchema: RunType<LNode> = object({
+      value: number(),
+      next: union([lazy<typeof LNodeSchema>(() => LNodeSchema), literal(null)]),
+    });
     const isNode = createIsType(LNodeSchema);
     expect(isNode({value: 1, next: null})).toBe(true);
     expect(isNode({value: 1, next: {value: 2, next: null}})).toBe(true);

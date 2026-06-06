@@ -29,7 +29,7 @@ export const CIRCULAR = {
       const cir: RunType<Circular> = RT.object({
         n: RT.number(),
         s: RT.string(),
-        c: RT.optional(RT.lazy((): RunType<Circular> => cir)),
+        c: RT.optional(RT.lazy<typeof cir>(() => cir)),
         d: RT.optional(RT.date()),
       });
       return createIsType(cir);
@@ -158,7 +158,7 @@ export const CIRCULAR = {
       "mion circularRefs.spec.ts 'Circular array + union' — self-recursive array whose element type is a union including the array itself. Closes the cycle via Array → Union → Array.",
     isTypeSchema: () => {
       type CuArray = (CuArray | Date | number | string)[];
-      const cu: RunType<CuArray> = RT.array(RT.union([RT.lazy((): RunType<CuArray> => cu), RT.date(), RT.number(), RT.string()]));
+      const cu: RunType<CuArray> = RT.array(RT.union([RT.lazy<typeof cu>(() => cu), RT.date(), RT.number(), RT.string()]));
       return createIsType(cu);
     },
     isType: () => {
@@ -255,7 +255,7 @@ export const CIRCULAR = {
     isTypeSchema: () => {
       type CircularTuple = {tuple: [bigint, CircularTuple?]};
       const ct: RunType<CircularTuple> = RT.object({
-        tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
+        tuple: RT.tuple([RT.bigint()], [RT.lazy<typeof ct>(() => ct)]),
       });
       return createIsType(ct);
     },
@@ -288,7 +288,7 @@ export const CIRCULAR = {
     getTypeErrorsSchema: () => {
       type CircularTuple = {tuple: [bigint, CircularTuple?]};
       const ct: RunType<CircularTuple> = RT.object({
-        tuple: RT.tuple([RT.bigint()], [RT.lazy((): RunType<CircularTuple> => ct)]),
+        tuple: RT.tuple([RT.bigint()], [RT.lazy<typeof ct>(() => ct)]),
       });
       return createGetTypeErrors(ct);
     },
@@ -372,7 +372,7 @@ export const CIRCULAR = {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
       }
-      const ci: RunType<CircularIndex> = RT.object({index: RT.record(RT.lazy((): RunType<CircularIndex> => ci))});
+      const ci: RunType<CircularIndex> = RT.object({index: RT.record(RT.lazy<typeof ci>(() => ci))});
       return createIsType(ci);
     },
     deserializeIsType: () => {
@@ -480,7 +480,7 @@ export const CIRCULAR = {
       }
       const cd: RunType<CircularDeep> = RT.object({
         deep1: RT.object({
-          deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.lazy((): RunType<CircularDeep> => cd))})}),
+          deep2: RT.object({deep3: RT.object({deep4: RT.optional(RT.lazy<typeof cd>(() => cd))})}),
         }),
       });
       return createIsType(cd);
@@ -597,21 +597,21 @@ export const CIRCULAR = {
       return createIsType<RootNotCircular>();
     },
     isTypeSchema: () => {
+      // Only the recursive child needs a named type (TS can't infer a self-ref); the
+      // non-circular root is schema-inferred — `Static<typeof root>` IS its type, so
+      // no annotation (which would mask the schema-built type) and no hand-written
+      // `RootNotCircular`.
       interface ICircularDeep {
         name: string;
         big: bigint;
         embedded: {hello: string; child?: ICircularDeep};
       }
-      interface RootNotCircular {
-        isRoot: true;
-        ciChild: ICircularDeep;
-      }
       const icd: RunType<ICircularDeep> = RT.object({
         name: RT.string(),
         big: RT.bigint(),
-        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
+        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy<typeof icd>(() => icd))}),
       });
-      const root: RunType<RootNotCircular> = RT.object({isRoot: RT.literal(true), ciChild: icd});
+      const root = RT.object({isRoot: RT.literal(true), ciChild: icd});
       return createIsType(root);
     },
     deserializeIsType: () => {
@@ -847,19 +847,19 @@ export const CIRCULAR = {
       const icd: RunType<ICircularDeep> = RT.object({
         name: RT.string(),
         big: RT.bigint(),
-        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
+        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy<typeof icd>(() => icd))}),
       });
       const icDate: RunType<ICircularDate> = RT.object({
         date: RT.date(),
         month: RT.number(),
         year: RT.number(),
-        embedded: RT.optional(RT.lazy((): RunType<ICircularDate> => icDate)),
-        deep: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd)),
+        embedded: RT.optional(RT.lazy<typeof icDate>(() => icDate)),
+        deep: RT.optional(icd), // backward ref to the already-declared icd — no lazy needed
       });
       const root: RunType<RootCircular> = RT.object({
         isRoot: RT.literal(true),
         ciChild: icd,
-        ciRoort: RT.optional(RT.lazy((): RunType<RootCircular> => root)),
+        ciRoort: RT.optional(RT.lazy<typeof root>(() => root)),
         ciDate: icDate,
       });
       return createIsType(root);

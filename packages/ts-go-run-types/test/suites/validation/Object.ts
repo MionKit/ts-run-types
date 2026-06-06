@@ -546,7 +546,7 @@ export const OBJECT = {
     },
     isTypeSchema: () => {
       type ICircular = {name: string; child?: ICircular};
-      const ic: RunType<ICircular> = RT.object({name: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircular> => ic))});
+      const ic: RunType<ICircular> = RT.object({name: RT.string(), child: RT.optional(RT.lazy<typeof ic>(() => ic))});
       return createIsType(ic);
     },
     deserializeIsType: () => {
@@ -624,7 +624,7 @@ export const OBJECT = {
       type ICircularArray = {name: string; children?: ICircularArray[]};
       const ica: RunType<ICircularArray> = RT.object({
         name: RT.string(),
-        children: RT.optional(RT.array(RT.lazy((): RunType<ICircularArray> => ica))),
+        children: RT.optional(RT.array(RT.lazy<typeof ica>(() => ica))),
       });
       return createIsType(ica);
     },
@@ -692,7 +692,7 @@ export const OBJECT = {
       type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
       const icd: RunType<ICircularDeep> = RT.object({
         name: RT.string(),
-        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
+        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy<typeof icd>(() => icd))}),
       });
       return createIsType(icd);
     },

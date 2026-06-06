@@ -180,19 +180,23 @@ export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunType
 }
 
 /** A lazy / recursive reference — defers a self-referential schema so a circular
- *  type can name itself before its `const` is initialised:
+ *  type can name itself before its `const` is initialised. Pass the referenced
+ *  run-type's OWN type as the type argument (`lazy<typeof Node>(() => Node)`), so no
+ *  separate return annotation on the thunk is needed:
  *
- *    interface Node { value: number; next: Node | null; }
- *    const Node: RunType<Node> = object({value: number(), next: union([lazy(() => Node), literal(null)])});
+ *    type Node = {value: number; next: Node | null};
+ *    const Node: RunType<Node> = object({value: number(), next: union([lazy<typeof Node>(() => Node), literal(null)])});
  *
- *  Always nested inside another composer, so the scanner skips it (the enclosing
- *  marker reflects the whole circular shape off its brand); the thunk exists only
- *  to break the value-level self-reference cycle and to carry `T` for inference.
- *  The thunk is `CompTimeArgs` — accepted as a literal arrow leaf, so the forward
- *  `const` it closes over (`() => Node`) is fine; the scanner stops at the arrow
- *  and never recurses into its body. **/
-export function lazy<T>(thunk: CompTimeArgs<() => RunType<T>>, id?: InjectRunTypeId<T>): RunType<T> {
-  return builderResult(id, {type: 'lazy', thunk});
+ *  The type parameter is the `RunType` itself (not the underlying `T`); `Static<RT>`
+ *  recovers `T` for the injected-id brand. Always nested inside another composer, so
+ *  the scanner skips it (the enclosing marker reflects the whole circular shape off
+ *  its brand); the thunk exists only to break the value-level self-reference cycle
+ *  and to carry the type for inference. The thunk is `CompTimeArgs` — accepted as a
+ *  literal arrow leaf, so the forward `const` it closes over (`() => Node`) is fine;
+ *  the scanner stops at the arrow and never recurses into its body. A reference to an
+ *  ALREADY-declared run-type needs no `lazy` — pass the const directly. **/
+export function lazy<RT extends RunType>(thunk: CompTimeArgs<() => RT>, id?: InjectRunTypeId<Static<RT>>): RT {
+  return builderResult(id, {type: 'lazy', thunk}) as RT;
 }
 
 /** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.
