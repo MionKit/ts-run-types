@@ -47,6 +47,28 @@ func TestRender_OrderingLeavesFirstAlphaWithinLevel(t *testing.T) {
 	}
 }
 
+func TestRender_ImportsDirectDepsOnly(t *testing.T) {
+	// grandparent → parent → leaf: the grandparent module imports ONLY its
+	// direct dep — transitive deps arrive through the dep module's own
+	// imports (and the runtime's recursive deps() walk), never flattened.
+	graph := Graph{}
+	graph.Add(&Entry{Key: "grand", Kind: KindRunType, ArgsText: "'grand',30", Deps: []string{"parent"}})
+	graph.Add(&Entry{Key: "parent", Kind: KindRunType, ArgsText: "'parent',30", Deps: []string{"leaf"}})
+	graph.Add(&Entry{Key: "leaf", Kind: KindRunType, ArgsText: "'leaf',5"})
+	source := renderOne(t, graph, "grand")
+
+	if strings.Contains(source, "virtual:rt/leaf.js") {
+		t.Fatalf("grandparent must not import its transitive dep: %q", source)
+	}
+	wantImports := "import {e as d1} from 'virtual:rt/parent.js';\n"
+	if !strings.HasPrefix(source, wantImports) {
+		t.Fatalf("direct-dep import mismatch:\n got: %q\nwant prefix: %q", source, wantImports)
+	}
+	if !strings.Contains(source, "const deps=()=>[d1,e];\n") {
+		t.Fatalf("deps thunk should hold direct deps + self: %q", source)
+	}
+}
+
 func TestRender_SameLevelAlphabetical(t *testing.T) {
 	// Two leaves at level 0 must order alphabetically regardless of Deps order.
 	graph := Graph{}
@@ -71,8 +93,8 @@ func TestRender_CycleCollapsesToOneLevel(t *testing.T) {
 	graph.Add(&Entry{Key: "peer", Kind: KindRunType, ArgsText: "'peer',30", Deps: []string{"node", "leaf"}})
 	source := renderOne(t, graph, "node")
 
-	if !strings.Contains(source, "const deps=()=>[d1,e,d2];\n") {
-		// closure order: leaf(level0) < node==peer(level1, alpha: node, peer)
+	if !strings.Contains(source, "const deps=()=>[d1,d2,e];\n") {
+		// direct deps: leaf(level0) < peer(cycle level), self last
 		t.Fatalf("cycle deps order mismatch: %q", source)
 	}
 	wantImports := "import {e as d1} from 'virtual:rt/leaf.js';\nimport {e as d2} from 'virtual:rt/peer.js';\n"
