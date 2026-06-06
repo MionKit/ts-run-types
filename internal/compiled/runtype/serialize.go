@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -1135,11 +1136,12 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 		}
 	}
 
-	member := &protocol.RunType{Name: symbol.Name}
+	memberName := stableMemberName(symbol.Name)
+	member := &protocol.RunType{Name: memberName}
 	if symbol.Flags&ast.SymbolFlagsOptional != 0 {
 		member.Optional = true
 	}
-	member.IsSafeName = isSafeName(symbol.Name)
+	member.IsSafeName = isSafeName(memberName)
 	applyMemberModifiers(member, symbol, asClass)
 
 	if isMethod {
@@ -1168,7 +1170,7 @@ func (cache *Cache) appendProperty(parent *protocol.RunType, symbol *ast.Symbol,
 		member.Child = cache.Serialize(childType)
 	}
 
-	structural := fmt.Sprintf("_pr_%s_%s_%d", parent.ID, symbol.Name, index)
+	structural := fmt.Sprintf("_pr_%s_%s_%d", parent.ID, memberName, index)
 	memberID, err := cache.uniqueDict(structural, cache.opts.hashLength())
 	if err != nil {
 		memberID = "x_pr_" + structural
@@ -1437,6 +1439,33 @@ func parseNumberLiteral(text string) any {
 		return asFloat
 	}
 	return text
+}
+
+// stableMemberName strips the checker-instance symbol id off a late-bound
+// symbol-keyed member name ("\xFE@toPrimitive@5" → "\xFE@toPrimitive").
+// tsgo names members declared with a computed symbol key as
+// `<InternalSymbolNamePrefix>@<description>@<symbolId>`, where symbolId is
+// an allocation counter of the checker that materialized the symbol —
+// different pool checkers (and different sessions) mint different ids for
+// the same member, which would leak checker identity into member names,
+// structural ids, and wire ids. The property INDEX in the `_pr_` scheme
+// keeps same-name symbol members distinct within one parent. Mirrored in
+// internal/compiled/runtype/typeid (typeid can't import its parent) —
+// keep them in sync.
+func stableMemberName(name string) string {
+	if len(name) < 2 || name[0] != 0xFE || name[1] != '@' {
+		return name
+	}
+	at := strings.LastIndexByte(name, '@')
+	if at <= 1 || at == len(name)-1 {
+		return name
+	}
+	for i := at + 1; i < len(name); i++ {
+		if name[i] < '0' || name[i] > '9' {
+			return name
+		}
+	}
+	return name[:at]
 }
 
 // isSafeName returns true when name can be used with dot-accessor
