@@ -84,7 +84,7 @@ switches and the render engine** — reviewed and intentionally kept:
 
 ## Result summary
 
-(filled in as steps land)
+All candidates landed. Per-step quick-bench verdicts below; cumulative verification at the bottom.
 
 | step | commit | LOC delta | bench verdict |
 | --- | --- | --- | --- |
@@ -100,3 +100,21 @@ switches and the render engine** — reviewed and intentionally kept:
 | E1+E4 | refactor(typefns): share the unknownkeys Supports gate + tuple recursion | −160 | neutral (wall −1.5%, go −2.3%, alloc +0.2%) |
 | E2 | refactor(typefns): merge the twin JSON object child walks | −31 | neutral (shared bench with E3) |
 | E3 | refactor(jsquote): one canonical JS string-literal quoter | −55 | neutral (wall −1.9%, go −4.9%, alloc +0.2%) |
+
+### Cumulative verification (final vs `baseline-complexity`)
+
+- **LOC:** `internal/` non-test Go 31 551 → 30 965 (**−586 net**; diffstat over the series:
+  ~700 insertions / ~1 290 deletions). dupl clone groups 18 → 17 — the 5 actionable
+  cross-file groups are gone; 2 of the "new" groups are the intentionally-similar
+  `jsquote.Single`/`Double` pair and protocol's two hand-written wire tables.
+- **Full bench suite** (890 micro units + 4 macro suites, `bench-compare` floors ±3%/±1%):
+  wallMs geomean **−2.51%** (neutral), goTotalMs geomean **−4.58%** (improved),
+  allocBytes geomean **+0.18%** (neutral — all 894 units inside the ±1% floor).
+- **Go micro-benches** (`internal/resolver`, count=6, benchstat): geomean **−2.44%** sec/op;
+  significant improvements on Render/validateOnly (−6.8%), Scan_WarmCache/large (−6.6%),
+  Scan_ColdCache/union (−7.9%); no statistically significant regressions; B/op + allocs/op flat.
+- **Behavior:** emitted JS + wire JSON byte-identical throughout — every step gated on
+  `go test ./internal/...` plus the 5 804-test JS suite (which asserts emitted strings and
+  added-flag wire signals). One real semantic near-miss was caught and pinned:
+  `AddedFormatTransform` gates on value-transforming formats, NOT on `Supports`
+  (see `fix(resolver)` + `TestAddedFormatTransform_GatesOnTransform`).
