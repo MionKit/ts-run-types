@@ -136,7 +136,7 @@ func (emailEmitter) ValidateParams(annotation *protocol.FormatAnnotation) []stri
 	if hasPattern && (hasLocalPart || hasDomain) {
 		errs = append(errs, "FormatEmail: cannot combine `pattern` with `localPart`/`domain`")
 	}
-	if value, ok := readNumberParam(params, "maxLength"); ok && value > 254 {
+	if value, ok := formats.ReadNumberParam(params, "maxLength"); ok && value > 254 {
 		errs = append(errs, "FormatEmail: `maxLength` cannot be greater than 254")
 	}
 	return errs
