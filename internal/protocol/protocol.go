@@ -584,10 +584,29 @@ type Replacement struct {
 	Text  string `json:"text"`
 }
 
+// Demand records that a type id is USED — referenced by a non-builder marker
+// (createIsType<T>(), wrappers, getRunTypeId<T>()) or a CompTimeRunType param
+// (createIsTypeFor(schema)). Demand-gated emission renders only used ids plus
+// their per-family dependency closure, so a builder-only interned type (a
+// never-validated `const s = RT.object({…})`) emits no factory. The model is
+// family-agnostic: there is no Family field — every family emits the used ids it
+// Supports. Options carries the IsTypeOptions tokens for the it/te variant
+// fan-out (nil for the plain demand), mirroring Site.Options.
+type Demand struct {
+	File    string   `json:"file"`
+	ID      string   `json:"id"`
+	Options []string `json:"options,omitempty"`
+}
+
 // Dump is the build-end manifest written to runtypes-cache.json.
 type Dump struct {
 	RunTypes []*RunType `json:"runTypes"`
 	Sites    []Site     `json:"sites"`
+	// Demands is the set of USED type ids (see Demand). When non-nil it gates
+	// factory emission in typefns.RenderFnModule to the used ids + closure;
+	// nil restores the legacy emit-every-interned-type behavior (the shape
+	// module_test.go builds its dumps with).
+	Demands []Demand `json:"demands,omitempty"`
 }
 
 // WriteJSON writes the dump as pretty-printed JSON. Refs in child slots

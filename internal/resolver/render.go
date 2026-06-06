@@ -35,7 +35,28 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		DiagSink:        sink,
 		ProvenanceSites: provenance,
 		EmitCreateRTFn:  resolver.opts.EmitCreateRTFn,
+		RefTable:        resolver.fullRefTable(),
 	}
+}
+
+// fullRefTable indexes every interned RunType by id for the typefns renderers.
+// A demand-gated render seeds its roots from the (possibly scoped) demand set
+// but must resolve those roots' children against the FULL session cache — a
+// demanded type can reference children interned while scanning a different
+// file. Built once per dispatch and shared across every family render.
+func (resolver *Resolver) fullRefTable() map[string]*protocol.RunType {
+	if resolver == nil || resolver.cache == nil {
+		return nil
+	}
+	nodes := resolver.cache.Dump()
+	refTable := make(map[string]*protocol.RunType, len(nodes))
+	for _, node := range nodes {
+		if node == nil || node.ID == "" {
+			continue
+		}
+		refTable[node.ID] = node
+	}
+	return refTable
 }
 
 // buildProvenanceSites converts the resolver's protocol.Site list into
