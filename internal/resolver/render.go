@@ -36,6 +36,10 @@ func (resolver *Resolver) rtRenderOpts(sink *[]diag.Diagnostic, provenance map[s
 		ProvenanceSites: provenance,
 		EmitCreateRTFn:  resolver.opts.EmitCreateRTFn,
 		RefTable:        resolver.fullRefTable(),
+		// One entry memo per dispatch — real family renders populate it,
+		// CrossFamilyValRoots' collection passes reuse it. See the
+		// familyRenders ordering note in dispatch.go.
+		EntryCache: typefns.NewEntryRenderCache(),
 	}
 }
 
