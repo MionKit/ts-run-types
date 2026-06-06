@@ -72,7 +72,10 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     }
     expect(rtFiles.length).toBeGreaterThan(0);
     const parsed = JSON.parse(fs.readFileSync(rtFiles[0], 'utf8'));
-    expect(parsed.version).toBe(1);
+    // Mirrors disk.FormatVersion (internal/cache/disk/format.go). Bumped to 2
+    // when CrossFamilyRefs was added so cache hits can reconstruct cross-family
+    // it_<member> edges; v1 files are misses.
+    expect(parsed.version).toBe(2);
     expect(typeof parsed.structuralID).toBe('string');
     expect(parsed.structuralID.length).toBeGreaterThan(0);
     expect(typeof parsed.line).toBe('string');

@@ -25,7 +25,14 @@ package disk
 // FormatVersion identifies the on-disk JSON layout. Bump whenever the
 // RTEntry shape changes incompatibly so stale files written by an older
 // binary aren't misread.
-const FormatVersion = 1
+//
+// v2 added CrossFamilyRefs so a cache hit can reconstruct the entry's
+// cross-family `it_<member>`-style edges (previously the collection pass
+// in typefns.CrossFamilyItRoots had to bypass the disk cache to observe
+// them via the walker). v1 files lack the field, so they (correctly)
+// become misses under v2 — a hit returning empty crossFamilyDeps would
+// silently break unions on cached production builds.
+const FormatVersion = 2
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
@@ -35,6 +42,26 @@ const FormatVersion = 1
 type ChildRef struct {
 	StructuralID string `json:"sid"`
 	Hash         string `json:"hash"`
+}
+
+// CrossFamilyRef captures one cross-family dependency the cached entry's
+// body reaches — a namespaced hash with a FOREIGN family prefix (e.g.
+// `it_<memberHash>` referenced inside a `tb` / `pj` entry to discriminate
+// a union member). Stored decomposed so the reader can both revalidate
+// against hash drift (via StructuralID → Hash, exactly like ChildRef) AND
+// reconstruct the namespaced dependency on a cache hit (Prefix + the
+// current hash). The prefix is stored explicitly rather than assumed to be
+// `it_`, so a future cross-family edge into another family round-trips too.
+type CrossFamilyRef struct {
+	// Prefix is the namespaced family prefix, everything up to and
+	// including the first `_` (e.g. "it_").
+	Prefix string `json:"prefix"`
+	// StructuralID is the referenced member's structural id at write time,
+	// used to detect hash drift across builds (same rule as ChildRef).
+	StructuralID string `json:"sid"`
+	// Hash is the bare member hash (the namespaced dep with Prefix
+	// stripped) baked into the body at write time.
+	Hash string `json:"hash"`
 }
 
 // RTEntry is the on-disk shape persisted per (typeID, fnTag).
@@ -55,4 +82,12 @@ type RTEntry struct {
 	// (the `it_<childHash>` namespaced ids in walker.RTDependencies).
 	// Empty for leaf entries with no child RT calls.
 	ChildRefs []ChildRef `json:"childRefs"`
+	// CrossFamilyRefs is one entry per cross-family edge the body reaches
+	// (walker.CrossFamilyDeps — namespaced hashes with a foreign family
+	// prefix, e.g. `it_<member>` inside a `tb` / `pj` entry). Persisted so
+	// a cache hit reconstructs the same crossFamilyDeps the fresh walk
+	// would have produced; without it the demand-collection pass would see
+	// an empty set on a hit and miss the it_<member> roots. Empty for
+	// entries with no cross-family edges.
+	CrossFamilyRefs []CrossFamilyRef `json:"crossFamilyRefs,omitempty"`
 }
