@@ -36,8 +36,8 @@ Concretely, at build time:
 | Type checking the project              | Whatever the user's tsconfig points at — `tsc`, `vue-tsc`, the editor, etc.           | Unchanged. We don't type-check on the user's behalf.                                                                                                                          |
 | TS → JS emit                           | Vite's default (esbuild)                                                              | Unchanged. We never write `.js`.                                                                                                                                              |
 | Type-id injection at marked call sites | **vite-plugin-runtypes** + **ts-go-run-types** Go binary                              | The plugin's `transform()` hook spawns the binary, asks "what `T` is bound at each `InjectRunTypeId<T>` call?", and rewrites those calls in-place via byte-offset insertions. |
-| Cache module emission                  | **vite-plugin-runtypes** (`virtual:runtypes-cache`)                                   | The reflection-shape `RunType` graph plus the demand-driven per-family function caches (validate, JSON, binary, unknown-keys, formats, pure fns), all rendered by the Go side and keyed by hash.                                                                                  |
-| Runtime metadata access                | Generated cache modules + the `rtUtils` registry                                      | Cache modules register their entries at module load (`initCache(getRTUtils())`); factories resolve by injected key — `getRunType(id)` for reflection nodes, `lookupRTFn` with the `<fnHash>_<typeId>` key for function entries. No reflection work happens at runtime.              |
+| Entry-module emission                  | **vite-plugin-runtypes** (`virtual:rt/<key>.js`)                                      | One virtual ES module per cache entry — reflection nodes, demand-driven function factories (validate, JSON, binary, unknown-keys, formats), JSON composites, pure fns — all rendered by the Go side and keyed by hash. The rewrite injects the matching imports per user file, so bundlers code-split and tree-shake entries natively. |
+| Runtime metadata access                | Entry tuples + the `rtUtils` registry                                                 | Each module exports one positional tuple; on first use a factory registers the tuple's dependency closure (children first, then runtype footer initializers) and resolves by its exact cache key — `getRunType(id)` for reflection nodes, `getRT('<fnHash>_<typeId>')` for function entries. No reflection work happens at runtime.   |
 
 ### Why a separate Go binary
 
@@ -112,9 +112,9 @@ The `[typeId, fnHash]` literals are computed by `CompTimeFnArgs<T>` — the fn-s
 
 Because each function site now carries structured demand, the per-family cache modules are **demand-driven**: a family emits factories only for the types its own `createX` call sites request. A hash isn't reversible, so demand is no longer reverse-parsed from `fnId` — the scanner computes it and carries it on `protocol.Site.Demand []SiteDemand{FamilyTag, VariantSuffix, Options, FnHash}`, closed transitively by `collectFamilyDemand` in [`internal/compiled/typefns/module.go`](../internal/compiled/typefns/module.go). All function families are demand-driven (no "migrated families" gate — the gate is simply `len(dump.Sites) > 0`). A file whose only marker call is `getRunTypeId<T>()` emits **zero** function-cache entries — the reflection cache is untouched, every function family is empty for it.
 
-JSON encoder/decoder composition is **Go-emitted**, not assembled at runtime: one COMPOSITE cache entry per (typeId, strategy), keyed by the composite fnHash (see [`internal/compiled/typefns/json_composite.go`](../internal/compiled/typefns/json_composite.go)), wraps the underlying primitives with native JSON. So `createJsonEncoder`/`createJsonDecoder` collapse to the same pure `resolveTupleEntry` lookup as binary — no runtime strategy branching. Per-strategy composite tags live in `constants.jsonCompositeTags` (deliberately NOT in `CacheModules`, so the generated TS mirror is untouched). The disk cache format is **v4** (`FormatVersion` in [`internal/cache/disk/format.go`](../internal/cache/disk/format.go) — keys embed fnHash; v4 also covers the `clone` composite body's pjsp→pjs change).
+JSON encoder/decoder composition is **Go-emitted**, not assembled at runtime: one COMPOSITE cache entry per (typeId, strategy), keyed by the composite fnHash (see [`internal/compiled/typefns/json_composite.go`](../internal/compiled/typefns/json_composite.go)), wraps the underlying primitives with native JSON. So `createJsonEncoder`/`createJsonDecoder` collapse to the same pure `resolveTupleEntry` lookup as binary — no runtime strategy branching. Per-strategy composite tags live in `constants.jsonCompositeTags` (deliberately NOT in `CacheModules`, so the generated TS mirror is untouched). The disk cache format is **v5** (`FormatVersion` in [`internal/cache/disk/format.go`](../internal/cache/disk/format.go) — keys embed fnHash; v5 stores the entry tuple's argument text instead of an `init(…);` statement).
 
-`it` (validate) is the one **cross-family** dependency: the JSON and binary union decoders discriminate members at runtime via `val_<member>.fn(value)` and `validationErrors` delegates child checks to `val_` too. So `it`'s demand is its createValidate-site closure **∪** the `val_<member>` edges every *other* demanded family references — collected by `CrossFamilyValRoots` (which renders each foreign family demand-driven and harvests its captured cross-family deps) and seeded into the `it` render. A file that only serializes a union therefore still gets the per-member `val_` entries its decoder needs at runtime.
+`it` (validate) is the one **cross-family** dependency: the JSON and binary union decoders discriminate members at runtime via `val_<member>.fn(value)` and `validationErrors` delegates child checks to `val_` too. Those edges ride each entry's module dependencies (`SoftDeps` — imported but never cascade-dropped, because the emitted bodies guard the lookups with `?.fn(…) ?? true`), and the resolver renders the referenced foreign entries to fixpoint (`resolveCrossFamilyEdges` in [`internal/resolver/dispatch.go`](../internal/resolver/dispatch.go)). A file that only serializes a union therefore still gets the per-member `val_` entries its decoder needs at runtime — they arrive through the union entry's import closure.
 
 ## Package layout
 
@@ -126,14 +126,14 @@ internal/marker/                 InjectRunTypeId<T> / InjectTypeFnArgs<T, Fn> se
 internal/builders/               value-first builder-call recognition (return-type keyed)
 internal/comptimeargs/           CompTimeArgs literal validation + extraction (CTA0xx)
 internal/operations/             single source of truth for RT operations + fnHash computation
-internal/compiled/runtype/       *checker.Type → protocol.RunType projection + JSON/TS renderers + typeid/
+internal/compiled/runtype/       *checker.Type → protocol.RunType projection + per-entry tuple collection + typeid/
 internal/compiled/typefns/       per-fn AOT emitters (validate, validationErrors, JSON, binary, formats, …)
 internal/compiled/purefns/       pure-fn helpers emitted inline
 internal/protocol/               stdio JSON request/response types
 internal/constants/              cross-package constants, mirrored to TS via cmd/gen-ts-constants
 internal/diag/                   diagnostic codes (codes_runtype.go, codes_*.go)
 internal/cache/disk/             persistent disk cache (FormatVersion, fingerprinting)
-internal/cachetpl/               cache skeleton splice (splice.go)
+internal/compiled/entrymod/      per-entry virtual-module assembly (ordering, imports, stubs)
 internal/hashid/                 structural-id hashing (xxhash3 → base36)
 internal/jsquote/                canonical JS string-literal quoting
 internal/textpos/                byte offset → line/column conversion for diagnostics
@@ -160,7 +160,7 @@ Owns both the AST call-walk and op dispatch. `walk.go` contains `NodeAt`, `CallE
 
 | op           | semantics                                                                                                                                                                       |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scanFiles`  | Walks every CallExpression in file. For each whose resolved signature has a trailing marker param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount, Demand}`. Opt-in `includeCacheSources` projects per-family cache bodies scoped to just the requested files. |
+| `scanFiles`  | Walks every CallExpression in file. For each whose resolved signature has a trailing marker param with bound T, returns a `Site{Pos, ID, ParamIndex, ArgsCount, Demand}`. Opt-in `includeEntryModules` projects the per-entry virtual modules scoped to just the requested files. |
 | `dump`       | Returns the full cache (every RunType) + the running Sites slice + the rendered cache module sources.                                                                            |
 | `setSources` | Replaces the resolver's in-memory source overlay and rebuilds the Program (drives test harnesses and the daemon's HMR path).                                                    |
 | `reset`      | Wipes all resolver state: cache, sites, Program, checker.                                                                                                                       |
@@ -193,23 +193,27 @@ The public runtime package, three entry points:
 - `./schema` — the value-first builders (`string()`, `number()`, `object({...})`, `array()`, `union()`, the `temporal.*` family, utility builders, …) returning live `RunType<T>` nodes; `Static<T>` recovers the TS type. Each builder converges on the same structural id as its type-first equivalent.
 - `./formats` — the type-format brand aliases (`FormatString`, `FormatEmail`, `FormatUUIDv4/v7`, `FormatNumber`, `FormatBigInt`, `FormatStringDate/Time/DateTime`, `FormatDate`, `FormatTemporal*`, fixed-width int presets, …) plus their mock / pure-fn / pattern registrations. Format **validation** happens at build time on the Go side; the runtime only carries mocking + transform helpers.
 
-Cache access goes through the runtime registry (`getRTUtils()` in `src/runtypes/rtUtils.ts`): the generated cache modules under `src/caches/` register their entries at module load (reflection nodes by typeId, function factories by the injected `<fnHash>_<typeId>` key), and the factories resolve via `lookupRTFn` / `getRunType(id)` with a noop fallback when a type has no supported entry.
+Cache access goes through the runtime registry (`getRTUtils()` in `src/runtypes/rtUtils.ts`): each marker call site receives its entry-module tuple, `initFromTuple` (in `src/runtypes/entryTuple.ts`) registers the tuple's dependency closure (reflection nodes by typeId, function factories by the `<fnHash>_<typeId>` key, pure fns by `<ns>::<fn>`), and the factories resolve via `resolveEntryTupleFn` / `getRunType(id)` with a noop fallback when a type has no supported entry (the Go side emits a resolvable `KindMissing` stub module for dropped entries).
 
 ### packages/vite-plugin-runtypes
 
 - `ResolverClient` — spawns the Go binary, serialises outstanding queries, parses line-delimited responses.
-- `rewrite.ts` — single function: for each file, calls `scanFiles`, then applies the returned sites as **byte-offset** insertions to the source. Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
-- `index.ts` — Vite plugin glue. Short-circuits any file that doesn't contain the marker-module name as a cheap pre-filter. `load("virtual:runtypes-cache")` returns the `runTypeCacheSource` field from the resolver's `dump` response — the Go side is the single renderer.
+- `rewrite.ts` — single function: for each file, calls `scanFiles`, then applies the returned sites as **byte-offset** insertions plus one deduped import block at offset 0 (`import {e as __rt_<key>} from 'virtual:rt/<key>.js';` per referenced entry). Operates on a `Buffer` rather than a JS string because tsgo positions are UTF-8 byte offsets — JS string math would skew on any multibyte character (e.g. em-dashes in comments).
+- `index.ts` — Vite plugin glue. Short-circuits any file that doesn't reference the marker module (or `registerPureFnFactory`) as a cheap pre-filter. `resolveId`/`load` serve `virtual:rt/<key>.js` bodies verbatim from the `entryModules` map on the resolver's `dump` response — the Go side is the single renderer.
 
 ## Slot injection and padding
 
 The id is injected at the trailing `InjectRunTypeId<T>` slot. The Go binary returns `ParamIndex` + `ArgsCount` per site; the TS-side `buildInsertion()` pads with `undefined` whenever the caller wrote fewer arguments than `paramIndex`:
 
 ```
-getRunTypeId<T>()         →   getRunTypeId<T>("<hash>")
-reflectRunTypeId(val)     →   reflectRunTypeId(val, "<hash>")
-validate<T>(v)              →   validate<T>(v, "<hash>")
+getRunTypeId<T>()         →   getRunTypeId<T>(__rt_<hash>)
+reflectRunTypeId(val)     →   reflectRunTypeId(val, __rt_<hash>)
+validate<T>(v)              →   validate<T>(v, __rt_<fnHash>_<hash>)
 ```
+
+(each `__rt_…` binding is the entry-module tuple imported at the top of the
+file; `getRunTypeId` still RETURNS the id string, so the public contract is
+unchanged)
 
 Neither built-in helper needs padding (`getRunTypeId` puts the id at slot 0; `reflectRunTypeId` already has `value` at slot 0 and the id at slot 1). The padding mechanism remains in place for user-defined wrappers with additional intermediate parameters.
 
@@ -235,12 +239,12 @@ Implemented: `templateLiteral` (regex-compile at RT-build time); the full type-f
 
 Member types are the family of nodes that own exactly one child slot — `Array<T>`, `TupleMember`, `Property`, `PropertySignature`, `Parameter`, `IndexSignature` (which adds an `index` key slot alongside its `type`). `Promise<T>` is modeled as a native type with the same single-child shape. They show up everywhere a parent composite needs to point at "the type of this slot".
 
-The wire format keeps these slots small via the `KindRef = -1` sentinel: every child RunType returned by `serialize.Cache.Serialize` is a `{kind: -1, id: "<hash>"}` stub. The canonical full RunType lives once in the cache, keyed by id. JSON consumers detect the sentinel and dereference manually; the emitted `virtual:runtypes-cache` module derefs at module-load time and hands consumers a fully-knotted graph.
+The wire format keeps these slots small via the `KindRef = -1` sentinel: every child RunType returned by `serialize.Cache.Serialize` is a `{kind: -1, id: "<hash>"}` stub. The canonical full RunType lives once in the cache, keyed by id. JSON consumers detect the sentinel and dereference manually; the runtime derefs during tuple registration (each runtype entry module's `ini` patches its ref slots through the registry) and hands consumers a fully-knotted graph.
 
 Cycles close at two layers without special-case code:
 
 - **Serializer**: the `runtype` serializer in [`internal/compiled/runtype/serialize.go`](../internal/compiled/runtype/serialize.go) reserves the id and inserts a placeholder cache entry **before** projecting the type's children. A recursive walk that re-enters the same `*checker.Type` hits the `byPtr` lookup and gets back the reserved id immediately — no infinite recursion, no second projection.
-- **Emit**: the runtime artifact ([`internal/compiled/runtype/module.go`](../internal/compiled/runtype/module.go)) declares every type as a scalar-only `export const t_<hash>` first, then writes a footer of direct property assignments (`t_<hash>.child = t_<otherHash>;`). All consts exist before any assignment runs, so back-edges work without forward-reference errors. The Vite plugin reads the rendered module string from the resolver's `dump` response — there's no JS-side renderer to mirror.
+- **Emit**: each runtype entry module ([`internal/compiled/runtype/entries.go`](../internal/compiled/runtype/entries.go) + [`internal/compiled/entrymod`](../internal/compiled/entrymod/)) carries a scalar-only tuple plus a per-entry `ini(rtu)` of direct property assignments (`c('<hash>').child = c('<otherHash>');`). Registration is two-phase — every tuple in the dependency closure registers before any `ini` runs — so back-edges work without forward-reference errors, including module-level import cycles (the `deps()` thunk is lazy and SCC members import each other freely). The Vite plugin serves the rendered module strings from the resolver's `dump` response — there's no JS-side renderer to mirror.
 
 Callers walking a member type's child ref can ask the resolver for the canonical RunType via the `resolveId` op (see `OpResolveID` in `internal/protocol/protocol.go`). The returned RunType's child slots remain `KindRef` sentinels — the caller drills in by re-issuing `resolveId` per id.
 

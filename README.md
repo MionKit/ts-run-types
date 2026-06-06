@@ -27,13 +27,13 @@ Experimental. Tracks `oxc-project/tsgolint`, which itself tracks `microsoft/type
                        │                                 │ structural-id → hashid
                        │                                 │  (reflection-shape Type)
                        ▼       ◀── Dump ──[dump]─────────┘
-              virtual:runtypes-cache  ──▶  runtime / RT  (cache[t_<hash>])
+              virtual:rt/<key>.js (per entry)  ──▶  runtime / RT registry
 ```
 
 1. User code imports `InjectRunTypeId<T>` / `getRunTypeId<T>()` (static) or `reflectRunTypeId(val)` (reflection) from `@mionjs/ts-go-run-types`. Any user-defined wrapper function may also declare `id?: InjectRunTypeId<T>` as its trailing parameter to opt into the same flow.
 2. The Vite plugin sends each source file to the Go binary's `scanFiles` op. The binary walks every `CallExpression`, asks tsgo for the resolved signature, and returns one site per call whose trailing parameter is a `InjectRunTypeId<T>` (declared in `@mionjs/ts-go-run-types`) with `T` concretely bound. `scanFiles` accepts an array of files in a single request; opt-in flags (`includeRunTypes`, `includeCacheSource`) project the response down to just those files.
 3. The plugin patches each call to pass the resolved hash id at the trailing slot, padding with `undefined` if the call had fewer existing args.
-4. At build end, the plugin emits `virtual:runtypes-cache` — a flat list of `export const t_<hash> = {…}` declarations forming a reflection-shape, fully-knotted `Type` graph. Runtimes read entries via `import * as cache from 'virtual:runtypes-cache'` then `cache[RUNTYPES_VAR_PREFIX + id]` (the prefix is generated from [internal/constants/constants.go](internal/constants/constants.go)).
+4. Every cache entry is its own virtual module: `virtual:rt/<key>.js` (the cache key — bare type hash for runtypes, `<fnHash>_<typeId>` for function entries, `pf/<ns>/<fn>` for pure fns). The rewrite injects the matching imports into each user file, so bundlers code-split and tree-shake entries natively. Each module exports one positional tuple (`export const e = […]`); the runtime registers a tuple's dependency closure on first use and serves lookups from the `rtUtils` registry (module/naming constants come from [internal/constants/constants.go](internal/constants/constants.go)).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — execution model, the sentinel markers, the reflection shape, and the parity record against the original `@mionjs/run-types` / `@mionjs/type-formats` (the port is complete; the intentional divergences are listed there and in [docs/ROADMAP.md](docs/ROADMAP.md)).
 
@@ -42,7 +42,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 - **Types are deduplicated twice.** [internal/compiled/runtype/](internal/compiled/runtype/) holds a cache keyed by both _pointer identity_ (the same `*checker.Type` visited via two paths) **and** _structural id_ (two distinct `Type` objects with the same shape). Both collapse to a single cache entry, so the emitted metadata is stable across runs.
 - **Structural ids are deterministic.** [internal/compiled/runtype/typeid/](internal/compiled/runtype/typeid/) mirrors mion's `_createTypeId` to compose `${kind}{child1,child2,…}` recursively, with a back-reference token for cycles. The structural id is then run through xxhash3 → base36 in [internal/hashid](internal/hashid/), yielding a 6-character hash (5 for literals).
 - **Rewrites operate on byte offsets, not string indices.** tsgo positions are UTF-8 byte offsets. The Vite plugin's [rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts) therefore works on a `Buffer`, not a JS string — otherwise multibyte source characters would misalign the inserted hash.
-- **The emitted cache module is self-wired.** [internal/compiled/runtype/module.go](internal/compiled/runtype/module.go) emits `export const t_<hash> = {…}` declarations first, then an init block patches reference slots in place. This avoids circular-dependency issues at module load. The variable prefix and module name come from [internal/constants/constants.go](internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Vite plugin reads `runTypeCacheSource` off the resolver's `dump` response and serves it as the `virtual:runtypes-cache` body — there's no JS-side renderer to keep in sync.
+- **Entry modules defer all wiring to runtime registration.** [internal/compiled/entrymod](internal/compiled/entrymod/) assembles one ES module per entry: imports of the entry's transitive dependency closure (leaves-first, alphabetical within a dependency level; recursive types collapse via SCC so cycles import each other safely), a lazy `deps()` thunk, and — for runtype nodes — a per-entry `ini(rtu)` that patches reference slots through the registry. Tuples never reference imported bindings eagerly, so circular type graphs evaluate without TDZ hazards. Module naming/export constants come from [internal/constants/constants.go](internal/constants/constants.go) — the JS side reads the same values from a generated mirror (`pnpm run gen:ts-constants`), so the two halves can't drift. The Vite plugin serves module bodies verbatim from the resolver's `dump` response (`entryModules`) — there's no JS-side renderer to keep in sync.
 - **The marker is detected by name _and_ declaring module.** [internal/marker](internal/marker/) checks both `InjectRunTypeId` and that the alias is declared in `@mionjs/ts-go-run-types`, so a user's own `type InjectRunTypeId<T> = ...` declared elsewhere does not trigger rewrites.
 
 ## Components
@@ -68,7 +68,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed design — exe
 | Path                                                                                                         | Purpose                                                                                           |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | [packages/ts-go-run-types](packages/ts-go-run-types/)                                                       | `@mionjs/ts-go-run-types` — `InjectRunTypeId<T>` marker type, `getRunTypeId`, `reflectRunTypeId`. |
-| [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, emits `virtual:runtypes-cache`.  |
+| [packages/vite-plugin-runtypes](packages/vite-plugin-runtypes/)                                              | Vite plugin: spawns the Go binary, applies byte-offset rewrites, serves `virtual:rt/*` entry modules. |
 | [packages/vite-plugin-runtypes/src/resolver-client.ts](packages/vite-plugin-runtypes/src/resolver-client.ts) | Spawns the Go binary; line-delimited JSON over stdio.                                             |
 | [packages/vite-plugin-runtypes/src/rewrite.ts](packages/vite-plugin-runtypes/src/rewrite.ts)                 | Applies returned `Site[]` as byte-offset insertions into source.                                  |
 
@@ -156,7 +156,7 @@ The JS plugin tests spawn `bin/ts-go-run-types`, so the Go binary must be built 
 cmd/ts-go-run-types/                CLI entry point
 internal/                        Go pipeline (program, resolver, marker,
                                   compiled/runtype, compiled/typefns, compiled/purefns,
-                                  protocol, constants, diag, cache, cachetpl, hashid, testfixtures)
+                                  protocol, constants, diag, cache, entrymod, hashid, testfixtures)
 packages/ts-go-run-types/        @mionjs/ts-go-run-types — marker type + helpers
 packages/vite-plugin-runtypes/   Vite plugin, drives the binary
 third_party/tsgolint/            git submodule — tsgo shim layer + patches
