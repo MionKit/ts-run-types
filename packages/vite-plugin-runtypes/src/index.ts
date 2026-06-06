@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {renderHeadline} from './diagnosticCatalog.ts';
 import {ResolverClient} from './resolver-client.ts';
+import {createScanBatcher, type SiteScanner} from './scan-batcher.ts';
 import {rewrite} from './rewrite.ts';
 import {Family, Severity, type CacheKind, type Diagnostic} from './protocol.ts';
 
@@ -76,6 +77,43 @@ const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
 export default function runtypes(options: PluginOptions) {
   let resolver: ResolverClient | null = null;
   let cwdAbs = '';
+  // Batches concurrent per-file transform scans into multi-file
+  // dispatches — see scan-batcher.ts. Rebuilt per resolver.
+  let scanner: SiteScanner | null = null;
+  // One all-kinds dump shared by every cache-module transform of a build
+  // pass. Rendering all 16 caches in a single dispatch (shared
+  // per-dispatch entry cache, parallel render fan-out, one wire payload)
+  // replaces 16 separate dispatches that each re-walked the program and
+  // re-ran validate's cross-family collection passes against a cold
+  // cache. Invalidated whenever session state may have moved: an HMR
+  // edit, or a transform scan reporting new types.
+  let dumpAllMemo: Promise<Awaited<ReturnType<ResolverClient['dump']>>> | null = null;
+  // True once the memoized dump's response has arrived. While it is
+  // still in flight, invalidation signals are ignored: the resolver pipe
+  // is FIFO, so a scan whose response arrives before the dump's was
+  // necessarily REQUESTED before it — the pending dump already sees that
+  // scan's types and stays valid.
+  let dumpAllSettled = false;
+  function dumpAll() {
+    if (!dumpAllMemo) {
+      dumpAllSettled = false;
+      dumpAllMemo = resolver!.dump().then(
+        (dump) => {
+          dumpAllSettled = true;
+          return dump;
+        },
+        (dumpError) => {
+          dumpAllMemo = null;
+          throw dumpError;
+        }
+      );
+    }
+    return dumpAllMemo;
+  }
+  function invalidateDumpAll() {
+    if (dumpAllMemo && !dumpAllSettled) return;
+    dumpAllMemo = null;
+  }
   // Resolved absolute ids of the three cache modules — stashed when the
   // transform hook first sees each one. handleHotUpdate uses these to
   // look the modules up in Vite's module graph and invalidate them.
@@ -108,11 +146,22 @@ export default function runtypes(options: PluginOptions) {
         parallelScan: options.parallelScan,
         parallelRender: options.parallelRender,
       });
+      dumpAllMemo = null;
+      scanner = createScanBatcher(async (files) => {
+        const result = await resolver!.scanFiles(files);
+        // New types reaching the session after the all-kinds dump was
+        // memoized would leave cache-module bodies stale — drop the memo
+        // so the next cache transform re-dumps.
+        if (result.addedRunTypes || result.addedPureFns) invalidateDumpAll();
+        return result;
+      });
     },
 
     buildEnd(this: any) {
       resolver?.close();
       resolver = null;
+      scanner = null;
+      dumpAllMemo = null;
     },
 
     async transform(this: any, code: string, id: string) {
@@ -126,23 +175,21 @@ export default function runtypes(options: PluginOptions) {
       if (cacheMatch) {
         const kind = CACHE_KIND_BY_FILE[cacheMatch[1]];
         cacheModuleIds[kind] = id;
-        const dump = await resolver.dump({includeCacheSources: [kind]});
-        // Diagnostic surfacing — partitioned across two transforms so each
-        // diagnostic emits exactly once per build pass and Rollup's
-        // dedupe sees one source per finding:
-        //   - `runType` cache: every non-PureFn family (marker, validate,
-        //     validationErrors, all JSON / binary families, unknown-keys).
-        //     `runType` is the first cache touched by every project that
-        //     uses the marker, so this is the natural "first build pass"
-        //     emission point.
-        //   - `pureFns` cache: PureFn-family diagnostics only.
-        // HMR's `handleHotUpdate` re-emits via the scanFiles path so each
-        // edit refreshes the editor's Problems panel; that path uses a
-        // softer severity routing (no `ctx.error()`) so a single bad type
-        // doesn't kill the dev session.
-        if (kind === 'runType') {
-          surfaceDiagnostics(this, dump.diagnostics ?? [], (d) => d.family !== Family.PureFn, {halt: true});
-        }
+        const dump = await dumpAll();
+        // Diagnostic surfacing. The shared all-kinds dump carries EVERY
+        // family's render diagnostics, so surfacing must reproduce what
+        // the old per-kind dumps exposed:
+        //   - `pureFns` cache: PureFn-family diagnostics (identical to
+        //     the old pureFns-only dump), halting on Error severity.
+        //   - everything else: nothing. The old runType-only dump carried
+        //     no family-render diagnostics (the runTypes module render has
+        //     no walker), and the other kinds' transforms discarded
+        //     theirs. Family-render warnings/errors keep flowing through
+        //     the scanFiles paths (handleHotUpdate re-emits on every
+        //     edit with soft severity routing) and through the runtime
+        //     alwaysThrow factories the suites assert against — blanket
+        //     halt-surfacing them here would fail builds on types whose
+        //     throw-at-runtime behavior is intentional.
         if (kind === 'pureFns') {
           surfaceDiagnostics(this, dump.diagnostics ?? [], (d) => d.family === Family.PureFn, {halt: true});
         }
@@ -158,7 +205,7 @@ export default function runtypes(options: PluginOptions) {
       if (!code.includes(MARKER_MODULE)) return null;
 
       const rel = path.relative(options.cwd ?? process.cwd(), id);
-      const result = await rewrite(rel, code, resolver);
+      const result = await rewrite(rel, code, scanner ?? resolver);
       if (result.sites.length === 0 && result.replacements.length === 0) return null;
 
       return {code: result.code, map: null};
@@ -199,6 +246,11 @@ export default function runtypes(options: PluginOptions) {
         }
       }
 
+      // The program (and therefore every cache body) may have moved —
+      // force the next cache-module transform to re-dump. Unconditional:
+      // setSources swapped the Program, so even an in-flight dump is
+      // against stale state.
+      dumpAllMemo = null;
       let result;
       try {
         result = await resolver.scanFiles([rel], {includeCacheSources: ['all']});
