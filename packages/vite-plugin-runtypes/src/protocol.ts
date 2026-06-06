@@ -203,7 +203,6 @@ export interface Site {
   id: string;
   paramIndex?: number;
   argsCount?: number;
-  options?: string[];
   // fnId is the precise compile-time function selector for a createX call site
   // routed through the InjectTypeFnArgs marker (e.g. "it", "itNL",
   // "stripMutate"). When present, the patcher injects a `[id, fnId]` tuple
