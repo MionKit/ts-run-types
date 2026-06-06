@@ -42,8 +42,17 @@ type Options struct {
 	// existing Program's GetCurrentDirectory.
 	Cwd string
 	// SingleThreaded forces single-checker mode on Programs built by
-	// SetSources. Mirrors program.Options.SingleThreaded.
+	// SetSources. Mirrors program.Options.SingleThreaded. Also forces the
+	// serial scan path (a one-checker pool has nothing to fan out over).
 	SingleThreaded bool
+	// DisableParallelScan forces the serial marker-scan path. The zero
+	// value means parallel-on (same default-true idiom as SingleThreaded):
+	// scanFiles requests whose files span more than one pool checker group
+	// run the checker-bound analysis concurrently across the pool, then
+	// commit serially in request order. The serial path remains the
+	// automatic fallback for single-group requests, single files, and
+	// file-resolve errors.
+	DisableParallelScan bool
 	// CacheDir, when non-empty, points at a directory under which the
 	// resolver persists per-(typeID, fnTag) RT artifacts. Typically
 	// <projectRoot>/node_modules/.cache/ts-go-run-types. The disk layer

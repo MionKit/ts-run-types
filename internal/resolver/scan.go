@@ -109,6 +109,26 @@ func (resolver *Resolver) scanAllProgramFiles() {
 // invariant — they assume scanFiles' work scales with marker-reachable
 // type complexity, NOT with the file's total declaration count.
 func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
+	if resolver.parallelScanEnabled() && len(files) > 1 {
+		return resolver.dispatchScanFilesParallel(files)
+	}
+	return resolver.dispatchScanFilesSerial(files)
+}
+
+// parallelScanEnabled reports whether this resolver may take the parallel
+// scan path at all. Parallel is the default; SingleThreaded implies serial
+// (the pool holds a single checker, so there is nothing to fan out over).
+func (resolver *Resolver) parallelScanEnabled() bool {
+	return !resolver.opts.DisableParallelScan && !resolver.opts.SingleThreaded &&
+		resolver.Program != nil && resolver.Program.TS != nil
+}
+
+// dispatchScanFilesSerial is the single-checker scan loop: every file is
+// analyzed and committed inline under the session checker. Also the
+// fallback the parallel path returns to on planning failures and
+// single-group requests, so its semantics (including the partial-scan +
+// error behavior on an unresolvable file) stay the contract for both.
+func (resolver *Resolver) dispatchScanFilesSerial(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
 	var sites []protocol.Site
 	var diagnostics []diag.Diagnostic
 	state := resolver.scanStateFor(resolver.checker)
@@ -211,9 +231,11 @@ type pendingCall struct {
 
 // commitPending projects the pending call's type argument into the cache
 // and returns the finished Site. Serial-only: the cache is not safe for
-// concurrent use.
+// concurrent use. Projection runs under the checker that materialized the
+// type (a fast no-swap path when that is the session checker, i.e. always
+// on the serial scan path).
 func (resolver *Resolver) commitPending(pending pendingCall) protocol.Site {
-	id := resolver.cache.AssignID(pending.typeArgument)
+	id := resolver.cache.AssignIDUnder(pending.owner, pending.typeArgument)
 	return protocol.Site{
 		File:       pending.file,
 		Pos:        pending.pos,
