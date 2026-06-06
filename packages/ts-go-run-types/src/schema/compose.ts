@@ -35,6 +35,7 @@ import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
 import type {
   Static,
   MapTuple,
+  UnionOf,
   TemplatePart,
   AssembleTemplate,
   ObjectType,
@@ -118,13 +119,51 @@ export function tuple(
   return builderResult(injectedId, {type: 'tuple', children: items, optionalChildren, rest});
 }
 
-/** A union builder — `union([string(), number()])` → `RunType<string |
- *  number>`. Array form, unlimited members: `MapTuple<T>[number]` is the union
- *  of the member types (`Static` distributes over the indexed access). **/
+/** A union builder — `union([string(), number()])` → `RunType<string | number>`.
+ *
+ *  The brand must be a DIRECT union of the member types (`A | B | …`), NOT
+ *  `MapTuple<T>[number]`: the indexed-access form is subtype-REDUCED by tsgo, so a
+ *  subset arm swallows its superset (`{a} | {a; b}` → `{a}`) and diverges from the
+ *  written union. The fixed-arity overloads below brand the direct union with plain
+ *  generic inference (NO `infer`); the trailing array overload falls back to the
+ *  recursive `UnionOf<T>` for wider unions — the only place that pays the
+ *  recursive-`infer` checker-perf cost. **/
+export function union<A, B>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>]>,
+  id?: InjectRunTypeId<A | B>
+): RunType<A | B>;
+export function union<A, B, C>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>]>,
+  id?: InjectRunTypeId<A | B | C>
+): RunType<A | B | C>;
+export function union<A, B, C, D>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>]>,
+  id?: InjectRunTypeId<A | B | C | D>
+): RunType<A | B | C | D>;
+export function union<A, B, C, D, E>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>]>,
+  id?: InjectRunTypeId<A | B | C | D | E>
+): RunType<A | B | C | D | E>;
+export function union<A, B, C, D, E, F>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>]>,
+  id?: InjectRunTypeId<A | B | C | D | E | F>
+): RunType<A | B | C | D | E | F>;
+export function union<A, B, C, D, E, F, G>(
+  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>, RunType<G>]>,
+  id?: InjectRunTypeId<A | B | C | D | E | F | G>
+): RunType<A | B | C | D | E | F | G>;
+export function union<A, B, C, D, E, F, G, H>(
+  members: CompTimeArgs<
+    readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>, RunType<G>, RunType<H>]
+  >,
+  id?: InjectRunTypeId<A | B | C | D | E | F | G | H>
+): RunType<A | B | C | D | E | F | G | H>;
+// Variable-arity fallback (9+ members, or a spread tuple) — recursive `UnionOf<T>`.
 export function union<T extends readonly RunType[]>(
   members: CompTimeArgs<readonly [...T]>,
-  id?: InjectRunTypeId<MapTuple<T>[number]>
-): RunType<MapTuple<T>[number]> {
+  id?: InjectRunTypeId<UnionOf<T>>
+): RunType<UnionOf<T>>;
+export function union(members: readonly RunType[], id?: InjectRunTypeId<unknown>): RunType {
   return builderResult(id, {type: 'union', children: members});
 }
 
