@@ -8,9 +8,15 @@
 
 import {expect} from 'vitest';
 import type {SerializationCase} from '../suites/serialization/types.ts';
-import {deepCloneForRoundTrip, normalizeForComparison} from './equalsHelpers.ts';
+import {deepCloneForRoundTrip, isTemporalInstance, normalizeForComparison} from './equalsHelpers.ts';
 
 function safeStructuredClone(input: unknown): {ok: true; snapshot: unknown} | {ok: false} {
+  // `structuredClone` doesn't throw on a Temporal instance but produces a
+  // lossy `{}` (the value lives in internal slots it can't see), which would
+  // make the no-mutation snapshot compare unequal to the original. Temporal
+  // values are immutable, so there's no mutation to catch — skip the snapshot,
+  // same as the throw path below (cycles, symbols, …).
+  if (isTemporalInstance(input)) return {ok: false};
   try {
     return {ok: true, snapshot: structuredClone(input)};
   } catch {
