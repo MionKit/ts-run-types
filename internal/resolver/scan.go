@@ -116,21 +116,6 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 			if ok {
 				sites = append(sites, site)
 				resolver.sites = append(resolver.sites, site)
-				// Schema-form parity: when this builder call sits at the
-				// schema slot of an enclosing `createIsTypeFor` /
-				// `createTypeErrorsFor` whose options arg carries
-				// IsTypeOptions, emit an extra EmitOnly Site so the
-				// emitter materialises the variant factory under THIS
-				// builder's structural id. Without this, the runtime
-				// schema-form lookup at `<tag><variantSuffix>_<schemaID>`
-				// misses (the marker form's variant lives under the
-				// marker form's id, which is a different structural
-				// shape for branded builder results like
-				// `FormatString<{}>[]` vs plain `string[]`).
-				if extraSite, ok := resolver.schemaFormVariantSite(file, call, site); ok {
-					sites = append(sites, extraSite)
-					resolver.sites = append(resolver.sites, extraSite)
-				}
 			}
 			return true
 		})
@@ -349,6 +334,20 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	}
 	if id == "" {
 		id = resolver.cache.AssignID(typeArgument)
+	}
+	// SCHEMA-FORM OPTIONS: when this builder call is the slot-0 schema
+	// argument of an enclosing `createIsTypeFor` / `createTypeErrorsFor`
+	// whose `IsTypeOptions` literal carries options, fold those onto THIS
+	// builder's own Site. The schema form reads the schema's `.id` at
+	// runtime — this builder's id — so the emitter must materialise the
+	// variant factory under that id. Folding onto the existing injection
+	// Site (rather than a separate no-rewrite "EmitOnly" Site) keeps one
+	// Site per call: the BUILDER owns the id (correct for AST-harvested
+	// regex literals and recursive schemas, where the type alone can't
+	// reproduce the id), and the option set just rides along.
+	if schemaOptions, ok := resolver.schemaFormOptions(call); ok {
+		options.NoLiterals = options.NoLiterals || schemaOptions.NoLiterals
+		options.NoIsArrayCheck = options.NoIsArrayCheck || schemaOptions.NoIsArrayCheck
 	}
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
@@ -608,60 +607,43 @@ func (resolver *Resolver) checkCompTimeArgs(file string, argumentNode *ast.Node)
 	}
 }
 
-// schemaFormVariantSite returns an EmitOnly Site for the schema's id
-// when `call` sits at slot 0 of an enclosing `createIsTypeFor` or
-// `createTypeErrorsFor` whose options arg is a literal `IsTypeOptions`
-// bag. Walks up `call.Parent` looking for the enclosing CallExpression
-// whose resolved callee Symbol is one of the recognised schema-form
-// factories; if found, harvests the options literal and emits a Site
-// carrying `originalSite.ID` + Options + `EmitOnly: true`. Returns
-// `_, false` when the enclosing context doesn't match — no extra Site
-// to emit.
-//
-// The synthetic Site's `Pos = 0` (rewriter skips EmitOnly sites). The
-// emitter consumes `(ID, Options)` to fan out the variant cache entry
-// alongside the plain entry for `originalSite.ID`.
-func (resolver *Resolver) schemaFormVariantSite(file string, call *ast.Node, originalSite protocol.Site) (protocol.Site, bool) {
+// schemaFormOptions returns the `IsTypeOptions` carried by an enclosing
+// `createIsTypeFor` / `createTypeErrorsFor` call when `call` is its slot-0
+// schema argument. The schema form reads the schema's `.id` at runtime
+// (this builder's id), so the options it passes must be folded onto this
+// builder's Site for the emitter to materialise the matching variant
+// factory under the same (now-converged) id. Returns `_, false` when
+// `call` is not the slot-0 schema argument of such a factory, or the
+// options arg is absent / not a literal.
+func (resolver *Resolver) schemaFormOptions(call *ast.Node) (isTypeOptions, bool) {
 	parent := call.Parent
 	if parent == nil || parent.Kind != ast.KindCallExpression {
-		return protocol.Site{}, false
+		return isTypeOptions{}, false
 	}
 	parentCall := parent.AsCallExpression()
 	if parentCall == nil || parentCall.Arguments == nil || len(parentCall.Arguments.Nodes) < 2 {
-		return protocol.Site{}, false
+		return isTypeOptions{}, false
 	}
 	if parentCall.Arguments.Nodes[0] != call {
-		// Builder is not at slot 0 of the parent — not a schema-form
-		// call (e.g. it's nested deeper inside an option literal).
-		return protocol.Site{}, false
+		// Builder is not at slot 0 of the parent — not a schema-form call
+		// (e.g. it's nested deeper inside an option literal).
+		return isTypeOptions{}, false
 	}
 	if !resolver.isSchemaFormFactory(parent) {
-		return protocol.Site{}, false
+		return isTypeOptions{}, false
 	}
 	optionsNode := parentCall.Arguments.Nodes[1]
 	if optionsNode == nil || optionsNode.Kind != ast.KindObjectLiteralExpression {
-		return protocol.Site{}, false
+		return isTypeOptions{}, false
 	}
-	opts := readIsTypeOptionsLiteral(optionsNode)
-	names := opts.Names()
-	if len(names) == 0 {
-		return protocol.Site{}, false
-	}
-	return protocol.Site{
-		File:     file,
-		Pos:      0,
-		ID:       originalSite.ID,
-		Options:  names,
-		EmitOnly: true,
-	}, true
+	return readIsTypeOptionsLiteral(optionsNode), true
 }
 
-// isSchemaFormFactory reports whether `call` resolves to
-// `createIsTypeFor` or `createTypeErrorsFor` exported from
-// `@mionjs/ts-go-run-types`. The check walks the resolved signature's
-// declaration Symbol: name match + declaration source file's
-// package.json must carry the marker package's name (same gate the
-// `InjectRunTypeId` scanner uses).
+// isSchemaFormFactory reports whether `call` resolves to `createIsTypeFor`
+// or `createTypeErrorsFor` exported from `@mionjs/ts-go-run-types`. The
+// check walks the resolved signature's declaration Symbol: name match +
+// declaration source file's package.json must carry the marker package's
+// name (same gate the `InjectRunTypeId` scanner uses).
 func (resolver *Resolver) isSchemaFormFactory(call *ast.Node) bool {
 	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
 	if signature == nil {
@@ -682,11 +664,10 @@ func (resolver *Resolver) isSchemaFormFactory(call *ast.Node) bool {
 	return marker.DeclaredInModule(symbol, marker.DefaultModule)
 }
 
-// readIsTypeOptionsLiteral parses an `IsTypeOptions` object literal
-// node into the resolver's internal Go struct. Mirrors the slot-0
-// dispatch in `extractIsTypeOptions` but takes the literal node
-// directly (no signature traversal needed — the caller already knows
-// the slot).
+// readIsTypeOptionsLiteral parses an `IsTypeOptions` object literal node
+// into the resolver's internal Go struct. Mirrors the slot dispatch in
+// `extractIsTypeOptions` but takes the literal node directly (the caller
+// already located it).
 func readIsTypeOptionsLiteral(node *ast.Node) isTypeOptions {
 	var opts isTypeOptions
 	if node == nil || node.Kind != ast.KindObjectLiteralExpression {
