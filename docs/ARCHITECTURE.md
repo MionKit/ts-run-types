@@ -101,6 +101,17 @@ Detection requires both:
 
 A call inside a generic body where the marker's `T` is the wrapper's own free type parameter is **skipped** — there's no concrete `T` to assign an id to yet. The wrapper must propagate the marker via its own signature, and the injection happens at the wrapper's call sites instead.
 
+### The second marker — `InjectTypeFnArgs<T, Fn>` and demand-driven caches
+
+`InjectRunTypeId<T>` covers **reflection-only** sites (`getRunTypeId`, `reflectRunTypeId`, value-first RT builders, `createMockType`) and injects a bare `"<typeId>"` string. The `createX<T>()` factory family (`createIsType`, `createGetTypeErrors`, the unknown-keys group, `createJsonEncoder`/`createJsonDecoder`, `createBinaryEncoder`/`createBinaryDecoder`) instead declares a trailing `InjectTypeFnArgs<T, Fn>` marker, whose second type argument `Fn` names the function family (`'it'`, `'te'`, `'jsonEncoder'`, …). For those sites the transformer injects a `["<typeId>", "<fnId>"]` **tuple**:
+
+- `typeId` — the structural-id hash of `T`, same as the reflection cache.
+- `fnId` — the precise compile-time function selector the scanner computes from `Fn` plus the relevant `CompTimeArgs` literal (the `IsTypeOptions` variant suffix for `it`/`te`; the JSON strategy token for the encoder/decoder), via the `CompFns` registry in [`internal/constants/constants.go`](../internal/constants/constants.go). The injected tuple is the complete demand: it tells the backend exactly what to emit and gives the runtime the exact lookup key, so the runtime no longer re-derives a variant key.
+
+Because each function site now carries its `fnId`, the per-family cache modules are **demand-driven**: a family emits factories only for the types its own `createX` call sites request (gated by `constants.MigratedFamilies`, seeded from each `Site.FnId`, closed transitively by `collectFamilyDemand` in [`internal/compiled/typefns/module.go`](../internal/compiled/typefns/module.go)). A file whose only marker call is `getRunTypeId<T>()` emits **zero** function-cache entries — the reflection cache is untouched, every function family is empty for it.
+
+`it` (isType) is the one **cross-family** dependency: the JSON and binary union decoders discriminate members at runtime via `it_<member>.fn(value)` and `typeErrors` delegates child checks to `it_` too. So `it`'s demand is its createIsType-site closure **∪** the `it_<member>` edges every *other* demanded family references — collected by `CrossFamilyItRoots` (which renders each foreign family demand-driven and harvests its captured cross-family deps) and seeded into the `it` render. A file that only serializes a union therefore still gets the per-member `it_` entries its decoder needs at runtime. Full design + rollout history: [docs/DEMAND-DRIVEN-FN-CACHES.md](./DEMAND-DRIVEN-FN-CACHES.md).
+
 ## Package layout
 
 ```
