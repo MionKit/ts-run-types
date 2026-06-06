@@ -93,32 +93,27 @@ func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type
 	return &protocol.FormatAnnotation{Name: name, Params: params}
 }
 
-// literalParamsFromType walks an object-literal type and collects its
-// literal-valued properties into a map[string]any suitable for the
-// FormatAnnotation.Params field. Non-literal property values fall back
-// to the type's string form so the params are always JSON-serialisable.
-// Returns nil when paramsType is nil or carries no properties (a format
-// with zero params — {} — is represented as nil for compactness).
+// literalParamsFromType walks an object-literal type into the
+// FormatAnnotation.Params map via the generic comptimeargs type-literal
+// walk, bound to the format-domain policy: the registerFormatPattern
+// escape hatch (pattern params ride `typeof p` / value initializers —
+// a regex source can't live at the type level) and the TypeToString
+// fallback (non-literal property values keep the canonical type string
+// so params always stay JSON-serialisable and cache-differentiating).
 func literalParamsFromType(typeChecker *checker.Checker, paramsType *checker.Type) map[string]any {
-	if paramsType == nil {
-		return nil
+	return comptimeargs.TypeLiteralObject(typeChecker, paramsType, formatTypeValueOptions(typeChecker))
+}
+
+// formatTypeValueOptions binds the format-domain knobs into the generic walk.
+func formatTypeValueOptions(typeChecker *checker.Checker) comptimeargs.TypeValueOptions {
+	return comptimeargs.TypeValueOptions{
+		PropertyOverride: func(symbol *ast.Symbol) (any, bool) {
+			return formatPatternFromSymbol(typeChecker, symbol)
+		},
+		NonLiteralFallback: func(tsType *checker.Type) any {
+			return typeChecker.TypeToString(tsType)
+		},
 	}
-	properties := typeChecker.GetPropertiesOfType(paramsType)
-	if len(properties) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(properties))
-	for _, symbol := range properties {
-		// `pattern: typeof p` where p = registerFormatPattern({...}) →
-		// recover the whole bundle {source, flags, mockSamples, message}
-		// as a resolved literal object (never AST) from the call site.
-		if pattern, ok := formatPatternFromSymbol(typeChecker, symbol); ok {
-			out[symbol.Name] = pattern
-			continue
-		}
-		out[symbol.Name] = literalValueFromType(typeChecker, typeChecker.GetTypeOfSymbol(symbol))
-	}
-	return out
 }
 
 // formatPatternFromSymbol recovers a FormatPattern bundle from a param
@@ -307,55 +302,6 @@ func formatPatternFromObjectLiteral(typeChecker *checker.Checker, argument *ast.
 		return nil, false
 	}
 	return out, true
-}
-
-// literalValueFromType extracts a Go value from a literal-typed *checker.Type.
-// Supported: string, number, boolean, bigint literals; nested object
-// literals (recursed via literalParamsFromType); union of literals
-// (kept as the type's stringified form). Anything else falls back to
-// the type's stringified form so callers always get JSON-serialisable data.
-func literalValueFromType(typeChecker *checker.Checker, tsType *checker.Type) any {
-	if tsType == nil {
-		return nil
-	}
-	flags := tsType.Flags()
-	switch {
-	case flags&checker.TypeFlagsStringLiteral != 0:
-		if value, ok := tsType.AsLiteralType().Value().(string); ok {
-			return value
-		}
-	case flags&checker.TypeFlagsNumberLiteral != 0:
-		// tsgo stores number literals as their string repr; promote to float64
-		// when parseable for stable JSON serialisation, fall back to the raw
-		// stringified form when it isn't (very large / bigint-shaped).
-		raw := typeChecker.TypeToString(tsType)
-		if value, err := strconv.ParseFloat(raw, 64); err == nil {
-			return value
-		}
-		return raw
-	case flags&checker.TypeFlagsBooleanLiteral != 0:
-		return typeChecker.TypeToString(tsType) == "true"
-	case flags&checker.TypeFlagsBigIntLiteral != 0:
-		return typeChecker.TypeToString(tsType)
-	case flags&checker.TypeFlagsObject != 0:
-		// Tuple literal (e.g. mockSamples: ['a','b','c']) → []any of the
-		// element values. Checked before the object-recursion branch since
-		// a tuple is also flagged TypeFlagsObject.
-		if checker.IsTupleType(tsType) {
-			elements := typeChecker.GetTypeArguments(tsType)
-			out := make([]any, 0, len(elements))
-			for _, element := range elements {
-				out = append(out, literalValueFromType(typeChecker, element))
-			}
-			return out
-		}
-		// Nested object literal — recurse. Returns nil for empty objects so the
-		// canonicalised key stays compact (`k=null` rather than `k={}`).
-		return literalParamsFromType(typeChecker, tsType)
-	}
-	// Union of literals / template literal / anything else — keep the
-	// canonical type string so callers can still differentiate cache entries.
-	return typeChecker.TypeToString(tsType)
 }
 
 // FormatAnnotationStructuralKey returns a canonical, key-order-independent
