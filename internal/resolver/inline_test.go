@@ -73,7 +73,7 @@ const temporalDTS = `declare namespace Temporal {
 // sources. Mirrors withInlineSources in helpers/inline.ts so Go tests can
 // keep their snippet right next to the assertions instead of jumping to a
 // fixture file.
-func setupInline(t *testing.T, sources map[string]string) *resolver.Resolver {
+func setupInline(t testing.TB, sources map[string]string) *resolver.Resolver {
 	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
 	overlay := make(map[string]string, len(sources)+1)

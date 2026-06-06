@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/microsoft/typescript-go/shim/compiler"
@@ -15,8 +16,101 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// Dispatch routes a request to the correct handler.
+// familyRender bundles one dump-driven cache-family render: the wire kind it
+// answers to, the render wrapper from render.go, and the Response slot the
+// body lands in. Shared by the OpScanFiles (scoped dump) and OpDump (full
+// dump) branches — the only per-op differences are the dump that seeds the
+// render and the want-gate. pureFns is NOT here: it renders from extractor
+// entries, not from a Dump (see the renderPureFnsModule call sites).
+type familyRender struct {
+	kind   protocol.CacheKind
+	render func(dump protocol.Dump, opts typefns.RenderOpts) (string, error)
+	assign func(response *protocol.Response, body string)
+}
+
+var familyRenders = []familyRender{
+	{protocol.CacheKindRunType,
+		func(dump protocol.Dump, _ typefns.RenderOpts) (string, error) { return renderRunTypesModule(dump) },
+		func(response *protocol.Response, body string) { response.RunTypeCacheSource = body }},
+	{protocol.CacheKindValidate, renderValidateModule,
+		func(response *protocol.Response, body string) { response.ValidateCacheSource = body }},
+	{protocol.CacheKindValidationErrors, renderValidationErrorsModule,
+		func(response *protocol.Response, body string) { response.ValidationErrorsCacheSource = body }},
+	{protocol.CacheKindPrepareForJson, renderPrepareForJsonModule,
+		func(response *protocol.Response, body string) { response.PrepareForJsonCacheSource = body }},
+	{protocol.CacheKindRestoreFromJson, renderRestoreFromJsonModule,
+		func(response *protocol.Response, body string) { response.RestoreFromJsonCacheSource = body }},
+	{protocol.CacheKindStringifyJson, renderStringifyJsonModule,
+		func(response *protocol.Response, body string) { response.StringifyJsonCacheSource = body }},
+	{protocol.CacheKindPrepareForJsonSafe, renderPrepareForJsonSafeModule,
+		func(response *protocol.Response, body string) { response.PrepareForJsonSafeCacheSource = body }},
+	{protocol.CacheKindHasUnknownKeys, renderHasUnknownKeysModule,
+		func(response *protocol.Response, body string) { response.HasUnknownKeysCacheSource = body }},
+	{protocol.CacheKindStripUnknownKeys, renderStripUnknownKeysModule,
+		func(response *protocol.Response, body string) { response.StripUnknownKeysCacheSource = body }},
+	{protocol.CacheKindUnknownKeyErrors, renderUnknownKeyErrorsModule,
+		func(response *protocol.Response, body string) { response.UnknownKeyErrorsCacheSource = body }},
+	{protocol.CacheKindUnknownKeysToUndefined, renderUnknownKeysToUndefinedModule,
+		func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedCacheSource = body }},
+	{protocol.CacheKindUnknownKeysToUndefinedWire, renderUnknownKeysToUndefinedWireModule,
+		func(response *protocol.Response, body string) { response.UnknownKeysToUndefinedWireCacheSource = body }},
+	{protocol.CacheKindToBinary, renderToBinaryModule,
+		func(response *protocol.Response, body string) { response.ToBinaryCacheSource = body }},
+	{protocol.CacheKindFromBinary, renderFromBinaryModule,
+		func(response *protocol.Response, body string) { response.FromBinaryCacheSource = body }},
+	{protocol.CacheKindFormatTransform, renderFormatTransformModule,
+		func(response *protocol.Response, body string) { response.FormatTransformCacheSource = body }},
+}
+
+// Dispatch routes a request to the correct handler. When the request sets
+// IncludeMetrics, the response carries a Metrics block measured around the
+// dispatch: total wall time, Go memory deltas/snapshots, tsgo
+// extendedDiagnostics counters (read off the live Program), and the
+// per-phase times the inner handler recorded.
 func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
+	if !request.IncludeMetrics {
+		return resolver.dispatch(request, nil)
+	}
+	var memBefore runtime.MemStats
+	runtime.ReadMemStats(&memBefore)
+	metrics := &protocol.Metrics{RenderMs: map[string]float64{}}
+	start := time.Now()
+	response := resolver.dispatch(request, metrics)
+	metrics.TotalMs = elapsedMs(start)
+	var memAfter runtime.MemStats
+	runtime.ReadMemStats(&memAfter)
+	metrics.AllocBytes = memAfter.TotalAlloc - memBefore.TotalAlloc
+	metrics.Mallocs = memAfter.Mallocs - memBefore.Mallocs
+	metrics.NumGC = memAfter.NumGC - memBefore.NumGC
+	metrics.HeapAlloc = memAfter.HeapAlloc
+	metrics.HeapInuse = memAfter.HeapInuse
+	if resolver.cache != nil {
+		metrics.CacheNodes = resolver.cache.Size()
+	}
+	// extendedDiagnostics counters — tsgo checks lazily, so these are
+	// post-op absolutes reflecting every check forced so far in this
+	// Program's lifetime. The bench harness resets the Program per cycle,
+	// which makes per-case numbers directly comparable.
+	if resolver.Program != nil && resolver.Program.TS != nil {
+		ts := resolver.Program.TS
+		metrics.Files = len(ts.SourceFiles())
+		metrics.Lines = ts.LineCount()
+		metrics.Identifiers = ts.IdentifierCount()
+		metrics.Symbols = ts.SymbolCount()
+		metrics.Types = ts.TypeCount()
+		metrics.Instantiations = ts.InstantiationCount()
+	}
+	response.Metrics = metrics
+	return response
+}
+
+func elapsedMs(start time.Time) float64 {
+	return float64(time.Since(start).Microseconds()) / 1000.0
+}
+
+// dispatch is the un-instrumented op switch. metrics may be nil (the
+// no-IncludeMetrics fast path); phase recordings are guarded per site.
+func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.Metrics) protocol.Response {
 	before := resolver.cache.Size()
 	switch request.Op {
 	case protocol.OpScanFiles:
@@ -26,35 +120,30 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		if len(request.Files) == 0 {
 			return protocol.Response{Error: "scanFiles: files is required and must be non-empty"}
 		}
+		scanStart := time.Now()
 		sites, markerDiagnostics, err := resolver.dispatchScanFiles(request.Files)
 		if err != nil {
 			return protocol.Response{Error: err.Error()}
 		}
-		added := resolver.cache.Added(before)
-		// Per-cache "did this scan change anything?" signals consumed by
-		// the Vite plugin's handleHotUpdate.
-		addedRunTypes := len(added) > 0
-		addedValidate := addedRunTypes && typefns.AnyValidateSupported(added)
-		addedValidationErrors := addedRunTypes && typefns.AnyValidationErrorsSupported(added)
-		addedPrepareForJson := addedRunTypes && typefns.AnyPrepareForJsonSupported(added)
-		addedRestoreFromJson := addedRunTypes && typefns.AnyRestoreFromJsonSupported(added)
-		addedStringifyJson := addedRunTypes && typefns.AnyStringifyJsonSupported(added)
-		addedPrepareForJsonSafe := addedRunTypes && typefns.AnyPrepareForJsonSafeSupported(added)
-		addedHasUnknownKeys := addedRunTypes && typefns.AnyHasUnknownKeysSupported(added)
-		addedStripUnknownKeys := addedRunTypes && typefns.AnyStripUnknownKeysSupported(added)
-		addedUnknownKeyErrors := addedRunTypes && typefns.AnyUnknownKeyErrorsSupported(added)
-		addedUnknownKeysToUndefined := addedRunTypes && typefns.AnyUnknownKeysToUndefinedSupported(added)
-		addedUnknownKeysToUndefinedWire := addedRunTypes && typefns.AnyUnknownKeysToUndefinedWireSupported(added)
-		addedToBinary := addedRunTypes && typefns.AnyToBinarySupported(added)
-		addedFromBinary := addedRunTypes && typefns.AnyFromBinarySupported(added)
-		addedFormatTransform := addedRunTypes && typefns.AnyFormatTransformSupported(added)
+		if metrics != nil {
+			metrics.MarkerScanMs = elapsedMs(scanStart)
+		}
 		// Pure-fn extraction runs every scanFiles call: the request's
 		// files may add or modify registerPureFnFactory calls without
 		// producing any new RunTypes, AND every accepted entry yields
 		// one Replacement record the Vite plugin uses to null out the
 		// factory argument in the user's source. Diagnostics flow
 		// unconditionally so editor surfaces update as the user types.
+		pureFnsStart := time.Now()
 		pureFnEntries, pureFnDiagnostics, pureFnReplacements, addedPureFns := resolver.extractPureFnsForScan(request.Files)
+		if metrics != nil {
+			metrics.PureFnsMs = elapsedMs(pureFnsStart)
+		}
+		prepStart := time.Now()
+		added := resolver.cache.Added(before)
+		// Per-cache "did this scan change anything?" signals consumed by
+		// the Vite plugin's handleHotUpdate.
+		addedRunTypes := len(added) > 0
 		combinedDiagnostics := append(append([]diag.Diagnostic{}, pureFnDiagnostics...), markerDiagnostics...)
 		// rtDiagnostics is the sink the walker appends to at every
 		// RTThrow / silent-skip site reached during the cache renders
@@ -67,158 +156,65 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 			Replacements:                    pureFnReplacements,
 			Added:                           added,
 			AddedRunTypes:                   addedRunTypes,
-			AddedValidate:                   addedValidate,
-			AddedValidationErrors:           addedValidationErrors,
-			AddedPrepareForJson:             addedPrepareForJson,
-			AddedRestoreFromJson:            addedRestoreFromJson,
-			AddedStringifyJson:              addedStringifyJson,
-			AddedPrepareForJsonSafe:         addedPrepareForJsonSafe,
-			AddedHasUnknownKeys:             addedHasUnknownKeys,
-			AddedStripUnknownKeys:           addedStripUnknownKeys,
-			AddedUnknownKeyErrors:           addedUnknownKeyErrors,
-			AddedUnknownKeysToUndefined:     addedUnknownKeysToUndefined,
-			AddedUnknownKeysToUndefinedWire: addedUnknownKeysToUndefinedWire,
-			AddedToBinary:                   addedToBinary,
-			AddedFromBinary:                 addedFromBinary,
-			AddedFormatTransform:            addedFormatTransform,
+			AddedValidate:                   addedRunTypes && typefns.AnyValidateSupported(added),
+			AddedValidationErrors:           addedRunTypes && typefns.AnyValidationErrorsSupported(added),
+			AddedPrepareForJson:             addedRunTypes && typefns.AnyPrepareForJsonSupported(added),
+			AddedRestoreFromJson:            addedRunTypes && typefns.AnyRestoreFromJsonSupported(added),
+			AddedStringifyJson:              addedRunTypes && typefns.AnyStringifyJsonSupported(added),
+			AddedPrepareForJsonSafe:         addedRunTypes && typefns.AnyPrepareForJsonSafeSupported(added),
+			AddedHasUnknownKeys:             addedRunTypes && typefns.AnyHasUnknownKeysSupported(added),
+			AddedStripUnknownKeys:           addedRunTypes && typefns.AnyStripUnknownKeysSupported(added),
+			AddedUnknownKeyErrors:           addedRunTypes && typefns.AnyUnknownKeyErrorsSupported(added),
+			AddedUnknownKeysToUndefined:     addedRunTypes && typefns.AnyUnknownKeysToUndefinedSupported(added),
+			AddedUnknownKeysToUndefinedWire: addedRunTypes && typefns.AnyUnknownKeysToUndefinedWireSupported(added),
+			AddedToBinary:                   addedRunTypes && typefns.AnyToBinarySupported(added),
+			AddedFromBinary:                 addedRunTypes && typefns.AnyFromBinarySupported(added),
+			AddedFormatTransform:            addedRunTypes && typefns.AnyFormatTransformSupported(added),
 			AddedPureFns:                    addedPureFns,
 			Diagnostics:                     combinedDiagnostics,
 		}
-		wantRunType := wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
-		wantValidate := wantsCache(request.IncludeCacheSources, protocol.CacheKindValidate)
-		wantValidationErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindValidationErrors)
-		wantPrepareForJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
-		wantRestoreFromJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
-		wantStringifyJson := wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
-		wantPrepareForJsonSafe := wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafe)
-		wantHasUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
-		wantStripUnknownKeys := wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
-		wantUnknownKeyErrors := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
-		wantUnknownKeysToUndefined := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
-		wantUnknownKeysToUndefinedWire := wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
-		wantToBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindToBinary)
-		wantFromBinary := wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
-		wantFormatTransform := wantsCache(request.IncludeCacheSources, protocol.CacheKindFormatTransform)
+		if metrics != nil {
+			metrics.PrepMs = elapsedMs(prepStart)
+		}
 		wantPureFns := wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		anyCache := wantRunType || wantValidate || wantValidationErrors || wantPrepareForJson || wantRestoreFromJson ||
-			wantStringifyJson || wantPrepareForJsonSafe ||
-			wantHasUnknownKeys || wantStripUnknownKeys || wantUnknownKeyErrors ||
-			wantUnknownKeysToUndefined || wantUnknownKeysToUndefinedWire ||
-			wantToBinary || wantFromBinary || wantFormatTransform || wantPureFns
+		anyCache := wantPureFns
+		for _, family := range familyRenders {
+			if wantsCache(request.IncludeCacheSources, family.kind) {
+				anyCache = true
+				break
+			}
+		}
 		if request.IncludeRunTypes || anyCache {
+			scopedStart := time.Now()
 			scoped := resolver.scopedDump(request.Files)
+			if metrics != nil {
+				metrics.ScopedDumpMs = elapsedMs(scopedStart)
+			}
 			if request.IncludeRunTypes {
 				response.RunTypes = scoped.RunTypes
 			}
-			if wantRunType {
-				rendered, renderErr := renderRunTypesModule(scoped)
+			for _, family := range familyRenders {
+				if !wantsCache(request.IncludeCacheSources, family.kind) {
+					continue
+				}
+				renderStart := time.Now()
+				body, renderErr := family.render(scoped, rtOpts)
 				if renderErr != nil {
 					return protocol.Response{Error: renderErr.Error()}
 				}
-				response.RunTypeCacheSource = rendered
-			}
-			if wantValidate {
-				validateRendered, validateErr := renderValidateModule(scoped, rtOpts)
-				if validateErr != nil {
-					return protocol.Response{Error: validateErr.Error()}
+				if metrics != nil {
+					metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
 				}
-				response.ValidateCacheSource = validateRendered
-			}
-			if wantValidationErrors {
-				validationErrorsRendered, validationErrorsErr := renderValidationErrorsModule(scoped, rtOpts)
-				if validationErrorsErr != nil {
-					return protocol.Response{Error: validationErrorsErr.Error()}
-				}
-				response.ValidationErrorsCacheSource = validationErrorsRendered
-			}
-			if wantPrepareForJson {
-				prepareRendered, prepareErr := renderPrepareForJsonModule(scoped, rtOpts)
-				if prepareErr != nil {
-					return protocol.Response{Error: prepareErr.Error()}
-				}
-				response.PrepareForJsonCacheSource = prepareRendered
-			}
-			if wantRestoreFromJson {
-				restoreRendered, restoreErr := renderRestoreFromJsonModule(scoped, rtOpts)
-				if restoreErr != nil {
-					return protocol.Response{Error: restoreErr.Error()}
-				}
-				response.RestoreFromJsonCacheSource = restoreRendered
-			}
-			if wantStringifyJson {
-				stringifyRendered, stringifyErr := renderStringifyJsonModule(scoped, rtOpts)
-				if stringifyErr != nil {
-					return protocol.Response{Error: stringifyErr.Error()}
-				}
-				response.StringifyJsonCacheSource = stringifyRendered
-			}
-			if wantPrepareForJsonSafe {
-				rendered, err := renderPrepareForJsonSafeModule(scoped, rtOpts)
-				if err != nil {
-					return protocol.Response{Error: err.Error()}
-				}
-				response.PrepareForJsonSafeCacheSource = rendered
-			}
-			if wantHasUnknownKeys {
-				hukRendered, hukErr := renderHasUnknownKeysModule(scoped, rtOpts)
-				if hukErr != nil {
-					return protocol.Response{Error: hukErr.Error()}
-				}
-				response.HasUnknownKeysCacheSource = hukRendered
-			}
-			if wantStripUnknownKeys {
-				sukRendered, sukErr := renderStripUnknownKeysModule(scoped, rtOpts)
-				if sukErr != nil {
-					return protocol.Response{Error: sukErr.Error()}
-				}
-				response.StripUnknownKeysCacheSource = sukRendered
-			}
-			if wantUnknownKeyErrors {
-				ukeRendered, ukeErr := renderUnknownKeyErrorsModule(scoped, rtOpts)
-				if ukeErr != nil {
-					return protocol.Response{Error: ukeErr.Error()}
-				}
-				response.UnknownKeyErrorsCacheSource = ukeRendered
-			}
-			if wantUnknownKeysToUndefined {
-				ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(scoped, rtOpts)
-				if ukuErr != nil {
-					return protocol.Response{Error: ukuErr.Error()}
-				}
-				response.UnknownKeysToUndefinedCacheSource = ukuRendered
-			}
-			if wantUnknownKeysToUndefinedWire {
-				ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(scoped, rtOpts)
-				if ukuwErr != nil {
-					return protocol.Response{Error: ukuwErr.Error()}
-				}
-				response.UnknownKeysToUndefinedWireCacheSource = ukuwRendered
-			}
-			if wantToBinary {
-				rendered, err := renderToBinaryModule(scoped, rtOpts)
-				if err != nil {
-					return protocol.Response{Error: err.Error()}
-				}
-				response.ToBinaryCacheSource = rendered
-			}
-			if wantFromBinary {
-				rendered, err := renderFromBinaryModule(scoped, rtOpts)
-				if err != nil {
-					return protocol.Response{Error: err.Error()}
-				}
-				response.FromBinaryCacheSource = rendered
-			}
-			if wantFormatTransform {
-				rendered, err := renderFormatTransformModule(scoped, rtOpts)
-				if err != nil {
-					return protocol.Response{Error: err.Error()}
-				}
-				response.FormatTransformCacheSource = rendered
+				family.assign(&response, body)
 			}
 			if wantPureFns {
+				renderStart := time.Now()
 				pureFnsRendered, _, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, pureFnEntries, true)
 				if pureFnsErr != nil {
 					return protocol.Response{Error: pureFnsErr.Error()}
+				}
+				if metrics != nil {
+					metrics.RenderMs[string(protocol.CacheKindPureFns)] = elapsedMs(renderStart)
 				}
 				response.PureFnsCacheSource = pureFnsRendered
 			}
@@ -238,8 +234,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// runtypes will appear in the resolver state moments later.
 		// The eager scan amortises any per-file scan that hasn't
 		// happened yet, so OpDump always returns the complete picture.
+		scanStart := time.Now()
 		if resolver.Program != nil {
 			resolver.scanAllProgramFiles()
+		}
+		if metrics != nil {
+			metrics.MarkerScanMs = elapsedMs(scanStart)
 		}
 		fullDump := protocol.Dump{
 			RunTypes: resolver.cache.Dump(),
@@ -261,131 +261,28 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		// kinds are rendered — lets the Vite plugin's transform() ask
 		// for just the one cache it's serving in this hook call.
 		noFilter := len(request.IncludeCacheSources) == 0
-		wantRunType := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRunType)
-		wantValidate := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindValidate)
-		wantValidationErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindValidationErrors)
-		wantPrepareForJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJson)
-		wantRestoreFromJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindRestoreFromJson)
-		wantStringifyJson := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStringifyJson)
-		wantPrepareForJsonSafe := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPrepareForJsonSafe)
-		wantHasUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindHasUnknownKeys)
-		wantStripUnknownKeys := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindStripUnknownKeys)
-		wantUnknownKeyErrors := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeyErrors)
-		wantUnknownKeysToUndefined := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefined)
-		wantUnknownKeysToUndefinedWire := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindUnknownKeysToUndefinedWire)
-		wantToBinary := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindToBinary)
-		wantFromBinary := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindFromBinary)
-		wantFormatTransform := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindFormatTransform)
-		wantPureFns := noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns)
-		if wantRunType {
-			rendered, renderErr := renderRunTypesModule(fullDump)
+		for _, family := range familyRenders {
+			if !noFilter && !wantsCache(request.IncludeCacheSources, family.kind) {
+				continue
+			}
+			renderStart := time.Now()
+			body, renderErr := family.render(fullDump, rtOpts)
 			if renderErr != nil {
 				return protocol.Response{Error: renderErr.Error()}
 			}
-			response.RunTypeCacheSource = rendered
-		}
-		if wantValidate {
-			validateRendered, validateErr := renderValidateModule(fullDump, rtOpts)
-			if validateErr != nil {
-				return protocol.Response{Error: validateErr.Error()}
+			if metrics != nil {
+				metrics.RenderMs[string(family.kind)] = elapsedMs(renderStart)
 			}
-			response.ValidateCacheSource = validateRendered
+			family.assign(&response, body)
 		}
-		if wantValidationErrors {
-			validationErrorsRendered, validationErrorsErr := renderValidationErrorsModule(fullDump, rtOpts)
-			if validationErrorsErr != nil {
-				return protocol.Response{Error: validationErrorsErr.Error()}
-			}
-			response.ValidationErrorsCacheSource = validationErrorsRendered
-		}
-		if wantPrepareForJson {
-			prepareRendered, prepareErr := renderPrepareForJsonModule(fullDump, rtOpts)
-			if prepareErr != nil {
-				return protocol.Response{Error: prepareErr.Error()}
-			}
-			response.PrepareForJsonCacheSource = prepareRendered
-		}
-		if wantRestoreFromJson {
-			restoreRendered, restoreErr := renderRestoreFromJsonModule(fullDump, rtOpts)
-			if restoreErr != nil {
-				return protocol.Response{Error: restoreErr.Error()}
-			}
-			response.RestoreFromJsonCacheSource = restoreRendered
-		}
-		if wantStringifyJson {
-			stringifyRendered, stringifyErr := renderStringifyJsonModule(fullDump, rtOpts)
-			if stringifyErr != nil {
-				return protocol.Response{Error: stringifyErr.Error()}
-			}
-			response.StringifyJsonCacheSource = stringifyRendered
-		}
-		if wantPrepareForJsonSafe {
-			rendered, err := renderPrepareForJsonSafeModule(fullDump, rtOpts)
-			if err != nil {
-				return protocol.Response{Error: err.Error()}
-			}
-			response.PrepareForJsonSafeCacheSource = rendered
-		}
-		if wantHasUnknownKeys {
-			hukRendered, hukErr := renderHasUnknownKeysModule(fullDump, rtOpts)
-			if hukErr != nil {
-				return protocol.Response{Error: hukErr.Error()}
-			}
-			response.HasUnknownKeysCacheSource = hukRendered
-		}
-		if wantStripUnknownKeys {
-			sukRendered, sukErr := renderStripUnknownKeysModule(fullDump, rtOpts)
-			if sukErr != nil {
-				return protocol.Response{Error: sukErr.Error()}
-			}
-			response.StripUnknownKeysCacheSource = sukRendered
-		}
-		if wantUnknownKeyErrors {
-			ukeRendered, ukeErr := renderUnknownKeyErrorsModule(fullDump, rtOpts)
-			if ukeErr != nil {
-				return protocol.Response{Error: ukeErr.Error()}
-			}
-			response.UnknownKeyErrorsCacheSource = ukeRendered
-		}
-		if wantUnknownKeysToUndefined {
-			ukuRendered, ukuErr := renderUnknownKeysToUndefinedModule(fullDump, rtOpts)
-			if ukuErr != nil {
-				return protocol.Response{Error: ukuErr.Error()}
-			}
-			response.UnknownKeysToUndefinedCacheSource = ukuRendered
-		}
-		if wantUnknownKeysToUndefinedWire {
-			ukuwRendered, ukuwErr := renderUnknownKeysToUndefinedWireModule(fullDump, rtOpts)
-			if ukuwErr != nil {
-				return protocol.Response{Error: ukuwErr.Error()}
-			}
-			response.UnknownKeysToUndefinedWireCacheSource = ukuwRendered
-		}
-		if wantToBinary {
-			rendered, err := renderToBinaryModule(fullDump, rtOpts)
-			if err != nil {
-				return protocol.Response{Error: err.Error()}
-			}
-			response.ToBinaryCacheSource = rendered
-		}
-		if wantFromBinary {
-			rendered, err := renderFromBinaryModule(fullDump, rtOpts)
-			if err != nil {
-				return protocol.Response{Error: err.Error()}
-			}
-			response.FromBinaryCacheSource = rendered
-		}
-		if wantFormatTransform {
-			rendered, err := renderFormatTransformModule(fullDump, rtOpts)
-			if err != nil {
-				return protocol.Response{Error: err.Error()}
-			}
-			response.FormatTransformCacheSource = rendered
-		}
-		if wantPureFns {
+		if noFilter || wantsCache(request.IncludeCacheSources, protocol.CacheKindPureFns) {
+			renderStart := time.Now()
 			pureFnsRendered, pureFnsDiagnostics, pureFnsErr := renderPureFnsModule(resolver.checker, resolver.marker, resolver.Program, nil, false)
 			if pureFnsErr != nil {
 				return protocol.Response{Error: pureFnsErr.Error()}
+			}
+			if metrics != nil {
+				metrics.RenderMs[string(protocol.CacheKindPureFns)] = elapsedMs(renderStart)
 			}
 			response.PureFnsCacheSource = pureFnsRendered
 			response.Diagnostics = append(response.Diagnostics, pureFnsDiagnostics...)
@@ -393,8 +290,12 @@ func (resolver *Resolver) Dispatch(request protocol.Request) protocol.Response {
 		response.Diagnostics = append(response.Diagnostics, rtDiagnostics...)
 		return response
 	case protocol.OpSetSources:
+		setStart := time.Now()
 		if err := resolver.dispatchSetSources(request.Sources); err != nil {
 			return protocol.Response{Error: err.Error()}
+		}
+		if metrics != nil {
+			metrics.SetSourcesMs = elapsedMs(setStart)
 		}
 		return protocol.Response{OK: true}
 	case protocol.OpReset:

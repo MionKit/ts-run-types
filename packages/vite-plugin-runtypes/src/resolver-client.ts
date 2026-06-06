@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process';
 import {createConnection, type Socket} from 'node:net';
 import {createInterface, type Interface} from 'node:readline';
 import type {Readable, Writable} from 'node:stream';
-import type {CacheKind, Replacement, Request, Response, RunType, Site} from './protocol.ts';
+import type {CacheKind, Metrics, Replacement, Request, Response, RunType, Site} from './protocol.ts';
 
 export interface ResolverClientOptions {
   // When set, the resolver is spawned with --inline-sources-stdin and the
@@ -94,6 +94,10 @@ class MessageTransport {
 export interface ScanFilesOptions {
   includeRunTypes?: boolean;
   includeCacheSources?: CacheKind[];
+  // Opts the result into the per-op `metrics` block (checker counters,
+  // per-phase wall times, Go memory deltas). Bench-harness use; the
+  // rewrite pipeline never sets it.
+  includeMetrics?: boolean;
 }
 
 // ScanFilesResult is the shape returned by scanFiles. Sites are flat —
@@ -142,6 +146,8 @@ export interface ScanFilesResult {
   addedFromBinary?: boolean;
   addedFormatTransform?: boolean;
   addedPureFns?: boolean;
+  // Present only when the request set includeMetrics.
+  metrics?: Metrics;
 }
 
 // DumpOptions opts the dump call into returning only a subset of
@@ -177,6 +183,7 @@ abstract class ResolverClientBase implements ResolverConnection {
     const req: Request = {op: 'scanFiles', files};
     if (opts.includeRunTypes) req.includeRunTypes = true;
     if (opts.includeCacheSources?.length) req.includeCacheSources = opts.includeCacheSources;
+    if (opts.includeMetrics) req.includeMetrics = true;
     const resp = await this.transport.request(req);
     if (resp.error) throw new Error(`scanFiles [${files.join(', ')}]: ${resp.error}`);
     return {
@@ -216,6 +223,7 @@ abstract class ResolverClientBase implements ResolverConnection {
       addedFromBinary: resp.addedFromBinary,
       addedFormatTransform: resp.addedFormatTransform,
       addedPureFns: resp.addedPureFns,
+      metrics: resp.metrics,
     };
   }
 
