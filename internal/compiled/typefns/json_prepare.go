@@ -211,7 +211,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		case protocol.SubKindDate:
 			return RTCode{Code: "", Type: CodeS}
 		case protocol.SubKindNone:
-			structural := emitObjectPrepareForJson(rt, ctx, v)
+			structural := emitObjectJsonChildren(rt, ctx)
 			return wrapPrepareWithClassSerializer(rt, ctx, v, structural)
 		case protocol.SubKindMap, protocol.SubKindSet:
 			return emitNativeIterablePrepareForJson(rt, ctx, v)
@@ -225,7 +225,7 @@ func (PrepareForJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Code
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindObjectLiteral:
-		return emitObjectPrepareForJson(rt, ctx, v)
+		return emitObjectJsonChildren(rt, ctx)
 
 	case protocol.KindProperty, protocol.KindPropertySignature:
 		return emitPropertyPrepareForJson(rt, ctx, v)
@@ -326,13 +326,15 @@ func emitLiteralPrepareForJson(rt *protocol.RunType, v string) RTCode {
 	return RTCode{Code: "", Type: CodeS}
 }
 
-// emitObjectPrepareForJson mirrors mion's
+// emitObjectJsonChildren mirrors mion's
 // nodes/collection/interface.ts:emitPrepareForJson — iterate non-skip
 // children, collect each child's emit, join with `;`. Children that
 // are method-shaped or static are dropped (mion's getRTChildren).
 // A child returning CodeNS propagates upward (unsupported descendant
-// short-circuits the whole entry).
-func emitObjectPrepareForJson(rt *protocol.RunType, ctx *EmitContext, v string) RTCode {
+// short-circuits the whole entry). Shared verbatim by the restore side
+// (mion's emitRestoreFromJson is the same walk — the per-property
+// encode/decode difference lives in the child emits).
+func emitObjectJsonChildren(rt *protocol.RunType, ctx *EmitContext) RTCode {
 	var parts []string
 	for _, child := range rt.Children {
 		resolved := ctx.ResolveRef(child)
