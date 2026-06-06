@@ -10,7 +10,7 @@ import (
 // FnHashLen is the fixed character length of every fnHash. The operation set is
 // finite and closed, so a short length is safe; mustBeCollisionFree proves it at
 // init. If a future operation collides, the build fails — bump this constant.
-const FnHashLen = 5
+const FnHashLen = 4
 
 // fnHashSalt namespaces operation hashes away from structural type-id hashes so
 // the two never share a value by accident, and folds in the binary Version the

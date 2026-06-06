@@ -203,7 +203,10 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 					injectionFnKey = fnKey
 				}
 			}
-		case marker.KindCompTimeArgs:
+		case marker.KindCompTimeArgs, marker.KindCompTimeFnArgs:
+			// Both validate the argument is fully literal (CTA0xx). CompTimeFnArgs
+			// additionally marks the fn-selecting slot; the scanner reads its value
+			// positionally in computeFnId for now (structured demand follows).
 			if paramIndex >= argsCount {
 				continue
 			}

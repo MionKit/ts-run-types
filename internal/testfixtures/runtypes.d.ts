@@ -18,6 +18,10 @@ declare module '@mionjs/ts-go-run-types' {
   // fully literal at the call site or via a module-scope const initializer.
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
 
+  // Compile-time fn-args brand — like CompTimeArgs, but marks the parameter
+  // whose literal value selects the createX function variant.
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+
   // Pure-function brand — the argument must be a literal arrow/function
   // expression AND must pass the purity rules (no closures, no this, no
   // await/yield, no forbidden globals).

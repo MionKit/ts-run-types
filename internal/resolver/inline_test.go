@@ -16,12 +16,13 @@ import (
 const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
-  export function createGetTypeErrors<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
+  export function createIsType<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
+  export function createGetTypeErrors<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
   export function createHasUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>): (v: unknown) => unknown;
   export function createStripUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>): (v: unknown) => unknown;
   export function createUnknownKeyErrors<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>): (v: unknown) => unknown;
@@ -31,8 +32,8 @@ const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (v: unknown) => unknown;
   export type JsonEncoderOptions = {strategy?: 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct'};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
-  export function createJsonDecoder<T>(val?: T, options?: CompTimeArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (s: string) => unknown;
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
+  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (s: string) => unknown;
 }
 `
 

@@ -47,6 +47,12 @@ const (
 	// transformer injects a `[typeId, fnId]` tuple and the backend emits only
 	// the demanded function family.
 	KindInjectTypeFnArgs
+	// KindCompTimeFnArgs brands the parameter whose literal value selects the
+	// createX function variant (the IsTypeOptions bag for isType/typeErrors, the
+	// JSON strategy for the encoder/decoder). Same literal-only validation as
+	// KindCompTimeArgs, but it ALSO tells the scanner which parameter to read
+	// when computing the injected fnHash.
+	KindCompTimeFnArgs
 )
 
 // DefaultName is the symbol name the resolver looks for for the
@@ -60,6 +66,10 @@ const DefaultInjectTypeFnArgsName = "InjectTypeFnArgs"
 
 // DefaultCompTimeArgsName is the symbol name for the CompTimeArgs brand.
 const DefaultCompTimeArgsName = "CompTimeArgs"
+
+// DefaultCompTimeFnArgsName is the symbol name for the CompTimeFnArgs brand —
+// the fn-selecting variant of CompTimeArgs used by the createX factories.
+const DefaultCompTimeFnArgsName = "CompTimeFnArgs"
 
 // DefaultPureFunctionName is the symbol name for the PureFunction brand.
 const DefaultPureFunctionName = "PureFunction"
@@ -93,6 +103,7 @@ type Spec struct {
 const (
 	BrandInjectRunTypeId  = "__mionInjectRunTypeIdBrand"
 	BrandCompTimeArgs     = "__mionCompTimeArgsBrand"
+	BrandCompTimeFnArgs   = "__mionCompTimeFnArgsBrand"
 	BrandPureFunction     = "__mionPureFunctionBrand"
 	BrandInjectTypeFnArgs = "__mionInjectTypeFnArgsBrand"
 )
@@ -103,6 +114,7 @@ func DefaultSpecs() []Spec {
 	return []Spec{
 		{Name: DefaultName, Module: DefaultModule, Kind: KindInjectRunTypeId, BrandProperty: BrandInjectRunTypeId},
 		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
+		{Name: DefaultCompTimeFnArgsName, Module: DefaultModule, Kind: KindCompTimeFnArgs, BrandProperty: BrandCompTimeFnArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
 		{Name: DefaultInjectTypeFnArgsName, Module: DefaultModule, Kind: KindInjectTypeFnArgs, BrandProperty: BrandInjectTypeFnArgs},
 	}
