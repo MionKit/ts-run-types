@@ -198,6 +198,19 @@ export type UnionOf<T extends readonly RunType[]> = T extends readonly [
   ? Static<Head> | UnionOf<Tail>
   : never;
 
+/** The intersection of the `Static` types of a RunType tuple, built recursively
+ *  (`Static<Head> & IntersectionOf<Tail>`), terminating at `unknown` — the identity
+ *  of `&` (`X & unknown = X`). The array-form `intersection` fallback brands this for
+ *  9+ members (the positional overloads can't carry a trailing injected id past a
+ *  rest). Same recursive-`infer` perf caveat as `UnionOf`, reached only past the
+ *  positional overloads. **/
+export type IntersectionOf<T extends readonly RunType[]> = T extends readonly [
+  infer Head extends RunType,
+  ...infer Tail extends readonly RunType[],
+]
+  ? Static<Head> & IntersectionOf<Tail>
+  : unknown;
+
 /** A template-literal part: a string-literal segment or a `RunType` placeholder. **/
 export type TemplatePart = string | RunType;
 
