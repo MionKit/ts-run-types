@@ -13,6 +13,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-run-types/internal/textpos"
 )
 
 // rtRenderOpts builds the RenderOpts the typefns module renderers expect
@@ -85,7 +86,7 @@ func (resolver *Resolver) buildProvenanceSites() map[string][]diag.Site {
 			out[site.ID] = append(out[site.ID], diag.Site{FilePath: site.File})
 			continue
 		}
-		line, col := scanLineCol(sourceFile, site.Pos)
+		line, col := textpos.LineCol(sourceFile, site.Pos)
 		out[site.ID] = append(out[site.ID], diag.Site{
 			FilePath:  site.File,
 			StartLine: line,
