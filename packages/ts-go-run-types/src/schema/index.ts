@@ -9,7 +9,8 @@
 // Leaf / atomic builders — scalars (`string` / `number` / `boolean` / `bigint`),
 // the atomic leaves (`literal` / `regexp` / `symbol`), the top / bottom kinds
 // (`any` / `unknown` / `never` / `void`; `voidType` aliased as `void` for a
-// natural `RT.void()`), and the class-instance builder.
+// natural `RT.void()`), the class-instance builder, and the enum builder
+// (`enumType` aliased as `enum` for a natural `RT.enum(MyEnum)`).
 export {
   string,
   number,
@@ -24,6 +25,8 @@ export {
   voidType,
   voidType as void,
   classType,
+  enumType,
+  enumType as enum,
 } from './atomic.ts';
 
 // Date / time leaf builders — the native JS `Date` builder and the namespaced

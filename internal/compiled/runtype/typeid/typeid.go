@@ -708,6 +708,17 @@ func literalString(tsType *checker.Type, typeChecker *checker.Checker) string {
 			return value
 		}
 	}
+	// A numeric / bigint ENUM member's TypeToString is the member NAME
+	// ("Color.Red"), not its value — read the underlying value so it shares the
+	// structural id of the equivalent plain literal (both validate the same
+	// number) and the value-first `RT.enum(MyEnum)` and `RT.enum({record})` forms
+	// converge. (String enum members already returned above; the serialize-side
+	// projector strips the name the same way — keep them in sync.)
+	if flags&checker.TypeFlagsEnumLiteral != 0 {
+		if value := tsType.AsLiteralType().Value(); value != nil {
+			return fmt.Sprintf("%v", value)
+		}
+	}
 	// Fall through: TypeToString gives a stable canonical form for
 	// number, bigint, and any other literal value.
 	return typeChecker.TypeToString(tsType)

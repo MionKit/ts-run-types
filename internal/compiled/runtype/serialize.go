@@ -486,7 +486,17 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 
 	case flags&checker.TypeFlagsNumberLiteral != 0:
 		node.Kind = protocol.KindLiteral
-		node.Literal = parseNumberLiteral(cache.typeChecker.TypeToString(tsType))
+		// A numeric ENUM member (`Color.Red = 0`) is a NumberLiteral whose
+		// TypeToString is the member NAME ("Color.Red"), not the value — so the
+		// emitted validator would check `=== "Color.Red"` and never match the
+		// runtime number. Read the underlying value instead (string members already
+		// take the `.Value()` path above; bigint enum members already read `.Value()`
+		// below). Plain number literals keep TypeToString, untouched.
+		if flags&checker.TypeFlagsEnumLiteral != 0 {
+			node.Literal = parseNumberLiteral(fmt.Sprintf("%v", tsType.AsLiteralType().Value()))
+		} else {
+			node.Literal = parseNumberLiteral(cache.typeChecker.TypeToString(tsType))
+		}
 
 	case flags&checker.TypeFlagsBooleanLiteral != 0:
 		node.Kind = protocol.KindLiteral

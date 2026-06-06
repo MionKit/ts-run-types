@@ -203,3 +203,26 @@ export function classType<Instance>(
 ): RunType<Instance> {
   return builderResult(id, {type: 'class', ctor});
 }
+
+/** An enum builder — accepts EITHER a TS `enum` (`enumType(Color)`) OR an
+ *  enum-like record (`enumType({Red: 0, Green: 'green', Blue: 2})`), and carries
+ *  the union of its VALUES (`E[keyof E]`). `Static<typeof enumType(Color)>` is then
+ *  assignment-equivalent to the enum — it accepts exactly the same values (proven:
+ *  `Color.Red` is assignable to both, and they cross-assign). `const E` preserves a
+ *  plain record's literal values (`{Red: 0}` → `0`, not `number`); a TS enum object
+ *  is already precise, and its numeric reverse-mapping doesn't leak into the value
+ *  union.
+ *
+ *  Because the carried type is the value-union, the Go scanner resolves it as a
+ *  UNION (kind union), NOT a TS `enum` (kind enum): the two validate identically,
+ *  but a value-first builder can't reconstruct the nominal enum's member-NAME
+ *  metadata (used for mocks / error messages), so the cache ids are distinct by
+ *  design — the enum id-integrity cases are flagged `idDivergent`. Exported as
+ *  `enum` from the `/schema` index for a natural `RT.enum(...)` (the function can't
+ *  be named `enum` — reserved word — same as `voidType`/`classType`). **/
+export function enumType<const E extends Record<string, string | number>>(
+  enumObject: E,
+  id?: InjectRunTypeId<E[keyof E]>
+): RunType<E[keyof E]> {
+  return builderResult(id, {type: 'enum', members: enumObject});
+}
