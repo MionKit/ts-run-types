@@ -91,6 +91,13 @@ type Cache struct {
 	typeChecker *checker.Checker
 	idComputer  *typeid.Computer
 
+	// foreignComputers memoizes one structural-id computer per non-bound
+	// checker handed to AssignIDUnder. Each pool checker materializes its
+	// own *checker.Type universe, so each needs its own pointer-keyed
+	// Computer memo. Like byPtr, the keys are checker-state pointers —
+	// Clear and Rebind drop the whole map.
+	foreignComputers map[*checker.Checker]*typeid.Computer
+
 	// inProgress tracks wire ids whose projectType call is currently on the
 	// stack. A back-edge to an in-progress id (reached via byPtr or
 	// byStructural) means that node appears inside its own subtree — i.e. it
@@ -155,6 +162,7 @@ func (cache *Cache) Clear() {
 	cache.fileTypeIDs = make(map[string]map[string]struct{})
 	cache.dict = hashid.New()
 	cache.literals = hashid.New()
+	cache.foreignComputers = nil
 	cache.inProgress = make(map[string]bool)
 	cache.circularIDs = make(map[string]bool)
 }
@@ -175,6 +183,9 @@ func (cache *Cache) Rebind(typeChecker *checker.Checker) {
 	} else {
 		cache.idComputer = nil
 	}
+	// Foreign computers hold pointers into the previous Program's checker
+	// state — dead after a swap, same rationale as byPtr below.
+	cache.foreignComputers = nil
 	cache.byPtr = make(map[*checker.Type]string)
 	// Per-file scope is tied to the previous Program's source files; a
 	// Program swap invalidates every key. Drop the map so the next
@@ -225,6 +236,48 @@ func (cache *Cache) Serialize(tsType *checker.Type) *protocol.RunType {
 // scanner — that only need an id, not a RunType sentinel.
 func (cache *Cache) AssignID(tsType *checker.Type) string {
 	return cache.assignID(tsType)
+}
+
+// AssignIDUnder projects tsType under the checker that materialized it and
+// returns its hash id. Pool checkers each own a private *checker.Type
+// universe — types from different checkers must never mix (upstream
+// contract on Program.GetTypeCheckerForFile) — so a type resolved by a
+// non-bound checker has to be walked with THAT checker. The structural-id
+// layer is checker-independent (typeid sorts members / union ids), so
+// equivalent types projected under different checkers still dedup to one
+// wire id via byStructural; byPtr keys can't collide across checkers
+// (distinct allocations).
+//
+// Implementation: temporarily swaps the cache's bound checker + id
+// computer for the duration of the (recursive) projection. Serial-only —
+// the cache stays unsafe for concurrent use; the parallel scan calls this
+// from its single-goroutine commit phase.
+func (cache *Cache) AssignIDUnder(typeChecker *checker.Checker, tsType *checker.Type) string {
+	if typeChecker == nil || typeChecker == cache.typeChecker {
+		return cache.assignID(tsType)
+	}
+	previousChecker, previousComputer := cache.typeChecker, cache.idComputer
+	cache.typeChecker = typeChecker
+	cache.idComputer = cache.computerFor(typeChecker)
+	defer func() {
+		cache.typeChecker = previousChecker
+		cache.idComputer = previousComputer
+	}()
+	return cache.assignID(tsType)
+}
+
+// computerFor returns the memoized structural-id computer for a non-bound
+// checker, creating it on first use.
+func (cache *Cache) computerFor(typeChecker *checker.Checker) *typeid.Computer {
+	if cache.foreignComputers == nil {
+		cache.foreignComputers = map[*checker.Checker]*typeid.Computer{}
+	}
+	computer, ok := cache.foreignComputers[typeChecker]
+	if !ok {
+		computer = typeid.New(typeChecker)
+		cache.foreignComputers[typeChecker] = computer
+	}
+	return computer
 }
 
 // SerializeAtomicKind registers (or reuses) a synthetic canonical
