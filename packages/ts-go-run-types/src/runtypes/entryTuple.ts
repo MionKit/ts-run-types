@@ -3,20 +3,24 @@
 // ⚠️  SYNC BOUNDARY — MUST STAY ALIGNED WITH THE GO EMITTER
 // ----------------------------------------------------------------------------
 // The Go binary emits one ES module per cache entry (`virtual:rt/<key>.js`),
-// exporting a positional tuple under the fixed export `e`:
+// exporting a positional tuple under the fixed export `e`. Tuples are typed
+// here as RECORD interfaces (`RunTypeRecord` / `FnTypeRecord` / `PureFnRecord`)
+// whose payload fields are Pick'd from the canonical cache-entry types in
+// `types.ts` (`RunType`, `CompiledTypeFn`, `CompiledPureFunction`), so the
+// wire shapes can never drift from the registry shapes. The positional tuple
+// types are DERIVED from the records through the `*_TUPLE_KEYS` arrays — the
+// single source of slot order, mirrored by the emitters in
+// internal/compiled/{entrymod,runtype,typefns,purefns}. Any layout change MUST
+// touch the matching keys array here and the Go emitter together.
 //
-//   [ kindOrFamilyTag, depsThunk, iniOrUndefined, ...legacyPositionalArgs ]
-//
-// Slot 0 discriminates the layout: the numeric kinds below, or the QUOTED
-// family tag string ('val', 'pj', 'jeCL', …) for type-fn entries. Slot 1 is a
-// lazy thunk returning the entry's full transitive dep closure (leaves-first,
-// self included). Slot 2 is the runtype footer initializer (or undefined).
-// Slot 3 is always the cache key; the remaining args mirror the pre-migration
-// `rt(…)` / `init(…)` / `factory(…)` call interiors byte-for-byte. Any change
-// to these layouts MUST be matched in internal/compiled/entrymod (tuple head)
-// and internal/compiled/{runtype,typefns,purefns} (args). The familyMeta table
-// below mirrors what each per-family cache-skeleton `init()` hardcoded before
-// the migration (fnID / args / defaultParamValues / noop identity).
+// Every tuple shares the same fixed head: slot 0 discriminates the layout
+// (the numeric kinds below, or the QUOTED family tag string for type-fn
+// entries), slot 1 is a lazy thunk returning the entry's full transitive dep
+// closure (leaves-first, self included), slot 2 is the runtype footer
+// initializer (or undefined), slot 3 is always the cache key. The remaining
+// slots mirror the pre-migration `rt(…)` / `init(…)` / `factory(…)` call
+// interiors byte-for-byte; the Go side trims trailing-undefined slots, which
+// the derived tuple types model as optional tails.
 //
 // `initFromTuple` registers a tuple's whole closure in two phases: register
 // every deps() tuple not yet present (children first — deps() is
@@ -27,13 +31,7 @@
 
 import {getRTUtils} from './rtUtils.ts';
 import type {RTUtils} from './rtUtils.ts';
-import type {AnyFn, CompiledFnArgs, CompiledPureFunction, CompiledTypeFn, Mutable, RunType} from './types.ts';
-
-// Slot indexes of the fixed tuple head (Go: internal/compiled/entrymod).
-const SLOT_KIND = 0;
-const SLOT_DEPS = 1;
-const SLOT_INI = 2;
-const SLOT_KEY = 3;
+import type {AnyFn, CompiledFnArgs, CompiledFnData, CompiledPureFunction, CompiledTypeFn, RunType} from './types.ts';
 
 // Numeric slot-0 kinds (Go: constants.TupleKind*). Type-fn entries carry their
 // family tag string instead.
@@ -46,20 +44,227 @@ const KIND_MISSING = 3;
  *  type id at a createX call site. **/
 export const FN_HASH_LEN = 4;
 
-/** One emitted entry-module tuple. Positionally typed loosely — the layouts
- *  are discriminated at runtime on slot 0 and validated by the paired Go/JS
- *  test suites, not by the type system. **/
-export type EntryTuple = readonly unknown[] & {
-  readonly __mionEntryTupleBrand?: never;
-};
+/** Lazy dependency thunk — slot 1 of every tuple. Returns the entry's full
+ *  transitive closure INCLUDING itself; lazy so module-level import cycles
+ *  and the self-reference never hit TDZ. **/
+export type EntryDepsThunk = () => readonly EntryTuple[];
+
+/** Runtype footer initializer — slot 2 of runtype tuples. Patches the
+ *  entry's ref slots through the registry once the whole closure is
+ *  registered. **/
+export type RunTypeIni = (rtu: RTUtils) => void;
+
+// =============================================================================
+// Entry records — named views of each tuple layout.
+// =============================================================================
+
+// The scalar identification fields a runtype tuple carries, in WIRE ORDER.
+// Pick'd from the canonical RunType so the record reuses its field types; the
+// ref-bearing slots (child / children / …) are NOT here — they start undefined
+// on the registered entry and are patched by the tuple's ini.
+const RUN_TYPE_FIELD_KEYS = [
+  'id',
+  'kind',
+  'subKind',
+  'typeName',
+  'name',
+  'literal',
+  'optional',
+  'readonly',
+  'isAbstract',
+  'isStatic',
+  'visibility',
+  'isSafeName',
+  'position',
+  'isCircular',
+  'flags',
+  'description',
+  'defaultVal',
+  'enumVal',
+  'values',
+  'notSupported',
+] as const;
+
+/** Named view of a runtype entry tuple: the shared head plus RunType's scalar
+ *  identification fields (same names, same types — see RUN_TYPE_FIELD_KEYS). **/
+export interface RunTypeRecord extends Pick<RunType, (typeof RUN_TYPE_FIELD_KEYS)[number]> {
+  entryKind: typeof KIND_RUN_TYPE;
+  deps: EntryDepsThunk;
+  ini: RunTypeIni | undefined;
+}
+
+/** Named view of a type-fn entry tuple: the shared head (slot 0 is the family
+ *  tag string) plus the CompiledTypeFn fields the wire carries. `code` is
+ *  widened to `| undefined` — noop and alwaysThrow rows ship without one (the
+ *  register path resolves the family identity / throwing factory instead). **/
+export interface FnTypeRecord extends Pick<
+  CompiledTypeFn,
+  | 'rtFnHash'
+  | 'typeName'
+  | 'isNoop'
+  | 'rtDependencies'
+  | 'pureFnDependencies'
+  | 'createRTFn'
+  | 'alwaysThrowCode'
+  | 'alwaysThrowSite'
+> {
+  familyTag: string;
+  deps: EntryDepsThunk;
+  ini: undefined;
+  code: CompiledFnData['code'] | undefined;
+}
+
+/** Named view of a pure-fn entry tuple: the shared head plus the
+ *  CompiledPureFunction fields the wire carries. `key` is the composite
+ *  `<ns>::<fn>` cache key (split into namespace/fnName at register time). **/
+export interface PureFnRecord extends Pick<
+  CompiledPureFunction,
+  'bodyHash' | 'paramNames' | 'code' | 'pureFnDependencies' | 'createPureFn'
+> {
+  entryKind: typeof KIND_PURE_FN;
+  deps: EntryDepsThunk;
+  ini: undefined;
+  key: string;
+}
+
+/** Named view of a KindMissing stub — emitted for demanded entries the build
+ *  dropped (unsupported kinds / dangling deps); registers nothing, consumers
+ *  degrade to their family identity fallback. **/
+export interface MissingRecord {
+  entryKind: typeof KIND_MISSING;
+  deps: undefined;
+  ini: undefined;
+  key: string;
+}
+
+// =============================================================================
+// Tuple types — derived from the records via the ordered key arrays.
+// =============================================================================
+
+// TupleFrom maps an ordered key list onto its record's field types, producing
+// the positional tuple type. The SAME arrays drive the runtime tuple→record
+// conversion (tupleToRecord), so slot order has exactly one source of truth.
+type TupleFrom<R, K extends readonly (keyof R)[]> = {[I in keyof K]: R[K[I]]};
+
+const ENTRY_HEAD_KEYS = ['entryKind', 'deps', 'ini'] as const;
+
+// Go's emitters trim trailing-undefined slots: runtype tuples always carry at
+// least (id, kind); fn tuples at least the noop short form (…, code, isNoop);
+// pure-fn and missing tuples are never trimmed. The REQUIRED/TRIMMED splits
+// below mirror that, so the derived tuple types accept the short forms.
+type RunTypeRequiredKeys = readonly [...typeof ENTRY_HEAD_KEYS, 'id', 'kind'];
+type RunTypeTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
+
+export const RUN_TYPE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, ...RUN_TYPE_FIELD_KEYS] as const;
+
+const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code', 'isNoop'] as const;
+const FN_TYPE_TRIMMED_KEYS = [
+  'rtDependencies',
+  'pureFnDependencies',
+  'createRTFn',
+  'alwaysThrowCode',
+  'alwaysThrowSite',
+] as const;
+export const FN_TYPE_TUPLE_KEYS = [...FN_TYPE_REQUIRED_KEYS, ...FN_TYPE_TRIMMED_KEYS] as const;
+
+export const PURE_FN_TUPLE_KEYS = [
+  ...ENTRY_HEAD_KEYS,
+  'key',
+  'bodyHash',
+  'paramNames',
+  'code',
+  'pureFnDependencies',
+  'createPureFn',
+] as const;
+
+const MISSING_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
+
+/** Positional tuple of a runtype entry module — derived from RunTypeRecord. **/
+export type RunTypeTuple = readonly [
+  ...TupleFrom<RunTypeRecord, RunTypeRequiredKeys>,
+  ...Partial<TupleFrom<RunTypeRecord, RunTypeTrimmedKeys>>,
+];
+
+/** Positional tuple of a type-fn entry module — derived from FnTypeRecord. **/
+export type FnTypeTuple = readonly [
+  ...TupleFrom<FnTypeRecord, typeof FN_TYPE_REQUIRED_KEYS>,
+  ...Partial<TupleFrom<FnTypeRecord, typeof FN_TYPE_TRIMMED_KEYS>>,
+];
+
+/** Positional tuple of a pure-fn entry module — derived from PureFnRecord. **/
+export type PureFnTuple = readonly [...TupleFrom<PureFnRecord, typeof PURE_FN_TUPLE_KEYS>];
+
+/** Positional tuple of a KindMissing stub module — derived from MissingRecord. **/
+export type MissingTuple = readonly [...TupleFrom<MissingRecord, typeof MISSING_TUPLE_KEYS>];
+
+/** One emitted entry-module tuple — the union every consumer handles. **/
+export type EntryTuple = RunTypeTuple | FnTypeTuple | PureFnTuple | MissingTuple;
+
+// Fixed-head slot indexes, pinned at compile time against every keys array so
+// a layout edit that moves a head slot fails the build here, not at runtime.
+const SLOT_KIND = 0;
+const SLOT_DEPS = 1;
+const SLOT_KEY = 3;
+const _pinRunTypeHead: ['entryKind', 'deps', 'ini', 'id'] = [
+  RUN_TYPE_TUPLE_KEYS[SLOT_KIND],
+  RUN_TYPE_TUPLE_KEYS[SLOT_DEPS],
+  RUN_TYPE_TUPLE_KEYS[2],
+  RUN_TYPE_TUPLE_KEYS[SLOT_KEY],
+];
+const _pinFnTypeHead: ['familyTag', 'deps', 'ini', 'rtFnHash'] = [
+  FN_TYPE_TUPLE_KEYS[SLOT_KIND],
+  FN_TYPE_TUPLE_KEYS[SLOT_DEPS],
+  FN_TYPE_TUPLE_KEYS[2],
+  FN_TYPE_TUPLE_KEYS[SLOT_KEY],
+];
+const _pinPureFnHead: ['entryKind', 'deps', 'ini', 'key'] = [
+  PURE_FN_TUPLE_KEYS[SLOT_KIND],
+  PURE_FN_TUPLE_KEYS[SLOT_DEPS],
+  PURE_FN_TUPLE_KEYS[2],
+  PURE_FN_TUPLE_KEYS[SLOT_KEY],
+];
+const _pinMissingHead: ['entryKind', 'deps', 'ini', 'key'] = [
+  MISSING_TUPLE_KEYS[SLOT_KIND],
+  MISSING_TUPLE_KEYS[SLOT_DEPS],
+  MISSING_TUPLE_KEYS[2],
+  MISSING_TUPLE_KEYS[SLOT_KEY],
+];
+void _pinRunTypeHead;
+void _pinFnTypeHead;
+void _pinPureFnHead;
+void _pinMissingHead;
+
+// tupleToRecord zips an ordered keys array over a tuple's slots — the runtime
+// counterpart of TupleFrom. Trimmed (absent) slots land as explicit undefined
+// values, matching what the pre-migration skeleton consumers received.
+function tupleToRecord<R extends object>(keys: readonly (keyof R)[], tuple: readonly unknown[]): R {
+  const record = {} as Record<keyof R, unknown>;
+  for (let index = 0; index < keys.length; index++) {
+    record[keys[index]] = tuple[index];
+  }
+  return record as R;
+}
+
+// pickRecord projects a subset of a record's fields — used to strip the tuple
+// head off a RunTypeRecord, leaving exactly RunType's identification fields.
+function pickRecord<R extends object, K extends readonly (keyof R)[]>(record: R, keys: K): Pick<R, K[number]> {
+  const out = {} as Record<keyof R, unknown>;
+  for (const key of keys) {
+    out[key] = record[key];
+  }
+  return out as Pick<R, K[number]>;
+}
 
 /** Runtime guard for an injected entry tuple (vs a value-first schema, a
- *  legacy string id, or undefined). **/
+ *  legacy string id, or undefined). Missing stubs carry no deps thunk and are
+ *  guarded separately via isMissingTuple. **/
 export function isEntryTuple(value: unknown): value is EntryTuple {
+  if (isMissingTuple(value)) return true;
   return Array.isArray(value) && typeof value[SLOT_DEPS] === 'function' && value.length > SLOT_KEY;
 }
 
-/** The cache key an entry tuple registers under (slot 3). **/
+/** The cache key an entry tuple registers under (slot 3 — `id` for runtype
+ *  tuples, `rtFnHash` for fn tuples, `key` for pure-fn / missing tuples). **/
 export function entryTupleKey(tuple: EntryTuple): string {
   return tuple[SLOT_KEY] as string;
 }
@@ -160,7 +365,7 @@ export function initFromTuple(root: EntryTuple): void {
   processedRoots.add(rootKey);
 
   const utils = getRTUtils();
-  const deps = (root[SLOT_DEPS] as () => readonly unknown[])();
+  const deps = (root[SLOT_DEPS] as EntryDepsThunk)();
   const fresh: EntryTuple[] = [];
   for (const dep of deps) {
     if (!isEntryTuple(dep) || isMissingTuple(dep)) continue;
@@ -169,7 +374,7 @@ export function initFromTuple(root: EntryTuple): void {
   // Phase 2: footer initializers — every referenced entry now exists, so the
   // `c(id)` registry lookups inside each ini body resolve, including cycles.
   for (const tuple of fresh) {
-    const ini = tuple[SLOT_INI] as ((rtu: RTUtils) => void) | undefined;
+    const ini = tuple[2] as RunTypeIni | undefined;
     if (typeof ini === 'function') ini(utils);
   }
 }
@@ -178,42 +383,22 @@ export function initFromTuple(root: EntryTuple): void {
  *  the entry was newly added (drives the phase-2 ini pass). **/
 function registerTuple(utils: RTUtils, tuple: EntryTuple): boolean {
   const slot0 = tuple[SLOT_KIND];
-  if (typeof slot0 === 'string') return registerTypeFnTuple(utils, slot0, tuple);
-  if (slot0 === KIND_RUN_TYPE) return registerRunTypeTuple(utils, tuple);
-  if (slot0 === KIND_PURE_FN) return registerPureFnTuple(utils, tuple);
+  if (typeof slot0 === 'string') return registerTypeFnTuple(utils, tuple as FnTypeTuple);
+  if (slot0 === KIND_RUN_TYPE) return registerRunTypeTuple(utils, tuple as RunTypeTuple);
+  if (slot0 === KIND_PURE_FN) return registerPureFnTuple(utils, tuple as PureFnTuple);
   return false; // KIND_MISSING or unknown future kind — nothing to register.
 }
 
-// registerRunTypeTuple builds the 20-slot RunType record the runTypesCache
-// skeleton's `rt(…)` factory used to construct: every ref slot pre-set to
-// undefined, patched later by the tuple's ini. `addRunType` overwrites by id,
-// but re-registration is skipped so footer-patched entries are never reset
-// while in use.
-function registerRunTypeTuple(utils: RTUtils, tuple: EntryTuple): boolean {
-  const id = tuple[SLOT_KEY] as string;
-  if (utils.hasRunType(id)) return false;
-  const arg = (offset: number) => tuple[SLOT_KEY + offset];
-  const entry = {
-    id,
-    kind: arg(1),
-    subKind: arg(2),
-    typeName: arg(3),
-    name: arg(4),
-    literal: arg(5),
-    optional: arg(6),
-    readonly: arg(7),
-    isAbstract: arg(8),
-    isStatic: arg(9),
-    visibility: arg(10),
-    isSafeName: arg(11),
-    position: arg(12),
-    isCircular: arg(13),
-    flags: arg(14),
-    description: arg(15),
-    defaultVal: arg(16),
-    enumVal: arg(17),
-    values: arg(18),
-    notSupported: arg(19),
+// registerRunTypeTuple builds the RunType the runTypesCache skeleton's `rt(…)`
+// factory used to construct: the record's identification fields plus every
+// ref slot pre-set to undefined, patched later by the tuple's ini.
+// `addRunType` overwrites by id, but re-registration is skipped so
+// footer-patched entries are never reset while in use.
+function registerRunTypeTuple(utils: RTUtils, tuple: RunTypeTuple): boolean {
+  const record = tupleToRecord<RunTypeRecord>(RUN_TYPE_TUPLE_KEYS, tuple);
+  if (utils.hasRunType(record.id)) return false;
+  const entry: RunType = {
+    ...pickRecord(record, RUN_TYPE_FIELD_KEYS),
     child: undefined,
     index: undefined,
     return: undefined,
@@ -229,66 +414,61 @@ function registerRunTypeTuple(utils: RTUtils, tuple: EntryTuple): boolean {
     implements: undefined,
     extends: undefined,
     classType: undefined,
-  } as unknown as RunType;
-  utils.addRunType(id, entry);
+  };
+  utils.addRunType(record.id, entry);
   return true;
 }
 
-// registerTypeFnTuple builds the CompiledTypeFn record the per-family cache
-// skeletons' `init(…)` consumers used to construct. Args (slot 3 onward):
-// rtFnHash, typeName, code, isNoop, rtDependencies, pureFnDependencies,
-// createRTFn, alwaysThrowCode, alwaysThrowSite — trailing args may be absent
-// (the Go side trims nothing here, but noop short-form stops after isNoop).
-function registerTypeFnTuple(utils: RTUtils, familyTag: string, tuple: EntryTuple): boolean {
-  const rtFnHash = tuple[SLOT_KEY] as string;
-  if (utils.hasRTFn(rtFnHash)) return false;
-  const meta = familyMeta[familyTag];
+// registerTypeFnTuple builds the CompiledTypeFn the per-family cache
+// skeletons' `init(…)` consumers used to construct: the record's wire fields
+// plus the family metadata (fnID / args / defaultParamValues / noop identity)
+// keyed by the tuple's family tag.
+function registerTypeFnTuple(utils: RTUtils, tuple: FnTypeTuple): boolean {
+  const record = tupleToRecord<FnTypeRecord>(FN_TYPE_TUPLE_KEYS, tuple);
+  if (utils.hasRTFn(record.rtFnHash)) return false;
+  const meta = familyMeta[record.familyTag];
   if (!meta) return false; // unknown future family — leave to the identity fallback
-  const arg = (offset: number) => tuple[SLOT_KEY + offset];
-  const isNoop = arg(3) === true;
-  const alwaysThrowCode = arg(7) as string | undefined;
-  const createRTFn = arg(6) as CompiledTypeFn['createRTFn'];
-  const entry: Mutable<CompiledTypeFn> = {
-    rtFnHash,
+  const isNoop = record.isNoop === true;
+  const entry: CompiledTypeFn = {
+    rtFnHash: record.rtFnHash,
     fnID: meta.fnID,
-    typeName: arg(1) as string,
+    typeName: record.typeName,
     args: meta.args(),
     defaultParamValues: meta.defaultParamValues(),
-    code: arg(2) as string,
+    code: record.code as string,
     isNoop,
-    rtDependencies: arg(4) as string[] | undefined,
-    pureFnDependencies: arg(5) as string[] | undefined,
+    rtDependencies: record.rtDependencies,
+    pureFnDependencies: record.pureFnDependencies,
     createRTFn:
-      alwaysThrowCode !== undefined
-        ? (utils.alwaysThrowFactory(alwaysThrowCode, arg(8) as string | undefined) as CompiledTypeFn['createRTFn'])
-        : createRTFn,
+      record.alwaysThrowCode !== undefined
+        ? (utils.alwaysThrowFactory(record.alwaysThrowCode, record.alwaysThrowSite) as CompiledTypeFn['createRTFn'])
+        : record.createRTFn,
     fn: isNoop ? (meta.noop as CompiledTypeFn['fn']) : undefined,
-    alwaysThrowCode,
-    alwaysThrowSite: arg(8) as string | undefined,
+    alwaysThrowCode: record.alwaysThrowCode,
+    alwaysThrowSite: record.alwaysThrowSite,
   };
-  utils.addToRTCache(entry as CompiledTypeFn);
+  utils.addToRTCache(entry);
   return true;
 }
 
-// registerPureFnTuple builds the CompiledPureFunction record the pureFnsCache
-// skeleton's `factory(…)` consumer used to construct. Args (slot 3 onward):
-// key, bodyHash, paramNames, code, pureFnDependencies, createPureFn.
-function registerPureFnTuple(utils: RTUtils, tuple: EntryTuple): boolean {
-  const key = tuple[SLOT_KEY] as string;
-  if (utils.hasPureFn(key)) return false;
-  const arg = (offset: number) => tuple[SLOT_KEY + offset];
-  const separator = key.indexOf('::');
+// registerPureFnTuple builds the CompiledPureFunction the pureFnsCache
+// skeleton's `factory(…)` consumer used to construct, splitting the composite
+// `<ns>::<fn>` key into its namespace/fnName halves.
+function registerPureFnTuple(utils: RTUtils, tuple: PureFnTuple): boolean {
+  const record = tupleToRecord<PureFnRecord>(PURE_FN_TUPLE_KEYS, tuple);
+  if (utils.hasPureFn(record.key)) return false;
+  const separator = record.key.indexOf('::');
   const entry: CompiledPureFunction = {
-    namespace: separator >= 0 ? key.slice(0, separator) : '',
-    fnName: separator >= 0 ? key.slice(separator + 2) : key,
-    bodyHash: arg(1) as string,
-    paramNames: arg(2) as string[],
-    code: arg(3) as string,
-    pureFnDependencies: arg(4) as string[],
-    createPureFn: arg(5) as CompiledPureFunction['createPureFn'],
+    namespace: separator >= 0 ? record.key.slice(0, separator) : '',
+    fnName: separator >= 0 ? record.key.slice(separator + 2) : record.key,
+    bodyHash: record.bodyHash,
+    paramNames: record.paramNames,
+    code: record.code,
+    pureFnDependencies: record.pureFnDependencies,
+    createPureFn: record.createPureFn,
     fn: undefined,
   };
-  utils.addPureFn(key, entry);
+  utils.addPureFn(record.key, entry);
   return true;
 }
 
