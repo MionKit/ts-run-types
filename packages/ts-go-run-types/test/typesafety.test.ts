@@ -28,6 +28,7 @@ test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsValueFirstDefine).toBe('function');
   expect(typeof assertionsComposers).toBe('function');
   expect(typeof assertionsNewBuilders).toBe('function');
+  expect(typeof assertionsComposerExactInference).toBe('function');
 });
 
 // Runtime contract: the markers throw at runtime when no id is injected
@@ -359,4 +360,50 @@ function assertionsNewBuilders(): void {
     RT.number(),
   ]);
   void _tplUni;
+}
+
+// Exact (invariant) type equality — `(<T>() => T extends A ? 1 : 2)` paired both
+// ways is the standard trick: it holds ONLY when A and B are mutually identical,
+// not merely assignable.
+type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+function assertExact<A, B>(_ok: Exact<A, B>): void {
+  void _ok;
+}
+
+function assertionsComposerExactInference(): void {
+  // EXACT-type guards for the CompTimeArgs-branded composers. The positive
+  // ASSIGNMENT checks in assertionsComposers/assertionsNewBuilders are necessary
+  // but NOT sufficient for the variadic builders: function-parameter
+  // contravariance lets a WIDENED `(...args: (string | number)[]) => R` pass as
+  // `(a: string, b: number) => R`, and a widened tuple can slip through some
+  // positions too. These pin the exact carried type, so a regression in the
+  // `const T` / `const P` capture or in `MapTuple`'s `-readonly` — the
+  // combination that keeps precise per-slot inference once the param is wrapped
+  // in the `CompTimeArgs` brand intersection — fails HERE loudly instead of
+  // silently degrading the structural id the scanner reads off the brand.
+  const _tup = RT.tuple([RT.boolean(), RT.number()]);
+  assertExact<TypeFromRT<typeof _tup>, [boolean, number]>(true);
+
+  const _tupOpt = RT.tuple([RT.number()], [RT.boolean()]);
+  assertExact<TypeFromRT<typeof _tupOpt>, [number, boolean?]>(true);
+
+  const _tupRest = RT.tuple([RT.number()], RT.string());
+  assertExact<TypeFromRT<typeof _tupRest>, [number, ...string[]]>(true);
+
+  // func array-overload: the contravariance trap lives here — only an exact
+  // check catches a widened param tuple.
+  const _fn = RT.func([RT.string(), RT.number()], RT.boolean());
+  assertExact<TypeFromRT<typeof _fn>, (a: string, b: number) => boolean>(true);
+
+  const _fn0 = RT.func();
+  assertExact<TypeFromRT<typeof _fn0>, () => void>(true);
+
+  // union keeps its spread `[...T]` (the `[number]` index flattens, so the brand
+  // can't widen the member union) — pinned exact to lock that in.
+  const _uni = RT.union([RT.boolean(), RT.literal('x')]);
+  assertExact<TypeFromRT<typeof _uni>, boolean | 'x'>(true);
+
+  // array: the simple-generic shape stays exact under the brand.
+  const _arr = RT.array(RT.boolean());
+  assertExact<TypeFromRT<typeof _arr>, boolean[]>(true);
 }
