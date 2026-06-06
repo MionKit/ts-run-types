@@ -11,7 +11,7 @@
 
 import type {ValidationCase} from './types.ts';
 import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
-import * as RT from '@mionjs/ts-go-run-types/define';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
 const T = (globalThis as {Temporal: typeof Temporal}).Temporal;
