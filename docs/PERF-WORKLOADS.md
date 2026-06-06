@@ -1,11 +1,11 @@
 # Go-side Performance Workloads — Analysis (Step 1)
 
-> Status: baseline analysis of commit `pre-optimization` on branch `claude/relaxed-noether-drk9rc`.
-> Scope: everything the Go binary does per protocol operation — job categories, execution order,
-> complexity, every full-tree loop, existing memoization, and the ranked optimization candidates
-> that Step 3 consumes. Profile shares come from the benchmark/profiling system added in Step 2.
-> A post-optimization companion ([PERF-OPTIMIZATIONS.md](PERF-OPTIMIZATIONS.md)) records what was
-> changed and the measured effect.
+> Status: baseline analysis as of commit `9b395b0` (pre-optimization) on branch
+> `claude/relaxed-noether-drk9rc`. The Step-3 optimization pass has since LANDED — sections
+> §2–§3 describe the baseline shape, with several hotspots now fixed; see
+> [PERF-OPTIMIZATIONS.md](PERF-OPTIMIZATIONS.md) for every applied change, the post-change
+> workload deltas, and the cumulative numbers (go-bench geomean -26.6% time / -10% B/op /
+> -15% allocs; macro suite dispatches -6…-24%).
 
 Cardinality symbols used throughout:
 
