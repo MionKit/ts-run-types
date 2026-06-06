@@ -58,14 +58,23 @@ func TestTemporal_EmitIsType(t *testing.T) {
 }
 
 func TestTemporal_EmitRestoreFromJson(t *testing.T) {
-	resp := emitSourcesFor(t, "PlainDate", protocol.CacheKindRestoreFromJson)
+	// rj is demand-driven now: createJsonDecoder (default strip → [rj, ukuw]) seeds it.
+	resp := emitSourcesForFn(t, "createJsonDecoder", "PlainDate", protocol.CacheKindRestoreFromJson)
 	if !strings.Contains(resp.RestoreFromJsonCacheSource, "Temporal.PlainDate.from(") {
 		t.Fatalf("restoreFromJson missing Temporal.PlainDate.from:\n%s", resp.RestoreFromJsonCacheSource)
 	}
 }
 
 func TestTemporal_EmitStringifyJson(t *testing.T) {
-	resp := emitSourcesFor(t, "Instant", protocol.CacheKindStringifyJson)
+	// sj is demand-driven now: only createJsonEncoder(direct) → [sj] seeds it.
+	code := `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<Temporal.Instant>(undefined, {strategy: 'direct'});
+`
+	r := setupInline(t, map[string]string{"a.ts": code})
+	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeCacheSources: []protocol.CacheKind{protocol.CacheKindStringifyJson}})
+	if resp.Error != "" {
+		t.Fatalf("scan Instant: %s", resp.Error)
+	}
 	if !strings.Contains(resp.StringifyJsonCacheSource, ".toJSON()") {
 		t.Fatalf("stringifyJson missing toJSON():\n%s", resp.StringifyJsonCacheSource)
 	}
