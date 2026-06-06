@@ -30,6 +30,13 @@ export interface ResolverClientOptions {
   // false (default) the entry carries only the body `code` string and
   // the JS side reconstructs the factory via `new Function`.
   emitCacheFunctions?: boolean;
+  // Parallelism opt-outs. The Go binary runs its parallel marker scan
+  // and parallel cache renders by default; an explicit `false` forwards
+  // --no-parallel-scan / --no-parallel-render to force the serial paths
+  // (benchmark baselines, debugging). Undefined or true leave the
+  // defaults on.
+  parallelScan?: boolean;
+  parallelRender?: boolean;
 }
 
 // Common JSON-per-line request/response framing. Owns the in-flight request
@@ -289,6 +296,8 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.serverMode) args.push('--inline-server');
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir);
     if (opts.emitCacheFunctions) args.push('--emit-create-rt-fn');
+    if (opts.parallelScan === false) args.push('--no-parallel-scan');
+    if (opts.parallelRender === false) args.push('--no-parallel-render');
     this.child = spawn(binary, args, {stdio: ['pipe', 'pipe', 'inherit']});
     if (!this.child.stdin || !this.child.stdout) {
       throw new Error('failed to spawn ts-go-run-types (no stdio pipes)');

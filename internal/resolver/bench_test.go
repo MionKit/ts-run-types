@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mionkit/ts-run-types/internal/program"
 	"github.com/mionkit/ts-run-types/internal/protocol"
+	"github.com/mionkit/ts-run-types/internal/resolver"
 )
 
 // Micro-benchmarks for the resolver pipeline. Inner-loop companions to the
@@ -207,6 +209,117 @@ func BenchmarkScanWithCaches(b *testing.B) {
 				r.Cache().Clear()
 				if resp := r.Dispatch(benchScanRequest(files, kinds)); resp.Error != "" {
 					b.Fatalf("scan: %s", resp.Error)
+				}
+			}
+		})
+	}
+}
+
+// benchMultiFileSources builds n files from the object template with
+// per-file-unique type names, so structural dedup cannot collapse the
+// cross-file checker work the parallel scan distributes across the pool.
+func benchMultiFileSources(n int) (map[string]string, []string) {
+	sources := make(map[string]string, n)
+	files := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("f%02d.ts", i)
+		var sb strings.Builder
+		sb.WriteString("import {createValidate, createGetValidationErrors, createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';\n")
+		fmt.Fprintf(&sb, "interface Address%d {street: string; city: string; zip?: string}\n", i)
+		fmt.Fprintf(&sb, "interface User%d {\n", i)
+		fmt.Fprintf(&sb, "  id: number;\n  name: string;\n  email: string;\n  active: boolean;\n")
+		fmt.Fprintf(&sb, "  tags: string[];\n  address: Address%d;\n  friends: User%d[];\n", i, i)
+		fmt.Fprintf(&sb, "  createdAt: Date;\n  meta: {[key: string]: string};\n  choice: 'a%d' | 'b%d' | number;\n}\n", i, i)
+		fmt.Fprintf(&sb, "export const v%d = createValidate<User%d>();\n", i, i)
+		fmt.Fprintf(&sb, "export const e%d = createGetValidationErrors<User%d>();\n", i, i)
+		fmt.Fprintf(&sb, "export const enc%d = createJsonEncoder<User%d>();\n", i, i)
+		fmt.Fprintf(&sb, "export const dec%d = createJsonDecoder<User%d>();\n", i, i)
+		sources[name] = sb.String()
+		files = append(files, name)
+	}
+	return sources, files
+}
+
+// BenchmarkScanMultiFile measures one multi-file scanFiles dispatch (no
+// cache sources — the rewrite-pipeline shape) in three configurations:
+// serialST (single-threaded program — the historical bench baseline),
+// serialMT (4-checker pool, parallel disabled — isolates pool/program
+// cost), and parallelMT (4-checker pool, parallel scan on — the shipped
+// default). Cold resolver cache per iteration, warm checkers, mirroring
+// BenchmarkScan_ColdCache.
+func BenchmarkScanMultiFile(b *testing.B) {
+	modes := []struct {
+		name   string
+		mutate func(*program.Options, *resolver.Options)
+	}{
+		{"serialST", func(programOpts *program.Options, resolverOpts *resolver.Options) {
+			programOpts.SingleThreaded = true
+			resolverOpts.SingleThreaded = true
+		}},
+		{"serialMT", func(_ *program.Options, resolverOpts *resolver.Options) {
+			resolverOpts.DisableParallelScan = true
+			resolverOpts.DisableParallelRender = true
+		}},
+		{"parallelMT", nil},
+	}
+	for _, fileCount := range []int{8, 16} {
+		sources, files := benchMultiFileSources(fileCount)
+		for _, mode := range modes {
+			b.Run(fmt.Sprintf("files%d/%s", fileCount, mode.name), func(b *testing.B) {
+				r := setupInlineWith(b, sources, mode.mutate)
+				prog := r.Program
+				if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+					b.Fatalf("warmup scan: %s", resp.Error)
+				}
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					if err := r.SetProgram(prog); err != nil {
+						b.Fatalf("SetProgram: %v", err)
+					}
+					r.Cache().Clear()
+					if resp := r.Dispatch(benchScanRequest(files, nil)); resp.Error != "" {
+						b.Fatalf("scan: %s", resp.Error)
+					}
+				}
+			})
+		}
+	}
+}
+
+// BenchmarkRenderParallel is BenchmarkRender with the render fan-out on
+// (scan stays serial so the fan-out is the only variable). Compare against
+// BenchmarkRender's matching variants to size the render-track win.
+func BenchmarkRenderParallel(b *testing.B) {
+	sources := map[string]string{
+		"object.ts": benchObjectTS,
+		"union.ts":  benchUnionTS,
+		"large.ts":  benchLargeTS,
+	}
+	variants := []struct {
+		name  string
+		kinds []protocol.CacheKind
+	}{
+		{"validateOnly", []protocol.CacheKind{protocol.CacheKindValidate}},
+		{"all", []protocol.CacheKind{protocol.CacheKindAll}},
+	}
+	for _, variant := range variants {
+		b.Run(variant.name, func(b *testing.B) {
+			r := setupInlineWith(b, sources, func(_ *program.Options, resolverOpts *resolver.Options) {
+				resolverOpts.DisableParallelScan = true
+			})
+			if resp := r.Dispatch(benchScanRequest([]string{"object.ts", "union.ts", "large.ts"}, nil)); resp.Error != "" {
+				b.Fatalf("warmup scan: %s", resp.Error)
+			}
+			req := protocol.Request{Op: protocol.OpDump, IncludeCacheSources: variant.kinds}
+			if resp := r.Dispatch(req); resp.Error != "" {
+				b.Fatalf("warmup dump: %s", resp.Error)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if resp := r.Dispatch(req); resp.Error != "" {
+					b.Fatalf("dump: %s", resp.Error)
 				}
 			}
 		})
