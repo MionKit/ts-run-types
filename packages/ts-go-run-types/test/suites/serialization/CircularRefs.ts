@@ -5,6 +5,7 @@ import type {SerializationCase} from './types.ts';
 export const CIRCULAR_REFS = {
   circular_types: {
     title: 'circular objects',
+    description: 'Self-referential `{name: string; child?: CircularObject}` (a node with an optional child of its own type); exercises recursive object walking and the value-first `RT.circular` builder, with samples nesting one level deep.',
     mutateEncoder: () => {
       type CircularObject = {name: string; child?: CircularObject};
       return createJsonEncoder<CircularObject>(undefined, {strategy: 'mutate'});
@@ -43,6 +44,8 @@ export const CIRCULAR_REFS = {
   },
   circular_union_array: {
     title: 'CircularUnion array with discriminator',
+    description: 'Recursive `type CuArray = (CuArray | Date | number | string)[]` — an array whose elements are itself, Date, number, or string; exercises a recursive union element with a mix of scalar and Date members nested several levels deep.',
+    serializeNotes: 'The decoder selects each element by trying the union members (Date arrives as an ISO string and is revived to a Date); the recursive `CuArray` branch lets the array contain further arrays of the same union.',
     mutateEncoder: () => {
       type CuArray = (CuArray | Date | number | string)[];
       return createJsonEncoder<CuArray>(undefined, {strategy: 'mutate'});
@@ -92,6 +95,8 @@ export const CIRCULAR_REFS = {
   },
   circular_tuple: {
     title: 'CircularTuple object with discriminator',
+    description: 'Recursive `interface CircularTuple { list: [bigint, CircularTuple?] }` — an object holding a tuple of a bigint and an optional self; exercises an object→tuple recursion cycle.',
+    serializeNotes: 'The leading tuple slot is a bigint, so each `list[0]` JSON-encodes to a decimal string and rebuilds with `BigInt(...)`; the optional trailing slot recurses into the same shape.',
     mutateEncoder: () => {
       interface CircularTuple {
         list: [bigint, CircularTuple?];
@@ -144,6 +149,7 @@ export const CIRCULAR_REFS = {
   },
   circular_index: {
     title: 'CircularIndex object with discriminator',
+    description: 'Recursive `interface CircularIndex { index: {[key: string]: CircularIndex} }` — a node whose `index` is a record of further nodes; exercises an object→record recursion cycle, with samples nesting several levels and bottoming out in an empty record.',
     mutateEncoder: () => {
       interface CircularIndex {
         index: {[key: string]: CircularIndex};
@@ -196,6 +202,7 @@ export const CIRCULAR_REFS = {
   },
   circular_deep: {
     title: 'CircularDeep object with discriminator',
+    description: 'Recursive `interface CircularDeep { deep1: {deep2: {deep3: {deep4?: CircularDeep}}} }` — the self-reference sits four plain-object levels down behind an optional `deep4`; exercises a recursion cycle that only re-enters after deep nesting.',
     mutateEncoder: () => {
       interface CircularDeep {
         deep1: {deep2: {deep3: {deep4?: CircularDeep}}};
@@ -260,6 +267,8 @@ export const CIRCULAR_REFS = {
   },
   circular_tuple_complex: {
     title: 'Circular tuple with complex structure',
+    description: 'ROOT-level recursive tuple `type CircularTupleComplex = [bigint, CircularTupleComplex?]` — a tuple of a bigint and an optional self; each bigint slot JSON-encodes to a decimal string and the optional tail recurses, with samples nesting several levels deep.',
+    serializeNotes: 'A root recursive tuple cannot be authored value-first (`circular` over a tuple hits TS2589), so the schema thunks opt out; the object→tuple cycle is covered value-first by `circular_tuple`.',
     mutateEncoder: () => {
       type CircularTupleComplex = [bigint, CircularTupleComplex?];
       return createJsonEncoder<CircularTupleComplex>(undefined, {strategy: 'mutate'});
@@ -300,6 +309,7 @@ export const CIRCULAR_REFS = {
   },
   object_with_circular_array: {
     title: 'object with circular array',
+    description: 'Recursive `{a: string; deep?: {b: string; c: number}; d?: ObjCircularArr[]}` — an object with a scalar, an optional plain nested object, and an optional array of itself; exercises an object→array-of-self recursion cycle alongside non-recursive sibling props.',
     mutateEncoder: () => {
       type ObjCircularArr = {
         a: string;
