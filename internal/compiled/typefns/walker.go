@@ -854,34 +854,17 @@ func addFullStop(code string) string {
 	return code + ";"
 }
 
-// callSelfInvoking wraps a statement/block in an IIFE so a parent
-// expression context can embed it. Mirrors rtFnCompiler.ts:496.
-func callSelfInvoking(child RTCode) string {
-	code := strings.TrimSpace(child.Code)
-	if code == "" {
-		return ""
-	}
-	if strings.HasPrefix(code, "(function()") && strings.HasSuffix(code, ")()") {
-		return code
-	}
-	prefix := ""
-	if child.Type != CodeRB {
-		prefix = "return "
-	}
-	return "(function(){" + prefix + child.Code + "})()"
-}
-
 // createFnInContext registers `const ctxFn<N> = function(<params>){…}` as a
 // context line and returns the `ctxFn<N>(<args>)` call expression for the
 // parent's expression slot. The factory-LOCAL analogue of registerRTLookup +
 // emitDepCall: the block becomes a named closure created ONCE per factory
-// materialization instead of an IIFE allocated on every call. CodeS bodies
-// get a `return ` prepended (the call yields the statement's value — same
-// rule as callSelfInvoking); CodeRB bodies carry their own returns and move
-// verbatim. params/args are positional pairs; params deliberately shadow the
-// enclosing bindings by NAME so the body text moves unchanged (every outer
-// reference in a moved block is read-only — context consts resolve through
-// the closure and are never passed).
+// materialization instead of an IIFE allocated on every call (the old
+// callSelfInvoking wrap, now fully superseded). CodeS bodies get a `return `
+// prepended (the call yields the statement's value); CodeRB bodies carry
+// their own returns and move verbatim. params/args are positional pairs;
+// params deliberately shadow the enclosing bindings by NAME so the body text
+// moves unchanged (every outer reference in a moved block is read-only —
+// context consts resolve through the closure and are never passed).
 func (w *Walker) createFnInContext(body string, codeType CodeType, params, args []string) string {
 	name := w.nextLocalVar("ctxFn")
 	prefix := ""
