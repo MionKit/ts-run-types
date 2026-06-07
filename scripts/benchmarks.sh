@@ -54,6 +54,10 @@ RESULTS_DIR="$BENCH_DIR/results"
 STAMP="$BENCH_DIR/.image-stamp"
 DEPS_DIR="$BENCH_DIR/_deps"
 
+# Canonical results dir the docs website reads from (mounted read-only there).
+# Benchmark JSON is published into <docdata>/benchmarks after each run.
+DOCDATA_DIR="${BENCH_DOCDATA:-$ROOT_DIR/.docdata}"
+
 # Named volume persisting typia's one-time native-plugin compile (.ttsc) across
 # --rm runs (node_modules itself is baked into the image; only .ttsc must survive).
 VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
@@ -279,6 +283,15 @@ build_and_run_one() {
     || echo "==> competitor '$competitor' FAILED (build or run) — see output above"
 }
 
+# Copy the per-competitor result JSON into the canonical .docdata/benchmarks dir
+# the docs website reads from. Keeps benchmarks/results/ as the working dir.
+publish_docdata() {
+  local dest="$DOCDATA_DIR/benchmarks"
+  mkdir -p "$dest"
+  cp "$RESULTS_DIR"/*.json "$dest"/ 2>/dev/null || true
+  echo "==> published results -> $dest"
+}
+
 cmd_bench() {
   ensure_prereqs
   mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true
@@ -286,6 +299,7 @@ cmd_bench() {
   for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
   echo "──────── aggregate ────────"
   run_in_container node aggregate.mjs
+  publish_docdata
 }
 
 cmd_bench_one() {
@@ -295,6 +309,7 @@ cmd_bench_one() {
   build_and_run_one "$1"
   echo "──────── aggregate ────────"
   run_in_container node aggregate.mjs
+  publish_docdata
 }
 
 cmd_build() {

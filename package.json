@@ -47,6 +47,8 @@
     "website:build": "bash scripts/website.sh build",
     "website:generate": "bash scripts/website.sh generate",
     "website:smoke": "bash scripts/website.sh smoke",
+    "website:verify-docs": "bash scripts/website.sh verify-docs",
+    "website:prep": "bash scripts/website.sh prep",
     "website:shell": "bash scripts/website.sh shell",
     "website:lock": "bash scripts/website.sh lock",
     "website:login": "bash scripts/website.sh login",
