@@ -12,6 +12,8 @@
 # Usage:
 #   scripts/website.sh build-image   # build (or rebuild) the podman image
 #   scripts/website.sh dev           # run the dev server with hot reload
+#   scripts/website.sh dev --isAgent # detached agent dev server on WEBSITE_AGENT_PORT
+#                                    #   (3100); self-stops after WEBSITE_AGENT_IDLE_SECONDS idle
 #   scripts/website.sh build         # production build -> website/.output
 #   scripts/website.sh generate      # static prerender -> website/.output/public
 #   scripts/website.sh smoke         # quick verify: bg dev server + curl :3000 + stop
@@ -28,6 +30,8 @@
 #   WEBSITE_ENGINE   container engine (default: podman)
 #   WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
 #   WEBSITE_PORT     host port        (default: 3000)
+#   WEBSITE_AGENT_PORT          agent host port      (default: 3100)
+#   WEBSITE_AGENT_IDLE_SECONDS  agent idle shutdown  (default: 300)
 #   (default)  run commands PULL the latest published GHCR image first
 #   WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
 #   WEBSITE_REMOTE_IMAGE  remote ref   (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
@@ -58,6 +62,10 @@ ENGINE="${WEBSITE_ENGINE:-podman}"
 IMAGE="${WEBSITE_IMAGE:-tsrt-website:dev}"
 CONTAINER_BASE="${WEBSITE_CONTAINER:-tsrt-website}"
 PORT="${WEBSITE_PORT:-3000}"
+# Agent mode (`dev --isAgent`): reserved port so an agent-driven server never
+# collides with a human's :3000, plus the idle window after which it self-stops.
+AGENT_PORT="${WEBSITE_AGENT_PORT:-3100}"
+AGENT_IDLE_SECONDS="${WEBSITE_AGENT_IDLE_SECONDS:-300}"
 MOUNT_OPTS="${WEBSITE_MOUNT_OPTS:-}"
 CA_SRC="${WEBSITE_CA_CERT:-}"
 BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
@@ -229,12 +237,23 @@ poll_args() {
 }
 
 cmd_dev() {
+  local is_agent=0 arg
+  for arg in "$@"; do
+    case "$arg" in
+      --isAgent|--is-agent) is_agent=1 ;;
+      *) die "dev: unknown option '$arg' (only --isAgent is supported)" ;;
+    esac
+  done
+
   ensure_image
-  echo "==> dev server at http://localhost:$PORT  (Ctrl-C to stop)"
   read_lines MARGS < <(mount_args)
   read_lines PARGS < <(poll_args)
   read_lines NARGS < <(net_args)
   read_lines EARGS < <(env_args)
+
+  [ "$is_agent" = 1 ] && { cmd_dev_agent; return; }
+
+  echo "==> dev server at http://localhost:$PORT  (Ctrl-C to stop)"
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-dev" \
     -p "$PORT:3000" \
@@ -242,6 +261,44 @@ cmd_dev() {
     -e NODE_ENV=development \
     -w /app "$IMAGE" \
     pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000
+}
+
+# Agent dev server: detached, on the reserved agent port, with an in-container
+# watchdog that stops nuxt once the heartbeat file (bumped per request by
+# server/middleware/agent-heartbeat.ts) goes stale. With --rm, the container
+# removes itself when nuxt exits, so an agent-spawned site never lingers.
+# Relies on the MARGS/PARGS/NARGS/EARGS arrays already built by cmd_dev.
+cmd_dev_agent() {
+  local cname="${CONTAINER_BASE}-agent"
+  echo "==> agent dev server at http://localhost:$AGENT_PORT  (detached; self-stops after ${AGENT_IDLE_SECONDS}s idle)"
+  "$ENGINE" rm -f "$cname" >/dev/null 2>&1 || true
+  "$ENGINE" run -d --rm --init \
+    --name "$cname" \
+    -p "$AGENT_PORT:3000" \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${PARGS[@]+"${PARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
+    -e NODE_ENV=development \
+    -e RT_AGENT=1 \
+    -e RT_AGENT_HEARTBEAT=/tmp/agent-heartbeat \
+    -e RT_AGENT_IDLE_SECONDS="$AGENT_IDLE_SECONDS" \
+    -w /app "$IMAGE" \
+    sh -c '
+      hb="$RT_AGENT_HEARTBEAT"; idle="${RT_AGENT_IDLE_SECONDS:-300}"
+      touch "$hb"
+      pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000 &
+      nuxt_pid=$!
+      while kill -0 "$nuxt_pid" 2>/dev/null; do
+        sleep 30
+        last=$(stat -c %Y "$hb" 2>/dev/null || echo 0)
+        now=$(date +%s)
+        if [ $((now - last)) -ge "$idle" ]; then
+          echo "agent: idle ${idle}s with no requests, stopping nuxt"
+          kill "$nuxt_pid" 2>/dev/null || true
+          break
+        fi
+      done
+      wait "$nuxt_pid" 2>/dev/null || true
+    ' >/dev/null
+  echo "==> started detached as '$cname'. Logs: $ENGINE logs -f $cname   Stop early: $ENGINE stop $cname"
 }
 
 cmd_build() {
@@ -468,7 +525,7 @@ main() {
   mkdir -p "$WEBSITE_DIR/.output"
   case "${1:-}" in
     build-image) build_image ;;
-    dev)         cmd_dev ;;
+    dev)         cmd_dev "${@:2}" ;;
     build)       cmd_build ;;
     generate)    cmd_generate ;;
     smoke)       cmd_smoke ;;
