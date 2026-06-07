@@ -272,9 +272,6 @@ func emitLiteralRestoreFromJson(rt *protocol.RunType, v string) RTCode {
 		return RTCode{Code: v + " = BigInt(" + v + ")", Type: CodeE}
 	case litSymbol:
 		return RTCode{Code: v + " = Symbol(" + v + ".substring(7))", Type: CodeE}
-	case litRegExp:
-		expr := "(function(){const parts = " + v + ".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');})()"
-		return RTCode{Code: v + " = " + expr, Type: CodeE}
 	}
 	// Primitive literal — noop.
 	return RTCode{Code: "", Type: CodeS}

@@ -263,13 +263,6 @@ func emitLiteralFromBinary(rt *protocol.RunType, ret, des string) RTCode {
 		name, _ := entry["symbol"].(string)
 		return RTCode{Code: ret + " = Symbol(" + quoteJS(name) + ")", Type: CodeS}
 	}
-	if entry, isMap := literal.(map[string]any); isMap {
-		if regexpEntry, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			source, _ := regexpEntry["source"].(string)
-			regFlags, _ := regexpEntry["flags"].(string)
-			return RTCode{Code: ret + " = new RegExp(" + quoteJS(source) + ", " + quoteJS(regFlags) + ")", Type: CodeS}
-		}
-	}
 	lit, err := jsLiteralFromAny(literal)
 	if err != nil {
 		return RTCode{Code: "", Type: CodeS}

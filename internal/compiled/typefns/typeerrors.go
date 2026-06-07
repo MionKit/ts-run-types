@@ -593,11 +593,6 @@ func literalBaseKindLabel(rt *protocol.RunType) string {
 	if flagSet["symbol"] {
 		return "symbol"
 	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return "regexp"
-		}
-	}
 	switch rt.Literal.(type) {
 	case bool:
 		return "boolean"

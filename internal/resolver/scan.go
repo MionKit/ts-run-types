@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/microsoft/typescript-go/shim/ast"
 	"github.com/microsoft/typescript-go/shim/checker"
@@ -334,24 +333,11 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// strategy / decoder strategy already honour. See
 	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
 	// `IsTypeVariantSuffix` helper in internal/constants.
-	id := ""
-	// (1) Value-first regexp brand: source/flags ride as literal type args on the
-	// `RegexLiteralType<S,F>` brand — read them FROM THE TYPE (no AST), so a
-	// value-first `regexp({source, flags, …})` converges with type-first `typeof /…/`.
-	if source, flags, ok := typeid.RegexLiteralFromType(resolver.checker, typeArgument); ok {
-		id = resolver.cache.SerializeRegexLiteral(source, flags)
-	}
-	// (2) Legacy AST regex-literal harvest — TS has no regex-literal type, so for
-	// the type-first `typeof reg` / `getRunTypeId<typeof /…/>()` forms (T widened to
-	// `RegExp`, nothing in T) the scanner reconstructs source/flags from the AST.
-	if id == "" {
-		if source, flags, ok := resolver.resolveRegexLiteralSource(call, lastIndex, argsCount); ok {
-			id = resolver.cache.SerializeRegexLiteral(source, flags)
-		}
-	}
-	if id == "" {
-		id = resolver.cache.AssignID(typeArgument)
-	}
+	// Structural id — a pure function of the resolved TS type. RegExp has no
+	// literal type in TS (`/abc/i` widens to `RegExp` even under `as const`), so
+	// `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the same
+	// KindRegexp id — id stays ≡ f(T).
+	id := resolver.cache.AssignID(typeArgument)
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -397,50 +383,6 @@ func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
 		}
 	}
 	return false
-}
-
-// resolveRegexLiteralSource attempts to harvest a regex-literal source from
-// the call's argument or type-argument expression. Returns (source, flags, true)
-// when a regex literal is reachable; (_, _, false) otherwise — in which case
-// the caller falls through to standard type-based resolution.
-//
-// Dispatch rule (signature-shape-agnostic — marker functions can have
-// user-options slots between the value and the id):
-//   - If TypeArguments has nodes → static form. Harvest from the first
-//     type argument. Works for any signature whose user supplied <T>
-//     explicitly, regardless of how many value args came before the id.
-//   - Else if at least one user arg was supplied → reflect form. The
-//     value for T lives at slot 0 by convention (the leading positional
-//     parameter — `_value` for `reflectRunTypeId`, `val` for
-//     `createIsType`). Harvest from Arguments[0]. If slot 0 is
-//     `undefined` (the static-with-options shorthand
-//     `createIsType<T>(undefined, {opts})`), the trace fails harmlessly
-//     and we fall through to type-based resolution.
-//
-// The trace itself: unwrap `as` / parenthesised expressions, then either
-// harvest a RegularExpressionLiteral directly, recurse through a TypeQuery,
-// or resolve an Identifier to its const variable declaration's initializer.
-func (resolver *Resolver) resolveRegexLiteralSource(call *ast.Node, paramIndex, argsCount int) (string, string, bool) {
-	_ = paramIndex // retained for symmetry with extractIsTypeOptions
-	callExpression := call.AsCallExpression()
-	if callExpression == nil {
-		return "", "", false
-	}
-	var node *ast.Node
-	switch {
-	case callExpression.TypeArguments != nil && len(callExpression.TypeArguments.Nodes) > 0:
-		// Static form: user supplied <T> explicitly.
-		node = callExpression.TypeArguments.Nodes[0]
-	case argsCount > 0:
-		// Reflect form: T inferred from the value at slot 0.
-		if callExpression.Arguments != nil && len(callExpression.Arguments.Nodes) > 0 {
-			node = callExpression.Arguments.Nodes[0]
-		}
-	}
-	if node == nil {
-		return "", "", false
-	}
-	return resolver.traceRegexLiteral(node, 0)
 }
 
 // isTypeOptions mirrors the JS-side IsTypeOptions interface
@@ -666,93 +608,6 @@ func (resolver *Resolver) isBuilderCallPredicate() func(*ast.Node) bool {
 	}
 }
 
-// traceRegexLiteral walks through AST wrappers, typeof references, and const
-// identifier bindings looking for a regex literal at the leaf. Depth-limited
-// to defend against pathological inputs the type checker would otherwise
-// reject (TS forbids self-referential initializers, but a defensive cap keeps
-// the resolver predictable).
-func (resolver *Resolver) traceRegexLiteral(node *ast.Node, depth int) (string, string, bool) {
-	if node == nil || depth > 16 {
-		return "", "", false
-	}
-	// Unwrap a single layer of `as T` / parens.
-	for {
-		switch node.Kind {
-		case ast.KindAsExpression:
-			asExpression := node.AsAsExpression()
-			if asExpression == nil {
-				return "", "", false
-			}
-			node = asExpression.Expression
-		case ast.KindParenthesizedExpression:
-			parenExpression := node.AsParenthesizedExpression()
-			if parenExpression == nil {
-				return "", "", false
-			}
-			node = parenExpression.Expression
-		default:
-			goto unwrapped
-		}
-		if node == nil {
-			return "", "", false
-		}
-	}
-unwrapped:
-	switch node.Kind {
-	case ast.KindRegularExpressionLiteral:
-		literal := node.AsRegularExpressionLiteral()
-		if literal == nil {
-			return "", "", false
-		}
-		source, flags := splitRegexLiteralText(literal.Text)
-		return source, flags, true
-	case ast.KindTypeQuery:
-		typeQuery := node.AsTypeQueryNode()
-		if typeQuery == nil {
-			return "", "", false
-		}
-		return resolver.traceRegexLiteral(typeQuery.ExprName, depth+1)
-	case ast.KindIdentifier:
-		symbol := resolver.checker.GetSymbolAtLocation(node)
-		if symbol == nil {
-			return "", "", false
-		}
-		for _, declaration := range symbol.Declarations {
-			if declaration == nil || declaration.Kind != ast.KindVariableDeclaration {
-				continue
-			}
-			// Only `const` bindings are traceable: `let`/`var` can be
-			// reassigned, so the initializer no longer determines the value
-			// at the call site.
-			parent := declaration.Parent
-			if parent == nil || parent.Flags&ast.NodeFlagsConst == 0 {
-				continue
-			}
-			variableDecl := declaration.AsVariableDeclaration()
-			if variableDecl == nil || variableDecl.Initializer == nil {
-				continue
-			}
-			return resolver.traceRegexLiteral(variableDecl.Initializer, depth+1)
-		}
-	}
-	return "", "", false
-}
-
-// splitRegexLiteralText converts the raw RegExp literal text (e.g. "/abc/i")
-// into its source ("abc") and flags ("i"). The text always starts with `/`,
-// ends with `/<flags>`, and flags never contain `/`.
-func splitRegexLiteralText(text string) (source, flags string) {
-	if !strings.HasPrefix(text, "/") {
-		return text, ""
-	}
-	body := text[1:]
-	lastSlash := strings.LastIndex(body, "/")
-	if lastSlash < 0 {
-		return body, ""
-	}
-	return body[:lastSlash], body[lastSlash+1:]
-}
-
 // markerDiagFunctionCallArg builds an MKR001 diagnostic flagging a reflect-form
 // marker call that received a function-call argument (`createIsType(getX())`).
 // The function gets invoked at runtime purely so TypeScript can infer T from
@@ -828,8 +683,8 @@ func scanLineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
 //   - the node is not an Identifier (e.g. PropertyAccess, CallExpression),
 //   - the binding's symbol has no const VariableDeclaration with an
 //     annotation,
-//   - the binding is `let`/`var` (re-assignable; matches the same const-only
-//     policy as traceRegexLiteral).
+//   - the binding is `let`/`var` (re-assignable, so the annotation no
+//     longer pins the type at the call site).
 //
 // Annotation ≥ apparent type by construction: TS enforces initializer
 // assignability against the annotation, so honoring the annotation never

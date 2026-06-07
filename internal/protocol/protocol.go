@@ -264,8 +264,7 @@ type RunType struct {
 	// TypeTemplateLiteral, TypeRegexp, TypeInfer — placeholder for v2.
 
 	// Flags carries free-form markers for things we couldn't bridge cleanly
-	// (e.g. "symbol" for symbol-keyed names, "nonLiteralDefault", "bigint",
-	// "regexp" for the literal-regexp encoding).
+	// (e.g. "symbol" for symbol-keyed names, "nonLiteralDefault", "bigint").
 	Flags []string `json:"flags,omitempty"`
 
 	// Description — JSDoc-style per-member comment. v2.

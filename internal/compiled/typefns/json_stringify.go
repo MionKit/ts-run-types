@@ -299,8 +299,6 @@ func emitLiteralStringifyJson(rt *protocol.RunType, ctx *EmitContext, v string) 
 		return RTCode{Code: "'\"'+" + v + ".toString()+'\"'", Type: CodeE}
 	case litSymbol:
 		return RTCode{Code: "JSON.stringify('Symbol:'+(" + v + ".description||''))", Type: CodeE}
-	case litRegExp:
-		return RTCode{Code: "JSON.stringify(" + v + ".toString())", Type: CodeE}
 	}
 	// Primitive literal (number / string / boolean / null) — defer
 	// to JSON.stringify, which handles each shape correctly. This

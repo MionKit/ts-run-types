@@ -65,16 +65,11 @@ func jsonCompatRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 		return true
 
 	case protocol.KindLiteral:
-		// bigint / symbol / regexp literals carry a flag and have a
-		// transform on the encode side (toString / description / etc.);
-		// primitive literals (string / number / boolean / null) are noop.
+		// bigint / symbol literals carry a flag and have a transform on
+		// the encode side (toString / description / etc.); primitive
+		// literals (string / number / boolean / null) are noop.
 		for _, flag := range rt.Flags {
 			if flag == "bigint" || flag == "symbol" {
-				return false
-			}
-		}
-		if entry, isMap := rt.Literal.(map[string]any); isMap {
-			if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
 				return false
 			}
 		}
@@ -212,7 +207,6 @@ const (
 	litPrimitive litFlavour = iota
 	litBigInt
 	litSymbol
-	litRegExp
 )
 
 // literalFlavour returns the litFlavour for a KindLiteral RunType. bigint
@@ -228,11 +222,6 @@ func literalFlavour(rt *protocol.RunType) litFlavour {
 	}
 	if flagSet["symbol"] {
 		return litSymbol
-	}
-	if entry, isMap := rt.Literal.(map[string]any); isMap {
-		if _, isRegexp := entry["regexp"].(map[string]any); isRegexp {
-			return litRegExp
-		}
 	}
 	return litPrimitive
 }

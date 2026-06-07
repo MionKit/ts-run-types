@@ -162,8 +162,8 @@ same structural id as their marker-form equivalent. No change needed:
 - `boolean`, `symbol`, `any`, `unknown`, `never`, `voidType`
   ([define.ts:191-258](../packages/ts-go-run-types/src/schema/atomic.ts))
 - `literal<V>` ([define.ts:200-205](../packages/ts-go-run-types/src/schema/atomic.ts))
-- `regexp` ([define.ts:217-219](../packages/ts-go-run-types/src/schema/atomic.ts))
-  — separately handled by the regex-literal AST harvest path
+- `regexp` ([atomic.ts](../packages/ts-go-run-types/src/schema/atomic.ts))
+  — a plain `RegExp` leaf (`KindRegexp`, any RegExp instance)
 - `classType<Instance>` ([define.ts:269-274](../packages/ts-go-run-types/src/schema/atomic.ts))
 - Every composer in [compose.ts](../packages/ts-go-run-types/src/schema/compose.ts)
   (`array`, `tuple`, `union`, `intersection`, `record`, `map`, `set`,
