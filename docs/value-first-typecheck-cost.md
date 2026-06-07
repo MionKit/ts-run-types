@@ -316,7 +316,7 @@ but tsgo simplifies it away (dropping the alias detection keys on).
 **Implemented as: zero-cost identity + syntactic detection.** `CompTimeArgs<T>` is
 now the identity `T` (markers.ts) — no brand, no intersection. The Go scanner
 detects it off the parameter's **`CompTimeArgs<…>` annotation node**
-(`detectCompTimeArgsByNode` in [internal/resolver/comptimeargs_node.go](../internal/resolver/comptimeargs_node.go))
+(`IsCompTimeArgsParamNode` in [internal/comptimeargs/node.go](../internal/comptimeargs/node.go), shared by the resolver scan and the pure-fn extractor)
 instead of a brand property on the resolved type; the annotation survives in the
 `.d.ts` regardless of how the type resolves. Detection is **additive** (only when
 `marker.DetectAny` misses), so the other markers and any still-branded
