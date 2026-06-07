@@ -33,7 +33,7 @@ getRunTypeId<User>();
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
         // Static form has no preceding arguments — the injected entry-module
         // binding sits in slot 0, with the matching import at offset 0.
-        expect(out).toContain(`import {e as __rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
+        expect(out).toContain(`import {__rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
         expect(out).toContain(`getRunTypeId<User>(__rt_${sites[0].id});`);
       });
     }
@@ -55,7 +55,7 @@ reflectRunTypeId(u);
         expect(sites.length).toBe(1);
         expect(sites[0].id).toMatch(/^[A-Za-z][A-Za-z0-9]+$/);
         // Reflect form: `u` is arg 0, the injected binding is arg 1.
-        expect(out).toContain(`import {e as __rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
+        expect(out).toContain(`import {__rt_${sites[0].id}} from 'virtual:rt/${sites[0].id}.js';`);
         expect(out).toContain(`reflectRunTypeId(u, __rt_${sites[0].id});`);
       });
     }
@@ -244,8 +244,8 @@ const myAPI = reflectRunTypeId(routes);
     // root gets a facade module whose inlined deps thunk imports the bundle.
     const moduleSources = Object.values(entryModules);
     expect(moduleSources.length).toBeGreaterThan(0);
-    expect(moduleSources.some((s) => /export const e=\[4,,/.test(s))).toBe(true);
-    expect(moduleSources.some((s) => /export const e=\[5,\(\)=>\[/.test(s))).toBe(true);
+    expect(moduleSources.some((s) => /export const __rt_runtypes=\[4,,/.test(s))).toBe(true);
+    expect(moduleSources.some((s) => /export const __rt_[A-Za-z0-9_$]+=\[5,\(\)=>\[/.test(s))).toBe(true);
 
     // Evaluate the modules the same way evalCacheFor does and instantiate
     // the runtype tuples against the stub registry.
@@ -299,7 +299,7 @@ const myAPI = reflectRunTypeId(routes);
       const written = fs.readdirSync(tmpDir).filter((name) => name.endsWith('.js'));
       expect(written.length).toBeGreaterThan(0);
       const sample = fs.readFileSync(path.join(tmpDir, written[0]), 'utf8');
-      expect(sample).toContain('export const e=[');
+      expect(sample).toContain('export const __rt_');
       fs.rmSync(tmpDir, {recursive: true, force: true});
     }
   );

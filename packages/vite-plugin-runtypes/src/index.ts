@@ -399,7 +399,6 @@ export type {PluginOptions as Options};
 export {
   VIRTUAL_MODULE_PREFIX,
   ENTRY_MODULE_SUFFIX,
-  ENTRY_EXPORT_NAME,
   ENTRY_BINDING_PREFIX,
   CACHE_MODULES,
   type CacheModuleSettings,

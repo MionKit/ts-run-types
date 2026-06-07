@@ -3,7 +3,8 @@
 // ⚠️  SYNC BOUNDARY — MUST STAY ALIGNED WITH THE GO EMITTER
 // ----------------------------------------------------------------------------
 // The Go binary emits one ES module per cache entry (`virtual:rt/<key>.js`),
-// exporting a positional tuple under the fixed export `e`. Tuples are typed
+// exporting a positional tuple under the entry's binding name (`__rt_<key>`,
+// identifier-escaped — the same name every importer binds). Tuples are typed
 // here as RECORD interfaces (`RunTypeBundleRecord` / `FnTypeRecord` /
 // `PureFnRecord` / …) whose payload fields are Pick'd from the canonical
 // cache-entry types in `types.ts` (`RunType`, `CompiledTypeFn`,

@@ -60,10 +60,9 @@ func CollectEntries(entries []Entry) entrymod.Graph {
 // Entries without FactoryArgStart/End populated (e.g. a synthetic
 // Entry built by a test) are skipped — only real extraction
 // results carry the byte offsets needed to rewrite source.
-// bundled selects allSingle module mode: the entry rides the `pf` bundle as
-// a named export, so ImportFrom targets the bundle and Named tells the plugin
-// to import `{<Text>}` without renaming (Text doubles as the export name —
-// see entrymod.ExportName).
+// Text doubles as the export name in BOTH layouts (see entrymod.ExportName);
+// bundled selects allSingle module mode, where ImportFrom targets the `pf`
+// bundle instead of the per-entry module.
 func Replacements(entries []Entry, bundled bool) []protocol.Replacement {
 	var out []protocol.Replacement
 	for _, entry := range entries {
@@ -80,7 +79,6 @@ func Replacements(entries []Entry, bundled bool) []protocol.Replacement {
 		}
 		if bundled {
 			replacement.ImportFrom = entrymod.ImportSpecifier(constants.PureFnModuleDir)
-			replacement.Named = true
 		}
 		out = append(out, replacement)
 	}

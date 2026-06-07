@@ -98,7 +98,6 @@ func writeEntryModuleConstants(out *strings.Builder) {
 	out.WriteString("// Per-entry virtual-module settings — see internal/compiled/entrymod.\n")
 	fmt.Fprintf(out, "export const VIRTUAL_MODULE_PREFIX = %q;\n", constants.VirtualModulePrefix)
 	fmt.Fprintf(out, "export const ENTRY_MODULE_SUFFIX = %q;\n", constants.EntryModuleSuffix)
-	fmt.Fprintf(out, "export const ENTRY_EXPORT_NAME = %q;\n", constants.EntryExportName)
 	fmt.Fprintf(out, "export const ENTRY_BINDING_PREFIX = %q;\n", constants.EntryBindingPrefix)
 	fmt.Fprintf(out, "export const PURE_FN_MODULE_DIR = %q;\n", constants.PureFnModuleDir)
 	fmt.Fprintf(out, "export const RUNTYPES_BUNDLE_BASENAME = %q;\n", constants.RunTypesBundleBasename)
