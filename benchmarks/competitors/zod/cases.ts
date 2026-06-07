@@ -1,8 +1,9 @@
-import {z, type ZodTypeAny} from 'zod';
+import {z} from 'zod';
 import {NOT_SUPPORTED, type CompetitorCases, type Validator} from '../../shared/harness/types.ts';
 
 // LAZY builder: schema is constructed inside the () => so build cost is per-case.
-const c = (s: ZodTypeAny): (() => Validator) => () => (v) => s.safeParse(v).success;
+// zod v4: ZodTypeAny is deprecated; the recommended schema base type is z.ZodType.
+const c = (s: z.ZodType): (() => Validator) => () => (v) => s.safeParse(v).success;
 
 // Shared sub-schemas reused across cases (ported from the original zod map).
 const objA = z.object({a: z.string()});
@@ -105,7 +106,7 @@ export const cases: CompetitorCases = {
   'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED,
   'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED,
   'OBJECT.record_union_keys': c(z.object({a: z.number().finite(), b: z.number().finite()})),
-  'OBJECT.union_value_index': c(z.record(z.union([z.string(), z.number().finite()]))),
+  'OBJECT.union_value_index': c(z.record(z.string(), z.union([z.string(), z.number().finite()]))),
   'OBJECT.object_with_union_prop': c(z.object({kind: z.union([z.literal('a'), z.literal('b')]), n: z.number().finite()})),
   'OBJECT.interface_inheritance': NOT_SUPPORTED,
   'OBJECT.class_inheritance': NOT_SUPPORTED,
