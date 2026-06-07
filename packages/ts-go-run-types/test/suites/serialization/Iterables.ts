@@ -727,6 +727,12 @@ export const ITERABLES = {
   },
   map_with_date_values: {
     title: 'Map with Date values',
+    description:
+      'Root `Map<string, Date>` with string keys and `Date` values. JSON serializes to an array of `[key, value]` pairs and restores via `new Map(v)`; each `Date` value becomes an ISO string on encode and is rebuilt with `new Date(...)` on decode. Binary writes a size-prefixed entry list.',
+    serializeNotes: [
+      'Map round-trips as a JSON array of [key, value] pairs, rehydrated to a Map on decode.',
+      'Date values serialize via their ISO string and restore with new Date(...).',
+    ],
     mutateEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Map<string, Date>>(undefined, {strategy: 'direct'}),

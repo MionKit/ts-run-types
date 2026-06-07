@@ -5,6 +5,9 @@ import type {SerializationCase} from './types.ts';
 export const UTILITY_TYPES = {
   awaited: {
     title: 'Awaited<Promise<T>>',
+    description:
+      '`Awaited<Promise<T>>` unwraps the promise at the type level and resolves to the plain object `{a: string; b: number; c: Date}`; the serializer sees only that resolved shape across JSON and binary.',
+    serializeNotes: 'The unwrapped `c` is a Date — ISO string over JSON (revived `new Date`), 8-byte float64 epoch over binary.',
     mutateEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Awaited<Promise<{a: string; b: number; c: Date}>>>(undefined, {strategy: 'direct'}),
@@ -24,6 +27,8 @@ export const UTILITY_TYPES = {
   },
   exclude_atomic: {
     title: 'Exclude on atomic union',
+    description:
+      "`Exclude<'name' | 'age' | number, 'age'>` removes the `'age'` member, resolving to the `'name' | number` union; round-trips identically across JSON and binary.",
     mutateEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Exclude<'name' | 'age' | number, 'age'>>(undefined, {strategy: 'direct'}),
@@ -43,6 +48,8 @@ export const UTILITY_TYPES = {
   },
   exclude_objects: {
     title: 'Exclude on object union',
+    description:
+      '`Exclude<Shape, Circle>` drops the `Circle` member, resolving to the `Square | Triangle` discriminated union (each kept member keyed on its `kind` literal); all fields are plain numbers/strings so the round-trip is symmetric across JSON and binary.',
     mutateEncoder: () => {
       type Circle = {kind: 'circle'; radius: number};
       type Square = {kind: 'square'; x: number};
@@ -145,6 +152,12 @@ export const UTILITY_TYPES = {
   },
   required_properties: {
     title: 'Required<T>',
+    description:
+      '`Required<{name?; age?; createdAt?: Date}>` strips optionality from every property, resolving to the all-required object `{name: string; age: number; createdAt: Date}`; the serializer encodes the resolved (now mandatory) shape across JSON and binary.',
+    serializeNotes: [
+      'Required<T> removes the `?` modifiers, so every property is expected on the wire — the wire shape carries no optional/absent slots.',
+      'The mandatory `createdAt` Date round-trips via ISO string (JSON) / 8-byte float64 epoch (binary).',
+    ],
     mutateEncoder: () =>
       createJsonEncoder<Required<{name?: string; age?: number; createdAt?: Date}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
@@ -178,6 +191,8 @@ export const UTILITY_TYPES = {
   },
   extract_atomic: {
     title: 'Extract on atomic union',
+    description:
+      "`Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>` keeps only the members assignable to the second argument, resolving to the `'name' | 'createdAt'` literal union; round-trips identically across JSON and binary.",
     mutateEncoder: () =>
       createJsonEncoder<Extract<'name' | 'age' | 'createdAt', 'name' | 'createdAt'>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () =>
@@ -221,6 +236,8 @@ export const UTILITY_TYPES = {
   },
   extract_objects: {
     title: 'Extract on object union',
+    description:
+      '`Extract<Shape, ToExtract>` keeps the members assignable to `ToExtract`, resolving to the `Square | Triangle` discriminated union (the `Circle` member is dropped); all fields are plain numbers/strings so the round-trip is symmetric across JSON and binary.',
     mutateEncoder: () => {
       type Shape = {kind: 'circle'; radius: number} | {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
       type ToExtract = {kind: 'square'; x: number} | {kind: 'triangle'; x: number; y: number};
@@ -316,6 +333,12 @@ export const UTILITY_TYPES = {
   },
   partial_properties: {
     title: 'Partial<T>',
+    description:
+      '`Partial<{name; age; createdAt: Date}>` makes every property optional, resolving to `{name?: string; age?: number; createdAt?: Date}`; samples cover each property present in isolation plus the empty object so omitted optional slots simply do not appear on the wire.',
+    serializeNotes: [
+      'Partial<T> adds the `?` modifier to each property, so absent properties are omitted from the JSON/binary output and stay absent after the round-trip.',
+      'When present, the optional `createdAt` Date round-trips via ISO string (JSON) / 8-byte float64 epoch (binary).',
+    ],
     mutateEncoder: () =>
       createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Partial<{name: string; age: number; createdAt: Date}>>(undefined, {strategy: 'clone'}),
@@ -339,6 +362,9 @@ export const UTILITY_TYPES = {
   },
   pick_properties: {
     title: 'Pick<T, K>',
+    description:
+      "`Pick<{name; age; createdAt: Date; email}, 'name' | 'createdAt'>` keeps only the selected keys, resolving to `{name: string; createdAt: Date}`; the dropped `age`/`email` are not part of the resolved shape, so they are never on the wire.",
+    serializeNotes: 'The kept `createdAt` Date round-trips via ISO string (JSON) / 8-byte float64 epoch (binary); the unpicked `age`/`email` are absent from the resolved type and the wire.',
     mutateEncoder: () =>
       createJsonEncoder<Pick<{name: string; age: number; createdAt: Date; email: string}, 'name' | 'createdAt'>>(undefined, {
         strategy: 'mutate',
@@ -381,6 +407,9 @@ export const UTILITY_TYPES = {
   },
   omit_properties: {
     title: 'Omit<T, K>',
+    description:
+      "`Omit<{name; age; createdAt: Date; email}, 'email'>` removes the `email` key, resolving to `{name: string; age: number; createdAt: Date}`; the serializer sees the resolved (email-less) shape across JSON and binary.",
+    serializeNotes: 'The kept `createdAt` Date round-trips via ISO string (JSON) / 8-byte float64 epoch (binary); the omitted `email` is absent from the resolved type and the wire.',
     mutateEncoder: () =>
       createJsonEncoder<Omit<{name: string; age: number; createdAt: Date; email: string}, 'email'>>(undefined, {
         strategy: 'mutate',
@@ -420,6 +449,9 @@ export const UTILITY_TYPES = {
   },
   record_type: {
     title: 'Record<string, Date>',
+    description:
+      '`Record<string, Date>` resolves to an object with a `string` index signature whose values are Date; arbitrary string keys are accepted and each Date value round-trips, with the empty object as a boundary sample.',
+    serializeNotes: 'Each index-signature value is a Date — ISO string over JSON (revived `new Date`), 8-byte float64 epoch over binary; keys pass through unchanged.',
     mutateEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Record<string, Date>>(undefined, {strategy: 'direct'}),

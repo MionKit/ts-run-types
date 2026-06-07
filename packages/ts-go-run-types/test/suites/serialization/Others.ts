@@ -47,6 +47,9 @@ export const OTHERS = {
   },
   non_serializable_interface: {
     title: 'non-serializable inside interface throws',
+    description:
+      'An interface with a non-serializable `Int8Array` member renders the factory as alwaysThrow, so every encoder / decoder invocation throws for both JSON and binary.',
+    serializeNotes: 'No value-first builder can express the enclosing object, so all schema variants are not-supported and test data is empty.',
     mutateEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<{a: Int8Array}>(undefined, {strategy: 'direct'}),
@@ -64,6 +67,9 @@ export const OTHERS = {
   },
   non_serializable_array: {
     title: 'non-serializable inside array throws',
+    description:
+      'An array of non-serializable `Int8Array` elements renders the factory as alwaysThrow — a non-serializable element is a propagating position, so every encoder / decoder invocation throws for both JSON and binary.',
+    serializeNotes: 'No value-first builder can express the enclosing array, so all schema variants are not-supported and test data is empty.',
     mutateEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Int8Array[]>(undefined, {strategy: 'direct'}),
@@ -81,6 +87,9 @@ export const OTHERS = {
   },
   non_serializable_tuple: {
     title: 'non-serializable inside tuple throws',
+    description:
+      'A tuple with a non-serializable `Int8Array` slot renders the factory as alwaysThrow — a non-serializable tuple slot is a propagating position, so every encoder / decoder invocation throws for both JSON and binary.',
+    serializeNotes: 'No value-first builder can express the enclosing tuple, so all schema variants are not-supported and test data is empty.',
     mutateEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[Int8Array]>(undefined, {strategy: 'direct'}),

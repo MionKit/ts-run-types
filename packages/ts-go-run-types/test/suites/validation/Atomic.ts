@@ -47,6 +47,8 @@ export const ATOMIC = {
   bigint: {
     title: 'BigInt primitive',
     description: 'Infinity and -Infinity rejected (typeof gate)',
+    validateNotes:
+      'Strict `typeof === "bigint"`. Plain `number` values (including `Infinity` / `-Infinity`) are rejected — `42` is not `42n`.',
     validate: () => createValidate<bigint>(),
     validateDataOnly: () => createValidate<DataOnly<bigint>>(),
     validateSchema: () => createValidate(RT.bigint()),
@@ -977,6 +979,8 @@ export const ATOMIC = {
   void: {
     title: 'Void — accepts undefined, rejects null',
     description: 'void accepts undefined (and bare function return); rejects null',
+    validateNotes:
+      'TS DIVERGENCE: `void` validates like `undefined` — it accepts `undefined` (and a bare `(): void => {}` return) but rejects `null`, unlike a `null | undefined` type.',
     validate: () => createValidate<void>(),
     validateDataOnly: () => createValidate<DataOnly<void>>(),
     validateSchema: () => createValidate(RT.void()),

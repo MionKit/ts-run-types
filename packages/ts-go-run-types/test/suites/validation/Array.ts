@@ -62,6 +62,8 @@ export const ARRAY = {
   number_array: {
     title: 'Array of numbers (rejects Infinity / NaN per element)',
     description: 'Infinity / -Infinity / NaN rejected per atomic-number port',
+    validateNotes:
+      'Each element goes through the atomic `number` check (`Number.isFinite`) — `NaN`, `Infinity`, and `-Infinity` are rejected per-element even though they pass `typeof === "number"`.',
     validate: () => createValidate<number[]>(),
     validateDataOnly: () => createValidate<DataOnly<number[]>>(),
     validateSchema: () => createValidate(RT.array(RT.number())),
@@ -395,6 +397,8 @@ export const ARRAY = {
   array_generic: {
     title: 'Generic Array<T> form (same emit as T[])',
     description: 'TypeScript sugar — resolves identically to string[]; carried as a regression check on canonical-id collapse',
+    validateNotes:
+      '`Array<string>` and `string[]` are the same type — they collapse to one canonical id and produce an identical validator.',
     validate: () => createValidate<Array<string>>(),
     validateDataOnly: () => createValidate<DataOnly<Array<string>>>(),
     validateSchema: () => createValidate(RT.array(RT.string())),
@@ -440,6 +444,8 @@ export const ARRAY = {
     title: 'Two-dimensional string array (multi-level dependency call)',
     description:
       'first multi-level test — exercises the Go-side dependency-call layer (outer array invokes pre-compiled inner via utl.getRT(...).fn(v[i0]))',
+    validateNotes:
+      'getValidationErrors does NOT early-exit: every failing element accumulates its own error (e.g. a two-element outer array of non-arrays yields two `expected: "array"` entries).',
     validate: () => createValidate<string[][]>(),
     validateDataOnly: () => createValidate<DataOnly<string[][]>>(),
     validateSchema: () => createValidate(RT.array(RT.array(RT.string()))),
@@ -607,6 +613,8 @@ export const ARRAY = {
     title: 'Array of object literals',
     description:
       "mion array.spec.ts 'test array strict modes' — array of objects. Extra keys on object elements still pass validate (unknown-key handling is a different adapter).",
+    validateNotes:
+      'Extra keys on the object elements (e.g. `{a: "hello", extraA: "x"}`) still PASS — validate is structural and ignores undeclared keys.',
     validate: () => createValidate<{a: string}[]>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string}[]>>(),
     validateSchema: () => createValidate(RT.array(RT.object({a: RT.string()}))),
@@ -655,6 +663,8 @@ export const ARRAY = {
   union_array: {
     title: 'Array of unions (OR-chain per element)',
     description: 'array of union — each element validates against the union OR-chain.',
+    validateNotes:
+      'Elements may mix `string` and `number` freely. The number arm uses `Number.isFinite`, so `Infinity` / `NaN` fail it; `bigint` matches neither arm — both produce `expected: "union"`.',
     validate: () => createValidate<(string | number)[]>(),
     validateDataOnly: () => createValidate<DataOnly<(string | number)[]>>(),
     validateSchema: () => createValidate(RT.array(RT.union([RT.string(), RT.number()]))),
@@ -710,6 +720,8 @@ export const ARRAY = {
   tuple_array: {
     title: 'Array of tuples',
     description: 'array of tuples — exercises tuple under array dependency call.',
+    validateNotes:
+      'Each element is a fixed-length `[string, number]` tuple: an over-length element (e.g. `["a", 1, "extra"]`) fails the tuple-length check (`expected: "tuple"`), not just an element check.',
     validate: () => createValidate<[string, number][]>(),
     validateDataOnly: () => createValidate<DataOnly<[string, number][]>>(),
     validateSchema: () => createValidate(RT.array(RT.tuple([RT.string(), RT.number()]))),
@@ -863,6 +875,8 @@ export const ARRAY = {
     title: 'Recursive object whose cycle closes via an array property',
     description:
       'type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]} — same dependency-call mechanism as the basic circular interface; the array property d?: ObjectType[] closes the cycle via Array → Object.',
+    validateNotes:
+      'The recursive `d` property is optional, so `{a: "hello"}` (no children) is valid; nested children are validated recursively to whatever depth the value supplies.',
     validate: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       return createValidate<ObjectType>();

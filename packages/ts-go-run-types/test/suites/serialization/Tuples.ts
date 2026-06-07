@@ -157,6 +157,8 @@ export const TUPLES = {
   },
   interface_circular_tuple: {
     title: 'interface circular tuple',
+    description:
+      'Recursive interface whose optional `parent` is a [string, ICircularTuple] tuple, forming an object-to-tuple cycle. Every slot is serializable, so the whole graph round-trips symmetrically across JSON and binary; the value-first schema mirrors the type via RT.circular.',
     mutateEncoder: () => {
       interface ICircularTuple {
         name: string;
