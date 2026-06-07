@@ -51,7 +51,7 @@ func dataOnlyTypeName(tsType *checker.Type) (string, bool) {
 	if mapped == nil {
 		return "", false
 	}
-	decl := checker.MappedType_declaration(mapped)
+	decl := mappedTypeDeclaration(mapped)
 	if decl == nil {
 		return "", false
 	}
@@ -66,7 +66,7 @@ func dataOnlyTypeName(tsType *checker.Type) (string, bool) {
 	if !marker.DeclaredInModule(aliasSymbol, marker.DefaultModule) {
 		return "", false
 	}
-	innerName := nameOfBoundType(checker.MappedType_modifiersType(mapped))
+	innerName := nameOfBoundType(mappedTypeModifiersType(mapped))
 	if innerName == "" {
 		return "", false
 	}
