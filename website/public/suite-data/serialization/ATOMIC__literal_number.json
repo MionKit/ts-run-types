@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"literal_number","title":"number literal","description":"A number-literal type round-trips identically across JSON and binary as a plain number.","notes":[],"pureType":"createJsonEncoder<42>(undefined, {strategy: 'clone'})","schema":"createJsonEncoder(RT.literal(42))","generated":"function BPD_DTfZxxJ(v){return JSON.stringify(v);}"}

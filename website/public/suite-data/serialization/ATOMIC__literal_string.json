@@ -1,0 +1,1 @@
+{"section":"ATOMIC","key":"literal_string","title":"string literal","description":"A string-literal type round-trips identically across JSON and binary as a plain string.","notes":[],"pureType":"createJsonEncoder<'hello'>(undefined, {strategy: 'clone'})","schema":"createJsonEncoder(RT.literal('hello'))","generated":"function BPD_dXbvDHN(v){return JSON.stringify(v);}"}
