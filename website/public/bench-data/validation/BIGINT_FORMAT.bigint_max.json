@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatBigInt<{max: 100n}>>(), buildErrors: () => noErrs(createGetValidationErrors<FormatBigInt<{max: 100n}>>())}"},{"name":"zod","source":"c(z.bigint().lte(100n))"},{"name":"typebox","source":"c(Type.BigInt({maximum: 100n}))"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

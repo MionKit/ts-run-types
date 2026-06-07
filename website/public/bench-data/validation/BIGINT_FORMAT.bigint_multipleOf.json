@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<FormatBigInt<{multipleOf: 5n}>>(), buildErrors: () => noErrs(createGetValidationErrors<FormatBigInt<{multipleOf: 5n}>>())}"},{"name":"zod","source":"c(z.bigint().multipleOf(5n))"},{"name":"typebox","source":"NOT_SUPPORTED"},{"name":"ajv","source":"NOT_SUPPORTED"}]}

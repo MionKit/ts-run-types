@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-go-run-types","source":"{build: () => createValidate<[string]>(), buildErrors: () => noErrs(createGetValidationErrors<[string]>())}"},{"name":"zod","source":"c(z.tuple([z.string()]))"},{"name":"typebox","source":"c(Type.Tuple([Type.String()]))"},{"name":"ajv","source":"c({type: 'array', items: [{type: 'string'}], minItems: 1, maxItems: 1})"}]}
