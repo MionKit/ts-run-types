@@ -285,6 +285,13 @@ func (ctx *EmitContext) CreateFnInContext(body string, codeType CodeType, params
 	return ctx.walker.createFnInContext(body, codeType, params, args)
 }
 
+// CtxFnParams derives a context function's parameter list for a block whose
+// body was emitted against accessor — the emitter's Args plus any allocated
+// loop counters free in the accessor (see Walker.ctxFnParamsFor).
+func (ctx *EmitContext) CtxFnParams(accessor string) []string {
+	return ctx.walker.ctxFnParamsFor(accessor)
+}
+
 // AddPureFnDependency records that the emitted body reaches a pure-fn
 // at `utl.getPureFn(<namespace>, <fnName>)`. The walker forwards each
 // dependency to the resolver's integrity check at end of compilation —

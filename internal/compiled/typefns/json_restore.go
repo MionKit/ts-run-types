@@ -151,11 +151,15 @@ func (RestoreFromJsonEmitter) Emit(rt *protocol.RunType, ctx *EmitContext, _ Cod
 		return RTCode{Code: "", Type: CodeNS}
 
 	case protocol.KindRegexp:
-		// mion:nodes/atomic/regexp.ts:23 — IIFE that splits the
-		// stringified form back into source + flags. Single-quoted to
-		// fit our JS-source quoting convention.
-		expr := "(function(){const parts = " + v + ".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');})()"
-		return RTCode{Code: v + " = " + expr, Type: CodeE}
+		// mion:nodes/atomic/regexp.ts:23 — split the stringified form back
+		// into source + flags. The parse block hoists to a context fn
+		// (created once per materialization, not per call); the assignment
+		// to the accessor stays at the call site.
+		params := ctx.CtxFnParams(v)
+		call := ctx.CreateFnInContext(
+			"const parts = "+v+".match(/\\/(.*)\\/(.*)?/);return new RegExp(parts[1], parts[2] || '');",
+			CodeRB, params, params)
+		return RTCode{Code: v + " = " + call, Type: CodeE}
 
 	case protocol.KindClass:
 		// Date is reconstructed from its ISO string via `new Date(v)`.
