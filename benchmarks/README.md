@@ -169,9 +169,16 @@ value against it (the cost you pay on every `const x: T = {…}`). Forms, extrac
 per-competitor from each competitor's own files:
 
 - **ts-go (type)** — `competitors/ts-go-run-types/cases.ts` `createValidate<TYPE>()` type arg.
+- **typia** — `competitors/typia/cases.ts` `typia.createIs<TYPE>()` type arg (format suites use typia tag intersections, e.g. `string & tags.MaxLength<5>`).
 - **ts-go (schema)** — `competitors/ts-go-run-types/schemaCases.ts` `createValidate(EXPR)` arg.
 - **zod / typebox** — `competitors/<name>/cases.ts` schema expressions.
 - **ajv** — none (JSON Schema has no static type inference).
+
+ts-go(type) and typia are both **pure-type** forms — the cost is just resolving
+the literal `T` the developer writes (no schema object, no runtime transform
+involved in type-checking). They diverge only where typia expresses a constraint
+as a tag intersection rather than a mion `Format*` brand, and over the differing
+subset of cases each supports.
 
 ```
 ts-go(type)      ~4 instantiations/case     # writing the type is ~free
@@ -179,7 +186,8 @@ typebox        ~219 /case
 ts-go(schema)  ~546 /case
 zod            ~619 /case
 ```
-(apples-to-apples averages over the 95 cases all four forms support.)
+(apples-to-apples averages over the cases all forms support; run `bench:typecost`
+for the live typia column.)
 
 i.e. the type-definition form is ~55–155× cheaper for `tsc` to resolve than any
 schema→type form — including ts-go's own value-first schema form. Cases whose type
