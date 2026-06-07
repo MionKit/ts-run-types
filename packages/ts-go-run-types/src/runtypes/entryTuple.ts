@@ -199,11 +199,13 @@ type TupleFrom<R, K extends readonly (keyof R)[]> = {[I in keyof K]: R[K[I]]};
 
 const ENTRY_HEAD_KEYS = ['entryKind', 'deps', 'ini'] as const;
 
-// Go's emitters trim trailing-undefined slots: runtype rows always carry at
-// least (id, kind); fn tuples at least the noop short form (…, code, isNoop);
-// pure-fn, bundle, facade and missing tuples are never trimmed. The
-// REQUIRED/TRIMMED splits below mirror that, so the derived tuple types
-// accept the short forms.
+// Go's emitters trim trailing slots that hold their default value: runtype
+// rows always carry at least (id, kind); fn tuples at least
+// (rtFnHash, typeName, code) — a production entry with no deps ends at `code`
+// (isNoop false, dep lists, createRTFn all re-derived at registration), while
+// the noop short form still ends (…, code=undefined, isNoop=true); pure-fn,
+// bundle, facade and missing tuples are never trimmed. The REQUIRED/TRIMMED
+// splits below mirror that, so the derived tuple types accept the short forms.
 type RunTypeRowRequiredKeys = readonly ['id', 'kind'];
 type RunTypeRowTrimmedKeys = typeof RUN_TYPE_FIELD_KEYS extends readonly [unknown, unknown, ...infer Rest] ? Rest : never;
 
@@ -211,8 +213,9 @@ export const RUN_TYPE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, ...RUN_TYPE_FIELD_KEYS] 
 export const RUN_TYPE_BUNDLE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key', 'rows'] as const;
 export const RUN_TYPE_FACADE_TUPLE_KEYS = [...ENTRY_HEAD_KEYS, 'key'] as const;
 
-const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code', 'isNoop'] as const;
+const FN_TYPE_REQUIRED_KEYS = ['familyTag', 'deps', 'ini', 'rtFnHash', 'typeName', 'code'] as const;
 const FN_TYPE_TRIMMED_KEYS = [
+  'isNoop',
   'rtDependencies',
   'pureFnDependencies',
   'createRTFn',

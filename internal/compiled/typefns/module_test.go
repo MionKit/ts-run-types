@@ -116,10 +116,11 @@ func TestValidateModule_SingleEntryShape(t *testing.T) {
 }
 
 // TestValidateModule_SingleEntryShape_DefaultEmit pins the
-// production-default shape: arg-7 is the `u = undefined` alias and
-// no `function g_<hash>(utl){…}` closure leaks into the module. The
-// body lives only in the quoted `code` arg-3 string; the JS-side
-// materializeRTFn rebuilds the factory via `new Function('utl',
+// production-default shape: the all-default tail (isNoop false, empty
+// dep lists, the `u` createRTFn placeholder) is trimmed entirely, so
+// the entry ends at the quoted `code` arg-3 string and no
+// `function g_<hash>(utl){…}` closure leaks into the module. The
+// JS-side materializeRTFn rebuilds the factory via `new Function('utl',
 // code)` on first lookup.
 func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	dump := protocol.Dump{
@@ -130,11 +131,7 @@ func TestValidateModule_SingleEntryShape_DefaultEmit(t *testing.T) {
 	want := "init(" +
 		"'" + key + "'," +
 		"'string'," +
-		"'return function " + key + "(v){return typeof v === \\'string\\'}'," +
-		"false," +
-		"[]," +
-		"[]," +
-		"u" +
+		"'return function " + key + "(v){return typeof v === \\'string\\'}'" +
 		");"
 	if !strings.Contains(out, want) {
 		t.Errorf("expected entry line\n  %s\nin rendered module:\n%s", want, out)
@@ -165,7 +162,7 @@ func TestValidateModule_AtomicEmitBodies(t *testing.T) {
 		// KindSymbol is unsupported at root — see docs/UNSUPPORTED-KINDS.md
 		// FAQ. Renderer emits an alwaysThrow factory keyed by VL002,
 		// not a body-bearing validator.
-		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined,'VL002',undefined)", false},
+		{"symbol", &protocol.RunType{ID: "sym", Kind: protocol.KindSymbol}, "init('" + valKey("sym") + "','symbol',undefined,false,undefined,undefined,undefined,'VL002')", false},
 		{"null", &protocol.RunType{ID: "nul", Kind: protocol.KindNull}, "return v === null", false},
 		{"undefined", &protocol.RunType{ID: "und", Kind: protocol.KindUndefined}, "return typeof v === 'undefined'", false},
 		{"void", &protocol.RunType{ID: "voi", Kind: protocol.KindVoid}, "return v === undefined", false},
@@ -827,7 +824,7 @@ func TestValidateModule_CodeNSPropagation(t *testing.T) {
 		ns := &protocol.RunType{ID: "ns1", Kind: protocol.KindClass, SubKind: protocol.SubKindNonSerializable}
 		dump := protocol.Dump{RunTypes: []*protocol.RunType{ns, stringRT}}
 		out := renderToString(t, dump)
-		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,'VL001',undefined)") {
+		if !strings.Contains(out, "init('"+valKey("ns1")+"','class',undefined,false,undefined,undefined,undefined,'VL001')") {
 			t.Errorf("KindClass+SubKindNonSerializable must emit an alwaysThrow init with code VL001, got:\n%s", out)
 		}
 		// No inline throwing function body should remain.
