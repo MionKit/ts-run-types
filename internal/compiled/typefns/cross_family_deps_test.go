@@ -135,7 +135,9 @@ func TestCrossFamilyDeps_ValidateSameFamilyOnly(t *testing.T) {
 	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
 	num := &protocol.RunType{ID: "num", Kind: protocol.KindNumber}
 	innerProp := &protocol.RunType{ID: "ip", Kind: protocol.KindPropertySignature, Name: "n", IsSafeName: true, Child: makeRef("num")}
-	inner := &protocol.RunType{ID: "inner", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("ip")}}
+	// Named, so the default name rule keeps it an external same-family dep
+	// (unnamed objects inline since the inlining flip).
+	inner := &protocol.RunType{ID: "inner", Kind: protocol.KindObjectLiteral, TypeName: "Inner", Children: []*protocol.RunType{makeRef("ip")}}
 	outerPropA := &protocol.RunType{ID: "opa", Kind: protocol.KindPropertySignature, Name: "a", IsSafeName: true, Child: makeRef("str")}
 	outerPropB := &protocol.RunType{ID: "opb", Kind: protocol.KindPropertySignature, Name: "b", IsSafeName: true, Child: makeRef("inner")}
 	outer := &protocol.RunType{ID: "outer", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("opa"), makeRef("opb")}}

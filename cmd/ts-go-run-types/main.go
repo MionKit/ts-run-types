@@ -59,9 +59,10 @@ Options:
                         runtype modules too — the pre-bundle layout)
     --emit-mode MODE    fn-entry code/factory slots: code (body string only,
                         the default), functions (live factory only), or both
-    --inline-mode MODE  child-inlining policy: default (compounds compile as
-                        external per-family entries) or allInternal (unnamed,
-                        non-circular compounds inline into their parents)
+    --inline-mode MODE  child-inlining policy: default (unnamed non-circular
+                        compounds inline into their parents, named types stay
+                        external) or allInternal (everything except circular
+                        types inlines, names ignored)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -130,7 +131,7 @@ func main() {
 			"functions (live factory only; code derived lazily if read — smallest factory-bearing output), or "+
 			"both (code + factory, for runtimes that disallow dynamic code like Cloudflare WorkerD / CSP without unsafe-eval).")
 	flag.StringVar(&inlineMode, "inline-mode", string(constants.InlineModeDefault),
-		"child-inlining policy: default (compounds external) | allInternal (unnamed compounds inline into parents)")
+		"child-inlining policy: default (unnamed compounds inline, named external) | allInternal (everything except circular inlines)")
 	flag.StringVar(&moduleMode, "module-mode", constants.ModuleModeDefault,
 		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
 			"allSingle (per-family bundle modules — fewest modules), or "+

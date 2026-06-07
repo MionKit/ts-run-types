@@ -38,9 +38,10 @@ type RenderOpts struct {
 	// with empty Site and the warning would be useless in the editor.
 	ProvenanceSites map[string][]diag.Site
 	// InlineMode selects the child-inlining policy (constants.InlineMode):
-	// default keeps compounds external; allInternal inlines unnamed,
-	// non-circular compounds into their parents. Folded into the disk
-	// fingerprint — the two modes never share cache entries.
+	// default (and the zero value) inlines UNNAMED non-circular compounds
+	// into their parents and keeps named types external; allInternal
+	// inlines everything except circular types, names ignored. Folded into
+	// the disk fingerprint — the two modes never share cache entries.
 	InlineMode constants.InlineMode
 	// EmitMode selects what each fn entry ships in its code/factory slots:
 	//   - EmitCode (default / zero value): only the body `code` string; the

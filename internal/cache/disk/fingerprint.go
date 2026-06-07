@@ -40,10 +40,13 @@ type FingerprintInputs struct {
 // dropped the MarkerName / MarkerModule inputs (marker migration), "v2"→"v3"
 // dropped LiteralHashLength (literal ids merged into the single hash
 // dictionary), "v3"→"v4" replaced the EmitCreateRTFn bool with the EmitMode
-// tri-state string, "v4"→"v5" added InlineMode.
+// tri-state string, "v4"→"v5" added InlineMode, "v5"→"v6" redefined what
+// the InlineMode "default" token MEANS (unnamed compounds now inline; the
+// old everything-external layout is gone) — same token, different bytes,
+// so the option-dirs must move.
 func Fingerprint(inputs FingerprintInputs) string {
 	var sb strings.Builder
-	sb.WriteString("v5\n")
+	sb.WriteString("v6\n")
 	sb.WriteString(strconv.Itoa(inputs.HashLength))
 	sb.WriteByte('\n')
 	sb.WriteString(inputs.EmitMode)
