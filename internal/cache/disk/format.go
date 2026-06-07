@@ -56,7 +56,14 @@ package disk
 // hint) — see typefns.trimArgsTail. v5 payloads with the explicit tails
 // would still REGISTER correctly, but emitted bytes would then depend on
 // cache temperature, breaking dump determinism — so they must miss.
-const FormatVersion = 6
+//
+// v7 is the IIFE→context-function reshaping: statement blocks in expression
+// position hoist into `const ctxFn<N> = function(…){…}` prologue lines
+// (created once per materialization) instead of per-call IIFEs — see
+// Walker.createFnInContext. v6 payloads bake the old `(function(){…})()`
+// bodies; functionally equivalent at runtime, but emitted bytes would
+// depend on cache temperature (the v6 criterion), so they must miss.
+const FormatVersion = 7
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
