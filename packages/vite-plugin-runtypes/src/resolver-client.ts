@@ -25,11 +25,11 @@ export interface ResolverClientOptions {
   // / undefined disables caching (test paths and inline-source one-shots
   // skip this).
   cacheDir?: string;
-  // Forwarded as --emit-create-rt-fn. When true the Go renderer
-  // emits the inline `createRTFn` closure on every RT entry; when
-  // false (default) the entry carries only the body `code` string and
-  // the JS side reconstructs the factory via `new Function`.
-  emitCacheFunctions?: boolean;
+  // Forwarded as --emit-mode. Selects what each RT entry ships in its
+  // code/factory slots: 'code' (default — body string only, factory rebuilt
+  // via `new Function`), 'functions' (live factory only, code derived lazily),
+  // or 'both' (code string + live factory). Defaults to 'code' when omitted.
+  emitMode?: 'code' | 'functions' | 'both';
   // Parallelism opt-outs. The Go binary runs its parallel marker scan
   // and parallel cache renders by default; an explicit `false` forwards
   // --no-parallel-scan / --no-parallel-render to force the serial paths
@@ -255,7 +255,7 @@ export class ResolverClient extends ResolverClientBase {
     if (opts.inlineSources) args.push('--inline-sources-stdin');
     if (opts.serverMode) args.push('--inline-server');
     if (opts.cacheDir) args.push('--cache-dir', opts.cacheDir);
-    if (opts.emitCacheFunctions) args.push('--emit-create-rt-fn');
+    if (opts.emitMode) args.push('--emit-mode', opts.emitMode);
     if (opts.parallelScan === false) args.push('--no-parallel-scan');
     if (opts.parallelRender === false) args.push('--no-parallel-render');
     if (opts.moduleMode) args.push('--module-mode', opts.moduleMode);

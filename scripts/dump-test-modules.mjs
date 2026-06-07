@@ -17,11 +17,12 @@
 //                                               serves for `virtual:rt/<…>`.
 //
 // Usage:
-//   node scripts/dump-test-modules.mjs [--module-mode default|allSingle|allModules] [--no-cache-functions]
+//   node scripts/dump-test-modules.mjs [--module-mode default|allSingle|allModules] [--emit-mode code|functions|both]
 //
-// --no-cache-functions snapshots the plugin's production default
-// (emitCacheFunctions=false: code strings only, no inline g_<hash>
-// factories) under logs/build-nofns*/ for byte-size comparisons.
+// --emit-mode selects the code/factory slots (default 'both', matching the
+// test config). 'code' (body string only, no g_<hash> factories) and
+// 'functions' (factory only, no code string) snapshot under
+// logs/build-<emitMode>*/ for byte-size comparisons.
 //
 // No bundling — every entry module is its own .js, and every fixture
 // has its rewritten counterpart at the matching relative path. Browse
@@ -52,13 +53,20 @@ if (!MODULE_MODES.includes(MODULE_MODE)) {
   console.error(`--module-mode: unknown value ${JSON.stringify(MODULE_MODE)} (expected ${MODULE_MODES.join(' | ')})`);
   process.exit(1);
 }
-const EMIT_CACHE_FUNCTIONS = !process.argv.includes('--no-cache-functions');
+const EMIT_MODES = ['code', 'functions', 'both'];
+const emitModeArgIndex = process.argv.indexOf('--emit-mode');
+const EMIT_MODE = emitModeArgIndex >= 0 ? process.argv[emitModeArgIndex + 1] : 'both';
+if (!EMIT_MODES.includes(EMIT_MODE)) {
+  console.error(`--emit-mode: unknown value ${JSON.stringify(EMIT_MODE)} (expected ${EMIT_MODES.join(' | ')})`);
+  process.exit(1);
+}
 
-// Default keeps the familiar logs/build/; other modes get their own dir so
-// the three layouts can be inspected side by side. The production-default
-// (--no-cache-functions) snapshot gets a -nofns suffix for the same reason.
+// Default keeps the familiar logs/build/; other module modes get their own dir
+// so the layouts can be inspected side by side. Non-default emit modes get an
+// `-<emitMode>` suffix (e.g. logs/build-code, logs/build-functions) so the
+// code/factory variants are diffable for size comparison.
 const MODE_DIR = MODULE_MODE === MODULE_MODE_DEFAULT ? 'logs/build' : `logs/build-${MODULE_MODE}`;
-const OUT_DIR = path.join(REPO_ROOT, EMIT_CACHE_FUNCTIONS ? MODE_DIR : `${MODE_DIR}-nofns`);
+const OUT_DIR = path.join(REPO_ROOT, EMIT_MODE === 'both' ? MODE_DIR : `${MODE_DIR}-${EMIT_MODE}`);
 const VIRTUAL_DIR = path.join(OUT_DIR, 'virtual-rt');
 
 // Collect every fixture .ts under test/suites/, skipping the .test.ts
@@ -90,12 +98,12 @@ async function main() {
 
   // Spawn the binary in --one-shot mode against the tsconfig so the Program
   // is built once at startup from disk (no setSources handshake needed —
-  // every fixture is already on the filesystem). emitCacheFunctions:true
-  // (the default here) mirrors the marker package's own vitest config so
-  // the inline createRTFn closure is part of the snapshot;
-  // --no-cache-functions flips to the plugin's production default.
+  // every fixture is already on the filesystem). emitMode 'both' (the default
+  // here) mirrors the marker package's own vitest config so the inline
+  // createRTFn closure is part of the snapshot; `--emit-mode code` /
+  // `--emit-mode functions` snapshot the other variants for size comparison.
   const resolver = new ResolverClient(BIN, MARKER_PKG, 'tsconfig.test.json', {
-    emitCacheFunctions: EMIT_CACHE_FUNCTIONS,
+    emitMode: EMIT_MODE,
     moduleMode: MODULE_MODE,
   });
   // Surface child stderr so resolver build/scan errors aren't silent.

@@ -288,15 +288,15 @@ export const _ = createValidate<User>();
       const itSite = inlineOn.sites.find((s) => s.fnId);
       if (!itSite?.fnId) throw new Error('expected a createValidate site with an injected fnId');
       itPrefix = itSite.fnId;
-      // The default shared client runs with emitCacheFunctions=true so
-      // we get the inline factory here as a baseline.
+      // The default shared client runs with emitMode 'both' so we get the
+      // inline factory here as a baseline.
       expect(inlineOnBody, 'shared client should emit the inline factory').toMatch(
         new RegExp('function g_' + itPrefix + '_[A-Za-z0-9]+\\(utl\\)')
       );
     });
 
     // Spin up a one-shot client with the production default
-    // (emitCacheFunctions omitted → false) and assert the smaller shape.
+    // (emitMode omitted → 'code') and assert the smaller shape.
     const {ResolverClient} = await import('../src/resolver-client.ts');
     const path = await import('node:path');
     const ROOT = path.resolve(__dirname, '../../..');

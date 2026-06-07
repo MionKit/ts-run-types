@@ -59,12 +59,12 @@ func buildBigIntDateUnionFixture() []*protocol.RunType {
 
 func renderModule(t *testing.T, dump protocol.Dump, familyKey string) string {
 	t.Helper()
-	// EmitCreateRTFn=true so body assertions match the un-escaped form inside
+	// EmitMode 'both' so body assertions match the un-escaped form inside
 	// the inline closure — see module_test.go's renderToString rationale.
-	return joinEntries(t, FamilyByKey(familyKey).Collect(dump, RenderOpts{EmitCreateRTFn: true}, nil))
+	return joinEntries(t, FamilyByKey(familyKey).Collect(dump, RenderOpts{EmitMode: "both"}, nil))
 }
 
-// renderModuleDefault is the production-default (EmitCreateRTFn=false)
+// renderModuleDefault is the production-default (EmitMode 'code')
 // sibling — bodies live only in the quoted `code` string.
 func renderModuleDefault(t *testing.T, dump protocol.Dump, familyKey string) string {
 	t.Helper()
@@ -78,7 +78,7 @@ func renderModuleDefault(t *testing.T, dump protocol.Dump, familyKey string) str
 // dispatch for the object members (the whole point of the optimisation).
 func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	// EmitCreateRTFn=true so the body assertions below match the
+	// EmitMode 'both' so the body assertions below match the
 	// un-escaped form inside the `function g_pj_uni(utl){…}` closure.
 	// See module_test.go's renderToString comment for the rationale.
 	out := renderModule(t, dump, "prepareForJson")
@@ -141,7 +141,7 @@ func TestRestoreFromJsonModule_ObjectUnionDecodesFlat(t *testing.T) {
 // conditional concat (one comma is prepended per populated branch).
 func TestStringifyJsonModule_ObjectUnionEmitsFlatEnvelope(t *testing.T) {
 	dump := protocol.Dump{RunTypes: buildBigIntDateUnionFixture()}
-	// EmitCreateRTFn=true so the body assertions match the
+	// EmitMode 'both' so the body assertions match the
 	// un-escaped form inside the inline factory closure.
 	out := renderModule(t, dump, "stringifyJson")
 
