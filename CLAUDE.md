@@ -17,6 +17,20 @@ This repo is **two halves that ship together**, not a pure Node project:
 - Then `pnpm install --frozen-lockfile`.
 - After this, the Go module graph resolves against the patched `typescript-go` checkout — running `go build` before this step will fail.
 
+## Containerized apps (website + benchmarks) — required tooling
+
+This repo ships two **podman-containerized** apps that install their node_modules INSIDE the image (supply-chain isolation), never on the host: the docs website ([website/](website/), driven by [scripts/website.sh](scripts/website.sh)) and the validation benchmarks ([benchmarks/](benchmarks/), driven by [scripts/benchmarks.sh](scripts/benchmarks.sh)). Host prerequisites and their supported versions:
+
+| Tool       | Supported | Needed by                          | Source of truth                          |
+| ---------- | --------- | ---------------------------------- | ---------------------------------------- |
+| **podman** | ≥ 4.0     | website **and** benchmarks (runtime) | container runtime (tested 4.9.3)         |
+| **Node**   | ≥ 24      | benchmarks host build only         | root `package.json` `engines.node`       |
+| **pnpm**   | ≥ 11      | the monorepo (workspace policies)  | `packageManager: pnpm@11.1.1`            |
+| **Go**     | ≥ 1.26    | benchmarks resolver binary only    | `go.mod`                                 |
+
+- The **website** needs only podman. The **benchmarks** additionally need Node + pnpm + Go for `pnpm run bench:prep` (builds the Go resolver binary + JS packages on the host; the binary is bind-mounted into the benchmark container). Building that binary also needs the submodule bootstrap (see above).
+- **Setup is automated:** the `project-setup` skill ([.claude/skills/project-setup/setup.sh](.claude/skills/project-setup/setup.sh)) checks each dependency and installs the missing ones on Linux/macOS (other OSes print a not-ready message). Keep this table and `setup.sh`'s version constants in sync.
+
 ## Package Manager: pnpm
 
 This repo uses **pnpm 11+** (not npm). Do **not** run `npm install` — it ignores `pnpm-workspace.yaml` and the security policies.
