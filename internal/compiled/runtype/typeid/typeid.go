@@ -3,7 +3,9 @@
 // packages/run-types/src/lib/typeId.ts so two structurally-equal types
 // (identical kind + identical children, regardless of alias name) produce the
 // same string. Atomic kinds are just `String(kind)`; collections compose
-// `${kind}{c1,c2,…}`; cycles emit a back-ref token `$<kind>_<i><name>`.
+// `${kind}{c1,c2,…}`; cycles emit a back-ref token `$<kind>_<i>:<structuralSig>`
+// — anchored on the cycle target's STRUCTURE (not its declaration), so
+// structurally-identical recursive types converge regardless of name/position.
 //
 // Output is fed into `internal/hashid.Dict.Unique` to produce the short hash
 // id that travels on the wire.
@@ -27,6 +29,12 @@ type Computer struct {
 	typeChecker *checker.Checker
 	cache       map[*checker.Type]string
 	stack       []*checker.Type
+	// bareCycles makes cycleRef emit a name-free `$<kind>_<index>` token (no
+	// structural anchor). Used only by the sub-walk that COMPUTES the structural
+	// anchor, to terminate without infinite recursion.
+	bareCycles bool
+	// sigCache memoises structuralSignature per recursive type.
+	sigCache map[*checker.Type]string
 }
 
 // New returns a fresh Computer bound to the supplied checker.
@@ -65,43 +73,40 @@ func (computer *Computer) stackIndex(tsType *checker.Type) int {
 
 func (computer *Computer) cycleRef(tsType *checker.Type, index int) string {
 	kind := KindOf(computer.typeChecker, tsType)
-	name := aliasName(tsType)
-	// Mion RT-compiles per-call, so two distinct `interface Foo { …self… }`
-	// declarations in different files never collide — each invocation
-	// sees one Type instance. Our AOT cache is project-global, so an
-	// undifferentiated cycle token (`$<kind>_<index>`) makes the inner
-	// recursive shape structurally identical between distinct declarations,
-	// and the child of one outer entry silently shadows the other after
-	// dedup. Fall back to the symbol declaration position when no type
-	// alias is in play — two interface declarations have different
-	// position tokens even when their symbol name and structural shape
-	// match, so the cycle refs differ and the surrounding compounds
-	// (the tuple slot in `[bigint, Foo?]`, etc.) hash to distinct ids.
-	if name == "" {
-		name = declarationPosToken(tsType)
+	base := "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(index)
+	// The sub-walk that computes the structural anchor uses bare tokens to
+	// terminate; everyone else anchors on the cycle target's STRUCTURE.
+	if computer.bareCycles {
+		return base
 	}
-	return "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(index) + name
+	// Anchor the back-edge on the cycle target's STRUCTURE, not its declaration.
+	// Two structurally-identical recursive types therefore share one id — correct
+	// dedup (identical shape ⇒ identical validator) AND it lets a value-first
+	// `circular((self) => …)` schema (an anonymous `Recursive<Body>`) converge with
+	// the equivalent type-first recursive type. A purely undifferentiated token
+	// (`$<kind>_<index>`) is NOT enough — distinct recursive shapes that share a
+	// cycle position would then collide and the renderer would wire the wrong
+	// child (the "shadowing" the tuple-slot case `[bigint, Foo?]` hit). The
+	// structural signature keeps distinct shapes distinct while merging identical
+	// ones.
+	return base + ":" + computer.structuralSignature(tsType)
 }
 
-// declarationPosToken returns a stable per-declaration string when the
-// type's symbol has at least one declaration in the program. Returns
-// "" when the symbol is anonymous (no declarations attached — usually
-// inline object literals like `{ a: string }` written in a function
-// argument position). For such anonymous types we keep the empty
-// suffix so unrelated callers with identical inline shapes continue
-// to share a cache entry — same dedup behavior as before.
-func declarationPosToken(tsType *checker.Type) string {
-	symbol := tsType.Symbol()
-	if symbol == nil {
-		return ""
+// structuralSignature returns a name-free hash of tsType's SHAPE, used as the
+// cycle back-edge anchor. Computed by a fresh sub-walk with bare cycle tokens
+// (so it terminates); memoised per type. Structurally-equal recursive types
+// produce the same signature regardless of how/where they were declared.
+func (computer *Computer) structuralSignature(tsType *checker.Type) string {
+	if computer.sigCache == nil {
+		computer.sigCache = make(map[*checker.Type]string)
 	}
-	for _, declaration := range symbol.Declarations {
-		if declaration == nil {
-			continue
-		}
-		return ":@" + strconv.Itoa(int(declaration.Pos()))
+	if sig, ok := computer.sigCache[tsType]; ok {
+		return sig
 	}
-	return ""
+	sub := &Computer{typeChecker: computer.typeChecker, cache: make(map[*checker.Type]string), bareCycles: true}
+	sig := sub.Compute(tsType)
+	computer.sigCache[tsType] = sig
+	return sig
 }
 
 func (computer *Computer) dispatch(tsType *checker.Type) string {
@@ -531,13 +536,6 @@ func memberID(prefix int, name string, optional bool, child string) string {
 func optBit(optional bool) string {
 	if optional {
 		return "?"
-	}
-	return ""
-}
-
-func aliasName(tsType *checker.Type) string {
-	if alias := checker.Type_alias(tsType); alias != nil && alias.Symbol() != nil {
-		return alias.Symbol().Name
 	}
 	return ""
 }

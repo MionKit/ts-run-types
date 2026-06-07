@@ -229,3 +229,57 @@ export type AssembleTemplate<P extends readonly TemplatePart[]> = P extends read
 ]
   ? `${PartText<Head>}${AssembleTemplate<Tail>}`
   : '';
+
+// ─────────────────────── Recursive schemas (self / circular) ─────────
+//
+// `circular((self) => body)` authors a self-referential schema with NO
+// hand-written type. The callback's `self` is a `RunType<Self>` placeholder baked
+// wherever the type recurses (`{next?: Self}`); `Recursive<Body>` ties the knot —
+// substituting every `Self` with the recursive type itself. `circular` brands the
+// FULLY-RESOLVED `Recursive<Body>`, so the Go scanner reflects an ordinary
+// recursive type and (with the structural cycle-token anchor in typeid.go)
+// value-first converges with the type-first form.
+
+/** The self-reference placeholder `self()` carries — a unique brand so nothing
+ *  structural can collide with it. **/
+declare const SelfBrand: unique symbol;
+export type Self = {readonly [SelfBrand]: true};
+
+/** Traverse any node type, replacing every `Self` with the recursion fixpoint
+ *  `P[0]`. `P` is a 1-tuple holding the recursion; threading it (not a bare type)
+ *  lets `Recursive` defer the self-reference. Leaves (primitives — incl. branded
+ *  primitives like `FormatString` = `string & brand` — `Date`, `RegExp`) pass
+ *  through; containers recurse. `T extends Self` distributes, so union members
+ *  substitute individually. Arrays use `infer E → E[]` (defers the recursive
+ *  element); tuples use the homomorphic mapped type (preserves slots/optional). **/
+type SubstituteSelf<T, P extends [unknown]> = T extends Self
+  ? P[0]
+  : T extends string | number | boolean | bigint | symbol | null | undefined
+    ? T
+    : T extends Date | RegExp
+      ? T
+      : T extends Map<infer K, infer V>
+        ? Map<SubstituteSelf<K, P>, SubstituteSelf<V, P>>
+        : T extends Set<infer E>
+          ? Set<SubstituteSelf<E, P>>
+          : T extends Promise<infer E>
+            ? Promise<SubstituteSelf<E, P>>
+            : T extends (...args: infer A extends readonly unknown[]) => infer R
+              ? (...args: {-readonly [K in keyof A]: SubstituteSelf<A[K], P>}) => SubstituteSelf<R, P>
+              : T extends readonly unknown[]
+                ? number extends T['length']
+                  ? T extends readonly (infer E)[]
+                    ? SubstituteSelf<E, P>[]
+                    : never
+                  : {-readonly [K in keyof T]: SubstituteSelf<T[K], P>}
+                : T extends object
+                  ? {[K in keyof T]: SubstituteSelf<T[K], P>}
+                  : T;
+
+/** Ties a recursive body (containing `Self`) into the self-referential type it
+ *  denotes — `Recursive<{next?: Self}>` ≡ `type Node = {next?: Node}`. The
+ *  tuple-wrapped `[Recursive<Body>]` + `P[0]` read defers the self-reference so
+ *  the alias is legal (a direct substitution errors TS2456). Root-level recursive
+ *  TUPLES are the one shape TS can't build this way (TS2589) — author those
+ *  type-first. **/
+export type Recursive<Body> = SubstituteSelf<Body, [Recursive<Body>]>;

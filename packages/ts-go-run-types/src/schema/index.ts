@@ -43,6 +43,8 @@ export {
   map,
   set,
   promise,
+  circular,
+  self,
   lazy,
   func,
   templateLiteral,

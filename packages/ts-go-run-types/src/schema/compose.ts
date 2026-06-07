@@ -32,7 +32,17 @@
 import {builderResult} from './atomic.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-import type {Static, MapTuple, TemplatePart, AssembleTemplate, ObjectType, PropModifiers, PropModCarrier} from './static.ts';
+import type {
+  Static,
+  MapTuple,
+  TemplatePart,
+  AssembleTemplate,
+  ObjectType,
+  PropModifiers,
+  PropModCarrier,
+  Self,
+  Recursive,
+} from './static.ts';
 
 /** An array builder — `array(string())` → `RunType<string[]>`. **/
 export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]> {
@@ -197,6 +207,28 @@ export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunType
  *  ALREADY-declared run-type needs no `lazy` — pass the const directly. **/
 export function lazy<RT extends RunType>(thunk: CompTimeArgs<() => RT>, id?: InjectRunTypeId<Static<RT>>): RT {
   return builderResult(id, {type: 'lazy', thunk}) as RT;
+}
+
+/** The self-reference placeholder for `circular((self) => …)` — marks where a
+ *  recursive type points back to itself. Only meaningful inside `circular(...)`. **/
+export function self(id?: InjectRunTypeId<Self>): RunType<Self> {
+  return builderResult(id, {type: 'self'});
+}
+
+/** A self-referential (recursive) schema with NO hand-written type:
+ *
+ *    const Node = circular((self) => object({value: number(), next: optional(self)}));
+ *    type Node = Static<typeof Node>;   // {value: number; next?: Node}
+ *
+ *  Brands the resolved `Recursive<Body>`, so the scanner reflects an ordinary
+ *  recursive type and converges with the type-first form (structural cycle token).
+ *  Mutual recursion: each type's OWN back-edge uses `self`; cross-references to
+ *  another already-declared run-type are plain const references. **/
+export function circular<Body>(
+  callback: CompTimeArgs<(self: RunType<Self>) => RunType<Body>>,
+  id?: InjectRunTypeId<Recursive<Body>>
+): RunType<Recursive<Body>> {
+  return builderResult(id, {type: 'circular', child: callback(self())});
 }
 
 /** A `Promise` builder — `promise(string())` → `RunType<Promise<string>>`.
