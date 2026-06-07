@@ -591,7 +591,7 @@ func (w *Walker) compileNode(rt *protocol.RunType, expectedCType CodeType) RTCod
 		return jc
 	}
 	if jc.Code != "" {
-		jc.Code = w.handleCodeInterpolation(rt, jc, expectedCType)
+		jc = w.handleCodeInterpolation(rt, jc, expectedCType)
 	}
 	w.popStack(jc)
 	return jc
@@ -641,7 +641,16 @@ func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
 // over-recording can't cause runtime breakage.
 func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 	w.inlineCtx.RT = rt
-	shouldDepend := !w.Emitter.IsRTInlined(&w.inlineCtx) && len(w.Stack) > 1
+	// inlineWouldCycle is the walker's own cycle breaker: a node whose id is
+	// ALREADY on the walk stack must go external no matter what the
+	// predicate says, or the inline expansion recurses forever. Needed
+	// because IsCircular marks only the serializer's RE-ENTRY node — an
+	// anonymous wrapper union (`U | undefined` from an optional `a?: U`
+	// property) participates in the cycle UNFLAGGED, and union flattening
+	// walks through the flagged node into its members without dispatching
+	// it. Under default mode every compound is external so revisits became
+	// self-calls; allInternal needs the explicit guard.
+	shouldDepend := (!w.Emitter.IsRTInlined(&w.inlineCtx) || w.inlineWouldCycle(rt.ID)) && len(w.Stack) > 1
 	if shouldDepend {
 		// If the child kind isn't supported by this emitter, the
 		// renderer's outer loop won't emit a factory for it. Emitting
@@ -678,6 +687,24 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 	result := w.Emitter.Emit(rt, emitCtx, expectedCType)
 	w.putEmitContext(emitCtx)
 	return result
+}
+
+// inlineWouldCycle reports whether id already sits on the walk stack BELOW
+// the current frame (compileNode pushes the node before dispatching, so the
+// top frame is the node itself). A revisit means inlining would expand the
+// cycle forever — dispatch forces the external dependency-call path instead,
+// which resolves as a self-call when the revisited node is this walker's own
+// root (exactly how default mode breaks every compound cycle).
+func (w *Walker) inlineWouldCycle(id string) bool {
+	if id == "" {
+		return false
+	}
+	for i := 0; i < len(w.Stack)-1; i++ {
+		if w.Stack[i].RT != nil && w.Stack[i].RT.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // pushStack snapshots the current Vλl onto a new stack frame.
@@ -764,38 +791,44 @@ func (w *Walker) argsList(includeDefaults bool) string {
 // matching wrap. Non-root branches handle the cross-product of
 // parent and child code types so composite emits can compose
 // CodeE / CodeS / CodeRB children without surprises.
-func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child RTCode, parentCT CodeType) string {
+// Returns the reconciled fragment WITH its post-reconciliation CodeType: a
+// block hoisted to a context fn comes back as the CodeE call expression it
+// now is. Keeping the child's stale type here is what the old IIFE
+// double-wrap guard silently absorbed — a wrapped `ctxFn0(v)` re-entering a
+// parent reconciliation as "CodeRB" would re-wrap verbatim and drop the
+// value (`function(v){ctxFn0(v)}`, no return).
+func (w *Walker) handleCodeInterpolation(rt *protocol.RunType, child RTCode, parentCT CodeType) RTCode {
 	code := child.Code
 	childCT := child.Type
 	isRoot := len(w.Stack) == 1
 	if isRoot {
 		switch childCT {
 		case CodeE:
-			return "return " + code
+			return RTCode{Code: "return " + code, Type: childCT}
 		case CodeS:
-			return addFullStop(code) + " return " + w.returnName()
+			return RTCode{Code: addFullStop(code) + " return " + w.returnName(), Type: childCT}
 		case CodeRB:
-			return code
+			return child
 		}
 	}
 	switch {
 	case parentCT == CodeE && childCT == CodeE:
-		return code
+		return child
 	case parentCT == CodeE && childCT == CodeS,
 		parentCT == CodeE && childCT == CodeRB:
-		return w.wrapAsCtxFn(child).Code
+		return w.wrapAsCtxFn(child)
 	case parentCT == CodeS && childCT == CodeE:
-		return code
+		return child
 	case parentCT == CodeS && childCT == CodeS:
-		return addFullStop(code)
+		return RTCode{Code: addFullStop(code), Type: childCT}
 	case parentCT == CodeS && childCT == CodeRB:
-		return w.wrapAsCtxFn(child).Code
+		return w.wrapAsCtxFn(child)
 	case parentCT == CodeRB && childCT == CodeE:
 		panic("typefns: expected block but got expression — would emit useless code")
 	case parentCT == CodeRB && childCT == CodeS:
-		return addFullStop(code)
+		return RTCode{Code: addFullStop(code), Type: childCT}
 	case parentCT == CodeRB && childCT == CodeRB:
-		return addFullStop(code) + " return " + w.returnName()
+		return RTCode{Code: addFullStop(code) + " return " + w.returnName(), Type: childCT}
 	}
 	panic(fmt.Sprintf("typefns: unexpected code type (parent=%s child=%s)", parentCT, childCT))
 }

@@ -146,3 +146,21 @@ func moduleSources(resp protocol.Response) []string {
 	}
 	return sources
 }
+
+// The cycle the serializer's IsCircular flag can MISS: an optional `a?: U`
+// property wraps the named circular alias in an ANONYMOUS `U | undefined`
+// union, which union flattening re-enters without ever dispatching the
+// flagged node. The walker's inlineWouldCycle guard must force the revisit
+// external (a self-call), or the inline expansion recurses until OOM —
+// this exact shape froze the full-suite dump when allInternal first landed.
+func TestInlineMode_AllInternal_CircularAliasThroughOptionalPropTerminates(t *testing.T) {
+	source := `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+type U = Date | number | string | {a?: U; b?: string} | U[];
+export const enc = createJsonEncoder<U>(undefined, {strategy: 'mutate'});
+`
+	r := setupInlineModeAllInternal(t, map[string]string{"a.ts": source})
+	resp := scanWithModules(t, r, []string{"a.ts"})
+	if len(resp.EntryModules) == 0 {
+		t.Fatalf("circular alias union must render (cycle broken by the walk-stack guard), got zero modules")
+	}
+}
