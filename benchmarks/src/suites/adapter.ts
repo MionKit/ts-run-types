@@ -16,6 +16,12 @@ export interface FlatCase {
   name: string;
   samples: {valid: unknown[]; invalid: unknown[]};
   tsValidate: ValidatorOrUnsupported;
+  /** Set when the ts-go-run-types `validate` thunk THREW while building the
+   *  validator (e.g. the plugin didn't rewrite the call site). Distinct from
+   *  `NOT_SUPPORTED`: a throw is a hard error the runner must surface, not a
+   *  documented opt-out. Only ts-go-run-types populates this — it is the system
+   *  under test. */
+  tsError?: string;
 }
 
 type SuiteShape = Record<string, Record<string, ValidationCase>>;
@@ -33,16 +39,22 @@ function flatten(suite: SuiteShape, suiteName: FlatCase['suite']): FlatCase[] {
       }
 
       let tsValidate: ValidatorOrUnsupported = NOT_SUPPORTED;
+      let tsError: string | undefined;
       // factoryThrows cases render an alwaysThrow factory: unsupported at root.
       if (!def.factoryThrows && def.validate !== NOT_SUPPORTED) {
         try {
           tsValidate = (def.validate as () => (v: unknown) => boolean)();
-        } catch {
-          tsValidate = NOT_SUPPORTED;
+        } catch (err) {
+          // The plugin SHOULD have rewritten this call site. A throw here means
+          // it did not (plugin inactive / marker .d.ts unresolved) or the
+          // factory regressed — record it so the runner fails LOUDLY rather than
+          // silently counting the case "not supported" (which hid a fully broken
+          // build behind not-supported=N + exit 0).
+          tsError = err instanceof Error ? err.message : String(err);
         }
       }
 
-      out.push({key: `${group}.${name}`, suite: suiteName, group, name, samples, tsValidate});
+      out.push({key: `${group}.${name}`, suite: suiteName, group, name, samples, tsValidate, tsError});
     }
   }
   return out;
