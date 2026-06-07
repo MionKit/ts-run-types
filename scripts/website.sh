@@ -23,6 +23,11 @@
 #   WEBSITE_PORT     host port        (default: 3000)
 #   WEBSITE_POLL=1   use filesystem polling for watchers (macOS / VM mounts)
 #   WEBSITE_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
+#   WEBSITE_CA_CERT      file OR dir of extra CA certs to trust inside the
+#                        container — for hosts behind a corporate / MITM egress
+#                        proxy (the install/runtime otherwise fails TLS verify)
+#   WEBSITE_BUILD_NETWORK  podman build network (e.g. "host" behind a proxy)
+#   WEBSITE_RUN_NETWORK    podman run   network (e.g. "host" behind a proxy)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -35,6 +40,10 @@ IMAGE="${WEBSITE_IMAGE:-tsrt-website:dev}"
 CONTAINER_BASE="${WEBSITE_CONTAINER:-tsrt-website}"
 PORT="${WEBSITE_PORT:-3000}"
 MOUNT_OPTS="${WEBSITE_MOUNT_OPTS:-}"
+CA_SRC="${WEBSITE_CA_CERT:-}"
+BUILD_NETWORK="${WEBSITE_BUILD_NETWORK:-}"
+RUN_NETWORK="${WEBSITE_RUN_NETWORK:-}"
+CACERTS_DIR="$WEBSITE_DIR/.cacerts"
 
 # Source directories bind-mounted into /app (host is the source of truth).
 MOUNT_DIRS=(app content public server scripts not-rendered tests)
@@ -52,9 +61,28 @@ require_engine() {
     || die "container engine '$ENGINE' not found. Install podman (https://podman.io)."
 }
 
+# Populate website/.cacerts/ from $WEBSITE_CA_CERT (file or dir). Always leaves
+# the dir present (possibly empty) so the Containerfile COPY never fails.
+prepare_cacerts() {
+  rm -rf "$CACERTS_DIR"; mkdir -p "$CACERTS_DIR"
+  if [ -n "$CA_SRC" ]; then
+    if [ -d "$CA_SRC" ]; then
+      cp "$CA_SRC"/*.crt "$CACERTS_DIR"/ 2>/dev/null || true
+    elif [ -f "$CA_SRC" ]; then
+      cp "$CA_SRC" "$CACERTS_DIR/extra-ca.crt"
+    else
+      die "WEBSITE_CA_CERT='$CA_SRC' is neither a file nor a directory"
+    fi
+    echo "==> trusting extra CA certs from $CA_SRC"
+  fi
+  touch "$CACERTS_DIR/.gitkeep"
+}
+
 build_image() {
+  prepare_cacerts
   echo "==> building $IMAGE from website/Containerfile"
-  ( cd "$WEBSITE_DIR" && "$ENGINE" build -t "$IMAGE" -f Containerfile . )
+  local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
+  ( cd "$WEBSITE_DIR" && "$ENGINE" build "${net[@]}" -t "$IMAGE" -f Containerfile . )
 }
 
 ensure_image() {
@@ -72,6 +100,11 @@ mount_args() {
   printf -- '-v\n%s:/app/node_modules/.cache\n' "$VOL_CACHE"
 }
 
+# Echo the --network arg for `run` when WEBSITE_RUN_NETWORK is set.
+net_args() {
+  [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"
+}
+
 # Echo watcher env args when polling is requested (needed on macOS / VM mounts).
 poll_args() {
   if [ "${WEBSITE_POLL:-0}" = "1" ]; then
@@ -84,10 +117,11 @@ cmd_dev() {
   echo "==> dev server at http://localhost:$PORT  (Ctrl-C to stop)"
   mapfile -t MARGS < <(mount_args)
   mapfile -t PARGS < <(poll_args)
+  mapfile -t NARGS < <(net_args)
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-dev" \
     -p "$PORT:3000" \
-    "${MARGS[@]}" "${PARGS[@]}" \
+    "${NARGS[@]}" "${MARGS[@]}" "${PARGS[@]}" \
     -e NODE_ENV=development \
     -w /app "$IMAGE" \
     pnpm exec nuxt dev --extends docus --host 0.0.0.0 --port 3000
@@ -97,9 +131,10 @@ cmd_build() {
   ensure_image
   echo "==> production build -> website/.output"
   mapfile -t MARGS < <(mount_args)
+  mapfile -t NARGS < <(net_args)
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-build" \
-    "${MARGS[@]}" \
+    "${NARGS[@]}" "${MARGS[@]}" \
     -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
     -e NODE_ENV=production \
     -w /app "$IMAGE" \
@@ -110,9 +145,10 @@ cmd_generate() {
   ensure_image
   echo "==> static prerender -> website/.output/public"
   mapfile -t MARGS < <(mount_args)
+  mapfile -t NARGS < <(net_args)
   exec "$ENGINE" run --rm --init \
     --name "${CONTAINER_BASE}-generate" \
-    "${MARGS[@]}" \
+    "${NARGS[@]}" "${MARGS[@]}" \
     -v "$WEBSITE_DIR/.output:/app/.output${MOUNT_OPTS}" \
     -e NODE_ENV=production \
     -w /app "$IMAGE" \
@@ -122,10 +158,11 @@ cmd_generate() {
 cmd_shell() {
   ensure_image
   mapfile -t MARGS < <(mount_args)
+  mapfile -t NARGS < <(net_args)
   exec "$ENGINE" run --rm -it --init \
     --name "${CONTAINER_BASE}-shell" \
     -p "$PORT:3000" \
-    "${MARGS[@]}" \
+    "${NARGS[@]}" "${MARGS[@]}" \
     -w /app "$IMAGE" bash
 }
 
