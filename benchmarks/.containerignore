@@ -1,6 +1,10 @@
-# Generated / host-only — never enter the image build context. (The
-# per-competitor node_modules are created by the install layers in the
-# Containerfile, not copied from the host.)
+# The benchmarks image is DEPS-ONLY. Only _deps/ (package-manager manifests) and
+# .cacerts/ are COPYed into the image; everything else is bind-mounted at run time
+# (see scripts/benchmarks.sh:mount_args) and must stay OUT of the build context.
+# NOTE: these patterns are anchored at the context root, so `competitors/` etc.
+# exclude the top-level source dirs but NOT their _deps/ manifest mirrors.
+
+# Generated / host-only — never enter the image build context.
 **/node_modules
 **/dist
 .vite
@@ -10,9 +14,10 @@ results/
 *.log
 *.tgz
 
-# Old monolithic bench (replaced by the per-competitor structure). Kept on disk
-# for reference but not baked into the image.
-src/
-vite.config.ts
-typecost.mjs
-package.json
+# First-party benchmark source/config — bind-mounted at run time, never baked.
+shared/
+competitors/
+typecost/
+aggregate.mjs
+tsconfig.base.json
+README.md

@@ -21,9 +21,15 @@
 #   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
 #   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
 #   scripts/benchmarks.sh shell             # debug shell inside the container
-#   scripts/benchmarks.sh clean             # remove the image
+#   scripts/benchmarks.sh login             # log in to GHCR (uses GHCR_PAT / GHCR_PAT_FILE)
+#   scripts/benchmarks.sh push              # build + push multi-arch image to GHCR
+#   scripts/benchmarks.sh pull              # pull the published image and tag it locally
+#   scripts/benchmarks.sh clean             # remove the image + typia .ttsc volume
 #
 # Env: BENCH_ENGINE(podman) BENCH_IMAGE(tsrt-bench:dev) BENCH_TYPIA=1(add typia)
+#   BENCH_USE_REMOTE=1  pull the GHCR image instead of building locally.
+#   BENCH_REMOTE_IMAGE  remote ref (default: ghcr.io/$GHCR_OWNER/tsrt-bench:latest).
+#   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh).
 #   BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy); when unset,
 #                  auto-detects /usr/local/share/ca-certificates (proxied envs).
 #   BENCH_NO_TIMING=1 / BENCH_TIME_MS=N  correctness-only / per-cell window.
@@ -45,9 +51,21 @@ RUN_NETWORK="${BENCH_RUN_NETWORK:-}"
 CACERTS_DIR="$BENCH_DIR/.cacerts"
 RESULTS_DIR="$BENCH_DIR/results"
 STAMP="$BENCH_DIR/.image-stamp"
+DEPS_DIR="$BENCH_DIR/_deps"
+
+# Named volume persisting typia's one-time native-plugin compile (.ttsc) across
+# --rm runs (node_modules itself is baked into the image; only .ttsc must survive).
+VOL_TTSC="${BENCH_CONTAINER:-tsrt-bench}-typia-ttsc"
 
 MARKER_PKG="$ROOT_DIR/packages/ts-go-run-types"
 PLUGIN_PKG="$ROOT_DIR/packages/vite-plugin-runtypes"
+
+# GHCR publish/pull helpers (login, push, pull) + the remote image ref. When
+# BENCH_USE_REMOTE is set, the run commands pull this prebuilt image instead of
+# building locally.
+source "$SCRIPT_DIR/lib-ghcr.sh"
+REMOTE_IMAGE="${BENCH_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-bench:latest}"
+MANIFEST_NAME="tsrt-bench-manifest"
 
 # Competitors run in this order; typia (heavy/fragile deps) only with BENCH_TYPIA.
 competitor_list() {
@@ -98,20 +116,20 @@ ensure_artifacts() {
   ( cd "$ROOT_DIR" && bash scripts/check-stale-builds.sh "$@" )
 }
 
-# Rebuild the image when the Containerfile or any baked source (shared/,
-# competitors/, typecost/, aggregate.mjs, configs) is newer than the last build.
+# Rebuild the image only when a DEPENDENCY input changes. The image is deps-only;
+# all benchmark source is bind-mounted at run time (see mount_args), so source
+# edits never invalidate it. Triggers: the Containerfile or anything under _deps/
+# (per-competitor + typecost package.json, pnpm-workspace.yaml, .npmrc).
 ensure_bench_image_fresh() {
   require_engine
+  if [ -n "${BENCH_USE_REMOTE:-}" ]; then ensure_image; return; fi
   if ! "$ENGINE" image exists "$IMAGE" 2>/dev/null; then build_image; return; fi
-  if [ ! -f "$STAMP" ] || needs_rebuild "$STAMP" "$BENCH_DIR/shared" "$BENCH_DIR/competitors" "$BENCH_DIR/typecost"; then
-    echo "==> bench image stale (source newer than image) - rebuilding"; build_image; return
+  if [ ! -f "$STAMP" ] || needs_rebuild "$STAMP" "$DEPS_DIR"; then
+    echo "==> bench image stale (_deps manifest newer than image) - rebuilding"; build_image; return
   fi
-  local f
-  for f in "$BENCH_DIR/Containerfile" "$BENCH_DIR/aggregate.mjs" "$BENCH_DIR/pnpm-workspace.yaml" "$BENCH_DIR/.npmrc" "$BENCH_DIR/tsconfig.base.json"; do
-    if [ -f "$f" ] && [ "$f" -nt "$STAMP" ]; then
-      echo "==> bench image stale ($(basename "$f") newer) - rebuilding"; build_image; return
-    fi
-  done
+  if [ -f "$BENCH_DIR/Containerfile" ] && [ "$BENCH_DIR/Containerfile" -nt "$STAMP" ]; then
+    echo "==> bench image stale (Containerfile newer) - rebuilding"; build_image; return
+  fi
 }
 
 ensure_prereqs() {
@@ -152,21 +170,71 @@ build_image() {
 }
 
 ensure_image() {
+  # Consume the prebuilt GHCR image instead of building locally.
+  if [ -n "${BENCH_USE_REMOTE:-}" ]; then
+    "$ENGINE" image exists "$IMAGE" 2>/dev/null || ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"
+    return
+  fi
   "$ENGINE" image exists "$IMAGE" 2>/dev/null || build_image
 }
 
-# Bind-mounts: the host Go binary + first-party packages into the TS-GO competitor
-# only, and the writable results/ dir (so the per-competitor JSON survives the
-# container). Everything else is baked into the image.
+cmd_login() { require_engine; ghcr_login; }
+
+cmd_push() {
+  require_engine
+  prepare_cacerts
+  ghcr_push_multiarch "$MANIFEST_NAME" "$BENCH_DIR" "$REMOTE_IMAGE" "$BUILD_NETWORK"
+}
+
+cmd_pull() { require_engine; ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"; }
+
+# Bind-mounts. The image is deps-only, so ALL first-party benchmark source is
+# mounted from the host here: the shared suite, each competitor's source FILES
+# (mounted individually so the baked package.json + node_modules underneath stay
+# intact and dist/ can be written into the image's writable layer), the typecost
+# runner source, aggregate.mjs and tsconfig.base.json. Plus the TS-GO-only Go
+# binary + first-party packages, typia's persisted .ttsc cache volume, and the
+# writable results/ dir (so the per-competitor JSON survives the container).
 mount_args() {
   [ -x "$LINUX_BIN" ] || die "missing $LINUX_BIN - run 'scripts/benchmarks.sh prep' first."
   [ -f "$MARKER_PKG/dist/index.js" ] || die "missing marker dist - run 'scripts/benchmarks.sh prep' first."
   [ -f "$PLUGIN_PKG/dist/index.js" ] || die "missing plugin dist - run 'scripts/benchmarks.sh prep' first."
   mkdir -p "$RESULTS_DIR"
+
+  # Per-competitor source files (skip package.json/node_modules so they stay baked).
+  local cdir competitor f base
+  for cdir in "$BENCH_DIR"/competitors/*/; do
+    [ -d "$cdir" ] || continue
+    competitor="$(basename "$cdir")"
+    for f in "$cdir"*; do
+      [ -e "$f" ] || continue
+      base="$(basename "$f")"
+      case "$base" in node_modules|package.json|dist) continue ;; esac
+      printf -- '-v\n%s:/app/competitors/%s/%s:ro%s\n' "$f" "$competitor" "$base" "$MOUNT_OPTS"
+    done
+  done
+
+  # Shared suite (no deps) + the typecost runner source + the harness-level files.
+  printf -- '-v\n%s:/app/shared:ro%s\n' "$BENCH_DIR/shared" "$MOUNT_OPTS"
+  for f in "$BENCH_DIR"/typecost/*; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    case "$base" in node_modules|package.json|dist) continue ;; esac
+    printf -- '-v\n%s:/app/typecost/%s:ro%s\n' "$f" "$base" "$MOUNT_OPTS"
+  done
+  printf -- '-v\n%s:/app/aggregate.mjs:ro%s\n' "$BENCH_DIR/aggregate.mjs" "$MOUNT_OPTS"
+  printf -- '-v\n%s:/app/tsconfig.base.json:ro%s\n' "$BENCH_DIR/tsconfig.base.json" "$MOUNT_OPTS"
+
+  # TS-GO competitor: host Go binary + first-party packages (writable RT cache aside).
   local tsgo=/app/competitors/ts-go-run-types
   printf -- '-v\n%s:%s/bin/ts-go-run-types:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/@mionjs/ts-go-run-types:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
   printf -- '-v\n%s:%s/node_modules/vite-plugin-runtypes:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
+
+  # typia's one-time native-plugin compile persists in a named volume (subpath of
+  # the baked node_modules); first BENCH_TYPIA run fills it, later runs reuse it.
+  printf -- '-v\n%s:/app/competitors/typia/node_modules/.ttsc%s\n' "$VOL_TTSC" "$MOUNT_OPTS"
+
   printf -- '-v\n%s:/app/results%s\n' "$RESULTS_DIR" "$MOUNT_OPTS"
 }
 
@@ -253,8 +321,9 @@ cmd_smoke() {
 cmd_shell() { ensure_prereqs; run_in_container bash; }
 
 cmd_clean() {
-  echo "==> removing image $IMAGE"
+  echo "==> removing image $IMAGE and the typia .ttsc volume"
   "$ENGINE" rmi -f "$IMAGE" 2>/dev/null || true
+  "$ENGINE" volume rm -f "$VOL_TTSC" 2>/dev/null || true
   rm -f "$STAMP"
 }
 
@@ -268,8 +337,11 @@ main() {
     smoke)       require_engine; cmd_smoke ;;
     typecost)    require_engine; cmd_typecost ;;
     shell)       require_engine; cmd_shell ;;
+    login)       cmd_login ;;
+    push)        cmd_push ;;
+    pull)        cmd_pull ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | build [<name>] | smoke | typecost | shell | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | build [<name>] | smoke | typecost | shell | login | push | pull | clean" ;;
   esac
 }
 

@@ -2,15 +2,21 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Isolated build/run environment for the mion docs website (Nuxt + Docus).
 #
-# ONLY the website's *config files* are baked into this image — package.json,
-# the lockfile, the pnpm workspace policy and the Nuxt/TS/ESLint config. The
-# heavy `node_modules` tree is installed INSIDE the image, so it never touches
-# the host machine. The website's *source* directories (app/, content/,
-# public/, server/, scripts/) are NOT copied here — they are bind-mounted at
-# run time (see scripts/website.sh). This is the supply-chain isolation
-# boundary: nothing under node_modules ever executes on the host.
+# DEPS-ONLY IMAGE: only the package-manager manifests (package.json, the
+# lockfile, the pnpm workspace policy, .npmrc) are baked, sourced from _deps/ —
+# kept out of the host project root so nobody can accidentally `pnpm install`
+# there. The heavy `node_modules` tree is installed INSIDE the image, so it never
+# touches the host machine. The website's *source* (app/, content/, public/,
+# server/, scripts/) AND its Nuxt/TS/ESLint config (nuxt.config.ts, tsconfig.json,
+# eslint.config.mjs) are NOT copied here — they are bind-mounted at run time (see
+# scripts/website.sh). This is the supply-chain isolation boundary: nothing under
+# node_modules ever executes on the host, and no first-party file lives in the
+# image. Consequence: the image changes only when a dependency manifest changes.
 # ─────────────────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/devcontainers/javascript-node:22
+
+LABEL org.opencontainers.image.source=https://github.com/MionKit/ts-run-types
+LABEL org.opencontainers.image.description="mion docs website - deps-only image (source + config bind-mounted at run time)"
 
 # pnpm version is pinned by package.json#packageManager; let corepack honor it.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
@@ -30,11 +36,13 @@ COPY .cacerts/ /usr/local/share/ca-certificates/
 RUN update-ca-certificates >/dev/null 2>&1 || true
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-# ── Config files only — the install layer ───────────────────────────────────
-# Copying just these keeps the dependency graph + lockfile as the cache key:
-# editing website source never invalidates the install layer.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY nuxt.config.ts tsconfig.json eslint.config.mjs ./
+# ── Manifests only (from _deps/) — the install layer ────────────────────────
+# Copying just the package-manager manifests keeps the dependency graph +
+# lockfile as the cache key: editing website source/config never invalidates the
+# install layer. The Nuxt/TS/ESLint config is NOT baked (pnpm install doesn't
+# need it) — it is bind-mounted at run time, keeping the image free of first-party
+# files.
+COPY _deps/package.json _deps/pnpm-lock.yaml _deps/pnpm-workspace.yaml _deps/.npmrc ./
 
 # Install with the frozen lockfile (no re-resolution) under the workspace's
 # supply-chain policy (ignoreScripts + allowBuilds allowlist live in
