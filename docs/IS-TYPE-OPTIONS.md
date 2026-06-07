@@ -58,9 +58,9 @@ resolution block shrank dramatically. Removed:
   the `UniqueESSymbol` escape hatch).
 - The `SerializeArrayWithFlags` call for `noIsArrayCheck`.
 
-What's left is `cache.AssignID(typeArgument)` plus the structural
-regex-literal harvest. `SerializeArrayWithFlags` was deleted entirely
-from [serialize.go](../internal/compiled/runtype/serialize.go).
+What's left is `cache.AssignID(typeArgument)`. `SerializeArrayWithFlags`
+was deleted entirely from
+[serialize.go](../internal/compiled/runtype/serialize.go).
 
 ## 3. Schema-form options ride on the builder's Site (DONE)
 
@@ -71,9 +71,9 @@ InjectRunTypeId-marker walk. `extractIsTypeOptions` populates
 **Schema forms** (`createIsTypeFor(schema, options)` /
 `createTypeErrorsFor`) are NOT markers — they read `schema.id` at
 runtime. That id is owned by the **builder** call (`RT.array(…)`,
-`RT.regexp(/…/)`, `RT.object({…})`), which IS a marker and resolves the
-id — including the AST regex-literal harvest and recursive interning the
-type alone can't reproduce. To make a schema-form `options` call
+`RT.regexp()`, `RT.object({…})`), which IS a marker and resolves the
+id — including recursive interning the type alone can't reproduce. To
+make a schema-form `options` call
 materialise its variant factory, [`scanCall`](../internal/resolver/scan.go)
 folds the enclosing factory's options onto **that builder's own Site**:
 [`schemaFormOptions`](../internal/resolver/scan.go) checks whether the
