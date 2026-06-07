@@ -70,7 +70,15 @@ package disk
 // family noop fn pre-set runtime-side, so the fallback was dead weight).
 // v7 composite payloads bake the old resolver text — must miss for dump
 // determinism.
-const FormatVersion = 8
+//
+// v9 is the noop-elision generation: entries persist an IsNoop bit, the
+// walker's dispatch gate composes around external children whose family
+// predicate proves them identity (no dep call, no import), and JSON
+// composites drop bindings to noop primitives (`return JSON.parse(s)`
+// instead of `return rjFn(JSON.parse(s))`). v8 payloads bake the old
+// dep-call bodies AND lack the IsNoop bit composites key elision on —
+// must miss.
+const FormatVersion = 9
 
 // ChildRef captures one (structuralID, hash) pair referenced inside a
 // cached factory body. Stored alongside the body so the reader can
@@ -118,6 +126,11 @@ type RTEntry struct {
 	// baked in. Reusing the text directly requires every ChildRef to still
 	// resolve.
 	ArgsText string `json:"argsText"`
+	// IsNoop mirrors the rendered entry's noop verdict (the short-form
+	// tuple whose fn is the family identity). Persisted so a cache hit
+	// reconstructs entrymod.Entry.IsNoop — the JSON composite collector
+	// keys primitive-binding elision on it.
+	IsNoop bool `json:"isNoop,omitempty"`
 	// ChildRefs is one entry per RT-dependency hash baked into ArgsText
 	// (the `val_<childHash>` namespaced ids in walker.RTDependencies).
 	// Empty for leaf entries with no child RT calls.

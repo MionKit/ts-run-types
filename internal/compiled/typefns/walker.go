@@ -231,6 +231,12 @@ type Walker struct {
 	// A parent's context stays checked out while its children compile,
 	// so a pooled instance can never alias a live frame.
 	ctxPool []*EmitContext
+	// disableNoopElision turns OFF the dispatch-time noop gate (the
+	// NoopTypePredicate check that composes around external children whose
+	// entry would be the family identity). Test-only escape hatch: the
+	// predicate↔emit agreement harness compiles ground-truth bodies with
+	// the gate off so the two sides stay independent.
+	disableNoopElision bool
 }
 
 // factKind enumerates the memoized canonical-node predicates.
@@ -239,6 +245,8 @@ type factKind int
 const (
 	factJsonCompat factKind = iota
 	factExtraProof
+	factNoopPrepareJson
+	factNoopRestoreJson
 	factCount
 )
 
@@ -658,6 +666,26 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		if !w.Emitter.Supports(rt) {
 			return RTCode{Code: "", Type: expectedCType}
 		}
+		// Noop gate: when the emitter's semantic predicate proves the child's
+		// entry would be the family identity (NoopTypePredicate — a pure
+		// function of the child's type graph, cycle-safe), composing a dep
+		// call around it is dead weight: the import, the `utl.getRT` context
+		// line, and the per-call indirection all do nothing. Compose around
+		// the child exactly like the unsupported case above — empty code, no
+		// dep recorded, no import emitted. This is also what collapses
+		// circular identity bodies: the cycle re-entry dispatches here, the
+		// predicate proves the cycle noop, and the surrounding loop/property
+		// code folds away (Finalize then flags the whole entry).
+		if !w.disableNoopElision {
+			if predicate, ok := w.Emitter.(NoopTypePredicate); ok {
+				emitCtx := w.getEmitContext(w.Vλl)
+				childIsNoop := predicate.IsNoopType(rt, emitCtx)
+				w.putEmitContext(emitCtx)
+				if childIsNoop {
+					return RTCode{Code: "", Type: expectedCType}
+				}
+			}
+		}
 		// Namespaced childID — matches the factory registration key
 		// (the parent emit looks the child up via utl.getRT(childID)
 		// and the JS-side cache stores entries under the namespaced
@@ -669,10 +697,10 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		w.putEmitContext(emitCtx)
 		// Mirror mion's updateDependencies (rtFnCompiler.ts:222):
 		// record the child hash on the walker (dedup is internal).
-		// Noop-skip is handled inside UpdateDependencies; without
-		// the compiled noop bit at dispatch time we pass false so
-		// the dep IS recorded — mion's own behaviour for any
-		// non-noop child.
+		// Children the noop gate above proved identity never reach this
+		// line; for emitters without a predicate the compiled noop bit
+		// isn't known at dispatch time, so false is passed and the dep IS
+		// recorded — mion's own behaviour for any non-noop child.
 		w.UpdateDependencies(childID, false)
 		return RTCode{Code: callCode, Type: CodeE}
 	}

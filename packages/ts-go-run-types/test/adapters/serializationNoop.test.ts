@@ -1,30 +1,20 @@
 // Ports the three ad-hoc noop-marker tests from
 // `mion/packages/run-types/src/rtCompilers/json/jsonSpec/00JsonOnly.spec.ts`.
 //
-// Verifies that the renderer marks trivially JSON-safe shapes as
-// `isNoop: true` on the cache entry — empty interfaces with only
-// number/string props, tuples of those props, etc. — so consumers
-// can skip the round-trip altogether.
+// Verifies the renderer's treatment of trivially JSON-safe shapes, which is
+// now STRONGER than mion's `isNoop: true` marker: the noop verdict is decided
+// semantically over the type graph (typefns/noop_types.go), and the JSON
+// composites ELIDE identity primitives outright — no binding, no import, no
+// module load. So where mion asserts `entry.isNoop === true`, our runtime
+// cache simply never receives the pj/rj entry for a noop shape (the jeMU/jdST
+// composite collapses to bare `JSON.stringify(v)` / `rjOrUkuw(JSON.parse(s))`
+// with the dead half gone). Shapes that DO need a transform keep their
+// primitive entries, registered with isNoop=false.
 //
-// CROSS-CUTTING NOTE — divergence from mion:
-//
-// Our `PrepareForJsonEmitter.Finalize` (json_prepare.go:716) always
-// returns `isNoop: false` regardless of whether the body collapses to
-// `return v`. Reason: the Go renderer skips emitting the factory line
-// entirely when isNoop=true (module.go:229), so any parent calling
-// `<childHash>.fn(v[i])` would hit a missing entry. To keep dep-call
-// chains intact we always emit an identity factory.
-//
-// Consequence for these tests:
-//   - mion's `createRTCompiledFunction(...).isNoop === true`
-//     becomes our `rtFnsCache['pj_<id>'].isNoop === false`.
-//   - For atomic kinds where no factory is emitted (string, number,
-//     bigint, etc. — Finalize returns "" and the renderer skips the
-//     init line), the cache entry simply doesn't exist; mion's
-//     equivalent has the entry but with isNoop=true.
-//
-// The tests below assert mion's semantics — when they fail, the
-// failure surfaces the divergence visibly per the testing rules.
+// The entry lookups filter on `familyTag` (the tuple's exact emitting family)
+// rather than `fnID`: composites HOST on the primitive's fnID (`jeMU` carries
+// fnID 'pj'), so an fnID scan would match the composite once the primitive
+// stops loading — the exact ambiguity that masked this contract before.
 
 import {describe, expect, it} from 'vitest';
 import {createJsonDecoder, createJsonEncoder, getRTFnCaches, getRunTypeId} from '@mionjs/ts-go-run-types';
@@ -44,16 +34,15 @@ type TupleSonENCDECRequired = [bigint, Date];
 type AtomicNoEncRequired = number | string;
 type AtomicEncRequired = bigint | Date;
 
-// Slice 4: cache keys are now `<fnHash>_<id>` (opaque per-family hash), not the
-// readable `pj_<id>` / `rj_<id>` tag prefix, and there is no runtime hashing to
-// reconstruct the prefix. Find the entry by its stable `fnID` family tag (still
-// carried on every entry) plus the `_<id>` suffix — the id stays f(T).
-function entryByFamily(fnID: string, id: string) {
+// Cache keys are `<fnHash>_<id>` (opaque per-family hash) with no runtime
+// hashing to reconstruct the prefix — find the entry by its exact emitting
+// familyTag plus the `_<id>` suffix (the id stays f(T)).
+function entryByFamily(familyTag: string, id: string) {
   const {rtFnsCache} = getRTFnCaches();
   const suffix = '_' + id;
   for (const key of Object.keys(rtFnsCache)) {
     const entry = rtFnsCache[key];
-    if (entry?.fnID === fnID && key.endsWith(suffix)) return entry;
+    if (entry?.familyTag === familyTag && key.endsWith(suffix)) return entry;
   }
   return undefined;
 }
@@ -64,12 +53,11 @@ function rjEntry(id: string) {
   return entryByFamily('rj', id);
 }
 
-// pj / rj are demand-scoped now (Slice C): a `getRunTypeId<T>()` reflection
-// call no longer seeds the prepareForJson / restoreFromJson cache entries. So
-// each `T` whose pj/rj entry we inspect must also be passed to the matching
-// JSON factory at a call site the scanner can see — createJsonEncoder(mutate)
-// demands `pj`, createJsonDecoder (default strip) demands `rj`. The id stays
-// f(T), so `getRunTypeId<T>()` still returns the cache key these calls populate.
+// pj / rj are demand-scoped: each `T` inspected below must also be passed to
+// the matching JSON factory at a call site the scanner can see —
+// createJsonEncoder(mutate) demands `pj`, createJsonDecoder (default strip)
+// demands `rj`. Whether the demanded primitive then LOADS at runtime depends
+// on the composite keeping its binding — that's the contract under test.
 describe('json noop markers (00JsonOnly.spec.ts port)', () => {
   it('interface json encode/decode should be marked as noop when there are no actions required', () => {
     const noopId = getRunTypeId<NoJsonENCDECRequired>();
@@ -79,8 +67,10 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     createJsonEncoder<SonENCDECRequired>(undefined, {strategy: 'mutate'});
     createJsonDecoder<SonENCDECRequired>();
 
-    expect(pjEntry(noopId)?.isNoop).toBe(true);
-    expect(rjEntry(noopId)?.isNoop).toBe(true);
+    // Noop shapes: the composites elided their pj/rj bindings, so the
+    // primitive entries never load — stronger than mion's isNoop flag.
+    expect(pjEntry(noopId)).toBeUndefined();
+    expect(rjEntry(noopId)).toBeUndefined();
     expect(pjEntry(encId)?.isNoop).toBe(false);
     expect(rjEntry(encId)?.isNoop).toBe(false);
   });
@@ -93,8 +83,8 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     createJsonEncoder<TupleSonENCDECRequired>(undefined, {strategy: 'mutate'});
     createJsonDecoder<TupleSonENCDECRequired>();
 
-    expect(pjEntry(noopId)?.isNoop).toBe(true);
-    expect(rjEntry(noopId)?.isNoop).toBe(true);
+    expect(pjEntry(noopId)).toBeUndefined();
+    expect(rjEntry(noopId)).toBeUndefined();
     expect(pjEntry(encId)?.isNoop).toBe(false);
     expect(rjEntry(encId)?.isNoop).toBe(false);
   });
@@ -106,13 +96,14 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     // and restoreFromJson would compile to noop. For `number | string`,
     // every member is noop on both halves, so:
     //   - prepareForJson keeps the if/else dispatch (with the trailing
-    //     throw on unmatched inputs) — the dispatch survives so isNoop
-    //     stays false on pj.
+    //     throw on unmatched inputs) — the dispatch survives so the pj
+    //     entry stays live with isNoop=false.
     //   - restoreFromJson has nothing to decode (no member is wrapped),
-    //     so the whole body collapses to identity → isNoop=true on rj.
+    //     so the rj side is identity → the decoder composite elides it
+    //     and the entry never loads.
     // For `bigint | Date`, both members are non-noop on at least one
     // half (bigint pj/rj are non-noop, Date rj is non-noop), so the
-    // wrap is preserved on every member and both halves stay non-noop.
+    // wrap is preserved on every member and both halves stay live.
     const noopId = getRunTypeId<AtomicNoEncRequired>();
     const encId = getRunTypeId<AtomicEncRequired>();
     createJsonEncoder<AtomicNoEncRequired>(undefined, {strategy: 'mutate'});
@@ -121,7 +112,7 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     createJsonDecoder<AtomicEncRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(false);
-    expect(rjEntry(noopId)?.isNoop).toBe(true);
+    expect(rjEntry(noopId)).toBeUndefined();
     expect(pjEntry(encId)?.isNoop).toBe(false);
     expect(rjEntry(encId)?.isNoop).toBe(false);
   });

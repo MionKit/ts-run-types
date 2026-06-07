@@ -184,6 +184,7 @@ func CollectFamilyEntries(dump protocol.Dump, settings constants.CacheModuleSett
 			// foreign entry degrades to a stub at runtime).
 			Deps:     append([]string(nil), rendered.deps...),
 			SoftDeps: append([]string(nil), rendered.crossFamilyDeps...),
+			IsNoop:   rendered.isNoop,
 		})
 		return rendered.deps, true
 	}
@@ -328,6 +329,11 @@ type entryRender struct {
 	argsText        string
 	deps            []string
 	crossFamilyDeps []string
+	// isNoop mirrors the walker's Finalize verdict (the short-form tuple
+	// whose runtime fn is the family identity). Landed on
+	// entrymod.Entry.IsNoop so downstream consumers (the JSON composite
+	// collector) can elide references to identity entries.
+	isNoop bool
 }
 
 // renderEntryWithDeps compiles one RunType into its tuple argument text and
@@ -356,12 +362,13 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	innerName := variantKey(settings, variantSuffix, variantOptions, runType.ID)
 
 	if variantSuffix == "" {
-		if cachedArgs, cachedDeps, cachedCrossFamilyDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
+		if cached, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
 			// Disk-cache hit: the walker never runs, but the entry's
 			// cross-family edges were persisted as CrossFamilyRefs and
 			// rebuilt here (see tryReadCachedEntry / writeCachedEntry), so
-			// the hit returns the same crossFamilyDeps a fresh walk would.
-			return entryRender{argsText: cachedArgs, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps}
+			// the hit returns the same crossFamilyDeps a fresh walk would
+			// (and the same isNoop verdict, persisted as RTEntry.IsNoop).
+			return cached
 		}
 	}
 
@@ -407,7 +414,7 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 				if variantSuffix == "" {
 					// alwaysThrow entries emit no dep calls — no same-family
 					// or cross-family edges to persist.
-					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, opts)
+					writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, false, opts)
 				}
 				return entryRender{argsText: argsText}
 			}
@@ -434,9 +441,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		if variantSuffix == "" {
 			// A noop body emits no dep calls, so no same-family or
 			// cross-family lookups are registered.
-			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, opts)
+			writeCachedEntry(runType, settings, innerPrefix, argsText, nil, nil, true, opts)
 		}
-		return entryRender{argsText: argsText}
+		return entryRender{argsText: argsText, isNoop: true}
 	}
 	createRTFn, factoryBody := WrapClosure(factoryName, walker.FnName, innerFn, walker.ContextLines())
 	// The `code` arg carries the factory BODY — the contents between the
@@ -479,16 +486,16 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
 	argsText := joinArgs(args)
 	if variantSuffix == "" {
-		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, opts)
+		writeCachedEntry(runType, settings, innerPrefix, argsText, deps, crossFamilyDeps, false, opts)
 	}
 	return entryRender{argsText: argsText, deps: deps, crossFamilyDeps: crossFamilyDeps}
 }
 
-// tryReadCachedEntry attempts to load a previously cached (argsText, deps,
-// crossFamilyDeps) triple from the disk store. Returns ok=false on miss
-// for any reason: no store wired, missing file, malformed file, header
-// structural-id mismatch (hash drift), or any child OR cross-family ref
-// whose hash has changed since write time.
+// tryReadCachedEntry attempts to load a previously cached entryRender
+// (argsText, deps, crossFamilyDeps, isNoop) from the disk store. Returns
+// ok=false on miss for any reason: no store wired, missing file, malformed
+// file, header structural-id mismatch (hash drift), or any child OR
+// cross-family ref whose hash has changed since write time.
 //
 // Cached deps are rebuilt from ChildRefs by translating each
 // (structural id, hash) back to the namespaced form
@@ -497,10 +504,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 // OWN (foreign) prefix — the reconstructed dep is `ref.Prefix +
 // currentHash`. Because both read-time hash checks guarantee structural
 // id → hash agreement, these translations are lossless; a cache hit
-// returns the exact crossFamilyDeps the fresh walk would have produced.
-func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (string, []string, []string, bool) {
+// returns the exact entryRender the fresh walk would have produced.
+func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (entryRender, bool) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
-		return "", nil, nil, false
+		return entryRender{}, false
 	}
 	expectedStructural := opts.Lookup.StructuralForHash(runType.ID)
 	if expectedStructural == "" {
@@ -508,14 +515,14 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		// renderEntryWithDeps is called for entries that ARE in the
 		// current dump, but guard anyway: a missing reverse mapping
 		// means we cannot verify the file safely.
-		return "", nil, nil, false
+		return entryRender{}, false
 	}
 	entry, ok, err := opts.Store.ReadRT(runType.ID, settings.Tag)
 	if err != nil || !ok || entry == nil {
-		return "", nil, nil, false
+		return entryRender{}, false
 	}
 	if entry.StructuralID != expectedStructural {
-		return "", nil, nil, false
+		return entryRender{}, false
 	}
 	deps := make([]string, 0, len(entry.ChildRefs))
 	for _, ref := range entry.ChildRefs {
@@ -524,7 +531,7 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 			// Child's structural id has been re-hashed (collision
 			// extension) or removed entirely — cached body's baked
 			// hash is stale.
-			return "", nil, nil, false
+			return entryRender{}, false
 		}
 		deps = append(deps, innerPrefix+currentHash)
 	}
@@ -534,11 +541,11 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		if currentHash == "" || currentHash != ref.Hash {
 			// Same drift rule as ChildRefs: the referenced member's hash
 			// changed across builds, so the whole entry is stale.
-			return "", nil, nil, false
+			return entryRender{}, false
 		}
 		crossFamilyDeps = append(crossFamilyDeps, ref.Prefix+currentHash)
 	}
-	return entry.ArgsText, deps, crossFamilyDeps, true
+	return entryRender{argsText: entry.ArgsText, deps: deps, crossFamilyDeps: crossFamilyDeps, isNoop: entry.IsNoop}, true
 }
 
 // splitNamespacedHash splits a namespaced cache hash into its family
@@ -554,8 +561,9 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 }
 
 // writeCachedEntry persists the freshly-rendered (argsText, deps,
-// crossFamilyDeps) triple so the next build can skip the walker for this
-// (typeID, fnTag) AND still reconstruct its cross-family edges on a hit.
+// crossFamilyDeps, isNoop) tuple so the next build can skip the walker for
+// this (typeID, fnTag) AND still reconstruct its cross-family edges and
+// noop verdict on a hit.
 // Failures are logged once to stderr and otherwise ignored — a read-only
 // or out-of-space FS shouldn't break the build, and the next run will
 // re-attempt the write.
@@ -569,7 +577,7 @@ func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok 
 // structural id, and store the triple as a CrossFamilyRef. As with
 // ChildRefs, an unresolvable ref aborts the write cleanly rather than
 // persisting a record the reader can't verify.
-func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, opts RenderOpts) {
+func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, argsText string, deps []string, crossFamilyDeps []string, isNoop bool, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -617,6 +625,7 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 		Format:          disk.FormatVersion,
 		StructuralID:    structural,
 		ArgsText:        argsText,
+		IsNoop:          isNoop,
 		ChildRefs:       childRefs,
 		CrossFamilyRefs: crossFamilyRefs,
 	}

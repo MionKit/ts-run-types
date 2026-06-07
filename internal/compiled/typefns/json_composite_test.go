@@ -21,7 +21,7 @@ func compositeBodyFor(t *testing.T, tag string) string {
 		t.Fatalf("unknown composite tag %q", tag)
 	}
 	runType := &protocol.RunType{ID: "obj1", Kind: protocol.KindObjectLiteral}
-	entry := collectJsonCompositeEntry(runType, tag, composite, RenderOpts{EmitMode: constants.EmitBoth})
+	entry := collectJsonCompositeEntry(runType, tag, composite, RenderOpts{EmitMode: constants.EmitBoth}, nil)
 	if entry == nil {
 		t.Fatalf("no composite entry rendered for %q", tag)
 	}

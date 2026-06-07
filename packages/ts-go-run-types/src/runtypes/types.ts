@@ -142,6 +142,10 @@ export interface CompiledFnData {
   readonly typeName: string;
   /** The operation family (`it`, `te`, `pj`, `rj`, …). */
   readonly fnID: string;
+  /** The tuple's slot-0 family tag (`pj`, `jeMU`, `jdST`, …). Unlike `fnID`
+   *  (which composites HOST on — `jeMU` carries fnID `pj`), this is the exact
+   *  emitting family, so consumers can tell a primitive from a composite. */
+  readonly familyTag?: string;
   readonly rtFnHash: string;
   readonly args: CompiledFnArgs;
   readonly defaultParamValues: CompiledFnArgs;

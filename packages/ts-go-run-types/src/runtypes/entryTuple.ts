@@ -547,6 +547,7 @@ function registerTypeFnTuple(utils: RTUtils, tuple: FnTypeTuple): boolean {
   const entry: CompiledTypeFn = {
     rtFnHash: record.rtFnHash,
     fnID: meta.fnID,
+    familyTag: record.familyTag,
     typeName: record.typeName,
     args: meta.args(),
     defaultParamValues: meta.defaultParamValues(),
