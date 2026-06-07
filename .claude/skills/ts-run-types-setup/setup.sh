@@ -1,36 +1,62 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────────────────────
-# setup.sh — ts-run-types setup for the containerized apps (docs website +
-# benchmarks). Checks EACH required dependency and installs the missing ones,
-# one at a time. Supported: Linux, macOS. Any other OS prints a "not ready"
-# message and exits.
+# -----------------------------------------------------------------------------
+# setup.sh - ts-run-types autonomous setup for the containerized apps (docs
+# website + benchmarks).
 #
-#   bash .claude/skills/ts-run-types-setup/setup.sh           # check + install missing
-#   bash .claude/skills/ts-run-types-setup/setup.sh --check    # check only, never install
+# This script lands the repo in a runnable state without user intervention:
+#   1. Checks the OS + package manager.
+#   2. Installs missing host deps (podman, Node, pnpm, Go).
+#   3. macOS: ensures the podman VM exists and is started.
+#   4. Bootstraps the tsgolint + typescript-go submodules.
+#   5. Applies the tsgolint patches to the working tree (idempotent).
+#   6. Runs `pnpm install --frozen-lockfile` if node_modules is stale.
+#   7. Builds the Go resolver binary at bin/ts-go-run-types.
+#   8. Builds the vite-plugin-runtypes dist (consumers depend on it).
 #
-# Supported versions (kept in sync with CLAUDE.md → "Containerized apps"):
-#   podman ≥ 4.0     both apps (container runtime)
-#   Node   ≥ 24      benchmarks host build (root package.json engines)
-#   pnpm   ≥ 11      monorepo workspace policies (packageManager pnpm@11.1.1)
-#   Go     ≥ 1.26    benchmarks resolver binary (go.mod)
-# Only podman is required for the WEBSITE; the benchmarks additionally need
-# Node + pnpm + Go for `pnpm run bench:prep`.
-# ─────────────────────────────────────────────────────────────────────────────
+# After this, the smoke scripts (`pnpm run ts-run-types:smoke`,
+# `pnpm run website:smoke`, `pnpm run bench:smoke`) verify the binary +
+# plugin wiring AND the containers actually build + run end-to-end.
+#
+# Architecture:
+#   setup.sh             <- this file: orchestrates everything end-to-end.
+#   lib/common.sh        <- shared helpers (bold/ok/warn/err, version_ge,
+#                           check_dep, PM-agnostic pnpm + Go-tarball fallbacks).
+#   pm/<pm>.sh           <- per-package-manager installers. Each defines
+#                           install_podman / install_node / install_pnpm /
+#                           install_go and sets PM_NAME.
+#
+# Supported:
+#   macOS  -> pm/brew.sh
+#   Linux  -> pm/apt.sh | pm/dnf.sh | pm/pacman.sh | pm/zypper.sh (first match)
+#
+# Supported tool versions (kept in sync with CLAUDE.md -> "Containerized apps"):
+#   podman >= 4.0    both apps (container runtime)
+#   Node   >= 24     benchmarks host build (root package.json engines)
+#   pnpm   >= 11     monorepo workspace policies (packageManager pnpm@11.1.1)
+#   Go     >= 1.26   benchmarks resolver binary (go.mod)
+#
+# Usage:
+#   bash .claude/skills/ts-run-types-setup/setup.sh           # autonomous setup
+#   bash .claude/skills/ts-run-types-setup/setup.sh --check    # report only
+#
+# Exit codes:
+#   0  ok
+#   1  a required install / bootstrap step failed
+#   3  unsupported OS or no supported package manager
+# -----------------------------------------------------------------------------
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 PODMAN_MIN=4.0
 NODE_MIN=24
 PNPM_MIN=11
 GO_MIN=1.26
-GO_INSTALL_VERSION=1.26.0 # used only when Go is absent and must be downloaded
+GO_INSTALL_VERSION=1.26.0 # used only when Go is absent on Linux and tarball is fetched
 
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
-
-bold() { printf '\n\033[1m%s\033[0m\n' "$*"; }
-ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
-warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
-err() { printf '  \033[31m✗\033[0m %s\n' "$*" >&2; }
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
@@ -38,83 +64,201 @@ SUDO=""
 [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 FAILED=0
 
-# true if $1 >= $2 (dotted versions)
-version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/lib/common.sh"
 
-pkg_install() { # $@ = packages, via the host's package manager
-  if command -v apt-get >/dev/null 2>&1; then $SUDO apt-get update -qq && $SUDO apt-get install -y -qq "$@"
-  elif command -v dnf >/dev/null 2>&1; then $SUDO dnf install -y "$@"
-  elif command -v pacman >/dev/null 2>&1; then $SUDO pacman -Sy --noconfirm "$@"
-  elif command -v zypper >/dev/null 2>&1; then $SUDO zypper install -y "$@"
-  else return 1; fi
-}
-
-# ── per-dependency install routines ──────────────────────────────────────────
-
-install_podman() {
+# Pick the package-manager module to source. Echoes the basename (no .sh).
+# Returns non-zero if no supported PM is present.
+detect_pm() {
   case "$OS" in
-    Linux) pkg_install podman ;;
-    Darwin)
-      command -v brew >/dev/null 2>&1 || { err "Homebrew required (https://brew.sh)"; return 1; }
-      brew install podman
-      podman machine list --format '{{.Name}}' 2>/dev/null | grep -q . || podman machine init
-      podman machine list --format '{{.Running}}' 2>/dev/null | grep -qi true || podman machine start
-      ;;
-  esac
-}
-install_node() {
-  case "$OS" in
-    Linux) pkg_install nodejs npm || return 1 ;;
-    Darwin) brew install node ;;
-  esac
-}
-install_pnpm() {
-  if command -v corepack >/dev/null 2>&1; then corepack enable && corepack prepare pnpm@latest --activate
-  elif command -v npm >/dev/null 2>&1; then $SUDO npm install -g pnpm
-  else return 1; fi
-}
-install_go() {
-  case "$OS" in
-    Darwin) brew install go ;;
+    Darwin) echo "brew"; return 0 ;;
     Linux)
-      local goarch; case "$ARCH" in x86_64) goarch=amd64 ;; aarch64 | arm64) goarch=arm64 ;; *) goarch="" ;; esac
-      [ -z "$goarch" ] && { err "unsupported arch $ARCH for Go auto-install"; return 1; }
-      local tgz="go${GO_INSTALL_VERSION}.linux-${goarch}.tar.gz"
-      curl -fsSL "https://go.dev/dl/${tgz}" -o "/tmp/${tgz}" || return 1
-      $SUDO rm -rf /usr/local/go && $SUDO tar -C /usr/local -xzf "/tmp/${tgz}"
-      export PATH="/usr/local/go/bin:$PATH"
-      warn "Go installed to /usr/local/go — add /usr/local/go/bin to your PATH."
+      if   command -v apt-get >/dev/null 2>&1; then echo "apt"
+      elif command -v dnf     >/dev/null 2>&1; then echo "dnf"
+      elif command -v pacman  >/dev/null 2>&1; then echo "pacman"
+      elif command -v zypper  >/dev/null 2>&1; then echo "zypper"
+      else return 1; fi
       ;;
+    *) return 1 ;;
   esac
 }
 
-# check_dep <name> <min> <version-cmd> <install-fn> <required:0|1>
-check_dep() {
-  local name="$1" min="$2" vcmd="$3" install="$4" required="$5" cur
-  if command -v "$name" >/dev/null 2>&1; then
-    cur="$(eval "$vcmd" 2>/dev/null)"
-    if [ -z "$cur" ]; then ok "$name present (version unknown)"; return 0; fi
-    if version_ge "$cur" "$min"; then ok "$name $cur (≥ $min)"; else warn "$name $cur present but repo targets ≥ $min — upgrade recommended"; fi
+# Apple Silicon's vfkit (the macOS podman-machine backend) requires Rosetta 2.
+# No-op on Intel Macs and on Linux. Idempotent.
+ensure_rosetta_macos() {
+  [ "$OS" = Darwin ] || return 0
+  [ "$ARCH" = arm64 ] || return 0
+  if arch -x86_64 /usr/bin/true >/dev/null 2>&1; then
+    ok "Rosetta 2 present"
     return 0
   fi
   if [ "$CHECK_ONLY" = 1 ]; then
-    if [ "$required" = 1 ]; then err "$name missing (required); re-run without --check to install"; FAILED=1
-    else warn "$name missing (needed for benchmarks); re-run without --check to install"; fi
+    warn "Rosetta 2 missing - re-run without --check to install (needed by vfkit)"
     return 0
   fi
-  bold "Installing $name…"
-  if "$install" && command -v "$name" >/dev/null 2>&1; then
-    cur="$(eval "$vcmd" 2>/dev/null)"; ok "$name installed (${cur:-ok})"
-    version_ge "${cur:-0}" "$min" || warn "$name ${cur:-?} is below the supported ≥ $min"
+  bold "Installing Rosetta 2 (required by the podman-machine vfkit backend)"
+  if softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1; then
+    ok "Rosetta 2 installed"
   else
-    if [ "$required" = 1 ]; then err "failed to install $name (required)"; FAILED=1
-    else warn "failed to install $name (needed only for benchmarks)"; fi
+    err "softwareupdate --install-rosetta failed"
+    FAILED=1
+    return 1
   fi
+}
+
+# Ensure the podman engine is reachable. On macOS that means a VM exists and is
+# running; on Linux the daemon should respond directly.
+ensure_podman_engine() {
+  command -v podman >/dev/null 2>&1 || return 0  # podman missing - check_dep handled it
+  if podman info >/dev/null 2>&1; then ok "podman engine reachable"; return 0; fi
+  if [ "$OS" != Darwin ]; then
+    warn "podman engine not reachable - check that the podman service is up"
+    return 0
+  fi
+  ensure_rosetta_macos || return 1
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "podman engine not reachable - re-run without --check to init/start the VM"
+    return 0
+  fi
+  if ! podman machine list --format '{{.Name}}' 2>/dev/null | grep -q .; then
+    bold "Initializing podman machine (one-time, ~1 min)"
+    podman machine init || { err "podman machine init failed"; FAILED=1; return 1; }
+  fi
+  if ! podman machine list --format '{{.Running}}' 2>/dev/null | grep -qi true; then
+    bold "Starting podman machine"
+    podman machine start || { err "podman machine start failed"; FAILED=1; return 1; }
+  fi
+  if podman info >/dev/null 2>&1; then ok "podman engine reachable"
+  else err "podman engine still unreachable after machine start"; FAILED=1; fi
+}
+
+# Initialize the tsgolint submodule (which itself nests typescript-go).
+ensure_submodules() {
+  local tsgolint_dir="$REPO_DIR/third_party/tsgolint"
+  local tsgo_dir="$tsgolint_dir/typescript-go"
+  if [ -f "$tsgolint_dir/go.mod" ] && [ -d "$tsgo_dir/.git" ] || [ -f "$tsgo_dir/.git" ]; then
+    ok "submodules present (tsgolint + typescript-go)"
+    return 0
+  fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "submodules not initialized - re-run without --check to bootstrap"
+    return 0
+  fi
+  bold "Initializing submodules (tsgolint + typescript-go)"
+  ( cd "$REPO_DIR" && git submodule update --init --recursive ) \
+    || { err "git submodule update failed"; FAILED=1; return 1; }
+  ok "submodules ready"
+}
+
+# Apply the tsgolint patches to the typescript-go working tree. Idempotent: if a
+# patch already applies in reverse it is considered applied and skipped.
+apply_tsgolint_patches() {
+  local tsgo_dir="$REPO_DIR/third_party/tsgolint/typescript-go"
+  local patches_dir="$REPO_DIR/third_party/tsgolint/patches"
+  [ -d "$tsgo_dir" ] || { warn "typescript-go submodule missing - skipping patches"; return 0; }
+  [ -d "$patches_dir" ] || { warn "patches/ missing - skipping"; return 0; }
+
+  local patches=("$patches_dir"/*.patch)
+  [ -e "${patches[0]}" ] || { ok "no tsgolint patches to apply"; return 0; }
+
+  local needs_apply=()
+  local already=0
+  local broken=0
+  for p in "${patches[@]}"; do
+    if ( cd "$tsgo_dir" && git apply --reverse --check "$p" >/dev/null 2>&1 ); then
+      already=$((already+1))
+    elif ( cd "$tsgo_dir" && git apply --check "$p" >/dev/null 2>&1 ); then
+      needs_apply+=("$p")
+    elif ( cd "$tsgo_dir" && git apply --3way --check "$p" >/dev/null 2>&1 ); then
+      needs_apply+=("$p")
+    else
+      err "patch $(basename "$p") neither applies cleanly nor in reverse"
+      broken=$((broken+1))
+    fi
+  done
+
+  if [ "$broken" -gt 0 ]; then
+    err "$broken tsgolint patch(es) cannot be applied or reversed; resolve manually"
+    FAILED=1
+    return 1
+  fi
+
+  if [ "${#needs_apply[@]}" -eq 0 ]; then
+    ok "tsgolint patches already applied ($already)"
+    return 0
+  fi
+
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "${#needs_apply[@]} tsgolint patch(es) need applying - re-run without --check"
+    return 0
+  fi
+
+  bold "Applying ${#needs_apply[@]} tsgolint patch(es) to typescript-go working tree"
+  for p in "${needs_apply[@]}"; do
+    ( cd "$tsgo_dir" && git apply --3way "$p" ) \
+      || { err "git apply failed on $(basename "$p")"; FAILED=1; return 1; }
+  done
+  ok "tsgolint patches applied"
+}
+
+# Install workspace deps if node_modules is missing or pnpm-lock changed.
+install_workspace_deps() {
+  command -v pnpm >/dev/null 2>&1 || { warn "pnpm missing - cannot install deps"; return 0; }
+  if [ -d "$REPO_DIR/node_modules" ] && [ -f "$REPO_DIR/node_modules/.modules.yaml" ]; then
+    ok "workspace node_modules present (skipping install)"
+    return 0
+  fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "workspace deps not installed - re-run without --check"
+    return 0
+  fi
+  bold "Running pnpm install --frozen-lockfile"
+  ( cd "$REPO_DIR" && pnpm install --frozen-lockfile ) \
+    || { err "pnpm install failed"; FAILED=1; return 1; }
+  ok "workspace deps installed"
+}
+
+# Build the Go resolver binary at bin/ts-go-run-types. Skips when up-to-date
+# relative to the Go sources.
+build_go_binary() {
+  command -v go >/dev/null 2>&1 || { warn "go missing - skipping binary build"; return 0; }
+  local bin="$REPO_DIR/bin/ts-go-run-types"
+  if [ -x "$bin" ] && [ -z "$(find "$REPO_DIR/cmd" "$REPO_DIR/internal" -type f -newer "$bin" -print -quit 2>/dev/null)" ]; then
+    ok "Go binary up-to-date (bin/ts-go-run-types)"
+    return 0
+  fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "Go binary missing or stale - re-run without --check"
+    return 0
+  fi
+  bold "Building Go binary -> bin/ts-go-run-types"
+  ( cd "$REPO_DIR" && go build -o bin/ts-go-run-types ./cmd/ts-go-run-types ) \
+    || { err "go build failed"; FAILED=1; return 1; }
+  ok "Go binary built"
+}
+
+# Build vite-plugin-runtypes dist. The marker package's typecheck consumes the
+# plugin's published .d.ts so the dist must exist for tests + smokes to pass.
+build_vite_plugin() {
+  command -v pnpm >/dev/null 2>&1 || return 0
+  local dist="$REPO_DIR/packages/vite-plugin-runtypes/dist/index.js"
+  if [ -f "$dist" ] && [ -z "$(find "$REPO_DIR/packages/vite-plugin-runtypes/src" -type f -newer "$dist" -print -quit 2>/dev/null)" ]; then
+    ok "vite-plugin-runtypes dist up-to-date"
+    return 0
+  fi
+  if [ "$CHECK_ONLY" = 1 ]; then
+    warn "vite-plugin-runtypes dist missing or stale - re-run without --check"
+    return 0
+  fi
+  bold "Building vite-plugin-runtypes"
+  ( cd "$REPO_DIR" && pnpm --filter vite-plugin-runtypes run build ) \
+    || { err "vite-plugin-runtypes build failed"; FAILED=1; return 1; }
+  ok "vite-plugin-runtypes dist built"
 }
 
 main() {
   case "$OS" in
-    Linux | Darwin) ;;
+    Linux|Darwin) ;;
     *)
       bold "ts-run-types setup"
       err "This skill is not ready for '$OS'. Supported platforms: Linux and macOS."
@@ -123,30 +267,60 @@ main() {
       ;;
   esac
 
-  bold "ts-run-types setup — $OS ($ARCH)$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
-
-  bold "Required for the docs website + benchmarks"
-  check_dep podman "$PODMAN_MIN" "podman --version | awk '{print \$3}'" install_podman 1
-
-  bold "Required for the benchmarks (host build via 'pnpm run bench:prep')"
-  check_dep node "$NODE_MIN" "node --version | tr -d v" install_node 0
-  check_dep pnpm "$PNPM_MIN" "pnpm --version" install_pnpm 0
-  check_dep go "$GO_MIN" "go version | awk '{print \$3}' | sed 's/^go//'" install_go 0
-
-  # verify the container engine actually runs (not just the binary)
-  if command -v podman >/dev/null 2>&1; then
-    if podman info >/dev/null 2>&1; then ok "podman engine reachable (podman info)"
-    elif [ "$OS" = Darwin ]; then warn "podman engine not reachable — run: podman machine start"
-    else warn "podman engine not reachable (podman info failed)"; fi
+  local pm
+  if ! pm="$(detect_pm)"; then
+    bold "ts-run-types setup - $OS ($ARCH)"
+    err "No supported package manager found on this $OS host."
+    err "Supported: macOS (Homebrew), Linux (apt, dnf, pacman, zypper)."
+    exit 3
   fi
 
-  bold "Next steps (from the repo root)"
-  echo "  pnpm run website:build-image && pnpm run website:dev   # docs site → http://localhost:3000"
-  echo "  pnpm run bench:prep && pnpm run bench                  # validation benchmark"
-  echo "  pnpm run bench:typecost                                # type-checking-cost benchmark"
-  if [ "$OS" = Darwin ]; then echo "  (macOS: WEBSITE_POLL=1 pnpm run website:dev  for reliable hot reload)"; fi
+  # shellcheck disable=SC1090
+  . "$SCRIPT_DIR/pm/$pm.sh"
 
-  [ "$FAILED" = 0 ] && bold "Setup OK." || { bold "Setup incomplete — see ✗ above."; exit 1; }
+  bold "ts-run-types setup - $OS ($ARCH) via $PM_NAME$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
+
+  bold "Required for the docs website + benchmarks"
+  check_dep podman "$PODMAN_MIN" "podman --version | awk '{print \$3}'" 1
+
+  bold "Required for the benchmarks (host build via 'pnpm run bench:prep')"
+  check_dep node "$NODE_MIN" "node --version | tr -d v" 0
+  check_dep pnpm "$PNPM_MIN" "pnpm --version" 0
+  check_dep go   "$GO_MIN"   "go version | awk '{print \$3}' | sed 's/^go//'" 0
+
+  bold "Container engine"
+  ensure_podman_engine
+
+  bold "Submodules + tsgolint patches"
+  ensure_submodules
+  apply_tsgolint_patches
+
+  bold "Workspace deps + project build"
+  install_workspace_deps
+  build_go_binary
+  build_vite_plugin
+
+  bold "Next steps (from the repo root)"
+  if [ "$CHECK_ONLY" = 1 ]; then
+    echo "  bash .claude/skills/ts-run-types-setup/setup.sh   # run autonomous setup"
+  else
+    echo "  pnpm run ts-run-types:smoke  # binary + plugin wiring smoke (~1s)"
+    echo "  pnpm run website:smoke    # build image + boot dev server + curl :3000 + stop"
+    echo "  pnpm run bench:smoke      # build image + vite-build the benchmark in-container"
+    echo "  pnpm run website:dev      # docs site -> http://localhost:3000"
+    echo "  pnpm run bench            # full validation benchmark"
+    echo "  pnpm run bench:typecost   # type-checking-cost benchmark"
+    if [ "$OS" = Darwin ]; then
+      echo "  (macOS: WEBSITE_POLL=1 pnpm run website:dev  for reliable hot reload)"
+    fi
+  fi
+
+  if [ "$FAILED" = 0 ]; then
+    bold "Setup OK."
+  else
+    bold "Setup incomplete - see ERR above."
+    exit 1
+  fi
 }
 
 main "$@"

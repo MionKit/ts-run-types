@@ -1,93 +1,123 @@
 ---
 name: ts-run-types-setup
-description: Set up the **ts-run-types** repo's prerequisites for ITS containerized apps — checks each dependency (podman, Node, pnpm, Go) and installs the missing ones so this repo's documentation website and benchmarks containers can build and run. Use when setting up / bootstrapping ts-run-types, installing podman for it, or preparing to run its docs site or benchmarks. Supports Linux and macOS; prints a not-ready message on other OSes. Specific to ts-run-types — NOT a generic project setup (the rest of the monorepo needs only pnpm).
+description: End-to-end autonomous setup for **ts-run-types**. Installs host deps (podman, Node, pnpm, Go), starts the podman engine, bootstraps the tsgolint + typescript-go submodules + patches, installs workspace deps, builds the Go resolver binary + vite-plugin-runtypes, then smoke-tests the docs website container (curl :3000) and the benchmarks container (vite build inside). Use when setting up / bootstrapping ts-run-types, installing podman for it, or verifying the containerized apps are runnable. Supports Linux and macOS; prints a not-ready message on other OSes. Specific to ts-run-types - NOT a generic project setup (the rest of the monorepo needs only pnpm).
 ---
 
 # ts-run-types setup (docs website + benchmarks containers)
 
-This is the host-prerequisites setup for **this repo's** two **containerized**
-apps driven by podman (the rest of the monorepo needs only pnpm):
+This skill is the automated path through the project's setup document. The full
+human-readable reference lives in [SETUP.md](../../../SETUP.md) - prereqs,
+bootstrap, build, test, lint, dev loop, containerized apps, publishing,
+troubleshooting. This skill drives the install + bootstrap + verification
+steps end-to-end so the user does not have to follow SETUP.md by hand.
 
-- the **docs website** (`website/`, Nuxt+Docus) — `scripts/website.sh`
-- the **benchmarks** (`benchmarks/`, validators + vite) — `scripts/benchmarks.sh`
+## How the skill runs (autonomous flow)
 
-Both install their heavy node_modules **inside** a podman image, never on the
-host (supply-chain isolation). This skill prepares the **host prerequisites** to
-build/run them. The driver is [`setup.sh`](setup.sh): it checks each dependency
-and installs only the missing ones.
-
-Paths below are relative to the repo root.
-
-## Run (the driver)
+Run these four commands from the repo root, in order. Stop and surface errors
+to the user the first time any step exits non-zero.
 
 ```bash
-bash .claude/skills/ts-run-types-setup/setup.sh          # check + install missing deps
-bash .claude/skills/ts-run-types-setup/setup.sh --check  # report only, never install
+bash .claude/skills/ts-run-types-setup/setup.sh   # 1. host deps + project bootstrap
+pnpm run ts-run-types:smoke                       # 2. Go binary + vite plugin wiring smoke
+pnpm run website:smoke                            # 3. docs website smoke
+pnpm run bench:smoke                              # 4. benchmarks smoke
 ```
 
-It detects the OS, ensures each dependency (installing per-distro on Linux via
-apt/dnf/pacman/zypper, via Homebrew on macOS), verifies the podman **engine**
-actually runs (`podman info`), and prints the next-step commands. Exit codes:
-`0` ok · `1` a required install failed · `3` unsupported OS.
+After all four pass, the repo is ready: `pnpm run website:dev`,
+`pnpm run bench`, and `pnpm test` will all work.
 
-Verified output on this Linux container (all deps present):
+### What each step does
+
+**1. `setup.sh`** ([setup.sh](setup.sh)) - the heavy lifter. Each sub-step is
+idempotent and skips when already satisfied:
+
+- Checks + installs missing host deps (podman, Node, pnpm, Go) via the detected
+  package manager (Homebrew on macOS; apt/dnf/pacman/zypper on Linux). Version
+  minimums are defined in [SETUP.md](../../../SETUP.md#prerequisites).
+- **macOS Apple Silicon only:** installs Rosetta 2 via `softwareupdate
+  --install-rosetta --agree-to-license` when missing - the podman-machine
+  `vfkit` backend needs it and silently exits 1 without it.
+- **macOS only:** if the podman engine is unreachable, runs `podman machine
+  init` (when no machine exists) + `podman machine start`.
+- Initializes the `third_party/tsgolint` submodule + its nested
+  `typescript-go` submodule via `git submodule update --init --recursive`.
+- Applies the `third_party/tsgolint/patches/*.patch` set to the
+  `typescript-go` working tree with `git apply --3way`. For each patch it
+  first tries `git apply --reverse --check` to detect "already applied" and
+  skip - the step is safe to re-run.
+- Runs `pnpm install --frozen-lockfile` if workspace `node_modules` is missing.
+- Builds the Go resolver binary at `bin/ts-go-run-types` (skips if newer than
+  every file under `cmd/` + `internal/`).
+- Builds `packages/vite-plugin-runtypes/dist` (the marker package's typecheck
+  consumes it; required for `pnpm test` and both smokes).
+
+Pass `--check` to report status only, never install or build anything.
+
+Exit codes: `0` ok / `1` a required install or bootstrap step failed / `3`
+unsupported OS or no supported package manager.
+
+**2. `pnpm run ts-run-types:smoke`** - end-to-end smoke for the Go resolver
+binary + vite plugin wiring ([scripts/ts-run-types-smoke.mjs](../../../scripts/ts-run-types-smoke.mjs)).
+Spawns `bin/ts-go-run-types` in `--inline-server` mode, installs three tiny
+in-memory fixtures (`getRunTypeId<T>()` static, `reflectRunTypeId(v)` reflect,
+`createValidate<T>()` to exercise the `InjectTypeFnArgs` createX path), runs
+the plugin's `rewrite()` over each, then calls `scanFiles` with
+`includeEntryModules: true` and asserts the resolver returned a Site per
+fixture and at least one rendered entry module. Pre-hook
+(`prets-run-types:smoke`) re-runs `check:go-binary` + the plugin `tsc --build`
+so the smoke is usable standalone; both are incremental and skip when fresh.
+Runs in ~1s when healthy. Exits 0/1.
+
+**3. `pnpm run website:smoke`** - builds the website podman image if needed
+(`scripts/website.sh:ensure_image` rebuilds when the `Containerfile` or any
+manifest is newer than the image), runs the dev server detached in a
+`tsrt-website-smoke` container, polls `http://localhost:3000` for HTTP 200 + a
+`<title>...</title>` response (90s timeout, override with
+`WEBSITE_SMOKE_TIMEOUT`), then stops + removes the container. Exits 0/1.
+
+**4. `pnpm run bench:smoke`** - via `scripts/benchmarks.sh:ensure_prereqs`,
+self-syncs the host Go binary, the Linux cross-binary (`bin/ts-go-run-types-linux-<arch>`),
+the marker dist, the plugin dist, and the bench podman image - rebuilds
+whichever input is stale - then runs `pnpm run build` inside the container.
+That build exercises both the resolver binary (via the vite plugin) and the
+benchmark sources end-to-end. Exits 0/1. Skips the full bench loop (which
+takes minutes); for that, run `pnpm run bench` afterwards.
+
+## Layout
 
 ```
-ts-run-types setup — Linux (x86_64)
-Required for the docs website + benchmarks
-  ✓ podman 4.9.3 (≥ 4.0)
-Required for the benchmarks (host build via 'pnpm run bench:prep')
-  ! node 22.22.2 present but repo targets ≥ 24 — upgrade recommended
-  ✓ pnpm 11.1.1 (≥ 11)
-  ✓ go 1.26.0 (≥ 1.26)
-  ✓ podman engine reachable (podman info)
-Setup OK.
+.claude/skills/ts-run-types-setup/
+  setup.sh             # orchestrates deps + bootstrap + build
+  lib/common.sh        # bold/ok/warn/err, version_ge, check_dep, fallbacks
+  pm/brew.sh           # macOS Homebrew installers
+  pm/apt.sh            # Debian/Ubuntu installers
+  pm/dnf.sh            # Fedora/RHEL/CentOS Stream installers
+  pm/pacman.sh         # Arch installers
+  pm/zypper.sh         # openSUSE installers
 ```
 
-## Supported versions
-
-Single source of truth is [CLAUDE.md](../../../CLAUDE.md) → "Containerized apps".
-
-| Tool   | Min    | Needed by               |
-| ------ | ------ | ----------------------- |
-| podman | ≥ 4.0  | website + benchmarks    |
-| Node   | ≥ 24   | benchmarks host build   |
-| pnpm   | ≥ 11   | monorepo workspace      |
-| Go     | ≥ 1.26 | benchmarks resolver bin |
-
-Only **podman** is required for the website. The benchmarks additionally need
-Node + pnpm + Go for `pnpm run bench:prep` (builds the Go resolver binary + JS
-packages on the host; that binary is bind-mounted into the benchmark container).
-
-## After setup — run the apps
-
-```bash
-pnpm run website:build-image && pnpm run website:dev   # docs site → http://localhost:3000
-pnpm run bench:prep && pnpm run bench                  # validation benchmark (build + run in container)
-pnpm run bench:typecost                                # type-checking-cost benchmark
-```
-
-I verified this session that the website serves (`curl localhost:3000` → HTTP 200,
-`<title>mion …</title>`) and that `pnpm run bench` / `bench:typecost` complete
-inside the container.
+Each `pm/<pm>.sh` defines `install_podman` / `install_node` / `install_pnpm` /
+`install_go` and sets `PM_NAME`. Version minimums for each tool are defined in
+[SETUP.md](../../../SETUP.md#prerequisites) - keep `setup.sh`'s
+version constants in sync.
 
 ## Platform support
 
-- **Linux** — verified here (podman 4.9.3 via apt). Other distros use dnf/pacman/zypper.
-- **macOS** — supported: installs via Homebrew and runs `podman machine init/start`
-  (containers run in a Linux VM). For the dev server use
-  `WEBSITE_POLL=1 pnpm run website:dev` (VM file-watch needs polling). _Not verified
-  in this Linux container — the macOS branch is install-by-Homebrew + machine start._
-- **Any other OS** — the script prints a not-ready message and exits `3`.
+- **Linux** - verified (podman 4.9.3 via apt; other distros use dnf/pacman/zypper).
+- **macOS** - supported: installs via Homebrew, manages the `podman machine` VM
+  (`init` if missing, `start` if down). For long dev sessions use
+  `WEBSITE_POLL=1 pnpm run website:dev` (VM file-watch needs polling).
+- **Any other OS** - the script prints a not-ready message and exits `3`.
 
-## Gotchas
+## Notes
 
-- **`bench:prep` needs the submodule bootstrap first.** Building the Go resolver
-  binary requires the tsgolint/typescript-go submodules + patches (see
-  [CONTRIBUTORS.md](../../../CONTRIBUTORS.md) → submodule bootstrap). `setup.sh`
-  ensures the Go _toolchain_, not the submodule checkout.
-- **Behind a corporate/MITM proxy**, the in-container `pnpm install` fails TLS —
-  pass the proxy CA + host network: `WEBSITE_CA_CERT=… WEBSITE_BUILD_NETWORK=host
-pnpm run website:build-image` (and `BENCH_*` equivalents). See `website/CONTAINER.md`.
-- **Go auto-install on Linux** drops Go in `/usr/local/go`; add `/usr/local/go/bin`
+- Behind a corporate / MITM proxy: pass the proxy CA + host network as documented
+  in [SETUP.md](../../../SETUP.md#containerized-apps-docs-website--benchmarks).
+- Go auto-install on Linux drops Go in `/usr/local/go`; add `/usr/local/go/bin`
   to PATH if it wasn't already.
+- macOS first-time `podman machine init` downloads a Linux VM image (~1 min);
+  the skill prints "Initializing podman machine" so the wait is explicit.
+- Submodule re-bootstrap is safe: the patch step detects already-applied
+  patches via `git apply --reverse --check` and skips them.
+- Troubleshooting table (Rosetta, podman machine, patch failures, marker
+  Temporal typecheck) lives in [SETUP.md](../../../SETUP.md#troubleshooting).

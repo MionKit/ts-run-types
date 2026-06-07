@@ -137,7 +137,7 @@ Each marker is recognised by both its symbol name AND its declaring module, so a
 
 ## Build & Test
 
-The repository contains a Go binary and a pnpm/Lerna workspace of JS packages. See [CONTRIBUTORS.md](CONTRIBUTORS.md) for full contributor setup, patch management, and publishing.
+The repository contains a Go binary and a pnpm/Lerna workspace of JS packages. See [SETUP.md](SETUP.md) for full contributor setup, patch management, and publishing.
 
 ```bash
 git submodule update --init --recursive
