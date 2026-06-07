@@ -21,6 +21,8 @@ export const DATETIME = {
   // Duplicated from Atomic.ts so the date/time family reads as one group here too.
   date: {
     title: 'date',
+    description: 'Root `Date` round-trips across JSON and binary, returning a real Date instance on decode.',
+    serializeNotes: 'JSON serializes Date to an ISO string and revives it with `new Date(...)`; binary stores the epoch as a fixed 8-byte float64 of `getTime()`.',
     mutateEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Date>(undefined, {strategy: 'direct'}),
@@ -37,6 +39,8 @@ export const DATETIME = {
 
   instant: {
     title: 'Temporal.Instant',
+    description: 'Root `Temporal.Instant` (an exact point on the timeline) round-trips across JSON and binary, returning a real Instant on decode.',
+    serializeNotes: 'JSON serializes via `Instant.toJSON()` (UTC instant string) and revives with `Temporal.Instant.from(...)`; equality is canonical-string compare since Instants have no enumerable own keys.',
     mutateEncoder: () => createJsonEncoder<Temporal.Instant>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<Temporal.Instant>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<Temporal.Instant>(undefined, {strategy: 'direct'}),
