@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# setup.sh — project setup for the containerized apps (docs website +
+# setup.sh — ts-run-types setup for the containerized apps (docs website +
 # benchmarks). Checks EACH required dependency and installs the missing ones,
 # one at a time. Supported: Linux, macOS. Any other OS prints a "not ready"
 # message and exits.
 #
-#   bash .claude/skills/project-setup/setup.sh           # check + install missing
-#   bash .claude/skills/project-setup/setup.sh --check    # check only, never install
+#   bash .claude/skills/ts-run-types-setup/setup.sh           # check + install missing
+#   bash .claude/skills/ts-run-types-setup/setup.sh --check    # check only, never install
 #
 # Supported versions (kept in sync with CLAUDE.md → "Containerized apps"):
 #   podman ≥ 4.0     both apps (container runtime)
@@ -116,14 +116,14 @@ main() {
   case "$OS" in
     Linux | Darwin) ;;
     *)
-      bold "project-setup"
+      bold "ts-run-types setup"
       err "This skill is not ready for '$OS'. Supported platforms: Linux and macOS."
       err "Install podman/Node/pnpm/Go manually, then use scripts/website.sh & scripts/benchmarks.sh."
       exit 3
       ;;
   esac
 
-  bold "project-setup — $OS ($ARCH)$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
+  bold "ts-run-types setup — $OS ($ARCH)$([ "$CHECK_ONLY" = 1 ] && echo '  [check-only]')"
 
   bold "Required for the docs website + benchmarks"
   check_dep podman "$PODMAN_MIN" "podman --version | awk '{print \$3}'" install_podman 1

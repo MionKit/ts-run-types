@@ -1,11 +1,12 @@
 ---
-name: project-setup
-description: Set up this project's machine prerequisites — checks each dependency (podman, Node, pnpm, Go) and installs the missing ones — so the documentation website and the benchmarks containers can build and run. Use when asked to set up / install / bootstrap the project, install podman, or prepare to run the docs site or benchmarks. Supports Linux and macOS; prints a not-ready message on other OSes.
+name: ts-run-types-setup
+description: Set up the **ts-run-types** repo's prerequisites for ITS containerized apps — checks each dependency (podman, Node, pnpm, Go) and installs the missing ones so this repo's documentation website and benchmarks containers can build and run. Use when setting up / bootstrapping ts-run-types, installing podman for it, or preparing to run its docs site or benchmarks. Supports Linux and macOS; prints a not-ready message on other OSes. Specific to ts-run-types — NOT a generic project setup (the rest of the monorepo needs only pnpm).
 ---
 
-# Project setup (docs website + benchmarks containers)
+# ts-run-types setup (docs website + benchmarks containers)
 
-This repo ships two **containerized** apps driven by podman:
+This is the host-prerequisites setup for **this repo's** two **containerized**
+apps driven by podman (the rest of the monorepo needs only pnpm):
 
 - the **docs website** (`website/`, Nuxt+Docus) — `scripts/website.sh`
 - the **benchmarks** (`benchmarks/`, validators + vite) — `scripts/benchmarks.sh`
@@ -20,8 +21,8 @@ Paths below are relative to the repo root.
 ## Run (the driver)
 
 ```bash
-bash .claude/skills/project-setup/setup.sh          # check + install missing deps
-bash .claude/skills/project-setup/setup.sh --check  # report only, never install
+bash .claude/skills/ts-run-types-setup/setup.sh          # check + install missing deps
+bash .claude/skills/ts-run-types-setup/setup.sh --check  # report only, never install
 ```
 
 It detects the OS, ensures each dependency (installing per-distro on Linux via
@@ -32,7 +33,7 @@ actually runs (`podman info`), and prints the next-step commands. Exit codes:
 Verified output on this Linux container (all deps present):
 
 ```
-project-setup — Linux (x86_64)
+ts-run-types setup — Linux (x86_64)
 Required for the docs website + benchmarks
   ✓ podman 4.9.3 (≥ 4.0)
 Required for the benchmarks (host build via 'pnpm run bench:prep')
