@@ -568,8 +568,12 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 		if allSame {
 			return candidates[0].code, true
 		}
-		iife := "(function(){" + strings.Join(arms, " ") + " throw new Error(" + errVar + ");})()"
-		return iife, true
+		// Dispatch arms hoist into a context fn (created once per
+		// materialization); errVar resolves through the closure — it is
+		// itself a context line.
+		params := ctx.CtxFnParams(accessor)
+		call := ctx.CreateFnInContext(strings.Join(arms, " ")+" throw new Error("+errVar+");", CodeRB, params, params)
+		return call, true
 	}
 	// Multi-candidate with at least one non-noop — wrap every arm.
 	errVar := flatUnionEncodeErrorVar(ctx)
@@ -583,6 +587,7 @@ func emitMergedPropStringify(mp FlatMergedProp, accessor string, ctx *EmitContex
 		arm := "if (" + guard + ") return '[" + strconv.Itoa(i) + ",' + " + cand.code + " + ']';"
 		arms = append(arms, arm)
 	}
-	iife := "(function(){" + strings.Join(arms, " ") + " throw new Error(" + errVar + ");})()"
-	return iife, true
+	params := ctx.CtxFnParams(accessor)
+	call := ctx.CreateFnInContext(strings.Join(arms, " ")+" throw new Error("+errVar+");", CodeRB, params, params)
+	return call, true
 }
