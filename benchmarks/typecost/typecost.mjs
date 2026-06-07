@@ -86,6 +86,9 @@ const OPTIONS = {
   noUnusedParameters: false,
   allowImportingTsExtensions: true,
   types: [],
+  // TS 6.0 reports baseUrl as a deprecation *error* via getPreEmitDiagnostics;
+  // keep baseUrl/paths (marker resolution fallback) but silence it for 6.x.
+  ignoreDeprecations: '6.0',
   baseUrl: ROOT,
   // Deterministic pin for the bind-mounted marker subpaths (the mounted package
   // also carries a valid `exports` map, so natural node_modules resolution works
@@ -96,10 +99,11 @@ const OPTIONS = {
     '@mionjs/ts-go-run-types/formats': [path.join(MARKER, 'formats', 'index.d.ts')],
     '@mionjs/ts-go-run-types/formats/temporal': [path.join(MARKER, 'formats', 'datetime', 'temporalFormats.d.ts')],
   },
-  // esnext.full bundles the full standard lib (incl. Temporal where this TS ships
-  // it); cases whose types reference globals this TS lacks report "err" and drop
-  // out of the totals.
-  lib: ['lib.esnext.full.d.ts'],
+  // esnext.full + esnext.temporal: the shared DateTime suites reference
+  // `typeof Temporal`, and the marker's own build pins TypeScript 6.0.3 with
+  // esnext.temporal (so the type cost is measured the same way the project
+  // type-checks). Both libs ship with the pinned 6.0.3 in typecost/package.json.
+  lib: ['lib.esnext.full.d.ts', 'lib.esnext.temporal.d.ts'],
 };
 
 // ── source extraction ───────────────────────────────────────────────────────
