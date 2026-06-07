@@ -1,0 +1,8 @@
+# Only config files enter the image; everything below is source (mounted at
+# run time) or an artifact.
+src/
+node_modules/
+dist/
+.git/
+*.log
+*.tgz
