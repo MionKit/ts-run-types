@@ -55,3 +55,6 @@ yarn-error.log*
 
 # vite config timestamp artifacts
 *.timestamp-*.mjs
+
+# playwright-cli session artifacts (snapshots, traces, screenshots)
+.playwright-cli/
