@@ -20,7 +20,9 @@
 #
 # Env overrides: WEBSITE_*-style knobs, prefixed BENCH_:
 #   BENCH_ENGINE (podman) BENCH_IMAGE (tsrt-bench:dev)
-#   BENCH_CA_CERT  file/dir of extra CA certs (corporate / MITM proxy)
+#   BENCH_CA_CERT  file/dir of extra CA certs (corporate / MITM proxy). When
+#                  unset, auto-detects the host's /usr/local/share/ca-certificates
+#                  if it holds certs (proxied envs); no-op otherwise.
 #   BENCH_BUILD_NETWORK / BENCH_RUN_NETWORK   podman build/run network
 #   BENCH_TYPIA=1   also build + run the typia column (needs the typia transform)
 #   BENCH_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
@@ -165,6 +167,17 @@ cmd_prep() {
 
 prepare_cacerts() {
   rm -rf "$CACERTS_DIR"; mkdir -p "$CACERTS_DIR"
+  # Behind a corporate / MITM egress proxy the container image must trust the
+  # proxy CA to install deps over TLS. When no explicit BENCH_CA_CERT was given,
+  # fall back to the host's standard custom-CA dir IF it actually holds certs —
+  # true in proxied environments (e.g. an Anthropic Egress Gateway), a harmless
+  # no-op on a normal host or macOS (dir absent/empty). The host already trusts
+  # these; we just propagate them into the image so its pnpm install succeeds.
+  local host_ca_dir=/usr/local/share/ca-certificates
+  if [ -z "$CA_SRC" ] && [ -d "$host_ca_dir" ] && ls "$host_ca_dir"/*.crt >/dev/null 2>&1; then
+    CA_SRC="$host_ca_dir"
+    echo "==> auto-detected host CA certs in $host_ca_dir (corporate/MITM proxy); trusting them in the image"
+  fi
   if [ -n "$CA_SRC" ]; then
     if [ -d "$CA_SRC" ]; then cp "$CA_SRC"/*.crt "$CACERTS_DIR"/ 2>/dev/null || true
     elif [ -f "$CA_SRC" ]; then cp "$CA_SRC" "$CACERTS_DIR/extra-ca.crt"
