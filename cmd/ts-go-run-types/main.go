@@ -57,6 +57,11 @@ Options:
                         per-entry fn modules), allSingle (per-family bundle
                         modules — fewest modules), or allModules (per-node
                         runtype modules too — the pre-bundle layout)
+    --emit-mode MODE    fn-entry code/factory slots: code (body string only,
+                        the default), functions (live factory only), or both
+    --inline-mode MODE  child-inlining policy: default (compounds compile as
+                        external per-family entries) or allInternal (unnamed,
+                        non-circular compounds inline into their parents)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -94,6 +99,7 @@ func main() {
 		inlineServer       bool
 		cacheDir           string
 		emitMode           string
+		inlineMode         string
 		moduleMode         string
 		pprofCPU           string
 		pprofHeap          string
@@ -123,6 +129,8 @@ func main() {
 			"code (default — body string only; the JS side rebuilds the factory via `new Function` on first lookup), "+
 			"functions (live factory only; code derived lazily if read — smallest factory-bearing output), or "+
 			"both (code + factory, for runtimes that disallow dynamic code like Cloudflare WorkerD / CSP without unsafe-eval).")
+	flag.StringVar(&inlineMode, "inline-mode", string(constants.InlineModeDefault),
+		"child-inlining policy: default (compounds external) | allInternal (unnamed compounds inline into parents)")
 	flag.StringVar(&moduleMode, "module-mode", constants.ModuleModeDefault,
 		"virtual-module grouping: default (runtype bundle + per-entry fn modules), "+
 			"allSingle (per-family bundle modules — fewest modules), or "+
@@ -202,6 +210,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ts-go-run-types: invalid --emit-mode %q (want code | functions | both)\n", emitMode)
 		os.Exit(2)
 	}
+	if !constants.InlineMode(inlineMode).Valid() {
+		fmt.Fprintf(os.Stderr, "ts-go-run-types: invalid --inline-mode %q (want default | allInternal)\n", inlineMode)
+		os.Exit(2)
+	}
 
 	resolverOpts := resolver.Options{
 		HashLength:            hashLength,
@@ -212,6 +224,7 @@ func main() {
 		DisableParallelRender: noParallelRender,
 		CacheDir:              cacheDir,
 		EmitMode:              constants.EmitMode(emitMode),
+		InlineMode:            constants.InlineMode(inlineMode),
 		ModuleMode:            moduleMode,
 	}
 
