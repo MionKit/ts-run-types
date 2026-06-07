@@ -76,14 +76,14 @@ func keysOfModules(modules map[string]string) []string {
 func intPtr(n int) *int { return &n }
 
 // TestBundleShape — all nodes land as rows of ONE bundle module
-// (`virtual:rt/runtypes.js`) with tuple head [4,u,<ini|u>,'rts_<hash>',
+// (`virtual:rt/runtypes.js`) with tuple head [4,<hole>,<ini|hole>,'rts_<hash>',
 // [rows…]] (the bundle is dep-less — rows are inline), and each root gets a
-// facade module [5,deps,u,'<rootId>'] whose single dep imports the bundle.
+// facade module [5,()=>[d1],<hole>,'<rootId>'] whose single dep imports the bundle.
 func TestBundleShape(t *testing.T) {
 	modules := emitModules(t, []string{"x1"}, []*protocol.RunType{{ID: "x1", Kind: protocol.KindString}})
 	bundle := bundleOf(t, modules)
-	if !strings.Contains(bundle, "export const e=[4,u,u,'rts_") {
-		t.Errorf("expected bundle tuple head [4,u,u,'rts_…'], got:\n%s", bundle)
+	if !strings.Contains(bundle, "export const e=[4,,,'rts_") {
+		t.Errorf("expected bundle tuple head [4,,,'rts_…'], got:\n%s", bundle)
 	}
 	if !strings.Contains(bundle, ",[['x1',5]]];") {
 		t.Errorf("expected single row [['x1',5]], got:\n%s", bundle)
@@ -100,7 +100,7 @@ func TestBundleShape(t *testing.T) {
 	if !strings.HasPrefix(facade, wantImport) {
 		t.Errorf("facade must import the bundle:\n got: %q\nwant prefix: %q", facade, wantImport)
 	}
-	if !strings.Contains(facade, "export const e=[5,deps,u,'x1'];") {
+	if !strings.Contains(facade, "export const e=[5,()=>[d1],,'x1'];") {
 		t.Errorf("facade tuple mismatch, got:\n%s", facade)
 	}
 }
@@ -138,7 +138,7 @@ func TestClosureScopedToRoots(t *testing.T) {
 }
 
 // TestSimpleAtomic — a single KindString node emits row `['id',5]` with
-// all trailing `u` args trimmed.
+// all trailing hole args trimmed.
 func TestSimpleAtomic(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{ID: "LrjxT1", Kind: protocol.KindString}})
 	if !strings.Contains(out, `[['LrjxT1',5]]`) {
@@ -162,7 +162,7 @@ func TestStaticForm(t *testing.T) {
 	}
 	modules := emitModules(t, []string{"BxzL39"}, runTypes)
 	bundle := bundleOf(t, modules)
-	if !strings.Contains(bundle, `['BxzL39',15,u,u,'kind',u,u,u,u,u,u,!0]`) {
+	if !strings.Contains(bundle, `['BxzL39',15,,,'kind',,,,,,,!0]`) {
 		t.Errorf("expected Property row `['BxzL39',15,…,!0]`, got:\n%s", bundle)
 	}
 	if !strings.Contains(bundle, `['LrjxT1',5]`) {
@@ -193,7 +193,7 @@ func TestReflectionForm(t *testing.T) {
 }
 
 // TestPositionZeroIsPreserved — Position is *int; a value of 0 must
-// round-trip as `0` (not `u`) because the slot is meaningful at
+// round-trip as `0` (not a hole) because the slot is meaningful at
 // position 0.
 func TestPositionZeroIsPreserved(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{
@@ -202,13 +202,13 @@ func TestPositionZeroIsPreserved(t *testing.T) {
 		Name:     "name",
 		Position: intPtr(0),
 	}})
-	if !strings.Contains(out, `['sCSEqy',18,u,u,'name',u,u,u,u,u,u,u,0]`) {
+	if !strings.Contains(out, `['sCSEqy',18,,,'name',,,,,,,,0]`) {
 		t.Errorf("expected position 0 to render as `0`, got:\n%s", out)
 	}
 }
 
-// TestFooterLiteralPassesUForLiteralArg — bigint literal: the `literal`
-// row arg is `u` (the ini body handles the construction).
+// TestFooterLiteralPassesHoleForLiteralArg — bigint literal: the `literal`
+// row arg is a hole (the ini body handles the construction).
 func TestFooterLiteralPassesUForLiteralArg(t *testing.T) {
 	out := emit(t, []*protocol.RunType{{
 		ID:      "bigID",
@@ -216,8 +216,8 @@ func TestFooterLiteralPassesUForLiteralArg(t *testing.T) {
 		Literal: "42",
 		Flags:   []string{"bigint"},
 	}})
-	if !strings.Contains(out, `['bigID',13,u,u,u,u`) {
-		t.Errorf("expected bigint literal to pass `u` at literal slot, got:\n%s", out)
+	if !strings.Contains(out, `['bigID',13,,,,,`) {
+		t.Errorf("expected bigint literal to pass a hole at the literal slot, got:\n%s", out)
 	}
 	if !strings.Contains(out, `c('bigID').literal = BigInt('42');`) {
 		t.Errorf("expected ini BigInt assignment via cache ref, got:\n%s", out)
@@ -233,7 +233,7 @@ func TestClassBuiltinUnchanged(t *testing.T) {
 		TypeName: "Date",
 		ClassRef: &protocol.ClassRef{Builtin: "Date"},
 	}})
-	if !strings.Contains(out, `['dateID',20,u,'Date']`) {
+	if !strings.Contains(out, `['dateID',20,,'Date']`) {
 		t.Errorf("expected class row with typeName, got:\n%s", out)
 	}
 	if !strings.Contains(out, `c('dateID').classType = globalThis.Date;`) {

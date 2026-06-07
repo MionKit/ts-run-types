@@ -97,8 +97,8 @@ func TestCollectEntries_RenderedModuleShape(t *testing.T) {
 	if !strings.Contains(consumer, "import {e as d1} from 'virtual:rt/pf/a/x.js';") {
 		t.Errorf("pure-fn dep import missing:\n%s", consumer)
 	}
-	if !strings.Contains(consumer, "export const e=[2,deps,u,'b::y',") {
-		t.Errorf("tuple head should be [2,deps,u,'<key>',…]:\n%s", consumer)
+	if !strings.Contains(consumer, "export const e=[2,()=>[d1],,'b::y',") {
+		t.Errorf("tuple head should be [2,()=>[d1],<hole>,'<key>',…]:\n%s", consumer)
 	}
 }
 

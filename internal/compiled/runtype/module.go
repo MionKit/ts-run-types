@@ -14,9 +14,12 @@ import (
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
-// renderFactoryArgs builds the positional-arg slice for one `rt(…)` call,
-// then trims trailing `u` entries so the call stays compact. The first two
-// args (`id`, `kind`) are always present.
+// renderFactoryArgs builds the positional-arg slice for one `rt(…)` call.
+// Absent slots render as "" (an empty arg) so the comma-join leaves a JS
+// array HOLE in the row literal — a hole reads back as undefined under the
+// runtime's index-only access, exactly like the old `u` alias did, but
+// costs zero bytes. Trailing holes are trimmed off. The first two args
+// (`id`, `kind`) are always present.
 func renderFactoryArgs(runType *protocol.RunType) []string {
 	args := []string{
 		quoteJS(runType.ID),             // 0: id
@@ -43,96 +46,96 @@ func renderFactoryArgs(runType *protocol.RunType) []string {
 	return trimTrailingUndefined(args)
 }
 
-// subKindArg renders a SubKind value or `u` when zero. Zero is the
+// subKindArg renders a SubKind value or a hole ("") when zero. Zero is the
 // "not applicable" sentinel — only nodes that need a SubKind get one.
 func subKindArg(value protocol.ReflectionSubKind) string {
 	if value == protocol.SubKindNone {
-		return "u"
+		return ""
 	}
 	return strconv.Itoa(int(value))
 }
 
-// stringArg returns the JS source for a string field — `u` when empty,
-// otherwise a single-quoted JS string literal (see quoteJS for rationale).
+// stringArg returns the JS source for a string field — a hole ("") when
+// empty, otherwise a single-quoted JS string literal (see quoteJS).
 func stringArg(value string) string {
 	if value == "" {
-		return "u"
+		return ""
 	}
 	return quoteJS(value)
 }
 
-// boolArg returns `"!0"` (the 2-char form of `true`) when set, otherwise
-// `"u"`. False is treated as "absent" to keep the call site compact; the
+// boolArg returns `"!0"` (the 2-char form of `true`) when set, otherwise a
+// hole (""). False is treated as "absent" to keep the call site compact; the
 // own-key still exists on the cache entry because the skeleton's factory
 // pre-declares it.
 func boolArg(value bool) string {
 	if value {
 		return "!0"
 	}
-	return "u"
+	return ""
 }
 
-// intPtrArg renders a *int as its decimal integer or `u` when nil. The
-// pointer indirection matters — `Position == 0` is a meaningful value and
-// must round-trip as `"0"`, not `"u"`.
+// intPtrArg renders a *int as its decimal integer or a hole ("") when nil.
+// The pointer indirection matters — `Position == 0` is a meaningful value and
+// must round-trip as `"0"`, not a hole.
 func intPtrArg(value *int) string {
 	if value == nil {
-		return "u"
+		return ""
 	}
 	return strconv.Itoa(*value)
 }
 
 // literalArg renders the `literal` slot. Footer-special literals (bigint,
-// symbol, regexp) are emitted by writeFooter, so the factory arg stays `u`
-// for those — the footer assignment then patches the literal in place.
+// symbol, regexp) are emitted by writeFooter, so the factory arg stays a hole
+// ("") for those — the footer assignment then patches the literal in place.
 func literalArg(runType *protocol.RunType) string {
 	if runType.Literal == nil {
-		return "u"
+		return ""
 	}
 	if isFooterLiteral(runType) {
-		return "u"
+		return ""
 	}
 	return mustJSLiteral(runType.Literal)
 }
 
-// jsonArg returns `u` for nil, otherwise the JS-literal encoding of value.
+// jsonArg returns a hole ("") for nil, otherwise the JS-literal encoding.
 func jsonArg(value any) string {
 	if value == nil {
-		return "u"
+		return ""
 	}
 	return mustJSLiteral(value)
 }
 
-// flagsArg renders a []string as a JS array literal or `u` when empty.
+// flagsArg renders a []string as a JS array literal or a hole ("") when empty.
 func flagsArg(flags []string) string {
 	if len(flags) == 0 {
-		return "u"
+		return ""
 	}
 	return mustJSLiteral(flags)
 }
 
-// enumArg renders an enum map or `u` when empty/nil.
+// enumArg renders an enum map or a hole ("") when empty/nil.
 func enumArg(enum map[string]any) string {
 	if len(enum) == 0 {
-		return "u"
+		return ""
 	}
 	return mustJSLiteral(enum)
 }
 
-// valuesArg renders a []any or `u` when empty.
+// valuesArg renders a []any or a hole ("") when empty.
 func valuesArg(values []any) string {
 	if len(values) == 0 {
-		return "u"
+		return ""
 	}
 	return mustJSLiteral(values)
 }
 
-// trimTrailingUndefined drops trailing `"u"` entries from the arg slice so
-// `rt(…)` calls stay compact. The first two slots (id, kind) are always
+// trimTrailingUndefined drops trailing hole entries ("") from the arg slice
+// so `rt(…)` calls stay compact. The first two slots (id, kind) are always
 // emitted; the minimum slice length is therefore 2.
 func trimTrailingUndefined(args []string) []string {
 	end := len(args)
-	for end > 2 && args[end-1] == "u" {
+	for end > 2 && args[end-1] == "" {
 		end--
 	}
 	return args[:end]

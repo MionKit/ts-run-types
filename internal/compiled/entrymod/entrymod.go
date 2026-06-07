@@ -11,16 +11,18 @@
 //
 //	import {e as d1} from 'virtual:rt/<dep1>.js';   // DIRECT deps only
 //	…
-//	const u=undefined;
-//	const deps=()=>[d1,…,dN];                // lazy: import cycles never hit TDZ
 //	function ini(rtu){const c=(id)=>rtu.useRunType(id);<footer>}  // runtype only
-//	export const e=[<kindSlot>,<deps|u>,<ini|u>,<positional args…>];
+//	export const e=[<kindSlot>,<()=>[d1,…,dN]|hole>,<ini|hole>,<positional args…>];
+//
+// The deps thunk is inlined straight into slot 1 (lazy: import cycles never
+// hit TDZ); absent head slots (deps/ini) are JS array HOLES (the `,,` run),
+// which read back as undefined under the runtime's index-only tuple access.
 //
 // Tuple layout is fixed at the head: slot 0 is the kind discriminator (0 =
 // runtype, 2 = pure fn, 3 = missing stub, or the QUOTED family tag string for
-// type-fn entries), slot 1 the deps thunk (u for dep-less entries — the thunk
-// never includes self, every consumer already holds the tuple), slot 2 the
-// initEntry fn (or u),
+// type-fn entries), slot 1 the deps thunk (a hole for dep-less entries — the
+// thunk never includes self, every consumer already holds the tuple), slot 2
+// the initEntry fn (or a hole),
 // slot 3+ the same positional args the per-family `init(…)` / `rt(…)` /
 // `factory(…)` calls passed before the migration (slot 3 is always the cache
 // key). The JS-side `initFromTuple` consumer walks the deps() thunks
@@ -106,7 +108,7 @@ type Entry struct {
 	ArgsText string
 	// InitBody carries the runtype footer statements (ref patches, classType,
 	// footer literals) — newline-terminated lines referencing `c(id)`. Empty
-	// for non-runtype entries; empty InitBody renders `u` in the ini slot.
+	// for non-runtype entries; empty InitBody renders a hole in the ini slot.
 	InitBody string
 	// Deps lists the HARD direct dependency keys: child runtype refs
 	// (runtype) and same-family child factories (type-fn). A type-fn entry
@@ -545,11 +547,11 @@ func depBinding(graph Graph, depKey string, position int, selfBundle string, gro
 func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]string) (string, error) {
 	var body strings.Builder
 
-	// Missing stubs: no imports, no deps thunk, no args — just the key.
+	// Missing stubs: no imports, no deps thunk, no args — just the key. The
+	// deps/ini head slots are JS array holes (the `,,` run).
 	if entry.Kind == KindMissing {
-		body.WriteString("const u=undefined;\n")
 		body.WriteString("export const " + constants.EntryExportName + "=[" +
-			strconv.Itoa(int(KindMissing)) + ",u,u," + jsquote.Single(entry.Key) + "];\n")
+			strconv.Itoa(int(KindMissing)) + ",,," + jsquote.Single(entry.Key) + "];\n")
 		return body.String(), nil
 	}
 
@@ -569,20 +571,19 @@ func renderModule(graph Graph, entry *Entry, order levels, groupOf map[string]st
 	}
 	body.WriteString(imports.String())
 
-	body.WriteString("const u=undefined;\n")
-
 	// deps() thunk — direct deps in import order, never self (every consumer
-	// of the tuple already holds it). Dep-less entries carry u in the slot.
-	depsSlot := "u"
+	// of the tuple already holds it), inlined straight into the tuple slot.
+	// Dep-less entries leave the slot a JS array hole.
+	depsSlot := ""
 	if len(bindings) > 0 {
-		body.WriteString("const deps=()=>[" + strings.Join(bindings, ",") + "];\n")
-		depsSlot = "deps"
+		depsSlot = "()=>[" + strings.Join(bindings, ",") + "]"
 	}
 
 	// initEntry — runtype footer scoped to this entry; `c` resolves through
 	// the registry so patched slots hold the materialized singletons, never
-	// raw tuples (imported bindings are only touched inside deps()).
-	iniSlot := "u"
+	// raw tuples (imported bindings are only touched inside deps()). Absent
+	// for non-runtype entries — the slot is then a hole.
+	iniSlot := ""
 	if entry.InitBody != "" {
 		body.WriteString("function ini(rtu){const c=(id)=>rtu.useRunType(id);\n")
 		body.WriteString(entry.InitBody)
@@ -626,13 +627,12 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 	var body strings.Builder
 	imported := make(map[string]bool)
 	position := 0
-	body.WriteString("const u=undefined;\n")
 	for memberIndex, key := range members {
 		entry := graph[key]
 		exportName := ExportName(entry)
 		if entry.Kind == KindMissing {
 			body.WriteString("export const " + exportName + "=[" +
-				strconv.Itoa(int(KindMissing)) + ",u,u," + jsquote.Single(entry.Key) + "];\n")
+				strconv.Itoa(int(KindMissing)) + ",,," + jsquote.Single(entry.Key) + "];\n")
 			continue
 		}
 		deps, err := directDeps(graph, entry, order)
@@ -644,7 +644,7 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 			position++
 			bindings[i] = depBinding(graph, dep, position, name, groupOf, &imports, imported)
 		}
-		iniSlot := "u"
+		iniSlot := ""
 		if entry.InitBody != "" {
 			iniName := "ini" + strconv.Itoa(memberIndex)
 			body.WriteString("function " + iniName + "(rtu){const c=(id)=>rtu.useRunType(id);\n")
@@ -659,7 +659,7 @@ func renderBundle(graph Graph, name string, memberKeys []string, order levels, g
 		if err != nil {
 			return "", err
 		}
-		depsSlot := "u"
+		depsSlot := ""
 		if len(bindings) > 0 {
 			depsSlot = "()=>[" + strings.Join(bindings, ",") + "]"
 		}
