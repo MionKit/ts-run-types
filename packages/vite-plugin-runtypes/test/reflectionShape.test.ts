@@ -219,10 +219,9 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
     async (s) => assertTemplateLiteral(await evalCacheFor(s))
   );
 
-  // ---- literal rehydration — bigint (static) & regexp (reflect) -------------
-  // Single-form: generic inference widens these literals in the other form
-  // (a `const v = 1n` widens to `bigint`; a regexp literal is AST-traced only
-  // from the reflect call expression). See docs/atomic-types.md.
+  // ---- literal rehydration — bigint (static) -------------------------------
+  // Single-form: generic inference widens this literal in the other form
+  // (a `const v = 1n` widens to `bigint`). See docs/atomic-types.md.
   runTest(
     'literal: bigint 1n rehydrates to BigInt [static]',
     {'m.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';\ngetRunTypeId<1n>();\n`},
@@ -231,17 +230,6 @@ describe('vite-plugin-runtypes / reflection-AST shape', () => {
       expect(root.kind).toBe(ReflectionKind.literal);
       expect(typeof root.literal).toBe('bigint');
       expect(root.literal).toBe(1n);
-    }
-  );
-  runTest(
-    'literal: regexp /ab+c/gi rehydrates to RegExp [reflect]',
-    {'m.ts': `import {reflectRunTypeId} from '@mionjs/ts-go-run-types';\nreflectRunTypeId(/ab+c/gi);\n`},
-    async (s) => {
-      const root = getTypeFor(await evalCacheFor(s), 'm.ts');
-      expect(root.kind).toBe(ReflectionKind.literal);
-      expect(root.literal instanceof RegExp).toBe(true);
-      expect((root.literal as RegExp).source).toBe('ab+c');
-      expect((root.literal as RegExp).flags).toBe('gi');
     }
   );
 

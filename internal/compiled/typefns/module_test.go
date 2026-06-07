@@ -222,10 +222,6 @@ func TestIsTypeModule_LiteralEmitBodies(t *testing.T) {
 			"symbol", &protocol.RunType{ID: "lsy", Kind: protocol.KindLiteral, Literal: map[string]any{"symbol": "hello"}, Flags: []string{"symbol"}},
 			"return typeof v === 'symbol' && v.description === 'hello'",
 		},
-		{
-			"regexp", &protocol.RunType{ID: "lre", Kind: protocol.KindLiteral, Literal: map[string]any{"regexp": map[string]any{"source": "abc", "flags": "i"}}},
-			"return v instanceof RegExp && v.source === 'abc' && v.flags === 'i'",
-		},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {

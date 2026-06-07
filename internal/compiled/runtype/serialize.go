@@ -241,41 +241,6 @@ func (cache *Cache) SerializeAtomicKind(kind protocol.ReflectionKind) string {
 	return id
 }
 
-// SerializeRegexLiteral registers a synthetic regex-literal RunType entry and
-// returns its hash id. Two calls with the same (source, flags) deduplicate.
-//
-// Bypasses the *checker.Type path entirely — TS has no regex-literal type, so
-// the marker scanner harvests the regex from the AST when it can. The emitter
-// dispatches on the `literal.regexp` shape (see emit/runtypes_module.go footerLiteralExpr)
-// to render a `/source/flags` regex literal at runtime.
-func (cache *Cache) SerializeRegexLiteral(source, flags string) string {
-	structural := strconv.Itoa(int(protocol.KindLiteral)) + ":regexp:" + source + "|" + flags
-	if id, ok := cache.byStructural[structural]; ok {
-		return id
-	}
-	id, err := cache.uniqueLiteralDict(structural, cache.opts.literalHashLength())
-	if err != nil {
-		// Fallback id must stay identifier-safe (the JS emitter uses it
-		// verbatim as a `const` name). The structural form contains `:` and
-		// `|`, so we hash it instead of concatenating. Prefix matches the
-		// other synthetic ids (`x_tm_`, `x_pr_`, …).
-		id = "x_re_" + hashid.QuickHash(structural, cache.opts.literalHashLength(), "")
-	}
-	cache.intern(structural, id)
-	cache.nodes[id] = &protocol.RunType{
-		ID:   id,
-		Kind: protocol.KindLiteral,
-		Literal: map[string]any{
-			"regexp": map[string]any{
-				"source": source,
-				"flags":  flags,
-			},
-		},
-	}
-	cache.insertOrder = append(cache.insertOrder, id)
-	return id
-}
-
 // SerializeTopLevel returns the canonical RunType entry (not a ref). Used by
 // the resolver to record the top of a query result so callers see the full
 // shape rather than a sentinel.

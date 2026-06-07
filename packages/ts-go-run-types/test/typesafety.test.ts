@@ -318,12 +318,6 @@ function assertionsNewBuilders(): void {
   const _recTpl: RunType<Record<`api/${string}`, boolean>> = RT.record(RT.templateLiteral(['api/', RT.string()]), RT.boolean());
   void _recTpl;
 
-  // regexp({source, flags}): carried T is the `RegexLiteralType<S,F>` brand
-  // (= `RegExp & {…}`), assignable to RunType<RegExp>; regexp() with no arg is
-  // bare RegExp. Source/flags ride as literal type args (not from the AST).
-  const _reLit: RunType<RegExp> = RT.regexp({source: 'abc', flags: 'i', mockSamples: ['abc']});
-  void _reLit;
-
   // templateLiteral: produces a REAL template-literal type that must converge
   // with the PLAIN type-first `${number}`. The UNANNOTATED builder type is
   // checked BOTH directions — the reverse (plain `number` → builder type) is the

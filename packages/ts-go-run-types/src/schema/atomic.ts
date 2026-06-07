@@ -25,20 +25,12 @@
 import {getRTUtils} from '../runtypes/rtUtils.ts';
 import type {RunType} from '../runtypes/types.ts';
 import type {InjectRunTypeId, CompTimeArgs} from '../markers.ts';
-import type {StringPatternArgs} from '../runtypes/formatPattern.ts';
 import type {StringParams, StringParamsValueFirst} from '../formats/string/stringFormats.ts';
 import type {NumberParams} from '../formats/numberFormats.ts';
 import type {BigIntParams} from '../formats/bigintFormats.ts';
 import type {FormatParams_NativeDate} from '../formats/datetime/dateFormats.ts';
 import type {MinMax} from '../formats/datetime/dateTimeParams.ts';
-import type {
-  LeafType,
-  RegexLiteralType,
-  RegexFlagsOf,
-  TemporalFormatByTag,
-  TemporalBaseByTag,
-  TemporalBuilderFn,
-} from './static.ts';
+import type {LeafType, TemporalFormatByTag, TemporalBaseByTag, TemporalBuilderFn} from './static.ts';
 
 // ───────────────────────────── builderResult ────────────────────────
 //
@@ -155,27 +147,14 @@ export function literal<const V extends string | number | bigint | boolean | nul
   return builderResult(id, {type: 'literal', literal: value});
 }
 
-/** A `RegExp` builder. Two forms:
- *   - `regexp()` → `RunType<RegExp>` — matches any `RegExp` instance.
- *   - `regexp({source: 'abc', flags: 'i', mockSamples: ['abc']})` → a
- *     `RegExp`-LITERAL run-type matched by source + flags (≡ the type-first
- *     `` createIsType<typeof reg>() `` where `const reg = /abc/i`).
- *  TS has no regex-literal type, so the decomposed form carries source + flags as
- *  LITERAL TYPE ARGS on the `RegexLiteralType` brand (`const A` keeps them
- *  literal); the scanner reads them off the type and routes to the SAME
- *  `SerializeRegexLiteral` id the type-first `typeof reg` form produces, so the
- *  two converge by construction. `mockSamples` (required, the `StringPatternArgs`
- *  shape) feed the mock generator. Distinct from `string({pattern})`, which
- *  validates a STRING against a pattern. **/
-export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp>;
-export function regexp<const A extends StringPatternArgs>(
-  pattern: CompTimeArgs<A>,
-  id?: InjectRunTypeId<RegexLiteralType<A['source'], RegexFlagsOf<A>>>
-): RunType<RegexLiteralType<A['source'], RegexFlagsOf<A>>>;
-export function regexp(patternOrId?: StringPatternArgs | InjectRunTypeId<RegExp>, id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
-  const injectedId = typeof patternOrId === 'string' ? patternOrId : id;
-  const pattern = typeof patternOrId === 'object' ? patternOrId : undefined;
-  return builderResult(injectedId, {type: 'regexp', formatParams: {}, pattern});
+/** A `RegExp` builder — `regexp()` → `RunType<RegExp>`, matches any `RegExp`
+ *  instance. TS has NO regex-literal type (a `/abc/i` literal widens to `RegExp`
+ *  even under `as const`), so there is deliberately no "specific source/flags"
+ *  form: it would make the structural id depend on data absent from `T`, breaking
+ *  the id ≡ f(T) invariant. To validate a STRING against a pattern, use
+ *  `string({pattern: {source, flags, mockSamples}})`. **/
+export function regexp(id?: InjectRunTypeId<RegExp>): RunType<RegExp> {
+  return builderResult(id, {type: 'regexp', formatParams: {}});
 }
 
 /** A `symbol` builder — `symbol()` → `RunType<symbol>`. Provided for

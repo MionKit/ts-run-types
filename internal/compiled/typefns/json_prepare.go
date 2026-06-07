@@ -334,8 +334,6 @@ func emitLiteralPrepareForJson(rt *protocol.RunType, v string) RTCode {
 		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 	case litSymbol:
 		return RTCode{Code: v + " = 'Symbol:' + (" + v + ".description || '')", Type: CodeE}
-	case litRegExp:
-		return RTCode{Code: v + " = " + v + ".toString()", Type: CodeE}
 	}
 	// Primitive literal (number / string / boolean / null) — noop.
 	return RTCode{Code: "", Type: CodeS}

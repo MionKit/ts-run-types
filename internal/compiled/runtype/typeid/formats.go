@@ -58,52 +58,6 @@ func FormatAnnotationFromType(typeChecker *checker.Checker, tsType *checker.Type
 	return &protocol.FormatAnnotation{Name: name, Params: params}
 }
 
-// regexp-brand sentinel property names — mirror the value-first `regexp` builder's
-// `RegexLiteralType<Source, Flags>` brand (packages/ts-go-run-types/src/schema).
-const (
-	regexSourceProp = "__rtRegexSource"
-	regexFlagsProp  = "__rtRegexFlags"
-)
-
-// RegexLiteralFromType reports (source, flags, true) when tsType carries the
-// value-first regexp brand `RegExp & {__rtRegexSource: S; __rtRegexFlags: F}`,
-// reading both string literals off the TYPE via literalValueFromType — never the
-// AST. The brand keeps a regex literal's source/flags in the type so a value-first
-// `regexp({source, flags, …})` reflects the SAME structural id (via
-// SerializeRegexLiteral) as a type-first `typeof /…/` (which AST-harvests). Read
-// before AssignID, so the raw intersection still carries the brand props (a later
-// intersection-collapse over the builtin `RegExp` class would strip them). `flags`
-// is optional → defaults to "". Returns ("","",false) when the brand is absent, so
-// the caller falls through to the AST-harvest / structural-id path.
-func RegexLiteralFromType(typeChecker *checker.Checker, tsType *checker.Type) (string, string, bool) {
-	if typeChecker == nil || tsType == nil {
-		return "", "", false
-	}
-	var sourceSymbol, flagsSymbol *ast.Symbol
-	for _, symbol := range typeChecker.GetPropertiesOfType(tsType) {
-		switch symbol.Name {
-		case regexSourceProp:
-			sourceSymbol = symbol
-		case regexFlagsProp:
-			flagsSymbol = symbol
-		}
-	}
-	if sourceSymbol == nil {
-		return "", "", false
-	}
-	source, ok := literalValueFromType(typeChecker, typeChecker.GetTypeOfSymbol(sourceSymbol)).(string)
-	if !ok {
-		return "", "", false
-	}
-	flags := ""
-	if flagsSymbol != nil {
-		if value, ok := literalValueFromType(typeChecker, typeChecker.GetTypeOfSymbol(flagsSymbol)).(string); ok {
-			flags = value
-		}
-	}
-	return source, flags, true
-}
-
 // literalParamsFromType walks an object-literal type and collects its
 // literal-valued properties into a map[string]any suitable for the
 // FormatAnnotation.Params field. Non-literal property values fall back
