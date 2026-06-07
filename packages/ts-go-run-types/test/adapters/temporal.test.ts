@@ -16,6 +16,7 @@ import {
   createJsonDecoder,
   createBinaryEncoder,
   createBinaryDecoder,
+  type StrictArrayBuffer,
 } from '@mionjs/ts-go-run-types';
 
 // Temporal is the polyfill global in tests (see test/setup.ts).
@@ -128,7 +129,7 @@ describe('Temporal JSON round-trip (encode → decode → equals)', () => {
 });
 
 describe('Temporal binary round-trip', () => {
-  const brt = (buffer: Uint8Array, decode: (b: Uint8Array) => unknown, original: unknown): void =>
+  const brt = (buffer: StrictArrayBuffer, decode: (b: StrictArrayBuffer) => unknown, original: unknown): void =>
     expect(asStr(decode(buffer))).toBe(asStr(original));
 
   it('Instant', () =>
