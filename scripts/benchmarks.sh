@@ -2,30 +2,32 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # benchmarks.sh — drive the isolated (podman) validation benchmarks.
 #
-# Compares ts-go-run-types validators against zod / typebox / ajv / typia. The
-# validator libraries + vite live ONLY inside a podman image; the host never
-# installs them. At run time the benchmark sources, the ts-go-run-types Go
-# binary, and the first-party packages (@mionjs/ts-go-run-types,
-# vite-plugin-runtypes) are bind-mounted in. vite + the Go binary build the
-# ts-go-run-types validators; the other libraries are plain runtime deps.
+# Each competitor (ts-go-run-types / zod / typebox / ajv / typia) is its OWN
+# isolated build: its deps install into its own node_modules inside the image
+# (so e.g. typia's heavy/fragile tree never touches the others), it imports the
+# shared suite + harness, builds with vite into its own dist/, and runs as its
+# own process writing results/<name>.json. aggregate.mjs then joins those into
+# one comparison table. The ts-go-run-types competitor additionally gets the host
+# Go binary + the first-party packages (@mionjs/ts-go-run-types,
+# vite-plugin-runtypes) bind-mounted into ITS node_modules so the plugin can
+# rewrite createValidate<T>() at build time.
 #
 # Usage:
-#   scripts/benchmarks.sh prep          # build the Go binary + JS packages (host)
-#   scripts/benchmarks.sh build-image   # build the podman image
-#   scripts/benchmarks.sh bench         # build + run the benchmark in the container
-#   scripts/benchmarks.sh build         # vite build only (-> benchmarks/dist)
-#   scripts/benchmarks.sh smoke         # quick verify: prep + image + vite build in container
-#   scripts/benchmarks.sh shell         # debug shell inside the container
-#   scripts/benchmarks.sh clean         # remove the image
+#   scripts/benchmarks.sh prep              # build the Go binary + JS packages (host)
+#   scripts/benchmarks.sh build-image       # build the podman image (per-competitor installs)
+#   scripts/benchmarks.sh bench             # build + run EVERY competitor + aggregate
+#   scripts/benchmarks.sh bench-one <name>  # build + run ONE competitor + aggregate
+#   scripts/benchmarks.sh typecost          # per-competitor type-instantiation cost
+#   scripts/benchmarks.sh build [<name>]    # vite build only (all, or one competitor)
+#   scripts/benchmarks.sh smoke             # quick verify: build every competitor's dist
+#   scripts/benchmarks.sh shell             # debug shell inside the container
+#   scripts/benchmarks.sh clean             # remove the image
 #
-# Env overrides: WEBSITE_*-style knobs, prefixed BENCH_:
-#   BENCH_ENGINE (podman) BENCH_IMAGE (tsrt-bench:dev)
-#   BENCH_CA_CERT  file/dir of extra CA certs (corporate / MITM proxy). When
-#                  unset, auto-detects the host's /usr/local/share/ca-certificates
-#                  if it holds certs (proxied envs); no-op otherwise.
-#   BENCH_BUILD_NETWORK / BENCH_RUN_NETWORK   podman build/run network
-#   BENCH_TYPIA=1   also build + run the typia column (needs the typia transform)
-#   BENCH_MOUNT_OPTS   extra bind-mount opts, e.g. ":z" on SELinux hosts
+# Env: BENCH_ENGINE(podman) BENCH_IMAGE(tsrt-bench:dev) BENCH_TYPIA=1(add typia)
+#   BENCH_CA_CERT  file/dir of extra CA certs (corporate/MITM proxy); when unset,
+#                  auto-detects /usr/local/share/ca-certificates (proxied envs).
+#   BENCH_NO_TIMING=1 / BENCH_TIME_MS=N  correctness-only / per-cell window.
+#   BENCH_BUILD_NETWORK / BENCH_RUN_NETWORK / BENCH_MOUNT_OPTS
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -41,13 +43,20 @@ CA_SRC="${BENCH_CA_CERT:-}"
 BUILD_NETWORK="${BENCH_BUILD_NETWORK:-}"
 RUN_NETWORK="${BENCH_RUN_NETWORK:-}"
 CACERTS_DIR="$BENCH_DIR/.cacerts"
+RESULTS_DIR="$BENCH_DIR/results"
+STAMP="$BENCH_DIR/.image-stamp"
 
 BIN="$ROOT_DIR/bin/ts-go-run-types"
 MARKER_PKG="$ROOT_DIR/packages/ts-go-run-types"
 PLUGIN_PKG="$ROOT_DIR/packages/vite-plugin-runtypes"
 
-# The container is Linux; on macOS hosts we cross-compile a separate Linux
-# binary for the bind mount. On Linux hosts the host binary already works.
+# Competitors run in this order; typia (heavy/fragile deps) only with BENCH_TYPIA.
+competitor_list() {
+  printf '%s\n' ts-go-run-types zod typebox ajv
+  [ -n "${BENCH_TYPIA:-}" ] && printf '%s\n' typia
+  return 0
+}
+
 linux_goarch() {
   case "$(uname -m)" in
     x86_64|amd64)  echo "amd64" ;;
@@ -59,8 +68,6 @@ LINUX_BIN="$ROOT_DIR/bin/ts-go-run-types-linux-$(linux_goarch)"
 
 die() { echo "benchmarks.sh: $*" >&2; exit 1; }
 
-# mapfile-style line collector that works on bash 3.2 (macOS /bin/bash).
-# Usage: read_lines VAR_NAME < <(producer-cmd)
 read_lines() {
   local _n="$1" _l
   eval "$_n=()"
@@ -72,7 +79,6 @@ require_engine() {
     || die "container engine '$ENGINE' not found. Install podman (https://podman.io)."
 }
 
-# True when TARGET is missing OR any source file under SRC_DIR is newer than it.
 needs_rebuild() {
   local target="$1"; shift
   [ -e "$target" ] || return 0
@@ -84,7 +90,6 @@ needs_rebuild() {
   return 1
 }
 
-# Build the host Go binary if missing or stale relative to cmd/ + internal/.
 ensure_host_binary() {
   command -v go >/dev/null 2>&1 || die "go toolchain not found (needed to build the resolver binary)."
   if needs_rebuild "$BIN" "$ROOT_DIR/cmd" "$ROOT_DIR/internal"; then
@@ -93,8 +98,6 @@ ensure_host_binary() {
   fi
 }
 
-# Build the Linux cross-binary the container needs. On Linux hosts this is the
-# same binary as the host one; on macOS we cross-compile separately.
 ensure_linux_binary() {
   ensure_host_binary
   if [ "$(uname -s)" = Darwin ]; then
@@ -110,7 +113,6 @@ ensure_linux_binary() {
   fi
 }
 
-# Build the vite plugin dist if missing or stale.
 ensure_plugin_dist() {
   if needs_rebuild "$PLUGIN_PKG/dist/index.js" "$PLUGIN_PKG/src"; then
     echo "==> building vite-plugin-runtypes"
@@ -118,38 +120,30 @@ ensure_plugin_dist() {
   fi
 }
 
-# Build the marker package runtime if missing or stale. Uses direct tsc with
-# noEmitOnError=false to work around the marker package's known
-# Temporal-ambient typecheck error (which would otherwise block JS emit).
 ensure_marker_dist() {
   if needs_rebuild "$MARKER_PKG/dist/formats/index.js" "$MARKER_PKG/src"; then
-    echo "==> building @mionjs/ts-go-run-types (noEmitOnError=false)"
+    echo "==> building @mionjs/ts-go-run-types"
     ( cd "$MARKER_PKG" && pnpm exec tsc -p tsconfig.json --noEmitOnError false ) \
       || echo "  (typecheck reported errors; runtime .js was still emitted - continuing)"
   fi
 }
 
-# Rebuild the podman image if missing or stale relative to its Containerfile
-# and the in-image manifest (package.json + pnpm-workspace.yaml + .npmrc).
+# Rebuild the image when the Containerfile or any baked source (shared/,
+# competitors/, typecost/, aggregate.mjs, configs) is newer than the last build.
 ensure_bench_image_fresh() {
   require_engine
   if ! "$ENGINE" image exists "$IMAGE" 2>/dev/null; then build_image; return; fi
-  local img_epoch src_epoch=0 f t
-  img_epoch="$("$ENGINE" image inspect "$IMAGE" --format '{{.Created.Unix}}' 2>/dev/null || true)"
-  [ -z "$img_epoch" ] && img_epoch=0
-  for f in "$BENCH_DIR/Containerfile" "$BENCH_DIR/package.json" "$BENCH_DIR/pnpm-workspace.yaml" "$BENCH_DIR/.npmrc"; do
-    [ -f "$f" ] || continue
-    t="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
-    [ "$t" -gt "$src_epoch" ] && src_epoch="$t"
-  done
-  if [ "$src_epoch" -gt "$img_epoch" ]; then
-    echo "==> bench image is stale (Containerfile or manifest newer than image) - rebuilding"
-    build_image
+  if [ ! -f "$STAMP" ] || needs_rebuild "$STAMP" "$BENCH_DIR/shared" "$BENCH_DIR/competitors" "$BENCH_DIR/typecost"; then
+    echo "==> bench image stale (source newer than image) - rebuilding"; build_image; return
   fi
+  local f
+  for f in "$BENCH_DIR/Containerfile" "$BENCH_DIR/aggregate.mjs" "$BENCH_DIR/pnpm-workspace.yaml" "$BENCH_DIR/.npmrc" "$BENCH_DIR/tsconfig.base.json"; do
+    if [ -f "$f" ] && [ "$f" -nt "$STAMP" ]; then
+      echo "==> bench image stale ($(basename "$f") newer) - rebuilding"; build_image; return
+    fi
+  done
 }
 
-# Bring every host-side input into sync with source. Called by every runtime
-# command so users never have to remember to run prep after pulling.
 ensure_prereqs() {
   ensure_linux_binary
   ensure_plugin_dist
@@ -157,7 +151,6 @@ ensure_prereqs() {
   ensure_bench_image_fresh
 }
 
-# Manual prep command — same checks, but always announces what it's doing.
 cmd_prep() {
   ensure_host_binary
   ensure_linux_binary
@@ -167,12 +160,10 @@ cmd_prep() {
 
 prepare_cacerts() {
   rm -rf "$CACERTS_DIR"; mkdir -p "$CACERTS_DIR"
-  # Behind a corporate / MITM egress proxy the container image must trust the
-  # proxy CA to install deps over TLS. When no explicit BENCH_CA_CERT was given,
-  # fall back to the host's standard custom-CA dir IF it actually holds certs —
-  # true in proxied environments (e.g. an Anthropic Egress Gateway), a harmless
-  # no-op on a normal host or macOS (dir absent/empty). The host already trusts
-  # these; we just propagate them into the image so its pnpm install succeeds.
+  # Behind a corporate / MITM egress proxy the image must trust the proxy CA to
+  # install deps over TLS. When no explicit BENCH_CA_CERT was given, fall back to
+  # the host's standard custom-CA dir IF it holds certs (proxied envs); harmless
+  # no-op otherwise. The host already trusts these; we propagate them into the image.
   local host_ca_dir=/usr/local/share/ca-certificates
   if [ -z "$CA_SRC" ] && [ -d "$host_ca_dir" ] && ls "$host_ca_dir"/*.crt >/dev/null 2>&1; then
     CA_SRC="$host_ca_dir"
@@ -189,68 +180,110 @@ prepare_cacerts() {
 
 build_image() {
   prepare_cacerts
-  echo "==> building $IMAGE from benchmarks/Containerfile"
+  echo "==> building $IMAGE from benchmarks/Containerfile (per-competitor installs)"
   local net=(); [ -n "$BUILD_NETWORK" ] && net=(--network="$BUILD_NETWORK")
   ( cd "$BENCH_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} -t "$IMAGE" -f Containerfile . )
+  touch "$STAMP"
 }
 
 ensure_image() {
   "$ENGINE" image exists "$IMAGE" 2>/dev/null || build_image
 }
 
-# Echo the bind-mount args: benchmark src, the Go binary, and the first-party
-# packages (into node_modules — they are repo source, not third-party deps).
+# Bind-mounts: the host Go binary + first-party packages into the TS-GO competitor
+# only, and the writable results/ dir (so the per-competitor JSON survives the
+# container). Everything else is baked into the image.
 mount_args() {
   [ -x "$LINUX_BIN" ] || die "missing $LINUX_BIN - run 'scripts/benchmarks.sh prep' first."
   [ -f "$MARKER_PKG/dist/index.js" ] || die "missing marker dist - run 'scripts/benchmarks.sh prep' first."
   [ -f "$PLUGIN_PKG/dist/index.js" ] || die "missing plugin dist - run 'scripts/benchmarks.sh prep' first."
-  printf -- '-v\n%s:/app/src%s\n' "$BENCH_DIR/src" "$MOUNT_OPTS"
-  printf -- '-v\n%s:/app/bin/ts-go-run-types:ro%s\n' "$LINUX_BIN" "$MOUNT_OPTS"
-  printf -- '-v\n%s:/app/node_modules/@mionjs/ts-go-run-types:ro%s\n' "$MARKER_PKG" "$MOUNT_OPTS"
-  printf -- '-v\n%s:/app/node_modules/vite-plugin-runtypes:ro%s\n' "$PLUGIN_PKG" "$MOUNT_OPTS"
-  printf -- '-v\n%s:/app/typecost.mjs:ro%s\n' "$BENCH_DIR/typecost.mjs" "$MOUNT_OPTS"
+  mkdir -p "$RESULTS_DIR"
+  local tsgo=/app/competitors/ts-go-run-types
+  printf -- '-v\n%s:%s/bin/ts-go-run-types:ro%s\n' "$LINUX_BIN" "$tsgo" "$MOUNT_OPTS"
+  printf -- '-v\n%s:%s/node_modules/@mionjs/ts-go-run-types:ro%s\n' "$MARKER_PKG" "$tsgo" "$MOUNT_OPTS"
+  printf -- '-v\n%s:%s/node_modules/vite-plugin-runtypes:ro%s\n' "$PLUGIN_PKG" "$tsgo" "$MOUNT_OPTS"
+  printf -- '-v\n%s:/app/results%s\n' "$RESULTS_DIR" "$MOUNT_OPTS"
 }
 
-net_args() { [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"; }
-typia_args() { [ -n "${BENCH_TYPIA:-}" ] && printf -- '-e\nBENCH_TYPIA=1\n'; }
+net_args() { [ -n "$RUN_NETWORK" ] && printf -- '--network=%s\n' "$RUN_NETWORK"; return 0; }
 
+env_args() {
+  printf -- '-e\nBENCH_RESULTS_DIR=/app/results\n'
+  [ -n "${BENCH_NO_TIMING:-}" ] && printf -- '-e\nBENCH_NO_TIMING=%s\n' "$BENCH_NO_TIMING"
+  [ -n "${BENCH_TIME_MS:-}" ]   && printf -- '-e\nBENCH_TIME_MS=%s\n' "$BENCH_TIME_MS"
+  return 0
+}
+
+# Run a command in a fresh --rm container (NOT exec — callers run several).
 run_in_container() {
-  ensure_prereqs
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
-  read_lines TARGS < <(typia_args)
-  local tty=(-i); [ -t 1 ] && tty+=(-t)   # interactive TTY only when attached (not in CI)
-  exec "$ENGINE" run --rm ${tty[@]+"${tty[@]}"} --init \
-    --name "${CONTAINER_BASE}-run" \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${TARGS[@]+"${TARGS[@]}"} \
+  read_lines EARGS < <(env_args)
+  local tty=(); [ -t 1 ] && tty+=(-t)
+  "$ENGINE" run --rm -i ${tty[@]+"${tty[@]}"} --init \
+    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
     -w /app "$IMAGE" "$@"
 }
 
+# Build + run one competitor in its own container (isolation); failure is reported
+# but never aborts the loop (so one broken competitor can't sink the rest).
+build_and_run_one() {
+  local competitor="$1"
+  echo "──────── competitor: $competitor ────────"
+  run_in_container sh -c "cd competitors/$competitor && pnpm run build && node dist/run.mjs" \
+    || echo "==> competitor '$competitor' FAILED (build or run) — see output above"
+}
+
 cmd_bench() {
-  echo "==> building + running the benchmark in the container"
-  run_in_container sh -c 'pnpm run build && node dist/run.mjs'
+  ensure_prereqs
+  mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true
+  local competitor
+  while IFS= read -r competitor; do build_and_run_one "$competitor"; done < <(competitor_list)
+  echo "──────── aggregate ────────"
+  run_in_container node aggregate.mjs
+}
+
+cmd_bench_one() {
+  [ -n "${1:-}" ] || die "usage: bench-one <competitor> (ts-go-run-types|zod|typebox|ajv|typia)"
+  ensure_prereqs
+  mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR/$1.json" 2>/dev/null || true
+  build_and_run_one "$1"
+  echo "──────── aggregate ────────"
+  run_in_container node aggregate.mjs
 }
 
 cmd_build() {
-  echo "==> vite build only (-> container /app/dist)"
-  run_in_container pnpm run build
+  ensure_prereqs
+  if [ -n "${1:-}" ]; then
+    run_in_container sh -c "cd competitors/$1 && pnpm run build && test -d dist"
+  else
+    local competitor
+    while IFS= read -r competitor; do
+      echo "──────── build: $competitor ────────"
+      run_in_container sh -c "cd competitors/$competitor && pnpm run build && test -d dist" \
+        || echo "==> build '$competitor' FAILED"
+    done < <(competitor_list)
+  fi
 }
 
 cmd_typecost() {
-  echo "==> measuring TS type-instantiation cost in the container"
-  run_in_container node typecost.mjs
+  ensure_prereqs
+  echo "==> measuring per-competitor TS type-instantiation cost in the container"
+  run_in_container node typecost/typecost.mjs
 }
 
 cmd_smoke() {
-  echo "==> smoke: vite build in container (no full bench run)"
-  run_in_container sh -c 'pnpm run build && test -d dist'
+  ensure_prereqs
+  echo "==> smoke: build every competitor's dist (no run)"
+  cmd_build
 }
 
-cmd_shell() { run_in_container bash; }
+cmd_shell() { ensure_prereqs; run_in_container bash; }
 
 cmd_clean() {
   echo "==> removing image $IMAGE"
   "$ENGINE" rmi -f "$IMAGE" 2>/dev/null || true
+  rm -f "$STAMP"
 }
 
 main() {
@@ -258,12 +291,13 @@ main() {
     prep)        cmd_prep ;;
     build-image) require_engine; build_image ;;
     bench|'')    require_engine; cmd_bench ;;
-    build)       require_engine; cmd_build ;;
+    bench-one)   require_engine; cmd_bench_one "${2:-}" ;;
+    build)       require_engine; cmd_build "${2:-}" ;;
     smoke)       require_engine; cmd_smoke ;;
     typecost)    require_engine; cmd_typecost ;;
     shell)       require_engine; cmd_shell ;;
     clean)       require_engine; cmd_clean ;;
-    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | build | smoke | typecost | shell | clean" ;;
+    *) die "unknown command '${1:-}'. Try: prep | build-image | bench | bench-one <name> | build [<name>] | smoke | typecost | shell | clean" ;;
   esac
 }
 
