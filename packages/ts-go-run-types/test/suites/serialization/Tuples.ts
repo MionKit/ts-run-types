@@ -5,6 +5,9 @@ import type {SerializationCase} from './types.ts';
 export const TUPLES = {
   tuple: {
     title: 'tuple',
+    description:
+      'Fixed-length mixed tuple [Date, number, string, null, string[], bigint]. The Date slot encodes to an ISO string and the bigint slot to a decimal string; number, string, null and the string[] slot pass through unchanged.',
+    serializeNotes: 'Per-slot wire transforms: Date↔ISO string and bigint↔decimal string; the decoder restores each slot from its scalar form.',
     mutateEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[Date, number, string, null, string[], bigint]>(undefined, {strategy: 'direct'}),
@@ -26,6 +29,10 @@ export const TUPLES = {
   },
   tuple_with_optional: {
     title: 'tuple with optional params',
+    description:
+      'Tuple [number, bigint?, boolean?, number?] with one required leading slot and three trailing optional slots; trailing slots may be absent and round-trip symmetrically across JSON and binary.',
+    serializeNotes:
+      'Samples carry the optional bigint slot as `undefined` rather than a real value, so the bigint-to-decimal-string transform is exercised by other cases; both samples round-trip with no shape asymmetry.',
     mutateEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[number, bigint?, boolean?, number?]>(undefined, {strategy: 'direct'}),
@@ -46,6 +53,9 @@ export const TUPLES = {
   },
   tuple_rest_parameter: {
     title: 'tuple rest parameter',
+    description:
+      'Tuple [number, ...bigint[]] with one fixed number slot and a trailing bigint rest segment; each rest bigint encodes to a decimal string and rebuilds with BigInt(...) on decode, and the rest segment may be empty.',
+    serializeNotes: 'Rest bigint elements serialize to decimal strings on the JSON wire and rebuild to bigints on decode; samples cover the rest segment populated and empty.',
     mutateEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'mutate'}),
     cloneEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'clone'}),
     directEncoder: () => createJsonEncoder<[number, ...bigint[]]>(undefined, {strategy: 'direct'}),
@@ -82,6 +92,10 @@ export const TUPLES = {
   },
   tuple_circular: {
     title: 'tuple circular',
+    description:
+      'Self-referential root tuple [Date, number, string, null, string[], bigint, TupleCircular?] whose last optional slot recurses into the same tuple. The Date slot encodes to an ISO string and the bigint slot to a decimal string; the nested tuple round-trips recursively across JSON and binary.',
+    serializeNotes:
+      'A root-level recursive tuple cannot be authored value-first, so all four schema variants are marked not-supported (the object-to-tuple cycle is covered value-first by interface_circular_tuple); the type-first path round-trips with Date-to-ISO-string and bigint-to-decimal-string per-slot transforms.',
     mutateEncoder: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createJsonEncoder<TupleCircular>(undefined, {strategy: 'mutate'});

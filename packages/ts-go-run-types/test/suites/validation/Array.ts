@@ -6,6 +6,7 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 export const ARRAY = {
   string_array: {
     title: 'Array of strings',
+    description: 'mion collection/array — `Array.isArray(v)` then every element validated against the element type (`string`).',
     validateNotes: [
       'Top-level value must be an actual array (`Array.isArray`).',
       'Every element must satisfy the element type — the empty array `[]` is valid.',
@@ -109,6 +110,8 @@ export const ARRAY = {
 
   boolean_array: {
     title: 'Array of booleans',
+    description: 'Array whose every element passes the atomic strict-`typeof` boolean check; `[]` is valid.',
+    validateNotes: 'Numeric `0` / `1` are rejected per-element — the element check is strict `typeof === "boolean"`, not truthiness.',
     validate: () => createValidate<boolean[]>(),
     validateDataOnly: () => createValidate<DataOnly<boolean[]>>(),
     validateSchema: () => createValidate(RT.array(RT.boolean())),
@@ -155,6 +158,8 @@ export const ARRAY = {
 
   bigint_array: {
     title: 'Array of bigints',
+    description: 'Array whose every element passes the atomic strict-`typeof` bigint check; `[]` is valid.',
+    validateNotes: 'Plain `number` elements (e.g. `2`, `Infinity`) are rejected — `typeof 2n === "bigint"` but `typeof 2 === "number"`.',
     validate: () => createValidate<bigint[]>(),
     validateDataOnly: () => createValidate<DataOnly<bigint[]>>(),
     validateSchema: () => createValidate(RT.array(RT.bigint())),
@@ -246,6 +251,8 @@ export const ARRAY = {
 
   regexp_array: {
     title: 'Array of RegExps',
+    description: 'Array whose every element passes the atomic builtin-class RegExp check (`instanceof RegExp`); `[]` is valid.',
+    validateNotes: 'A regex *source string* like `"/abc/"` is rejected — the element check is the nominal `instanceof RegExp`, not a string.',
     validate: () => createValidate<RegExp[]>(),
     validateDataOnly: () => createValidate<DataOnly<RegExp[]>>(),
     validateSchema: () => createValidate(RT.array(RT.regexp())),
@@ -339,6 +346,7 @@ export const ARRAY = {
 
   null_array: {
     title: 'Array of nulls',
+    description: 'Array of the `null` literal — every element validated as `=== null`; `[]` is valid.',
     validateNotes: 'Every element must strictly === null. `undefined` and other falsy values are rejected per-element.',
     validate: () => createValidate<null[]>(),
     validateDataOnly: () => createValidate<DataOnly<null[]>>(),

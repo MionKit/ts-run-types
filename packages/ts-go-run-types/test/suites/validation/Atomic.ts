@@ -6,6 +6,7 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 export const ATOMIC = {
   any: {
     title: 'Any type — every value passes',
+    description: 'the `any` keyword — validator accepts every value (no-op)',
     validateNotes: 'No-op validator — every value passes. Equivalent to `() => true`.',
     validate: () => createValidate<any>(),
     validateDataOnly: () => createValidate<DataOnly<any>>(),
@@ -92,6 +93,7 @@ export const ATOMIC = {
 
   boolean: {
     title: 'Boolean primitive (strict typeof)',
+    description: 'the `boolean` primitive — strict `typeof === "boolean"`',
     validateNotes:
       'Strict typeof === "boolean". Truthy/falsy values that are not actual booleans (e.g., 0, 1, "", "true") are rejected.',
     validate: () => createValidate<boolean>(),
@@ -336,6 +338,7 @@ export const ATOMIC = {
 
   literal_2: {
     title: 'Numeric literal type (strict equality)',
+    description: 'the numeric literal type `2` — matched by strict `===`',
     validateNotes: 'Strict === equality with the literal value. The string "2" is not the number 2.',
     validate: () => createValidate<2>(),
     validateDataOnly: () => createValidate<DataOnly<2>>(),
@@ -377,6 +380,7 @@ export const ATOMIC = {
 
   literal_a: {
     title: 'String literal type (case-sensitive)',
+    description: "the string literal type `'a'` — matched by strict `===`",
     validateNotes: 'Case-sensitive — "A" does not satisfy the literal "a".',
     validate: () => createValidate<'a'>(),
     validateDataOnly: () => createValidate<DataOnly<'a'>>(),
@@ -419,6 +423,7 @@ export const ATOMIC = {
 
   literal_true: {
     title: 'Boolean literal type (only true)',
+    description: 'the boolean literal type `true` — only the value `true` passes',
     validateNotes:
       'Strict === equality. Truthy values like 1 or "true" do NOT satisfy the literal `true`; only the boolean true does.',
     validate: () => createValidate<true>(),
@@ -461,6 +466,7 @@ export const ATOMIC = {
 
   literal_1n: {
     title: 'BigInt literal type (only 1n)',
+    description: 'the bigint literal type `1n` — matched by strict `===`',
     validateNotes: 'Strict === equality with the bigint literal. The number 1 and the string "1n" do NOT satisfy 1n.',
     validate: () => createValidate<1n>(),
     validateDataOnly: () => createValidate<DataOnly<1n>>(),
@@ -585,6 +591,7 @@ export const ATOMIC = {
 
   never: {
     title: 'Never — no value passes',
+    description: 'the `never` keyword — validator rejects every value (mockType throws)',
     validateNotes: 'No value satisfies `never`. The validator is hard-coded to return `false` for every input.',
     validate: () => createValidate<never>(),
     validateDataOnly: () => createValidate<DataOnly<never>>(),
@@ -791,6 +798,7 @@ export const ATOMIC = {
 
   regexp: {
     title: 'RegExp instance',
+    description: 'the `RegExp` builtin — `instanceof RegExp` check',
     validateNotes: [
       'Must be an actual RegExp instance (`instanceof RegExp`). A string like `"/abc/"` does NOT satisfy.',
       'The getValidationErrors and mockType REFLECT forms are not supported: a reflect value `const v: RegExp = /abc/` narrows to the literal-regex type `/abc/`, dispatching to the regexp-literal arm — getValidationErrors would then report `expected: "literal"` instead of `"regexp"`, and mockType would resolve a regexp-literal runtype. The validate reflect forms survive because the validator body coincides on the samples; only the kindname-reporting paths diverge.',
@@ -834,6 +842,7 @@ export const ATOMIC = {
 
   string: {
     title: 'String primitive',
+    description: 'the `string` primitive — strict `typeof === "string"` (empty string accepted)',
     validateNotes: 'Strict typeof === "string". The empty string ("") is accepted.',
     validate: () => createValidate<string>(),
     validateDataOnly: () => createValidate<DataOnly<string>>(),
@@ -878,6 +887,7 @@ export const ATOMIC = {
 
   symbol: {
     title: 'Symbol primitive',
+    description: 'the bare `symbol` primitive — unsupported at root, factory throws on first call',
     validateNotes:
       'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes VL002 / VE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
     validate: () => createValidate<symbol>(),
@@ -1337,6 +1347,7 @@ export const ATOMIC = {
   // can't silently change the always-pass semantics.
   unknown: {
     title: 'Unknown type — every value passes',
+    description: 'the `unknown` keyword — validator accepts every value, same as `any` (no-op)',
     validateNotes: 'No-op validator — `unknown` accepts every value, same as `any`. Equivalent to `() => true`.',
     validate: () => createValidate<unknown>(),
     validateDataOnly: () => createValidate<DataOnly<unknown>>(),

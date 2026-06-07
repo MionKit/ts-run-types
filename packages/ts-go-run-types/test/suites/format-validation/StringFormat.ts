@@ -62,6 +62,8 @@ export const STRING_FORMAT = {
   // ─────────────────────────── FormatString ───────────────────────
   string_maxLength: {
     title: 'FormatString maxLength — bounds the upper length',
+    description: 'stringFormat with an inclusive upper-length bound; rejects strings longer than `maxLength`',
+    validateNotes: 'Length 5 passes (`hello`); 6 chars (`hello!`) fails with `val` 5 (`maxLength`). A non-string (42) fails the string typeof gate before any format check. Empty string passes.',
     validate: () => createValidate<FormatString<{maxLength: 5}>>(),
     validateReflect: () => {
       const v: FormatString<{maxLength: 5}> = 'hello';

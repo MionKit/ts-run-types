@@ -6,6 +6,7 @@ import {deserializeValidate, deserializeGetValidationErrors} from '../../util/de
 export const TUPLE = {
   string_number_pair: {
     title: 'Two-element tuple (string plus number)',
+    description: 'mion member/tuple — `Array.isArray(v)`, exact length 2, then slot 0 validated as `string` and slot 1 as `number`.',
     validateNotes: [
       'Tuples enforce exact length — both fewer (missing required) and more (excess) elements fail.',
       'Each slot runs the atomic check for its declared type.',
