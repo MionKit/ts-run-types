@@ -87,9 +87,10 @@ Both apps install their heavy node_modules **inside** a podman image (supply-cha
 | Website     | `pnpm run website:smoke` | Build image (if stale) + boot dev server detached + curl `:3000` + tear down.      |
 | Website     | `pnpm run website:build` | Production build to `website/.output`.                                             |
 | Benchmarks  | `pnpm run bench:prep`    | Build the resolver binary (host + Linux cross) + JS packages on the host.          |
-| Benchmarks  | `pnpm run bench`         | Full validation benchmark inside the container (vite build + run).                 |
-| Benchmarks  | `pnpm run bench:smoke`   | Same as `bench` but stops after vite build — minutes shorter.                      |
-| Benchmarks  | `pnpm run bench:typecost`| Type-instantiation-cost benchmark.                                                 |
+| Benchmarks  | `pnpm run bench`         | Build + run EVERY competitor in its own isolated container, then aggregate.         |
+| Benchmarks  | `pnpm run bench:one <n>` | Build + run a SINGLE competitor + aggregate (fastest verification loop).            |
+| Benchmarks  | `pnpm run bench:smoke`   | Build every competitor's dist (no run) — minutes shorter.                           |
+| Benchmarks  | `pnpm run bench:typecost`| Per-competitor type-instantiation-cost benchmark.                                  |
 
 The website only needs **podman**; the benchmarks additionally need **Node + pnpm + Go** for the host prep (resolver binary + first-party dists, bind-mounted into the container). On macOS the prep cross-compiles a `bin/ts-go-run-types-linux-<arch>` so the Linux container can execute it.
 
