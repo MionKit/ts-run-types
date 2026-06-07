@@ -23,7 +23,7 @@ import {
   boolean,
   literal,
   regexp,
-  lazy,
+  circular,
   func,
   parameters,
   templateLiteral,
@@ -38,7 +38,6 @@ import {
   readonly,
   returnType,
 } from '@mionjs/ts-go-run-types/schema';
-import type {RunType} from '@mionjs/ts-go-run-types';
 import '@mionjs/ts-go-run-types/formats';
 
 describe('compose builders — array', () => {
@@ -187,16 +186,9 @@ describe('compose builders — null member survives composition (Static carrier)
   });
 });
 
-describe('compose builders — lazy (recursive self-reference)', () => {
+describe('compose builders — circular (recursive self-reference)', () => {
   it('validates a recursive linked-list node', () => {
-    interface LNode {
-      value: number;
-      next: LNode | null;
-    }
-    const LNodeSchema: RunType<LNode> = object({
-      value: number(),
-      next: union([lazy<typeof LNodeSchema>(() => LNodeSchema), literal(null)]),
-    });
+    const LNodeSchema = circular((self) => object({value: number(), next: union([self, literal(null)])}));
     const isNode = createIsType(LNodeSchema);
     expect(isNode({value: 1, next: null})).toBe(true);
     expect(isNode({value: 1, next: {value: 2, next: null}})).toBe(true);

@@ -1,5 +1,5 @@
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
-// `map` / `set` / `promise` / `lazy` / `func` / `templateLiteral`, plus the
+// `map` / `set` / `promise` / `circular` / `self` / `func` / `templateLiteral`, plus the
 // `object` assembler and the `propMod` / `optional` property modifiers. Each
 // takes child `RunType` schemas and returns the generic `RunType<…>` for the
 // COMPOSED type, via the same trailing-`InjectRunTypeId` marker every builder
@@ -187,26 +187,6 @@ export function map<K, V>(
  *  validated against the value schema. **/
 export function set<V>(valueSchema: CompTimeArgs<RunType<V>>, id?: InjectRunTypeId<Set<V>>): RunType<Set<V>> {
   return builderResult(id, {type: 'set', child: valueSchema});
-}
-
-/** A lazy / recursive reference — defers a self-referential schema so a circular
- *  type can name itself before its `const` is initialised. Pass the referenced
- *  run-type's OWN type as the type argument (`lazy<typeof Node>(() => Node)`), so no
- *  separate return annotation on the thunk is needed:
- *
- *    type Node = {value: number; next: Node | null};
- *    const Node: RunType<Node> = object({value: number(), next: union([lazy<typeof Node>(() => Node), literal(null)])});
- *
- *  The type parameter is the `RunType` itself (not the underlying `T`); `Static<RT>`
- *  recovers `T` for the injected-id brand. Always nested inside another composer, so
- *  the scanner skips it (the enclosing marker reflects the whole circular shape off
- *  its brand); the thunk exists only to break the value-level self-reference cycle
- *  and to carry the type for inference. The thunk is `CompTimeArgs` — accepted as a
- *  literal arrow leaf, so the forward `const` it closes over (`() => Node`) is fine;
- *  the scanner stops at the arrow and never recurses into its body. A reference to an
- *  ALREADY-declared run-type needs no `lazy` — pass the const directly. **/
-export function lazy<RT extends RunType>(thunk: CompTimeArgs<() => RT>, id?: InjectRunTypeId<Static<RT>>): RT {
-  return builderResult(id, {type: 'lazy', thunk}) as RT;
 }
 
 /** The self-reference placeholder for `circular((self) => …)` — marks where a
