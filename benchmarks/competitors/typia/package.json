@@ -1,5 +1,10 @@
 {"name":"bench-typia","private":true,"type":"module",
- "scripts":{"build":"vite build","bench":"node dist/run.mjs"},
- "dependencies":{"typia":"^7.0.0","@ryoppippi/unplugin-typia":"^1.0.0"},
- "devDependencies":{"vite":"^6.0.0","typescript":"5.6.3","@types/node":"^22.10.0"},
- "pnpm":{"overrides":{"typescript":"5.6.3"}}}
+ "scripts":{"build":"node esbuild.config.mjs","bench":"node dist/run.mjs"},
+ "dependencies":{"typia":"13.0.0-dev.20260511"},
+ "devDependencies":{
+   "ttsc":"0.10.2",
+   "@ttsc/unplugin":"0.10.2",
+   "@typescript/native-preview":"7.0.0-dev.20260511.1",
+   "esbuild":"0.25.12",
+   "@types/node":"22.10.0"
+ }}
