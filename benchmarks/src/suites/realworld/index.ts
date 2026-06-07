@@ -131,9 +131,7 @@ export const REALWORLD = {
         RT.object({
           id: RT.string(),
           customer: RT.object({id: RT.number(), email: RT.string()}),
-          items: RT.array(
-            RT.object({sku: RT.string(), name: RT.string(), qty: RT.number(), price: RT.number()}),
-          ),
+          items: RT.array(RT.object({sku: RT.string(), name: RT.string(), qty: RT.number(), price: RT.number()})),
           shipping: RT.object({
             street: RT.string(),
             city: RT.string(),
@@ -204,12 +202,7 @@ export const REALWORLD = {
       };
       return {
         valid: [ok, {...ok, publishedAt: '2024-01-02'}],
-        invalid: [
-          {...ok, tags: [1, 2]},
-          {...ok, meta: {views: 10}},
-          {...ok, published: 'yes'},
-          null,
-        ],
+        invalid: [{...ok, tags: [1, 2]}, {...ok, meta: {views: 10}}, {...ok, published: 'yes'}, null],
       };
     },
   },
@@ -226,9 +219,7 @@ export const REALWORLD = {
           currency: RT.union([RT.literal('USD'), RT.literal('EUR'), RT.literal('GBP')]),
           inStock: RT.boolean(),
           categories: RT.array(RT.string()),
-          dimensions: RT.optional(
-            RT.object({width: RT.number(), height: RT.number(), depth: RT.number()}),
-          ),
+          dimensions: RT.optional(RT.object({width: RT.number(), height: RT.number(), depth: RT.number()})),
         })
       ),
     getSamples: () => {
@@ -243,12 +234,7 @@ export const REALWORLD = {
       };
       return {
         valid: [ok, {...ok, dimensions: {width: 1, height: 2, depth: 3}}],
-        invalid: [
-          {...ok, currency: 'JPY'},
-          {...ok, dimensions: {width: 1, height: 2}},
-          {...ok, price: '9.99'},
-          null,
-        ],
+        invalid: [{...ok, currency: 'JPY'}, {...ok, dimensions: {width: 1, height: 2}}, {...ok, price: '9.99'}, null],
       };
     },
   },
@@ -267,10 +253,8 @@ export const REALWORLD = {
               currency: RT.union([RT.literal('USD'), RT.literal('EUR'), RT.literal('GBP')]),
               inStock: RT.boolean(),
               categories: RT.array(RT.string()),
-              dimensions: RT.optional(
-                RT.object({width: RT.number(), height: RT.number(), depth: RT.number()}),
-              ),
-            }),
+              dimensions: RT.optional(RT.object({width: RT.number(), height: RT.number(), depth: RT.number()})),
+            })
           ),
           page: RT.number(),
           pageSize: RT.number(),
@@ -291,12 +275,7 @@ export const REALWORLD = {
       const ok: ProductPage = {data: [p], page: 1, pageSize: 20, total: 1, hasMore: false};
       return {
         valid: [ok, {data: [], page: 2, pageSize: 20, total: 0, hasMore: false}],
-        invalid: [
-          {...ok, data: [{...p, currency: 'JPY'}]},
-          {...ok, hasMore: 'no'},
-          {...ok, page: '1'},
-          null,
-        ],
+        invalid: [{...ok, data: [{...p, currency: 'JPY'}]}, {...ok, hasMore: 'no'}, {...ok, page: '1'}, null],
       };
     },
   },
@@ -325,12 +304,7 @@ export const REALWORLD = {
       };
       return {
         valid: [ok, {...ok, profile: {...ok.profile, age: 30}}],
-        invalid: [
-          {...ok, acceptedTerms: false},
-          {...ok, profile: {firstName: 'Ann'}},
-          {...ok, password: 123456},
-          null,
-        ],
+        invalid: [{...ok, acceptedTerms: false}, {...ok, profile: {firstName: 'Ann'}}, {...ok, password: 123456}, null],
       };
     },
   },

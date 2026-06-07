@@ -30,7 +30,7 @@ type checker. Format params reach the scanner by one of two routes:
 
 1. **Type-argument literals (survive `.d.ts`).** `FormatString<{maxLength: 5}>`,
    `FormatNumber<{max: 100}>`, `FormatUUIDv4 = TypeFormat<string,'uuid',{version:'4'}>`.
-   The `{maxLength: 5}` *is* the type. TypeScript emits type arguments verbatim
+   The `{maxLength: 5}` _is_ the type. TypeScript emits type arguments verbatim
    into `.d.ts`, so the scanner sees them no matter how the package is resolved.
 
 2. **`typeof` an opaque runtime value (does NOT survive `.d.ts`).** The
@@ -38,8 +38,7 @@ type checker. Format params reach the scanner by one of two routes:
    [`src/formats/string/stringFormats.ts`](../packages/ts-go-run-types/src/formats/string/stringFormats.ts):
 
    ```ts
-   export type FormatAlpha<P = {}> =
-     TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
+   export type FormatAlpha<P = {}> = TypeFormat<string, 'stringFormat', P & {pattern: typeof ALPHA_PATTERN}, never>;
    ```
 
    where, in
@@ -54,7 +53,7 @@ type checker. Format params reach the scanner by one of two routes:
 
    ```ts
    export interface FormatPattern {
-     readonly source: string;   // ← `string`, not `'^[\\p{L}]+$'`
+     readonly source: string; // ← `string`, not `'^[\\p{L}]+$'`
      readonly flags: string;
      readonly mockSamples: readonly string[];
      readonly [formatPatternBrand]: true;
@@ -110,7 +109,7 @@ to "literal in the call AST", which is recoverable first-party but not through a
 
 ## Guiding principle
 
-**Every parameter the scanner needs must be preserved as a literal *in the type*,
+**Every parameter the scanner needs must be preserved as a literal _in the type_,
 so it survives `.d.ts` emission.** That is the whole game. The scanner reads `T`;
 for a consumer, `T` is whatever the published `.d.ts` says it is. So anything the
 validator/mock/diagnostics depend on — bounds, lengths, enum values, regex
@@ -131,11 +130,11 @@ not a hand-picked subset — so nothing is lost on the `.d.ts` boundary.
 ## Proposed solution
 
 Make the pattern bundle a set of **type-level literals**, identical in spirit to
-`{maxLength: 5}` — and capture *every* field, not just the regex.
+`{maxLength: 5}` — and capture _every_ field, not just the regex.
 
 1. **`registerFormatPattern` accepts only the string form.** Remove the
    `regexp: RegExp` overload. The sole signature is the `{source, flags?,
-   mockSamples, message?}` shape, all string literals, still wrapped in
+mockSamples, message?}` shape, all string literals, still wrapped in
    `CompTimeArgs<…>` so the values are compile-time literals.
 
 2. **Make `registerFormatPattern` / `FormatPattern` generic over the WHOLE args
@@ -149,13 +148,11 @@ Make the pattern bundle a set of **type-level literals**, identical in spirit to
    export interface FormatPattern<A extends StringPatternArgs = StringPatternArgs> {
      readonly source: A['source'];
      readonly flags: A['flags'] extends string ? A['flags'] : '';
-     readonly mockSamples: A['mockSamples'];   // literal tuple, e.g. readonly ['abc','Hello']
+     readonly mockSamples: A['mockSamples']; // literal tuple, e.g. readonly ['abc','Hello']
      readonly message?: A['message'];
      readonly [formatPatternBrand]: true;
    }
-   export function registerFormatPattern<const A extends StringPatternArgs>(
-     args: CompTimeArgs<A>,
-   ): FormatPattern<A>;
+   export function registerFormatPattern<const A extends StringPatternArgs>(args: CompTimeArgs<A>): FormatPattern<A>;
    ```
 
    The `const A` inference keeps every field literal. So `typeof ALPHA_PATTERN`
@@ -165,7 +162,7 @@ Make the pattern bundle a set of **type-level literals**, identical in spirit to
    `.d.ts`. `FormatAlpha`'s `pattern` param carries the lot.
 
    (Equivalent shapes work too — e.g. `FormatPattern = Readonly<A> & {brand}` — as
-   long as the projection preserves the literals; the point is the *whole* args
+   long as the projection preserves the literals; the point is the _whole_ args
    object rides the type, not a hand-picked subset.)
 
 3. **Recover the pattern from the type, not the AST.** The scanner already reads

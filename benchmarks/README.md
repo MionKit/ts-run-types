@@ -29,11 +29,11 @@ Coverage: ts-go 208/223 · zod 72 · typebox 62 · ajv 31
 
 ## What runs where
 
-| Inside the image (installed)         | Bind-mounted from the repo at run time            |
-| ------------------------------------ | ------------------------------------------------- |
-| zod, @sinclair/typebox, ajv, typia   | `benchmarks/src/` (the suite + per-library files) |
-| vite + its toolchain                 | `bin/ts-go-run-types` (the Go resolver binary)    |
-| (node_modules, never on the host)    | `packages/ts-go-run-types`, `vite-plugin-runtypes` (first-party) |
+| Inside the image (installed)       | Bind-mounted from the repo at run time                           |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| zod, @sinclair/typebox, ajv, typia | `benchmarks/src/` (the suite + per-library files)                |
+| vite + its toolchain               | `bin/ts-go-run-types` (the Go resolver binary)                   |
+| (node_modules, never on the host)  | `packages/ts-go-run-types`, `vite-plugin-runtypes` (first-party) |
 
 ts-go-run-types is special: its validators are generated at **build time** by
 `vite-plugin-runtypes`, which spawns the **Go binary**. That's why the container
@@ -53,7 +53,7 @@ pnpm run bench:typecost      # compile-time: TS type-instantiation cost, in the 
 
 `bench` prints, per case (grouped by suite/group), a correctness check **and**
 validation throughput for every library, then a coverage summary. It exits
-non-zero if any *supported* validator is incorrect, so the run doubles as a
+non-zero if any _supported_ validator is incorrect, so the run doubles as a
 cross-library conformance test. Env knobs: `BENCH_NO_TIMING=1` (correctness
 only, fast), `BENCH_TIME_MS=100` (per-cell measurement window).
 
@@ -61,7 +61,7 @@ only, fast), `BENCH_TIME_MS=100` (per-cell measurement window).
 
 A second, orthogonal axis: how expensive each form is for the **TypeScript
 compiler** to type-check. Every schema library that recovers a static type
-(`Static<typeof schema>` / `z.infer<typeof schema>`) makes the checker *evaluate*
+(`Static<typeof schema>` / `z.infer<typeof schema>`) makes the checker _evaluate_
 that type at every use site; a plain `type T = …` definition is essentially free.
 
 `bench:typecost` ([`typecost.mjs`](typecost.mjs)) assembles, per case, a tiny

@@ -54,7 +54,7 @@ existing comma plus the injected `, undefined` produce an empty argument
   arguments, so there is no trailing comma to collide with.
 - The trailing comma **inside** the schema object literal
   (`RT.object({ a: …, })`) is unrelated and harmless — only the comma in
-  `createValidate`'s *own* argument list matters.
+  `createValidate`'s _own_ argument list matters.
 
 ## Workaround (today)
 

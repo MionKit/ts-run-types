@@ -4,18 +4,13 @@
 # frozen lockfile). Runs only when website inputs change.
 name: website
 
+# DISABLED for now — manual-only so it doesn't run on every push/PR.
+# Re-enable automatic runs by restoring the push/pull_request triggers below:
+#   on:
+#     push: { branches: [main], paths: ['website/**', 'scripts/website.sh', '.github/workflows/website.yml'] }
+#     pull_request: { paths: ['website/**', 'scripts/website.sh', '.github/workflows/website.yml'] }
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'website/**'
-      - 'scripts/website.sh'
-      - '.github/workflows/website.yml'
-  pull_request:
-    paths:
-      - 'website/**'
-      - 'scripts/website.sh'
-      - '.github/workflows/website.yml'
+  workflow_dispatch:
 
 jobs:
   build:
