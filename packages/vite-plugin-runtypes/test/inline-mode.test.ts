@@ -112,4 +112,39 @@ export const isParent = createValidate<Parent>();
       expect(keys.length, 'one module — names ignored under allInternal').toBe(1);
     });
   });
+
+  register('DEFAULT: DataOnly<NamedInterface> stays external (the root is brand-named)', async () => {
+    // Without the serializer's DataOnly special case, the conditional +
+    // key-filtering mapped result is anonymous from the alias check's
+    // perspective, so the root entry inlines its entire body — including
+    // the nested interface references. With the special case, the root
+    // carries TypeName="DataOnly<NamedInterface>", so DefaultIsRTInlined
+    // keeps it external and the nested ICircular reference rides its own
+    // shared entry.
+    const code = `import {createValidate, type DataOnly} from '@mionjs/ts-go-run-types';
+interface ICircular {
+  name: string;
+  child?: ICircular;
+}
+interface Root {
+  isRoot: true;
+  child: ICircular;
+}
+export const isRoot = createValidate<DataOnly<Root>>();
+`;
+    await withClient(undefined, {'dataonly.ts': code}, async (client) => {
+      const {scan, keys} = await valKeysFor(client, 'dataonly.ts');
+      // Expect at least: one entry for DataOnly<Root>, one for the nested
+      // ICircular (both should be external rather than rolled together).
+      expect(keys.length, 'root + nested ICircular as separate entries').toBeGreaterThanOrEqual(2);
+      // The root entry's typeName slot (FN_TYPE_TUPLE_KEYS index 4) must be
+      // the composed "DataOnly<Root>" — proving the alias-clearing case is
+      // handled. Without the fix this is the kind-name fallback
+      // ("objectLiteral").
+      const rootKey = keys.find((k) => k.endsWith('_' + scan.sites[0].id));
+      if (!rootKey) throw new Error(`expected a root entry keyed by site id ${scan.sites[0].id}`);
+      const rootTuple = scan.entryModules![rootKey] as string;
+      expect(rootTuple, 'root entry typeName slot stamps the composed DataOnly label').toContain("'DataOnly<Root>'");
+    });
+  });
 });

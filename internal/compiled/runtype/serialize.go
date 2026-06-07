@@ -499,6 +499,14 @@ func (cache *Cache) projectType(tsType *checker.Type, id string) *protocol.RunTy
 				node.TypeArguments = append(node.TypeArguments, cache.Serialize(typeArgument))
 			}
 		}
+	} else if name, ok := dataOnlyTypeName(tsType); ok {
+		// DataOnly<T> from @mionjs/ts-go-run-types: the conditional + key-filtering
+		// mapped type strips the alias chain by the time the result reaches us,
+		// so the alias check above misses. Recognise it explicitly so the entry
+		// stays external in default inline mode (DefaultIsRTInlined treats
+		// TypeName-empty KindObjectLiteral as inlinable — fine for ad-hoc
+		// shapes, wrong for a brand-named view of a user-named type).
+		node.TypeName = name
 	}
 
 	switch {
