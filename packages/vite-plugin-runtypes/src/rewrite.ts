@@ -1,4 +1,4 @@
-import MagicString, {type SourceMap} from 'magic-string';
+import {EditBuffer, type SourceMap} from './edit-buffer.ts';
 import type {SiteScanner} from './scan-batcher.ts';
 import type {Replacement, Site} from './protocol.ts';
 import {ENTRY_BINDING_PREFIX, ENTRY_MODULE_SUFFIX, VIRTUAL_MODULE_PREFIX} from './runtypes-constants.generated.ts';
@@ -9,7 +9,7 @@ import {ENTRY_BINDING_PREFIX, ENTRY_MODULE_SUFFIX, VIRTUAL_MODULE_PREFIX} from '
 // the original source. Consumers using these positions after applying
 // `code` must account for the offset shift introduced by the rewrites
 // (including the import block inserted at offset 0). `map` carries the
-// MagicString-generated source map for the edits (absent when the file
+// EditBuffer-generated source map for the edits (absent when the file
 // had nothing to rewrite).
 export interface Rewritten {
   code: string;
@@ -34,12 +34,13 @@ export interface Rewritten {
 //      `import {__rt_<basename>} from 'virtual:rt/<basename>.js';` — every
 //      entry module exports under its binding name, so clauses never rename.
 //
-// Edits are applied through a MagicString so transform() can hand Vite a
+// Edits are applied through an EditBuffer (our in-house string editor +
+// source-map generator, see edit-buffer.ts) so transform() can hand Vite a
 // real source map — original positions survive the injected imports and
 // bindings. Positions from the resolver are UTF-8 BYTE offsets (tsgo
-// internally indexes its source files by byte) while MagicString indexes
+// internally indexes its source files by byte) while the EditBuffer indexes
 // by UTF-16 code units, so every resolver offset goes through
-// makeByteToChar before touching the MagicString — never index the JS
+// makeByteToChar before touching the buffer — never index the JS
 // string with a resolver offset directly; multibyte source characters
 // (an em-dash in a comment is enough) would misalign the inserted hash.
 export async function rewrite(file: string, code: string, resolver: SiteScanner): Promise<Rewritten> {
@@ -52,29 +53,29 @@ export async function rewrite(file: string, code: string, resolver: SiteScanner)
 
   const byteOffsets = [...sites.map((site) => site.pos), ...replacements.flatMap((rep) => [rep.start, rep.end])];
   const toChar = makeByteToChar(code, byteOffsets);
-  const magicString = new MagicString(code);
+  const editBuffer = new EditBuffer(code);
   // Sites are zero-width insertions keyed on `pos`; replacements are span
-  // edits keyed on `start`/`end`. MagicString resolves every edit against
+  // edits keyed on `start`/`end`. The EditBuffer resolves every edit against
   // ORIGINAL coordinates, so application order is irrelevant (the old
   // Buffer-based path needed an explicit right-to-left sort).
   for (const site of sites) {
-    magicString.appendLeft(toChar(site.pos), buildInsertion(site));
+    editBuffer.appendLeft(toChar(site.pos), buildInsertion(site));
   }
   for (const rep of replacements) {
-    if (rep.start === rep.end) magicString.appendLeft(toChar(rep.start), rep.text);
-    else magicString.update(toChar(rep.start), toChar(rep.end), rep.text);
+    if (rep.start === rep.end) editBuffer.appendLeft(toChar(rep.start), rep.text);
+    else editBuffer.update(toChar(rep.start), toChar(rep.end), rep.text);
   }
   const importBlock = buildImportBlock(sites, replacements);
-  if (importBlock !== '') magicString.prepend(importBlock);
+  if (importBlock !== '') editBuffer.prepend(importBlock);
 
   // 'boundary' resolution maps each token run, which keeps the map small
   // while still relocating positions past the injected mid-line bindings.
-  const map = magicString.generateMap({source: file, includeContent: true, hires: 'boundary'});
-  return {code: magicString.toString(), map, sites, replacements};
+  const map = editBuffer.generateMap({source: file, includeContent: true, hires: 'boundary'});
+  return {code: editBuffer.toString(), map, sites, replacements};
 }
 
 // makeByteToChar converts resolver UTF-8 byte offsets to the UTF-16
-// code-unit indices MagicString expects. Pure-ASCII sources (the common
+// code-unit indices the EditBuffer expects. Pure-ASCII sources (the common
 // case) short-circuit to identity; otherwise one code-point walk maps
 // exactly the offsets the edits need. Resolver offsets always land on
 // code-point boundaries, so the mapping is exact.
