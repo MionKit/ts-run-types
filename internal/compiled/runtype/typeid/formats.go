@@ -108,12 +108,78 @@ func literalParamsFromType(typeChecker *checker.Checker, paramsType *checker.Typ
 func formatTypeValueOptions(typeChecker *checker.Checker) comptimeargs.TypeValueOptions {
 	return comptimeargs.TypeValueOptions{
 		PropertyOverride: func(symbol *ast.Symbol) (any, bool) {
+			// Type channel FIRST: a generic FormatPattern<A> (registerFormatPattern)
+			// or an inline {source, flags, …} literal carries the pattern as LITERAL
+			// types on the property, so it survives a published .d.ts — read it
+			// straight from the resolved type. This is what lets a downstream
+			// consumer (and the benchmark) recover alpha/email/url/… patterns.
+			patternType := typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(symbol))
+			if pattern, ok := formatPatternFromType(typeChecker, patternType); ok {
+				return pattern, true
+			}
+			// AST fallback: the value-first path (`pattern: /…/`, or a
+			// registerFormatPattern({…}) const in scan scope) where the literal
+			// lives only in the declaring AST, not the type.
 			return formatPatternFromSymbol(typeChecker, symbol)
 		},
 		NonLiteralFallback: func(tsType *checker.Type) any {
 			return typeChecker.TypeToString(tsType)
 		},
 	}
+}
+
+// formatPatternFromType recovers a pattern bundle from the RESOLVED TYPE of a
+// `pattern` property — the type-level channel that survives a published `.d.ts`.
+// With the generic FormatPattern<A> and the inline `{source, flags, …}` literal
+// form, source/flags/mockSamples/message are LITERAL types on the property, so
+// the scanner reads them straight from the type (the brand symbol is ignored).
+// Returns (nil, false) when `source` isn't a string literal — the legacy opaque
+// shape (`source: string`) or any non-pattern property — so the caller falls
+// back to the AST channel. Shapes the same {source, flags, mockSamples?,
+// message?} map the AST reader returns, so downstream consumers are unchanged.
+func formatPatternFromType(typeChecker *checker.Checker, patternType *checker.Type) (map[string]any, bool) {
+	if patternType == nil || patternType.Flags()&checker.TypeFlagsObject == 0 {
+		return nil, false
+	}
+	source, ok := stringLiteralOf(stringPropertyType(typeChecker, patternType, "source"))
+	if !ok || source == "" {
+		return nil, false
+	}
+	out := map[string]any{"source": source}
+	// flags is ALWAYS present (default "") so a type-first {source, flags:""}
+	// converges with the AST regex reader's {source, flags:""} for an inline /re/.
+	flags, _ := stringLiteralOf(stringPropertyType(typeChecker, patternType, "flags"))
+	out["flags"] = flags
+	if message, ok := stringLiteralOf(stringPropertyType(typeChecker, patternType, "message")); ok {
+		out["message"] = message
+	}
+	if samplesType := stringPropertyType(typeChecker, patternType, "mockSamples"); samplesType != nil {
+		if samples, ok := comptimeargs.TypeLiteralValue(typeChecker, samplesType, comptimeargs.TypeValueOptions{}).([]any); ok && len(samples) > 0 {
+			out["mockSamples"] = samples
+		}
+	}
+	return out, true
+}
+
+// stringPropertyType returns the non-nullable type of property `name` on an
+// object type, or nil when the property is absent. (The checker shim exposes
+// GetPropertiesOfType, not a by-name getter, so we scan.)
+func stringPropertyType(typeChecker *checker.Checker, objectType *checker.Type, name string) *checker.Type {
+	for _, symbol := range typeChecker.GetPropertiesOfType(objectType) {
+		if symbol.Name == name {
+			return typeChecker.GetNonNullableType(typeChecker.GetTypeOfSymbol(symbol))
+		}
+	}
+	return nil
+}
+
+// stringLiteralOf returns the value of a string-literal type, or ("", false).
+func stringLiteralOf(tsType *checker.Type) (string, bool) {
+	if tsType == nil || tsType.Flags()&checker.TypeFlagsStringLiteral == 0 {
+		return "", false
+	}
+	value, ok := tsType.AsLiteralType().Value().(string)
+	return value, ok
 }
 
 // formatPatternFromSymbol recovers a FormatPattern bundle from a param

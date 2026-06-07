@@ -46,7 +46,7 @@ import type {
 // Go scanner recovers {source, flags, mockSamples} from. Mirrors the
 // `registerFormatPattern` block in the old stringFormats.test.ts.
 const slug = registerFormatPattern({
-  regexp: /^[a-z0-9-]+$/,
+  source: '^[a-z0-9-]+$',
   mockSamples: ['my-slug', 'abc', 'a-b-c'],
   message: 'must be a slug',
 });

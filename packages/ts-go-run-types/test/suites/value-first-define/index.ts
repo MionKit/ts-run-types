@@ -120,7 +120,7 @@ const OptionalModel = RT.object({
 // field accepts, both carrying mockSamples: an inline `{source, flags,
 // mockSamples}` literal and a `registerFormatPattern` value. The Go scanner
 // recovers {source, flags} from the literal the property declaration preserves.
-const hexPattern = registerFormatPattern({regexp: /^[0-9a-f]+$/i, mockSamples: ['DEADbeef']});
+const hexPattern = registerFormatPattern({source: '^[0-9a-f]+$', flags: 'i', mockSamples: ['DEADbeef']});
 const RegexModel = RT.object({
   slug: RT.string({pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['ok-slug', 'a-b-c-1']}}), // inline
   digits: RT.string({pattern: {source: '^[0-9]+$', flags: '', mockSamples: ['123', '0']}}), // inline
