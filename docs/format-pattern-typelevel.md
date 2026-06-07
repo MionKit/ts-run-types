@@ -117,31 +117,45 @@ Make the pattern a **type-level literal**, identical in spirit to `{maxLength: 5
    mockSamples, message?}` shape, all string literals, still wrapped in
    `CompTimeArgs<…>` so the values are compile-time literals.
 
-2. **Make `registerFormatPattern` and `FormatPattern` generic** so the literal
-   args are captured into the return type and ride into `TypeFormat`:
+2. **Make `registerFormatPattern` / `FormatPattern` generic over the WHOLE args
+   object** — not just `source`/`flags`. Capturing only the regex would re-create
+   the bug for the other two fields: `mockSamples` (drives `createMockType`) and
+   `message` (drives diagnostics) would widen to `readonly string[]` / `string`
+   and be lost for `.d.ts` consumers, exactly like the regex is today. Carry the
+   full literal args so all four fields survive:
 
    ```ts
-   export interface FormatPattern<Source extends string = string, Flags extends string = string> {
-     readonly source: Source;
-     readonly flags: Flags;
-     readonly mockSamples: readonly string[];
+   export interface FormatPattern<A extends StringPatternArgs = StringPatternArgs> {
+     readonly source: A['source'];
+     readonly flags: A['flags'] extends string ? A['flags'] : '';
+     readonly mockSamples: A['mockSamples'];   // literal tuple, e.g. readonly ['abc','Hello']
+     readonly message?: A['message'];
      readonly [formatPatternBrand]: true;
    }
    export function registerFormatPattern<const A extends StringPatternArgs>(
      args: CompTimeArgs<A>,
-   ): FormatPattern<A['source'], A['flags'] extends string ? A['flags'] : ''>;
+   ): FormatPattern<A>;
    ```
 
-   Now `typeof ALPHA_PATTERN` is `FormatPattern<'^[\\p{L}]+$', 'u'>` — the regex
-   source is a literal *in the type*, so `FormatAlpha`'s `pattern` param carries
-   it and it survives `.d.ts`.
+   The `const A` inference keeps every field literal. So `typeof ALPHA_PATTERN`
+   becomes
+   `FormatPattern<{source: '^[\\p{L}]+$'; flags: 'u'; mockSamples: readonly ['abc','Hello','World']}>`
+   — source, flags, mock samples **and** message all live in the type and survive
+   `.d.ts`. `FormatAlpha`'s `pattern` param carries the lot.
+
+   (Equivalent shapes work too — e.g. `FormatPattern = Readonly<A> & {brand}` — as
+   long as the projection preserves the literals; the point is the *whole* args
+   object rides the type, not a hand-picked subset.)
 
 3. **Recover the pattern from the type, not the AST.** The scanner already reads
    `{maxLength: 5}` from a format's params; teach the stringFormat path to read
-   `pattern.source` / `pattern.flags` from the resolved type the same way
-   (`internal/compiled/runtype/typeid/formats.go`). The call-AST reader
-   (`formatPatternFromSymbol`) can be kept as a fallback for the value-first
-   builder path, or removed once the type path is authoritative.
+   the full bundle — `pattern.source`, `pattern.flags`, `pattern.mockSamples`,
+   `pattern.message` — from the resolved type the same way
+   (`internal/compiled/runtype/typeid/formats.go`). All four matter: source/flags
+   build the validator, mockSamples feed `createMockType`, message feeds
+   diagnostics. The call-AST reader (`formatPatternFromSymbol`) can be kept as a
+   fallback for the value-first builder path, or removed once the type path is
+   authoritative.
 
 4. **Migrate every built-in pattern to the string form.** Convert all
    `registerFormatPattern({regexp: /…/})` calls (alpha/alphaNumeric/numeric,
