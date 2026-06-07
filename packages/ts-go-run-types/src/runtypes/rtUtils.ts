@@ -32,6 +32,15 @@ import type {CompTimeArgs} from '../markers.ts';
  */
 export type RTUtils = typeof rtUtils;
 
+/** Runtime guard for the value-first SCHEMA overload shared by every
+ *  `createXxx` factory (`createIsType(rt)`, `createJsonEncoder(rt)`,
+ *  `createStripUnknownKeys(rt)`, …): a value-first RunType schema carries both
+ *  a string `id` and a `kind`. Plain reflected values (the value/static form)
+ *  don't carry `kind`, so they fall through to the plugin-injected id. **/
+export function isRunTypeSchema(val: unknown): val is RunType {
+  return typeof val === 'object' && val !== null && typeof (val as RunType).id === 'string' && 'kind' in val;
+}
+
 const rtFnsCache: TypesFunctionsCache = {};
 const pureFnsCache: PureFunctionsCache = {};
 const runTypesCache: RunTypesCache = {};
