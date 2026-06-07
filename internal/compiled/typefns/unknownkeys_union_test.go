@@ -18,7 +18,15 @@ func unionUnknownKeysCtx(t *testing.T, runTypes []*protocol.RunType) *EmitContex
 		}
 		refTable[rt.ID] = rt
 	}
-	walker := &Walker{RefTable: refTable, RTFnHash: "test", localVarCounters: make(map[string]int)}
+	walker := &Walker{
+		RefTable:         refTable,
+		RTFnHash:         "test",
+		localVarCounters: make(map[string]int),
+		// CodeE shapes hoist their scan loop through createFnInContext,
+		// which needs the emitter Args + a live ContextItems set.
+		Emitter:      HasUnknownKeysEmitter{},
+		ContextItems: newOrderedItems(),
+	}
 	return &EmitContext{walker: walker, Vλl: "v"}
 }
 
@@ -66,8 +74,12 @@ func TestUnionUnknownKeys_DisjointKeys(t *testing.T) {
 	// hasUnknownKeys
 	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, num, pa, pb, obA, obB, union})
 	out = emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: hasSnippet, CodeShape: CodeE})
-	if !strings.Contains(out.Code, "return true") || !strings.Contains(out.Code, "return false") {
-		t.Errorf("has IIFE missing true/false returns: %s", out.Code)
+	if !strings.HasPrefix(out.Code, "ctxFn0(") {
+		t.Errorf("has emit should call the hoisted context fn: %s", out.Code)
+	}
+	lines := ctx.walker.ContextLines()
+	if !strings.Contains(lines, "return true") || !strings.Contains(lines, "return false") {
+		t.Errorf("has ctxFn missing true/false returns: %s", lines)
 	}
 	if out.Type != CodeE {
 		t.Errorf("has CodeShape = %v, want CodeE", out.Type)
@@ -231,8 +243,9 @@ func TestUnionUnknownKeys_NonWireGatesOnPlainObject(t *testing.T) {
 	// hasUnknownKeys (CodeE) — IIFE must also gate on plain object.
 	ctx = unionUnknownKeysCtx(t, []*protocol.RunType{str, num, arr, pa, obj, union})
 	out = emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: hasSnippet, CodeShape: CodeE})
-	if !strings.Contains(out.Code, "typeof v === 'object'") || !strings.Contains(out.Code, "!Array.isArray(v)") {
-		t.Errorf("has emit missing plain-object gate: %s", out.Code)
+	hasLines := ctx.walker.ContextLines()
+	if !strings.Contains(hasLines, "typeof v === 'object'") || !strings.Contains(hasLines, "!Array.isArray(v)") {
+		t.Errorf("has ctxFn missing plain-object gate: %s", hasLines)
 	}
 
 	// JsonWireFormat path keeps its own wrapper gate and does NOT add
@@ -270,5 +283,35 @@ func TestUnionUnknownKeys_OptionalDoesntChangeAllowlist(t *testing.T) {
 		if !strings.Contains(out.Code, name) {
 			t.Errorf("allowlist missing %s: %s", name, out.Code)
 		}
+	}
+}
+
+// TestUnionUnknownKeys_WireCodeEGateNestsScanCtxFn — the JsonWireFormat
+// CodeE shape produces TWO chained context fns: the inner allowlist scan
+// (ctxFn0) and the outer `[-1, merged]` wrapper gate (ctxFn1) that calls
+// it. Declaration order must match allocation order (inner first) so the
+// outer body's reference resolves.
+func TestUnionUnknownKeys_WireCodeEGateNestsScanCtxFn(t *testing.T) {
+	str := &protocol.RunType{ID: "str", Kind: protocol.KindString}
+	pa := &protocol.RunType{ID: "pa", Kind: protocol.KindProperty, Name: "a", IsSafeName: true, Child: makeRef("str")}
+	obA := &protocol.RunType{ID: "obA", Kind: protocol.KindObjectLiteral, Children: []*protocol.RunType{makeRef("pa")}}
+	union := &protocol.RunType{
+		ID: "uni", Kind: protocol.KindUnion,
+		Children:          []*protocol.RunType{makeRef("obA")},
+		SafeUnionChildren: []*protocol.RunType{makeRef("obA")},
+	}
+	ctx := unionUnknownKeysCtx(t, []*protocol.RunType{str, pa, obA, union})
+	out := emitUnionUnknownKeysMerged(union, ctx, UnknownKeysOpts{Snippet: hasSnippet, CodeShape: CodeE, JsonWireFormat: true})
+	if !strings.HasPrefix(out.Code, "ctxFn1(") {
+		t.Errorf("wire CodeE emit should call the outer gate fn: %s", out.Code)
+	}
+	lines := ctx.walker.ContextLines()
+	inner := strings.Index(lines, "const ctxFn0 = ")
+	outer := strings.Index(lines, "const ctxFn1 = ")
+	if inner < 0 || outer < 0 || inner > outer {
+		t.Errorf("inner scan fn must declare before the outer gate fn:\n%s", lines)
+	}
+	if !strings.Contains(lines, "v[0] === -1) return ctxFn0(") {
+		t.Errorf("outer gate body must call the inner scan fn: %s", lines)
 	}
 }

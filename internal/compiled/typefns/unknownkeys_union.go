@@ -100,16 +100,20 @@ func emitUnionUnknownKeysMerged(rt *protocol.RunType, ctx *EmitContext, opts Unk
 
 	switch opts.CodeShape {
 	case CodeE:
-		// hasUnknownKeys wraps the loop in an IIFE: snippet emits
-		// `return true` inside the loop; the IIFE returns `false`
-		// after the loop terminates with no hit. The whole IIFE is
-		// a single CodeE expression.
-		iife := "(function(){ " + body + " return false; })()"
+		// hasUnknownKeys hoists the loop into a context fn: snippet emits
+		// `return true` inside the loop; the fn returns `false` after the
+		// loop terminates with no hit. The call is a single CodeE
+		// expression and the closure is created once per materialization,
+		// not per call. The wire-format variant nests: the outer gate fn
+		// calls the inner scan fn (declared first — context lines emit in
+		// allocation order, so the reference always resolves).
+		params := ctx.CtxFnParams(ctx.Vλl)
+		scanCall := ctx.CreateFnInContext(body+" return false;", CodeRB, params, params)
 		if opts.JsonWireFormat {
-			gate := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) return " + iife + "; return false;"
-			return RTCode{Code: "(function(){ " + gate + " })()", Type: CodeE}
+			gate := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) return " + scanCall + "; return false;"
+			return RTCode{Code: ctx.CreateFnInContext(gate, CodeRB, params, params), Type: CodeE}
 		}
-		return RTCode{Code: iife, Type: CodeE}
+		return RTCode{Code: scanCall, Type: CodeE}
 	default:
 		if opts.JsonWireFormat {
 			gated := "if (Array.isArray(" + ctx.Vλl + ") && " + ctx.Vλl + ".length === 2 && " + ctx.Vλl + "[0] === -1) { " + body + " }"
