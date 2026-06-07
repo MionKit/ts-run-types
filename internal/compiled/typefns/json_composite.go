@@ -7,6 +7,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
 	"github.com/mionkit/ts-run-types/internal/compiled/entrymod"
 	"github.com/mionkit/ts-run-types/internal/constants"
+	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
@@ -108,9 +109,12 @@ func collectJsonCompositeEntry(runType *protocol.RunType, tag string, composite 
 	}
 	entryKey := operations.FnHashFor(op, nil, composite.Strategy) + "_" + runType.ID
 
-	// Primitive references are SOFT: the composite body resolves each via
-	// `var e = utl.getRT(key); return e ? e.fn : <fallback>` — a collapsed
-	// primitive degrades to the identity/stringify fallback, never a throw.
+	// Primitive references are SOFT: the composite body binds each via
+	// `utl.getRT(key).fn` — always live, because a composite site's demand
+	// renders every primitive (real, noop short-form, or alwaysThrow), noop
+	// entries register with the family noop fn pre-set, and getRT
+	// materializes before returning. The resolver asserts the presence
+	// invariant at collect time (assertCompositeSoftDeps).
 	deps := jsonCompositeDeps(composite, runType.ID)
 
 	if cachedArgs, ok := tryReadCachedCompositeEntry(runType, tag, opts); ok {
@@ -161,48 +165,47 @@ func jsonCompositeDeps(composite constants.JsonComposite, id string) []string {
 // jsonCompositeBody returns (contextLines, innerFnDeclaration) for a composite
 // strategy. The inner function name is the composite entry key so stack traces
 // identify it; the body is a faithful Go-side copy of createRTFunctions.ts's
-// pre-migration per-strategy composition, resolving each primitive to its fn
-// (or an identity fallback when the primitive entry is absent — mirrors the
-// registered-but-no-factory fallback).
+// pre-migration per-strategy composition, binding each primitive's fn directly.
 func jsonCompositeBody(composite constants.JsonComposite, id string, entryKey string) (contextLines string, innerFn string) {
-	// resolve emits a context-item const that binds `name` to the primitive's fn
-	// (or `fallback` when the entry is missing) so a collapsed primitive
-	// degrades gracefully instead of throwing on `undefined.fn`.
+	// resolve emits a context-item const binding `name` to the primitive's fn.
+	// The direct `.fn` read is always live: noop primitives register with the
+	// family noop fn pre-set (entryTuple.ts familyMeta — identity for pj/pjs/
+	// rj/ukuw, JSON.stringify for sj), getRT materializes before returning,
+	// and the demand machinery renders an entry for every primitive a
+	// composite wraps (asserted at collect time). Noop/missing resolution is
+	// rtUtils' job — emitted code never carries fallbacks.
 	var ctx []string
-	resolve := func(name, primOp, fallback string) {
+	resolve := func(name, primOp string) {
 		key := operations.PlainHash(primOp) + "_" + id
-		ctx = append(ctx, "const "+name+" = (function(){var e = utl.getRT("+quoteJS(key)+"); return e ? e.fn : "+fallback+";})()")
+		ctx = append(ctx, "const "+name+" = utl.getRT("+quoteJS(key)+").fn")
 	}
-
-	identity := "(function(x){return x;})"
-	stringifyFallback := "(function(x){return JSON.stringify(x);})"
 
 	var body string
 	switch composite.OpName {
 	case "jsonEncoder":
 		switch composite.Strategy {
 		case "direct":
-			resolve("sjFn", "stringifyJson", stringifyFallback)
+			resolve("sjFn", "stringifyJson")
 			body = "return sjFn(v);"
 		case "clone":
 			// Shape-derived clone (prepareForJsonSafe builds a NEW value from the
 			// declared shape) — undeclared keys are dropped by construction, so the
 			// clone is stripped without a separate strip pass.
-			resolve("pjsFn", "prepareForJsonSafe", identity)
+			resolve("pjsFn", "prepareForJsonSafe")
 			body = "return JSON.stringify(pjsFn(v));"
 		case "mutate":
-			resolve("pjFn", "prepareForJson", identity)
+			resolve("pjFn", "prepareForJson")
 			body = "return JSON.stringify(pjFn(v));"
 		}
 		innerFn = "function " + entryKey + "(v){" + body + "}"
 	case "jsonDecoder":
 		switch composite.Strategy {
 		case "preserve":
-			resolve("rjFn", "restoreFromJson", identity)
+			resolve("rjFn", "restoreFromJson")
 			body = "return rjFn(JSON.parse(s));"
 		case "strip":
-			resolve("rjFn", "restoreFromJson", identity)
-			resolve("ukuwFn", "unknownKeysToUndefinedWire", identity)
+			resolve("rjFn", "restoreFromJson")
+			resolve("ukuwFn", "unknownKeysToUndefinedWire")
 			body = "return rjFn(ukuwFn(JSON.parse(s)));"
 		}
 		innerFn = "function " + entryKey + "(s){" + body + "}"
@@ -250,4 +253,37 @@ func writeCachedCompositeEntry(runType *protocol.RunType, tag string, argsText s
 		ArgsText:     argsText,
 	}
 	_ = opts.Store.WriteRT(runType.ID, tag, entry)
+}
+
+// AssertCompositeSoftDeps verifies the demand invariant the composite
+// prologues rely on: every primitive a composite binds via
+// `utl.getRT(key).fn` must have a rendered (non-stub) entry in the graph.
+// A miss is an internal bug — the composite site's demand renders each
+// primitive as real, noop short-form, or alwaysThrow — and the unguarded
+// `.fn` read would crash at runtime, so it surfaces as an Error diagnostic
+// at collect time instead. Deterministic order via sorted keys.
+func AssertCompositeSoftDeps(graph entrymod.Graph, diagSink *[]diag.Diagnostic) {
+	if diagSink == nil {
+		return
+	}
+	keys := make([]string, 0, len(graph))
+	for key := range graph {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		entry := graph[key]
+		if entry == nil || entry.Kind != entrymod.KindTypeFn {
+			continue
+		}
+		if _, ok := constants.JsonCompositeByTag(entry.FamilyTag); !ok {
+			continue
+		}
+		for _, dep := range entry.SoftDeps {
+			if target, ok := graph[dep]; ok && target != nil && target.Kind != entrymod.KindMissing {
+				continue
+			}
+			*diagSink = append(*diagSink, diag.New(diag.CodeCompositeMissingPrimitive, diag.Site{}, entry.Key, dep))
+		}
+	}
 }

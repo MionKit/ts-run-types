@@ -154,6 +154,11 @@ func (resolver *Resolver) collectEntryModules(dump protocol.Dump, rtOpts typefns
 	graph.Merge(pureFnGraph)
 
 	resolver.resolveCrossFamilyEdges(graph, dump, rtOpts)
+	// Composite prologues bind primitives with an unguarded
+	// `utl.getRT(key).fn` — assert every referenced primitive actually
+	// rendered (post-fixpoint) so an invariant breach fails the build
+	// instead of crashing at runtime.
+	typefns.AssertCompositeSoftDeps(graph, rtOpts.DiagSink)
 
 	// Dropping an entry whose same-family dep never rendered mirrors the
 	// pre-migration dangling cascade; the demanded roots that fall out (or
