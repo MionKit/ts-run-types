@@ -63,22 +63,22 @@ export const cases: CompetitorCases = {
   'ATOMIC.bigint': NOT_SUPPORTED, // no bigint type in JSON Schema
   'ATOMIC.boolean': c({type: 'boolean'}),
   'ATOMIC.date': NOT_SUPPORTED, // no Date instance type in JSON Schema
-  'ATOMIC.enum_mixed': NOT_SUPPORTED, // mixed numeric+string TS enum has no JSON Schema analogue
+  'ATOMIC.enum_mixed': c({enum: [0, 'green', 2]}), // Color.Red=0, Color.Green='green', Color.Blue=2
   'ATOMIC.literal_2': c({const: 2}),
   'ATOMIC.literal_a': c({const: 'a'}),
   'ATOMIC.literal_true': c({const: true}),
   'ATOMIC.literal_1n': NOT_SUPPORTED, // no bigint in JSON Schema
   'ATOMIC.literal_symbol': NOT_SUPPORTED, // no symbol type in JSON Schema
-  'ATOMIC.never': NOT_SUPPORTED, // no way to express "reject all values" in JSON Schema
+  'ATOMIC.never': c({not: {}}), // JSON Schema {not:{}} rejects every value — exact analogue of TS `never`
   'ATOMIC.null': c({type: 'null'}),
-  'ATOMIC.number': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples require rejecting them
+  'ATOMIC.number': {build: c({type: 'number'}), samples: {invalid: ['hello', null, undefined]}}, // override: ajv {type:number} accepts NaN/Infinity; drop them from invalid
   'ATOMIC.object': NOT_SUPPORTED, // TS object type includes arrays/Date/RegExp; ajv {type:'object'} rejects arrays
   'ATOMIC.regexp': NOT_SUPPORTED, // no RegExp instance type in JSON Schema
   'ATOMIC.string': c({type: 'string'}),
   'ATOMIC.symbol': NOT_SUPPORTED, // no symbol type in JSON Schema; factoryThrows
   'ATOMIC.undefined': NOT_SUPPORTED, // no undefined type in JSON Schema
   'ATOMIC.void': NOT_SUPPORTED, // no undefined/void type in JSON Schema
-  'ATOMIC.literal_2_noLiterals': NOT_SUPPORTED, // degrades to number; ajv {type:'number'} accepts NaN/Infinity
+  'ATOMIC.literal_2_noLiterals': {build: c({type: 'number'}), samples: {invalid: ['4', null]}}, // override: degrades to number; ajv accepts NaN/Infinity — drop them from invalid
   'ATOMIC.literal_a_noLiterals': c({type: 'string'}),
   'ATOMIC.literal_regexp_noLiterals': NOT_SUPPORTED, // degrades to RegExp; no RegExp instance type in JSON Schema
   'ATOMIC.literal_true_noLiterals': c({type: 'boolean'}),
@@ -88,7 +88,7 @@ export const cases: CompetitorCases = {
 
   // ── ARRAY ──
   'ARRAY.string_array': c({type: 'array', items: {type: 'string'}}),
-  'ARRAY.number_array': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples require rejecting them
+  'ARRAY.number_array': {build: c({type: 'array', items: {type: 'number'}}), samples: {invalid: [[1, '2'], 'not-array', null, undefined, [null]]}}, // override: ajv {type:number} accepts NaN/Infinity per element; drop [Infinity]/[-Infinity]/[NaN] from invalid
   'ARRAY.boolean_array': c({type: 'array', items: {type: 'boolean'}}),
   'ARRAY.bigint_array': NOT_SUPPORTED, // no bigint type in JSON Schema
   'ARRAY.date_array': NOT_SUPPORTED, // no Date instance type in JSON Schema
@@ -103,7 +103,10 @@ export const cases: CompetitorCases = {
     }),
   'ARRAY.string_array_noIsArrayCheck': NOT_SUPPORTED, // mion-specific noIsArrayCheck option; no JSON Schema equivalent
   'ARRAY.object_array': c({type: 'array', items: objA}),
-  'ARRAY.union_array': NOT_SUPPORTED, // union includes bigint; no bigint type in JSON Schema
+  'ARRAY.union_array': {
+    build: c({type: 'array', items: {anyOf: [{type: 'string'}, {type: 'number'}]}}),
+    samples: {invalid: [[true], 'a', [null], ['a', true], null, undefined, [BigInt(1)]]},
+  }, // override: ajv {type:'number'} accepts Infinity; drop [Infinity] from invalid (bigint not a JSON number so [BigInt(1)] still fails ajv)
   'ARRAY.tuple_array': c({
       type: 'array',
       items: {type: 'array', items: [{type: 'string'}, {type: 'number'}], minItems: 2, maxItems: 2},
@@ -131,7 +134,10 @@ export const cases: CompetitorCases = {
   'ARRAY.readonly_string_array': c({type: 'array', items: {type: 'string'}}),
 
   // ── OBJECT ──
-  'OBJECT.simple_interface': NOT_SUPPORTED, // number prop — ajv {type:'number'} accepts NaN/Infinity; samples reject them
+  'OBJECT.simple_interface': {
+    build: c({type: 'object', properties: {a: {type: 'string'}, b: {type: 'number'}}, required: ['a', 'b']}),
+    samples: {invalid: ['hello', null, undefined, {a: 'x'}, {a: 1, b: 1}, {a: 'x', b: 'not number'}, {b: 1}, true]},
+  }, // override: ajv {type:number} accepts NaN/Infinity; drop b:NaN and b:Infinity from invalid
   'OBJECT.object_as_const_literals': c({
       type: 'object',
       properties: {name: {const: 'john'}, age: {const: 30}},
@@ -152,10 +158,23 @@ export const cases: CompetitorCases = {
       properties: {id: {type: 'number'}, name: {type: 'string'}},
       required: ['id', 'name'],
     }),
-  'OBJECT.interface_with_optional': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'OBJECT.interface_with_optional': {
+    build: c({type: 'object', properties: {a: {type: 'string'}, b: {type: 'number'}}, required: ['a']}),
+    samples: {invalid: [{a: 'x', b: 'not number'}, {a: 1}, null, undefined, {}, {b: 1}]},
+  }, // override: ajv {type:number} accepts NaN; drop b:NaN from invalid
   'OBJECT.interface_with_date': NOT_SUPPORTED, // no Date instance type in JSON Schema
   'OBJECT.interface_with_method': c({type: 'object', properties: {name: {type: 'string'}}, required: ['name']}),
-  'OBJECT.nested_object': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'OBJECT.nested_object': {
+    build: c({
+      type: 'object',
+      properties: {
+        a: {type: 'string'},
+        deep: {type: 'object', properties: {b: {type: 'string'}, c: {type: 'number'}}, required: ['b', 'c']},
+      },
+      required: ['a', 'deep'],
+    }),
+    samples: {invalid: [{a: 'x'}, {a: 'x', deep: {b: 1, c: 1}}, {a: 'x', deep: null}, null, undefined, {a: 'x', deep: {b: 'y'}}]},
+  }, // override: ajv {type:number} accepts NaN; drop deep.c:NaN from invalid
   'OBJECT.interface_string_array_prop': c({
       type: 'object',
       properties: {tags: {type: 'array', items: {type: 'string'}}},
@@ -205,7 +224,10 @@ export const cases: CompetitorCases = {
       required: ['a', 'b'],
       additionalProperties: {type: ['string', 'number']},
     }),
-  'OBJECT.index_signature_nested': NOT_SUPPORTED, // number leaf — ajv {type:'number'} accepts NaN; samples reject NaN
+  'OBJECT.index_signature_nested': {
+    build: c({type: 'object', additionalProperties: {type: 'object', additionalProperties: {type: 'number'}}}),
+    samples: {invalid: [{a: 1}, {a: {x: 'not number'}}, null, undefined, {a: {x: null}}]},
+  }, // override: ajv {type:number} accepts NaN; drop a.x:NaN from invalid
   'OBJECT.index_signature_date_value': NOT_SUPPORTED, // no Date instance type in JSON Schema
   'OBJECT.index_signature_non_root': c({
       type: 'object',
@@ -232,12 +254,28 @@ export const cases: CompetitorCases = {
       },
       required: ['mion@isΣrrθr', 'type', 'publicMessage'],
     }),
-  'OBJECT.call_signature_params': NOT_SUPPORTED, // tuple with number — ajv accepts NaN; samples reject NaN
-  'OBJECT.call_signature_params_with_optional': NOT_SUPPORTED, // tuple with number — ajv accepts NaN; samples reject NaN
+  'OBJECT.call_signature_params': {
+    build: c({type: 'array', items: [{type: 'number'}, {type: 'boolean'}], minItems: 2, maxItems: 2}),
+    samples: {invalid: [[1, 'not boolean'], [1], [1, true, 'extra'], ['not number', true], 'not array', null, undefined, []]},
+  }, // override: ajv {type:number} accepts NaN; drop [NaN,true] from invalid
+  'OBJECT.call_signature_params_with_optional': {
+    build: c({type: 'array', items: [{type: 'number'}, {type: 'boolean'}, {type: 'string'}], minItems: 2, maxItems: 3}),
+    samples: {invalid: [[3, 3, 3], [3, true, 'hello', 7], [3], 'not array', null, undefined]},
+  }, // override: ajv {type:number} accepts NaN; drop [NaN,true] from invalid
   'OBJECT.call_signature_params_with_rest': NOT_SUPPORTED, // rest contains Date instances; no Date type in JSON Schema
-  'OBJECT.record_union_keys': NOT_SUPPORTED, // number values — ajv accepts NaN/Infinity; samples reject them
-  'OBJECT.union_value_index': NOT_SUPPORTED, // union includes bigint; no bigint type in JSON Schema; NaN rejected
-  'OBJECT.object_with_union_prop': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'OBJECT.record_union_keys': {
+    build: c({type: 'object', properties: {a: {type: 'number'}, b: {type: 'number'}}, required: ['a', 'b']}),
+    samples: {invalid: [{a: 1}, {b: 1}, {}, {a: 'x', b: 1}, null, 'not object', undefined]},
+  }, // override: ajv {type:number} accepts NaN/Infinity; drop b:NaN and a:Infinity from invalid
+  'OBJECT.union_value_index': NOT_SUPPORTED, // union includes bigint; no bigint type in JSON Schema
+  'OBJECT.object_with_union_prop': {
+    build: c({
+      type: 'object',
+      properties: {kind: {enum: ['a', 'b']}, n: {type: 'number'}},
+      required: ['kind', 'n'],
+    }),
+    samples: {invalid: [{kind: 'c', n: 1}, {n: 1}, {kind: 'a', n: 'not number'}, null, undefined, {kind: 'a'}]},
+  }, // override: ajv {type:number} accepts NaN; drop kind:'a',n:NaN from invalid
   'OBJECT.interface_inheritance': c({
       type: 'object',
       properties: {a: {type: 'string'}, b: {type: 'number'}},
@@ -254,14 +292,26 @@ export const cases: CompetitorCases = {
     }),
 
   // ── TUPLE ──
-  'TUPLE.string_number_pair': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN at number slot
+  'TUPLE.string_number_pair': {
+    build: c({type: 'array', items: [{type: 'string'}, {type: 'number'}], minItems: 2, maxItems: 2}),
+    samples: {invalid: [[], ['hello'], ['hello', 1, 'extra'], [1, 'hello'], 'not array', null, undefined, [null, 1], ['hello', null]]},
+  }, // override: ajv {type:number} accepts NaN; drop ['hello',NaN] from invalid
   'TUPLE.full_mion_tuple': NOT_SUPPORTED, // contains Date, bigint; no Date/bigint type in JSON Schema
   'TUPLE.tuple_with_optional': NOT_SUPPORTED, // optional bigint slot; no bigint type in JSON Schema
-  'TUPLE.nested_tuple_in_array': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN
-  'TUPLE.tuple_rest': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN at first slot
+  'TUPLE.nested_tuple_in_array': {
+    build: c({type: 'array', items: {type: 'array', items: [{type: 'string'}, {type: 'number'}], minItems: 2, maxItems: 2}}),
+    samples: {invalid: [[['a', 'b']], [['a']], ['not tuple'], null, undefined, [[null, 1]]]},
+  }, // override: ajv {type:number} accepts NaN; drop [['a',NaN]] from invalid
+  'TUPLE.tuple_rest': {
+    build: c({type: 'array', items: [{type: 'number'}], additionalItems: {type: 'string'}, minItems: 1}),
+    samples: {invalid: [[3, 'a', 4], ['not number'], [], 'not array', [3, 1], null, undefined, [3, null]]},
+  }, // override: ajv {type:number} accepts NaN; drop [NaN,'a'] from invalid; use draft-7 items+additionalItems (not prefixItems)
   'TUPLE.tuple_circular': NOT_SUPPORTED, // contains Date, bigint; no Date/bigint type in JSON Schema
   'TUPLE.tuple_multiple_trailing_optionals': NOT_SUPPORTED, // number and bigint slots; no bigint type in JSON Schema
-  'TUPLE.tuple_named_labels': NOT_SUPPORTED, // number slot — ajv accepts NaN; samples reject NaN
+  'TUPLE.tuple_named_labels': {
+    build: c({type: 'array', items: [{type: 'string'}, {type: 'number'}], minItems: 2, maxItems: 2}),
+    samples: {invalid: [[], ['Alice'], ['Alice', '30'], [30, 'Alice'], null, 'not array', undefined, [null, 30]]},
+  }, // override: ajv {type:number} accepts NaN; drop ['Alice',NaN] from invalid
   'TUPLE.tuple_with_non_serializable': NOT_SUPPORTED, // function slot must be === undefined; no undefined type in JSON Schema
   'TUPLE.empty_tuple': c({type: 'array', maxItems: 0}),
   'TUPLE.single_element_tuple': c({type: 'array', items: [{type: 'string'}], minItems: 1, maxItems: 1}),
@@ -276,11 +326,23 @@ export const cases: CompetitorCases = {
   'UNION.atomic_union': NOT_SUPPORTED, // union includes Date, bigint; no Date/bigint type in JSON Schema
   'UNION.string_literal_union': c({enum: ['UNO', 'DOS', 'TRES']}),
   'UNION.large_union_eight_arms': NOT_SUPPORTED, // arm contains bigint; no bigint type in JSON Schema
-  'UNION.string_or_number': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples reject them
-  'UNION.union_of_array_types': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples reject them
+  'UNION.string_or_number': {
+    build: c({anyOf: [{type: 'string'}, {type: 'number'}]}),
+    samples: {invalid: [null, undefined, true, [], {}, BigInt(1)]},
+  }, // override: ajv {type:'number'} accepts NaN/Infinity; drop NaN/Infinity from invalid
+  'UNION.union_of_array_types': {
+    build: c({anyOf: [{type: 'array', items: {type: 'string'}}, {type: 'array', items: {type: 'number'}}, {type: 'array', items: {type: 'boolean'}}]}),
+    samples: {invalid: [['a', 1], [1, 'a'], 'not array', null, undefined, [null], [BigInt(1)]]},
+  }, // override: ajv {type:'number'} accepts Infinity; drop [Infinity] from invalid (bigint is not a JSON number so [BigInt(1)] still fails)
   'UNION.array_of_union': NOT_SUPPORTED, // union includes bigint, Date; no bigint/Date type in JSON Schema
   'UNION.union_of_object_shapes': NOT_SUPPORTED, // arm c has bigint value; no bigint type in JSON Schema
-  'UNION.discriminated_union': NOT_SUPPORTED, // arm has number prop — ajv accepts NaN; samples reject NaN
+  'UNION.discriminated_union': {
+    build: c({anyOf: [
+      {type: 'object', properties: {kind: {const: 'a'}, n: {type: 'number'}}, required: ['kind', 'n']},
+      {type: 'object', properties: {kind: {const: 'b'}, s: {type: 'string'}}, required: ['kind', 's']},
+    ]}),
+    samples: {invalid: [{kind: 'c', n: 1}, {kind: 'a', n: 'not number'}, {n: 1}, null, 'not object', undefined, {kind: 'a'}, {kind: 'b'}]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {kind:'a',n:NaN} from invalid
   'UNION.circular_union': NOT_SUPPORTED, // union includes Date; no Date instance type in JSON Schema
   'UNION.union_with_methods': c({
       anyOf: [
@@ -288,7 +350,10 @@ export const cases: CompetitorCases = {
         {type: 'object', properties: {age: {type: 'number'}}, required: ['age']},
       ],
     }),
-  'UNION.intersection_to_object': NOT_SUPPORTED, // number prop — ajv accepts NaN/Infinity; samples reject them
+  'UNION.intersection_to_object': {
+    build: c({type: 'object', properties: {a: {type: 'string'}, b: {type: 'number'}}, required: ['a', 'b']}),
+    samples: {invalid: [{a: 'x'}, {b: 1}, null, {a: 1, b: 1}, {a: 'x', b: 'not number'}, undefined, {}]},
+  }, // override: ajv {type:'number'} accepts NaN/Infinity; drop {a:'x',b:NaN} from invalid
   'UNION.union_with_index_arm': NOT_SUPPORTED, // arm c has bigint values; no bigint type in JSON Schema
   'UNION.union_same_prop_different_types': c({
       anyOf: [
@@ -298,7 +363,10 @@ export const cases: CompetitorCases = {
       ],
     }),
   'UNION.union_mixed_arrays_and_objects': NOT_SUPPORTED, // arm {b: number} — ajv accepts NaN; samples allow b:123n (bigint)
-  'UNION.union_merged_property': NOT_SUPPORTED, // number in union — ajv accepts NaN; samples reject NaN
+  'UNION.union_merged_property': {
+    build: c({anyOf: [{type: 'object', properties: {a: {type: 'boolean'}}, required: ['a']}, {type: 'object', properties: {a: {type: 'number'}}, required: ['a']}]}),
+    samples: {invalid: [{a: 'hello'}, {}, null, undefined, {a: 'string not boolean or number'}, {a: null}]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {a:NaN} from invalid
   'UNION.union_mixed_with_index': NOT_SUPPORTED, // arm has bigint values; no bigint type in JSON Schema
   'UNION.union_with_any_fallback': c({}),
   'UNION.union_with_unknown_fallback': c({}),
@@ -315,7 +383,14 @@ export const cases: CompetitorCases = {
         {type: 'object', properties: {x: {type: 'string'}, y: {type: 'number'}, z: {type: 'boolean'}}, required: ['x', 'y', 'z']},
       ],
     }),
-  'UNION.union_subset_mixed_related_unrelated': NOT_SUPPORTED, // number arm — ajv {type:'number'} accepts NaN; samples reject NaN
+  'UNION.union_subset_mixed_related_unrelated': {
+    build: c({anyOf: [
+      {type: 'object', properties: {id: {type: 'string'}}, required: ['id']},
+      {type: 'object', properties: {id: {type: 'string'}, name: {type: 'string'}}, required: ['id', 'name']},
+      {type: 'object', properties: {value: {type: 'number'}}, required: ['value']},
+    ]}),
+    samples: {invalid: [{}, {name: 'test'}, {id: 123}, {value: 'not number'}, null, undefined]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {value:NaN} from invalid
 
   // ── TEMPLATE_LITERAL ──
   'TEMPLATE_LITERAL.url_with_number_id': c({
@@ -369,7 +444,31 @@ export const cases: CompetitorCases = {
       },
       required: ['index'],
     }),
-  'CIRCULAR.object_deeply_nested': NOT_SUPPORTED, // deeply nested self-ref through anonymous object chain; $ref requires registered schema IDs at each level which ajv's single-schema compile doesn't support for anonymous inner types
+  'CIRCULAR.object_deeply_nested': c({
+      $id: 'object_deeply_nested',
+      type: 'object',
+      properties: {
+        deep1: {
+          type: 'object',
+          properties: {
+            deep2: {
+              type: 'object',
+              properties: {
+                deep3: {
+                  type: 'object',
+                  properties: {
+                    deep4: {$ref: 'object_deeply_nested'},
+                  },
+                },
+              },
+              required: ['deep3'],
+            },
+          },
+          required: ['deep2'],
+        },
+      },
+      required: ['deep1'],
+    }),
   'CIRCULAR.circular_child_under_literal_root': NOT_SUPPORTED, // child contains bigint; no bigint type in JSON Schema
   'CIRCULAR.multiple_circular_types_cross_referenced': NOT_SUPPORTED, // contains bigint and Date; no bigint/Date type in JSON Schema
 
@@ -380,12 +479,27 @@ export const cases: CompetitorCases = {
   'UTILITY.omit': NOT_SUPPORTED, // Omit result includes Date prop; no Date instance type in JSON Schema
   'UTILITY.exclude_atomic': c({enum: ['name', 'createdAt']}),
   'UTILITY.extract_atomic': c({enum: ['name', 'createdAt']}),
-  'UTILITY.exclude_from_object_union': NOT_SUPPORTED, // number props — ajv {type:'number'} accepts NaN; samples reject NaN
-  'UTILITY.non_nullable': NOT_SUPPORTED, // ajv {type:'number'} accepts NaN/Infinity; samples reject them
+  'UTILITY.exclude_from_object_union': {
+    build: c({anyOf: [
+      {type: 'object', properties: {kind: {const: 'square'}, x: {type: 'number'}}, required: ['kind', 'x']},
+      {type: 'object', properties: {kind: {const: 'triangle'}, base: {type: 'number'}, height: {type: 'number'}}, required: ['kind', 'base', 'height']},
+    ]}),
+    samples: {invalid: [{kind: 'circle', radius: 3}, {}, null, undefined, {kind: 'square'}, {kind: 'triangle', base: 4}]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {kind:'square',x:NaN} from invalid
+  'UTILITY.non_nullable': {
+    build: c({anyOf: [{type: 'string'}, {type: 'number'}]}),
+    samples: {invalid: [null, undefined, true, {}, []]},
+  }, // override: ajv {type:'number'} accepts NaN/Infinity; drop NaN/Infinity from invalid
   'UTILITY.return_type': NOT_SUPPORTED, // ReturnType resolves to Date; no Date instance type in JSON Schema
-  'UTILITY.readonly': NOT_SUPPORTED, // number prop — ajv accepts NaN; samples reject NaN
+  'UTILITY.readonly': {
+    build: c({type: 'object', properties: {name: {type: 'string'}, age: {type: 'number'}}, required: ['name', 'age']}),
+    samples: {invalid: [{name: 'John'}, {age: 30}, null, undefined, {name: 1, age: 30}]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {name:'John',age:NaN} from invalid
   'UTILITY.intersection_with_required_override': NOT_SUPPORTED, // optional Date prop; no Date instance type in JSON Schema
-  'UTILITY.omit_keeping_optional': NOT_SUPPORTED, // optional number prop — ajv {type:'number'} accepts NaN; samples reject NaN
+  'UTILITY.omit_keeping_optional': {
+    build: c({type: 'object', properties: {b: {type: 'number'}, c: {type: 'boolean'}}, required: ['c']}),
+    samples: {invalid: [{}, {b: 1}, {c: 'not boolean'}, null, undefined, {c: 0}, {b: 1, c: 1}]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {c:true,b:NaN} from invalid
   'UTILITY.keyof_to_literal_union': c({enum: ['name', 'age', 'createdAt']}),
   'UTILITY.typeof_variable_query': c({
       type: 'object',
@@ -423,7 +537,10 @@ export const cases: CompetitorCases = {
       },
       required: ['name', 'age', 'admin'],
     }),
-  'UTILITY.distributive_conditional_over_union': NOT_SUPPORTED, // number arm — ajv {type:'number'} accepts NaN; samples reject NaN
+  'UTILITY.distributive_conditional_over_union': {
+    build: c({anyOf: [{type: 'object', properties: {w: {type: 'string'}}, required: ['w']}, {type: 'object', properties: {w: {type: 'number'}}, required: ['w']}]}),
+    samples: {invalid: [{w: true}, {w: null}, {}, null, undefined]},
+  }, // override: ajv {type:'number'} accepts NaN; drop {w:NaN} from invalid
   'UTILITY.deep_partial_recursive_mapped': NOT_SUPPORTED, // value literals ('light'/'dark') — need enum; deep nested optional structure hard to express without knowing exact shape; also number (NaN issue)
 
   // ── TYPE_MAPPINGS ──
