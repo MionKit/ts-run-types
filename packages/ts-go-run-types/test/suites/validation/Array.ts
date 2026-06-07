@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -754,8 +754,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     isTypeSchema: () => {
-      type CircularArray = CircularArray[];
-      const ca: RunType<CircularArray> = RT.array(RT.lazy((): RunType<CircularArray> => ca));
+      const ca = RT.circular((self) => RT.array(self));
       return createIsType(ca);
     },
     getTypeErrors: () => {
@@ -819,12 +818,13 @@ export const ARRAY = {
       return createIsType<ObjectType>();
     },
     isTypeSchema: () => {
-      type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
-      const ot: RunType<ObjectType> = RT.object({
-        a: RT.string(),
-        deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
-        d: RT.optional(RT.array(RT.lazy((): RunType<ObjectType> => ot))),
-      });
+      const ot = RT.circular((self) =>
+        RT.object({
+          a: RT.string(),
+          deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
+          d: RT.optional(RT.array(self)),
+        })
+      );
       return createIsType(ot);
     },
     deserializeIsType: () => {

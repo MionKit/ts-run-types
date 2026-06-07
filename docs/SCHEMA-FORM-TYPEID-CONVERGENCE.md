@@ -167,9 +167,10 @@ same structural id as their marker-form equivalent. No change needed:
 - `classType<Instance>` ([define.ts:269-274](../packages/ts-go-run-types/src/schema/atomic.ts))
 - Every composer in [compose.ts](../packages/ts-go-run-types/src/schema/compose.ts)
   (`array`, `tuple`, `union`, `intersection`, `record`, `map`, `set`,
-  `lazy`, `promise`, `func`) — they propagate `T` from
-  `RunType<T>` items, so the convergence flows transparently from the
-  fixed leaves.
+  `promise`, `func`, plus `circular`/`self` for recursive schemas) — they
+  propagate `T` from `RunType<T>` items, so the convergence flows transparently
+  from the fixed leaves. (`circular()` converges via the structural cycle-token
+  anchor in typeid.go — see "Go-side amendments" / typeid `cycleRef`.)
 - Every utility in [utility.ts](../packages/ts-go-run-types/src/schema/utility.ts)
   (`partial`, `required`, `readonlyType`, `nonNullable`, `pick`,
   `omit`, `exclude`, `extract`, `returnType`, `parameters`) — same

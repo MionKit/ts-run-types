@@ -1,5 +1,5 @@
 import type {ValidationCase} from './types.ts';
-import {createIsType, createGetTypeErrors, createMockType, type RunType} from '@mionjs/ts-go-run-types';
+import {createIsType, createGetTypeErrors, createMockType} from '@mionjs/ts-go-run-types';
 import * as RT from '@mionjs/ts-go-run-types/schema';
 import {deserializeIsType, deserializeGetTypeErrors} from '../../util/deserializeRTFunctions.ts';
 
@@ -545,8 +545,7 @@ export const OBJECT = {
       return createIsType<ICircular>();
     },
     isTypeSchema: () => {
-      type ICircular = {name: string; child?: ICircular};
-      const ic: RunType<ICircular> = RT.object({name: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircular> => ic))});
+      const ic = RT.circular((self) => RT.object({name: RT.string(), child: RT.optional(self)}));
       return createIsType(ic);
     },
     deserializeIsType: () => {
@@ -621,11 +620,7 @@ export const OBJECT = {
       return createIsType<ICircularArray>();
     },
     isTypeSchema: () => {
-      type ICircularArray = {name: string; children?: ICircularArray[]};
-      const ica: RunType<ICircularArray> = RT.object({
-        name: RT.string(),
-        children: RT.optional(RT.array(RT.lazy((): RunType<ICircularArray> => ica))),
-      });
+      const ica = RT.circular((self) => RT.object({name: RT.string(), children: RT.optional(RT.array(self))}));
       return createIsType(ica);
     },
     deserializeIsType: () => {
@@ -689,11 +684,12 @@ export const OBJECT = {
       return createIsType<ICircularDeep>();
     },
     isTypeSchema: () => {
-      type ICircularDeep = {name: string; embedded: {hello: string; child?: ICircularDeep}};
-      const icd: RunType<ICircularDeep> = RT.object({
-        name: RT.string(),
-        embedded: RT.object({hello: RT.string(), child: RT.optional(RT.lazy((): RunType<ICircularDeep> => icd))}),
-      });
+      const icd = RT.circular((self) =>
+        RT.object({
+          name: RT.string(),
+          embedded: RT.object({hello: RT.string(), child: RT.optional(self)}),
+        })
+      );
       return createIsType(icd);
     },
     deserializeIsType: () => {
