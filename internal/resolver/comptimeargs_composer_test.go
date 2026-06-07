@@ -9,20 +9,22 @@ import (
 )
 
 // composerCTADTS overlays the composer builders with their real CompTimeArgs
-// param brands — the variadic `tuple` (const T + CompTimeArgs<T>), the
+// param marker — the variadic `tuple` (const T + CompTimeArgs<T>), the
 // spread-form `union` (CompTimeArgs<readonly [...T]>), the variadic `func`
 // (const P + CompTimeArgs<P>), and the simple-generic `array`
 // (CompTimeArgs<RunType<T>>). The point of these tests is to prove tsgo DETECTS
-// the CompTimeArgs brand on each of those param shapes — including the awkward
-// `(readonly [...T]) & brand` and `T & brand` intersections — and runs the
-// literal validation (a builder call / array-of-builders / const-ref passes; a
-// dynamic or spread child raises a CTA diagnostic). No Go production code is
-// involved: the brand is recognised by marker.DetectAny (alias name or
-// brand-property fallback) and validated by the existing isBuilderCallPredicate.
+// the CompTimeArgs marker on each of those param shapes and runs the literal
+// validation (a builder call / array-of-builders / const-ref passes; a dynamic
+// or spread child raises a CTA diagnostic). CompTimeArgs is the zero-cost
+// identity `T` (matching markers.ts — the old `T & brand` intersection cost ~700
+// instantiations on the tuple shapes), so detection is SYNTACTIC: the scanner
+// reads the `CompTimeArgs<…>` annotation node (detectCompTimeArgsByNode), not a
+// brand property on the resolved type. No Go production code beyond that
+// detection is involved; the literal check is the existing isBuilderCallPredicate.
 const composerCTADTS = `declare module '@mionjs/ts-go-run-types' {
   export interface RunType<T = unknown> { readonly id: string; }
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeArgs<T> = T;
   export type Static<R> = R extends RunType<infer T> ? T : never;
   export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: Static<T[K]>};
   export function string(id?: InjectRunTypeId<string>): RunType<string>;
