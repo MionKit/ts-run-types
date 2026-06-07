@@ -1,47 +1,67 @@
-// EditBuffer is the in-house string-editor + source-map generator the
-// rewrite uses instead of `magic-string`. It implements ONLY the slice of
-// that library the plugin needs (see the method list below), so the
-// published package carries zero runtime dependencies.
+// EditBuffer — a minimal in-house string editor + source-map generator for
+// the Vite plugin's rewrite. It exists so the published package carries ZERO
+// runtime dependencies: it replaced `magic-string`, previously the plugin's
+// only dependency.
 //
-// The rewrite leans on three properties that make a from-scratch editor
-// safe here (and let us drop the general-purpose dependency):
-//   1. Every edit is expressed against ORIGINAL coordinates — there is no
-//      editing of already-edited text — so a single left-to-right render
-//      pass is exact and edit *application* order is irrelevant.
+// It implements ONLY what rewrite.ts uses — `appendLeft`, `update`,
+// `prepend`, `toString`, `generateMap` — and leans on three properties of the
+// rewrite's edits that a general-purpose editor can't assume:
+//   1. Every edit is expressed against ORIGINAL coordinates (no editing of
+//      already-edited text), so one left-to-right pass is exact and the order
+//      edits are applied in is irrelevant.
 //   2. Edits never overlap (sites land on distinct call close-parens;
-//      replacements on distinct factory-arg spans). The constructor of the
-//      walk asserts this rather than resolving conflicts.
-//   3. Every mid-line edit is newline-free; only the prepended import block
-//      adds newlines. So the generated file is the original shifted down by
-//      the import block's line count, with column shifts confined per line.
+//      replacements on distinct factory-arg spans) — asserted, not resolved.
+//   3. Only the prepended import block adds newlines; every other edit is
+//      newline-free. So generated == original shifted down by the import
+//      block, with column shifts confined to each edited line.
 //
-// The supported API mirrors the magic-string names so the call sites read
-// the same: `appendLeft`, `update`, `prepend`, `toString`, `generateMap`.
-// The map matches magic-string's `hires: 'boundary'` segmentation (a
-// segment at each word/non-word boundary of unedited runs, none inside
-// inserted text) so Vite's composite-map chain is unchanged.
+// ───────────────────────── CREDIT / ATTRIBUTION ─────────────────────────
+// The source-map segment math in `Mappings` (advance / addUnedited /
+// addEdited and the /\w/ word-boundary rule) is ADAPTED FROM magic-string by
+// Rich Harris, so the emitted `mappings` are identical to its
+// `hires: 'boundary'` output and Vite's composite-map chain is unchanged. The
+// editing model (flat left-insert map + sorted replacements + single-pass
+// render) is original to this file — only the map math is ported. This is not
+// a copy of the library; it reimplements the slice we need.
+//
+// magic-string is MIT licensed (https://github.com/Rich-Harris/magic-string):
+//
+//   Copyright 2018 Rich Harris
+//
+//   Permission is hereby granted, free of charge, to any person obtaining a
+//   copy of this software and associated documentation files (the
+//   "Software"), to deal in the Software without restriction, including
+//   without limitation the rights to use, copy, modify, merge, publish,
+//   distribute, sublicense, and/or sell copies of the Software, and to permit
+//   persons to whom the Software is furnished to do so, subject to the
+//   following conditions:
+//
+//   The above copyright notice and this permission notice shall be included
+//   in all copies or substantial portions of the Software.
+//
+//   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+//   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+//   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+//   DEALINGS IN THE SOFTWARE.
+// ─────────────────────────────────────────────────────────────────────────
 
-// SourceMap is the standard source-map v3 object the plugin hands back to
-// Vite. `toString`/`toUrl` mirror magic-string's SourceMap so any consumer
-// that serialises the map keeps working (Vite itself reads the fields).
+// SourceMap is a standard source-map v3 object — the plain shape Vite/Rollup
+// accept back from a transform (no methods required).
 export interface SourceMap {
   version: number;
-  file: string | null;
   sources: (string | null)[];
   sourcesContent: (string | null)[];
   names: string[];
   mappings: string;
-  toString(): string;
-  toUrl(): string;
 }
 
-// GenerateMapOptions is the subset of magic-string's generateMap options the
-// rewrite passes: the source path, whether to embed the original content,
-// and the segmentation granularity.
+// GenerateMapOptions is the subset of options the rewrite passes.
 export interface GenerateMapOptions {
   source?: string;
   includeContent?: boolean;
-  hires?: boolean | 'boundary';
 }
 
 interface Replacement {
@@ -50,9 +70,9 @@ interface Replacement {
   content: string;
 }
 
-// EditBuffer accumulates point insertions (appendLeft) and span
-// replacements (update) against an immutable original, plus an optional
-// prepended intro, then renders the patched string and a source map.
+// EditBuffer accumulates point insertions (appendLeft) and span replacements
+// (update) against an immutable original, plus an optional prepended intro,
+// then renders the patched string and a source map.
 export class EditBuffer {
   private readonly original: string;
   private intro = '';
@@ -66,15 +86,14 @@ export class EditBuffer {
   }
 
   // prepend stitches content onto the very front of the output (the import
-  // block). Multiple prepends stack with the last one first, matching
-  // magic-string; the rewrite only ever calls it once.
+  // block); the rewrite only ever calls it once.
   prepend(content: string): this {
     this.intro = content + this.intro;
     return this;
   }
 
-  // appendLeft inserts content immediately to the left of the original
-  // index; later calls at the same index land after earlier ones.
+  // appendLeft inserts content immediately to the left of the original index;
+  // later calls at the same index land after earlier ones.
   appendLeft(index: number, content: string): this {
     if (!content) return this;
     this.leftInserts.set(index, (this.leftInserts.get(index) ?? '') + content);
@@ -95,37 +114,38 @@ export class EditBuffer {
     this.eachChunk(
       (start, end) => (out += this.original.slice(start, end)),
       (text) => (out += text),
-      (_start, _end, text) => (out += text)
+      (text) => (out += text)
     );
     return out;
   }
 
   // generateMap produces a source-map v3 object relocating every generated
-  // position back to the original. Boundary segmentation keeps the map
-  // small while still re-anchoring columns past each inserted run.
+  // position back to the original, with boundary-granular segments.
   generateMap(options: GenerateMapOptions = {}): SourceMap {
-    const hires = options.hires ?? false;
-    const locate = makeLocator(this.original);
-    const mappings = new Mappings(this.original, hires, locate);
+    const mappings = new Mappings(this.original, makeLocator(this.original));
     if (this.intro) mappings.advance(this.intro);
     this.eachChunk(
       (start, end) => mappings.addUnedited(start, end),
       (text) => mappings.advance(text),
-      (start, _end, text) => mappings.addEdited(start, text)
+      (text, start) => mappings.addEdited(start, text)
     );
-    const source = options.source ?? null;
-    return new RtSourceMap(null, [source], [options.includeContent ? this.original : null], mappings.encode());
+    return {
+      version: 3,
+      sources: [options.source ?? null],
+      sourcesContent: [options.includeContent ? this.original : null],
+      names: [],
+      mappings: mappings.encode(),
+    };
   }
 
   // eachChunk walks the document left to right, emitting verbatim copies
   // (onCopy), inserted text with no source origin (onInsert), and replaced
-  // spans (onEdit). A left-insert at an index is the "outro" of the chunk
-  // ending there, so it fires after that chunk's content and before any
-  // replacement starting at the same index — matching magic-string's order.
+  // spans (onEdit). A left-insert at an index fires after the chunk ending
+  // there and before any replacement starting at the same index.
   private eachChunk(
     onCopy: (start: number, end: number) => void,
     onInsert: (text: string) => void,
-    onEdit: (start: number, end: number, text: string) => void
+    onEdit: (text: string, start: number) => void
   ): void {
     const replacements = [...this.replacements].sort((a, b) => a.start - b.start);
     const insertPositions = [...this.leftInserts.keys()].sort((a, b) => a - b);
@@ -153,7 +173,7 @@ export class EditBuffer {
       }
       if (replaceAt === at) {
         const replacement = replacements[nextReplacement];
-        onEdit(replacement.start, replacement.end, replacement.content);
+        onEdit(replacement.content, replacement.start);
         cursor = replacement.end;
         nextReplacement++;
       }
@@ -184,9 +204,8 @@ export class EditBuffer {
 
 // Mappings builds the decoded segment grid (one row per generated line, each
 // segment [generatedColumn, sourceIndex, originalLine, originalColumn]) and
-// VLQ-encodes it. The advance/addUnedited/addEdited split mirrors
-// magic-string's Mappings so boundary segmentation and edited-chunk
-// anchoring match exactly.
+// VLQ-encodes it. advance/addUnedited/addEdited mirror magic-string so the
+// boundary segmentation and edited-chunk anchoring match its output exactly.
 class Mappings {
   private generatedLine = 0;
   private generatedColumn = 0;
@@ -194,7 +213,6 @@ class Mappings {
 
   constructor(
     private readonly original: string,
-    private readonly hires: boolean | 'boundary',
     private readonly locate: (index: number) => {line: number; column: number}
   ) {}
 
@@ -210,16 +228,14 @@ class Mappings {
     this.generatedColumn += lines[lines.length - 1].length;
   }
 
-  // addUnedited maps a verbatim run [start, end) of the original, emitting a
-  // segment per word/non-word boundary (hires 'boundary') and tracking the
-  // original line/column as it walks, splitting generated lines on newlines.
-  // A newline does NOT get its own segment — it just opens the next line —
-  // matching magic-string's addUneditedChunk.
+  // addUnedited maps a verbatim run [start, end), emitting a segment at each
+  // word/non-word boundary while tracking the original line/column and
+  // splitting generated lines on newlines. A newline gets no segment — it
+  // just opens the next line — matching magic-string's addUneditedChunk.
   addUnedited(start: number, end: number): void {
     const loc = this.locate(start);
     let originalLine = loc.line;
     let originalColumn = loc.column;
-    let atLineStart = true;
     let inWordRun = false;
     for (let index = start; index < end; index++) {
       const char = this.original[index];
@@ -228,52 +244,34 @@ class Mappings {
         originalColumn = 0;
         this.rows[++this.generatedLine] = [];
         this.generatedColumn = 0;
-        atLineStart = true;
         inWordRun = false;
         continue;
       }
-      if (this.hires || atLineStart) {
-        const segment = [this.generatedColumn, 0, originalLine, originalColumn];
-        if (this.hires === 'boundary') {
-          if (isWordChar(char)) {
-            if (!inWordRun) {
-              this.rows[this.generatedLine].push(segment);
-              inWordRun = true;
-            }
-          } else {
-            this.rows[this.generatedLine].push(segment);
-            inWordRun = false;
-          }
-        } else {
-          this.rows[this.generatedLine].push(segment);
+      if (isWordChar(char)) {
+        // Start of a word run gets one segment; the rest of the run rides it.
+        if (!inWordRun) {
+          this.rows[this.generatedLine].push([this.generatedColumn, 0, originalLine, originalColumn]);
+          inWordRun = true;
         }
+      } else {
+        // Every non-word char is its own boundary.
+        this.rows[this.generatedLine].push([this.generatedColumn, 0, originalLine, originalColumn]);
+        inWordRun = false;
       }
       originalColumn++;
       this.generatedColumn++;
-      atLineStart = false;
     }
   }
 
-  // addEdited maps replaced content: a segment at each generated line start
-  // (all pointing at the original start of the replaced span), then the
-  // generated cursor advances past the trailing partial line. Mirrors
-  // magic-string's addEdit; our replacements are single-line in practice, so
-  // only the final push + advance run, but the multi-line path stays faithful.
+  // addEdited maps replaced content: one segment at its start pointing at the
+  // original start of the replaced span, then the generated cursor advances
+  // past it. The rewrite's replacement text is always single-line.
   addEdited(start: number, content: string): void {
     if (!content) return;
+    if (content.includes('\n')) throw new Error('EditBuffer: multi-line replacement text is not supported');
     const loc = this.locate(start);
-    const contentLengthMinusOne = content.length - 1;
-    let contentLineEnd = content.indexOf('\n', 0);
-    let previousContentLineEnd = -1;
-    while (contentLineEnd >= 0 && contentLengthMinusOne > contentLineEnd) {
-      this.rows[this.generatedLine].push([this.generatedColumn, 0, loc.line, loc.column]);
-      this.rows[++this.generatedLine] = [];
-      this.generatedColumn = 0;
-      previousContentLineEnd = contentLineEnd;
-      contentLineEnd = content.indexOf('\n', contentLineEnd + 1);
-    }
     this.rows[this.generatedLine].push([this.generatedColumn, 0, loc.line, loc.column]);
-    this.advance(content.slice(previousContentLineEnd + 1));
+    this.generatedColumn += content.length;
   }
 
   // encode delta-VLQ-encodes the segment grid into the `mappings` string.
@@ -299,27 +297,6 @@ class Mappings {
           .join(',');
       })
       .join(';');
-  }
-}
-
-// RtSourceMap is the concrete map object. Methods live on the prototype so
-// JSON.stringify only serialises the data fields.
-class RtSourceMap implements SourceMap {
-  readonly version = 3;
-  constructor(
-    readonly file: string | null,
-    readonly sources: (string | null)[],
-    readonly sourcesContent: (string | null)[],
-    readonly mappings: string,
-    readonly names: string[] = []
-  ) {}
-
-  toString(): string {
-    return JSON.stringify(this);
-  }
-
-  toUrl(): string {
-    return 'data:application/json;charset=utf-8;base64,' + Buffer.from(this.toString()).toString('base64');
   }
 }
 
