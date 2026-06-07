@@ -219,10 +219,17 @@ run_in_container() {
   read_lines MARGS < <(mount_args)
   read_lines NARGS < <(net_args)
   read_lines EARGS < <(env_args)
-  local tty=(); [ -t 1 ] && tty+=(-t)
-  "$ENGINE" run --rm -i ${tty[@]+"${tty[@]}"} --init \
-    ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
-    -w /app "$IMAGE" "$@"
+  # Attach stdin/tty ONLY when actually interactive; otherwise feed /dev/null so
+  # `podman run` never swallows the caller's stdin (e.g. a loop's competitor list).
+  if [ -t 0 ]; then
+    "$ENGINE" run --rm -it --init \
+      ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
+      -w /app "$IMAGE" "$@"
+  else
+    "$ENGINE" run --rm --init \
+      ${NARGS[@]+"${NARGS[@]}"} ${MARGS[@]+"${MARGS[@]}"} ${EARGS[@]+"${EARGS[@]}"} \
+      -w /app "$IMAGE" "$@" </dev/null
+  fi
 }
 
 # Build + run one competitor in its own container (isolation); failure is reported
@@ -238,7 +245,7 @@ cmd_bench() {
   ensure_prereqs
   mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true
   local competitor
-  while IFS= read -r competitor; do build_and_run_one "$competitor"; done < <(competitor_list)
+  for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
   echo "──────── aggregate ────────"
   run_in_container node aggregate.mjs
 }
@@ -258,11 +265,11 @@ cmd_build() {
     run_in_container sh -c "cd competitors/$1 && pnpm run build && test -d dist"
   else
     local competitor
-    while IFS= read -r competitor; do
+    for competitor in $(competitor_list); do
       echo "──────── build: $competitor ────────"
       run_in_container sh -c "cd competitors/$competitor && pnpm run build && test -d dist" \
         || echo "==> build '$competitor' FAILED"
-    done < <(competitor_list)
+    done
   fi
 }
 
