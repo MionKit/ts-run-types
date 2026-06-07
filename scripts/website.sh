@@ -26,7 +26,8 @@
 #   WEBSITE_ENGINE   container engine (default: podman)
 #   WEBSITE_IMAGE    image tag        (default: tsrt-website:dev)
 #   WEBSITE_PORT     host port        (default: 3000)
-#   WEBSITE_USE_REMOTE=1  pull the GHCR image instead of building locally
+#   (default)  run commands PULL the latest published GHCR image first
+#   WEBSITE_USE_LOCAL=1   skip the pull; build/use a local image (maintainer/offline)
 #   WEBSITE_REMOTE_IMAGE  remote ref   (default: ghcr.io/$GHCR_OWNER/tsrt-website:latest)
 #   GHCR_OWNER / GHCR_USER / GHCR_PAT / GHCR_PAT_FILE  (see scripts/lib-ghcr.sh)
 #   WEBSITE_POLL=1   use filesystem polling for watchers (macOS / VM mounts)
@@ -63,9 +64,9 @@ MOUNT_DIRS=(app content public server scripts not-rendered tests)
 # Config files bind-mounted into /app (first-party, NOT baked into the image).
 MOUNT_FILES=(nuxt.config.ts tsconfig.json eslint.config.mjs)
 
-# GHCR publish/pull helpers (login, push, pull) + the remote image ref. When
-# WEBSITE_USE_REMOTE is set, the run commands pull this prebuilt image instead of
-# building locally.
+# GHCR publish/pull helpers (login, push, pull) + the remote image ref. Run
+# commands pull this prebuilt image by default; WEBSITE_USE_LOCAL=1 builds/uses a
+# local image instead.
 source "$SCRIPT_DIR/lib-ghcr.sh"
 REMOTE_IMAGE="${WEBSITE_REMOTE_IMAGE:-$GHCR_REGISTRY/$GHCR_OWNER/tsrt-website:latest}"
 MANIFEST_NAME="tsrt-website-manifest"
@@ -126,16 +127,26 @@ build_image() {
   ( cd "$WEBSITE_DIR" && "$ENGINE" build ${net[@]+"${net[@]}"} -t "$IMAGE" -f Containerfile . )
 }
 
+# Make the working image ready before a run. DEFAULT: pull the latest published
+# image from GHCR (so a run always uses the current published deps), falling back
+# to an existing local image, then to a local build, when the registry is
+# unreachable. WEBSITE_USE_LOCAL=1 skips the pull and uses a locally-built image
+# (maintainer / offline loop) with the manifest-staleness rebuild.
 ensure_image() {
-  # Consume the prebuilt GHCR image instead of building locally.
-  if [ -n "${WEBSITE_USE_REMOTE:-}" ]; then
-    "$ENGINE" image exists "$IMAGE" 2>/dev/null || ghcr_pull_retag "$REMOTE_IMAGE" "$IMAGE"
-    return
+  if [ -n "${WEBSITE_USE_LOCAL:-}" ]; then ensure_image_local; return; fi
+  if ghcr_try_pull_retag "$REMOTE_IMAGE" "$IMAGE"; then return; fi
+  if "$ENGINE" image exists "$IMAGE" 2>/dev/null; then
+    echo "==> using existing local image $IMAGE" >&2; return
   fi
+  echo "==> no published or local image available - building locally" >&2
+  build_image
+}
+
+# Local-image path: build when missing, and rebuild when any baked manifest (or
+# the Containerfile) is newer than the cached image. The bind-mounted source/
+# config never need a rebuild since they're mounted live.
+ensure_image_local() {
   if ! "$ENGINE" image exists "$IMAGE" 2>/dev/null; then build_image; return; fi
-  # Rebuild when any in-image manifest is newer than the cached image. The
-  # bind-mounted source dirs (app/ content/ ...) never need a rebuild since
-  # they're mounted live; we only watch what gets baked in.
   local img_epoch src_epoch=0 f t
   img_epoch="$("$ENGINE" image inspect "$IMAGE" --format '{{.Created.Unix}}' 2>/dev/null || true)"
   [ -z "$img_epoch" ] && img_epoch=0

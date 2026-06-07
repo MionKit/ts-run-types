@@ -8,20 +8,28 @@ directly on your laptop.
 
 ## The isolation boundary
 
-| Lives **inside the image** (baked at build)        | Lives **on the host** (bind-mounted at run time) |
-| -------------------------------------------------- | ------------------------------------------------ |
-| `package.json`, `pnpm-lock.yaml`                   | `app/` (Vue components, assets, app config)      |
-| `pnpm-workspace.yaml`, `.npmrc`                    | `content/` (the markdown docs)                   |
-| `nuxt.config.ts`, `tsconfig.json`, `eslint.config` | `public/` (static assets)                        |
-| **`node_modules/`** (installed in the image only)  | `server/`, `scripts/`, `tests/`                  |
+The image is **deps-only**: it bakes the third-party `node_modules` plus the
+package-manager manifests **and nothing first-party**. Everything else — the
+website source *and* its Nuxt/TS/ESLint config — is bind-mounted at run time.
 
+| Lives **inside the image** (deps only)                       | Lives **on the host** (bind-mounted at run time)                 |
+| ------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `_deps/package.json`, `_deps/pnpm-lock.yaml`                 | `app/`, `content/`, `public/`, `server/`, `scripts/`, `tests/`   |
+| `_deps/pnpm-workspace.yaml`, `_deps/.npmrc`                  | `nuxt.config.ts`, `tsconfig.json`, `eslint.config.mjs`           |
+| **`node_modules/`** (installed in the image only)            | (config + source are the source-of-truth on the host)            |
+
+- The package-manager files live in **`website/_deps/`**, not at the website
+  root — so there is no `package.json` to accidentally `pnpm install` against on
+  the host. The Containerfile `COPY`s them from `_deps/` into the image.
 - `node_modules` is materialized by `pnpm install` **inside** the image
   ([`Containerfile`](./Containerfile)), so no dependency install script ever
   executes on the host. The pnpm supply-chain policy (`ignoreScripts` +
   `allowBuilds` allowlist, `frozenLockfile`, `minimumReleaseAge`) is enforced
-  at image-build time from [`pnpm-workspace.yaml`](./pnpm-workspace.yaml).
-- The **source** directories are bind-mounted from the host, so editing docs or
-  components hot-reloads without rebuilding the image.
+  at image-build time from [`_deps/pnpm-workspace.yaml`](./_deps/pnpm-workspace.yaml).
+- The **source + config** are bind-mounted from the host, so editing docs,
+  components or config hot-reloads without rebuilding the image. Because no
+  first-party file is baked, the image is invalidated only when a dependency
+  manifest changes.
 - The repo root's `pnpm-workspace.yaml` lists only `packages/*`, so a top-level
   `pnpm install` never touches the website — its dependency graph and lockfile
   are fully separate.
@@ -32,15 +40,24 @@ All commands run from the **repo root** (they shell out to
 [`scripts/website.sh`](../scripts/website.sh)):
 
 ```bash
-pnpm run website:build-image   # build the podman image (once, or after a dep/config change)
 pnpm run website:dev           # dev server with hot reload  -> http://localhost:3000
 pnpm run website:build         # production build            -> website/.output
 pnpm run website:generate      # static prerender            -> website/.output/public
 pnpm run website:shell         # debug shell inside the container
 pnpm run website:clean         # remove the image + cache volumes
+# --- dependency / publishing flow ---
+pnpm run website:lock          # regenerate _deps/pnpm-lock.yaml in-container (after a dep bump)
+pnpm run website:build-image   # build the podman image locally (maintainer)
+pnpm run website:login         # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm run website:push          # build + push the multi-arch image to GHCR
+pnpm run website:pull          # pull the published image and tag it locally
 ```
 
-`website:dev` builds the image automatically on first run.
+The images are published to GHCR, so **`website:dev` (and the other run commands)
+pull the latest published image first** — a cheap no-op when your local copy is
+already current — then run, falling back to a local build when the registry is
+unreachable. Set `WEBSITE_USE_LOCAL=1` to skip the pull and build/use a local
+image (offline, or to test a dep bump before pushing).
 
 ### Environment overrides
 
@@ -51,6 +68,8 @@ pnpm run website:clean         # remove the image + cache volumes
 | `WEBSITE_ENGINE`     | `podman`         | Container engine.                                    |
 | `WEBSITE_IMAGE`      | `tsrt-website:dev` | Image tag.                                          |
 | `WEBSITE_MOUNT_OPTS` | empty            | Extra bind-mount opts, e.g. `:z` on SELinux hosts.   |
+| `WEBSITE_USE_LOCAL`  | off              | Skip the GHCR pull; build/use a local image.         |
+| `WEBSITE_REMOTE_IMAGE` | `ghcr.io/mionkit/tsrt-website:latest` | Published image ref to pull.        |
 
 On **macOS** (podman runs in a Linux VM), inotify events don't always cross the
 VM mount boundary — run with polling:

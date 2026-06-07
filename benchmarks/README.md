@@ -8,9 +8,10 @@ tsgo transform) lives **only inside a podman image** — the host never installs
 
 ## Architecture — every competitor is its own isolated build
 
-Each competitor is a **standalone pnpm project** under
-[`competitors/<name>/`](competitors/): its own `package.json` → its own
-`node_modules`, its own build, its own `dist/run.mjs`, run as its own process
+Each competitor is a **standalone pnpm project**: its own `package.json` (under
+[`_deps/competitors/<name>/`](_deps/competitors/)) → its own `node_modules`, with
+its source under [`competitors/<name>/`](competitors/), its own build and its own
+`dist/run.mjs`, run as its own process
 writing [`results/<name>.json`](results/). [`aggregate.mjs`](aggregate.mjs) then
 joins those per-competitor results by case key into one comparison table.
 
@@ -89,8 +90,10 @@ same transform through `@ttsc/unplugin`'s esbuild adapter and bundles to one
 `: input is T =>` return-predicate annotations before esbuild parses).
 
 The first build compiles typia's native plugin once (~200s, "once per cache key")
-via ttsc's own embedded Go toolchain; the `Containerfile` **pre-warms** that cache
-at image-build time so each ephemeral run reuses it.
+via ttsc's own embedded Go toolchain. Since the image is deps-only (no source at
+build time), this compile happens on the **first `BENCH_TYPIA=1` run** rather than
+at image build, writing into a persisted named volume (`competitors/typia/node_modules/.ttsc`)
+so every later run reuses it; `pnpm run bench:clean` drops the volume.
 
 typia entries copy the per-case literal `T` verbatim from the ts-go competitor
 (the type must be written at the `createIs<T>()` call site, like ts-go's
@@ -103,11 +106,17 @@ signature accepts an explicit-`undefined` property value (`{a: undefined}`).
 
 ## What runs where
 
-| Inside the image (per-competitor `node_modules`)       | Bind-mounted from the repo at run time (ts-go only)        |
-| ------------------------------------------------------ | --------------------------------------------------------- |
-| zod · @sinclair/typebox · ajv · typia (+ttsc) · vite   | `bin/ts-go-run-types` (the Go resolver binary)            |
-| esbuild + each competitor's build toolchain            | `packages/ts-go-run-types`, `vite-plugin-runtypes`        |
-| the shared suite + harness (baked, no third-party deps)| writable `results/` (so each `<name>.json` survives `--rm`)|
+The image is **deps-only**: it bakes per-competitor `node_modules` (from the
+manifests in [`_deps/`](_deps/)) and nothing first-party. ALL benchmark source —
+the shared suite, every competitor's source files, `typecost/`, `aggregate.mjs` —
+is bind-mounted at run time (`scripts/benchmarks.sh:mount_args`), so an image is
+invalidated only when a dependency manifest changes.
+
+| Inside the image (deps only)                           | Bind-mounted from the repo at run time                     |
+| ------------------------------------------------------ | ---------------------------------------------------------- |
+| zod · @sinclair/typebox · ajv · typia · vite · esbuild | every competitor's source files + `shared/` + `typecost/` source |
+| each competitor's `node_modules` + `package.json`      | `bin/ts-go-run-types` + `packages/*` (ts-go competitor only) |
+| typia's `.ttsc` compile cache → a persisted named volume | writable `results/` (so each `<name>.json` survives `--rm`) |
 
 ## Usage
 
@@ -115,12 +124,23 @@ From the repo root:
 
 ```bash
 pnpm run bench:prep            # build the Go binary + first-party JS packages on the host (one-time)
-pnpm run bench:build-image     # build the podman image (per-competitor installs + typia pre-warm)
 pnpm run bench                 # build + validate + throughput for EVERY competitor + aggregate
 pnpm run bench:one zod         # the same for a SINGLE competitor (fastest verification loop)
 pnpm run bench:typecost        # compile-time: per-competitor TS type-instantiation cost
 pnpm run bench:smoke           # quick: build every competitor's dist (no run)
+# --- image publishing (maintainer) ---
+pnpm run bench:build-image     # build the podman image locally (per-competitor installs)
+pnpm run bench:login           # log in to GHCR (needs a PAT; see SETUP.md)
+pnpm run bench:push            # build + push the multi-arch image to GHCR
+pnpm run bench:pull            # pull the published image and tag it locally
 ```
+
+The run commands **pull the latest published `ghcr.io/mionkit/tsrt-bench:latest`
+by default** (cheap no-op when current), falling back to a local build when the
+registry is unreachable. Set `BENCH_USE_LOCAL=1` to build/use a local image
+(offline, or to test a dep bump before pushing). typia's native plugin is no
+longer pre-warmed at build time — the first `BENCH_TYPIA=1` run compiles it
+(~200s) into a persisted named volume that later runs reuse (`bench:clean` drops it).
 
 `bench` runs each competitor in its **own `--rm` container** (strongest
 isolation), then `aggregate.mjs` prints the table + coverage. It exits non-zero if
@@ -173,13 +193,17 @@ shared/
   cases/{validation,format-validation,realworld}/  the 263 cases (samples + metadata, no library deps)
   cases/index.ts                                    the CaseKey union (drives totality) + iterateCases()
   harness/{types,measure,runner,result}.ts          the generic, competitor-agnostic run loop
-competitors/<name>/
+competitors/<name>/        (source only on the host — bind-mounted at run time)
   cases.ts          total Record<CaseKey, CaseEntry> — a builder or NOT_SUPPORTED per case
   main.ts           runCompetitor({name, cases}) → writeResult() → results/<name>.json
-  package.json      ONLY that competitor's deps (isolation)
   tsconfig.json     extends ../../tsconfig.base.json
   vite.config.ts    per-competitor build (typia uses esbuild.config.mjs instead)
   (ts-go also: schemaCases.ts for the typecost schema column; setup.ts registers format patterns)
+_deps/                     (package-manager files only — kept out of the source dirs so
+  pnpm-workspace.yaml      no one can `pnpm install` at a competitor dir; COPYed into the image)
+  .npmrc
+  competitors/<name>/package.json   ONLY that competitor's deps (isolation)
+  typecost/package.json
 typecost/typecost.mjs   per-competitor type-instantiation cost
 aggregate.mjs           results/*.json → comparison table + coverage; sets the exit code
 ```
@@ -192,8 +216,10 @@ a builder `() => { const s = <schema>; return (v) => <validate>(v, s); }` (the
 <name>` with `BENCH_NO_TIMING=1` and fix any reported mismatch — or downgrade it
 back to `NOT_SUPPORTED` (with a one-line reason) when the library genuinely
 diverges from ts-go-run-types' semantics. To add a whole new competitor, copy a
-`competitors/<name>/` folder, give it its own `package.json`, write a total
-`cases.ts`, and add it to `competitor_list()` in `scripts/benchmarks.sh`.
+`competitors/<name>/` source folder, add its `package.json` under
+`_deps/competitors/<name>/`, write a total `cases.ts`, add a COPY+install layer
+to [`Containerfile`](Containerfile), and add it to `competitor_list()` in
+`scripts/benchmarks.sh`.
 
 ## Behind a corporate / MITM proxy
 
