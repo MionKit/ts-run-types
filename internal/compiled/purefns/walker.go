@@ -304,8 +304,13 @@ func paramHasMarker(typeChecker *checker.Checker, markerOpts marker.Options, par
 		return false
 	}
 	paramType := checker.Checker_getTypeOfSymbol(typeChecker, paramSymbol)
-	kind, _, matched := marker.DetectAny(typeChecker, paramType, markerOpts)
-	return matched && kind == want
+	if kind, _, matched := marker.DetectAny(typeChecker, paramType, markerOpts); matched {
+		return kind == want
+	}
+	// CompTimeArgs is the zero-cost identity marker (markers.ts) — invisible to
+	// DetectAny on the resolved type, so recognise it off the parameter's
+	// `CompTimeArgs<…>` annotation node (matches the resolver's scan path).
+	return want == marker.KindCompTimeArgs && comptimeargs.IsCompTimeArgsParamNode(typeChecker, paramSymbol, markerOpts)
 }
 
 // extractOne processes a single CallExpression. Returns (nil, nil)

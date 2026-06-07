@@ -145,8 +145,13 @@ func calleeFirstParamIsCompTimeArgs(typeChecker *checker.Checker, markerOpts mar
 		return false
 	}
 	paramType := checker.Checker_getTypeOfSymbol(typeChecker, first)
-	kind, _, matched := marker.DetectAny(typeChecker, paramType, markerOpts)
-	return matched && kind == marker.KindCompTimeArgs
+	if kind, _, matched := marker.DetectAny(typeChecker, paramType, markerOpts); matched {
+		return kind == marker.KindCompTimeArgs
+	}
+	// CompTimeArgs is the zero-cost identity marker (markers.ts) — invisible to
+	// DetectAny on the resolved type, so recognise it off the parameter's
+	// `CompTimeArgs<…>` annotation node (matches the resolver's scan path).
+	return comptimeargs.IsCompTimeArgsParamNode(typeChecker, first, markerOpts)
 }
 
 // resolveDepArg traces argNode through the factory-local table first
