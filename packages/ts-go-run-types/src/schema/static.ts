@@ -152,6 +152,10 @@ export interface TemporalBaseByTag {
   'temporal.plainTime': TemporalBaseByFormatName['temporalPlainTime'];
   'temporal.plainDateTime': TemporalBaseByFormatName['temporalPlainDateTime'];
   'temporal.plainYearMonth': TemporalBaseByFormatName['temporalPlainYearMonth'];
+  // No-ordering tags — present here (base instance type only) but absent from
+  // `TemporalFormatByTag`, so their builders are no-param-only (no min/max brand).
+  'temporal.plainMonthDay': TemporalBaseByFormatName['temporalPlainMonthDay'];
+  'temporal.duration': TemporalBaseByFormatName['temporalDuration'];
 }
 
 /** Overloaded shape of each `temporal.<name>` builder — the no-params/plain ↔

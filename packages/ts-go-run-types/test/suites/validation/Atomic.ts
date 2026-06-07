@@ -458,6 +458,9 @@ export const ATOMIC = {
       const sym = Symbol('hello');
       return createIsType<typeof sym>();
     },
+    // No value-first builder for a unique-symbol literal (matched by description);
+    // `RT.symbol()` is the bare-symbol kind, which is unsupported at root anyway.
+    isTypeSchema: 'not-supported',
     deserializeIsType: () => {
       const sym = Symbol('hello');
       return deserializeIsType<typeof sym>();
@@ -476,6 +479,7 @@ export const ATOMIC = {
       const sym = Symbol('hello');
       return createGetTypeErrors<typeof sym>();
     },
+    getTypeErrorsSchema: 'not-supported',
     deserializeGetTypeErrors: () => {
       const sym = Symbol('hello');
       return deserializeGetTypeErrors<typeof sym>();
@@ -672,6 +676,9 @@ export const ATOMIC = {
       '`object` here does NOT mean "plain object literal" — if you need that semantic, use a specific object shape or an index-signature type.',
     ],
     isType: () => createIsType<object>(),
+    // No value-first builder for the TS `object` primitive (any non-null
+    // non-primitive) — `RT.object(...)` is the shape composer, a different kind.
+    isTypeSchema: 'not-supported',
     deserializeIsType: () => deserializeIsType<object>(),
     isTypeReflect: () => {
       const v: object = {};
@@ -682,6 +689,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<object>(),
+    getTypeErrorsSchema: 'not-supported',
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<object>(),
     getTypeErrorsReflect: () => {
       const v: object = {};
@@ -801,6 +809,9 @@ export const ATOMIC = {
     isTypeNotes:
       'Symbol at root is unsupported — identity does not survive across realms or round-trips, so a `typeof === "symbol"` check would give false confidence. The Go pipeline renders the factory as alwaysThrow (codes IT002 / TE002 / IS002), and the very first `createXxx<symbol>()` call throws. See docs/UNSUPPORTED-KINDS.md.',
     isType: () => createIsType<symbol>(),
+    // Bare symbol is unsupported at root — the value-first `RT.symbol()` resolves
+    // the same alwaysThrow factory, so this thunk throws like the type-first form.
+    isTypeSchema: () => createIsType(RT.symbol()),
     deserializeIsType: () => deserializeIsType<symbol>(),
     isTypeReflect: () => {
       const v: symbol = Symbol();
@@ -811,6 +822,7 @@ export const ATOMIC = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<symbol>(),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.symbol()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<symbol>(),
     getTypeErrorsReflect: () => {
       const v: symbol = Symbol();
@@ -1015,6 +1027,9 @@ export const ATOMIC = {
       const reg = /abc/i;
       return createIsType<typeof reg>(undefined, {noLiterals: true});
     },
+    // noLiterals degrades the regexp-literal to its base `RegExp` — the value-first
+    // `RT.regexp()` IS that base kind (like the other *_noLiterals schema thunks).
+    isTypeSchema: () => createIsType(RT.regexp()),
     deserializeIsType: () => {
       const reg = /abc/i;
       return deserializeIsType<typeof reg>(undefined, {noLiterals: true});
@@ -1033,6 +1048,7 @@ export const ATOMIC = {
       const reg = /abc/i;
       return createGetTypeErrors<typeof reg>(undefined, {noLiterals: true});
     },
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.regexp()),
     deserializeGetTypeErrors: () => {
       const reg = /abc/i;
       return deserializeGetTypeErrors<typeof reg>(undefined, {noLiterals: true});
@@ -1158,6 +1174,9 @@ export const ATOMIC = {
       const sym = Symbol('hello');
       return createIsType<typeof sym>(undefined, {noLiterals: true});
     },
+    // Degrades to bare symbol (unsupported at root) — `RT.symbol()` resolves the
+    // same alwaysThrow factory, so the schema thunk throws like the type-first form.
+    isTypeSchema: () => createIsType(RT.symbol()),
     deserializeIsType: () => {
       const sym = Symbol('hello');
       return deserializeIsType<typeof sym>(undefined, {noLiterals: true});
@@ -1176,6 +1195,7 @@ export const ATOMIC = {
       const sym = Symbol('hello');
       return createGetTypeErrors<typeof sym>(undefined, {noLiterals: true});
     },
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.symbol()),
     deserializeGetTypeErrors: () => {
       const sym = Symbol('hello');
       return deserializeGetTypeErrors<typeof sym>(undefined, {noLiterals: true});
