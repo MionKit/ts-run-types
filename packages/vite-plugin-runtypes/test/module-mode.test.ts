@@ -96,6 +96,61 @@ export const isBeta = createValidate<Beta>();
     });
   });
 
+  register('allSingle runtime: the hoisted rtL thunk resolves the bundle and a folded facade registers its root', async () => {
+    // ≥3 reflection roots → the facade deps thunk is hoisted to one `rtL`.
+    const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type A = {a: string};
+type B = {b: number};
+type C = {c: boolean};
+type D = {d: string};
+export const a = getRunTypeId<A>();
+export const b = getRunTypeId<B>();
+export const c = getRunTypeId<C>();
+export const d = getRunTypeId<D>();
+`;
+    await withModeClient(MODULE_MODE_ALL_SINGLE, {'roots.ts': code}, async (client) => {
+      const scan = await client.scanFiles(['roots.ts'], {includeEntryModules: true});
+      const bundleSource = scan.entryModules?.[RUNTYPES_BUNDLE_BASENAME];
+      expect(bundleSource, 'runtypes bundle module').toBeDefined();
+      // Exactly one hoisted thunk declaration in the whole bundle.
+      expect((bundleSource!.match(/const rtL=\(\)=>\[__rt_runtypes\];/g) ?? []).length).toBe(1);
+      const rootId = scan.sites!.find((s) => !s.fnId && s.id)!.id;
+
+      // The allSingle runtypes bundle is self-contained (facades reference the
+      // same-file __rt_runtypes). Evaluate it and pull out the data tuple +
+      // this root's folded facade as locals.
+      const rootBinding = ENTRY_BINDING_PREFIX + rootId;
+      const evalSrc = bundleSource!.replace(/^export /gm, '') + `\n;return {data: __rt_runtypes, facade: ${rootBinding}};`;
+      const {data, facade} = new Function(evalSrc)() as {data: readonly unknown[]; facade: readonly unknown[]};
+
+      // The facade's deps thunk IS the hoisted rtL — calling it returns the
+      // same bundle data tuple (proves the shared local resolves, no TDZ).
+      expect(facade[0]).toBe(5);
+      expect(facade[3]).toBe(rootId);
+      const thunk = facade[1] as () => readonly unknown[];
+      expect(typeof thunk).toBe('function');
+      expect(thunk()[0]).toBe(data);
+
+      // Two-phase init against a stub registry: register the bundle rows, run
+      // the footer ini — every c(id) ref must resolve (no throw) — and the
+      // root must end up registered.
+      const registry: Record<string, {id: unknown; kind: unknown}> = {};
+      const stub = {
+        useRunType: (id: string) => {
+          const entry = registry[id];
+          if (!entry) throw new Error(`useRunType miss: ${id}`);
+          return entry;
+        },
+      };
+      for (const row of (data[4] ?? []) as readonly (readonly unknown[])[]) {
+        registry[row[0] as string] = {id: row[0], kind: row[1]};
+      }
+      const ini = data[2];
+      if (typeof ini === 'function') (ini as (rtu: typeof stub) => void)(stub);
+      expect(registry[rootId]).toBeDefined();
+    });
+  });
+
   register('allModules static: getRunTypeId<T>() imports a per-node module (kind 0) with child imports', async () => {
     const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
 type User = {id: number; name: string};
