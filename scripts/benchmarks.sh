@@ -46,7 +46,6 @@ CACERTS_DIR="$BENCH_DIR/.cacerts"
 RESULTS_DIR="$BENCH_DIR/results"
 STAMP="$BENCH_DIR/.image-stamp"
 
-BIN="$ROOT_DIR/bin/ts-go-run-types"
 MARKER_PKG="$ROOT_DIR/packages/ts-go-run-types"
 PLUGIN_PKG="$ROOT_DIR/packages/vite-plugin-runtypes"
 
@@ -90,42 +89,13 @@ needs_rebuild() {
   return 1
 }
 
-ensure_host_binary() {
-  command -v go >/dev/null 2>&1 || die "go toolchain not found (needed to build the resolver binary)."
-  if needs_rebuild "$BIN" "$ROOT_DIR/cmd" "$ROOT_DIR/internal"; then
-    echo "==> building Go binary (host: $(uname -s)/$(uname -m))"
-    ( cd "$ROOT_DIR" && go build -o bin/ts-go-run-types ./cmd/ts-go-run-types )
-  fi
-}
-
-ensure_linux_binary() {
-  ensure_host_binary
-  if [ "$(uname -s)" = Darwin ]; then
-    if needs_rebuild "$LINUX_BIN" "$ROOT_DIR/cmd" "$ROOT_DIR/internal"; then
-      local goarch; goarch="$(linux_goarch)"
-      echo "==> cross-building Go binary (linux/$goarch) for the container"
-      ( cd "$ROOT_DIR" && GOOS=linux GOARCH="$goarch" go build -o "$LINUX_BIN" ./cmd/ts-go-run-types )
-    fi
-  else
-    if needs_rebuild "$LINUX_BIN" "$ROOT_DIR/cmd" "$ROOT_DIR/internal" || [ "$BIN" -nt "$LINUX_BIN" ]; then
-      cp -f "$BIN" "$LINUX_BIN"
-    fi
-  fi
-}
-
-ensure_plugin_dist() {
-  if needs_rebuild "$PLUGIN_PKG/dist/index.js" "$PLUGIN_PKG/src"; then
-    echo "==> building vite-plugin-runtypes"
-    ( cd "$ROOT_DIR" && pnpm --filter vite-plugin-runtypes run build )
-  fi
-}
-
-ensure_marker_dist() {
-  if needs_rebuild "$MARKER_PKG/dist/formats/index.js" "$MARKER_PKG/src"; then
-    echo "==> building @mionjs/ts-go-run-types"
-    ( cd "$MARKER_PKG" && pnpm exec tsc -p tsconfig.json --noEmitOnError false ) \
-      || echo "  (typecheck reported errors; runtime .js was still emitted - continuing)"
-  fi
+# Stale-build checks (Go host bin, Go linux cross-bin, marker dist, plugin dist)
+# are delegated to scripts/check-stale-builds.sh — same script `pnpm test` uses,
+# so any build hardening lands in one place. It does build-id comparison for
+# the Go binaries and structural (.d.ts.map / .d.ts pairing + sentinel) checks
+# for the TS dists, then wipes tsbuildinfo and rebuilds clean when stale.
+ensure_artifacts() {
+  ( cd "$ROOT_DIR" && bash scripts/check-stale-builds.sh "$@" )
 }
 
 # Rebuild the image when the Containerfile or any baked source (shared/,
@@ -145,17 +115,12 @@ ensure_bench_image_fresh() {
 }
 
 ensure_prereqs() {
-  ensure_linux_binary
-  ensure_plugin_dist
-  ensure_marker_dist
+  ensure_artifacts all linux-go
   ensure_bench_image_fresh
 }
 
 cmd_prep() {
-  ensure_host_binary
-  ensure_linux_binary
-  ensure_plugin_dist
-  ensure_marker_dist
+  ensure_artifacts all linux-go
 }
 
 prepare_cacerts() {

@@ -64,8 +64,9 @@ in-memory fixtures (`getRunTypeId<T>()` static, `reflectRunTypeId(v)` reflect,
 the plugin's `rewrite()` over each, then calls `scanFiles` with
 `includeEntryModules: true` and asserts the resolver returned a Site per
 fixture and at least one rendered entry module. Pre-hook
-(`prets-run-types:smoke`) re-runs `check:go-binary` + the plugin `tsc --build`
-so the smoke is usable standalone; both are incremental and skip when fresh.
+(`prets-run-types:smoke`) re-runs `check:builds`, which auto-rebuilds the Go
+binary, the marker dist, and the vite plugin dist when any is stale or
+partially emitted, so the smoke is usable standalone.
 Runs in ~1s when healthy. Exits 0/1.
 
 **3. `pnpm run website:smoke`** - builds the website podman image if needed
