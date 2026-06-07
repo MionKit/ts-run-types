@@ -1,0 +1,43 @@
+# Builds the docs website in the SAME isolated podman image used locally, so CI
+# and local development never drift ("works on my machine" can't happen — the
+# node_modules tree is identical because it comes from the same Containerfile +
+# frozen lockfile). Runs only when website inputs change.
+name: website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'scripts/website.sh'
+      - '.github/workflows/website.yml'
+  pull_request:
+    paths:
+      - 'website/**'
+      - 'scripts/website.sh'
+      - '.github/workflows/website.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # podman ships preinstalled on ubuntu-latest GitHub runners.
+      - name: podman version
+        run: podman --version
+
+      # Identical to `pnpm run website:build-image` locally.
+      - name: Build the isolated website image
+        run: bash scripts/website.sh build-image
+
+      # Identical to `pnpm run website:build` locally — produces website/.output.
+      - name: Production build inside the container
+        run: bash scripts/website.sh build
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-output
+          path: website/.output
+          if-no-files-found: error

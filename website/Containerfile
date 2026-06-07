@@ -1,0 +1,38 @@
+# syntax=podman
+# ─────────────────────────────────────────────────────────────────────────────
+# Isolated build/run environment for the mion docs website (Nuxt + Docus).
+#
+# ONLY the website's *config files* are baked into this image — package.json,
+# the lockfile, the pnpm workspace policy and the Nuxt/TS/ESLint config. The
+# heavy `node_modules` tree is installed INSIDE the image, so it never touches
+# the host machine. The website's *source* directories (app/, content/,
+# public/, server/, scripts/) are NOT copied here — they are bind-mounted at
+# run time (see scripts/website.sh). This is the supply-chain isolation
+# boundary: nothing under node_modules ever executes on the host.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/devcontainers/javascript-node:22
+
+# pnpm version is pinned by package.json#packageManager; let corepack honor it.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    PNPM_HOME=/usr/local/share/pnpm \
+    NUXT_TELEMETRY_DISABLED=1 \
+    DO_NOT_TRACK=1
+RUN corepack enable
+
+WORKDIR /app
+
+# ── Config files only — the install layer ───────────────────────────────────
+# Copying just these keeps the dependency graph + lockfile as the cache key:
+# editing website source never invalidates the install layer.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY nuxt.config.ts tsconfig.json eslint.config.mjs ./
+
+# Install with the frozen lockfile (no re-resolution) under the workspace's
+# supply-chain policy (ignoreScripts + allowBuilds allowlist live in
+# pnpm-workspace.yaml). node_modules is materialized here, in the image only.
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+EXPOSE 3000
+
+# No CMD: scripts/website.sh supplies the command (dev / build / shell).

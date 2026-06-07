@@ -1,0 +1,28 @@
+# Keep the build context tiny and make the isolation boundary explicit:
+# only the config files named in the Containerfile may enter the image.
+# Everything below is either source (bind-mounted at run time) or an artifact.
+
+# Source directories — bind-mounted at run time, never baked.
+app/
+content/
+public/
+server/
+scripts/
+not-rendered/
+tests/
+
+# Build artifacts / caches / deps — must never enter the image.
+node_modules/
+.nuxt/
+.output/
+.data/
+.cache/
+.nitro/
+dist/
+test-results/
+
+# Editor / VCS / misc
+.git/
+.vscode-extension/
+*.log
+*.tgz
