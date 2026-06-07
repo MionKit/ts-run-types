@@ -101,6 +101,8 @@ export const REALWORLD = {
         sampleUser({id: '1' as never}),
         {email: 'x', name: 'x', roles: [], active: true, createdAt: 'x'},
         null,
+        'not-an-object', // root type mismatch — a string where an object is expected (fails at root)
+        42, // root type mismatch — a number where an object is expected (fails at root)
       ],
     }),
   },
@@ -123,6 +125,8 @@ export const REALWORLD = {
           {...ok, customer: {id: 1}},
           {...ok, total: 'free'},
           null,
+          'not-an-object', // root type mismatch — string where object expected (fails at root)
+          42, // root type mismatch — number where object expected (fails at root)
         ],
       };
     },
@@ -141,7 +145,7 @@ export const REALWORLD = {
       };
       return {
         valid: [ok, {...ok, publishedAt: '2024-01-02'}],
-        invalid: [{...ok, tags: [1, 2]}, {...ok, meta: {views: 10}}, {...ok, published: 'yes'}, null],
+        invalid: [{...ok, tags: [1, 2]}, {...ok, meta: {views: 10}}, {...ok, published: 'yes'}, null, 'not-an-object', 42], // last two: root type mismatch (fails at root)
       };
     },
   },
@@ -158,7 +162,7 @@ export const REALWORLD = {
       };
       return {
         valid: [ok, {...ok, dimensions: {width: 1, height: 2, depth: 3}}],
-        invalid: [{...ok, currency: 'JPY'}, {...ok, dimensions: {width: 1, height: 2}}, {...ok, price: '9.99'}, null],
+        invalid: [{...ok, currency: 'JPY'}, {...ok, dimensions: {width: 1, height: 2}}, {...ok, price: '9.99'}, null, 'not-an-object', 42], // last two: root type mismatch (fails at root)
       };
     },
   },
@@ -176,7 +180,7 @@ export const REALWORLD = {
       const ok: ProductPage = {data: [p], page: 1, pageSize: 20, total: 1, hasMore: false};
       return {
         valid: [ok, {data: [], page: 2, pageSize: 20, total: 0, hasMore: false}],
-        invalid: [{...ok, data: [{...p, currency: 'JPY'}]}, {...ok, hasMore: 'no'}, {...ok, page: '1'}, null],
+        invalid: [{...ok, data: [{...p, currency: 'JPY'}]}, {...ok, hasMore: 'no'}, {...ok, page: '1'}, null, 'not-an-object', 42], // last two: root type mismatch (fails at root)
       };
     },
   },
@@ -190,7 +194,7 @@ export const REALWORLD = {
       };
       return {
         valid: [ok, {...ok, profile: {...ok.profile, age: 30}}],
-        invalid: [{...ok, acceptedTerms: false}, {...ok, profile: {firstName: 'Ann'}}, {...ok, password: 123456}, null],
+        invalid: [{...ok, acceptedTerms: false}, {...ok, profile: {firstName: 'Ann'}}, {...ok, password: 123456}, null, 'not-an-object', 42], // last two: root type mismatch (fails at root)
       };
     },
   },
