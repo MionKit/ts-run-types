@@ -63,8 +63,9 @@ getRunTypeId<string>();
       expect(tuple[4]).toBe('string');
       // `code` carries the factory body (suitable for
       // `new Function('utl', code)(rtUtils)` reconstruction), not just the
-      // inner validator body.
-      expect(tuple[5]).toBe('return function ' + cacheKey + "(v){return typeof v === 'string'}");
+      // inner validator body. The inner fn is a hoisted declaration + name
+      // return (see typefns.WrapClosure).
+      expect(tuple[5]).toBe('function ' + cacheKey + "(v){return typeof v === 'string'}return " + cacheKey);
       expect(tuple[6]).toBe(false); // isNoop
       expect(tuple[7]).toEqual([]); // rtDependencies
       expect(tuple[8]).toEqual([]); // pureFnDependencies
