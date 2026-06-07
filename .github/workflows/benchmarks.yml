@@ -52,3 +52,6 @@ jobs:
 
       - name: Run the benchmark (build + run, in the container)
         run: bash scripts/benchmarks.sh bench
+
+      - name: Type-checking cost (TS type instantiations)
+        run: bash scripts/benchmarks.sh typecost
