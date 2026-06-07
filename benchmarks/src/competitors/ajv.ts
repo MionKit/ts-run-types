@@ -241,3 +241,110 @@ Object.assign(ajvMap, {
   'STRING_FORMAT.pattern_slug': c({type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'}),
   'STRING_FORMAT.pattern_hex': c({type: 'string', pattern: '^[0-9a-fA-F]+$'}),
 });
+
+// ── REAL-WORLD DTOs ──
+const addressAjv: SchemaObject = {
+  type: 'object',
+  properties: {
+    street: {type: 'string'},
+    city: {type: 'string'},
+    state: {type: 'string'},
+    zip: {type: 'string'},
+    country: {type: 'string'},
+  },
+  required: ['street', 'city', 'state', 'zip', 'country'],
+};
+const productAjv: SchemaObject = {
+  type: 'object',
+  properties: {
+    id: {type: 'string'},
+    name: {type: 'string'},
+    description: {type: 'string'},
+    price: {type: 'number'},
+    currency: {enum: ['USD', 'EUR', 'GBP']},
+    inStock: {type: 'boolean'},
+    categories: {type: 'array', items: {type: 'string'}},
+    dimensions: {
+      type: 'object',
+      properties: {width: {type: 'number'}, height: {type: 'number'}, depth: {type: 'number'}},
+      required: ['width', 'height', 'depth'],
+    },
+  },
+  required: ['id', 'name', 'description', 'price', 'currency', 'inStock', 'categories'],
+};
+Object.assign(ajvMap, {
+  'REALWORLD.user': c({
+    type: 'object',
+    properties: {
+      id: {type: 'number'},
+      email: {type: 'string'},
+      name: {type: 'string'},
+      age: {type: 'number'},
+      roles: {type: 'array', items: {enum: ['admin', 'editor', 'user']}},
+      active: {type: 'boolean'},
+      createdAt: {type: 'string'},
+    },
+    required: ['id', 'email', 'name', 'roles', 'active', 'createdAt'],
+  }),
+  'REALWORLD.order': c({
+    type: 'object',
+    properties: {
+      id: {type: 'string'},
+      customer: {type: 'object', properties: {id: {type: 'number'}, email: {type: 'string'}}, required: ['id', 'email']},
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {sku: {type: 'string'}, name: {type: 'string'}, qty: {type: 'number'}, price: {type: 'number'}},
+          required: ['sku', 'name', 'qty', 'price'],
+        },
+      },
+      shipping: addressAjv,
+      status: {enum: ['pending', 'paid', 'shipped', 'delivered', 'cancelled']},
+      total: {type: 'number'},
+      note: {type: 'string'},
+    },
+    required: ['id', 'customer', 'items', 'shipping', 'status', 'total'],
+  }),
+  'REALWORLD.blogPost': c({
+    type: 'object',
+    properties: {
+      id: {type: 'number'},
+      title: {type: 'string'},
+      slug: {type: 'string'},
+      body: {type: 'string'},
+      tags: {type: 'array', items: {type: 'string'}},
+      author: {type: 'object', properties: {name: {type: 'string'}, email: {type: 'string'}}, required: ['name', 'email']},
+      published: {type: 'boolean'},
+      publishedAt: {type: 'string'},
+      meta: {type: 'object', properties: {views: {type: 'number'}, likes: {type: 'number'}}, required: ['views', 'likes']},
+    },
+    required: ['id', 'title', 'slug', 'body', 'tags', 'author', 'published', 'meta'],
+  }),
+  'REALWORLD.product': c(productAjv),
+  'REALWORLD.productPage': c({
+    type: 'object',
+    properties: {
+      data: {type: 'array', items: productAjv},
+      page: {type: 'number'},
+      pageSize: {type: 'number'},
+      total: {type: 'number'},
+      hasMore: {type: 'boolean'},
+    },
+    required: ['data', 'page', 'pageSize', 'total', 'hasMore'],
+  }),
+  'REALWORLD.registrationForm': c({
+    type: 'object',
+    properties: {
+      email: {type: 'string'},
+      password: {type: 'string'},
+      acceptedTerms: {const: true},
+      profile: {
+        type: 'object',
+        properties: {firstName: {type: 'string'}, lastName: {type: 'string'}, age: {type: 'number'}},
+        required: ['firstName', 'lastName'],
+      },
+    },
+    required: ['email', 'password', 'acceptedTerms', 'profile'],
+  }),
+});

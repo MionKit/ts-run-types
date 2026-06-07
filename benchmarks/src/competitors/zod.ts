@@ -179,3 +179,77 @@ Object.assign(zodMap, {
   'STRING_FORMAT.pattern_slug': c(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)),
   'STRING_FORMAT.pattern_hex': c(z.string().regex(/^[0-9a-fA-F]+$/)),
 });
+
+// ── REAL-WORLD DTOs ──
+const addressZ = z.object({
+  street: z.string(),
+  city: z.string(),
+  state: z.string(),
+  zip: z.string(),
+  country: z.string(),
+});
+const productZ = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  price: z.number(),
+  currency: z.enum(['USD', 'EUR', 'GBP']),
+  inStock: z.boolean(),
+  categories: z.array(z.string()),
+  dimensions: z.object({width: z.number(), height: z.number(), depth: z.number()}).optional(),
+});
+Object.assign(zodMap, {
+  'REALWORLD.user': c(
+    z.object({
+      id: z.number(),
+      email: z.string(),
+      name: z.string(),
+      age: z.number().optional(),
+      roles: z.array(z.enum(['admin', 'editor', 'user'])),
+      active: z.boolean(),
+      createdAt: z.string(),
+    }),
+  ),
+  'REALWORLD.order': c(
+    z.object({
+      id: z.string(),
+      customer: z.object({id: z.number(), email: z.string()}),
+      items: z.array(z.object({sku: z.string(), name: z.string(), qty: z.number(), price: z.number()})),
+      shipping: addressZ,
+      status: z.enum(['pending', 'paid', 'shipped', 'delivered', 'cancelled']),
+      total: z.number(),
+      note: z.string().optional(),
+    }),
+  ),
+  'REALWORLD.blogPost': c(
+    z.object({
+      id: z.number(),
+      title: z.string(),
+      slug: z.string(),
+      body: z.string(),
+      tags: z.array(z.string()),
+      author: z.object({name: z.string(), email: z.string()}),
+      published: z.boolean(),
+      publishedAt: z.string().optional(),
+      meta: z.object({views: z.number(), likes: z.number()}),
+    }),
+  ),
+  'REALWORLD.product': c(productZ),
+  'REALWORLD.productPage': c(
+    z.object({
+      data: z.array(productZ),
+      page: z.number(),
+      pageSize: z.number(),
+      total: z.number(),
+      hasMore: z.boolean(),
+    }),
+  ),
+  'REALWORLD.registrationForm': c(
+    z.object({
+      email: z.string(),
+      password: z.string(),
+      acceptedTerms: z.literal(true),
+      profile: z.object({firstName: z.string(), lastName: z.string(), age: z.number().optional()}),
+    }),
+  ),
+});

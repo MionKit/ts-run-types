@@ -14,7 +14,7 @@ import {performance} from 'node:perf_hooks';
 // Ensure ts-go-run-types' built-in format patterns are registered (the
 // side-effect import the suites rely on, kept from being tree-shaken).
 import '@mionjs/ts-go-run-types/formats';
-import {VALIDATION_CASES, FORMAT_CASES, type FlatCase} from './suites/adapter.ts';
+import {VALIDATION_CASES, FORMAT_CASES, REALWORLD_CASES, type FlatCase} from './suites/adapter.ts';
 import {NOT_SUPPORTED, type CompetitorMap, type ValidatorOrUnsupported} from './types.ts';
 import {zodMap} from './competitors/zod.ts';
 import {typeboxMap} from './competitors/typebox.ts';
@@ -142,8 +142,9 @@ function main(): number {
   );
   section('validation', VALIDATION_CASES, stats);
   section('format-validation', FORMAT_CASES, stats);
+  section('real-world', REALWORLD_CASES, stats);
 
-  const total = VALIDATION_CASES.length + FORMAT_CASES.length;
+  const total = VALIDATION_CASES.length + FORMAT_CASES.length + REALWORLD_CASES.length;
   console.log(`\nCoverage (supported / ${total} cases):`);
   for (const lib of LIBS) {
     const ok = stats.ok[lib.name] ?? 0;

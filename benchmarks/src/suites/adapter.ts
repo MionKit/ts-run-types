@@ -5,12 +5,13 @@
 
 import {VALIDATION_SUITE} from './validation/index.ts';
 import {FORMAT_VALIDATION_SUITE} from './format-validation/index.ts';
+import {REALWORLD} from './realworld/index.ts';
 import type {ValidationCase} from './validation/types.ts';
 import {NOT_SUPPORTED, type ValidatorOrUnsupported} from '../types.ts';
 
 export interface FlatCase {
   key: string; // "GROUP.case"
-  suite: 'validation' | 'format-validation';
+  suite: 'validation' | 'format-validation' | 'realworld';
   group: string;
   name: string;
   samples: {valid: unknown[]; invalid: unknown[]};
@@ -52,4 +53,5 @@ export const FORMAT_CASES = flatten(
   FORMAT_VALIDATION_SUITE as unknown as SuiteShape,
   'format-validation',
 );
-export const ALL_CASES = [...VALIDATION_CASES, ...FORMAT_CASES];
+export const REALWORLD_CASES = flatten({REALWORLD} as unknown as SuiteShape, 'realworld');
+export const ALL_CASES = [...VALIDATION_CASES, ...FORMAT_CASES, ...REALWORLD_CASES];

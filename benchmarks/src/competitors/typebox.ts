@@ -167,3 +167,87 @@ Object.assign(typeboxMap, {
   'STRING_FORMAT.pattern_slug': c(Type.String({pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'})),
   'STRING_FORMAT.pattern_hex': c(Type.String({pattern: '^[0-9a-fA-F]+$'})),
 });
+
+// ── REAL-WORLD DTOs ──
+const addressTB = Type.Object({
+  street: Type.String(),
+  city: Type.String(),
+  state: Type.String(),
+  zip: Type.String(),
+  country: Type.String(),
+});
+const productTB = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.String(),
+  price: Type.Number(),
+  currency: Type.Union([Type.Literal('USD'), Type.Literal('EUR'), Type.Literal('GBP')]),
+  inStock: Type.Boolean(),
+  categories: Type.Array(Type.String()),
+  dimensions: Type.Optional(
+    Type.Object({width: Type.Number(), height: Type.Number(), depth: Type.Number()}),
+  ),
+});
+Object.assign(typeboxMap, {
+  'REALWORLD.user': c(
+    Type.Object({
+      id: Type.Number(),
+      email: Type.String(),
+      name: Type.String(),
+      age: Type.Optional(Type.Number()),
+      roles: Type.Array(Type.Union([Type.Literal('admin'), Type.Literal('editor'), Type.Literal('user')])),
+      active: Type.Boolean(),
+      createdAt: Type.String(),
+    }),
+  ),
+  'REALWORLD.order': c(
+    Type.Object({
+      id: Type.String(),
+      customer: Type.Object({id: Type.Number(), email: Type.String()}),
+      items: Type.Array(
+        Type.Object({sku: Type.String(), name: Type.String(), qty: Type.Number(), price: Type.Number()}),
+      ),
+      shipping: addressTB,
+      status: Type.Union([
+        Type.Literal('pending'),
+        Type.Literal('paid'),
+        Type.Literal('shipped'),
+        Type.Literal('delivered'),
+        Type.Literal('cancelled'),
+      ]),
+      total: Type.Number(),
+      note: Type.Optional(Type.String()),
+    }),
+  ),
+  'REALWORLD.blogPost': c(
+    Type.Object({
+      id: Type.Number(),
+      title: Type.String(),
+      slug: Type.String(),
+      body: Type.String(),
+      tags: Type.Array(Type.String()),
+      author: Type.Object({name: Type.String(), email: Type.String()}),
+      published: Type.Boolean(),
+      publishedAt: Type.Optional(Type.String()),
+      meta: Type.Object({views: Type.Number(), likes: Type.Number()}),
+    }),
+  ),
+  'REALWORLD.product': c(productTB),
+  'REALWORLD.productPage': c(
+    Type.Object({
+      data: Type.Array(productTB),
+      page: Type.Number(),
+      pageSize: Type.Number(),
+      total: Type.Number(),
+      hasMore: Type.Boolean(),
+    }),
+  ),
+  'REALWORLD.registrationForm': c(
+    Type.Object({
+      email: Type.String(),
+      password: Type.String(),
+      acceptedTerms: Type.Literal(true),
+      profile: Type.Object({firstName: Type.String(), lastName: Type.String(), age: Type.Optional(Type.Number())}),
+    }),
+  ),
+});
