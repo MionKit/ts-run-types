@@ -1,8 +1,7 @@
 ---
 seo:
-  title: mion - the definitive TypeScript framework for Full Stack APIs
-  description: mion is the definitive TypeScript framework for Full Stack APIs, built for exceptional developer experience.
-  image: https://mion.io/banners/mion-v2-website-banner.png
+  title: ts-run-types — TypeScript types that show up at runtime
+  description: Validation, JSON + binary serialization, mock data and reflection — generated straight from your TypeScript types. No schemas, no drift.
 pageClass: home-page
 ---
 
@@ -20,19 +19,15 @@ blur: 150px
 #header
   :::typed-title
   ---
-  leading: "Typescript Full Stack APIs"
+  leading: "We finally fixed"
   titles:
-    - 'At The Speed Of Light ⚡'
-    - 'Are Safer To Refactor'
-    - 'Are Developer Friendly'
-    - 'Are Not RestFull APIs'
-    - 'Are Serverless Ready'
-    - 'Are Made For SaaS'
-    - 'Are RPC like'
+    - 'TypeScript ⚡'
+    - 'the reflection gap'
+    - 'writing your types twice'
+    - 'your validation layer'
   ---
   #description
-  mion is the definitive TypeScript Framework **for Full Stack APIs**.   
-  It offers **The best Developer Experience** for building Single Page Apps.
+  TypeScript decided it's **"just a linter"** and erases your types. We respectfully **bolted the runtime back on** — validators, JSON + binary (de)serializers, mock data and reflection, generated straight from the types you already wrote.
   :::
 
 #links
@@ -40,7 +35,7 @@ blur: 150px
   ---
   color: primary
   size: xl
-  to: /introduction/about-mion
+  to: /introduction/what-is-ts-run-types
   icon: icon-park-outline:book-one
   class: btn-docs
   ---
@@ -52,10 +47,10 @@ blur: 150px
   color: neutral
   icon: simple-icons-github
   size: xl
-  to: https://github.com/MionKit/mion
+  to: https://github.com/mionkit/ts-run-types
   variant: outline
   ---
-  Give us Star
+  Give us a Star
   :::
 ::
 
@@ -65,186 +60,146 @@ class: home-features
 ---
 
 #title
-Mion Features
+Two ways to describe a shape. One source of truth.
 
 #root
-:::gradient-bg
----
-angle: 70
-opacity: 0.15
-top: 10rem
-blur: 140px
----
-:::
-
-#body
-  :::card-group
+  :::gradient-bg
   ---
-  class: sm:grid-cols-2 lg:grid-cols-3 home-code-cards
+  angle: 70
+  opacity: 0.15
+  top: 10rem
+  blur: 140px
   ---
-    ::::card
-    ---
-    class: sm:col-span-2 lg:col-span-1 home-card
-    ---
-    ### RPC Like
-    [RPC architecture](/introduction/about-mion#rpc-like) for simpler and easier to consume APIs.
-    Just use remote methods as any other local async method.   
-    mion is focused on offering the best developer experience.
-
-    <br>
-  
-    [Fully validation adn serialization of params and results out of the box.](/server/validation)
-    ::::
-
-    ::::twoslash-code
-    ---
-    path: packages/examples/src/_homepage/home-server.ts
-    title: mion-router.ts
-    class: sm:col-span-2 lg:col-span-2
-    ---
-    ::::
-
-    ::::card
-    ---
-    class: sm:col-span-2 lg:col-span-1 home-card
-    ---
-    ### Fully Typed Client
-    [Fully typed client](/client/client-overview) that seamlessly bridges frontend and backend with static type checking, autocompletion, automatic validation and serialization.
-
-    <br>
-  
-    Lightweight and framework-agnostic — use it with React, Vue, Svelte, or any frontend framework.
-    ::::
-
-    ::::twoslash-code
-    ---
-    path: packages/examples/src/_homepage/home-client.ts
-    title: mion-client.ts
-    class: sm:col-span-2 lg:col-span-2
-    ---
-    ::::
-
-    ::::card
-    ---
-    class: sm:col-span-2 lg:col-span-1 home-card
-    ---
-    ### Routes Flows
-    [Execute multiple routes in a single HTTP request](/client/client-flow). Batch API calls together, and Orchestrate router logic from the client.
-
-    <br>
-
-    ::note{class="text-sm"}
-    [GraphQL-like data composition]{.text-highlighted} with the simplicity of RPC — resolve relationships in a single request using `serverMapFrom`.
-    ::
-    ::::
-
-    ::::twoslash-code
-    ---
-    path: packages/examples/src/_homepage/home-mapFrom.ts
-    title: mion-routesFlow.ts
-    class: sm:col-span-2 lg:col-span-2
-    ---
-    ::::
-
-    ::::card
-    ---
-    class: sm:col-span-2 lg:col-span-1
-    ---
-    ### RunTypes <sup>©</sup>
-    mion use [RunTypes](/run-types/overview) behinds the scene to generate JIT-compiled validation and serialization functions directly from TypeScript types.
-    RunTypes supports advanced [type formats](/run-types/type-formats) and can be used as a standalone library.
-    
-    <br>
-    
-    [No schemas libraries needed — Typescript is the single source of truth.]{.text-highlighted}
-    ::::
-
-    ::::twoslash-code
-    ---
-    path: packages/examples/src/_homepage/home-run-types.ts
-    title: mion-run-types.ts
-    class: sm:col-span-2 lg:col-span-2
-    ---
-    ::::
-
-    ::::card
-    ---
-    class: sm:col-span-2 lg:col-span-1 home-card
-    ---
-    ### Drizzle ORM
-    Auto-generate [Drizzle ORM](./drizzle-orm/drizzle-overview) table schemas directly from types using reflection.   
-    [Simply extends your types with SQL/Drizzle specific configuration.]{.text-highlighted}   
-    <br>
-    [Keep DB and Validation/Serialization logic separated.]{.text-highlighted}
-    ::::
-
-    ::::twoslash-code
-    ---
-    path: packages/examples/src/_homepage/home-drizzle.ts
-    title: mion-drizzle.ts
-    class: sm:col-span-2 lg:col-span-2
-    ---
-    ::::
-
-    ::::card
-    ---
-    to: /server/serialization#binary-serialization-in-detail
-    class: sm:col-span-2 lg:col-span-1
-    ---
-    ### Binary Serialization 🚀
-    [Our binary protocol is designed to support al Typescript features: unions, optional props, rest params, circular types and any type you can think about!]{.text-highlighted}
-    
-    Achieve smaller payloads and faster data transfer with automatic binary serialization for Dates, BigInts, Maps, Sets, and complex nested types.
-    ::::
-
-    ::::card
-    ---
-    class: sm:col-span-2 lg:col-span-2 text-center
-    ---
-    ### Write Once Run Everywhere
-    ![Platforms](/platforms.png){.mx-auto}
-    Run mion APIs in [Node.js](/platforms/node-js), [Bun](/platforms/bun) or Serverless platforms like [Aws Lambda](/platforms/aws-lambda), [Google Cloud Functions](/platforms/google-cloud-functions), [Cloudflare Workers](/platforms/cloudflare) and [Vercel](/platforms/vercel).
-    ::::
   :::
 
-  ## Seamless Integration
+#body
+  Write a plain TypeScript type (fastest, zero ceremony) **or** reach for the `RT.*` schema builders if you like the Zod / TypeBox feel. Both compile to the exact same validator — pick whichever you fancy, mix them in the same file.
 
-  ::::card
-  ---
-  class: sm:col-span-2 lg:col-span-3 text-center
-  ---
-  Most modern stacks are tools glued together — validation, routing, serialization, client generation — all wired manually. mion replaces that with a single integrated system, reducing boilerplate, inconsistencies, and maintenance overhead.
-  <br>
-  ![Seamless Integration](/tools.png){.mx-auto}
-  ::::
+  :::code-group
+  <code-import path="packages/examples/src/_homepage/define-type.ts" lang="ts [Pure type]" />
+  <code-import path="packages/examples/src/_homepage/define-schema.ts" lang="ts [Schema]" />
+  :::
+::
 
-  ## Solid Performance
+::u-page-section
+#title
+One object. Every function.
 
-  ::::card
+#body
+  Define a real type once, then ask for whatever you need — a validator, an error reporter, JSON that round-trips `Date`s, a compact binary codec, or believable mock data. No reflection at runtime: each one is a specialized function generated at build time.
+
+  Here's the type everything below is generated from:
+
+  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts" commentStart="// start-type" commentEnd="// end-type" />
+
+  :::code-group
+  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [validate]" commentStart="// start-validate" commentEnd="// end-validate" />
+  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [json]" commentStart="// start-json" commentEnd="// end-json" />
+  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [binary]" commentStart="// start-binary" commentEnd="// end-binary" />
+  <code-import path="packages/examples/src/_homepage/showcase.ts" lang="ts [mock]" commentStart="// start-mock" commentEnd="// end-mock" />
+  :::
+::
+
+::u-page-section
+#title
+The reflection TypeScript refused to ship
+
+#body
+  Get a stable id for any type, infer it from a value, or wrap ts-run-types into your own helpers with a single marker — `InjectRunTypeId<T>`. The build fills it in at every call site.
+
+  <code-import path="packages/examples/src/_homepage/reflection.ts" lang="ts" />
+::
+
+::u-page-section
+#title
+The whole toolbelt, in one box
+
+#body
+  Stop gluing five libraries together. ts-run-types shares a single type graph across everything it generates — so the validator and the serializer always agree on what your type means.
+
+  :::card-group
   ---
-  class: sm:col-span-2 lg:col-span-1 text-center
+  class: sm:grid-cols-2 lg:grid-cols-3
   ---
-  
-  :::::stylish-list
+    ::::card
+    ---
+    title: Validation
+    icon: i-lucide-shield-check
+    ---
+    `createValidate` for fast yes/no checks, `createGetValidationErrors` for detailed reports.
+    ::::
+
+    ::::card
+    ---
+    title: JSON that round-trips
+    icon: i-lucide-braces
+    ---
+    `Date`, `BigInt`, `Map`, `Set` survive the trip. Three strategies: clone, mutate, direct.
+    ::::
+
+    ::::card
+    ---
+    title: Binary codec
+    icon: i-lucide-binary
+    ---
+    `createBinaryEncoder` / `createBinaryDecoder` for compact, fast payloads.
+    ::::
+
+    ::::card
+    ---
+    title: Mock data
+    icon: i-lucide-dices
+    ---
+    `createMockType` invents valid, type-shaped data for your tests and fixtures.
+    ::::
+
+    ::::card
+    ---
+    title: Reflection
+    icon: i-lucide-scan-text
+    ---
+    `getRunTypeId` / `reflectRunTypeId`, plus function-signature reflection.
+    ::::
+
+    ::::card
+    ---
+    title: Type formats
+    icon: i-lucide-mail-check
+    ---
+    `email`, `uuidv4`, `ipv4`, `int32`, `positive`… baked straight into your types.
+    ::::
+  :::
+::
+
+::u-page-section
+#title
+Tree-shaken to the bone
+
+#body
+  You only ship the functions you actually call. Caches are demand-driven and every entry is its own module, so a file that only reflects an id ships zero validation code.
+
+  :::stylish-list
   ---
   type: check
   ---
-  - [RPC-style routing]{.text-highlighted} - No URL parsing or regex matching, just direct in-memory Map lookup
-  - [JIT-compiled validation/serialization]{.text-highlighted} - RunTypes generates optimized functions at startup
-  - [Fast cold starts]{.text-highlighted} - Load routes in demand, no need to load all routes and jit functions at startup
-  - [Lightweight architecture]{.text-highlighted} - Simple request/response handling
-  :::::
-
-  ::::div{class="lg:col-span-2"}
-  #### [Benchmarks (Req/S)](/benchmarks/heavy-validation)
-  :bench-chart{id='update-requests'}
-  ::::
-  ::::
+  - [Demand-driven caches]{.text-highlighted} — a family's cache holds only the types its own call sites request.
+  - [Per-call-site code-splitting]{.text-highlighted} — every cache entry is its own module, so bundlers split and tree-shake natively.
+  - [Zero runtime dependencies]{.text-highlighted} — the Vite plugin adds nothing to your runtime `node_modules`.
+  - [Build-time, not run-time]{.text-highlighted} — no schema objects to construct, no reflection cost when your app runs.
+  :::
 ::
 
+::u-page-section
+#title
+How does it stack up?
 
-
+#body
+  :::card
+  ---
+  to: /reference/comparison
+  ---
+  ts-run-types is the rare library that does **both** type-first *and* schema-first — and adds JSON, binary, mocks and reflection on top. See the honest side-by-side with **Zod, Typia, Valibot, ArkType, TypeBox and AJV**.
+  :::
+::
 
 [&nbsp;]{style="padding-bottom: 6rem;"}
-
-<!-- code-import-timestamp 1772230165065 -->
