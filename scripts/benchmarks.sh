@@ -253,6 +253,11 @@ env_args() {
   printf -- '-e\nBENCH_RESULTS_DIR=/app/results\n'
   [ -n "${BENCH_NO_TIMING:-}" ] && printf -- '-e\nBENCH_NO_TIMING=%s\n' "$BENCH_NO_TIMING"
   [ -n "${BENCH_TIME_MS:-}" ]   && printf -- '-e\nBENCH_TIME_MS=%s\n' "$BENCH_TIME_MS"
+  # Inspection knobs: BENCH_CASE=<substr> restricts BOTH the runtime bench and
+  # typecost to matching cases (prints to console, leaves results JSON untouched);
+  # BENCH_DUMP=<exact.key> prints the typecost probe sources for one case.
+  [ -n "${BENCH_CASE:-}" ] && printf -- '-e\nBENCH_CASE=%s\n' "$BENCH_CASE"
+  [ -n "${BENCH_DUMP:-}" ] && printf -- '-e\nBENCH_DUMP=%s\n' "$BENCH_DUMP"
   return 0
 }
 
@@ -294,9 +299,12 @@ publish_docdata() {
 
 cmd_bench() {
   ensure_prereqs
-  mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true
+  # BENCH_CASE inspection run: each competitor prints its matched case(s) and
+  # leaves the canonical results JSON untouched, so skip the wipe/aggregate/publish.
+  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR"/*.json 2>/dev/null || true; }
   local competitor
   for competitor in $(competitor_list); do build_and_run_one "$competitor"; done
+  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
   echo "──────── aggregate ────────"
   run_in_container node aggregate.mjs
   publish_docdata
@@ -305,8 +313,9 @@ cmd_bench() {
 cmd_bench_one() {
   [ -n "${1:-}" ] || die "usage: bench-one <competitor> (ts-go-run-types|zod|typebox|ajv|typia)"
   ensure_prereqs
-  mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR/$1.json" 2>/dev/null || true
+  [ -z "${BENCH_CASE:-}" ] && { mkdir -p "$RESULTS_DIR"; rm -f "$RESULTS_DIR/$1.json" 2>/dev/null || true; }
   build_and_run_one "$1"
+  [ -n "${BENCH_CASE:-}" ] && { echo "==> BENCH_CASE='$BENCH_CASE': per-case console output above; results JSON, aggregate and docdata left untouched."; return 0; }
   echo "──────── aggregate ────────"
   run_in_container node aggregate.mjs
   publish_docdata
