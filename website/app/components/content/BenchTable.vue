@@ -22,6 +22,8 @@ interface BenchSection {
 interface BenchIndex {
   bench: string;
   label: string;
+  unit?: 'ops' | 'count';
+  metricLabel?: string;
   competitors: string[];
   sections: BenchSection[];
 }
@@ -76,19 +78,21 @@ async function activate(key: string) {
   }
 }
 
-/** Compact ops/sec — 1.2M/s, 34k/s, 980/s. */
-function formatOps(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M/s`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}k/s`;
-  return `${Math.round(value)}/s`;
+/** Compact value — ops/sec (1.2M/s) for runtime, or a bare count (1.2M) for the
+ *  typecost bench. */
+function formatValue(value: number, unit: BenchIndex['unit']): string {
+  const suffix = unit === 'count' ? '' : '/s';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M${suffix}`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}k${suffix}`;
+  return `${Math.round(value)}${suffix}`;
 }
 
 /** Cell text for a competitor on a case — number, em-dash, FAIL or n-a. */
-function cellText(result: CaseResult | undefined): string {
+function cellText(result: CaseResult | undefined, unit: BenchIndex['unit']): string {
   if (!result) return '—';
   if (result.status === 'fail') return 'FAIL';
   if (result.status === 'not-supported') return 'n-a';
-  if (typeof result.validateOpsSec === 'number') return formatOps(result.validateOpsSec);
+  if (typeof result.validateOpsSec === 'number') return formatValue(result.validateOpsSec, unit);
   return '—';
 }
 
@@ -113,6 +117,9 @@ function cellClass(result: CaseResult | undefined): string {
     </div>
 
     <template v-else-if="index">
+      <div v-if="index.metricLabel" class="bench-metric">
+        <span class="bench-prompt">#</span> {{ index.metricLabel }}
+      </div>
       <section v-for="section in index.sections" :key="section.key" class="bench-section">
         <header class="bench-caption">
           <span class="bench-prompt">&gt;</span> {{ section.label }}
@@ -146,7 +153,7 @@ function cellClass(result: CaseResult | undefined): string {
                     class="bench-cell bench-val"
                     :class="cellClass(kase.results[comp])"
                   >
-                    {{ cellText(kase.results[comp]) }}
+                    {{ cellText(kase.results[comp], index.unit) }}
                   </td>
                 </tr>
 
@@ -196,6 +203,12 @@ function cellClass(result: CaseResult | undefined): string {
 .bench-prompt {
   color: var(--ui-primary, #79af43);
   user-select: none;
+}
+
+.bench-metric {
+  margin: 0 0 0.6rem;
+  font-size: 0.74rem;
+  color: var(--ui-text-muted, #9aa0a6);
 }
 
 .bench-note {

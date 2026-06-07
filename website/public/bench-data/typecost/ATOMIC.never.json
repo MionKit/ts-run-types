@@ -1,0 +1,1 @@
+{"competitors":[{"name":"ts-run-types (type)","source":"{build: () => createValidate<never>(), buildErrors: () => noErrs(createGetValidationErrors<never>())}"},{"name":"ts-run-types (schema)","source":"() => createValidate(RT.never())"},{"name":"typia","source":"NOT_SUPPORTED"},{"name":"typebox","source":"c(Type.Never())"},{"name":"zod","source":"c(z.never())"}]}
