@@ -291,6 +291,7 @@ export const DATETIME = {
     title: 'Temporal.PlainMonthDay',
     isTypeNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',
     isType: () => createIsType<Temporal.PlainMonthDay>(),
+    isTypeSchema: () => createIsType(RT.temporal.plainMonthDay()),
     deserializeIsType: () => deserializeIsType<Temporal.PlainMonthDay>(),
     isTypeReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
@@ -301,6 +302,7 @@ export const DATETIME = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Temporal.PlainMonthDay>(),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.plainMonthDay()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.PlainMonthDay>(),
     getTypeErrorsReflect: () => {
       const v: Temporal.PlainMonthDay = T.PlainMonthDay.from('07-14');
@@ -326,6 +328,7 @@ export const DATETIME = {
     title: 'Temporal.Duration',
     isTypeNotes: 'Must be a Temporal.Duration instance (instanceof).',
     isType: () => createIsType<Temporal.Duration>(),
+    isTypeSchema: () => createIsType(RT.temporal.duration()),
     deserializeIsType: () => deserializeIsType<Temporal.Duration>(),
     isTypeReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');
@@ -336,6 +339,7 @@ export const DATETIME = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<Temporal.Duration>(),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.temporal.duration()),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<Temporal.Duration>(),
     getTypeErrorsReflect: () => {
       const v: Temporal.Duration = T.Duration.from('P1Y2M10DT2H30M');

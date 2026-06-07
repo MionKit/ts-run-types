@@ -2,16 +2,16 @@
 //
 // The body of each `assertions...` function below is a type-only test.
 // The functions are referenced (so esbuild does not tree-shake them) but
-// never invoked, so the bodies have no runtime effect. The `@ts-expect-error`
-// directives are the actual assertions — when a regression makes
-// `getRunTypeId<any>()` compile again, tsc errors with TS2578 "Unused
-// '@ts-expect-error' directive" on the line above the call.
+// never invoked, so the bodies have no runtime effect. Assertions are either
+// positive (must compile) or `@ts-expect-error` directives that pin a
+// type-level REJECTION — a regression that makes such a line compile again
+// surfaces as TS2578 "Unused '@ts-expect-error' directive".
 //
 // Why this shape: vitest's typecheck mode is global (would surface a
-// dozen unrelated preexisting type errors); we want a focused regression
-// test for the RejectAny guard. The IDE catches regressions immediately;
-// CI catches them when anyone runs `tsc -p packages/ts-go-run-types/tsconfig.test.json --noEmit`
-// against the package (separate cleanup project).
+// dozen unrelated preexisting type errors); we want focused regression
+// tests for the builder/marker types. The IDE catches regressions
+// immediately; CI catches them when anyone runs
+// `tsc -p packages/ts-go-run-types/tsconfig.test.json --noEmit`.
 
 import {describe, expect, test} from 'vitest';
 import {getRunTypeId, reflectRunTypeId} from '../src/index.ts';
@@ -23,7 +23,7 @@ import type {FormatString, FormatNumber} from '../src/formats/index.ts';
 // flagged as dead code by lint. The body is never invoked.
 test('type-only assertions are referenced (no runtime work here)', () => {
   expect(typeof assertionsAcceptConcreteTypes).toBe('function');
-  expect(typeof assertionsRejectAny).toBe('function');
+  expect(typeof assertionsAcceptAny).toBe('function');
   expect(typeof assertionsAcceptUnknown).toBe('function');
   expect(typeof assertionsValueFirstDefine).toBe('function');
   expect(typeof assertionsComposers).toBe('function');
@@ -60,17 +60,16 @@ function assertionsAcceptConcreteTypes(): void {
   void _inferredUserId;
 }
 
-function assertionsRejectAny(): void {
-  // @ts-expect-error — `any` poisons the cache entry; RejectAny surfaces
-  // this at the call site instead of letting it slip through to a noop
-  // runtime entry.
-  getRunTypeId<any>('mock-id' as any);
-
+function assertionsAcceptAny(): void {
+  // `any` is intentionally PERMITTED — there is no type-level guard. Explicit
+  // `any` and value-inferred `any` (the common JSON.parse path) both resolve a
+  // normal id; the runtime fn is a noop validator / best-effort serializer that
+  // emits a build-time diagnostic. Both must compile WITHOUT a directive.
+  const _explicitAnyId = getRunTypeId<any>('mock-id' as any);
   const anyValue: any = JSON.parse('{}');
-  // @ts-expect-error — value-inferred `any` is the most common path to a
-  // useless cache entry. RejectAny forces the caller to annotate or cast
-  // to a concrete shape first.
-  reflectRunTypeId(anyValue, 'mock-id' as any);
+  const _inferredAnyId = reflectRunTypeId(anyValue, 'mock-id' as any);
+  void _explicitAnyId;
+  void _inferredAnyId;
 }
 
 function assertionsAcceptUnknown(): void {

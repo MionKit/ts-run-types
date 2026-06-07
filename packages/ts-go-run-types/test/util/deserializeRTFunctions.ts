@@ -37,7 +37,7 @@ import {
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
 import {buildFactoryFromCode, buildVariantKey} from '../../src/runtypes/rtUtils.ts';
-import type {AnyFn, RTCompiledFn} from '../../src/runtypes/types.ts';
+import type {AnyFn, CompiledTypeFn} from '../../src/runtypes/types.ts';
 
 /** Test-side mirror of the production `resolveRTEntry`. Rebuilds the
  *  per-id closure from `entry.code` on every call instead of reading
@@ -59,7 +59,7 @@ function resolveDeserializedEntry<F extends AnyFn>(
   }
   const utils = getRTUtils();
   const key = buildVariantKey(prefix, id, options);
-  const entry = utils.getRT(key) as RTCompiledFn | undefined;
+  const entry = utils.getRT(key) as CompiledTypeFn | undefined;
   if (!entry) {
     if (utils.hasRunType(id)) return identityFn;
     throw new Error(
@@ -105,11 +105,13 @@ const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 // signature the Go-side marker scanner reads to identify call sites. The
 // runtime function is a non-generic JS closure; <T> is type-checker-only.
 
-export const deserializeIsType = deserializeRTFunctionWithOptions<IsTypeFn>(
-  'deserializeIsType',
-  'it',
-  () => true
-) as unknown as <T>(val?: T, options?: IsTypeOptions, id?: InjectRunTypeId<T>) => IsTypeFn;
+export const deserializeIsType = deserializeRTFunctionWithOptions<IsTypeFn>('deserializeIsType', 'it', () => true) as unknown as <
+  T,
+>(
+  val?: T,
+  options?: IsTypeOptions,
+  id?: InjectRunTypeId<T>
+) => IsTypeFn;
 
 export const deserializeGetTypeErrors = deserializeRTFunctionWithOptions<GetTypeErrorsFn>(
   'deserializeGetTypeErrors',

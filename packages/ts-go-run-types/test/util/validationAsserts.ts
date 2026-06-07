@@ -16,6 +16,14 @@ import {expect} from 'vitest';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
 import type {FormatValidationCase} from '../suites/format-validation/types.ts';
 
+/** Assert-input shape: a {@link ValidationCase} whose schema-form thunks
+ *  (`isTypeSchema` / `getTypeErrorsSchema`) may be ABSENT. The suites enforce
+ *  those fields via `satisfies Record<string, ValidationCase>`; the asserts only
+ *  READ them (skipping when absent), so the minimal `ValueFirstCase` mirror used
+ *  by the value-first-define suite can still flow through the shared helpers. **/
+export type AssertableCase = Omit<ValidationCase, 'isTypeSchema' | 'getTypeErrorsSchema'> &
+  Partial<Pick<ValidationCase, 'isTypeSchema' | 'getTypeErrorsSchema'>>;
+
 /** Number of values to draw per mock case. Larger = better coverage;
  *  smaller = faster CI. 20 is enough to surface most random-pool drift
  *  bugs without bloating test runtimes. **/
@@ -50,7 +58,7 @@ export type VariantKey =
  *  `'not-supported'`, or `undefined`). 'getTypeErrors/format' points at the
  *  same static thunk as 'getTypeErrors/static' but is asserted with
  *  format-payload semantics by the format-validation suites. **/
-function thunkFor(c: ValidationCase, key: VariantKey): Thunk<unknown> | undefined {
+function thunkFor(c: AssertableCase, key: VariantKey): Thunk<unknown> | undefined {
   switch (key) {
     case 'isType/static':
       return c.isType;
@@ -89,7 +97,7 @@ function thunkFor(c: ValidationCase, key: VariantKey): Thunk<unknown> | undefine
  *   - undefined         → " (not implemented)"
  *  Both gap markers surface in the test tree without anyone having to read
  *  the test body. **/
-export function titleFor(c: ValidationCase, key: VariantKey): string {
+export function titleFor(c: AssertableCase, key: VariantKey): string {
   const value = thunkFor(c, key);
   const base = `${c.title} — ${key}`;
   if (value === 'not-supported') return `${base} (not supported)`;
@@ -102,7 +110,7 @@ export function titleFor(c: ValidationCase, key: VariantKey): string {
 // =========================================================================
 
 /** Static form: createIsType<T>(). **/
-export function assertIsTypeStatic(c: ValidationCase): void {
+export function assertIsTypeStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.isType);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -121,7 +129,7 @@ export function assertIsTypeStatic(c: ValidationCase): void {
 
 /** Reflect form: createIsType(value). T inferred from a runtime value's
  *  declared type; the value itself is discarded at runtime. **/
-export function assertIsTypeReflect(c: ValidationCase): void {
+export function assertIsTypeReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.isTypeReflect);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -140,7 +148,7 @@ export function assertIsTypeReflect(c: ValidationCase): void {
 
 /** Deserialize-static form: validator rebuilt from the serialized
  *  RTCompiledFnData.code body via `new Function('utl', code)(rtUtils)`. **/
-export function assertIsTypeDeserializeStatic(c: ValidationCase): void {
+export function assertIsTypeDeserializeStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.deserializeIsType);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -159,7 +167,7 @@ export function assertIsTypeDeserializeStatic(c: ValidationCase): void {
 
 /** Deserialize-reflect form: same as deserialize-static but T inferred
  *  from a runtime value's declared type. **/
-export function assertIsTypeDeserializeReflect(c: ValidationCase): void {
+export function assertIsTypeDeserializeReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.deserializeIsTypeReflect);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -180,7 +188,7 @@ export function assertIsTypeDeserializeReflect(c: ValidationCase): void {
  *  not restructured into per-variant it()s. Runs all 5 isType variants
  *  in sequence so the single it() in that suite exercises the same matrix
  *  the validation suite splits across five it()s. **/
-export function assertIsType(c: ValidationCase): void {
+export function assertIsType(c: AssertableCase): void {
   assertIsTypeStatic(c);
   assertIsTypeReflect(c);
   assertIsTypeDeserializeStatic(c);
@@ -191,7 +199,7 @@ export function assertIsType(c: ValidationCase): void {
 /** Schema form: createIsType(<value-first builder schema>). Proves the
  *  value-first authoring path resolves a validator that agrees with the
  *  type-first surface on the same samples. **/
-export function assertIsTypeSchema(c: ValidationCase): void {
+export function assertIsTypeSchema(c: AssertableCase): void {
   const factory = resolveThunk(c.isTypeSchema);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -213,7 +221,7 @@ export function assertIsTypeSchema(c: ValidationCase): void {
 // =========================================================================
 
 /** Static form: createGetTypeErrors<T>(). **/
-export function assertGetTypeErrorsStatic(c: ValidationCase): void {
+export function assertGetTypeErrorsStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.getTypeErrors);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -238,7 +246,7 @@ export function assertGetTypeErrorsStatic(c: ValidationCase): void {
 }
 
 /** Reflect form: createGetTypeErrors(value). **/
-export function assertGetTypeErrorsReflect(c: ValidationCase): void {
+export function assertGetTypeErrorsReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.getTypeErrorsReflect);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -263,7 +271,7 @@ export function assertGetTypeErrorsReflect(c: ValidationCase): void {
 }
 
 /** Deserialize-static form: validator rebuilt from RTCompiledFnData.code. **/
-export function assertGetTypeErrorsDeserializeStatic(c: ValidationCase): void {
+export function assertGetTypeErrorsDeserializeStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.deserializeGetTypeErrors);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -288,7 +296,7 @@ export function assertGetTypeErrorsDeserializeStatic(c: ValidationCase): void {
 }
 
 /** Deserialize-reflect form. **/
-export function assertGetTypeErrorsDeserializeReflect(c: ValidationCase): void {
+export function assertGetTypeErrorsDeserializeReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.deserializeGetTypeErrorsReflect);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -318,7 +326,7 @@ export function assertGetTypeErrorsDeserializeReflect(c: ValidationCase): void {
  *  bare type-first error doesn't — we therefore assert the CONTRACT
  *  (valid → no errors; invalid → at least one error) rather than deep-equality
  *  with the type-first `expected`, which the static pass above already pins. **/
-export function assertGetTypeErrorsSchema(c: ValidationCase): void {
+export function assertGetTypeErrorsSchema(c: AssertableCase): void {
   const factory = resolveThunk(c.getTypeErrorsSchema);
   if (!factory) return;
   if (c.factoryThrows) {
@@ -341,7 +349,7 @@ export function assertGetTypeErrorsSchema(c: ValidationCase): void {
 
 /** Drives one mock fn for MOCK_ITERATIONS iterations and asserts each
  *  generated value passes the case's static isType. **/
-function runMockPass(c: ValidationCase, mockFn: () => unknown, label: string): void {
+function runMockPass(c: AssertableCase, mockFn: () => unknown, label: string): void {
   // expectMode === 'skip' means we exercise the mock generator but can't
   // validate output — either because the kind has no isType semantic
   // (functions) or because the paired isType factory is alwaysThrow
@@ -368,7 +376,7 @@ function runMockPass(c: ValidationCase, mockFn: () => unknown, label: string): v
 }
 
 /** Static form: createMockType<T>(). **/
-export function assertMockTypeStatic(c: ValidationCase): void {
+export function assertMockTypeStatic(c: AssertableCase): void {
   const factory = resolveThunk(c.mockType);
   if (!factory) return;
   const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
@@ -381,7 +389,7 @@ export function assertMockTypeStatic(c: ValidationCase): void {
 }
 
 /** Reflect form: createMockType(value). **/
-export function assertMockTypeReflect(c: ValidationCase): void {
+export function assertMockTypeReflect(c: AssertableCase): void {
   const factory = resolveThunk(c.mockTypeReflect);
   if (!factory) return;
   const expectMode = c.factoryThrows ? 'skip' : (c.mockTypeExpect ?? 'value');
@@ -450,7 +458,7 @@ export function assertFormatGetTypeErrorsStatic(c: FormatValidationCase): void {
  *  leaf builder reflects the FORMAT of a type, so its error detail may carry
  *  metadata the bare type-first error doesn't — assert the contract, not a
  *  deep-equal against an expected-errors table (the validation suite pins those). **/
-export function assertGetTypeErrorsContract(c: ValidationCase): void {
+export function assertGetTypeErrorsContract(c: AssertableCase): void {
   const factory = resolveThunk(c.getTypeErrors);
   if (!factory) throw new Error(`case ${c.title}: missing getTypeErrors thunk`);
   const {valid, invalid} = c.getSamples();

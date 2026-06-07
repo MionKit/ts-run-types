@@ -761,6 +761,10 @@ export const ARRAY = {
       type CircularArray = CircularArray[];
       return createGetTypeErrors<CircularArray>();
     },
+    getTypeErrorsSchema: () => {
+      const ca = RT.circular((self) => RT.array(self));
+      return createGetTypeErrors(ca);
+    },
     deserializeGetTypeErrors: () => {
       type CircularArray = CircularArray[];
       return deserializeGetTypeErrors<CircularArray>();
@@ -845,6 +849,16 @@ export const ARRAY = {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       return createGetTypeErrors<ObjectType>();
     },
+    getTypeErrorsSchema: () => {
+      const ot = RT.circular((self) =>
+        RT.object({
+          a: RT.string(),
+          deep: RT.optional(RT.object({b: RT.string(), c: RT.number()})),
+          d: RT.optional(RT.array(self)),
+        })
+      );
+      return createGetTypeErrors(ot);
+    },
     deserializeGetTypeErrors: () => {
       type ObjectType = {a: string; deep?: {b: string; c: number}; d?: ObjectType[]};
       return deserializeGetTypeErrors<ObjectType>();
@@ -905,6 +919,9 @@ export const ARRAY = {
     isTypeNotes:
       'Arrays whose element type is non-serializable (`symbol[]`, `(() => any)[]`, …) cannot be validated: the factory is rendered as alwaysThrow and the first createXxx<symbol[]>() call throws. Use a different shape to carry symbol-like data.',
     isType: () => createIsType<symbol[]>(),
+    // Non-serializable array element (symbol) propagates to the root → alwaysThrow.
+    // `RT.array(RT.symbol())` resolves the same factory, so the schema thunk throws.
+    isTypeSchema: () => createIsType(RT.array(RT.symbol())),
     deserializeIsType: () => deserializeIsType<symbol[]>(),
     isTypeReflect: () => {
       const v: symbol[] = [];
@@ -915,6 +932,7 @@ export const ARRAY = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<symbol[]>(),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.array(RT.symbol())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<symbol[]>(),
     getTypeErrorsReflect: () => {
       const v: symbol[] = [];

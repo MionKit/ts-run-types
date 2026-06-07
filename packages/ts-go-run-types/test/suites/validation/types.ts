@@ -48,11 +48,12 @@ export interface ValidationCase {
   /** SCHEMA form: `() => createIsType(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
-   *  samples as `isType`. Present only on leaf-buildable cases. Set to
-   *  `'not-supported'` to mark a case whose schema variant CANNOT be authored
-   *  value-first (e.g. depends on an `IsTypeOptions` flag the builders can't
-   *  carry) — the assert logs once and the title shows `(not supported)`. **/
-  isTypeSchema?: Thunk<IsTypeFn>;
+   *  samples as `isType`. Required on every case: supply a thunk, or the
+   *  `'not-supported'` sentinel to mark a case whose schema variant CANNOT be
+   *  authored value-first (e.g. depends on an `IsTypeOptions` flag the builders
+   *  can't carry) — the assert then logs once and the title shows
+   *  `(not supported)`. **/
+  isTypeSchema: Thunk<IsTypeFn>;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `isType` but the validator returns `RunTypeError[]`
@@ -70,9 +71,10 @@ export interface ValidationCase {
   /** Reflect-form companion to `deserializeGetTypeErrors`. */
   deserializeGetTypeErrorsReflect?: Thunk<GetTypeErrorsFn>;
   /** SCHEMA form: `() => createGetTypeErrors(<value-first builder schema>)`.
-   *  Companion to `isTypeSchema` for the getTypeErrors family. Supports the
-   *  same `'not-supported'` sentinel. **/
-  getTypeErrorsSchema?: Thunk<GetTypeErrorsFn>;
+   *  Companion to `isTypeSchema` for the getTypeErrors family. Required on every
+   *  case; supports the same `'not-supported'` sentinel for a case whose schema
+   *  variant CANNOT be authored value-first. **/
+  getTypeErrorsSchema: Thunk<GetTypeErrorsFn>;
   /** Expected error arrays for invalid samples — index-parallel to
    *  `getSamples().invalid`. Outer array length must match
    *  `invalid.length`; entry i is the `RunTypeError[]` the validator

@@ -57,7 +57,7 @@ interface TemporalLike {
 }
 
 function temporal(): TemporalLike {
-  const t = (globalThis as {Temporal?: TemporalLike}).Temporal;
+  const t = (globalThis as unknown as {Temporal?: TemporalLike}).Temporal;
   if (!t) {
     throw new Error(
       '[ts-go-run-types] Temporal is not available in this runtime. ' +

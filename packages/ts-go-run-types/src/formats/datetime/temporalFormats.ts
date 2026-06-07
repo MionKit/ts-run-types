@@ -77,4 +77,10 @@ export interface TemporalBaseByFormatName {
   temporalPlainTime: Temporal.PlainTime;
   temporalPlainDateTime: Temporal.PlainDateTime;
   temporalPlainYearMonth: Temporal.PlainYearMonth;
+  // PlainMonthDay / Duration have no min/max ordering (see note above), so they
+  // appear ONLY here as base instance types — there is no `FormatTemporal*` brand
+  // and no `LeafType`/`TemporalFormatByTag` row for them. Their value-first
+  // builders are no-param-only and converge with the type-first raw-instance form.
+  temporalPlainMonthDay: Temporal.PlainMonthDay;
+  temporalDuration: Temporal.Duration;
 }

@@ -418,6 +418,18 @@ export const UNION = {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return createGetTypeErrors<UnionC>();
     },
+    getTypeErrorsSchema: () => {
+      const uc = RT.circular((self) =>
+        RT.union([
+          RT.date(),
+          RT.number(),
+          RT.string(),
+          RT.object({a: RT.optional(self), b: RT.optional(RT.string())}),
+          RT.array(self),
+        ])
+      );
+      return createGetTypeErrors(uc);
+    },
     deserializeGetTypeErrors: () => {
       type UnionC = Date | number | string | {a?: UnionC; b?: string} | UnionC[];
       return deserializeGetTypeErrors<UnionC>();
