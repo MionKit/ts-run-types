@@ -665,15 +665,20 @@ export const STRING_FORMAT = {
     isType: () => createIsType<Slug>(),
     // Value-first can't reference the OPAQUE `registerFormatPattern` result
     // (its source/flags erase to `string`), so the schema re-authors the same
-    // regex inline — same validation behaviour, distinct (inline) structural id.
+    // regex inline. The pattern's {source, flags} ARE part of the structural id,
+    // so `flags: ''` must be supplied explicitly to match the type-first form.
     isTypeSchema: () =>
       createIsType(
-        RT.string({pattern: {source: '^[a-z0-9-]+$', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'}})
+        RT.string({
+          pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'},
+        })
       ),
     getTypeErrors: () => createGetTypeErrors<Slug>(),
     getTypeErrorsSchema: () =>
       createGetTypeErrors(
-        RT.string({pattern: {source: '^[a-z0-9-]+$', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'}})
+        RT.string({
+          pattern: {source: '^[a-z0-9-]+$', flags: '', mockSamples: ['my-slug', 'abc', 'a-b-c'], message: 'must be a slug'},
+        })
       ),
     mockType: () => createMockType<Slug>(),
     getSamples: () => ({valid: ['my-slug', 'a-b-c'], invalid: ['Has Capitals', 'UPPER', 'has space', '']}),
