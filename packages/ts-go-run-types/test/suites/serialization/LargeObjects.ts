@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const LARGE_OBJECTS = {
@@ -321,6 +322,147 @@ export const LARGE_OBJECTS = {
       }
       return createBinaryDecoder<WideRecord>();
     },
+    // WideRecord — 30 mixed-type props incl. Date, bigint, and a nested meta object.
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.object({
+          id: RT.number(),
+          name: RT.string(),
+          description: RT.string(),
+          createdAt: RT.date(),
+          updatedAt: RT.date(),
+          isActive: RT.boolean(),
+          score: RT.number(),
+          rank: RT.number(),
+          tag1: RT.string(),
+          tag2: RT.string(),
+          tag3: RT.string(),
+          tag4: RT.string(),
+          tag5: RT.string(),
+          count1: RT.number(),
+          count2: RT.number(),
+          count3: RT.number(),
+          flag1: RT.boolean(),
+          flag2: RT.boolean(),
+          flag3: RT.boolean(),
+          big1: RT.bigint(),
+          big2: RT.bigint(),
+          alias: RT.string(),
+          email: RT.string(),
+          city: RT.string(),
+          country: RT.string(),
+          postal: RT.string(),
+          width: RT.number(),
+          height: RT.number(),
+          weight: RT.number(),
+          meta: RT.object({category: RT.string(), priority: RT.number(), lastSeen: RT.date()}),
+        })
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.object({
+          id: RT.number(),
+          name: RT.string(),
+          description: RT.string(),
+          createdAt: RT.date(),
+          updatedAt: RT.date(),
+          isActive: RT.boolean(),
+          score: RT.number(),
+          rank: RT.number(),
+          tag1: RT.string(),
+          tag2: RT.string(),
+          tag3: RT.string(),
+          tag4: RT.string(),
+          tag5: RT.string(),
+          count1: RT.number(),
+          count2: RT.number(),
+          count3: RT.number(),
+          flag1: RT.boolean(),
+          flag2: RT.boolean(),
+          flag3: RT.boolean(),
+          big1: RT.bigint(),
+          big2: RT.bigint(),
+          alias: RT.string(),
+          email: RT.string(),
+          city: RT.string(),
+          country: RT.string(),
+          postal: RT.string(),
+          width: RT.number(),
+          height: RT.number(),
+          weight: RT.number(),
+          meta: RT.object({category: RT.string(), priority: RT.number(), lastSeen: RT.date()}),
+        })
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.object({
+          id: RT.number(),
+          name: RT.string(),
+          description: RT.string(),
+          createdAt: RT.date(),
+          updatedAt: RT.date(),
+          isActive: RT.boolean(),
+          score: RT.number(),
+          rank: RT.number(),
+          tag1: RT.string(),
+          tag2: RT.string(),
+          tag3: RT.string(),
+          tag4: RT.string(),
+          tag5: RT.string(),
+          count1: RT.number(),
+          count2: RT.number(),
+          count3: RT.number(),
+          flag1: RT.boolean(),
+          flag2: RT.boolean(),
+          flag3: RT.boolean(),
+          big1: RT.bigint(),
+          big2: RT.bigint(),
+          alias: RT.string(),
+          email: RT.string(),
+          city: RT.string(),
+          country: RT.string(),
+          postal: RT.string(),
+          width: RT.number(),
+          height: RT.number(),
+          weight: RT.number(),
+          meta: RT.object({category: RT.string(), priority: RT.number(), lastSeen: RT.date()}),
+        })
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.object({
+          id: RT.number(),
+          name: RT.string(),
+          description: RT.string(),
+          createdAt: RT.date(),
+          updatedAt: RT.date(),
+          isActive: RT.boolean(),
+          score: RT.number(),
+          rank: RT.number(),
+          tag1: RT.string(),
+          tag2: RT.string(),
+          tag3: RT.string(),
+          tag4: RT.string(),
+          tag5: RT.string(),
+          count1: RT.number(),
+          count2: RT.number(),
+          count3: RT.number(),
+          flag1: RT.boolean(),
+          flag2: RT.boolean(),
+          flag3: RT.boolean(),
+          big1: RT.bigint(),
+          big2: RT.bigint(),
+          alias: RT.string(),
+          email: RT.string(),
+          city: RT.string(),
+          country: RT.string(),
+          postal: RT.string(),
+          width: RT.number(),
+          height: RT.number(),
+          weight: RT.number(),
+          meta: RT.object({category: RT.string(), priority: RT.number(), lastSeen: RT.date()}),
+        })
+      ),
     getTestData: () => {
       interface WideRecord {
         id: number;
@@ -835,6 +977,207 @@ export const LARGE_OBJECTS = {
       type LargeObjectUnion = ProductEvent | UserEvent | OrderEvent | PaymentEvent | SessionEvent;
       return createBinaryDecoder<LargeObjectUnion>();
     },
+    // Five-member discriminated union, each arm keyed by its `kind` literal.
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+          RT.object({
+            kind: RT.literal('order'),
+            id: RT.string(),
+            total: RT.number(),
+            itemCount: RT.number(),
+            placedAt: RT.date(),
+            shipped: RT.boolean(),
+            customerId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('payment'),
+            id: RT.string(),
+            amount: RT.number(),
+            currency: RT.string(),
+            processedAt: RT.date(),
+            refunded: RT.boolean(),
+            txId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('session'),
+            id: RT.string(),
+            userId: RT.string(),
+            startedAt: RT.date(),
+            durationMs: RT.number(),
+            ipHash: RT.string(),
+            device: RT.string(),
+          }),
+        ])
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+          RT.object({
+            kind: RT.literal('order'),
+            id: RT.string(),
+            total: RT.number(),
+            itemCount: RT.number(),
+            placedAt: RT.date(),
+            shipped: RT.boolean(),
+            customerId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('payment'),
+            id: RT.string(),
+            amount: RT.number(),
+            currency: RT.string(),
+            processedAt: RT.date(),
+            refunded: RT.boolean(),
+            txId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('session'),
+            id: RT.string(),
+            userId: RT.string(),
+            startedAt: RT.date(),
+            durationMs: RT.number(),
+            ipHash: RT.string(),
+            device: RT.string(),
+          }),
+        ])
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+          RT.object({
+            kind: RT.literal('order'),
+            id: RT.string(),
+            total: RT.number(),
+            itemCount: RT.number(),
+            placedAt: RT.date(),
+            shipped: RT.boolean(),
+            customerId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('payment'),
+            id: RT.string(),
+            amount: RT.number(),
+            currency: RT.string(),
+            processedAt: RT.date(),
+            refunded: RT.boolean(),
+            txId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('session'),
+            id: RT.string(),
+            userId: RT.string(),
+            startedAt: RT.date(),
+            durationMs: RT.number(),
+            ipHash: RT.string(),
+            device: RT.string(),
+          }),
+        ])
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+          RT.object({
+            kind: RT.literal('order'),
+            id: RT.string(),
+            total: RT.number(),
+            itemCount: RT.number(),
+            placedAt: RT.date(),
+            shipped: RT.boolean(),
+            customerId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('payment'),
+            id: RT.string(),
+            amount: RT.number(),
+            currency: RT.string(),
+            processedAt: RT.date(),
+            refunded: RT.boolean(),
+            txId: RT.string(),
+          }),
+          RT.object({
+            kind: RT.literal('session'),
+            id: RT.string(),
+            userId: RT.string(),
+            startedAt: RT.date(),
+            durationMs: RT.number(),
+            ipHash: RT.string(),
+            device: RT.string(),
+          }),
+        ])
+      ),
     getTestData: () => {
       interface ProductEvent {
         kind: 'product';
@@ -1062,6 +1405,107 @@ export const LARGE_OBJECTS = {
       type MixedLargeUnion = string | number | ProductEvent | UserEvent;
       return createBinaryDecoder<MixedLargeUnion>();
     },
+    // Mixed union — two atomic members alongside two large object arms.
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.union([
+          RT.string(),
+          RT.number(),
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+        ])
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.union([
+          RT.string(),
+          RT.number(),
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+        ])
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.union([
+          RT.string(),
+          RT.number(),
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+        ])
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.union([
+          RT.string(),
+          RT.number(),
+          RT.object({
+            kind: RT.literal('product'),
+            id: RT.string(),
+            sku: RT.string(),
+            price: RT.number(),
+            available: RT.boolean(),
+            releasedAt: RT.date(),
+            stock: RT.number(),
+          }),
+          RT.object({
+            kind: RT.literal('user'),
+            id: RT.string(),
+            username: RT.string(),
+            email: RT.string(),
+            signedUpAt: RT.date(),
+            loginCount: RT.number(),
+            isPremium: RT.boolean(),
+          }),
+        ])
+      ),
     getTestData: () => {
       interface ProductEvent {
         kind: 'product';
@@ -1342,6 +1786,115 @@ export const LARGE_OBJECTS = {
       }
       return createBinaryDecoder<DeepNestedLevel1>();
     },
+    // Five levels of nested objects, each level holding an array of the next.
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.object({
+          root: RT.string(),
+          categories: RT.array(
+            RT.object({
+              category: RT.string(),
+              groups: RT.array(
+                RT.object({
+                  group: RT.string(),
+                  branches: RT.array(
+                    RT.object({
+                      label: RT.string(),
+                      children: RT.array(
+                        RT.object({
+                          name: RT.string(),
+                          leaves: RT.array(RT.object({id: RT.number(), value: RT.string(), when: RT.date()})),
+                        })
+                      ),
+                    })
+                  ),
+                })
+              ),
+            })
+          ),
+        })
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.object({
+          root: RT.string(),
+          categories: RT.array(
+            RT.object({
+              category: RT.string(),
+              groups: RT.array(
+                RT.object({
+                  group: RT.string(),
+                  branches: RT.array(
+                    RT.object({
+                      label: RT.string(),
+                      children: RT.array(
+                        RT.object({
+                          name: RT.string(),
+                          leaves: RT.array(RT.object({id: RT.number(), value: RT.string(), when: RT.date()})),
+                        })
+                      ),
+                    })
+                  ),
+                })
+              ),
+            })
+          ),
+        })
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.object({
+          root: RT.string(),
+          categories: RT.array(
+            RT.object({
+              category: RT.string(),
+              groups: RT.array(
+                RT.object({
+                  group: RT.string(),
+                  branches: RT.array(
+                    RT.object({
+                      label: RT.string(),
+                      children: RT.array(
+                        RT.object({
+                          name: RT.string(),
+                          leaves: RT.array(RT.object({id: RT.number(), value: RT.string(), when: RT.date()})),
+                        })
+                      ),
+                    })
+                  ),
+                })
+              ),
+            })
+          ),
+        })
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.object({
+          root: RT.string(),
+          categories: RT.array(
+            RT.object({
+              category: RT.string(),
+              groups: RT.array(
+                RT.object({
+                  group: RT.string(),
+                  branches: RT.array(
+                    RT.object({
+                      label: RT.string(),
+                      children: RT.array(
+                        RT.object({
+                          name: RT.string(),
+                          leaves: RT.array(RT.object({id: RT.number(), value: RT.string(), when: RT.date()})),
+                        })
+                      ),
+                    })
+                  ),
+                })
+              ),
+            })
+          ),
+        })
+      ),
     getTestData: () => {
       interface DeepNestedLeaf {
         id: number;
@@ -1659,6 +2212,136 @@ export const LARGE_OBJECTS = {
       type LargeClassUnion = LargeClassA | LargeClassB | LargeClassC;
       return createBinaryDecoder<LargeClassUnion>();
     },
+    // Three-member class union modelled by its serialisable data shape
+    // (class instances decode to plain objects), keyed by the `kind` literal.
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('classA'),
+            alpha: RT.string(),
+            count: RT.number(),
+            flag: RT.boolean(),
+            when: RT.date(),
+            total: RT.bigint(),
+            tags: RT.array(RT.string()),
+          }),
+          RT.object({
+            kind: RT.literal('classB'),
+            beta: RT.string(),
+            ratio: RT.number(),
+            enabled: RT.boolean(),
+            releasedAt: RT.date(),
+            score: RT.bigint(),
+            metadata: RT.object({label: RT.string(), weight: RT.number()}),
+          }),
+          RT.object({
+            kind: RT.literal('classC'),
+            gamma: RT.string(),
+            amount: RT.number(),
+            paid: RT.boolean(),
+            processedAt: RT.date(),
+            txId: RT.string(),
+            steps: RT.array(RT.number()),
+          }),
+        ])
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('classA'),
+            alpha: RT.string(),
+            count: RT.number(),
+            flag: RT.boolean(),
+            when: RT.date(),
+            total: RT.bigint(),
+            tags: RT.array(RT.string()),
+          }),
+          RT.object({
+            kind: RT.literal('classB'),
+            beta: RT.string(),
+            ratio: RT.number(),
+            enabled: RT.boolean(),
+            releasedAt: RT.date(),
+            score: RT.bigint(),
+            metadata: RT.object({label: RT.string(), weight: RT.number()}),
+          }),
+          RT.object({
+            kind: RT.literal('classC'),
+            gamma: RT.string(),
+            amount: RT.number(),
+            paid: RT.boolean(),
+            processedAt: RT.date(),
+            txId: RT.string(),
+            steps: RT.array(RT.number()),
+          }),
+        ])
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('classA'),
+            alpha: RT.string(),
+            count: RT.number(),
+            flag: RT.boolean(),
+            when: RT.date(),
+            total: RT.bigint(),
+            tags: RT.array(RT.string()),
+          }),
+          RT.object({
+            kind: RT.literal('classB'),
+            beta: RT.string(),
+            ratio: RT.number(),
+            enabled: RT.boolean(),
+            releasedAt: RT.date(),
+            score: RT.bigint(),
+            metadata: RT.object({label: RT.string(), weight: RT.number()}),
+          }),
+          RT.object({
+            kind: RT.literal('classC'),
+            gamma: RT.string(),
+            amount: RT.number(),
+            paid: RT.boolean(),
+            processedAt: RT.date(),
+            txId: RT.string(),
+            steps: RT.array(RT.number()),
+          }),
+        ])
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.union([
+          RT.object({
+            kind: RT.literal('classA'),
+            alpha: RT.string(),
+            count: RT.number(),
+            flag: RT.boolean(),
+            when: RT.date(),
+            total: RT.bigint(),
+            tags: RT.array(RT.string()),
+          }),
+          RT.object({
+            kind: RT.literal('classB'),
+            beta: RT.string(),
+            ratio: RT.number(),
+            enabled: RT.boolean(),
+            releasedAt: RT.date(),
+            score: RT.bigint(),
+            metadata: RT.object({label: RT.string(), weight: RT.number()}),
+          }),
+          RT.object({
+            kind: RT.literal('classC'),
+            gamma: RT.string(),
+            amount: RT.number(),
+            paid: RT.boolean(),
+            processedAt: RT.date(),
+            txId: RT.string(),
+            steps: RT.array(RT.number()),
+          }),
+        ])
+      ),
     getTestData: () => {
       class LargeClassA {
         kind!: 'classA';

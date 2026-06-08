@@ -285,8 +285,6 @@ export const DATETIME = {
     ],
   },
 
-  // PlainMonthDay and Duration have no value-first builder (no min/max ordering),
-  // so the schema variants are omitted (rendered "(not implemented)").
   plainMonthDay: {
     title: 'Temporal.PlainMonthDay',
     isTypeNotes: 'Must be a Temporal.PlainMonthDay instance (instanceof).',

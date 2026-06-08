@@ -7,8 +7,15 @@
 // subgroup test files declare one `it()` per pairing.
 
 import {expect} from 'vitest';
-import type {SerializationCase} from '../suites/serialization/types.ts';
+import type {SchemaThunk, SerializationCase} from '../suites/serialization/types.ts';
 import {deepCloneForRoundTrip, isTemporalInstance, normalizeForComparison} from './equalsHelpers.ts';
+
+/** Resolve a schema thunk to its factory, or `undefined` when omitted /
+ *  'not-supported' (the variant then no-ops, like the validation suite). **/
+function resolveSchemaThunk<F>(thunk: SchemaThunk<F> | undefined): (() => F) | undefined {
+  if (!thunk || thunk === 'not-supported') return undefined;
+  return thunk;
+}
 
 function safeStructuredClone(input: unknown): {ok: true; snapshot: unknown} | {ok: false} {
   // `structuredClone` doesn't throw on a Temporal instance but produces a
@@ -273,5 +280,87 @@ export function assertBinaryRoundTrip(c: SerializationCase): void {
     const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
     const {actual, expected} = normalizeForComparison(restored, expectedReference);
     expect(actual, `${c.title}: values[${i}] binary round-trip should match expected reference`).toEqual(expected);
+  });
+}
+
+// ---------- value-first SCHEMA round-trips -------------------------
+// The schema thunks (`schemaEncoder` / `schemaDecoder` / `schemaBinaryEncoder`
+// / `schemaBinaryDecoder`) build their `RT.*` model inline and feed it through
+// the factory's value-first overload. These two helpers pair them for a
+// representative round-trip — proving the value-first path resolves a working
+// factory — without re-testing every strategy (those are covered type-first).
+
+/** Value-first JSON round-trip — pairs `schemaEncoder` (default stripClone) +
+ *  `schemaDecoder` (default strip) and asserts a deep-equal round-trip on the
+ *  case's samples. No-op when either thunk is omitted or 'not-supported'. **/
+export function assertSchemaJsonRoundTrip(c: SerializationCase): void {
+  const encThunk = resolveSchemaThunk(c.schemaEncoder);
+  const decThunk = resolveSchemaThunk(c.schemaDecoder);
+  if (!encThunk || !decThunk) return;
+
+  if (c.factoryThrows) {
+    expect(() => encThunk(), `${c.title} [schema/json]: schemaEncoder factory must throw`).toThrow();
+    expect(() => decThunk(), `${c.title} [schema/json]: schemaDecoder factory must throw`).toThrow();
+    return;
+  }
+
+  const bestEffort = c.roundTripBestEffort ?? false;
+  const encode = encThunk();
+  const decode = decThunk();
+  // stripClone strips extras at encode, so the decoded shape matches the
+  // cleaned stringify test data (same resolution as the stripClone pairings).
+  const {values, deserializedValues} = (c.getTestDataForStringify ?? c.getTestData)();
+
+  values.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    let serialized: string | undefined;
+    try {
+      serialized = encode(input);
+    } catch (e) {
+      if (bestEffort) return;
+      throw e;
+    }
+    if (serialized === undefined || bestEffort) return;
+    const restored = decode(serialized);
+    const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
+    const {actual, expected} = normalizeForComparison(restored, expectedReference);
+    expect(actual, `${c.title} [schema/json]: values[${i}] round-trip should match expected reference`).toEqual(expected);
+  });
+}
+
+/** Value-first binary round-trip — pairs `schemaBinaryEncoder` +
+ *  `schemaBinaryDecoder`. No-op when either thunk is omitted or 'not-supported'. **/
+export function assertSchemaBinaryRoundTrip(c: SerializationCase): void {
+  const encThunk = resolveSchemaThunk(c.schemaBinaryEncoder);
+  const decThunk = resolveSchemaThunk(c.schemaBinaryDecoder);
+  if (!encThunk || !decThunk) return;
+
+  const factoryThrows = c.binaryFactoryThrows ?? c.factoryThrows ?? false;
+  if (factoryThrows) {
+    expect(() => encThunk(), `${c.title} [schema/binary]: schemaBinaryEncoder factory must throw`).toThrow();
+    expect(() => decThunk(), `${c.title} [schema/binary]: schemaBinaryDecoder factory must throw`).toThrow();
+    return;
+  }
+
+  const bestEffort = c.roundTripBestEffort ?? false;
+  const encode = encThunk();
+  const decode = decThunk();
+  const testDataThunk = c.getBinaryTestData ?? c.getTestDataForStringify ?? c.getTestData;
+  const {values, deserializedValues} = testDataThunk();
+
+  values.forEach((reference, i) => {
+    const input = deepCloneForRoundTrip(reference);
+    let buf;
+    try {
+      buf = encode(input);
+    } catch (e) {
+      if (bestEffort) return;
+      throw e;
+    }
+    if (bestEffort) return;
+    const restored = decode(buf);
+    const expectedReference = deserializedValues !== undefined ? deserializedValues[i] : reference;
+    const {actual, expected} = normalizeForComparison(restored, expectedReference);
+    expect(actual, `${c.title} [schema/binary]: values[${i}] round-trip should match expected reference`).toEqual(expected);
   });
 }

@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const ARRAYS = {
@@ -13,6 +14,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<string[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[]>(),
     binaryDecoder: () => createBinaryDecoder<string[]>(),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.string())),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.string())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.string())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.string())),
     getTestData: () => ({values: [['hello', 'world'], []]}),
   },
   array_date: {
@@ -26,6 +31,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<Date[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Date[]>(),
     binaryDecoder: () => createBinaryDecoder<Date[]>(),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.date())),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.date())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.date())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.date())),
     getTestData: () => ({
       values: [[new Date('2000-08-06T02:13:00.000Z'), new Date('2001-09-07T03:14:00.000Z')], []],
     }),
@@ -41,6 +50,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<undefined[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<undefined[]>(),
     binaryDecoder: () => createBinaryDecoder<undefined[]>(),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.literal(undefined))),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.literal(undefined))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.literal(undefined))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.literal(undefined))),
     getTestData: () => ({values: [[undefined, undefined]]}),
   },
   multi_dimensional: {
@@ -54,6 +67,10 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<string[][]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<string[][]>(),
     binaryDecoder: () => createBinaryDecoder<string[][]>(),
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.array(RT.string()))),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.array(RT.string()))),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.array(RT.string()))),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.array(RT.string()))),
     getTestData: () => ({values: [[['hello', 'world'], ['a', 'b'], []], []]}),
   },
   non_serializable_in_array: {
@@ -68,6 +85,12 @@ export const ARRAYS = {
     preserveDecoder: () => createJsonDecoder<symbol[]>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<symbol[]>(),
     binaryDecoder: () => createBinaryDecoder<symbol[]>(),
+    // Non-serializable array element (symbol) propagates to the root → alwaysThrow.
+    // `RT.array(RT.symbol())` resolves the same factory, so each schema thunk throws.
+    schemaEncoder: () => createJsonEncoder(RT.array(RT.symbol())),
+    schemaDecoder: () => createJsonDecoder(RT.array(RT.symbol())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.array(RT.symbol())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.array(RT.symbol())),
     factoryThrows: true,
     getTestData: () => ({values: []}),
   },
@@ -108,6 +131,22 @@ export const ARRAYS = {
     binaryDecoder: () => {
       type CircularArray = CircularArray[];
       return createBinaryDecoder<CircularArray>();
+    },
+    schemaEncoder: () => {
+      const ca = RT.circular((self) => RT.array(self));
+      return createJsonEncoder(ca);
+    },
+    schemaDecoder: () => {
+      const ca = RT.circular((self) => RT.array(self));
+      return createJsonDecoder(ca);
+    },
+    schemaBinaryEncoder: () => {
+      const ca = RT.circular((self) => RT.array(self));
+      return createBinaryEncoder(ca);
+    },
+    schemaBinaryDecoder: () => {
+      const ca = RT.circular((self) => RT.array(self));
+      return createBinaryDecoder(ca);
     },
     getTestData: () => {
       type CircularArray = CircularArray[];

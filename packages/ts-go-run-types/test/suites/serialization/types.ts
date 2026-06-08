@@ -1,5 +1,10 @@
 import type {BinaryDecoderFn, BinaryEncoderFn, JsonDecoderFn, JsonEncoderFn} from '@mionjs/ts-go-run-types';
 
+/** A value-first schema thunk: either builds the function from an `RT.*` model
+ *  or is `'not-supported'` (no value-first builder can express the case's type).
+ *  Mirrors the validation suite's `Thunk`. **/
+export type SchemaThunk<F> = (() => F) | 'not-supported';
+
 /** One case in the JSON serialization suite. Mirrors mion's `SingleTest`
  *  but with our marker-based thunks in place of the raw RunType. **/
 export interface SerializationCase {
@@ -135,4 +140,18 @@ export interface SerializationCase {
    *  …float64→8; bigint 64-bit→8). Omit for variable-length encodings
    *  (string-fallback bigint, objects, arrays). **/
   getBinaryByteSizes?: () => number[];
+
+  /** Value-first schema variants. Each builds its `RT.*` model inline and
+   *  passes it to ONE factory via the value-first overload (`createJsonEncoder(rt)`),
+   *  proving the value-first authoring path resolves the same compiled factory as
+   *  the type-first `<T>` form. The model is duplicated across the four BY DESIGN —
+   *  every thunk stays self-contained + single-purpose (benchmarking, code
+   *  extraction, doc-gen). The JSON pair uses the default strategy (stripClone
+   *  encoder / strip decoder), mirroring `stripCloneEncoder` / `stripDecoder`.
+   *  `'not-supported'` when no `RT.*` builder can express the type; omit a field
+   *  entirely → the suite reports "(not implemented)" for that variant. **/
+  schemaEncoder?: SchemaThunk<JsonEncoderFn>;
+  schemaDecoder?: SchemaThunk<JsonDecoderFn>;
+  schemaBinaryEncoder?: SchemaThunk<BinaryEncoderFn>;
+  schemaBinaryDecoder?: SchemaThunk<BinaryDecoderFn>;
 }

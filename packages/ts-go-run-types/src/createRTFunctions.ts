@@ -16,7 +16,7 @@ import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.t
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
-import {buildVariantKey, getRTUtils, lookupRTFn} from './runtypes/rtUtils.ts';
+import {buildVariantKey, getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
 
@@ -201,14 +201,6 @@ function resolveRTEntry<F extends AnyFn>(
   );
 }
 
-/** Runtime guard for the SCHEMA overload of `createIsType` / `createGetTypeErrors`
- *  (`createIsType(rt)`): a value-first RunType schema carries both `id` and
- *  `kind`. Plain reflected values (the value/static form) don't carry `kind`, so
- *  they fall through to the injected id. **/
-function isRunTypeSchema(val: unknown): val is RunType {
-  return typeof val === 'object' && val !== null && typeof (val as RunType).id === 'string' && 'kind' in val;
-}
-
 /** Returns the per-id closure for a family that honours `IsTypeOptions`
  *  — currently `createIsType` and `createGetTypeErrors`. The `options`
  *  slot drives the variant cache-key suffix so the same structural id
@@ -235,13 +227,17 @@ function createRTFunctionWithOptions<F extends AnyFn>(
 /** Returns the per-id closure for a family that does NOT honour
  *  `IsTypeOptions` — every non-validator factory (`createHasUnknownKeys`,
  *  `createStripUnknownKeys`, `createUnknownKeyErrors`,
- *  `createUnknownKeysToUndefined`, `createFormatTransform`). The
- *  injected id sits at slot 1; the cache key is the plain
- *  `<prefix>_<id>`. **/
+ *  `createUnknownKeysToUndefined`, `createFormatTransform`). The injected id
+ *  sits at slot 1; the cache key is the plain `<prefix>_<id>`. Slot 0 may be a
+ *  value-first schema (`createStripUnknownKeys(rt)`) — see the dispatch note in
+ *  `createRTFunctionWithOptions`. **/
 function createRTFunction<F extends AnyFn>(fnName: string, prefix: string, identityFn: F): (val?: unknown, id?: string) => F {
   return (val, id) => {
-    void val;
-    return resolveRTEntry(fnName, prefix, identityFn, id, undefined);
+    // SCHEMA overload: a value-first RunType in slot 0 carries the correct
+    // structural `.id` (right even for recursive schemas); the value/static
+    // forms pass a non-RunType `val` and fall through to the injected id.
+    const effectiveId = isRunTypeSchema(val) ? val.id : id;
+    return resolveRTEntry(fnName, prefix, identityFn, effectiveId, undefined);
   };
 }
 
@@ -287,30 +283,33 @@ export const createGetTypeErrors = createRTFunctionWithOptions<GetTypeErrorsFn>(
 // emitter silently ignores; dropping it surfaces the limitation at
 // the type-checker level.
 
-export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>('createHasUnknownKeys', 'huk', () => false) as unknown as <
-  T,
->(
-  val?: T,
-  id?: InjectRunTypeId<T>
-) => HasUnknownKeysFn;
+export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>(
+  'createHasUnknownKeys',
+  'huk',
+  () => false
+) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => HasUnknownKeysFn) &
+  (<T>(val?: T, id?: InjectRunTypeId<T>) => HasUnknownKeysFn);
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
   'suk',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => StripUnknownKeysFn;
+) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => StripUnknownKeysFn) &
+  (<T>(val?: T, id?: InjectRunTypeId<T>) => StripUnknownKeysFn);
 
 export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn;
+) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn) &
+  (<T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn);
 
 export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
   'uku',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn;
+) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn) &
+  (<T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn);
 
 // createFormatTransform returns a `(value) => transformedValue` for `T`. Identity
 // fallback covers both noop-format types and the no-plugin case.
@@ -318,7 +317,8 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
   'createFormatTransform',
   'fmt',
   identityValueFn
-) as unknown as <T>(val?: T, id?: InjectRunTypeId<T>) => FormatTransformFn<T>;
+) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => FormatTransformFn<T>) &
+  (<T>(val?: T, id?: InjectRunTypeId<T>) => FormatTransformFn<T>);
 
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
@@ -332,14 +332,21 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
 const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
 /** Returns a JSON encoder for `T`. Default `strategy: 'stripClone'`. See
- *  `JsonEncoderStrategy` for the full matrix. **/
+ *  `JsonEncoderStrategy` for the full matrix. Accepts either a value-first
+ *  schema (`createJsonEncoder(rt)`) or the value/static form. **/
 export function createJsonEncoder<T>(
-  val?: T,
+  schema: RunType<T>,
+  options?: CompTimeArgs<JsonEncoderOptions>,
+  id?: InjectRunTypeId<T>
+): JsonEncoderFn;
+export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRunTypeId<T>): JsonEncoderFn;
+export function createJsonEncoder<T>(
+  valOrSchema?: T | RunType<T>,
   options?: CompTimeArgs<JsonEncoderOptions>,
   id?: InjectRunTypeId<T>
 ): JsonEncoderFn {
-  void val;
-  if (id === undefined) {
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  if (effectiveId === undefined) {
     throw new Error(
       'createJsonEncoder(): no id injected. vite-plugin-runtypes must be active for createJsonEncoder to dispatch to a precompiled factory.'
     );
@@ -347,28 +354,28 @@ export function createJsonEncoder<T>(
   const strategy = options?.strategy ?? 'stripClone';
 
   if (strategy === 'direct') {
-    return lookupRTFn<JsonEncoderFn>('createJsonEncoder', 'sj', id, jsonStringifyFallback);
+    return lookupRTFn<JsonEncoderFn>('createJsonEncoder', 'sj', effectiveId, jsonStringifyFallback);
   }
 
   // clone strategies — non-mutating. `pjs` strips undeclared keys; `pjsp` is the
   // same clone codegen with a `...v` spread so undeclared keys survive.
   if (strategy === 'stripClone') {
-    const prepareSafeFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', id, identityValueFn);
+    const prepareSafeFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjs', effectiveId, identityValueFn);
     return (value) => JSON.stringify(prepareSafeFn(value));
   }
   if (strategy === 'clone') {
-    const prepareSafePreserveFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', id, identityValueFn);
+    const prepareSafePreserveFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pjsp', effectiveId, identityValueFn);
     return (value) => JSON.stringify(prepareSafePreserveFn(value));
   }
 
   // mutate strategies — transform declared leaves in place.
-  const prepareFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pj', id, identityValueFn);
+  const prepareFn = lookupRTFn<PrepareForJsonFn>('createJsonEncoder', 'pj', effectiveId, identityValueFn);
   if (strategy === 'mutate') {
     return (value) => JSON.stringify(prepareFn(value));
   }
   // stripMutate: uku sets undeclared keys to undefined, pj transforms declared
   // leaves, then JSON.stringify skips undefined-valued keys naturally.
-  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', id, identityValueFn);
+  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonEncoder', 'uku', effectiveId, identityValueFn);
   return (value) => {
     ukuFn(value);
     return JSON.stringify(prepareFn(value));
@@ -376,26 +383,38 @@ export function createJsonEncoder<T>(
 }
 
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
- *  properties become `undefined` before restore walks the declared shape. **/
+ *  properties become `undefined` before restore walks the declared shape.
+ *  Accepts either a value-first schema (`createJsonDecoder(rt)`) or the
+ *  value/static form. **/
+export function createJsonDecoder<T>(
+  schema: RunType<T>,
+  options?: CompTimeArgs<JsonDecoderOptions>,
+  id?: InjectRunTypeId<T>
+): JsonDecoderFn<T>;
 export function createJsonDecoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonDecoderOptions>,
   id?: InjectRunTypeId<T>
+): JsonDecoderFn<T>;
+export function createJsonDecoder<T>(
+  valOrSchema?: T | RunType<T>,
+  options?: CompTimeArgs<JsonDecoderOptions>,
+  id?: InjectRunTypeId<T>
 ): JsonDecoderFn<T> {
-  void val;
-  if (id === undefined) {
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  if (effectiveId === undefined) {
     throw new Error(
       'createJsonDecoder(): no id injected. vite-plugin-runtypes must be active for createJsonDecoder to dispatch to a precompiled factory.'
     );
   }
   const strategy = options?.strategy ?? 'strip';
-  const restoreFn = lookupRTFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', id, identityValueFn);
+  const restoreFn = lookupRTFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', effectiveId, identityValueFn);
   if (strategy === 'preserve') {
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;
   }
   // strip — ukuWire (not public uku): union-arm emit reaches into the flat-union
   // wire wrapper `[-1, mergedObject]` instead of corrupting its `0`/`1` indices.
-  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', id, identityValueFn);
+  const ukuFn = lookupRTFn<UnknownKeysToUndefinedFn>('createJsonDecoder', 'ukuw', effectiveId, identityValueFn);
   return (serialized) => restoreFn(ukuFn(JSON.parse(serialized))) as T;
 }
 
