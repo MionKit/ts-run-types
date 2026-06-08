@@ -939,6 +939,10 @@ export const ATOMIC = {
   literal_2_noLiterals: {
     title: 'Numeric literal with noLiterals (degrades to number)',
     description: 'degrades to number — Number.isFinite check',
+    // schema + type-first converge in behaviour, but the {noLiterals} option puts
+    // the type-first form in a distinct cache variant — not a structural-id
+    // divergence, so out of scope for the id-integrity suite.
+    idDivergent: true,
     isTypeNotes:
       'With `{noLiterals: true}` the literal degrades to its base type (`number`). The exact-literal check is replaced by `Number.isFinite` — same rules as the atomic `number` validator (NaN / Infinity / -Infinity rejected).',
     isType: () => createIsType<2>(undefined, {noLiterals: true}),
@@ -980,6 +984,8 @@ export const ATOMIC = {
   literal_a_noLiterals: {
     title: 'String literal with noLiterals (degrades to string)',
     description: 'degrades to string — typeof check',
+    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
+
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `string`. Any string passes, including the empty string.',
     isType: () => createIsType<'a'>(undefined, {noLiterals: true}),
@@ -1021,6 +1027,8 @@ export const ATOMIC = {
   literal_regexp_noLiterals: {
     title: 'RegExp literal with noLiterals (degrades to RegExp)',
     description: 'degrades to RegExp — instanceof check',
+    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
+
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `RegExp`. Any RegExp instance passes (constructor form `new RegExp(...)` included); source + flags are no longer matched.',
     isType: () => {
@@ -1084,6 +1092,8 @@ export const ATOMIC = {
   literal_true_noLiterals: {
     title: 'Boolean literal with noLiterals (degrades to boolean)',
     description: 'degrades to boolean — typeof check',
+    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
+
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `boolean`. Either `true` or `false` passes; truthy values like 1 are still rejected.',
     isType: () => createIsType<true>(undefined, {noLiterals: true}),
@@ -1126,6 +1136,8 @@ export const ATOMIC = {
   literal_1n_noLiterals: {
     title: 'BigInt literal with noLiterals (degrades to bigint)',
     description: 'degrades to bigint — typeof check',
+    idDivergent: true, // {noLiterals} option-variant, not a structural-id divergence
+
     isTypeNotes:
       '`{noLiterals: true}` degrades the literal to its base type `bigint`. Any bigint passes; the number `1` does NOT.',
     isType: () => createIsType<1n>(undefined, {noLiterals: true}),
