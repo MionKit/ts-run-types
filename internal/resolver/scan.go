@@ -339,11 +339,11 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	}
 	// Structural id resolution — purely a function of the resolved TS
 	// type. `IsTypeOptions` (`noLiterals` / `noIsArrayCheck`) does NOT
-	// fold into the id; instead, the option set rides alongside via
-	// `protocol.Site.Options` and the emitter renders one factory per
-	// (typeid, option-tuple) pair under the canonical variant cache
-	// key (e.g. `itNL_<id>`, `itNA_<id>`). Same invariant the encoder
-	// strategy / decoder strategy already honour. See
+	// fold into the id; instead, the option set folds into the injected
+	// `fnId` variant suffix below (e.g. `itNL`, `itNA`) and the emitter
+	// renders one factory per (typeid, fnId) pair under the canonical
+	// variant cache key (e.g. `itNL_<id>`, `itNA_<id>`). Same invariant
+	// the encoder strategy / decoder strategy already honour. See
 	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
 	// `IsTypeVariantSuffix` helper in internal/constants.
 	// Structural id — a pure function of the resolved TS type. RegExp has no
@@ -366,7 +366,6 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		ID:         id,
 		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
-		Options:    options.Names(),
 		FnId:       fnId,
 	}, diagnostics, true
 }
@@ -492,9 +491,9 @@ type isTypeOptions struct {
 }
 
 // Names returns the option NAMES whose value is true, in the canonical
-// declaration order from `constants.IsTypeOptions`. The result is the
-// payload for `protocol.Site.Options` — the emitter consumes it to
-// build the variant cache-key suffix. Empty when no option is set.
+// declaration order from `constants.IsTypeOptions`. computeFnId feeds the
+// result to `constants.ResolveFnId` to build the injected fnId's variant
+// cache-key suffix (e.g. `itNL`, `itNA`). Empty when no option is set.
 func (opts isTypeOptions) Names() []string {
 	if !opts.NoLiterals && !opts.NoIsArrayCheck {
 		return nil
