@@ -6,6 +6,8 @@
 
 if this is correct we need to ensure the golang backend reads the params and generates only the selected fucntion.
 
+**CONFIRMED (still the case).** The function cache renderer iterates every interned `RunType` (`internal/compiled/typefns/module.go` → `for _, runType := range dump.RunTypes`), and `protocol.Site` records no function/family — so a `getRunTypeId<T>()`-only file still emits 6+ entries in every function family. Finalized fix (new `InjectTypeFnArgs<T, Fn>` marker injecting a `[typeId, fnId]` tuple; demand-driven, precise per call site) is written up in **`docs/DEMAND-DRIVEN-FN-CACHES.md`**.
+
 ## generalize collectIsTypeVariants
 
 generalize collectIsTypeVariants in internal/compiled/typefns/module.go to be a generic function and collect function compile params
