@@ -90,6 +90,15 @@ export interface SerializationCase {
    *  requiring deep-equal back to the original. **/
   roundTripBestEffort?: boolean;
 
+  /** Opt a case out of the serializer id-integrity suite
+   *  (`assertSerializerIdIntegrity`): its value-first schema encoder and the
+   *  type-first encoder are KNOWN not to resolve the same structural id, by
+   *  design — so their wire output may differ. Reserved for genuinely
+   *  non-convergent cases (e.g. a TS `enum`, which the value-first builder can
+   *  only express as the structurally-distinct value-union); leave UNSET where
+   *  convergence should hold so a regression surfaces as a failure. **/
+  idDivergent?: boolean;
+
   /** When `createXxx<T>()` is rendered as an alwaysThrow cache entry
    *  by the Go pipeline (e.g. `never`, root `symbol`, function-typed
    *  tuple slot, Promise root, …). Calling the factory throws at the
