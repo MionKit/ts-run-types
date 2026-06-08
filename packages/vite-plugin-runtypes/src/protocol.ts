@@ -203,13 +203,24 @@ export interface Site {
   id: string;
   paramIndex?: number;
   argsCount?: number;
-  // fnId is the precise compile-time function selector for a createX call site
-  // routed through the InjectTypeFnArgs marker (e.g. "it", "itNL",
-  // "stripMutate"). When present, the patcher injects a `[id, fnId]` tuple
-  // instead of the bare `"id"` string; the runtime createX reads the tuple to
-  // resolve its precise factory. Absent for reflection-only InjectRunTypeId
-  // sites (getRunTypeId / reflectRunTypeId / builders).
+  // fnId is the value injected as the 2nd tuple element for a createX call site
+  // routed through the InjectTypeFnArgs marker (a readable family/variant token
+  // today; an opaque fn hash after the hashed-id migration). When present, the
+  // patcher injects a `[id, fnId]` tuple instead of the bare `"id"` string.
+  // Absent for reflection-only InjectRunTypeId sites.
   fnId?: string;
+  // demand is Go-internal emit metadata (which cache entries this site requires)
+  // serialized onto the Site; the plugin does not read it. Mirrored for accuracy.
+  demand?: SiteDemand[];
+}
+
+// SiteDemand mirrors Go protocol.SiteDemand — emit metadata only; the plugin
+// never reads it.
+export interface SiteDemand {
+  family: string;
+  variant?: string;
+  options?: string[];
+  fnHash?: string;
 }
 
 // Replacement is a byte-range rewrite on a source file: replace

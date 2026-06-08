@@ -6,8 +6,6 @@
 // the JS workspace so the two halves never drift.
 package constants
 
-import "strings"
-
 // CacheModuleSettings configures one emitted JS cache module.
 type CacheModuleSettings struct {
 	Name      string // function/export identifier (e.g. "runTypesModule")
@@ -234,10 +232,6 @@ var JsonStrategyFamilies = map[string][]string{
 	"preserve":    {"rj"},
 }
 
-// variantFamilyBases lists the family tags whose fnId carries an IsTypeOptions
-// variant suffix (e.g. `itNL`). Used by DemandsForFnId to parse a token back.
-var variantFamilyBases = []string{"it", "te"}
-
 // MigratedFamilies is the set of cache family tags rendered demand-driven (only
 // the types their createX call sites request); every other family still rides
 // the back-compat all-RunTypes path. EVERY function family is now migrated.
@@ -291,16 +285,6 @@ func IsFamilyMigrated(tag string) bool {
 	return MigratedFamilies[tag]
 }
 
-// FnDemand is one cache entry a call-site fnId resolves to: the family tag, the
-// variant suffix appended to it, and the option names that prime the walker.
-// Single-family functions resolve to one demand; composite JSON strategies
-// resolve to two.
-type FnDemand struct {
-	Tag           string
-	VariantSuffix string
-	Options       []string
-}
-
 // ResolveFnId computes the injected fnId token for a function key plus the
 // compile-time args parsed at the call site. optionNames is the set of true
 // IsTypeOptions names (CompFnAxisIsTypeOptions); strategy is the JSON strategy
@@ -322,51 +306,6 @@ func ResolveFnId(fnKey string, optionNames []string, strategy string) (string, b
 	default:
 		return fn.BaseTag, true
 	}
-}
-
-// DemandsForFnId reverses an injected fnId token into the cache-entry demands
-// the emitter must render. Used by the renderer, which sees Site.FnId rather
-// than the original call-site args.
-func DemandsForFnId(fnId string) []FnDemand {
-	if fnId == "" {
-		return nil
-	}
-	// JSON strategy token → its composed families (plain entries, no variant).
-	if families, isStrategy := JsonStrategyFamilies[fnId]; isStrategy {
-		demands := make([]FnDemand, 0, len(families))
-		for _, tag := range families {
-			demands = append(demands, FnDemand{Tag: tag})
-		}
-		return demands
-	}
-	// Variant family: baseTag, optionally followed by an `N<letters>` suffix.
-	for _, base := range variantFamilyBases {
-		if fnId == base {
-			return []FnDemand{{Tag: base}}
-		}
-		if strings.HasPrefix(fnId, base+"N") {
-			suffix := fnId[len(base):]
-			return []FnDemand{{Tag: base, VariantSuffix: suffix, Options: optionsForVariantSuffix(suffix)}}
-		}
-	}
-	// Simple family: fnId is the tag.
-	return []FnDemand{{Tag: fnId}}
-}
-
-// optionsForVariantSuffix reverses an `N<letters>` variant suffix back to the
-// IsTypeOptions names it encodes (inverse of IsTypeVariantSuffix).
-func optionsForVariantSuffix(suffix string) []string {
-	if len(suffix) == 0 || suffix[0] != 'N' {
-		return nil
-	}
-	letters := suffix[1:]
-	var names []string
-	for _, opt := range IsTypeOptions {
-		if opt.Letter != "" && strings.Contains(letters, opt.Letter) {
-			names = append(names, opt.Name)
-		}
-	}
-	return names
 }
 
 // Version is the binary version, injected at build time via

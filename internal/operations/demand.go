@@ -1,0 +1,64 @@
+package operations
+
+import "github.com/mionkit/ts-run-types/internal/constants"
+
+// Demand is one cache entry a createX call site requires: the family + variant
+// to render, plus the fnHash that entry is keyed by. FamilyTag/VariantSuffix/
+// Options drive the emitter's rendering; FnHash names the entry once the
+// hashed-id migration lands. Kept as its own type (not protocol.SiteDemand) so
+// this package stays free of a protocol dependency; the scanner converts.
+type Demand struct {
+	FamilyTag     string
+	VariantSuffix string
+	Options       []string
+	FnHash        string
+}
+
+// DemandFor returns the cache-entry demands for a createX call site identified
+// by its InjectTypeFnArgs Fn token, refined by the call-site options / strategy:
+//
+//   - AxisIsTypeOptions: one entry, the requested variant of the family (it/te).
+//   - AxisJsonStrategy:  one entry per composed primitive family
+//     (constants.JsonStrategyFamilies), defaulting an empty strategy to the
+//     operation's DefaultStrategy.
+//   - AxisNone:          one plain entry.
+//
+// Reflection-only sites (unknown fnKey) yield nil. This is the forward
+// (structured) replacement for the old constants.DemandsForFnId reverse-parse.
+func DemandFor(fnKey string, optionNames []string, strategy string) []Demand {
+	op, ok := byFnKey[fnKey]
+	if !ok {
+		return nil
+	}
+	switch op.Axis {
+	case AxisIsTypeOptions:
+		return []Demand{{
+			FamilyTag:     op.FamilyTag,
+			VariantSuffix: constants.IsTypeVariantSuffix(optionNames),
+			Options:       optionNames,
+			FnHash:        FnHashFor(op, optionNames, ""),
+		}}
+	case AxisJsonStrategy:
+		if strategy == "" {
+			strategy = op.DefaultStrategy
+		}
+		families := constants.JsonStrategyFamilies[strategy]
+		demands := make([]Demand, 0, len(families))
+		for _, tag := range families {
+			primitive, ok := byFamilyT[tag]
+			if !ok {
+				continue
+			}
+			demands = append(demands, Demand{
+				FamilyTag: tag,
+				FnHash:    FnHashFor(primitive, nil, ""),
+			})
+		}
+		return demands
+	default:
+		return []Demand{{
+			FamilyTag: op.FamilyTag,
+			FnHash:    FnHashFor(op, nil, ""),
+		}}
+	}
+}
