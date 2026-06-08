@@ -160,9 +160,12 @@ export function union<A, B, C, D, E, F, G, H>(
   >,
   id?: InjectRunTypeId<A | B | C | D | E | F | G | H>
 ): RunType<A | B | C | D | E | F | G | H>;
-// Variable-arity fallback (9+ members, or a spread tuple) — recursive `UnionOf<T>`.
-export function union<T extends readonly RunType[]>(
-  members: CompTimeArgs<readonly [...T]>,
+// Variable-arity fallback (9+ members) — recursive `UnionOf<T>`. Captures the
+// member tuple with `const T` (not a `readonly [...T]` spread, which the
+// CompTimeArgs brand collapses to an array — losing the per-member precision
+// UnionOf needs to recurse).
+export function union<const T extends readonly RunType[]>(
+  members: CompTimeArgs<T>,
   id?: InjectRunTypeId<UnionOf<T>>
 ): RunType<UnionOf<T>>;
 export function union(members: readonly RunType[], id?: InjectRunTypeId<unknown>): RunType {
