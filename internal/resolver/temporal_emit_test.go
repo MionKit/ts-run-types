@@ -13,12 +13,24 @@ import (
 // (toJSON), binary (serString/desString + from). One representative type per
 // assertion keeps it fast; the scan test already covers all 8 detect.
 
-// emitSourcesFor scans getRunTypeId<Temporal.<typeName>>() requesting every
-// cache source, and returns the response.
+// emitSourcesFor scans createIsType<Temporal.<typeName>>() requesting the given
+// cache sources, and returns the response. Use this for families seeded by the
+// always-emit `it` path (isType / JSON / runType); binary families are now
+// demand-driven, so they must be seeded via emitSourcesForFn with the matching
+// createBinaryEncoder/Decoder call.
 func emitSourcesFor(t *testing.T, typeName string, kinds ...protocol.CacheKind) *protocol.Response {
 	t.Helper()
-	code := `import {createIsType} from '@mionjs/ts-go-run-types';
-export const _ = createIsType<Temporal.` + typeName + `>();
+	return emitSourcesForFn(t, "createIsType", typeName, kinds...)
+}
+
+// emitSourcesForFn scans `<fnName><Temporal.<typeName>>()` requesting the given
+// cache sources. Demand-driven families (tb/fb/huk/…) only emit when the call
+// site demands them, so the caller picks the createX whose fnId maps to the
+// family under assertion (binary→createBinaryEncoder/createBinaryDecoder).
+func emitSourcesForFn(t *testing.T, fnName, typeName string, kinds ...protocol.CacheKind) *protocol.Response {
+	t.Helper()
+	code := `import {` + fnName + `} from '@mionjs/ts-go-run-types';
+export const _ = ` + fnName + `<Temporal.` + typeName + `>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{Op: protocol.OpScanFiles, Files: []string{"a.ts"}, IncludeCacheSources: kinds})
@@ -63,21 +75,22 @@ func TestTemporal_EmitBinaryRoundTripShape(t *testing.T) {
 	// Numeric-packed type: the emitter dispatches to the serializer's
 	// serTemporal*/desTemporal* methods — the byte layout lives in the runtime
 	// dataView.ts, asserted end-to-end in JS (test/adapters/temporal.test.ts).
-	to := emitSourcesFor(t, "PlainDateTime", protocol.CacheKindToBinary)
+	// tb/fb are demand-driven now: seed each via the matching binary createX.
+	to := emitSourcesForFn(t, "createBinaryEncoder", "PlainDateTime", protocol.CacheKindToBinary)
 	if !strings.Contains(to.ToBinaryCacheSource, ".serTemporalPlainDateTime(") {
 		t.Fatalf("toBinary missing serTemporalPlainDateTime():\n%s", to.ToBinaryCacheSource)
 	}
-	from := emitSourcesFor(t, "PlainDateTime", protocol.CacheKindFromBinary)
+	from := emitSourcesForFn(t, "createBinaryDecoder", "PlainDateTime", protocol.CacheKindFromBinary)
 	if !strings.Contains(from.FromBinaryCacheSource, ".desTemporalPlainDateTime()") {
 		t.Fatalf("fromBinary missing desTemporalPlainDateTime():\n%s", from.FromBinaryCacheSource)
 	}
 
 	// String-fallback type (Duration): keeps serString(toJSON()) / from(desString()).
-	durTo := emitSourcesFor(t, "Duration", protocol.CacheKindToBinary)
+	durTo := emitSourcesForFn(t, "createBinaryEncoder", "Duration", protocol.CacheKindToBinary)
 	if !strings.Contains(durTo.ToBinaryCacheSource, ".serString(") || !strings.Contains(durTo.ToBinaryCacheSource, ".toJSON()") {
 		t.Fatalf("Duration toBinary missing serString(toJSON()):\n%s", durTo.ToBinaryCacheSource)
 	}
-	durFrom := emitSourcesFor(t, "Duration", protocol.CacheKindFromBinary)
+	durFrom := emitSourcesForFn(t, "createBinaryDecoder", "Duration", protocol.CacheKindFromBinary)
 	if !strings.Contains(durFrom.FromBinaryCacheSource, "Temporal.Duration.from(") || !strings.Contains(durFrom.FromBinaryCacheSource, ".desString()") {
 		t.Fatalf("Duration fromBinary missing from(desString()):\n%s", durFrom.FromBinaryCacheSource)
 	}

@@ -17,7 +17,7 @@ import {
   type StrictArrayBuffer,
   type BinaryInput,
 } from './runtypes/dataView.ts';
-import type {InjectRunTypeId} from './index.ts';
+import type {InjectTypeFnArgs} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -72,22 +72,24 @@ const noopFromBinaryFn: FromBinaryFn = (ret) => ret;
 export function createBinaryEncoder<T>(
   schema: RunType<T>,
   options?: BinaryEncoderOptions,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderFn;
-export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectRunTypeId<T>): BinaryEncoderFn;
+export function createBinaryEncoder<T>(val?: T, options?: BinaryEncoderOptions, id?: InjectTypeFnArgs<T, 'tb'>): BinaryEncoderFn;
 export function createBinaryEncoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: BinaryEncoderOptions,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'tb'>
 ): BinaryEncoderFn {
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  const tuple = id as unknown as [string, string] | undefined;
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
+  const fnId = tuple?.[1];
   if (effectiveId === undefined) {
     throw new Error(
       'createBinaryEncoder(): no id injected. vite-plugin-runtypes must be active for createBinaryEncoder to dispatch to a precompiled factory.'
     );
   }
   const cacheKey = options?.cacheKey ?? effectiveId;
-  const encodeFn = lookupRTFn<ToBinaryFn>('createBinaryEncoder', 'tb', effectiveId, noopToBinaryFn);
+  const encodeFn = lookupRTFn<ToBinaryFn>('createBinaryEncoder', fnId ?? 'tb', effectiveId, noopToBinaryFn);
   return (value, serializer) => {
     const ownsSer = serializer === undefined;
     const ser = serializer ?? createDataViewSerializer(cacheKey);
@@ -105,22 +107,33 @@ export function createBinaryEncoder<T>(
 export function createBinaryDecoder<T>(
   schema: RunType<T>,
   options?: BinaryDecoderOptions,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<T>;
-export function createBinaryDecoder<T>(val?: T, options?: BinaryDecoderOptions, id?: InjectRunTypeId<T>): BinaryDecoderFn<T>;
+export function createBinaryDecoder<T>(
+  val?: T,
+  options?: BinaryDecoderOptions,
+  id?: InjectTypeFnArgs<T, 'fb'>
+): BinaryDecoderFn<T>;
 export function createBinaryDecoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: BinaryDecoderOptions,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'fb'>
 ): BinaryDecoderFn<T> {
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  const tuple = id as unknown as [string, string] | undefined;
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
+  const fnId = tuple?.[1];
   if (effectiveId === undefined) {
     throw new Error(
       'createBinaryDecoder(): no id injected. vite-plugin-runtypes must be active for createBinaryDecoder to dispatch to a precompiled factory.'
     );
   }
   const cacheKey = options?.cacheKey ?? effectiveId;
-  const decodeFn = lookupRTFn<FromBinaryFn<T>>('createBinaryDecoder', 'fb', effectiveId, noopFromBinaryFn as FromBinaryFn<T>);
+  const decodeFn = lookupRTFn<FromBinaryFn<T>>(
+    'createBinaryDecoder',
+    fnId ?? 'fb',
+    effectiveId,
+    noopFromBinaryFn as FromBinaryFn<T>
+  );
   return (input) => {
     // Distinguish DataViewDeserializer from raw buffer by the `desString` method.
     let des: DataViewDeserializer;

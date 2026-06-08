@@ -16,7 +16,7 @@ import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.t
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
 import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
-import {buildVariantKey, getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
+import {getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
 import type {CompTimeArgs, InjectRunTypeId, InjectTypeFnArgs} from './index.ts';
 
@@ -174,85 +174,62 @@ initFormatTransformCache(_utils);
 // Private generic factories
 // =============================================================================
 
-/** Resolves the per-id closure for `prefix + variantSuffix + '_' + id`,
- *  shared by both `createRTFunction` shapes below. Falls back to
- *  `identityFn` when the runtype is registered but its Go-side
- *  factory collapsed to a noop; throws when the runtype is missing
- *  entirely. **/
-function resolveRTEntry<F extends AnyFn>(
+/** Resolves the per-(id, fnId) closure for a createX factory routed through the
+ *  InjectTypeFnArgs marker. The plugin injects a `[typeId, fnId]` tuple at the
+ *  trailing slot; this reads it and resolves `fnId + '_' + typeId` directly —
+ *  the fnId already encodes the family (+ IsTypeOptions variant for it/te, e.g.
+ *  `it`, `itNL`), so no key is recomputed here (this replaces the old
+ *  `buildVariantKey` round-trip). Slot 0 (`val`) may be a value-first schema
+ *  whose runtime `.id` overrides the injected typeId (correct even for recursive
+ *  schemas); the fnId still comes from the injected tuple. `fallbackPrefix` is
+ *  the bare family tag used defensively when no tuple/fnId is present. **/
+function resolveTupleEntry<F extends AnyFn>(
   fnName: string,
-  prefix: string,
+  fallbackPrefix: string,
   identityFn: F,
-  id: string | undefined,
-  options: Record<string, unknown> | undefined
+  val: unknown,
+  args: unknown
 ): F {
-  if (id === undefined) {
+  const tuple = args as [string, string] | undefined;
+  const injectedId = tuple ? tuple[0] : undefined;
+  const fnId = tuple ? tuple[1] : undefined;
+  const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
+  if (effectiveId === undefined) {
     throw new Error(
       `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
     );
   }
   const utils = getRTUtils();
-  const key = buildVariantKey(prefix, id, options);
+  const key = (fnId ?? fallbackPrefix) + '_' + effectiveId;
   const entry = utils.getRT(key);
   if (entry) return entry.fn as F;
-  if (utils.hasRunType(id)) return identityFn;
+  if (utils.hasRunType(effectiveId)) return identityFn;
   throw new Error(
     `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
   );
 }
 
-/** Returns the per-(id, fnId) closure for a createX factory routed through the
- *  InjectTypeFnArgs marker (`createIsType` / `createGetTypeErrors`). The plugin
- *  injects a `[typeId, fnId]` tuple at the trailing slot; the runtime reads it
- *  and resolves `fnId + '_' + typeId` directly — the fnId already encodes the
- *  family + IsTypeOptions variant (e.g. `it`, `itNL`), so no key is recomputed
- *  here (this replaces the old `buildVariantKey` round-trip). Slot 0 may be a
- *  value-first schema whose runtime `.id` overrides the injected typeId (correct
- *  even for recursive schemas); the fnId still comes from the injected tuple. **/
+/** Returns the per-(id, fnId) closure for an option-carrying createX factory
+ *  (`createIsType` / `createGetTypeErrors`, 3-arg `(val, options, args)`). The
+ *  injected `[typeId, fnId]` tuple sits at the trailing slot; options @slot1 are
+ *  baked into the fnId at build time so the runtime ignores them. **/
 function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
   fallbackPrefix: string,
   identityFn: F
 ): (val?: unknown, options?: unknown, args?: unknown) => F {
-  return (val, _options, args) => {
-    const tuple = args as [string, string] | undefined;
-    const injectedId = tuple ? tuple[0] : undefined;
-    const fnId = tuple ? tuple[1] : undefined;
-    const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
-    if (effectiveId === undefined) {
-      throw new Error(
-        `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
-      );
-    }
-    const utils = getRTUtils();
-    // fnId is the precise cache prefix (family + variant). The plugin always
-    // injects it for createX sites; fall back to the bare family prefix
-    // defensively.
-    const key = (fnId ?? fallbackPrefix) + '_' + effectiveId;
-    const entry = utils.getRT(key);
-    if (entry) return entry.fn as F;
-    if (utils.hasRunType(effectiveId)) return identityFn;
-    throw new Error(
-      `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
-    );
-  };
+  return (val, _options, args) => resolveTupleEntry(fnName, fallbackPrefix, identityFn, val, args);
 }
 
-/** Returns the per-id closure for a family that does NOT honour
+/** Returns the per-(id, fnId) closure for a leaf family that does NOT honour
  *  `IsTypeOptions` — every non-validator factory (`createHasUnknownKeys`,
  *  `createStripUnknownKeys`, `createUnknownKeyErrors`,
- *  `createUnknownKeysToUndefined`, `createFormatTransform`). The injected id
- *  sits at slot 1; the cache key is the plain `<prefix>_<id>`. Slot 0 may be a
- *  value-first schema (`createStripUnknownKeys(rt)`) — see the dispatch note in
- *  `createRTFunctionWithOptions`. **/
-function createRTFunction<F extends AnyFn>(fnName: string, prefix: string, identityFn: F): (val?: unknown, id?: string) => F {
-  return (val, id) => {
-    // SCHEMA overload: a value-first RunType in slot 0 carries the correct
-    // structural `.id` (right even for recursive schemas); the value/static
-    // forms pass a non-RunType `val` and fall through to the injected id.
-    const effectiveId = isRunTypeSchema(val) ? val.id : id;
-    return resolveRTEntry(fnName, prefix, identityFn, effectiveId, undefined);
-  };
+ *  `createUnknownKeysToUndefined`, `createFormatTransform`). The injected
+ *  `[typeId, fnId]` tuple sits at slot 1; the fnId is the plain family tag (no
+ *  variant axis). Slot 0 may be a value-first schema (`createStripUnknownKeys(rt)`)
+ *  whose `.id` overrides the injected typeId. **/
+function createRTFunction<F extends AnyFn>(fnName: string, prefix: string, identityFn: F): (val?: unknown, args?: unknown) => F {
+  return (val, args) => resolveTupleEntry(fnName, prefix, identityFn, val, args);
 }
 
 // =============================================================================
@@ -305,29 +282,29 @@ export const createHasUnknownKeys = createRTFunction<HasUnknownKeysFn>(
   'createHasUnknownKeys',
   'huk',
   () => false
-) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => HasUnknownKeysFn) &
-  (<T>(val?: T, id?: InjectRunTypeId<T>) => HasUnknownKeysFn);
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>) => HasUnknownKeysFn);
 
 export const createStripUnknownKeys = createRTFunction<StripUnknownKeysFn>(
   'createStripUnknownKeys',
   'suk',
   identityValueFn
-) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => StripUnknownKeysFn) &
-  (<T>(val?: T, id?: InjectRunTypeId<T>) => StripUnknownKeysFn);
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>) => StripUnknownKeysFn);
 
 export const createUnknownKeyErrors = createRTFunction<UnknownKeyErrorsFn>(
   'createUnknownKeyErrors',
   'uke',
   unknownKeyErrorsIdentity
-) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn) &
-  (<T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeyErrorsFn);
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>) => UnknownKeyErrorsFn);
 
 export const createUnknownKeysToUndefined = createRTFunction<UnknownKeysToUndefinedFn>(
   'createUnknownKeysToUndefined',
   'uku',
   identityValueFn
-) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn) &
-  (<T>(val?: T, id?: InjectRunTypeId<T>) => UnknownKeysToUndefinedFn);
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'uku'>) => UnknownKeysToUndefinedFn);
 
 // createFormatTransform returns a `(value) => transformedValue` for `T`. Identity
 // fallback covers both noop-format types and the no-plugin case.
@@ -335,8 +312,8 @@ export const createFormatTransform = createRTFunction<FormatTransformFn<unknown>
   'createFormatTransform',
   'fmt',
   identityValueFn
-) as unknown as (<T>(schema: RunType<T>, id?: InjectRunTypeId<T>) => FormatTransformFn<T>) &
-  (<T>(val?: T, id?: InjectRunTypeId<T>) => FormatTransformFn<T>);
+) as unknown as (<T>(schema: RunType<T>, id?: InjectTypeFnArgs<T, 'fmt'>) => FormatTransformFn<T>) &
+  (<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>) => FormatTransformFn<T>);
 
 // =============================================================================
 // JSON encode / decode — the only two public JSON entry functions.
