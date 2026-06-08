@@ -10,13 +10,15 @@
 //
 // Minimal `infer` (per CLAUDE.md): `array`/`record` read their single child's `T`
 // directly; `tuple` maps the child tuple with a homomorphic mapped type
-// (`MapTuple`); `union` brands a DIRECT union (`A | B | …`) via fixed-arity
-// overloads (plain generic inference, NO `infer`), falling back to a recursive
-// `UnionOf<T>` — the one annotated `infer` exception (see static.ts) — only for
-// 9+ members; `intersection` uses positional type params (`A & B & …`) with
-// `= unknown` defaults so omitted slots vanish (`X & unknown = X`). The type-level
-// helpers (`MapTuple`, `UnionOf`, `AssembleTemplate`, `ObjectType`, …) all live in
-// static.ts; this file is runtime-only.
+// (`MapTuple`); `union` / `intersection` brand a DIRECT `A | B | …` / `A & B & …`
+// via fixed-arity overloads (plain generic inference, NO `infer`) for the common
+// arities, falling back to a recursive `UnionOf<T>` / `IntersectionOf<T>` — the
+// annotated `infer` exceptions (see static.ts) — only past 8 members. (`union` is
+// array-form throughout; `intersection` is positional for 1–8 and array-form for
+// 9+, since a positional builder can't carry a trailing injected id past a JS rest
+// param.) The type-level helpers (`MapTuple`, `UnionOf`, `IntersectionOf`,
+// `AssembleTemplate`, `ObjectType`, …) all live in static.ts; this file is
+// runtime-only.
 //
 // Child schema params are branded `CompTimeArgs<…>`: the children ride the
 // carrier only and are DISCARDED at runtime (the injected marker returns the
@@ -38,6 +40,7 @@ import type {
   Static,
   MapTuple,
   UnionOf,
+  IntersectionOf,
   TemplatePart,
   AssembleTemplate,
   ObjectType,
@@ -172,12 +175,17 @@ export function union(members: readonly RunType[], id?: InjectRunTypeId<unknown>
   return builderResult(id, {type: 'union', children: members});
 }
 
-/** An intersection builder — positional, `intersection(a, b, …)` →
- *  `RunType<A & B & …>`, up to 8 members. Omitted slots default to `unknown`
- *  and vanish from the composite (`X & unknown = X`); the plugin pads the
- *  unused slots with `undefined` so the injected id lands on the trailing
- *  `InjectRunTypeId` parameter. Real intersections are 2–3 types; `runType<T>()`
- *  covers anything wider. **/
+/** An intersection builder, two call shapes:
+ *   - Positional (1–8 members): `intersection(a, b, …)` → `RunType<A & B & …>`.
+ *     Omitted slots default to `unknown` and vanish (`X & unknown = X`); the plugin
+ *     pads the unused slots with `undefined` so the injected id lands on the trailing
+ *     `InjectRunTypeId` parameter.
+ *   - Array (any arity — the 9+ path): `intersection([a, b, …])` →
+ *     `RunType<IntersectionOf<T>>`. A positional builder + a TRAILING injected id
+ *     can't go variadic (JS rest params must be last), so wider intersections use
+ *     the array form — the same array+`infer` pattern as `union` / `tuple`. The
+ *     recursive `infer` (`IntersectionOf`) runs ONLY here.
+ *  Real intersections are 2–3 types; `runType<T>()` also covers anything wider. **/
 export function intersection<A, B = unknown, C = unknown, D = unknown, E = unknown, F = unknown, G = unknown, H = unknown>(
   a: CompTimeArgs<RunType<A>>,
   b?: CompTimeArgs<RunType<B>>,
@@ -188,8 +196,32 @@ export function intersection<A, B = unknown, C = unknown, D = unknown, E = unkno
   g?: CompTimeArgs<RunType<G>>,
   h?: CompTimeArgs<RunType<H>>,
   id?: InjectRunTypeId<A & B & C & D & E & F & G & H>
-): RunType<A & B & C & D & E & F & G & H> {
-  return builderResult(id, {type: 'intersection', children: [a, b, c, d, e, f, g, h]});
+): RunType<A & B & C & D & E & F & G & H>;
+export function intersection<const T extends readonly RunType[]>(
+  members: CompTimeArgs<T>,
+  id?: InjectRunTypeId<IntersectionOf<T>>
+): RunType<IntersectionOf<T>>;
+export function intersection(
+  arg1: RunType | readonly RunType[],
+  arg2?: RunType | InjectRunTypeId<unknown>,
+  arg3?: RunType,
+  arg4?: RunType,
+  arg5?: RunType,
+  arg6?: RunType,
+  arg7?: RunType,
+  arg8?: RunType,
+  arg9?: InjectRunTypeId<unknown>
+): RunType {
+  // Array form (9+ / variadic path): members in arg1, the injected id in arg2.
+  if (Array.isArray(arg1)) {
+    return builderResult(arg2 as InjectRunTypeId<unknown> | undefined, {type: 'intersection', children: arg1});
+  }
+  // Positional form (1–8): members a–h (unused slots are `undefined`), the injected
+  // id padded to the trailing slot (arg9).
+  return builderResult(arg9, {
+    type: 'intersection',
+    children: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] as readonly RunType[],
+  });
 }
 
 /** A record / index-signature builder. Two forms:
