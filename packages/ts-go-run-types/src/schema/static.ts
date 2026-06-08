@@ -178,6 +178,26 @@ export interface TemporalBuilderFn<Tag extends keyof TemporalFormatByTag<MinMax>
  *  with the type-first tuple. **/
 export type MapTuple<T extends readonly RunType[]> = {-readonly [K in keyof T]: Static<T[K]>};
 
+/** The union of the `Static` types of a RunType tuple, built RECURSIVELY so EACH
+ *  member survives as a distinct arm. The obvious non-recursive form
+ *  `MapTuple<T>[number]` is subtype-REDUCED by tsgo — a subset arm swallows its
+ *  superset (`{a} | {a; b}` → `{a}`) — so it diverges from the written
+ *  `{a} | {a; b}`. The recursive build preserves every arm, converging on the
+ *  same structural id as the type-first union.
+ *
+ *  ⚠️ Recursive `infer` is the TS-checker-perf hazard this value-first surface
+ *  otherwise avoids (see docs/value-first-formats.md). It is used ONLY here, and
+ *  the `union` builder reaches it ONLY as the variable-arity fallback: unions up
+ *  to the fixed-arity overload count are branded directly (`A | B | …`) via plain
+ *  generic inference, with NO `infer`. So the perf cost is confined to unusually
+ *  wide unions. **/
+export type UnionOf<T extends readonly RunType[]> = T extends readonly [
+  infer Head extends RunType,
+  ...infer Tail extends readonly RunType[],
+]
+  ? Static<Head> | UnionOf<Tail>
+  : never;
+
 /** A template-literal part: a string-literal segment or a `RunType` placeholder. **/
 export type TemplatePart = string | RunType;
 
