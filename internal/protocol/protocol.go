@@ -554,21 +554,12 @@ type Response struct {
 // is the number of arguments the user already wrote — when it's less than
 // ParamIndex the patcher pads with `undefined` so the id lands in the
 // right slot.
-//
-// Options is the sorted, lexicographic list of short opt tokens harvested
-// from the call-site `IsTypeOptions` object literal — see the
-// `IsTypeOptionTokens` table in internal/constants. The emitter consumes
-// this to decide which per-(typeId, variant) factories to render under
-// the canonical `<tag><variant>_<id>` cache key (e.g. `itNA_<id>`).
-// Empty when the call site has no options or the options bag is absent
-// from the function's signature.
 type Site struct {
-	File       string   `json:"file"`
-	Pos        int      `json:"pos"`
-	ID         string   `json:"id"`
-	ParamIndex int      `json:"paramIndex,omitempty"`
-	ArgsCount  int      `json:"argsCount,omitempty"`
-	Options    []string `json:"options,omitempty"`
+	File       string `json:"file"`
+	Pos        int    `json:"pos"`
+	ID         string `json:"id"`
+	ParamIndex int    `json:"paramIndex,omitempty"`
+	ArgsCount  int    `json:"argsCount,omitempty"`
 	// FnId is the precise compile-time function selector for a createX call
 	// site routed through the InjectTypeFnArgs<T, Fn> marker — e.g. "it",
 	// "itNL", "stripMutate". Empty for reflection-only InjectRunTypeId sites

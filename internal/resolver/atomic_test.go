@@ -1523,7 +1523,7 @@ createIsType<Composite>(undefined, {noLiterals: true, noIsArrayCheck: true});
 			first := resp.Sites[0].ID
 			for i, s := range resp.Sites {
 				if s.ID != first {
-					t.Errorf("Site[%d].ID = %q, want %q (options=%v)", i, s.ID, first, s.Options)
+					t.Errorf("Site[%d].ID = %q, want %q (fnId=%q)", i, s.ID, first, s.FnId)
 				}
 			}
 		})
@@ -1576,19 +1576,20 @@ createIsType<{a: string}>(undefined, {noIsArrayCheck: true});
 // form is now an ordinary `createIsType` OVERLOAD taking a `RunType<T>` first arg
 // (`createIsType(array(string()))`). It must resolve to the SAME structural id as
 // the marker form (`createIsType<string[]>()`) — `T` is inferred from the
-// schema's `RunType<T>` and reflected off the trailing `InjectRunTypeId<T>`, no
-// `schema.id` read, no builder ref-trace — AND its options ride the call's own
-// slot. The createIsType call IS the injection marker, so the nested
-// `array(string())` builder is skipped (enclosed); the Site sits on the
-// createIsType call.
+// schema's `RunType<T>` and reflected off the trailing `InjectTypeFnArgs<T, 'it'>`,
+// no `schema.id` read, no builder ref-trace — AND its options ride the call's own
+// slot, folded into the injected fnId variant suffix. The createIsType call IS the
+// injection marker, so the nested `array(string())` builder is skipped (enclosed);
+// the Site sits on the createIsType call.
 func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
   export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export interface RunType<T = unknown> {id: string; readonly __rtType?: {t: T}}
-  export function createIsType<T>(schema: RunType<T>, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>): (v: unknown) => boolean;
+  export function createIsType<T>(schema: RunType<T>, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
+  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
   export function string(id?: InjectRunTypeId<string>): RunType<string>;
   export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]>;
 }
@@ -1617,9 +1618,10 @@ createIsType(array(string()), {noIsArrayCheck: true});
 			t.Errorf("Site[%d] has Pos 0 — every surviving Site must drive a real rewrite", i)
 		}
 	}
-	// The options bag rides the schema-overload call's own slot.
+	// The options bag rides the schema-overload call's own slot, folded into
+	// the injected FnId variant suffix (`noIsArrayCheck` ⇒ `itNA`).
 	variant := resp.Sites[2]
-	if len(variant.Options) != 1 || variant.Options[0] != "noIsArrayCheck" {
-		t.Errorf("schema-form options not observed: Site[2].Options = %v, want [noIsArrayCheck]", variant.Options)
+	if variant.FnId != "itNA" {
+		t.Errorf("schema-form options not observed: Site[2].FnId = %q, want %q", variant.FnId, "itNA")
 	}
 }

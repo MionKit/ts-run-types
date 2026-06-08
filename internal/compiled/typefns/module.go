@@ -82,18 +82,6 @@ func innerPrefix(settings constants.CacheModuleSettings) string {
 	return settings.Tag + "_"
 }
 
-// supportsIsTypeVariants returns true for the emitters whose validator
-// body is sensitive to `IsTypeOptions` (currently isType and
-// typeErrors). For every other family the option bag is semantically
-// inert, so the renderer skips the per-(typeid, options) fan-out.
-func supportsIsTypeVariants(emitter Emitter) bool {
-	switch emitter.(type) {
-	case IsTypeEmitter, TypeErrorsEmitter:
-		return true
-	}
-	return false
-}
-
 // variantKey reports the cache-key shape for an emitter + variant
 // suffix + runtype id. For the plain variant (empty suffix) this is
 // `<tag>_<id>`; for a non-empty suffix it's `<tag><suffix>_<id>`
@@ -501,16 +489,12 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		// (empty Sites, or a family not yet migrated to InjectTypeFnArgs). Emit
 		// a factory for every interned RunType the emitter supports; the
 		// dangling-dep cascade below prunes any parent whose child kind is
-		// unsupported. Variant fan-out keys on the legacy Site.Options.
-		variantsByID := collectIsTypeVariants(dump.Sites, supportsIsTypeVariants(emitter))
+		// unsupported.
 		for _, runType := range dump.RunTypes {
 			if runType == nil || !emitter.Supports(runType) {
 				continue
 			}
 			renderEntry(runType, "", nil)
-			for _, variant := range variantsByID[runType.ID] {
-				renderEntry(runType, variant.suffix, variant.options)
-			}
 		}
 	}
 
@@ -618,70 +602,6 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]c
 		}
 	}
 	return out
-}
-
-// isTypeVariant pairs an option-tuple (the unsorted names harvested
-// from a call site) with its canonical variant suffix. The renderer
-// keys variant entries on `suffix` while the walker reads `options`
-// via `EmitContext.HasVariantOption`.
-type isTypeVariant struct {
-	suffix  string
-	options []string
-}
-
-// collectIsTypeVariants groups the per-call-site option tuples in
-// `sites` by structural runtype id and deduplicates by canonical
-// variant suffix. Skips sites with no options, sites whose suffix is
-// empty (an option name not in the registry), and the entire fan-out
-// when `enable` is false — non-variant emitters get an empty result
-// so their inner loop matches the legacy single-entry-per-runtype
-// shape.
-func collectIsTypeVariants(sites []protocol.Site, enable bool) map[string][]isTypeVariant {
-	if !enable {
-		return nil
-	}
-	byID := make(map[string]map[string][]string)
-	add := func(id string, options []string) {
-		if id == "" || len(options) == 0 {
-			return
-		}
-		suffix := constants.IsTypeVariantSuffix(options)
-		if suffix == "" {
-			return
-		}
-		if byID[id] == nil {
-			byID[id] = make(map[string][]string)
-		}
-		if _, exists := byID[id][suffix]; !exists {
-			byID[id][suffix] = append([]string(nil), options...)
-		}
-	}
-	// Options ride on Sites, deduped by (id, suffix).
-	for _, site := range sites {
-		add(site.ID, site.Options)
-	}
-	out := make(map[string][]isTypeVariant, len(byID))
-	for id, suffixes := range byID {
-		variants := make([]isTypeVariant, 0, len(suffixes))
-		for suffix, options := range suffixes {
-			variants = append(variants, isTypeVariant{suffix: suffix, options: options})
-		}
-		// Stable order keeps the rendered module deterministic across
-		// runs — the test asserts on exact init() lines.
-		sortIsTypeVariants(variants)
-		out[id] = variants
-	}
-	return out
-}
-
-// sortIsTypeVariants orders variants by suffix ascending so the
-// renderer emits in a stable order across builds.
-func sortIsTypeVariants(variants []isTypeVariant) {
-	for i := 1; i < len(variants); i++ {
-		for j := i; j > 0 && variants[j].suffix < variants[j-1].suffix; j-- {
-			variants[j], variants[j-1] = variants[j-1], variants[j]
-		}
-	}
 }
 
 // entryRender is the result of compiling one (RunType, variant) into its

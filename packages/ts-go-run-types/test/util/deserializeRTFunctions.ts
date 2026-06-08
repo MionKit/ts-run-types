@@ -37,14 +37,33 @@ import {
 // round-trip.
 import type {PrepareForJsonFn, RestoreFromJsonFn, StringifyJsonFn} from '../../src/createRTFunctions.ts';
 import {buildFactoryFromCode, buildVariantKey} from '../../src/runtypes/rtUtils.ts';
+import {buildIsTypeVariantSuffix} from '../../src/runtypes/isTypeOptionsConstants.generated.ts';
 import type {AnyFn, CompiledTypeFn} from '../../src/runtypes/types.ts';
 
-/** Test-side mirror of the production `resolveRTEntry`. Rebuilds the
+/** Test-side variant-suffix builder. Production resolves the variant
+ *  (`itNL`, `itNA`, …) at scan time and bakes it into the injected fnId, so
+ *  `rtUtils.buildVariantKey` is a plain `<prefix>_<id>`. The deserialize twins
+ *  use the reflection marker (`InjectRunTypeId<T>`, no fnId tuple), so they
+ *  reconstruct the suffix from the explicit `IsTypeOptions` argument here —
+ *  byte-for-byte the same suffix the Go emitter used (via the shared generated
+ *  `buildIsTypeVariantSuffix`). **/
+function variantSuffixFromOptions(options: Record<string, unknown> | undefined): string {
+  if (!options) return '';
+  const names: string[] = [];
+  for (const key of Object.keys(options)) {
+    if (options[key] === true) names.push(key);
+  }
+  if (names.length === 0) return '';
+  return buildIsTypeVariantSuffix(names);
+}
+
+/** Test-side mirror of the production `resolveTupleEntry`. Rebuilds the
  *  per-id closure from `entry.code` on every call instead of reading
  *  the materialized `entry.fn` straight off rtUtils. Noop entries
  *  carry no code; they reuse the cache module's pre-populated
- *  `entry.fn`. Variant cache key honoured the same way the production
- *  side does — `IsTypeOptions` drives the suffix. **/
+ *  `entry.fn`. The variant axis (e.g. `itNA`) is derived from the
+ *  explicit `IsTypeOptions` argument and folded into the cache-key
+ *  prefix — the reflection-marker twins carry no fnId tuple. **/
 function resolveDeserializedEntry<F extends AnyFn>(
   fnName: string,
   prefix: string,
@@ -58,7 +77,7 @@ function resolveDeserializedEntry<F extends AnyFn>(
     );
   }
   const utils = getRTUtils();
-  const key = buildVariantKey(prefix, id, options);
+  const key = buildVariantKey(prefix + variantSuffixFromOptions(options), id);
   const entry = utils.getRT(key) as CompiledTypeFn | undefined;
   if (!entry) {
     if (utils.hasRunType(id)) return identityFn;
@@ -71,7 +90,8 @@ function resolveDeserializedEntry<F extends AnyFn>(
 }
 
 /** Three-arg deserialize wrapper for families that honour `IsTypeOptions`
- *  (`deserializeIsType`, `deserializeGetTypeErrors`). **/
+ *  (`deserializeIsType`, `deserializeGetTypeErrors`). The options bag drives
+ *  the variant cache-key suffix. **/
 function deserializeRTFunctionWithOptions<F extends AnyFn>(
   fnName: string,
   prefix: string,
