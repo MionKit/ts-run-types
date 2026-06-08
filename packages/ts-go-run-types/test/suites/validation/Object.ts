@@ -1174,7 +1174,7 @@ export const OBJECT = {
       'Callable interfaces require a function value (`typeof === "function"`) PLUS the declared data properties. JS functions can carry properties; this case validates both halves.',
     isType: () => createIsType<{(a: number, b: boolean): string; extra: string}>(),
     isTypeSchema: () =>
-      createIsType(RT.intersection(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
+      createIsType(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
     deserializeIsType: () => deserializeIsType<{(a: number, b: boolean): string; extra: string}>(),
     isTypeReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(
@@ -1196,7 +1196,7 @@ export const OBJECT = {
     },
     getTypeErrors: () => createGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
     getTypeErrorsSchema: () =>
-      createGetTypeErrors(RT.intersection(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
+      createGetTypeErrors(RT.callable(RT.func([RT.number(), RT.boolean()], RT.string()), RT.object({extra: RT.string()}))),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{(a: number, b: boolean): string; extra: string}>(),
     getTypeErrorsReflect: () => {
       const v: {(a: number, b: boolean): string; extra: string} = Object.assign(

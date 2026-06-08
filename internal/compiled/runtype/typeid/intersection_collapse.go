@@ -127,6 +127,18 @@ func (computer *Computer) collapsedIntersectionID(tsType *checker.Type) string {
 		// GetTypeArguments unconditionally which crashes on intersection
 		// types in tsgo.
 		ids := computer.memberIDs(tsType, false)
+		// Embed call signatures alongside the members, exactly as objectID does
+		// for a written object literal — so a CALLABLE intersection (`func &
+		// {props}`, the value-first authoring of a callable interface) converges
+		// with the type-first `{(): r; props}` (whose id carries the call
+		// signature). Without this the call signature is dropped from the id and
+		// the two forms diverge, even though their projected nodes match.
+		if callSignatures := computer.typeChecker.GetSignaturesOfType(tsType, checker.SignatureKindCall); len(callSignatures) > 0 {
+			for _, signature := range callSignatures {
+				ids = append(ids, computer.signatureID(signature, protocol.KindCallSignature, ""))
+			}
+			sort.Strings(ids)
+		}
 		return collectionID(int(protocol.KindObjectLiteral), ids, false)
 	}
 

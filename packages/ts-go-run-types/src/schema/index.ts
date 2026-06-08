@@ -35,7 +35,7 @@ export {
 export {date, temporal} from './datetime.ts';
 
 // Composer builders — `array` / `tuple` / `union` / `intersection` / `record` /
-// `map` / `set` / `promise` / `func` / `templateLiteral`, the `object` assembler,
+// `map` / `set` / `promise` / `func` / `callable` / `templateLiteral`, the `object` assembler,
 // the `propMod({optional?, readonly?}, field)` / `optional(field)` property-modifier
 // wrappers, and the recursive-schema pair `circular((self) => …)` / `self()`. Each
 // returns the generic `RunType<…>`; child schemas nest freely (the outer composer's
@@ -53,6 +53,7 @@ export {
   circular,
   self,
   func,
+  callable,
   templateLiteral,
   propMod,
   optional,
