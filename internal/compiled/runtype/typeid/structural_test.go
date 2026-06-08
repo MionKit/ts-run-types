@@ -143,6 +143,37 @@ getRunTypeId<[number, string]>();
 	}
 }
 
+// TestStructural_ObjectPropertyOrderIndependent — two object types with the SAME
+// properties declared in a DIFFERENT order must produce the SAME structural id.
+// Object members are sorted by name before hashing (memberIDs → sort.Strings in
+// typeid.go), so declaration order is irrelevant: `{a; b; c}` ≡ `{c; a; b}`, at
+// the top level and at every nesting level. The negative control confirms the
+// equality is not vacuous — a different property SET must still produce a
+// different id.
+func TestStructural_ObjectPropertyOrderIndependent(t *testing.T) {
+	_, ordered := rootFor(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type T = {alpha: string; beta: number; nested: {x: string; y: number}};
+getRunTypeId<T>();
+`)
+	_, reordered := rootFor(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type T = {nested: {y: number; x: string}; beta: number; alpha: string};
+getRunTypeId<T>();
+`)
+	if ordered.ID != reordered.ID {
+		t.Fatalf("object property order must not affect the structural id: {alpha,beta,nested}=%q vs reordered=%q", ordered.ID, reordered.ID)
+	}
+
+	// Negative control: a genuinely different property set (nested `z` instead of
+	// `y`) must NOT share the id — proves the equality above isn't vacuous.
+	_, different := rootFor(t, `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+type T = {alpha: string; beta: number; nested: {x: string; z: number}};
+getRunTypeId<T>();
+`)
+	if ordered.ID == different.ID {
+		t.Fatalf("object id must depend on the property SET — nested {x,y} vs {x,z} should differ, both got %q", ordered.ID)
+	}
+}
+
 // TestStructural_HashIdLooksLikeIdentifier sanity-checks that the
 // subKind-tagged nodes still get short, identifier-safe hash ids the
 // emitter can use verbatim as JS const names.
