@@ -120,6 +120,14 @@ func renderRunTypesModule(dump protocol.Dump) (string, error) {
 // RunType the precompiler knows how to handle. v1 only emits factories
 // for KindString; other kinds are silently skipped (see typefns.IsTypeModule).
 func renderIsTypeModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
+	// `it` is demand-scoped (see constants.MigratedFamilies), so a createIsType
+	// site alone doesn't pull the `it_<member>` entries the JSON/binary union
+	// decoders + typeErrors child checks reference at runtime. Seed those
+	// missing roots from the cross-family edges the OTHER demanded families keep
+	// — CrossFamilyItRoots renders them (Store-bypassed so the walker always
+	// runs) and returns the bare member ids. The createIsType-site demand is
+	// still handled by the normal demand path inside IsTypeModule.
+	opts.ExtraRoots = typefns.CrossFamilyItRoots(dump, opts)
 	return renderToString("renderIsTypeModule", func(w io.Writer) error {
 		return typefns.IsTypeModule(w, dump, opts)
 	})
