@@ -330,20 +330,20 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   cross-family.
 - [x] D5 `gofmt`/`pnpm run lint` clean; `go test ./internal/...` + `pnpm test` green.
 
-## Follow-ups (optional polish — not blocking)
-- D0b: a recursive value-first schema passed to `createX` (the emit id must match
-  the runtime `rt.id` lookup). Preserved current behaviour; add a dedicated
-  regression test.
-- D1: `Site.Options` is now redundant (the injected `fnId` encodes the variant);
-  the demand path keys on `FnId`. It is still read by the back-compat all-emit
-  path's `collectIsTypeVariants` (empty-Sites unit tests only). Removing it +
-  `collectIsTypeVariants` is safe cleanup. NOTE: `buildVariantKey` is NOT dead —
-  `lookupRTFn` still uses it for the plain `<tag>_<id>` JSON/binary lookups.
-- D2: the back-compat all-emit branch is kept as the documented "no call-site
-  demand" render mode (empty `dump.Sites`) used by the typefns unit tests.
-- D4: deeper prose refresh of `docs/UNSUPPORTED-KINDS.md` + `docs/ARCHITECTURE.md`
-  (the marker now carries a function id; caches are demand-scoped).
-- Disk-cache + cross-family edges: `CrossFamilyItRoots` bypasses the RT disk cache
-  (Store=nil) so the walker always runs and edges are observed. A future
-  optimisation could persist `crossFamilyDeps` in the disk cache to avoid the
-  recompute (see `docs/CROSS-FAMILY-RT-DEPS.md`).
+## Follow-ups — all completed
+
+- [x] D0b Recursive value-first schema passed to `createX` — already covered:
+  `packages/ts-go-run-types/test/adapters/circular.test.ts` asserts
+  `createIsType(circularSchema) === createIsType<RecursiveType>()` (value-first id
+  converges with type-first under demand-scoping), plus `composeBuilders.test.ts`
+  validates a recursive linked-list. No new test needed.
+- [x] D1 Removed the dead `Site.Options` + `collectIsTypeVariants` /
+  `variantSuffixFromOptions` machinery across Go + JS (`d6a2e4b`). `buildVariantKey`
+  kept (simplified to `(prefix,id)`; still used by `lookupRTFn` for plain lookups).
+- [x] D2 Back-compat all-emit branch kept as the documented "no call-site demand"
+  render mode (empty `dump.Sites`) for the typefns unit tests.
+- [x] D4 Docs refreshed (`21725e5`): `CLAUDE.md` (two-marker + demand-driven note),
+  `docs/ARCHITECTURE.md`, `docs/UNSUPPORTED-KINDS.md`.
+- [x] Disk-cache + cross-family edges (`3eb5658`): `crossFamilyDeps` now persist in
+  the RT disk cache (`disk.RTEntry.CrossFamilyRefs`, FormatVersion 1→2, structural-id
+  drift validation); `CrossFamilyItRoots` no longer bypasses the disk cache.
