@@ -285,6 +285,12 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 	type compiled struct {
 		line string
 		deps []string
+		// crossFamilyDeps mirrors entryRender.crossFamilyDeps — the
+		// cross-family `it_<member>`-style lookups this entry's body
+		// reaches (see renderEntryWithDeps). Captured for a later
+		// demand-scoping step; NOT consulted by the dangling-dep cascade
+		// or topo sort below (those operate on same-family `deps` only).
+		crossFamilyDeps []string
 	}
 	// Entries are keyed by the namespaced JS cache hash (innerPrefix +
 	// runtype ID, e.g. "it_abc123"). Sharing this key with the
@@ -309,13 +315,13 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 		if existing, exists := entries[entryID]; exists {
 			return existing.deps, true
 		}
-		line, deps := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
-		if line == "" {
+		rendered := renderEntryWithDeps(runType, settings, emitter, innerPrefix, refTable, opts, suffix, options)
+		if rendered.line == "" {
 			return nil, false
 		}
-		entries[entryID] = compiled{line: line, deps: deps}
+		entries[entryID] = compiled{line: rendered.line, deps: rendered.deps, crossFamilyDeps: rendered.crossFamilyDeps}
 		order = append(order, entryID)
-		return deps, true
+		return rendered.deps, true
 	}
 
 	// enqueueChildren strips the inner prefix off each namespaced dependency
@@ -541,8 +547,30 @@ func sortIsTypeVariants(variants []isTypeVariant) {
 	}
 }
 
+// entryRender is the result of compiling one (RunType, variant) into its
+// cache-module line. `line` is the `init(…);` statement (empty when the
+// entry is skipped — noop with no body to emit, or an unsupported leaf with
+// no per-family diag code). `deps` is the same-family rt-dependency hashes
+// (walker.RTDependencies, e.g. "it_<childHash>") that drive the dangling-dep
+// cascade and topo sort. `crossFamilyDeps` is the distinct cross-family RT
+// lookups the body reaches (walker.CrossFamilyDeps, e.g. a prepareForJson /
+// toBinary / typeErrors entry referencing `it_<member>` to discriminate a
+// union member) — captured for a later demand-scoping step that follows
+// these edges into the referenced family; it is NOT consumed by any
+// emission/topo decision today. NOTE: `crossFamilyDeps` is populated only
+// when the walker actually runs — a disk-cache hit (tryReadCachedEntry)
+// short-circuits before the walk, so it returns nil there. The disk cache
+// does not yet persist cross-family edges; a consumer that needs them across
+// cached builds must extend the cache (out of scope for the capture step).
+type entryRender struct {
+	line            string
+	deps            []string
+	crossFamilyDeps []string
+}
+
 // renderEntryWithDeps compiles one RunType into its `init(…);` line
-// and returns the discovered rt-dependency hashes alongside. Inner
+// and returns the discovered dependency hashes alongside (see
+// entryRender). Inner
 // function name is `<innerPrefix><hash>` (e.g. "it_abc123"); the
 // outer factory's debug name (`<VarPrefix><hash>`, e.g.
 // "g_it_abc123") is used only as the closure's printed name so
@@ -566,13 +594,17 @@ func sortIsTypeVariants(variants []isTypeVariant) {
 // a miss; we then fall through to the walker as usual and write the
 // fresh result back. Read/write errors are non-fatal — the renderer
 // always produces output even when the cache is broken.
-func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) (string, []string) {
+func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModuleSettings, emitter Emitter, innerPrefix string, refTable map[string]*protocol.RunType, opts RenderOpts, variantSuffix string, variantOptions []string) entryRender {
 	factoryName := variantFactoryName(settings, variantSuffix, runType.ID)
 	innerName := variantKey(settings, variantSuffix, runType.ID)
 
 	if variantSuffix == "" {
 		if cachedLine, cachedDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
-			return cachedLine, cachedDeps
+			// Disk-cache hit: the walker never runs, so no cross-family
+			// edges are observed. The cache stores only same-family
+			// ChildRefs today (see writeCachedEntry); cross-family capture
+			// is intentionally not persisted at this step.
+			return entryRender{line: cachedLine, deps: cachedDeps}
 		}
 	}
 
@@ -618,10 +650,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 				if variantSuffix == "" {
 					writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
 				}
-				return line, nil
+				return entryRender{line: line}
 			}
 		}
-		return "", nil
+		return entryRender{}
 	}
 	// Noop factories emit a SHORT-FORM init line: only the cache key,
 	// typeName, and isNoop=true are passed. The JS-side init() builds
@@ -643,7 +675,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		if variantSuffix == "" {
 			writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
 		}
-		return line, nil
+		// A noop body emits no dep calls, so no cross-family lookups are
+		// registered; CrossFamilyDeps is empty here regardless.
+		return entryRender{line: line}
 	}
 	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
 	// The 3rd arg (`code`) carries the factory BODY — the contents
@@ -678,11 +712,12 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		createRTFnArg,
 	}
 	deps := append([]string(nil), walker.RTDependencies...)
+	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
 	line := "init(" + joinArgs(args) + ");"
 	if variantSuffix == "" {
 		writeCachedEntry(runType, settings, innerPrefix, line, deps, opts)
 	}
-	return line, deps
+	return entryRender{line: line, deps: deps, crossFamilyDeps: crossFamilyDeps}
 }
 
 // tryReadCachedEntry attempts to load a previously cached (line, deps)
