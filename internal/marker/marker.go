@@ -41,12 +41,22 @@ const (
 	// KindPureFunction requires the argument to be an inline function
 	// definition that passes the purity rules.
 	KindPureFunction
+	// KindInjectTypeFnArgs is the trailing-slot injection marker used by the
+	// createX factories. Like KindInjectRunTypeId it injects at the trailing
+	// parameter, but carries a second type-arg (Fn) naming the function, so the
+	// transformer injects a `[typeId, fnId]` tuple and the backend emits only
+	// the demanded function family.
+	KindInjectTypeFnArgs
 )
 
 // DefaultName is the symbol name the resolver looks for for the
 // injection marker. Used by DefaultSpecs when building the canonical
 // marker set.
 const DefaultName = "InjectRunTypeId"
+
+// DefaultInjectTypeFnArgsName is the symbol name for the createX trailing-slot
+// marker that carries the function id (InjectTypeFnArgs<T, Fn>).
+const DefaultInjectTypeFnArgsName = "InjectTypeFnArgs"
 
 // DefaultCompTimeArgsName is the symbol name for the CompTimeArgs brand.
 const DefaultCompTimeArgsName = "CompTimeArgs"
@@ -81,9 +91,10 @@ type Spec struct {
 // public TypeScript declarations in
 // packages/ts-go-run-types/src/markers.ts.
 const (
-	BrandInjectRunTypeId = "__mionInjectRunTypeIdBrand"
-	BrandCompTimeArgs    = "__mionCompTimeArgsBrand"
-	BrandPureFunction    = "__mionPureFunctionBrand"
+	BrandInjectRunTypeId  = "__mionInjectRunTypeIdBrand"
+	BrandCompTimeArgs     = "__mionCompTimeArgsBrand"
+	BrandPureFunction     = "__mionPureFunctionBrand"
+	BrandInjectTypeFnArgs = "__mionInjectTypeFnArgsBrand"
 )
 
 // DefaultSpecs returns the canonical marker set: one spec per supported
@@ -93,6 +104,7 @@ func DefaultSpecs() []Spec {
 		{Name: DefaultName, Module: DefaultModule, Kind: KindInjectRunTypeId, BrandProperty: BrandInjectRunTypeId},
 		{Name: DefaultCompTimeArgsName, Module: DefaultModule, Kind: KindCompTimeArgs, BrandProperty: BrandCompTimeArgs},
 		{Name: DefaultPureFunctionName, Module: DefaultModule, Kind: KindPureFunction, BrandProperty: BrandPureFunction},
+		{Name: DefaultInjectTypeFnArgsName, Module: DefaultModule, Kind: KindInjectTypeFnArgs, BrandProperty: BrandInjectTypeFnArgs},
 	}
 }
 
@@ -199,6 +211,66 @@ func matchAliasSpec(tsType *checker.Type, spec Spec) (*checker.Type, bool) {
 		return nil, false
 	}
 	return typeArguments[0], true
+}
+
+// FnKeyForInjectTypeFnArgs returns the Fn type-argument (the 2nd) of an
+// InjectTypeFnArgs<T, Fn> alias as its string-literal value (e.g. "it",
+// "jsonEncoder"). ok is false when paramType is not that alias, the spec is
+// absent, or the Fn arg isn't a string literal. Used by the scanner to compute
+// the precise fnId injected at a createX call site.
+func FnKeyForInjectTypeFnArgs(typeChecker *checker.Checker, paramType *checker.Type, opts Options) (string, bool) {
+	if paramType == nil {
+		return "", false
+	}
+	opts = WithDefaults(opts)
+	spec, found := specForKind(opts.Specs, KindInjectTypeFnArgs)
+	if !found {
+		return "", false
+	}
+	if key, ok := fnKeyFromAlias(paramType, spec); ok {
+		return key, true
+	}
+	// An optional `id?:` parameter resolves to `InjectTypeFnArgs<…> | undefined`,
+	// so the alias rides on the non-undefined union member — mirror DetectAny's
+	// union-member walk to find it.
+	if checker.Type_flags(paramType)&checker.TypeFlagsUnion != 0 {
+		for _, member := range paramType.Types() {
+			if key, ok := fnKeyFromAlias(member, spec); ok {
+				return key, true
+			}
+		}
+	}
+	return "", false
+}
+
+// fnKeyFromAlias reads the Fn type-argument (the 2nd) of an InjectTypeFnArgs
+// alias as its string-literal value. Returns ok=false unless tsType carries the
+// matching alias with a string-literal 2nd type argument.
+func fnKeyFromAlias(tsType *checker.Type, spec Spec) (string, bool) {
+	alias := checker.Type_alias(tsType)
+	if alias == nil {
+		return "", false
+	}
+	symbol := alias.Symbol()
+	if symbol == nil || symbol.Name != spec.Name {
+		return "", false
+	}
+	if !DeclaredInModule(symbol, spec.Module) {
+		return "", false
+	}
+	typeArguments := alias.TypeArguments()
+	if len(typeArguments) < 2 {
+		return "", false
+	}
+	fnType := typeArguments[1]
+	if fnType == nil || checker.Type_flags(fnType)&checker.TypeFlagsStringLiteral == 0 {
+		return "", false
+	}
+	value, ok := fnType.AsLiteralType().Value().(string)
+	if !ok {
+		return "", false
+	}
+	return value, true
 }
 
 // IsFreeTypeParameter reports whether tsType is a still-unresolved type

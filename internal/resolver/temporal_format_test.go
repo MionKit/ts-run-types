@@ -18,9 +18,9 @@ import (
 // and returns the isType source + FMT002 diagnostics.
 func scanTemporalFormat(t *testing.T, typ, formatName, params string) (string, []diag.Diagnostic) {
 	t.Helper()
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {createIsType} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = getRunTypeId<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
+export const _ = createIsType<TypeFormat<Temporal.` + typ + `, '` + formatName + `', ` + params + `>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{

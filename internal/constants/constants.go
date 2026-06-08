@@ -6,6 +6,8 @@
 // the JS workspace so the two halves never drift.
 package constants
 
+import "strings"
+
 // CacheModuleSettings configures one emitted JS cache module.
 type CacheModuleSettings struct {
 	Name      string // function/export identifier (e.g. "runTypesModule")
@@ -172,6 +174,171 @@ func IsTypeVariantSuffix(names []string) string {
 		return ""
 	}
 	return suffix
+}
+
+// CompFnAxis classifies the compile-time option axis that refines a createX
+// function's injected fnId beyond its base cache-family tag. The InjectTypeFnArgs
+// marker scanner reads the relevant call-site literal per axis to compute the
+// precise fnId it injects.
+type CompFnAxis int
+
+const (
+	// CompFnAxisNone — fnId is exactly the base family tag (huk, suk, …); no
+	// compile-time option refines it.
+	CompFnAxisNone CompFnAxis = iota
+	// CompFnAxisIsTypeOptions — fnId is baseTag + IsTypeVariantSuffix (it, te).
+	CompFnAxisIsTypeOptions
+	// CompFnAxisJsonStrategy — fnId is the JSON strategy token; the families it
+	// demands come from JsonStrategyFamilies (jsonEncoder / jsonDecoder).
+	CompFnAxisJsonStrategy
+)
+
+// CompFn describes one createX function the InjectTypeFnArgs<T, Fn> marker's Fn
+// type-arg can name. Key is the literal Fn value the factory declares (e.g.
+// "it", "jsonEncoder"); BaseTag is the cache family tag for the non-composite
+// axes; DefaultStrategy is applied when a JSON call omits the options literal.
+type CompFn struct {
+	Key             string
+	BaseTag         string
+	Axis            CompFnAxis
+	DefaultStrategy string
+}
+
+// CompFns is the registry of every createX function, keyed by its Fn token —
+// the single source of truth the scanner (fnId emit), the emitter (demand), and
+// the TS runtime (mirrored via gen-ts-constants) all route through.
+var CompFns = map[string]CompFn{
+	"it":          {Key: "it", BaseTag: "it", Axis: CompFnAxisIsTypeOptions},
+	"te":          {Key: "te", BaseTag: "te", Axis: CompFnAxisIsTypeOptions},
+	"huk":         {Key: "huk", BaseTag: "huk", Axis: CompFnAxisNone},
+	"suk":         {Key: "suk", BaseTag: "suk", Axis: CompFnAxisNone},
+	"uke":         {Key: "uke", BaseTag: "uke", Axis: CompFnAxisNone},
+	"uku":         {Key: "uku", BaseTag: "uku", Axis: CompFnAxisNone},
+	"fmt":         {Key: "fmt", BaseTag: "fmt", Axis: CompFnAxisNone},
+	"tb":          {Key: "tb", BaseTag: "tb", Axis: CompFnAxisNone},
+	"fb":          {Key: "fb", BaseTag: "fb", Axis: CompFnAxisNone},
+	"jsonEncoder": {Key: "jsonEncoder", Axis: CompFnAxisJsonStrategy, DefaultStrategy: "stripClone"},
+	"jsonDecoder": {Key: "jsonDecoder", Axis: CompFnAxisJsonStrategy, DefaultStrategy: "strip"},
+}
+
+// JsonStrategyFamilies maps a JSON strategy token to the cache family tags it
+// composes. Shared by the scanner (emit), the emitter (demand), and mirrored to
+// the TS runtime via gen-ts-constants.
+var JsonStrategyFamilies = map[string][]string{
+	"direct":      {"sj"},
+	"stripClone":  {"pjs"},
+	"clone":       {"pjsp"},
+	"mutate":      {"pj"},
+	"stripMutate": {"pj", "uku"},
+	"strip":       {"rj", "ukuw"},
+	"preserve":    {"rj"},
+}
+
+// variantFamilyBases lists the family tags whose fnId carries an IsTypeOptions
+// variant suffix (e.g. `itNL`). Used by DemandsForFnId to parse a token back.
+var variantFamilyBases = []string{"it", "te"}
+
+// MigratedFamilies is the set of cache family tags rendered demand-driven (only
+// the types their createX call sites request); every other family still rides
+// the back-compat all-RunTypes path.
+//
+// CROSS-FAMILY CONSTRAINT: `it` (isType) is a SHARED dependency — the JSON and
+// binary union decoders discriminate members via `it_<member>.fn(…)` (see
+// unionMemberIsTypeCheck in json_prepare.go) and typeErrors delegates child
+// checks to `it_`. So `it` MUST stay all-emit until EVERY function family is
+// migrated to InjectTypeFnArgs; only then can its demand be computed as the
+// it-closure of all function-site types (covering every cross-family lookup).
+// Demand-scoping `it` before that silently breaks union round-trips.
+//
+// Only LEAF families (nothing references their cache) are safe to migrate
+// incrementally. `te` is the first: it is a leaf, and its own `it_` lookups are
+// satisfied by `it` staying all-emit.
+var MigratedFamilies = map[string]bool{
+	"te": true,
+}
+
+// IsFamilyMigrated reports whether the cache family `tag` has moved to the
+// demand-driven (InjectTypeFnArgs) path.
+func IsFamilyMigrated(tag string) bool {
+	return MigratedFamilies[tag]
+}
+
+// FnDemand is one cache entry a call-site fnId resolves to: the family tag, the
+// variant suffix appended to it, and the option names that prime the walker.
+// Single-family functions resolve to one demand; composite JSON strategies
+// resolve to two.
+type FnDemand struct {
+	Tag           string
+	VariantSuffix string
+	Options       []string
+}
+
+// ResolveFnId computes the injected fnId token for a function key plus the
+// compile-time args parsed at the call site. optionNames is the set of true
+// IsTypeOptions names (CompFnAxisIsTypeOptions); strategy is the JSON strategy
+// literal (CompFnAxisJsonStrategy; "" ⇒ the function's default). ok is false
+// when fnKey isn't a registered createX function.
+func ResolveFnId(fnKey string, optionNames []string, strategy string) (string, bool) {
+	fn, ok := CompFns[fnKey]
+	if !ok {
+		return "", false
+	}
+	switch fn.Axis {
+	case CompFnAxisIsTypeOptions:
+		return fn.BaseTag + IsTypeVariantSuffix(optionNames), true
+	case CompFnAxisJsonStrategy:
+		if strategy == "" {
+			strategy = fn.DefaultStrategy
+		}
+		return strategy, true
+	default:
+		return fn.BaseTag, true
+	}
+}
+
+// DemandsForFnId reverses an injected fnId token into the cache-entry demands
+// the emitter must render. Used by the renderer, which sees Site.FnId rather
+// than the original call-site args.
+func DemandsForFnId(fnId string) []FnDemand {
+	if fnId == "" {
+		return nil
+	}
+	// JSON strategy token → its composed families (plain entries, no variant).
+	if families, isStrategy := JsonStrategyFamilies[fnId]; isStrategy {
+		demands := make([]FnDemand, 0, len(families))
+		for _, tag := range families {
+			demands = append(demands, FnDemand{Tag: tag})
+		}
+		return demands
+	}
+	// Variant family: baseTag, optionally followed by an `N<letters>` suffix.
+	for _, base := range variantFamilyBases {
+		if fnId == base {
+			return []FnDemand{{Tag: base}}
+		}
+		if strings.HasPrefix(fnId, base+"N") {
+			suffix := fnId[len(base):]
+			return []FnDemand{{Tag: base, VariantSuffix: suffix, Options: optionsForVariantSuffix(suffix)}}
+		}
+	}
+	// Simple family: fnId is the tag.
+	return []FnDemand{{Tag: fnId}}
+}
+
+// optionsForVariantSuffix reverses an `N<letters>` variant suffix back to the
+// IsTypeOptions names it encodes (inverse of IsTypeVariantSuffix).
+func optionsForVariantSuffix(suffix string) []string {
+	if len(suffix) == 0 || suffix[0] != 'N' {
+		return nil
+	}
+	letters := suffix[1:]
+	var names []string
+	for _, opt := range IsTypeOptions {
+		if opt.Letter != "" && strings.Contains(letters, opt.Letter) {
+			names = append(names, opt.Name)
+		}
+	}
+	return names
 }
 
 // Version is the binary version, injected at build time via

@@ -1,9 +1,39 @@
 # Demand-driven function caches (`InjectTypeFnArgs` marker)
 
-Status: **ready to implement** — investigation complete and confirmed; design
-decisions taken. Execution tracked in the Task list at the bottom of this doc.
+Status: **in progress** — marker infrastructure landed; `te` (typeErrors) is the
+first demand-scoped leaf family. `it` and the remaining families stay all-emit
+pending the all-families migration (see the Critical Finding below). Execution
+tracked in the Task list at the bottom of this doc.
 Owner item: `docs/TODOS.md` §2 ("createIsType and other functions are not
 parsing compiler options, instead they are generating all families at once").
+
+## ⚠️ Critical finding (discovered during implementation)
+
+`it` (isType) is a **shared cross-family runtime dependency**, so it CANNOT be
+demand-scoped on its own:
+
+- The JSON and binary **union decoders discriminate members at runtime via
+  `it_<member>.fn(value)`** — see `unionMemberIsTypeCheck` in
+  `internal/compiled/typefns/json_prepare.go`. The call is guarded
+  `(it_<member>?.fn(v) ?? true)`, so a **missing** `it_<member>` silently
+  evaluates to `true` → the first union member always matches → wrong
+  round-trip values (no error, just corrupt data).
+- `typeErrors` (`te`) delegates child checks to `it_` too.
+
+Consequence: if `it` is demand-scoped to only `createIsType` call sites, a file
+that serializes a union via `createBinaryEncoder` / `createJsonEncoder` (but
+never calls `createIsType` on it) loses the `it_<member>` entries its union
+decoder needs. Verified empirically: demand-scoping `it`/`te` together turned
+the serialization suite from 468→ green to 22 union/binary round-trip failures.
+
+**Revised rule for `it`:** its demand is the **it-closure of every function-site
+type** (any `createX`, not just `createIsType`) — that covers all cross-family
+`it_<member>` lookups. Computing that requires EVERY function family to carry an
+`fnId` (be migrated to `InjectTypeFnArgs`), so `it` can only be scoped in the
+FINAL step, after all leaf families are migrated. Until then `it` stays all-emit
+(correct, just not yet minimal).
+
+This reorders the rollout: **leaf families first, `it` last.**
 
 ## Problem (confirmed)
 
@@ -184,25 +214,31 @@ per-site `fnId` assertions; do not delete it.
 
 ## Rollout sequencing (slices)
 
-The six phases ship in four reviewable slices, each green on its own. Other
-families ride the back-compat all-emit path until their slice lands, so the
-tree stays correct throughout.
+Reordered after the cross-family finding above: **leaf families migrate first,
+the shared `it` family last.** Each slice is green on its own; non-migrated
+families ride the back-compat all-emit path so the tree stays correct.
 
-- **Slice A — foundation + `it`/`te`.** New marker + registry (Phase 1), scanner
-  `FnId` for `it`/`te` (Phase 2), tuple injection (Phase 3), demand-driven
-  emission generalised but only `it`/`te` migrated off the back-compat path
-  (Phase 4), runtime for `createIsType`/`createGetTypeErrors` (Phase 5). This
-  proves the whole vertical on the template family.
-- **Slice B — single-family fan-out.** Migrate `huk`/`suk`/`uke`/`uku`/`fmt`
-  and `tb`/`fb` (no comptime variant axis — `fnId` = base tag).
+- **Slice A — foundation + `te` (LANDED).** New marker `InjectTypeFnArgs<T, Fn>`
+  + registry, scanner `Site.FnId`, `[id, fnId]` tuple injection, generalised
+  demand-driven emission, runtime tuple-read for `createIsType`/
+  `createGetTypeErrors`. Only `te` (a safe leaf) is demand-scoped; `it` and the
+  rest stay all-emit. `createIsType` already injects `[id,'it']` and works
+  against the all-emit `it` cache, so migrating `it` later is a one-line
+  `MigratedFamilies` flip once the prerequisites are met.
+- **Slice B — remaining single-family leaves.** Migrate
+  `huk`/`suk`/`uke`/`uku`/`fmt` and `tb`/`fb` to `InjectTypeFnArgs` (no comptime
+  variant axis — `fnId` = base tag) and add them to `MigratedFamilies`. All are
+  leaves, so safe while `it` stays all-emit.
 - **Slice C — JSON precise strategy.** `createJsonEncoder`/`createJsonDecoder`:
-  read the `strategy` literal → `fnId` → 1–2 families. Update
+  read the `strategy` literal → `fnId` = strategy token → 1–2 families
+  (`JsonStrategyFamilies`). Migrate + scope. Update
   `TestResolver_EncoderOptionsShareTypeID`.
-- **Slice D — cleanup + docs.** Drop `Site.Options` + the
-  `createRTFunctionWithOptions`/`buildVariantKey` duplication; decide the fate
-  of the back-compat all-emit fallback (keep as the documented "no-demand"
-  render mode for unit tests, or remove); full zero-over-emission regression
-  test; refresh `docs/` + `CLAUDE.md`.
+- **Slice D — scope `it` + cleanup.** Now that every function family carries an
+  `fnId`, compute the `it` demand as the **it-closure of all function-site
+  types** (covering cross-family `it_<member>` lookups) and add `it` to
+  `MigratedFamilies`. Then drop `Site.Options` + the `buildVariantKey`
+  duplication; full zero-over-emission regression for `getRunTypeId`-only files;
+  refresh `docs/` + `CLAUDE.md`.
 
 ## Risks / watch-items
 - Public marker API change — additive (new marker; `InjectRunTypeId` keeps its
@@ -219,36 +255,36 @@ tree stays correct throughout.
 Check items off as they land. Each slice ends green (`go test ./internal/...`
 + the plugin/marker JS suites) before the next begins.
 
-### Slice A — foundation + `it`/`te`
-- [ ] A1 `internal/constants/constants.go`: add `BrandInjectTypeFnArgs` + the
-  compile-function registry (`Fn` → base tag + comptime axis; `(Fn, fnId) →
-  []familyTag`) + a `ResolveFnId(fn, comptimeArgs) (fnId string, families
-  []string)` helper.
-- [ ] A2 `internal/marker/marker.go`: add `KindInjectTypeFnArgs` spec +
-  `DefaultInjectTypeFnArgsName` + brand; surface both `T` and `Fn` type-args.
-- [ ] A3 `packages/ts-go-run-types/src/markers.ts`: add
-  `export type InjectTypeFnArgs<T, Fn extends string>` (phantom brand).
-- [ ] A4 `cmd/gen-ts-constants`: mirror the registry; `pnpm run gen:ts-constants`.
-- [ ] A5 `internal/protocol/protocol.go`: add `Site.FnId string`.
-- [ ] A6 `internal/resolver/scan.go`: detect `InjectTypeFnArgs` trailing slot;
-  read `Fn` + IsTypeOptions literal → `fnId` (`it`/`itNL`/…); set `Site.FnId`.
-  Generalise `extractIsTypeOptions` into the shared comptime-args reader.
-- [ ] A7 Preserve schema-overload demand (`rt.id`); add recursive-schema test.
-- [ ] A8 `packages/vite-plugin-runtypes/src/protocol.ts`: add `Site.fnId?`.
-- [ ] A9 `rewrite.ts` `buildInsertion`: emit `["typeId","fnId"]` when `fnId` is
-  present; bare `"typeId"` string otherwise.
-- [ ] A10 `internal/compiled/typefns/module.go`: generalise
-  `collectIsTypeVariants` → `collectVariants(familyTag)` keyed on `Site.FnId`;
-  worklist-seed from demanded roots + transitive `RTDependencies` closure;
-  keep the no-`FnId` ⇒ all-RunTypes back-compat path; migrate only `it`/`te`.
-- [ ] A11 `createRTFunctions.ts`: `createIsType`/`createGetTypeErrors` read the
-  `[typeId, fnId]` tuple and look up `fnId + '_' + typeId` directly.
-- [ ] A12 Update Go overlays (`inline_test.go`, `internal/testfixtures/*`) +
-  JS inline helper to declare `InjectTypeFnArgs` for `it`/`te`.
-- [ ] A13 Build binary; `go test ./internal/...` green; rebuild vite plugin;
-  `pnpm --filter vite-plugin-runtypes test` + marker pkg tests green.
-- [ ] A14 Regression: a `getRunTypeId`-only file emits **zero** `it_`/`te_`
-  entries; paired static/reflect `createIsType` tests still pass.
+### Slice A — foundation + `te` (LANDED)
+- [x] A1 `internal/constants/constants.go`: `BrandInjectTypeFnArgs` (in marker.go),
+  compile-function registry (`CompFns`, `JsonStrategyFamilies`, `FnDemand`,
+  `ResolveFnId`, `DemandsForFnId`), `MigratedFamilies` + `IsFamilyMigrated`.
+- [x] A2 `internal/marker/marker.go`: `KindInjectTypeFnArgs` spec +
+  `DefaultInjectTypeFnArgsName` + brand; `FnKeyForInjectTypeFnArgs` reads the
+  `Fn` type-arg (handles the optional-param `| undefined` union).
+- [x] A3 `packages/ts-go-run-types/src/markers.ts`: `InjectTypeFnArgs<T, Fn>`
+  (phantom brand — `string &` shape so the alias + type-args resolve).
+- [ ] A4 `cmd/gen-ts-constants`: mirror the registry — **deferred to Slice C**
+  (the `te`/leaf runtimes use the injected `fnId` directly; only the JSON
+  strategy→families map needs mirroring).
+- [x] A5 `internal/protocol/protocol.go`: `Site.FnId string`.
+- [x] A6 `internal/resolver/scan.go`: detect `InjectTypeFnArgs`; `computeFnId`
+  (+ `extractStrategyOption`) → `Site.FnId`; `enclosedByInjectionMarker` updated.
+- [ ] A7 Preserve schema-overload demand (`rt.id`); recursive-schema test —
+  **carried to Slice D** (matters once `it` is scoped).
+- [x] A8 `packages/vite-plugin-runtypes/src/protocol.ts`: `Site.fnId?`.
+- [x] A9 `rewrite.ts` `buildInsertion`: `[id, fnId]` tuple when `fnId` present.
+- [x] A10 `internal/compiled/typefns/module.go`: `collectFamilyDemand` +
+  worklist-seed + transitive closure; back-compat all-emit path; gated by
+  `MigratedFamilies` (currently `{te}`).
+- [x] A11 `createRTFunctions.ts`: `createIsType`/`createGetTypeErrors` read the
+  `[id, fnId]` tuple via `createTypeFnArgsFunction`.
+- [x] A12 Go overlay (`inline_test.go`) declares `InjectTypeFnArgs` +
+  `createIsType`/`createGetTypeErrors`; emitter tests demand via `createIsType`.
+- [x] A13 `go test ./internal/...` green; `pnpm test` green (85 files / 5856).
+- [x] A14 Regression `internal/resolver/demand_scope_test.go`: `te_` scoped to
+  `createGetTypeErrors`; reflection/`createIsType` files emit no `te_`; `it`
+  stays all-emit (guarded by `TestDemandScope_ItStaysAllEmit`).
 
 ### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`uku`/`fmt`, `tb`/`fb`)
 - [ ] B1 Migrate these factory signatures to `InjectTypeFnArgs<T, Fn>` (`markers`
@@ -267,7 +303,13 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   per-site `fnId` assertions).
 - [ ] C6 Tests/build green.
 
-### Slice D — cleanup + docs
+### Slice D — scope `it` + cleanup + docs
+- [ ] D0 Scope `it`: with every function family migrated, compute the `it`
+  demand as the it-closure of ALL function-site types (covers cross-family
+  `it_<member>` lookups), add `"it"` to `MigratedFamilies`, and verify the
+  serialization suite stays green (the union round-trip canary).
+- [ ] D0b Recursive value-first schema passed to `createX` — emit id must match
+  the runtime `rt.id` lookup (carried from A7); add the regression test.
 - [ ] D1 Remove `Site.Options` + the `createRTFunctionWithOptions` /
   `buildVariantKey` duplication now subsumed by `fnId`.
 - [ ] D2 Decide the back-compat all-emit fallback's fate (keep as documented

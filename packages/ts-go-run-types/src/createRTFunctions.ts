@@ -18,7 +18,7 @@ import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepare
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {buildVariantKey, getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
-import type {CompTimeArgs, InjectRunTypeId} from './index.ts';
+import type {CompTimeArgs, InjectRunTypeId, InjectTypeFnArgs} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -201,26 +201,40 @@ function resolveRTEntry<F extends AnyFn>(
   );
 }
 
-/** Returns the per-id closure for a family that honours `IsTypeOptions`
- *  — currently `createIsType` and `createGetTypeErrors`. The `options`
- *  slot drives the variant cache-key suffix so the same structural id
- *  can serve multiple factories (plain `it_<id>`, `itNL_<id>`,
- *  `itNA_<id>`, …). **/
-function createRTFunctionWithOptions<F extends AnyFn>(
+/** Returns the per-(id, fnId) closure for a createX factory routed through the
+ *  InjectTypeFnArgs marker (`createIsType` / `createGetTypeErrors`). The plugin
+ *  injects a `[typeId, fnId]` tuple at the trailing slot; the runtime reads it
+ *  and resolves `fnId + '_' + typeId` directly — the fnId already encodes the
+ *  family + IsTypeOptions variant (e.g. `it`, `itNL`), so no key is recomputed
+ *  here (this replaces the old `buildVariantKey` round-trip). Slot 0 may be a
+ *  value-first schema whose runtime `.id` overrides the injected typeId (correct
+ *  even for recursive schemas); the fnId still comes from the injected tuple. **/
+function createTypeFnArgsFunction<F extends AnyFn>(
   fnName: string,
-  prefix: string,
+  fallbackPrefix: string,
   identityFn: F
-): (val?: unknown, options?: unknown, id?: string) => F {
-  return (val, options, id) => {
-    // SCHEMA overload (`createIsType(rt)`): dispatch on the schema's runtime
-    // `.id` (the value-first builder's structural id) rather than the injected
-    // id. For a non-recursive schema the two coincide (convergence), but the
-    // injected id is reflected from the inferred `T`, which can diverge into a
-    // broken factory for a RECURSIVE schema; the builder's `.id` is always the
-    // correct, emitted entry. The value/static forms pass a non-RunType `val`
-    // (or undefined) and fall through to the injected id.
-    const effectiveId = isRunTypeSchema(val) ? val.id : id;
-    return resolveRTEntry(fnName, prefix, identityFn, effectiveId, options as Record<string, unknown> | undefined);
+): (val?: unknown, options?: unknown, args?: unknown) => F {
+  return (val, _options, args) => {
+    const tuple = args as [string, string] | undefined;
+    const injectedId = tuple ? tuple[0] : undefined;
+    const fnId = tuple ? tuple[1] : undefined;
+    const effectiveId = isRunTypeSchema(val) ? val.id : injectedId;
+    if (effectiveId === undefined) {
+      throw new Error(
+        `${fnName}(): no id injected. vite-plugin-runtypes must be active for ${fnName} to dispatch to a precompiled factory.`
+      );
+    }
+    const utils = getRTUtils();
+    // fnId is the precise cache prefix (family + variant). The plugin always
+    // injects it for createX sites; fall back to the bare family prefix
+    // defensively.
+    const key = (fnId ?? fallbackPrefix) + '_' + effectiveId;
+    const entry = utils.getRT(key);
+    if (entry) return entry.fn as F;
+    if (utils.hasRunType(effectiveId)) return identityFn;
+    throw new Error(
+      `${fnName}(): no RTCompiledFn entry for "${key}" in rtUtils. The build pipeline didn't emit a factory for that runtype.`
+    );
   };
 }
 
@@ -263,19 +277,23 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 //   - VALUE / static form `createIsType<T>()` / `createIsType(value)`.
 // Both share the runtime impl (`val`/`schema` @slot0 ignored, options @slot1,
 // injected id @slot2).
-export const createIsType = createRTFunctionWithOptions<IsTypeFn>('createIsType', 'it', () => true) as unknown as (<T>(
+export const createIsType = createTypeFnArgsFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as (<T>(
   schema: RunType<T>,
   options?: CompTimeArgs<IsTypeOptions>,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'it'>
 ) => IsTypeFn) &
-  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => IsTypeFn);
+  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn);
 
-export const createGetTypeErrors = createRTFunctionWithOptions<GetTypeErrorsFn>(
+export const createGetTypeErrors = createTypeFnArgsFunction<GetTypeErrorsFn>(
   'createGetTypeErrors',
   'te',
   getTypeErrorsIdentity
-) as unknown as (<T>(schema: RunType<T>, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn) &
-  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectRunTypeId<T>) => GetTypeErrorsFn);
+) as unknown as (<T>(
+  schema: RunType<T>,
+  options?: CompTimeArgs<IsTypeOptions>,
+  id?: InjectTypeFnArgs<T, 'te'>
+) => GetTypeErrorsFn) &
+  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>) => GetTypeErrorsFn);
 
 // IsTypeOptions does not affect these families' validators — the
 // options bag is exclusive to `createIsType` / `createGetTypeErrors`.

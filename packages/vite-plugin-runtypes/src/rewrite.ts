@@ -79,7 +79,11 @@ function buildInsertion(s: Site): string {
   const padding = Math.max(0, paramIndex - argsCount);
   const parts: string[] = [];
   for (let i = 0; i < padding; i++) parts.push('undefined');
-  parts.push(JSON.stringify(s.id));
+  // createX sites (InjectTypeFnArgs marker) carry an fnId — inject a
+  // `[id, fnId]` tuple so the runtime resolves the precise function family
+  // without recomputing a cache key. Reflection sites (InjectRunTypeId) inject
+  // the bare id string.
+  parts.push(s.fnId ? `[${JSON.stringify(s.id)}, ${JSON.stringify(s.fnId)}]` : JSON.stringify(s.id));
   const body = parts.join(', ');
   return argsCount > 0 ? `, ${body}` : body;
 }

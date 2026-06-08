@@ -204,6 +204,13 @@ export interface Site {
   paramIndex?: number;
   argsCount?: number;
   options?: string[];
+  // fnId is the precise compile-time function selector for a createX call site
+  // routed through the InjectTypeFnArgs marker (e.g. "it", "itNL",
+  // "stripMutate"). When present, the patcher injects a `[id, fnId]` tuple
+  // instead of the bare `"id"` string; the runtime createX reads the tuple to
+  // resolve its precise factory. Absent for reflection-only InjectRunTypeId
+  // sites (getRunTypeId / reflectRunTypeId / builders).
+  fnId?: string;
 }
 
 // Replacement is a byte-range rewrite on a source file: replace
