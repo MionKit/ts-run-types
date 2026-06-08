@@ -26,12 +26,26 @@ never calls `createIsType` on it) loses the `it_<member>` entries its union
 decoder needs. Verified empirically: demand-scoping `it`/`te` together turned
 the serialization suite from 468→ green to 22 union/binary round-trip failures.
 
-**Revised rule for `it`:** its demand is the **it-closure of every function-site
-type** (any `createX`, not just `createIsType`) — that covers all cross-family
-`it_<member>` lookups. Computing that requires EVERY function family to carry an
-`fnId` (be migrated to `InjectTypeFnArgs`), so `it` can only be scoped in the
-FINAL step, after all leaf families are migrated. Until then `it` stays all-emit
-(correct, just not yet minimal).
+**Revised rule for `it` (cross-family edge following):** the `it_` references
+other families emit are already in the code as closure-prologue lookups —
+`registerRTLookup("it_<member>")` (`emitter.go:241`) emits
+`const it_<member> = utl.getRT('it_<member>')`. The fix is to **promote those
+cross-family lookups to tracked dependency edges** (a `CrossFamilyDeps` list on
+the walker, kept distinct from same-family `RTDependencies` so the per-family
+dangling cascade does not wrongly drop the referencing entry) and have the
+demand-closure **follow those edges into the `it` family**. Then `it`'s demand
+is exactly the `it_` members actually referenced while rendering the demanded
+`te`/JSON/binary entries — minimal, not the coarse "it-closure of every
+function-site type." Cross-family edges always use the **default** variant
+(plain `it_`, no options), matching what `registerRTLookup` already emits.
+
+This is the same dependency-driven emission we already have for same-family
+`rtDependencies` (the worklist) and `pureFnDependencies` (resolver collect +
+emit) — just extended across families. Prerequisite unchanged: every `createX`
+must carry an `fnId` so each family is *seeded* by its own sites; the
+cross-family edges then handle `it` in the final step. Until then `it` stays
+all-emit (correct, just not yet minimal). The capture mechanism is specced
+separately in **`docs/CROSS-FAMILY-RT-DEPS.md`** (delegated as a focused unit).
 
 This reorders the rollout: **leaf families first, `it` last.**
 
@@ -233,12 +247,13 @@ families ride the back-compat all-emit path so the tree stays correct.
   read the `strategy` literal → `fnId` = strategy token → 1–2 families
   (`JsonStrategyFamilies`). Migrate + scope. Update
   `TestResolver_EncoderOptionsShareTypeID`.
-- **Slice D — scope `it` + cleanup.** Now that every function family carries an
-  `fnId`, compute the `it` demand as the **it-closure of all function-site
-  types** (covering cross-family `it_<member>` lookups) and add `it` to
-  `MigratedFamilies`. Then drop `Site.Options` + the `buildVariantKey`
-  duplication; full zero-over-emission regression for `getRunTypeId`-only files;
-  refresh `docs/` + `CLAUDE.md`.
+- **Slice D — scope `it` + cleanup.** Builds on the cross-family-edge capture
+  (`docs/CROSS-FAMILY-RT-DEPS.md`): compute the `it` demand as createIsType-site
+  closure ∪ the `it_` edges discovered while rendering the other demanded
+  families (minimal, default variant), then add `it` to `MigratedFamilies`. Then
+  drop `Site.Options` + the `buildVariantKey` duplication; full
+  zero-over-emission regression for `getRunTypeId`-only files; refresh `docs/` +
+  `CLAUDE.md`. Canary: the serialization suite must stay green (union round-trip).
 
 ## Risks / watch-items
 - Public marker API change — additive (new marker; `InjectRunTypeId` keeps its
@@ -304,10 +319,14 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [ ] C6 Tests/build green.
 
 ### Slice D — scope `it` + cleanup + docs
+- [ ] D0pre Cross-family RT dependency capture — **delegated**, see
+  `docs/CROSS-FAMILY-RT-DEPS.md`. Captures `it_<member>` cross-family edges so
+  the demand-closure can follow them.
 - [ ] D0 Scope `it`: with every function family migrated, compute the `it`
-  demand as the it-closure of ALL function-site types (covers cross-family
-  `it_<member>` lookups), add `"it"` to `MigratedFamilies`, and verify the
-  serialization suite stays green (the union round-trip canary).
+  demand as createIsType-site closure ∪ the cross-family `it_` edges discovered
+  while rendering the other demanded families (minimal, default variant), add
+  `"it"` to `MigratedFamilies`, verify the serialization suite stays green
+  (union round-trip canary).
 - [ ] D0b Recursive value-first schema passed to `createX` — emit id must match
   the runtime `rt.id` lookup (carried from A7); add the regression test.
 - [ ] D1 Remove `Site.Options` + the `createRTFunctionWithOptions` /
