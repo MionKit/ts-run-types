@@ -14,10 +14,13 @@
 //    strategy) on the case's samples — identical wire output ⇒ same resolved
 //    runtype.
 //
-// Option-degraded validator cases (the type-first thunk passes `noLiterals` /
-// `noIsArrayCheck`) resolve a distinct cache VARIANT from the plain value-first
-// builder, so they converge in behaviour but not in cached-factory identity —
-// skipped via the case's `idDivergent` flag.
+// Compile options (`noLiterals` / `noIsArrayCheck`) are folded into the cached
+// factory's variant key, so an option-bearing type-first form converges only with
+// a schema form that passes the SAME options — e.g. `createIsType<2>(…,
+// {noLiterals: true})` resolves the `itNL_<literal-2 id>` variant, matched by
+// `createIsType(RT.literal(2), {noLiterals: true})`, NOT by plain `RT.number()`.
+// The validation cases mirror their options on the schema thunk, so no special
+// casing is needed here.
 
 import {expect} from 'vitest';
 import type {Thunk, ValidationCase} from '../suites/validation/types.ts';
@@ -32,8 +35,8 @@ function resolveThunk<T>(thunk: Thunk<T> | undefined): (() => T) | undefined {
 /** Validator id-integrity: the value-first schema form and the type-first form
  *  must resolve to the SAME cached factory (reference identity) for both the
  *  isType and getTypeErrors families. Skips factoryThrows (both forms throw at
- *  build) and idDivergent (option-variant) cases, and any case missing one of
- *  the two forms (`'not-supported'` / omitted). **/
+ *  build), idDivergent (known not to converge by design), and any case missing
+ *  one of the two forms (`'not-supported'` / omitted). **/
 export function assertValidatorIdIntegrity(c: ValidationCase): void {
   if (c.factoryThrows) return;
   if (c.idDivergent) return;
