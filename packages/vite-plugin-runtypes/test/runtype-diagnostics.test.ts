@@ -31,9 +31,10 @@ describe('vite-plugin-runtypes / runtype diagnostics', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits PJ001 for Never at root under prepareForJson', async () => {
+    // pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
-      'never.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<never>();
+      'never.ts': `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -52,11 +53,12 @@ export const _ = getRunTypeId<never>();
   });
 
   register('emits per-family codes — SJ001 / TB001 / PJ001 — for same root throw', async () => {
-    // pj/sj are JSON families (still all-emit) so getRunTypeId seeds them; tb is
-    // demand-driven, so it needs its own createBinaryEncoder call site for TB001.
+    // All three families are demand-driven: seed pj via createJsonEncoder(mutate),
+    // sj via createJsonEncoder(direct), and tb via createBinaryEncoder.
     const sources = {
-      'never-multi.ts': `import {getRunTypeId, createBinaryEncoder} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<never>();
+      'never-multi.ts': `import {createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoder<never>(undefined, {strategy: 'direct'});
 export const _b = createBinaryEncoder<never>();
 `,
     };
@@ -72,11 +74,13 @@ export const _b = createBinaryEncoder<never>();
   });
 
   register('emits per-call-site fan-out — three marker calls = three diagnostics', async () => {
+    // pj is demand-driven; three createJsonEncoder(mutate) sites share one `never`
+    // id, so the single rendered pj entry fans the PJ001 diag out to all three.
     const sources = {
-      'fan-out.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const a = getRunTypeId<never>();
-export const b = getRunTypeId<never>();
-export const c = getRunTypeId<never>();
+      'fan-out.ts': `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const a = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+export const b = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -109,9 +113,10 @@ export const _ = getRunTypeId<User>();
   });
 
   register('formatTscDiagnostic renders runtype warnings in tsc line format', async () => {
+    // pj is demand-driven, so seed it via createJsonEncoder(mutate) → [pj].
     const sources = {
-      'fmt-rt.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<never>();
+      'fmt-rt.ts': `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -175,9 +180,14 @@ export const _ = getRunTypeId<unknown>();
   // short-circuits we removed in the tuple emits.
 
   register('propagates function-typed tuple slot as alwaysThrow under prepareForJson', async () => {
+    // pj/pjs/rj/sj are demand-driven: seed pj via createJsonEncoder(mutate), pjs
+    // via the default stripClone, sj via direct, and rj via createJsonDecoder.
     const sources = {
-      'fn-tuple.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<[number, () => void]>();
+      'fn-tuple.ts': `import {createJsonEncoder, createJsonDecoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoder<[number, () => void]>();
+export const _d = createJsonEncoder<[number, () => void]>(undefined, {strategy: 'direct'});
+export const _r = createJsonDecoder<[number, () => void]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -226,8 +236,8 @@ export const _d = createBinaryDecoder<[string, () => number]>();
     // path even before the fix. This test pins that behavior so a future
     // optimisation can't silently regress it.
     const sources = {
-      'sym-tuple.ts': `import {getRunTypeId, createBinaryEncoder} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<[number, symbol]>();
+      'sym-tuple.ts': `import {createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<[number, symbol]>(undefined, {strategy: 'mutate'});
 export const _b = createBinaryEncoder<[number, symbol]>();
 `,
     };

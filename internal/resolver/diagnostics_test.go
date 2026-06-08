@@ -22,8 +22,9 @@ func runtypeDiagsOf(diagnostics []diag.Diagnostic) []diag.Diagnostic {
 // fans out one entry per call site (per user direction: dedup is
 // one-per-call-site, not one-per-type-id).
 func TestDiag_RunTypeRTThrow_NeverAtRoot_PrepareForJson(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<never>();
+	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -66,8 +67,9 @@ export const _ = getRunTypeId<never>();
 // throw across the JSON families. `getRunTypeId<() => void>()` reaches
 // the function-root RTThrow in each family.
 func TestDiag_RunTypeRTThrow_FunctionAtRoot_PrepareForJson(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<() => void>();
+	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<() => void>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"f.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -98,10 +100,11 @@ export const _ = getRunTypeId<() => void>();
 // see which RT family produced the diagnostic without parsing
 // message text.
 func TestDiag_PerFamilyPrefix_NeverAtRoot_DistinctCodes(t *testing.T) {
-	// pj/sj are JSON families (still all-emit), so getRunTypeId seeds them;
-	// tb is demand-driven, so it needs its own createBinaryEncoder call site.
-	const code = `import {getRunTypeId, createBinaryEncoder} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<never>();
+	// All three families are demand-driven now: seed pj via createJsonEncoder(mutate),
+	// sj via createJsonEncoder(direct), and tb via its own createBinaryEncoder.
+	const code = `import {createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoder<never>(undefined, {strategy: 'direct'});
 export const _b = createBinaryEncoder<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
@@ -135,9 +138,10 @@ export const _b = createBinaryEncoder<never>();
 // to the root. The rest of the object's validator still works.
 // See docs/UNSUPPORTED-KINDS.md.
 func TestDiag_PropertyAbsorbsUnsupportedChild_NeverProp(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
 interface User { name: string; bad: never; }
-export const _ = getRunTypeId<User>();
+export const _ = createJsonEncoder<User>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"u.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -194,10 +198,12 @@ export const _ = getRunTypeId<User>();
 // KindSymbol — `getRunTypeId<symbol>()` produces an alwaysThrow factory
 // (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
-	// isType seeds `it`; pj/sj are all-emit JSON families; tb is demand-driven,
-	// so it needs its own createBinaryEncoder call site to fan out TB001.
-	const code = `import {createIsType, createBinaryEncoder} from '@mionjs/ts-go-run-types';
+	// isType seeds `it` (all-emit); pj/sj/tb are demand-driven, so seed pj via
+	// createJsonEncoder(mutate), sj via createJsonEncoder(direct), tb via createBinaryEncoder.
+	const code = `import {createIsType, createJsonEncoder, createBinaryEncoder} from '@mionjs/ts-go-run-types';
 export const _ = createIsType<symbol>();
+export const _p = createJsonEncoder<symbol>(undefined, {strategy: 'mutate'});
+export const _s = createJsonEncoder<symbol>(undefined, {strategy: 'direct'});
 export const _b = createBinaryEncoder<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
@@ -230,8 +236,9 @@ export const _b = createBinaryEncoder<symbol>();
 // when a root throws, the rendered init() carries the diag code as
 // the 8th arg, not an inline throwing factory body.
 func TestDiag_AlwaysThrowEntry_HasCodeOnWire(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<never>();
+	// pj is demand-driven now, so seed it via createJsonEncoder(mutate) → [pj].
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const _ = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -298,10 +305,12 @@ export const _ = createIsType<User>();
 // same problem, emit N diagnostics — one per call site — not one
 // shared by them all.
 func TestDiag_RunTypeFansOutAcrossCallSites(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const a = getRunTypeId<never>();
-export const b = getRunTypeId<never>();
-export const c = getRunTypeId<never>();
+	// pj is demand-driven; three createJsonEncoder(mutate) sites share one `never`
+	// id, so the single rendered pj entry fans the PJ001 diag out to all three.
+	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
+export const a = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+export const b = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
+export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
 `
 	r := setupInline(t, map[string]string{"multi.ts": code})
 	resp := r.Dispatch(protocol.Request{

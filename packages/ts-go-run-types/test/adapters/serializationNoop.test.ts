@@ -27,7 +27,7 @@
 // failure surfaces the divergence visibly per the testing rules.
 
 import {describe, expect, it} from 'vitest';
-import {getRTFnCaches, getRunTypeId} from '@mionjs/ts-go-run-types';
+import {createJsonDecoder, createJsonEncoder, getRTFnCaches, getRunTypeId} from '@mionjs/ts-go-run-types';
 
 interface NoJsonENCDECRequired {
   a: number;
@@ -53,10 +53,20 @@ function rjEntry(id: string) {
   return rtFnsCache['rj_' + id];
 }
 
+// pj / rj are demand-scoped now (Slice C): a `getRunTypeId<T>()` reflection
+// call no longer seeds the prepareForJson / restoreFromJson cache entries. So
+// each `T` whose pj/rj entry we inspect must also be passed to the matching
+// JSON factory at a call site the scanner can see — createJsonEncoder(mutate)
+// demands `pj`, createJsonDecoder (default strip) demands `rj`. The id stays
+// f(T), so `getRunTypeId<T>()` still returns the cache key these calls populate.
 describe('json noop markers (00JsonOnly.spec.ts port)', () => {
   it('interface json encode/decode should be marked as noop when there are no actions required', () => {
     const noopId = getRunTypeId<NoJsonENCDECRequired>();
     const encId = getRunTypeId<SonENCDECRequired>();
+    createJsonEncoder<NoJsonENCDECRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<NoJsonENCDECRequired>();
+    createJsonEncoder<SonENCDECRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<SonENCDECRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(true);
     expect(rjEntry(noopId)?.isNoop).toBe(true);
@@ -67,6 +77,10 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
   it('tuple json encode/decode should be marked as noop when there are no actions required', () => {
     const noopId = getRunTypeId<TupleNoJsonENCDECRequired>();
     const encId = getRunTypeId<TupleSonENCDECRequired>();
+    createJsonEncoder<TupleNoJsonENCDECRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<TupleNoJsonENCDECRequired>();
+    createJsonEncoder<TupleSonENCDECRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<TupleSonENCDECRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(true);
     expect(rjEntry(noopId)?.isNoop).toBe(true);
@@ -90,6 +104,10 @@ describe('json noop markers (00JsonOnly.spec.ts port)', () => {
     // wrap is preserved on every member and both halves stay non-noop.
     const noopId = getRunTypeId<AtomicNoEncRequired>();
     const encId = getRunTypeId<AtomicEncRequired>();
+    createJsonEncoder<AtomicNoEncRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<AtomicNoEncRequired>();
+    createJsonEncoder<AtomicEncRequired>(undefined, {strategy: 'mutate'});
+    createJsonDecoder<AtomicEncRequired>();
 
     expect(pjEntry(noopId)?.isNoop).toBe(false);
     expect(rjEntry(noopId)?.isNoop).toBe(true);

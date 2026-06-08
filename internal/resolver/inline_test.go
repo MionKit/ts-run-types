@@ -29,6 +29,10 @@ const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export function createFormatTransform<T>(val?: T, id?: InjectTypeFnArgs<T, 'fmt'>): (v: unknown) => unknown;
   export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (v: unknown) => unknown;
   export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (v: unknown) => unknown;
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct'};
+  export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
+  export function createJsonDecoder<T>(val?: T, options?: CompTimeArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (s: string) => unknown;
 }
 `
 
