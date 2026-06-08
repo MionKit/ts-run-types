@@ -130,9 +130,13 @@ export function tuple(
  *  `MapTuple<T>[number]`: the indexed-access form is subtype-REDUCED by tsgo, so a
  *  subset arm swallows its superset (`{a} | {a; b}` → `{a}`) and diverges from the
  *  written union. The fixed-arity overloads below brand the direct union with plain
- *  generic inference (NO `infer`); the trailing array overload falls back to the
- *  recursive `UnionOf<T>` for wider unions — the only place that pays the
- *  recursive-`infer` checker-perf cost. **/
+ *  generic inference (NO `infer`) for up to 4 members; beyond that the trailing
+ *  array overload falls back to the recursive `UnionOf<T>`. The cutoff is 4 (not 8)
+ *  on purpose: `UnionOf` recurses over a FIXED tuple, so at 5–8 members it costs a
+ *  handful of conditional instantiations per call site — shallow, nothing like the
+ *  deep/structural inference the no-`infer` rule guards against — and capping the
+ *  positional overloads at 4 keeps the surface small. (The cost only compounds for
+ *  very wide unions, where `UnionOf`'s non-tail recursion nears TS's depth wall.) **/
 export function union<A, B>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>]>,
   id?: InjectRunTypeId<A | B>
@@ -145,25 +149,7 @@ export function union<A, B, C, D>(
   members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>]>,
   id?: InjectRunTypeId<A | B | C | D>
 ): RunType<A | B | C | D>;
-export function union<A, B, C, D, E>(
-  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>]>,
-  id?: InjectRunTypeId<A | B | C | D | E>
-): RunType<A | B | C | D | E>;
-export function union<A, B, C, D, E, F>(
-  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>]>,
-  id?: InjectRunTypeId<A | B | C | D | E | F>
-): RunType<A | B | C | D | E | F>;
-export function union<A, B, C, D, E, F, G>(
-  members: CompTimeArgs<readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>, RunType<G>]>,
-  id?: InjectRunTypeId<A | B | C | D | E | F | G>
-): RunType<A | B | C | D | E | F | G>;
-export function union<A, B, C, D, E, F, G, H>(
-  members: CompTimeArgs<
-    readonly [RunType<A>, RunType<B>, RunType<C>, RunType<D>, RunType<E>, RunType<F>, RunType<G>, RunType<H>]
-  >,
-  id?: InjectRunTypeId<A | B | C | D | E | F | G | H>
-): RunType<A | B | C | D | E | F | G | H>;
-// Variable-arity fallback (9+ members) — recursive `UnionOf<T>`. Captures the
+// Variable-arity fallback (5+ members) — recursive `UnionOf<T>`. Captures the
 // member tuple with `const T` (not a `readonly [...T]` spread, which the
 // CompTimeArgs brand collapses to an array — losing the per-member precision
 // UnionOf needs to recurse).
@@ -176,27 +162,24 @@ export function union(members: readonly RunType[], id?: InjectRunTypeId<unknown>
 }
 
 /** An intersection builder, two call shapes:
- *   - Positional (1–8 members): `intersection(a, b, …)` → `RunType<A & B & …>`.
+ *   - Positional (1–4 members): `intersection(a, b, …)` → `RunType<A & B & …>`.
  *     Omitted slots default to `unknown` and vanish (`X & unknown = X`); the plugin
  *     pads the unused slots with `undefined` so the injected id lands on the trailing
  *     `InjectRunTypeId` parameter.
- *   - Array (any arity — the 9+ path): `intersection([a, b, …])` →
- *     `RunType<IntersectionOf<T>>`. A positional builder + a TRAILING injected id
- *     can't go variadic (JS rest params must be last), so wider intersections use
- *     the array form — the same array+`infer` pattern as `union` / `tuple`. The
- *     recursive `infer` (`IntersectionOf`) runs ONLY here.
- *  Real intersections are 2–3 types; `runType<T>()` also covers anything wider. **/
-export function intersection<A, B = unknown, C = unknown, D = unknown, E = unknown, F = unknown, G = unknown, H = unknown>(
+ *   - Array (5+ members): `intersection([a, b, …])` → `RunType<IntersectionOf<T>>`.
+ *     A positional builder + a TRAILING injected id can't go variadic (JS rest
+ *     params must be last), so wider intersections use the array form — the same
+ *     array+`infer` pattern as `union` / `tuple`. The recursive `infer`
+ *     (`IntersectionOf`) runs ONLY here. The positional cutoff matches `union` (4):
+ *     real intersections are 2–3 types, and `IntersectionOf`'s shallow tuple
+ *     recursion at 5+ is cheap (see the `union` note). **/
+export function intersection<A, B = unknown, C = unknown, D = unknown>(
   a: CompTimeArgs<RunType<A>>,
   b?: CompTimeArgs<RunType<B>>,
   c?: CompTimeArgs<RunType<C>>,
   d?: CompTimeArgs<RunType<D>>,
-  e?: CompTimeArgs<RunType<E>>,
-  f?: CompTimeArgs<RunType<F>>,
-  g?: CompTimeArgs<RunType<G>>,
-  h?: CompTimeArgs<RunType<H>>,
-  id?: InjectRunTypeId<A & B & C & D & E & F & G & H>
-): RunType<A & B & C & D & E & F & G & H>;
+  id?: InjectRunTypeId<A & B & C & D>
+): RunType<A & B & C & D>;
 export function intersection<const T extends readonly RunType[]>(
   members: CompTimeArgs<T>,
   id?: InjectRunTypeId<IntersectionOf<T>>
@@ -206,21 +189,17 @@ export function intersection(
   arg2?: RunType | InjectRunTypeId<unknown>,
   arg3?: RunType,
   arg4?: RunType,
-  arg5?: RunType,
-  arg6?: RunType,
-  arg7?: RunType,
-  arg8?: RunType,
-  arg9?: InjectRunTypeId<unknown>
+  arg5?: InjectRunTypeId<unknown>
 ): RunType {
-  // Array form (9+ / variadic path): members in arg1, the injected id in arg2.
+  // Array form (5+ / variadic path): members in arg1, the injected id in arg2.
   if (Array.isArray(arg1)) {
     return builderResult(arg2 as InjectRunTypeId<unknown> | undefined, {type: 'intersection', children: arg1});
   }
-  // Positional form (1–8): members a–h (unused slots are `undefined`), the injected
-  // id padded to the trailing slot (arg9).
-  return builderResult(arg9, {
+  // Positional form (1–4): members a–d (unused slots are `undefined`), the injected
+  // id padded to the trailing slot (arg5).
+  return builderResult(arg5, {
     type: 'intersection',
-    children: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] as readonly RunType[],
+    children: [arg1, arg2, arg3, arg4] as readonly RunType[],
   });
 }
 
