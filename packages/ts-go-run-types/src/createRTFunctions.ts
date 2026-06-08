@@ -18,7 +18,7 @@ import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepare
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
-import type {CompTimeArgs, InjectTypeFnArgs} from './index.ts';
+import type {CompTimeFnArgs, InjectTypeFnArgs} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -256,10 +256,10 @@ const unknownKeyErrorsIdentity: UnknownKeyErrorsFn = () => [];
 // injected id @slot2).
 export const createIsType = createTypeFnArgsFunction<IsTypeFn>('createIsType', 'it', () => true) as unknown as (<T>(
   schema: RunType<T>,
-  options?: CompTimeArgs<IsTypeOptions>,
+  options?: CompTimeFnArgs<IsTypeOptions>,
   id?: InjectTypeFnArgs<T, 'it'>
 ) => IsTypeFn) &
-  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn);
+  (<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>) => IsTypeFn);
 
 export const createGetTypeErrors = createTypeFnArgsFunction<GetTypeErrorsFn>(
   'createGetTypeErrors',
@@ -267,10 +267,10 @@ export const createGetTypeErrors = createTypeFnArgsFunction<GetTypeErrorsFn>(
   getTypeErrorsIdentity
 ) as unknown as (<T>(
   schema: RunType<T>,
-  options?: CompTimeArgs<IsTypeOptions>,
+  options?: CompTimeFnArgs<IsTypeOptions>,
   id?: InjectTypeFnArgs<T, 'te'>
 ) => GetTypeErrorsFn) &
-  (<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>) => GetTypeErrorsFn);
+  (<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>) => GetTypeErrorsFn);
 
 // IsTypeOptions does not affect these families' validators — the
 // options bag is exclusive to `createIsType` / `createGetTypeErrors`.
@@ -337,17 +337,17 @@ const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
  *  composed families always match what the backend actually emitted. **/
 export function createJsonEncoder<T>(
   schema: RunType<T>,
-  options?: CompTimeArgs<JsonEncoderOptions>,
+  options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn;
 export function createJsonEncoder<T>(
   val?: T,
-  options?: CompTimeArgs<JsonEncoderOptions>,
+  options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn;
 export function createJsonEncoder<T>(
   valOrSchema?: T | RunType<T>,
-  options?: CompTimeArgs<JsonEncoderOptions>,
+  options?: CompTimeFnArgs<JsonEncoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
   const tuple = id as unknown as [string, string] | undefined;
@@ -398,17 +398,17 @@ export function createJsonEncoder<T>(
  *  the runtime reads `strategy` from the tuple, not from `options`. **/
 export function createJsonDecoder<T>(
   schema: RunType<T>,
-  options?: CompTimeArgs<JsonDecoderOptions>,
+  options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T>;
 export function createJsonDecoder<T>(
   val?: T,
-  options?: CompTimeArgs<JsonDecoderOptions>,
+  options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T>;
 export function createJsonDecoder<T>(
   valOrSchema?: T | RunType<T>,
-  options?: CompTimeArgs<JsonDecoderOptions>,
+  options?: CompTimeFnArgs<JsonDecoderOptions>,
   id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T> {
   const tuple = id as unknown as [string, string] | undefined;

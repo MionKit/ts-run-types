@@ -3,6 +3,7 @@ export {
   type InjectRunTypeId,
   type InjectTypeFnArgs,
   type CompTimeArgs,
+  type CompTimeFnArgs,
   type PureFunction,
   getRunTypeId,
   reflectRunTypeId,
