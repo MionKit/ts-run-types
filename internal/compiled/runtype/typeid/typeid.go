@@ -405,11 +405,35 @@ func readonlyBit(readonly bool) string {
 }
 
 func (computer *Computer) signatureID(signature *checker.Signature, kind protocol.ReflectionKind, name string) string {
-	parts := make([]string, 0, len(signature.Parameters())+1)
-	for _, paramSymbol := range signature.Parameters() {
+	params := signature.Parameters()
+	parts := make([]string, 0, len(params)+1)
+	position := 0
+	// Param NAMES are dropped (replaced by position): function / method /
+	// call-signature params are notSupported — skipped at validation, undefined at
+	// serialization — so names never affect behaviour and would only over-specify
+	// the id (a value-first builder also can't reproduce arbitrary source names).
+	// A trailing FIXED rest-tuple param (`(...args: [A, B])`, the shape a value-first
+	// `func([A, B], R)` brands) is expanded into positional element params so it
+	// matches a written `(a: A, b: B)`. (The method/property NAME — separate from
+	// param names — is preserved via the `name` argument below.)
+	for i, paramSymbol := range params {
 		paramType := computer.typeChecker.GetTypeOfSymbol(paramSymbol)
+		if i == len(params)-1 && isRestParam(paramSymbol) && checker.IsTupleType(paramType) {
+			if elementIDs, ok := computer.fixedTupleParamIDs(paramType); ok {
+				for _, elementID := range elementIDs {
+					parts = append(parts, memberID(int(protocol.KindParameter), strconv.Itoa(position), false, elementID))
+					position++
+				}
+				continue
+			}
+		}
 		optional := paramSymbol.Flags&ast.SymbolFlagsOptional != 0
-		parts = append(parts, memberID(int(protocol.KindParameter), paramSymbol.Name, optional, computer.Compute(paramType)))
+		child := computer.Compute(paramType)
+		if isRestParam(paramSymbol) {
+			child += "#rest"
+		}
+		parts = append(parts, memberID(int(protocol.KindParameter), strconv.Itoa(position), optional, child))
+		position++
 	}
 	parts = append(parts, "->"+computer.Compute(computer.typeChecker.GetReturnTypeOfSignature(signature)))
 	body := "{" + strings.Join(parts, ",") + "}"
@@ -417,6 +441,41 @@ func (computer *Computer) signatureID(signature *checker.Signature, kind protoco
 		return strconv.Itoa(int(kind)) + name + body
 	}
 	return strconv.Itoa(int(kind)) + body
+}
+
+// fixedTupleParamIDs returns the element type ids of tupleType when it is a FIXED
+// tuple (no rest / variadic element). Used to expand a trailing rest-tuple
+// parameter into positional params. Returns ok=false for a tuple carrying a
+// variadic-ish element (a genuine variadic signature), which is kept as a single
+// `#rest` entry instead.
+func (computer *Computer) fixedTupleParamIDs(tupleType *checker.Type) ([]string, bool) {
+	typeArguments := computer.typeChecker.GetTypeArguments(tupleType)
+	elementInfos := tupleType.TargetTupleType().ElementInfos()
+	ids := make([]string, 0, len(typeArguments))
+	for i, typeArgument := range typeArguments {
+		if i < len(elementInfos) {
+			flags := elementInfos[i].TupleElementFlags()
+			if flags&checker.ElementFlagsRest != 0 || flags&checker.ElementFlagsVariadic != 0 {
+				return nil, false
+			}
+		}
+		ids = append(ids, computer.Compute(typeArgument))
+	}
+	return ids, true
+}
+
+// isRestParam reports whether a parameter symbol's declaration carries `...`.
+// Replicated from internal/compiled/runtype/modifiers.go (the typeid subpackage
+// can't import its parent without an import cycle).
+func isRestParam(symbol *ast.Symbol) bool {
+	declaration := symbol.ValueDeclaration
+	if declaration == nil && len(symbol.Declarations) > 0 {
+		declaration = symbol.Declarations[0]
+	}
+	if declaration == nil || declaration.Kind != ast.KindParameter {
+		return false
+	}
+	return declaration.AsParameterDeclaration().DotDotDotToken != nil
 }
 
 func (computer *Computer) childIDs(types []*checker.Type) []string {
