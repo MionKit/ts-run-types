@@ -6,7 +6,7 @@
 //  - validators (isType / getTypeErrors): `createIsType` returns the CACHED
 //    factory for a structural id, so reference identity (`toBe`) between the
 //    schema-form factory and the type-form factory IS a same-id assertion — the
-//    proven `valueFirstConvergence.test.ts` idiom, applied to every case. Same
+//    proven `.toBe` cached-factory idiom, generalised here to every case. Same
 //    id ⇒ same cached runtype.
 //  - serializers (json / binary encoders): the encoder is a fresh closure each
 //    call, so identity doesn't apply; instead assert the schema-form encoder

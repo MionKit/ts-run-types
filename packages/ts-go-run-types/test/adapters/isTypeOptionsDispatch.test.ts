@@ -15,7 +15,7 @@
 //      resolve to a factory that exhibits the same behaviour.
 //
 // Style mirrors the existing reference-identity guards in
-// `tupleStructuralId.test.ts` and `valueFirstConvergence.test.ts` —
+// `tupleStructuralId.test.ts` and the id-integrity suite —
 // `.toBe` is a cache-identity check, `.not.toBe` is a cache-distinct
 // check. Behavioural assertions backstop the dispatch — they catch
 // the case where the JS variant key lookup misses and silently falls
