@@ -337,12 +337,11 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 // `noIsArrayCheck` IsTypeOptions variant for an array runtype, the
 // emitter fans out an extra `itNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. A plain
-// createIsType site (`FnId: "it"`) still emits the guarded `it_<id>`
-// factory. Mirrors mion's `comp.opts.noIsArrayCheck` branch in
-// array.ts:emitIsType. (`it` is now demand-scoped, so the variant rides
-// the FnId-driven demand path — `FnId: "itNA"` resolves to the NA variant
-// via constants.DemandsForFnId, `FnId: "it"` to the plain entry — not the
-// legacy Site.Options back-compat fan-out.)
+// createIsType site still emits the guarded `it_<id>` factory. Mirrors
+// mion's `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType. (`it` is
+// demand-scoped: the scanner attaches each site's structured Demand, so the
+// plain `it` entry and the `NA` variant ride distinct SiteDemand entries —
+// not the legacy Site.Options back-compat fan-out.)
 func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{
@@ -354,10 +353,10 @@ func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 		},
 		Sites: []protocol.Site{
 			// Plain createIsType<T[]>() — demands the guarded `it_an1`.
-			{File: "call.ts", Pos: 0, ID: "an1", FnId: "it"},
+			{File: "call.ts", Pos: 0, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "it"}}},
 			// createIsType<T[]>(undefined, {noIsArrayCheck: true}) — demands
 			// the `itNA_an1` variant whose body omits the Array.isArray guard.
-			{File: "call.ts", Pos: 40, ID: "an1", FnId: "itNA"},
+			{File: "call.ts", Pos: 40, ID: "an1", Demand: []protocol.SiteDemand{{FamilyTag: "it", VariantSuffix: "NA", Options: []string{"noIsArrayCheck"}}}},
 		},
 	}
 	out := renderToString(t, dump)

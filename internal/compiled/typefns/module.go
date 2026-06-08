@@ -574,28 +574,27 @@ func RenderFnModule(writer io.Writer, dump protocol.Dump, settings constants.Cac
 }
 
 // collectFamilyDemand groups, per structural runtype id, the distinct variant
-// demands a family receives from createX call sites. Each Site's FnId (e.g.
-// "it", "itNL", "stripMutate") expands via constants.DemandsForFnId to one or
-// more (tag, variantSuffix, options) demands; only those whose tag matches
-// familyTag are kept. Dedup is by variant suffix so the same type requested
-// with the same options at N call sites yields a single entry.
-func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]constants.FnDemand {
-	bySuffix := make(map[string]map[string]constants.FnDemand)
+// demands a family receives from createX call sites. The scanner attaches each
+// site's structured Demand (computed from the operation registry); only entries
+// whose FamilyTag matches familyTag are kept. Dedup is by variant suffix so the
+// same type requested with the same options at N call sites yields one entry.
+func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]protocol.SiteDemand {
+	bySuffix := make(map[string]map[string]protocol.SiteDemand)
 	for _, site := range sites {
-		if site.ID == "" || site.FnId == "" {
+		if site.ID == "" || len(site.Demand) == 0 {
 			continue
 		}
-		for _, demanded := range constants.DemandsForFnId(site.FnId) {
-			if demanded.Tag != familyTag {
+		for _, demanded := range site.Demand {
+			if demanded.FamilyTag != familyTag {
 				continue
 			}
 			if bySuffix[site.ID] == nil {
-				bySuffix[site.ID] = make(map[string]constants.FnDemand)
+				bySuffix[site.ID] = make(map[string]protocol.SiteDemand)
 			}
 			bySuffix[site.ID][demanded.VariantSuffix] = demanded
 		}
 	}
-	out := make(map[string][]constants.FnDemand, len(bySuffix))
+	out := make(map[string][]protocol.SiteDemand, len(bySuffix))
 	for id, suffixes := range bySuffix {
 		for _, demanded := range suffixes {
 			out[id] = append(out[id], demanded)

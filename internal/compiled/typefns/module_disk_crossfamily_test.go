@@ -134,12 +134,12 @@ func TestCrossFamilyItRoots_DiskCacheHit_PreservesRoots(t *testing.T) {
 	runTypes, _ := buildConflictPropUnionFixture()
 	refTable := buildRefTable(runTypes)
 	// CrossFamilyItRoots iterates every non-it family demand-driven; give it a
-	// site whose fnId demands prepareForJson (the "mutate" JSON strategy → `pj`)
+	// site whose Demand targets prepareForJson (the "mutate" JSON strategy → `pj`)
 	// for the union so prepareForJson actually emits the union entry (and thus
 	// the it_ discrimination edges).
 	dump := protocol.Dump{
 		RunTypes: runTypes,
-		Sites:    []protocol.Site{{ID: "uni", FnId: "mutate"}},
+		Sites:    []protocol.Site{{ID: "uni", Demand: []protocol.SiteDemand{{FamilyTag: "pj"}}}},
 	}
 	opts := RenderOpts{Store: store, Lookup: lookup, RefTable: refTable}
 

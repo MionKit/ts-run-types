@@ -13,6 +13,7 @@ import (
 	"github.com/mionkit/ts-run-types/internal/constants"
 	"github.com/mionkit/ts-run-types/internal/diag"
 	"github.com/mionkit/ts-run-types/internal/marker"
+	"github.com/mionkit/ts-run-types/internal/operations"
 	"github.com/mionkit/ts-run-types/internal/protocol"
 )
 
@@ -360,6 +361,10 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// sites (InjectRunTypeId) leave injectionFnKey empty → no FnId, no function
 	// demand.
 	fnId := computeFnId(injectionFnKey, options, call, lastIndex, argsCount)
+	// Structured emit-demand for this site — what the emitter must render —
+	// computed from the operation registry (the forward replacement for
+	// reverse-parsing fnId, which an opaque hash can't support).
+	demand := computeFnDemand(injectionFnKey, options, call, lastIndex, argsCount)
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -370,6 +375,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
 		FnId:       fnId,
+		Demand:     demand,
 	}, diagnostics, true
 }
 
@@ -397,6 +403,42 @@ func computeFnId(fnKey string, options isTypeOptions, call *ast.Node, lastIndex,
 		fnId, _ := constants.ResolveFnId(fnKey, nil, "")
 		return fnId
 	}
+}
+
+// computeFnDemand returns the structured cache-entry demand for a createX call
+// site — what the emitter must render — resolved from the operation registry.
+// Mirrors computeFnId's option/strategy extraction; empty fnKey (a
+// reflection-only InjectRunTypeId site) yields nil.
+func computeFnDemand(fnKey string, options isTypeOptions, call *ast.Node, lastIndex, argsCount int) []protocol.SiteDemand {
+	if fnKey == "" {
+		return nil
+	}
+	op, ok := operations.ByFnKey(fnKey)
+	if !ok {
+		return nil
+	}
+	var optionNames []string
+	var strategy string
+	switch op.Axis {
+	case operations.AxisJsonStrategy:
+		strategy = extractStrategyOption(call, lastIndex, argsCount)
+	case operations.AxisIsTypeOptions:
+		optionNames = options.Names()
+	}
+	demands := operations.DemandFor(fnKey, optionNames, strategy)
+	if len(demands) == 0 {
+		return nil
+	}
+	out := make([]protocol.SiteDemand, len(demands))
+	for index, demand := range demands {
+		out[index] = protocol.SiteDemand{
+			FamilyTag:     demand.FamilyTag,
+			VariantSuffix: demand.VariantSuffix,
+			Options:       demand.Options,
+			FnHash:        demand.FnHash,
+		}
+	}
+	return out
 }
 
 // extractStrategyOption reads the `strategy` string property from the options
