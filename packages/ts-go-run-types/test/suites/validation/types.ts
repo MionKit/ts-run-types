@@ -107,13 +107,13 @@ export interface ValidationCase {
    *  flag is set — the test stops at the throw assertion. **/
   factoryThrows?: boolean;
 
-  /** Opt out of the id-integrity suite (schema↔type-first cached-factory
-   *  identity). Set on cases where the two forms converge in BEHAVIOUR but not
-   *  in cached-factory identity — i.e. the type-first thunk passes an
-   *  `IsTypeOptions` flag (`noLiterals` / `noIsArrayCheck`) that lands it in a
-   *  distinct cache variant, while the value-first builder carries no such flag.
-   *  Not a bug: the structural type still degrades to the same base, but the
-   *  option-variant factory is a different cached object. **/
+  /** Opt a case out of the id-integrity suite (`assertValidatorIdIntegrity`):
+   *  its value-first schema form and type-first form are KNOWN not to resolve the
+   *  same structural id, by design. Reserved for cases where convergence is
+   *  genuinely impossible — leave UNSET for cases that should converge so a
+   *  regression surfaces as a failure. (Note: option cases like `noLiterals` /
+   *  `noIsArrayCheck` are NOT divergent — they converge once the schema thunk
+   *  mirrors the same option, e.g. `createIsType(RT.literal(2), {noLiterals: true})`.) **/
   idDivergent?: boolean;
 
   /** Pure sample data — same for every adapter. */
