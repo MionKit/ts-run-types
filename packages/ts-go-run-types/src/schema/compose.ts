@@ -8,13 +8,15 @@
 // node. Nested child builders are skipped by the scanner — they exist only to
 // drive TS inference for the brand (see atomic.ts `builderResult`).
 //
-// No `infer` (per CLAUDE.md): `array`/`record` read their single child's `T`
+// Minimal `infer` (per CLAUDE.md): `array`/`record` read their single child's `T`
 // directly; `tuple` maps the child tuple with a homomorphic mapped type
-// (`MapTuple`); `union` indexes that mapped tuple with `[number]` (→ a union,
-// `Static` distributing over the members); `intersection` uses positional type
-// params (`A & B & …`) with `= unknown` defaults so omitted slots vanish
-// (`X & unknown = X`). The type-level helpers (`MapTuple`, `AssembleTemplate`,
-// `ObjectType`, …) all live in static.ts; this file is runtime-only.
+// (`MapTuple`); `union` brands a DIRECT union (`A | B | …`) via fixed-arity
+// overloads (plain generic inference, NO `infer`), falling back to a recursive
+// `UnionOf<T>` — the one annotated `infer` exception (see static.ts) — only for
+// 9+ members; `intersection` uses positional type params (`A & B & …`) with
+// `= unknown` defaults so omitted slots vanish (`X & unknown = X`). The type-level
+// helpers (`MapTuple`, `UnionOf`, `AssembleTemplate`, `ObjectType`, …) all live in
+// static.ts; this file is runtime-only.
 //
 // Child schema params are branded `CompTimeArgs<…>`: the children ride the
 // carrier only and are DISCARDED at runtime (the injected marker returns the
@@ -25,9 +27,9 @@
 // `tuple` / `func` capture their child tuple with `const T` (not a
 // `readonly [...T]` spread): intersecting a spread target with the
 // `CompTimeArgs` brand collapses the tuple to an array, so `const` + `MapTuple`'s
-// `-readonly` is the combination that keeps precise per-slot inference. `union`
-// keeps the spread — its `[number]` index flattens to a member union regardless,
-// so the brand can't widen it.
+// `-readonly` is the combination that keeps precise per-slot inference. `union`'s
+// fixed-arity overloads take explicit member tuples (`[RunType<A>, RunType<B>]`),
+// and its variable-arity fallback keeps the `[...T]` spread for `UnionOf<T>`.
 
 import {builderResult} from './atomic.ts';
 import type {RunType} from '../runtypes/types.ts';
