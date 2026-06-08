@@ -1,9 +1,12 @@
 # Demand-driven function caches (`InjectTypeFnArgs` marker)
 
-Status: **in progress** — marker infrastructure landed; `te` (typeErrors) is the
-first demand-scoped leaf family. `it` and the remaining families stay all-emit
-pending the all-families migration (see the Critical Finding below). Execution
-tracked in the Task list at the bottom of this doc.
+Status: **DONE** — every function family is demand-scoped (Slices A–D landed on
+`claude/dreamy-cori-cT1be`: `106cfc1`, `2f971f8`, `258900d`, `7bb023f`,
+`b0798ef`). A `getRunTypeId<T>()`-only file now emits zero function-cache
+entries; each `createX<T>()` family cache contains only the types its call sites
+request, with `it_<member>` seeded across families for union round-trips.
+`go test ./internal/...` + `pnpm test` (85 files / 5856) green. Remaining polish
+is in "Follow-ups" at the bottom. Execution tracked in the Task list.
 Owner item: `docs/TODOS.md` §2 ("createIsType and other functions are not
 parsing compiler options, instead they are generating all families at once").
 
@@ -301,41 +304,46 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   `createGetTypeErrors`; reflection/`createIsType` files emit no `te_`; `it`
   stays all-emit (guarded by `TestDemandScope_ItStaysAllEmit`).
 
-### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`uku`/`fmt`, `tb`/`fb`)
-- [ ] B1 Migrate these factory signatures to `InjectTypeFnArgs<T, Fn>` (`markers`
-  + `createRTFunctions.ts` / `createBinary.ts`).
-- [ ] B2 Scanner: no comptime axis → `fnId` = base tag.
-- [ ] B3 Emission: drop these families from the back-compat path (now demand-driven).
-- [ ] B4 Runtime: these `createX` read the tuple (`createRTFunction` no-options path).
-- [ ] B5 Overlays/tests/build green.
+### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`fmt`, `tb`/`fb`) — `258900d`
+- [x] B1–B5 Markers migrated (createRTFunction group reads the tuple; createBinary
+  reads the tuple), `huk`/`suk`/`uke`/`fmt`/`tb`/`fb` added to `MigratedFamilies`,
+  overlays + emitter tests switched to the matching `createX`, all green.
+  NOTE: `uku`'s marker migrated here but the family was held for Slice C (shared
+  with `createJsonEncoder(stripMutate)`).
 
-### Slice C — JSON precise strategy
-- [ ] C1 Registry: `jsonEncoder`/`jsonDecoder` strategy → families (Go + TS mirror).
-- [ ] C2 Scanner: read `strategy` CompTimeArgs literal → `fnId` = strategy token.
-- [ ] C3 Emission: expand strategy `fnId` → 1–2 families for these two.
-- [ ] C4 Runtime: `createJsonEncoder`/`Decoder` read `fnId`(strategy) → compose.
-- [ ] C5 Update `TestResolver_EncoderOptionsShareTypeID` (keep id-sharing; add
-  per-site `fnId` assertions).
-- [ ] C6 Tests/build green.
+### Slice C — JSON precise strategy — `7bb023f`
+- [x] C1–C6 `createJsonEncoder`/`Decoder` read `[id, strategy]` tuple and derive
+  the strategy from `tuple[1]`; `pj`/`pjs`/`pjsp`/`sj`/`rj`/`uku`/`ukuw` added to
+  `MigratedFamilies`; `TestResolver_EncoderOptionsShareTypeID` keeps id-sharing +
+  asserts per-site `fnId`; serialization suite (all strategies) green.
 
-### Slice D — scope `it` + cleanup + docs
-- [ ] D0pre Cross-family RT dependency capture — **delegated**, see
-  `docs/CROSS-FAMILY-RT-DEPS.md`. Captures `it_<member>` cross-family edges so
-  the demand-closure can follow them.
-- [ ] D0 Scope `it`: with every function family migrated, compute the `it`
-  demand as createIsType-site closure ∪ the cross-family `it_` edges discovered
-  while rendering the other demanded families (minimal, default variant), add
-  `"it"` to `MigratedFamilies`, verify the serialization suite stays green
-  (union round-trip canary).
-- [ ] D0b Recursive value-first schema passed to `createX` — emit id must match
-  the runtime `rt.id` lookup (carried from A7); add the regression test.
-- [ ] D1 Remove `Site.Options` + the `createRTFunctionWithOptions` /
-  `buildVariantKey` duplication now subsumed by `fnId`.
-- [ ] D2 Decide the back-compat all-emit fallback's fate (keep as documented
-  no-demand render mode for unit tests, or remove + migrate those tests).
-- [ ] D3 Full regression: `getRunTypeId`-only AND single-`createX` files emit
-  zero entries in every non-demanded family.
-- [ ] D4 Refresh `docs/UNSUPPORTED-KINDS.md`, `docs/ARCHITECTURE.md`, the
-  CLAUDE.md marker section; flip this doc's status to `done`.
-- [ ] D5 `pnpm run lint && pnpm run format`; final `go test ./internal/...`
-  + `pnpm test` green.
+### Slice D — scope `it` via cross-family edges — `2f971f8` + `b0798ef`
+- [x] D0pre Cross-family RT dependency capture (`renderEntryWithDeps` →
+  `crossFamilyDeps`); see `docs/CROSS-FAMILY-RT-DEPS.md`.
+- [x] D0 `CrossFamilyItRoots` renders the 14 non-`it` families (Store-bypassed) to
+  collect `it_<member>` edges → seeds the `it` demand via `RenderOpts.ExtraRoots`;
+  `"it"` added to `MigratedFamilies`. Also fixed a latent map-iteration
+  non-determinism (now sorted) and a stale JS overlay (`inline.ts` createIsType
+  on the old marker). Union/serialization canary green.
+- [x] D3 `demand_scope_test.go`: reflection-only → no `it_`; `createIsType` →
+  `it_`; `createBinaryEncoder<{a:bigint}|{a:Date}>`-only → `it_<member>` seeded
+  cross-family.
+- [x] D5 `gofmt`/`pnpm run lint` clean; `go test ./internal/...` + `pnpm test` green.
+
+## Follow-ups (optional polish — not blocking)
+- D0b: a recursive value-first schema passed to `createX` (the emit id must match
+  the runtime `rt.id` lookup). Preserved current behaviour; add a dedicated
+  regression test.
+- D1: `Site.Options` is now redundant (the injected `fnId` encodes the variant);
+  the demand path keys on `FnId`. It is still read by the back-compat all-emit
+  path's `collectIsTypeVariants` (empty-Sites unit tests only). Removing it +
+  `collectIsTypeVariants` is safe cleanup. NOTE: `buildVariantKey` is NOT dead —
+  `lookupRTFn` still uses it for the plain `<tag>_<id>` JSON/binary lookups.
+- D2: the back-compat all-emit branch is kept as the documented "no call-site
+  demand" render mode (empty `dump.Sites`) used by the typefns unit tests.
+- D4: deeper prose refresh of `docs/UNSUPPORTED-KINDS.md` + `docs/ARCHITECTURE.md`
+  (the marker now carries a function id; caches are demand-scoped).
+- Disk-cache + cross-family edges: `CrossFamilyItRoots` bypasses the RT disk cache
+  (Store=nil) so the walker always runs and edges are observed. A future
+  optimisation could persist `crossFamilyDeps` in the disk cache to avoid the
+  recompute (see `docs/CROSS-FAMILY-RT-DEPS.md`).
