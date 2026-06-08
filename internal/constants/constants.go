@@ -251,10 +251,23 @@ var variantFamilyBases = []string{"it", "te"}
 // Demand-scoping `it` before that silently breaks union round-trips.
 //
 // Only LEAF families (nothing references their cache) are safe to migrate
-// incrementally. `te` is the first: it is a leaf, and its own `it_` lookups are
-// satisfied by `it` staying all-emit.
+// incrementally. `te` was the first; `huk`/`suk`/`uke`/`fmt` and the binary
+// pair `tb`/`fb` follow — all leaves with their own createX call sites, so
+// each is seeded by its own demand while `it` stays all-emit.
+//
+// `uku` is deliberately ABSENT: createUnknownKeysToUndefined shares the `uku`
+// family with createJsonEncoder(stripMutate), which composes `uku` at runtime
+// and is not migrated until the JSON slice — so `uku` must stay all-emit even
+// though createUnknownKeysToUndefined's marker is migrated (tuple injection +
+// runtime read work fine against an all-emit cache).
 var MigratedFamilies = map[string]bool{
-	"te": true,
+	"te":  true,
+	"huk": true,
+	"suk": true,
+	"uke": true,
+	"fmt": true,
+	"tb":  true,
+	"fb":  true,
 }
 
 // IsFamilyMigrated reports whether the cache family `tag` has moved to the

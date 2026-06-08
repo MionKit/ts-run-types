@@ -98,8 +98,11 @@ export const _ = getRunTypeId<() => void>();
 // see which RT family produced the diagnostic without parsing
 // message text.
 func TestDiag_PerFamilyPrefix_NeverAtRoot_DistinctCodes(t *testing.T) {
-	const code = `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	// pj/sj are JSON families (still all-emit), so getRunTypeId seeds them;
+	// tb is demand-driven, so it needs its own createBinaryEncoder call site.
+	const code = `import {getRunTypeId, createBinaryEncoder} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<never>();
+export const _b = createBinaryEncoder<never>();
 `
 	r := setupInline(t, map[string]string{"n.ts": code})
 	resp := r.Dispatch(protocol.Request{
@@ -191,8 +194,11 @@ export const _ = getRunTypeId<User>();
 // KindSymbol — `getRunTypeId<symbol>()` produces an alwaysThrow factory
 // (or its per-family equivalent code) across every RT family.
 func TestDiag_SymbolUnsupported_PerFamily(t *testing.T) {
-	const code = `import {createIsType} from '@mionjs/ts-go-run-types';
+	// isType seeds `it`; pj/sj are all-emit JSON families; tb is demand-driven,
+	// so it needs its own createBinaryEncoder call site to fan out TB001.
+	const code = `import {createIsType, createBinaryEncoder} from '@mionjs/ts-go-run-types';
 export const _ = createIsType<symbol>();
+export const _b = createBinaryEncoder<symbol>();
 `
 	r := setupInline(t, map[string]string{"s.ts": code})
 	resp := r.Dispatch(protocol.Request{

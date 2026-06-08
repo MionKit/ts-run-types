@@ -52,9 +52,12 @@ export const _ = getRunTypeId<never>();
   });
 
   register('emits per-family codes — SJ001 / TB001 / PJ001 — for same root throw', async () => {
+    // pj/sj are JSON families (still all-emit) so getRunTypeId seeds them; tb is
+    // demand-driven, so it needs its own createBinaryEncoder call site for TB001.
     const sources = {
-      'never-multi.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'never-multi.ts': `import {getRunTypeId, createBinaryEncoder} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<never>();
+export const _b = createBinaryEncoder<never>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -198,9 +201,11 @@ export const _ = getRunTypeId<[number, () => void]>();
   });
 
   register('propagates function-typed tuple slot as alwaysThrow under toBinary / fromBinary', async () => {
+    // tb/fb are demand-driven, so seed each via the matching binary createX.
     const sources = {
-      'fn-tuple-bin.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<[string, () => number]>();
+      'fn-tuple-bin.ts': `import {createBinaryEncoder, createBinaryDecoder} from '@mionjs/ts-go-run-types';
+export const _e = createBinaryEncoder<[string, () => number]>();
+export const _d = createBinaryDecoder<[string, () => number]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -221,8 +226,9 @@ export const _ = getRunTypeId<[string, () => number]>();
     // path even before the fix. This test pins that behavior so a future
     // optimisation can't silently regress it.
     const sources = {
-      'sym-tuple.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'sym-tuple.ts': `import {getRunTypeId, createBinaryEncoder} from '@mionjs/ts-go-run-types';
 export const _ = getRunTypeId<[number, symbol]>();
+export const _b = createBinaryEncoder<[number, symbol]>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
