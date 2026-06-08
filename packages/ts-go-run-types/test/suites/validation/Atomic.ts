@@ -179,6 +179,12 @@ export const ATOMIC = {
       'Validator accepts the underlying enum VALUES (0, "green", 2 for Color {Red, Green="green", Blue=2}).',
       'Enum member NAMES as strings ("Red", "Green", "Blue") are NOT accepted — these are TS-only handles, not runtime values.',
     ],
+    // The value-first `RT.enum(Color)` carries the enum's value-UNION (kind union),
+    // while the type-first `createIsType<Color>()` is the named `KindEnum`: they
+    // validate identically but are structurally distinct by design (a value-first
+    // builder can't reconstruct the nominal enum's member-name metadata). See the
+    // enum builder doc in src/schema/atomic.ts.
+    idDivergent: true,
     isType: () => {
       enum Color {
         Red,
@@ -187,7 +193,14 @@ export const ATOMIC = {
       }
       return createIsType<Color>();
     },
-    isTypeSchema: () => createIsType(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
+    isTypeSchema: () => {
+      enum Color {
+        Red,
+        Green = 'green',
+        Blue = 2,
+      }
+      return createIsType(RT.enum(Color));
+    },
     deserializeIsType: () => {
       enum Color {
         Red,
@@ -222,7 +235,14 @@ export const ATOMIC = {
       }
       return createGetTypeErrors<Color>();
     },
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.union([RT.literal(0), RT.literal('green'), RT.literal(2)])),
+    getTypeErrorsSchema: () => {
+      enum Color {
+        Red,
+        Green = 'green',
+        Blue = 2,
+      }
+      return createGetTypeErrors(RT.enum(Color));
+    },
     deserializeGetTypeErrors: () => {
       enum Color {
         Red,

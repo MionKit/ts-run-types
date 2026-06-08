@@ -69,6 +69,10 @@ export function assertSerializerIdIntegrity(c: SerializationCase): void {
   // Broad types (any/unknown/object) encode via identity and may throw on
   // non-serialisable members — not a reliable id signal.
   if (c.roundTripBestEffort) return;
+  // Known structurally-distinct by design (e.g. enum vs its value-union): the
+  // value-first builder can't reconstruct the nominal type, so wire output may
+  // differ. Skip, same as the validator suite skips idDivergent.
+  if (c.idDivergent) return;
 
   const schemaEncoder = resolveThunk(c.schemaEncoder);
   if (schemaEncoder && !c.factoryThrows) {

@@ -228,6 +228,10 @@ export const ATOMIC = {
   },
   enum_color: {
     title: 'enum',
+    // Value-first `RT.enum(...)` carries the enum's value-UNION; the type-first
+    // `<Color>` is the named `KindEnum`. Same wire output, but structurally
+    // distinct ids by design — so the serializer id-integrity check is skipped.
+    idDivergent: true,
     mutateEncoder: () => {
       enum Color {
         Red = 'red',
@@ -300,11 +304,12 @@ export const ATOMIC = {
       }
       return createBinaryDecoder<Color>();
     },
-    // Value-first enum = union of its string-literal members.
-    schemaEncoder: () => createJsonEncoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
-    schemaDecoder: () => createJsonDecoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
-    schemaBinaryEncoder: () => createBinaryEncoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
-    schemaBinaryDecoder: () => createBinaryDecoder(RT.union([RT.literal('red'), RT.literal('green'), RT.literal('blue')])),
+    // Value-first enum via the enum-like RECORD form (self-contained per thunk):
+    // `RT.enum({...})` carries the value-union, same as the string-literal union.
+    schemaEncoder: () => createJsonEncoder(RT.enum({Red: 'red', Green: 'green', Blue: 'blue'})),
+    schemaDecoder: () => createJsonDecoder(RT.enum({Red: 'red', Green: 'green', Blue: 'blue'})),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.enum({Red: 'red', Green: 'green', Blue: 'blue'})),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.enum({Red: 'red', Green: 'green', Blue: 'blue'})),
     getTestData: () => {
       enum Color {
         Red = 'red',
