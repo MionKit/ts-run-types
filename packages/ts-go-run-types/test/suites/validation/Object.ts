@@ -79,7 +79,12 @@ export const OBJECT = {
     isTypeNotes:
       '`readonly` is erased at runtime. Every property must strictly === its literal value (name === "john", age === 30) — no looser matches.',
     isType: () => createIsType<{readonly name: 'john'; readonly age: 30}>(),
-    isTypeSchema: () => createIsType(RT.object({name: RT.literal('john'), age: RT.literal(30)})),
+    // `readonly` is part of the structural id, so the value-first model mirrors it
+    // with `RT.propMod({readonly: true}, …)` on each prop.
+    isTypeSchema: () =>
+      createIsType(
+        RT.object({name: RT.propMod({readonly: true}, RT.literal('john')), age: RT.propMod({readonly: true}, RT.literal(30))})
+      ),
     deserializeIsType: () => deserializeIsType<{readonly name: 'john'; readonly age: 30}>(),
     isTypeReflect: () => {
       const Usr = {name: 'john', age: 30} as const;
@@ -90,7 +95,10 @@ export const OBJECT = {
       return deserializeIsType(Usr);
     },
     getTypeErrors: () => createGetTypeErrors<{readonly name: 'john'; readonly age: 30}>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.object({name: RT.literal('john'), age: RT.literal(30)})),
+    getTypeErrorsSchema: () =>
+      createGetTypeErrors(
+        RT.object({name: RT.propMod({readonly: true}, RT.literal('john')), age: RT.propMod({readonly: true}, RT.literal(30))})
+      ),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{readonly name: 'john'; readonly age: 30}>(),
     getTypeErrorsReflect: () => {
       const Usr = {name: 'john', age: 30} as const;
@@ -2481,9 +2489,10 @@ export const OBJECT = {
     isTypeNotes:
       'TS DIVERGENCE: At runtime, all object keys are strings; the number key type constraint is enforced only by the TS compiler. The validator accepts any own enumerable key whose value satisfies T.',
     isType: () => createIsType<{[k: number]: string}>(),
-    // Number-key index sigs are string-key at runtime (JS object keys are
-    // strings), so the string-key record() validates the same samples.
-    isTypeSchema: () => createIsType(RT.record(RT.string())),
+    // JS object keys are strings at runtime, so a number-key index sig validates
+    // identically to a string-key one — but the key TYPE is part of the structural
+    // id, so the value-first model uses an explicit number key to match.
+    isTypeSchema: () => createIsType(RT.record(RT.number(), RT.string())),
     deserializeIsType: () => deserializeIsType<{[k: number]: string}>(),
     isTypeReflect: () => {
       const v: {[k: number]: string} = {};
@@ -2494,7 +2503,7 @@ export const OBJECT = {
       return deserializeIsType(v);
     },
     getTypeErrors: () => createGetTypeErrors<{[k: number]: string}>(),
-    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.string())),
+    getTypeErrorsSchema: () => createGetTypeErrors(RT.record(RT.number(), RT.string())),
     deserializeGetTypeErrors: () => deserializeGetTypeErrors<{[k: number]: string}>(),
     getTypeErrorsReflect: () => {
       const v: {[k: number]: string} = {};
