@@ -95,10 +95,12 @@ export const c = createJsonEncoder<never>(undefined, {strategy: 'mutate'});
   });
 
   register('emits child-position warning for function-typed property under isType', async () => {
+    // `it` is demand-driven, so seed it via createIsType (a reflection-only
+    // getRunTypeId would emit no it_ entry and thus no isType diagnostic).
     const sources = {
-      'fn-prop.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'fn-prop.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
 interface User { name: string; onClick: () => void; }
-export const _ = getRunTypeId<User>();
+export const _ = createIsType<User>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -152,9 +154,11 @@ export const _ = getRunTypeId<any>();
   });
 
   register('emits IT021 warning diagnostic for isType on root any/unknown', async () => {
+    // `it` is demand-driven, so seed it via createIsType<unknown>() (a
+    // reflection-only getRunTypeId would emit no it_ entry, no IT021).
     const sources = {
-      'any-istype.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-export const _ = getRunTypeId<unknown>();
+      'any-istype.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+export const _ = createIsType<unknown>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {
@@ -261,10 +265,12 @@ export const _b = createBinaryEncoder<[number, symbol]>();
   // ResolverClient with the production default and pins the smaller
   // emit shape.
   register('default emit (no inline createRTFn) renders `u` as arg-7 and omits g_<hash>(utl)', async () => {
+    // `it` is demand-driven, so seed it via createIsType<User>() — a
+    // reflection-only getRunTypeId would emit no it_ entries to inspect.
     const sources = {
-      'mini.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+      'mini.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
 interface User { name: string; age: number; tags: string[]; }
-export const _ = getRunTypeId<User>();
+export const _ = createIsType<User>();
 `,
     };
     await withInlineSources(sources, async ({client}) => {

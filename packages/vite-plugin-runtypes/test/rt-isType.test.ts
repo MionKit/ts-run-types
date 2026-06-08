@@ -41,9 +41,13 @@ describe('vite-plugin-runtypes / isType precompiler', () => {
   const register = hasBinary() ? it : it.skip;
 
   register('emits a working RTCompiledFn entry for `string`', async () => {
+    // `it` (isType) is demand-scoped — a reflection-only getRunTypeId<string>()
+    // would emit ZERO it_ entries. Drive the isType family directly via
+    // createIsType<string>() so the demand path renders the `it_<id>` factory
+    // this test inspects.
     const sources = {
-      'string.ts': `import {getRunTypeId} from '@mionjs/ts-go-run-types';
-getRunTypeId<string>();
+      'string.ts': `import {createIsType} from '@mionjs/ts-go-run-types';
+createIsType<string>();
 `,
     };
     await withInlineSources(sources, async ({client, sources: augmented}) => {

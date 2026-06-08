@@ -240,28 +240,35 @@ var variantFamilyBases = []string{"it", "te"}
 
 // MigratedFamilies is the set of cache family tags rendered demand-driven (only
 // the types their createX call sites request); every other family still rides
-// the back-compat all-RunTypes path.
+// the back-compat all-RunTypes path. EVERY function family is now migrated.
 //
-// CROSS-FAMILY CONSTRAINT: `it` (isType) is a SHARED dependency — the JSON and
+// CROSS-FAMILY DEPENDENCY: `it` (isType) is a SHARED dependency — the JSON and
 // binary union decoders discriminate members via `it_<member>.fn(…)` (see
 // unionMemberIsTypeCheck in json_prepare.go) and typeErrors delegates child
-// checks to `it_`. So `it` MUST stay all-emit until EVERY function family is
-// migrated to InjectTypeFnArgs; only then can its demand be computed as the
-// it-closure of all function-site types (covering every cross-family lookup).
-// Demand-scoping `it` before that silently breaks union round-trips.
+// checks to `it_`. Earlier slices kept `it` all-emit because demand-scoping it
+// to only its createIsType sites dropped the `it_<member>` entries those
+// foreign families need at runtime, silently corrupting union round-trips.
 //
-// Only LEAF families (nothing references their cache) are safe to migrate
+// `it` is now demand-scoped too. Its demand is the createIsType-site closure
+// (the normal demand path) ∪ the `it_<member>` cross-family edges every OTHER
+// demanded family references — collected by typefns.CrossFamilyItRoots (which
+// renders each foreign family demand-driven and harvests their captured
+// crossFamilyDeps) and seeded into the it render via RenderOpts.ExtraRoots by
+// the resolver's renderIsTypeModule. So a file that only serializes a union
+// (createBinaryEncoder / createJsonEncoder) still gets the per-member it_
+// entries its decoder needs, while a getRunTypeId-only (reflection) file emits
+// ZERO it_ entries.
+//
+// Only LEAF families (nothing references their cache) were safe to migrate
 // incrementally. `te` was the first; `huk`/`suk`/`uke`/`fmt` and the binary
 // pair `tb`/`fb` followed (all leaves with their own createX call sites). The
 // JSON slice then added the prepareForJson / restoreFromJson / stringifyJson
 // families (`pj`/`pjs`/`pjsp`/`sj`/`rj`) plus the decoder-wire `ukuw`, each
-// seeded by its own createJsonEncoder/createJsonDecoder strategy demand.
-//
-// `uku` is now migrated too: BOTH of its demanders are demand-driven —
-// createUnknownKeysToUndefined (fnId 'uku' → [uku]) and
-// createJsonEncoder(stripMutate) (fnId 'stripMutate' → [pj, uku]). With both
-// seeding the family it is safe to scope while `it` stays all-emit.
+// seeded by its own createJsonEncoder/createJsonDecoder strategy demand. `it`
+// — the shared cross-family dep — migrated last, once every other family was
+// demand-scoped so their cross-family edges are minimal.
 var MigratedFamilies = map[string]bool{
+	"it":   true,
 	"te":   true,
 	"huk":  true,
 	"suk":  true,
