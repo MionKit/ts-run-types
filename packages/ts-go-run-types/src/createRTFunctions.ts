@@ -18,7 +18,7 @@ import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepare
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema, lookupRTFn} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
-import type {CompTimeArgs, InjectRunTypeId, InjectTypeFnArgs} from './index.ts';
+import type {CompTimeArgs, InjectTypeFnArgs} from './index.ts';
 
 // =============================================================================
 // Type definitions
@@ -328,25 +328,36 @@ const jsonStringifyFallback: JsonEncoderFn = (v) => JSON.stringify(v);
 
 /** Returns a JSON encoder for `T`. Default `strategy: 'stripClone'`. See
  *  `JsonEncoderStrategy` for the full matrix. Accepts either a value-first
- *  schema (`createJsonEncoder(rt)`) or the value/static form. **/
+ *  schema (`createJsonEncoder(rt)`) or the value/static form.
+ *
+ *  The trailing slot is the `InjectTypeFnArgs` marker — the plugin injects a
+ *  `[typeId, fnId]` tuple where `fnId` IS the comptime-resolved strategy token
+ *  (the scanner reads `options.strategy` at build time, defaulting non-literals).
+ *  The runtime derives `strategy` from the tuple, NOT from `options`, so the
+ *  composed families always match what the backend actually emitted. **/
 export function createJsonEncoder<T>(
   schema: RunType<T>,
   options?: CompTimeArgs<JsonEncoderOptions>,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn;
-export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectRunTypeId<T>): JsonEncoderFn;
+export function createJsonEncoder<T>(
+  val?: T,
+  options?: CompTimeArgs<JsonEncoderOptions>,
+  id?: InjectTypeFnArgs<T, 'jsonEncoder'>
+): JsonEncoderFn;
 export function createJsonEncoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: CompTimeArgs<JsonEncoderOptions>,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'jsonEncoder'>
 ): JsonEncoderFn {
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  const tuple = id as unknown as [string, string] | undefined;
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
   if (effectiveId === undefined) {
     throw new Error(
       'createJsonEncoder(): no id injected. vite-plugin-runtypes must be active for createJsonEncoder to dispatch to a precompiled factory.'
     );
   }
-  const strategy = options?.strategy ?? 'stripClone';
+  const strategy = (tuple?.[1] as JsonEncoderStrategy | undefined) ?? 'stripClone';
 
   if (strategy === 'direct') {
     return lookupRTFn<JsonEncoderFn>('createJsonEncoder', 'sj', effectiveId, jsonStringifyFallback);
@@ -380,29 +391,34 @@ export function createJsonEncoder<T>(
 /** Returns a JSON decoder for `T`. Default `strategy: 'strip'` — undeclared
  *  properties become `undefined` before restore walks the declared shape.
  *  Accepts either a value-first schema (`createJsonDecoder(rt)`) or the
- *  value/static form. **/
+ *  value/static form.
+ *
+ *  As with the encoder, the trailing `InjectTypeFnArgs` slot carries the
+ *  `[typeId, fnId]` tuple whose `fnId` IS the comptime-resolved strategy token;
+ *  the runtime reads `strategy` from the tuple, not from `options`. **/
 export function createJsonDecoder<T>(
   schema: RunType<T>,
   options?: CompTimeArgs<JsonDecoderOptions>,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T>;
 export function createJsonDecoder<T>(
   val?: T,
   options?: CompTimeArgs<JsonDecoderOptions>,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T>;
 export function createJsonDecoder<T>(
   valOrSchema?: T | RunType<T>,
   options?: CompTimeArgs<JsonDecoderOptions>,
-  id?: InjectRunTypeId<T>
+  id?: InjectTypeFnArgs<T, 'jsonDecoder'>
 ): JsonDecoderFn<T> {
-  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : id;
+  const tuple = id as unknown as [string, string] | undefined;
+  const effectiveId = isRunTypeSchema(valOrSchema) ? valOrSchema.id : tuple?.[0];
   if (effectiveId === undefined) {
     throw new Error(
       'createJsonDecoder(): no id injected. vite-plugin-runtypes must be active for createJsonDecoder to dispatch to a precompiled factory.'
     );
   }
-  const strategy = options?.strategy ?? 'strip';
+  const strategy = (tuple?.[1] as JsonDecoderStrategy | undefined) ?? 'strip';
   const restoreFn = lookupRTFn<RestoreFromJsonFn>('createJsonDecoder', 'rj', effectiveId, identityValueFn);
   if (strategy === 'preserve') {
     return (serialized) => restoreFn(JSON.parse(serialized)) as T;

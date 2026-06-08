@@ -1066,24 +1066,26 @@ reflectRunTypeId(user);
 }
 
 // TestResolver_EncoderOptionsShareTypeID pins the design contract:
-// encoder option fields (strategy / stripExtras) are NOT folded into
-// the runtype id. All option-combination call sites against the same
-// `T` must resolve to the SAME id — different encoder shapes share
-// one canonical typeid, the runtime dispatches shapes via the
-// RT-family prefix (`pj_` / `pjs_` / `pjsp_` / `sj_`). Folding the
-// options into the id would break the invariant that
-// `getRunTypeId<T>()` and `createJsonEncoder<T>({strategy: 'mutate'})`
-// return the same id for the same `T`.
+// the encoder `strategy` is NOT folded into the runtype id. All
+// strategy call sites against the same `T` must resolve to the SAME id
+// (= tuple[0] = f(T)) — different encoder shapes share one canonical
+// typeid. What differs is the injected `fnId` (= tuple[1] = the strategy
+// token), which the demand pipeline expands to the cache families that
+// strategy composes. The dispatch is now COMPTIME via the fnId, not a
+// runtime family-prefix guess. Folding the strategy into the id would
+// break the invariant that `getRunTypeId<T>()` and
+// `createJsonEncoder<T>(undefined, {strategy: 'mutate'})` share one id.
 func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
-  export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
-  export type JsonEncoderOptions = {strategy?: 'clone' | 'mutate'; stripExtras?: boolean} | {strategy: 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: JsonEncoderOptions, id?: InjectRunTypeId<T>): (v: unknown) => string | undefined;
+  export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
+  export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type JsonEncoderOptions = {strategy?: 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct'};
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
 createJsonEncoder<string>();
-createJsonEncoder<string>(undefined, {strategy: 'mutate', stripExtras: false});
+createJsonEncoder<string>(undefined, {strategy: 'mutate'});
 createJsonEncoder<string>(undefined, {strategy: 'direct'});
 `
 	r := setupInline(t, map[string]string{"runtypes.d.ts": dts, "call.ts": code})
@@ -1095,14 +1097,25 @@ createJsonEncoder<string>(undefined, {strategy: 'direct'});
 		t.Fatalf("expected 3 sites, got %d", len(resp.Sites))
 	}
 	ids := map[string]int{}
+	fnIDs := map[string]bool{}
 	for i, site := range resp.Sites {
 		if site.ID == "" {
 			t.Fatalf("site %d has empty id", i)
 		}
 		ids[site.ID]++
+		fnIDs[site.FnId] = true
 	}
+	// The id (tuple[0]) is f(T) and shared across all three strategy shapes.
 	if len(ids) != 1 {
 		t.Fatalf("expected 1 shared id across the three encoder shapes, got %d distinct ids (%+v)", len(ids), ids)
+	}
+	// The fnId (tuple[1]) is the comptime-resolved strategy token and differs
+	// per site: the no-options call defaults to stripClone, the others carry
+	// their literal strategy.
+	for _, want := range []string{"stripClone", "mutate", "direct"} {
+		if !fnIDs[want] {
+			t.Errorf("expected a site with fnId %q, got %v", want, fnIDs)
+		}
 	}
 }
 

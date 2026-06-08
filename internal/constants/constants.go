@@ -252,22 +252,30 @@ var variantFamilyBases = []string{"it", "te"}
 //
 // Only LEAF families (nothing references their cache) are safe to migrate
 // incrementally. `te` was the first; `huk`/`suk`/`uke`/`fmt` and the binary
-// pair `tb`/`fb` follow — all leaves with their own createX call sites, so
-// each is seeded by its own demand while `it` stays all-emit.
+// pair `tb`/`fb` followed (all leaves with their own createX call sites). The
+// JSON slice then added the prepareForJson / restoreFromJson / stringifyJson
+// families (`pj`/`pjs`/`pjsp`/`sj`/`rj`) plus the decoder-wire `ukuw`, each
+// seeded by its own createJsonEncoder/createJsonDecoder strategy demand.
 //
-// `uku` is deliberately ABSENT: createUnknownKeysToUndefined shares the `uku`
-// family with createJsonEncoder(stripMutate), which composes `uku` at runtime
-// and is not migrated until the JSON slice — so `uku` must stay all-emit even
-// though createUnknownKeysToUndefined's marker is migrated (tuple injection +
-// runtime read work fine against an all-emit cache).
+// `uku` is now migrated too: BOTH of its demanders are demand-driven —
+// createUnknownKeysToUndefined (fnId 'uku' → [uku]) and
+// createJsonEncoder(stripMutate) (fnId 'stripMutate' → [pj, uku]). With both
+// seeding the family it is safe to scope while `it` stays all-emit.
 var MigratedFamilies = map[string]bool{
-	"te":  true,
-	"huk": true,
-	"suk": true,
-	"uke": true,
-	"fmt": true,
-	"tb":  true,
-	"fb":  true,
+	"te":   true,
+	"huk":  true,
+	"suk":  true,
+	"uke":  true,
+	"fmt":  true,
+	"tb":   true,
+	"fb":   true,
+	"pj":   true,
+	"pjs":  true,
+	"pjsp": true,
+	"sj":   true,
+	"rj":   true,
+	"uku":  true,
+	"ukuw": true,
 }
 
 // IsFamilyMigrated reports whether the cache family `tag` has moved to the
