@@ -335,6 +335,26 @@ export function func(paramsOrTuple?: readonly RunType[] | RunType, ret?: RunType
   return builderResult(id, {type: 'function', parameters, return: ret});
 }
 
+/** A callable-interface builder — a value that is BOTH callable AND carries data
+ *  properties, e.g. `{(a: number, b: boolean): string; extra: string}`. It mixes a
+ *  call-signature schema (`func(...)`) with an interface's data properties
+ *  (`object({...})`): `callable(func([number(), boolean()], string()), object({extra: string()}))`.
+ *
+ *  The result's Static is `Fn & Props` — TS can't express a single object literal
+ *  carrying a call signature AND mapped props in one type, so the mix is an
+ *  intersection; but the Go scanner projects it as an object literal carrying the
+ *  call signature + members, and the structural id embeds the call signature, so it
+ *  converges with the type-first callable interface `{(): r; props}`. The function
+ *  half is `notSupported` for validation (functions aren't validated) — the emitted
+ *  validator checks `typeof === 'function'` PLUS the declared data properties. **/
+export function callable<Fn, Props>(
+  fn: CompTimeArgs<RunType<Fn>>,
+  iface: CompTimeArgs<RunType<Props>>,
+  id?: InjectRunTypeId<Fn & Props>
+): RunType<Fn & Props> {
+  return builderResult(id, {type: 'intersection', children: [fn, iface]});
+}
+
 /** A template-literal builder — value-first authoring of a TS template-literal
  *  type from a parts array mixing string segments and `RunType` placeholders:
  *  `templateLiteral(['api/user/', number()])` → `` RunType<`api/user/${number}`> ``;
