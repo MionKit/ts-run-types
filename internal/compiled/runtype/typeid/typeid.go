@@ -73,7 +73,15 @@ func (computer *Computer) stackIndex(tsType *checker.Type) int {
 
 func (computer *Computer) cycleRef(tsType *checker.Type, index int) string {
 	kind := KindOf(computer.typeChecker, tsType)
-	base := "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(index)
+	// Depth RELATIVE to the cycle target (frames from the target down to this
+	// back-edge), NOT the absolute stack index. The absolute position depends on
+	// the session walk order (where the recursive type is first reached), so a
+	// type-first recursive type and an equivalent value-first `Recursive<Body>`
+	// (distinct *checker.Type pointers first reached at different depths) used to
+	// get different back-edge tokens and thus different ids. Relative depth is a
+	// structural quantity, so the two authoring paths converge.
+	relDepth := len(computer.stack) - index
+	base := "$" + strconv.Itoa(int(kind)) + "_" + strconv.Itoa(relDepth)
 	// The sub-walk that computes the structural anchor uses bare tokens to
 	// terminate; everyone else anchors on the cycle target's STRUCTURE.
 	if computer.bareCycles {
@@ -181,7 +189,15 @@ func (computer *Computer) dispatch(tsType *checker.Type) string {
 
 	// Union / intersection — composition of distributed members.
 	if flags&checker.TypeFlagsUnion != 0 {
-		return collectionID(int(kind), computer.childIDs(tsType.Distributed()), false)
+		// Sort member ids so union member ORDER doesn't affect the structural id (a
+		// union is order-independent; objects already sort their members in
+		// memberIDs). This converges a value-first `union([...])` with the written
+		// `A | B | …` even when tsgo computes the two in different member orders, and
+		// dedups `A | B` with `B | A`. Runtime member precedence is unaffected — it's
+		// driven by node.Children downstream (union_safeorder.go), not by this id.
+		unionIDs := computer.childIDs(tsType.Distributed())
+		sort.Strings(unionIDs)
+		return collectionID(int(kind), unionIDs, false)
 	}
 	if flags&checker.TypeFlagsIntersection != 0 {
 		return computer.collapsedIntersectionID(tsType)
