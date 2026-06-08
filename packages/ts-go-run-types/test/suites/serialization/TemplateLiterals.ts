@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const TEMPLATE_LITERALS = {
@@ -13,6 +14,10 @@ export const TEMPLATE_LITERALS = {
     preserveDecoder: () => createJsonDecoder<`api/users/${number}`>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<`api/users/${number}`>(),
     binaryDecoder: () => createBinaryDecoder<`api/users/${number}`>(),
+    schemaEncoder: () => createJsonEncoder(RT.templateLiteral(['api/users/', RT.number()])),
+    schemaDecoder: () => createJsonDecoder(RT.templateLiteral(['api/users/', RT.number()])),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.templateLiteral(['api/users/', RT.number()])),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.templateLiteral(['api/users/', RT.number()])),
     getTestData: () => ({
       values: [
         'api/users/0',
@@ -36,6 +41,12 @@ export const TEMPLATE_LITERALS = {
     preserveDecoder: () => createJsonDecoder<{url: `api/user/${number}`; method: string}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{url: `api/user/${number}`; method: string}>(),
     binaryDecoder: () => createBinaryDecoder<{url: `api/user/${number}`; method: string}>(),
+    schemaEncoder: () => createJsonEncoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+    schemaDecoder: () => createJsonDecoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(RT.object({url: RT.templateLiteral(['api/user/', RT.number()]), method: RT.string()})),
     getTestData: () => ({
       values: [
         {url: 'api/user/1', method: 'GET'},
@@ -55,6 +66,10 @@ export const TEMPLATE_LITERALS = {
     preserveDecoder: () => createJsonDecoder<{[key: `api/${string}`]: number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{[key: `api/${string}`]: number}>(),
     binaryDecoder: () => createBinaryDecoder<{[key: `api/${string}`]: number}>(),
+    schemaEncoder: () => createJsonEncoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    schemaDecoder: () => createJsonDecoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.record(RT.templateLiteral(['api/', RT.string()]), RT.number())),
     getTestData: () => ({values: [{}, {'api/users': 1, 'api/posts': 2}, {'api/v1/users': 7, 'api/admin': 0}]}),
   },
   url_index_key_with_named: {
@@ -73,6 +88,37 @@ export const TEMPLATE_LITERALS = {
       createJsonDecoder<{meta: string; [key: `api/${string}`]: string | number}>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<{meta: string; [key: `api/${string}`]: string | number}>(),
     binaryDecoder: () => createBinaryDecoder<{meta: string; [key: `api/${string}`]: string | number}>(),
+    // Index signature + sibling named prop = intersection of the template-literal-keyed
+    // record with an object carrying the named props (mirrors validation Object.ts
+    // index_signature_named_props composed with the template-literal index key).
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.intersection(
+          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
+          RT.object({meta: RT.string()})
+        )
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.intersection(
+          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
+          RT.object({meta: RT.string()})
+        )
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.intersection(
+          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
+          RT.object({meta: RT.string()})
+        )
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.intersection(
+          RT.record(RT.templateLiteral(['api/', RT.string()]), RT.union([RT.string(), RT.number()])),
+          RT.object({meta: RT.string()})
+        )
+      ),
     getTestData: () => ({
       values: [{meta: 'a'}, {meta: 'b', 'api/users': 1}, {meta: 'c', 'api/users': 1, 'api/posts': 2}],
     }),

@@ -15,6 +15,8 @@ import {
   assertDirectPreserveRoundTrip,
   assertDirectStripRoundTrip,
   assertBinaryRoundTrip,
+  assertSchemaJsonRoundTrip,
+  assertSchemaBinaryRoundTrip,
 } from '../../util/serializationAsserts.ts';
 
 describe('serialization / UtilityTypes', () => {
@@ -30,5 +32,7 @@ describe('serialization / UtilityTypes', () => {
     it(`direct - preserve - ${c.title}`, () => assertDirectPreserveRoundTrip(c));
     it(`direct - strip - ${c.title}`, () => assertDirectStripRoundTrip(c));
     it(`binary - ${c.title}`, () => assertBinaryRoundTrip(c));
+    it(`schema - json - ${c.title}`, () => assertSchemaJsonRoundTrip(c));
+    it(`schema - binary - ${c.title}`, () => assertSchemaBinaryRoundTrip(c));
   }
 });

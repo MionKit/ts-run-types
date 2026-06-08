@@ -1,4 +1,5 @@
 import {createBinaryDecoder, createBinaryEncoder, createJsonDecoder, createJsonEncoder} from '@mionjs/ts-go-run-types';
+import * as RT from '@mionjs/ts-go-run-types/schema';
 import type {SerializationCase} from './types.ts';
 
 export const ITERABLES = {
@@ -13,6 +14,10 @@ export const ITERABLES = {
     preserveDecoder: () => createJsonDecoder<Set<string>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Set<string>>(),
     binaryDecoder: () => createBinaryDecoder<Set<string>>(),
+    schemaEncoder: () => createJsonEncoder(RT.set(RT.string())),
+    schemaDecoder: () => createJsonDecoder(RT.set(RT.string())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.set(RT.string())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.set(RT.string())),
     getTestData: () => ({values: [new Set<string>(['one', 'two', 'three'])]}),
   },
   set_small_object: {
@@ -107,6 +112,54 @@ export const ITERABLES = {
       }
       return createBinaryDecoder<Set<SmallObject>>();
     },
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.set(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.set(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.set(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.set(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
     getTestData: () => {
       interface SmallObject {
         prop1: string;
@@ -209,6 +262,38 @@ export const ITERABLES = {
       }
       return createBinaryDecoder<DeepWithSet>();
     },
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+          c: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+        })
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+          c: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+        })
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+          c: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+        })
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+          c: RT.set(RT.object({s: RT.string(), arr: RT.array(RT.number())})),
+        })
+      ),
     getTestData: () => {
       const setB = new Set([
         {s: 'a', arr: [1, 2, 3]},
@@ -232,6 +317,10 @@ export const ITERABLES = {
     preserveDecoder: () => createJsonDecoder<Map<string, number>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<string, number>>(),
     binaryDecoder: () => createBinaryDecoder<Map<string, number>>(),
+    schemaEncoder: () => createJsonEncoder(RT.map(RT.string(), RT.number())),
+    schemaDecoder: () => createJsonDecoder(RT.map(RT.string(), RT.number())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.map(RT.string(), RT.number())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.map(RT.string(), RT.number())),
     getTestData: () => ({
       values: [
         new Map<string, number>([
@@ -334,6 +423,58 @@ export const ITERABLES = {
       }
       return createBinaryDecoder<Map<string, SmallObject>>();
     },
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.map(
+          RT.string(),
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.map(
+          RT.string(),
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.map(
+          RT.string(),
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.map(
+          RT.string(),
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          })
+        )
+      ),
     getTestData: () => {
       interface SmallObject {
         prop1: string;
@@ -445,6 +586,58 @@ export const ITERABLES = {
       }
       return createBinaryDecoder<Map<SmallObject, number>>();
     },
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.map(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          }),
+          RT.number()
+        )
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.map(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          }),
+          RT.number()
+        )
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.map(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          }),
+          RT.number()
+        )
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.map(
+          RT.object({
+            prop1: RT.string(),
+            prop2: RT.number(),
+            prop3: RT.boolean(),
+            prop4: RT.optional(RT.date()),
+            prop5: RT.optional(RT.bigint()),
+          }),
+          RT.number()
+        )
+      ),
     getTestData: () => {
       interface SmallObject {
         prop1: string;
@@ -529,6 +722,34 @@ export const ITERABLES = {
       }
       return createBinaryDecoder<DeepWithMap>();
     },
+    schemaEncoder: () =>
+      createJsonEncoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.map(RT.string(), RT.object({sm: RT.object({s: RT.string(), arr: RT.array(RT.number())})})),
+        })
+      ),
+    schemaDecoder: () =>
+      createJsonDecoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.map(RT.string(), RT.object({sm: RT.object({s: RT.string(), arr: RT.array(RT.number())})})),
+        })
+      ),
+    schemaBinaryEncoder: () =>
+      createBinaryEncoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.map(RT.string(), RT.object({sm: RT.object({s: RT.string(), arr: RT.array(RT.number())})})),
+        })
+      ),
+    schemaBinaryDecoder: () =>
+      createBinaryDecoder(
+        RT.object({
+          a: RT.string(),
+          b: RT.map(RT.string(), RT.object({sm: RT.object({s: RT.string(), arr: RT.array(RT.number())})})),
+        })
+      ),
     getTestData: () => ({
       values: [
         {
@@ -552,6 +773,10 @@ export const ITERABLES = {
     preserveDecoder: () => createJsonDecoder<Map<bigint, number>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<bigint, number>>(),
     binaryDecoder: () => createBinaryDecoder<Map<bigint, number>>(),
+    schemaEncoder: () => createJsonEncoder(RT.map(RT.bigint(), RT.number())),
+    schemaDecoder: () => createJsonDecoder(RT.map(RT.bigint(), RT.number())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.map(RT.bigint(), RT.number())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.map(RT.bigint(), RT.number())),
     getTestData: () => ({
       values: [
         new Map<bigint, number>([
@@ -573,6 +798,10 @@ export const ITERABLES = {
     preserveDecoder: () => createJsonDecoder<Map<string, Date>>(undefined, {strategy: 'preserve'}),
     binaryEncoder: () => createBinaryEncoder<Map<string, Date>>(),
     binaryDecoder: () => createBinaryDecoder<Map<string, Date>>(),
+    schemaEncoder: () => createJsonEncoder(RT.map(RT.string(), RT.date())),
+    schemaDecoder: () => createJsonDecoder(RT.map(RT.string(), RT.date())),
+    schemaBinaryEncoder: () => createBinaryEncoder(RT.map(RT.string(), RT.date())),
+    schemaBinaryDecoder: () => createBinaryDecoder(RT.map(RT.string(), RT.date())),
     getTestData: () => ({
       values: [
         new Map<string, Date>([
