@@ -1079,8 +1079,9 @@ func TestResolver_EncoderOptionsShareTypeID(t *testing.T) {
 	const dts = `declare module '@mionjs/ts-go-run-types' {
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type JsonEncoderOptions = {strategy?: 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (v: unknown) => string | undefined;
 }
 `
 	const code = `import {createJsonEncoder} from '@mionjs/ts-go-run-types';
@@ -1586,10 +1587,11 @@ func TestResolver_SchemaForm_ConvergesAndObservesOptions(t *testing.T) {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export interface IsTypeOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export interface RunType<T = unknown> {id: string; readonly __rtType?: {t: T}}
-  export function createIsType<T>(schema: RunType<T>, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
+  export function createIsType<T>(schema: RunType<T>, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
+  export function createIsType<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
   export function string(id?: InjectRunTypeId<string>): RunType<string>;
   export function array<T>(item: CompTimeArgs<RunType<T>>, id?: InjectRunTypeId<T[]>): RunType<T[]>;
 }

@@ -30,6 +30,7 @@ export const hasBinary = (): boolean => fs.existsSync(BIN);
 export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
   export type InjectRunTypeId<T> = string & {readonly __mionInjectRunTypeIdBrand?: T};
   export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
+  export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
   export type InjectTypeFnArgs<T, Fn extends string> = string & {readonly __mionInjectTypeFnArgsBrand?: T; readonly __mionInjectTypeFnArgsFn?: Fn};
   export type PureFunction<F> = F & {readonly __mionPureFunctionBrand?: never};
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
@@ -39,15 +40,15 @@ export const RUNTYPES_DTS = `declare module '@mionjs/ts-go-run-types' {
     noIsArrayCheck?: boolean;
   }
   export type IsTypeFn = (value: unknown) => boolean;
-  export function createIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): IsTypeFn;
-  export function createGetTypeErrors<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
-  export function deserializeIsType<T>(val?: T, options?: CompTimeArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): IsTypeFn;
+  export function createIsType<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): IsTypeFn;
+  export function createGetTypeErrors<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'te'>): (value: unknown, path?: unknown[], errors?: unknown[]) => unknown[];
+  export function deserializeIsType<T>(val?: T, options?: CompTimeFnArgs<IsTypeOptions>, id?: InjectTypeFnArgs<T, 'it'>): IsTypeFn;
   export function createBinaryEncoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'tb'>): (value: unknown) => unknown;
   export function createBinaryDecoder<T>(val?: T, options?: any, id?: InjectTypeFnArgs<T, 'fb'>): (input: unknown) => unknown;
   export type JsonEncoderOptions = {strategy?: 'clone' | 'stripClone' | 'mutate' | 'stripMutate' | 'direct'};
   export type JsonDecoderOptions = {strategy?: 'strip' | 'preserve'};
-  export function createJsonEncoder<T>(val?: T, options?: CompTimeArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
-  export function createJsonDecoder<T>(val?: T, options?: CompTimeArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
+  export function createJsonEncoder<T>(val?: T, options?: CompTimeFnArgs<JsonEncoderOptions>, id?: InjectTypeFnArgs<T, 'jsonEncoder'>): (value: unknown) => string | undefined;
+  export function createJsonDecoder<T>(val?: T, options?: CompTimeFnArgs<JsonDecoderOptions>, id?: InjectTypeFnArgs<T, 'jsonDecoder'>): (serialized: string) => unknown;
   export interface RTUtils {
     usePureFn(key: CompTimeArgs<string>): any;
     getPureFn(key: CompTimeArgs<string>): any;

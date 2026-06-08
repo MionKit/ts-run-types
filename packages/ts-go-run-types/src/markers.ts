@@ -91,6 +91,18 @@ export function reflectRunTypeId<T>(_value: T, id?: InjectRunTypeId<T>): InjectR
 export type CompTimeArgs<T> = T & {readonly __mionCompTimeArgsBrand?: never};
 
 /**
+ * Compile-time fn-args marker. Like `CompTimeArgs<T>` it brands a parameter so
+ * the Go scanner enforces the argument is *fully literal* (`CTA0xx`), but it
+ * ALSO marks this as the parameter whose literal value selects the `createX`
+ * function variant — the `IsTypeOptions` bag for `createIsType` /
+ * `createGetTypeErrors`, the strategy for `createJsonEncoder` /
+ * `createJsonDecoder`. The scanner reads it to compute the injected fn hash
+ * (see `InjectTypeFnArgs`). Phantom intersection; the value flows through
+ * unwrapped.
+ */
+export type CompTimeFnArgs<T> = T & {readonly __mionCompTimeFnArgsBrand?: never};
+
+/**
  * Pure-function marker. Brands a function-typed parameter so the Go scanner
  * enforces that the matching argument is *both* an inline function definition
  * *and* passes the purity rules (no `this`, no `await`/`yield`, no dynamic
