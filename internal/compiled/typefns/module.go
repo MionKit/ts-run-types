@@ -275,17 +275,17 @@ var crossFamilyItSourceFamilies = []familyConfig{
 // returns the bare member type-ids. Seeds the it family's demand so union
 // decoders / typeErrors find their it_ entries even when it is demand-scoped.
 //
-// CRITICAL: each collection pass nils opts.Store so the disk cache is bypassed
-// — a cache hit short-circuits the walker (tryReadCachedEntry) and the
-// crossFamilyDeps would never be observed (the disk cache does not persist
-// cross-family edges; see docs/CROSS-FAMILY-RT-DEPS.md). DiagSink is nil'd too
+// The disk cache (opts.Store) is KEPT for these collection passes: as of
+// FormatVersion 2 each cached entry persists its cross-family edges as
+// CrossFamilyRefs, so a cache hit (tryReadCachedEntry) reconstructs the same
+// crossFamilyDeps a fresh walk would have produced and the edges are observed
+// without re-rendering all families on every it-cache build. DiagSink is nil'd
 // so the collection passes don't double-emit diagnostics the real isType render
 // (and the other families' real renders) already surface.
 func CrossFamilyItRoots(dump protocol.Dump, opts RenderOpts) []string {
 	var sink []string
 	for _, family := range crossFamilyItSourceFamilies {
 		collectOpts := opts
-		collectOpts.Store = nil
 		collectOpts.DiagSink = nil
 		collectOpts.CrossFamilySink = &sink
 		collectOpts.ExtraRoots = nil
@@ -612,13 +612,12 @@ func collectFamilyDemand(sites []protocol.Site, familyTag string) map[string][]c
 // cascade and topo sort. `crossFamilyDeps` is the distinct cross-family RT
 // lookups the body reaches (walker.CrossFamilyDeps, e.g. a prepareForJson /
 // toBinary / typeErrors entry referencing `it_<member>` to discriminate a
-// union member) — captured for a later demand-scoping step that follows
-// these edges into the referenced family; it is NOT consumed by any
-// emission/topo decision today. NOTE: `crossFamilyDeps` is populated only
-// when the walker actually runs — a disk-cache hit (tryReadCachedEntry)
-// short-circuits before the walk, so it returns nil there. The disk cache
-// does not yet persist cross-family edges; a consumer that needs them across
-// cached builds must extend the cache (out of scope for the capture step).
+// union member) — followed by the demand-scoping step (CrossFamilyItRoots)
+// into the referenced family; it is NOT consumed by any emission/topo decision
+// in this render. `crossFamilyDeps` is populated whether the entry came from a
+// fresh walk OR a disk-cache hit: as of FormatVersion 2 the edges are persisted
+// as CrossFamilyRefs and rebuilt by tryReadCachedEntry, so a hit returns the
+// same set the walk would have produced.
 type entryRender struct {
 	line            string
 	deps            []string
@@ -656,12 +655,14 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	innerName := variantKey(settings, variantSuffix, runType.ID)
 
 	if variantSuffix == "" {
-		if cachedLine, cachedDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
-			// Disk-cache hit: the walker never runs, so no cross-family
-			// edges are observed. The cache stores only same-family
-			// ChildRefs today (see writeCachedEntry); cross-family capture
-			// is intentionally not persisted at this step.
-			return entryRender{line: cachedLine, deps: cachedDeps}
+		if cachedLine, cachedDeps, cachedCrossFamilyDeps, ok := tryReadCachedEntry(runType, settings, innerPrefix, opts); ok {
+			// Disk-cache hit: the walker never runs, but the entry's
+			// cross-family edges were persisted as CrossFamilyRefs and
+			// rebuilt here (see tryReadCachedEntry / writeCachedEntry), so
+			// the hit returns the same crossFamilyDeps a fresh walk would —
+			// the demand-collection pass observes the it_<member> edges
+			// without re-rendering.
+			return entryRender{line: cachedLine, deps: cachedDeps, crossFamilyDeps: cachedCrossFamilyDeps}
 		}
 	}
 
@@ -705,7 +706,9 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 				walker.EmitDiagnostic(diagCode, leafKindLabel(walker.UnsupportedLeaf))
 				line := renderAlwaysThrowEntry(runType, settings, innerName, diagCode, walker.rootProvenance)
 				if variantSuffix == "" {
-					writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+					// alwaysThrow entries emit no dep calls — no same-family
+					// or cross-family edges to persist.
+					writeCachedEntry(runType, settings, innerPrefix, line, nil, nil, opts)
 				}
 				return entryRender{line: line}
 			}
@@ -730,10 +733,10 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 		}
 		line := "init(" + joinArgs(args) + ");"
 		if variantSuffix == "" {
-			writeCachedEntry(runType, settings, innerPrefix, line, nil, opts)
+			// A noop body emits no dep calls, so no same-family or
+			// cross-family lookups are registered.
+			writeCachedEntry(runType, settings, innerPrefix, line, nil, nil, opts)
 		}
-		// A noop body emits no dep calls, so no cross-family lookups are
-		// registered; CrossFamilyDeps is empty here regardless.
 		return entryRender{line: line}
 	}
 	createRTFn, factoryBody := WrapClosure(factoryName, innerFn, walker.ContextLines())
@@ -772,25 +775,28 @@ func renderEntryWithDeps(runType *protocol.RunType, settings constants.CacheModu
 	crossFamilyDeps := append([]string(nil), walker.CrossFamilyDeps...)
 	line := "init(" + joinArgs(args) + ");"
 	if variantSuffix == "" {
-		writeCachedEntry(runType, settings, innerPrefix, line, deps, opts)
+		writeCachedEntry(runType, settings, innerPrefix, line, deps, crossFamilyDeps, opts)
 	}
 	return entryRender{line: line, deps: deps, crossFamilyDeps: crossFamilyDeps}
 }
 
-// tryReadCachedEntry attempts to load a previously cached (line, deps)
-// pair from the disk store. Returns ok=false on miss for any reason:
-// no store wired, missing file, malformed file, header structural-id
-// mismatch (hash drift), or any child ref whose hash has changed since
-// write time.
+// tryReadCachedEntry attempts to load a previously cached (line, deps,
+// crossFamilyDeps) triple from the disk store. Returns ok=false on miss
+// for any reason: no store wired, missing file, malformed file, header
+// structural-id mismatch (hash drift), or any child OR cross-family ref
+// whose hash has changed since write time.
 //
 // Cached deps are rebuilt from ChildRefs by translating each
 // (structural id, hash) back to the namespaced form
-// (innerPrefix + hash) the topo sort expects. Because the read-time
-// child-hash check guarantees structural id → hash agreement, this
-// translation is lossless.
-func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (string, []string, bool) {
+// (innerPrefix + hash) the topo sort expects. Cross-family deps are
+// rebuilt from CrossFamilyRefs the same way, except each ref carries its
+// OWN (foreign) prefix — the reconstructed dep is `ref.Prefix +
+// currentHash`. Because both read-time hash checks guarantee structural
+// id → hash agreement, these translations are lossless; a cache hit
+// returns the exact crossFamilyDeps the fresh walk would have produced.
+func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, opts RenderOpts) (string, []string, []string, bool) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
-		return "", nil, false
+		return "", nil, nil, false
 	}
 	expectedStructural := opts.Lookup.StructuralForHash(runType.ID)
 	if expectedStructural == "" {
@@ -798,14 +804,14 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 		// renderEntryWithDeps is called for entries that ARE in the
 		// current dump, but guard anyway: a missing reverse mapping
 		// means we cannot verify the file safely.
-		return "", nil, false
+		return "", nil, nil, false
 	}
 	entry, ok, err := opts.Store.ReadRT(runType.ID, settings.Tag)
 	if err != nil || !ok || entry == nil {
-		return "", nil, false
+		return "", nil, nil, false
 	}
 	if entry.StructuralID != expectedStructural {
-		return "", nil, false
+		return "", nil, nil, false
 	}
 	deps := make([]string, 0, len(entry.ChildRefs))
 	for _, ref := range entry.ChildRefs {
@@ -814,24 +820,53 @@ func tryReadCachedEntry(runType *protocol.RunType, settings constants.CacheModul
 			// Child's structural id has been re-hashed (collision
 			// extension) or removed entirely — cached body's baked
 			// hash is stale.
-			return "", nil, false
+			return "", nil, nil, false
 		}
 		deps = append(deps, innerPrefix+currentHash)
 	}
-	return entry.Line, deps, true
+	crossFamilyDeps := make([]string, 0, len(entry.CrossFamilyRefs))
+	for _, ref := range entry.CrossFamilyRefs {
+		currentHash := opts.Lookup.HashForStructural(ref.StructuralID)
+		if currentHash == "" || currentHash != ref.Hash {
+			// Same drift rule as ChildRefs: the referenced member's hash
+			// changed across builds, so the whole entry is stale.
+			return "", nil, nil, false
+		}
+		crossFamilyDeps = append(crossFamilyDeps, ref.Prefix+currentHash)
+	}
+	return entry.Line, deps, crossFamilyDeps, true
 }
 
-// writeCachedEntry persists the freshly-rendered (line, deps) pair so
-// the next build can skip the walker for this (typeID, fnTag). Failures
-// are logged once to stderr and otherwise ignored — a read-only or
-// out-of-space FS shouldn't break the build, and the next run will
+// splitNamespacedHash splits a namespaced cache hash into its family
+// prefix (everything up to and including the first `_`, e.g. "it_") and
+// the bare hash (the rest). Reports ok=false when there is no `_`
+// separator — such an id can't be reconstructed as prefix+hash on read.
+func splitNamespacedHash(namespaced string) (prefix string, bareHash string, ok bool) {
+	idx := strings.IndexByte(namespaced, '_')
+	if idx < 0 {
+		return "", "", false
+	}
+	return namespaced[:idx+1], namespaced[idx+1:], true
+}
+
+// writeCachedEntry persists the freshly-rendered (line, deps,
+// crossFamilyDeps) triple so the next build can skip the walker for this
+// (typeID, fnTag) AND still reconstruct its cross-family edges on a hit.
+// Failures are logged once to stderr and otherwise ignored — a read-only
+// or out-of-space FS shouldn't break the build, and the next run will
 // re-attempt the write.
 //
 // deps here are the namespaced rt-dependency hashes
 // (walker.RTDependencies, e.g. "it_<childHash>"). We strip the prefix
 // to recover the bare childHash and look up its structural id for the
-// ChildRefs record.
-func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, line string, deps []string, opts RenderOpts) {
+// ChildRefs record. crossFamilyDeps (walker.CrossFamilyDeps) are
+// foreign-prefixed namespaced hashes (e.g. `it_<member>` in a `tb` / `pj`
+// entry); we split each into its prefix (up to and including the first
+// `_`) and bare hash, resolve the bare hash to its structural id, and
+// store the triple as a CrossFamilyRef. As with ChildRefs, an
+// unresolvable ref aborts the write cleanly rather than persisting a
+// record the reader can't verify.
+func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleSettings, innerPrefix string, line string, deps []string, crossFamilyDeps []string, opts RenderOpts) {
 	if opts.Store == nil || opts.Lookup == nil || runType == nil || runType.ID == "" {
 		return
 	}
@@ -857,11 +892,30 @@ func writeCachedEntry(runType *protocol.RunType, settings constants.CacheModuleS
 			Hash:         childHash,
 		})
 	}
+	crossFamilyRefs := make([]disk.CrossFamilyRef, 0, len(crossFamilyDeps))
+	for _, dep := range crossFamilyDeps {
+		prefix, bareHash, ok := splitNamespacedHash(dep)
+		if !ok {
+			// No `_` separator — can't recover a (prefix, hash) pair.
+			// Abort the write rather than persist an unverifiable record.
+			return
+		}
+		crossStructural := opts.Lookup.StructuralForHash(bareHash)
+		if crossStructural == "" {
+			return
+		}
+		crossFamilyRefs = append(crossFamilyRefs, disk.CrossFamilyRef{
+			Prefix:       prefix,
+			StructuralID: crossStructural,
+			Hash:         bareHash,
+		})
+	}
 	entry := disk.RTEntry{
-		Format:       disk.FormatVersion,
-		StructuralID: structural,
-		Line:         line,
-		ChildRefs:    childRefs,
+		Format:          disk.FormatVersion,
+		StructuralID:    structural,
+		Line:            line,
+		ChildRefs:       childRefs,
+		CrossFamilyRefs: crossFamilyRefs,
 	}
 	if err := opts.Store.WriteRT(runType.ID, settings.Tag, entry); err != nil {
 		// Best-effort: report once per session would be ideal, but
