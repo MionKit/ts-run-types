@@ -169,6 +169,16 @@ type Walker struct {
 	// JS wire shape is unchanged.
 	RTDependencies     []string
 	PureFnDependencies []protocol.PureFnDep
+	// CrossFamilyDeps records the cross-family RT lookups this function
+	// reaches via registerRTLookup — childIDs whose family-tag prefix
+	// differs from this walker's own InnerPrefix (e.g. a prepareForJson /
+	// toBinary / typeErrors body referencing `it_<member>` for union
+	// member discrimination). Same-family lookups already flow through
+	// RTDependencies and are NOT duplicated here. Unlike RTDependencies
+	// this list is NOT consumed by emission/topo decisions today — it is
+	// captured so a later demand-scoping step can follow the edges to the
+	// referenced family. See docs/CROSS-FAMILY-RT-DEPS.md.
+	CrossFamilyDeps []string
 	// IsUnsupported flips to true the first time compileNode sees a
 	// CodeNS sentinel anywhere in the traversal. Once set it stays
 	// true — the rest of the compile becomes a no-op (compileNode
@@ -285,6 +295,7 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 		ContextItems:       newOrderedItems(),
 		RTDependencies:     []string{},
 		PureFnDependencies: []protocol.PureFnDep{},
+		CrossFamilyDeps:    []string{},
 		localVarCounters:   map[string]int{},
 	}
 }
@@ -381,6 +392,29 @@ func (w *Walker) UpdateDependencies(childHash string, childIsNoop bool) {
 		}
 	}
 	w.RTDependencies = append(w.RTDependencies, childHash)
+}
+
+// recordCrossFamilyDep records childID as a cross-family RT lookup edge,
+// deduped, when (and only when) it is cross-family — i.e. childID's
+// family-tag prefix differs from this walker's own InnerPrefix. Called from
+// registerRTLookup (the single choke point both emitDepCall's same-family
+// calls and the union/typeErrors cross-family lookups funnel through), so
+// the prefix gate here is what separates the two: same-family lookups stay
+// in RTDependencies (recorded via UpdateDependencies), cross-family ones
+// land here. The InnerPrefix=="" case (hand-constructed walkers in unit
+// tests that never set a prefix) records nothing. Dedup mirrors
+// UpdateDependencies. Additive capture only: nothing in the renderer's
+// emission/topo path reads this list today. See docs/CROSS-FAMILY-RT-DEPS.md.
+func (w *Walker) recordCrossFamilyDep(childID string) {
+	if w.InnerPrefix == "" || strings.HasPrefix(childID, w.InnerPrefix) {
+		return
+	}
+	for _, existing := range w.CrossFamilyDeps {
+		if existing == childID {
+			return
+		}
+	}
+	w.CrossFamilyDeps = append(w.CrossFamilyDeps, childID)
 }
 
 // Compile walks RootType, drives the Emitter, finalizes, and returns
