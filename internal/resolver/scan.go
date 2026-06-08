@@ -171,6 +171,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	var diagnostics []diag.Diagnostic
 	var injectionTypeArgument *checker.Type
 	var injectionMatched bool
+	var injectionFnKey string
 	for paramIndex := 0; paramIndex <= lastIndex; paramIndex++ {
 		paramSymbol := parameters[paramIndex]
 		if paramSymbol == nil {
@@ -189,6 +190,18 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			if paramIndex == lastIndex {
 				injectionTypeArgument = typeArg
 				injectionMatched = true
+			}
+		case marker.KindInjectTypeFnArgs:
+			// createX trailing-slot marker. Same injection contract as
+			// InjectRunTypeId, plus the Fn type-arg naming the function family
+			// so the backend can emit only the demanded cache. The fnId is
+			// computed after the loop (it folds in the call-site options/strategy).
+			if paramIndex == lastIndex {
+				injectionTypeArgument = typeArg
+				injectionMatched = true
+				if fnKey, fnOK := marker.FnKeyForInjectTypeFnArgs(resolver.checker, paramType, resolver.marker); fnOK {
+					injectionFnKey = fnKey
+				}
 			}
 		case marker.KindCompTimeArgs:
 			if paramIndex >= argsCount {
@@ -338,6 +351,12 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the same
 	// KindRegexp id — id stays ≡ f(T).
 	id := resolver.cache.AssignID(typeArgument)
+	// Compute the precise fnId for InjectTypeFnArgs sites — the function's base
+	// tag refined by the call-site compile-time options (IsTypeOptions variant
+	// suffix for it/te, the strategy token for the JSON families). Reflection
+	// sites (InjectRunTypeId) leave injectionFnKey empty → no FnId, no function
+	// demand.
+	fnId := computeFnId(injectionFnKey, options, call, lastIndex, argsCount)
 	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
 	// the closing-paren offset where the TS-side patcher inserts.
 	pos := call.End() - 1
@@ -348,7 +367,85 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		ParamIndex: lastIndex,
 		ArgsCount:  argsCount,
 		Options:    options.Names(),
+		FnId:       fnId,
 	}, diagnostics, true
+}
+
+// computeFnId resolves the precise injected fnId token for a createX call site,
+// dispatching on the function's compile-time option axis (see
+// constants.CompFns). Empty fnKey (a reflection-only InjectRunTypeId site)
+// yields "".
+func computeFnId(fnKey string, options isTypeOptions, call *ast.Node, lastIndex, argsCount int) string {
+	if fnKey == "" {
+		return ""
+	}
+	fn, known := constants.CompFns[fnKey]
+	if !known {
+		return ""
+	}
+	switch fn.Axis {
+	case constants.CompFnAxisJsonStrategy:
+		strategy := extractStrategyOption(call, lastIndex, argsCount)
+		fnId, _ := constants.ResolveFnId(fnKey, nil, strategy)
+		return fnId
+	case constants.CompFnAxisIsTypeOptions:
+		fnId, _ := constants.ResolveFnId(fnKey, options.Names(), "")
+		return fnId
+	default:
+		fnId, _ := constants.ResolveFnId(fnKey, nil, "")
+		return fnId
+	}
+}
+
+// extractStrategyOption reads the `strategy` string property from the options
+// object literal at slot (lastIndex-1) — the JSON encoder/decoder compile-time
+// selector. Returns "" when absent or not a string literal (the resolver runs
+// at build time and can't evaluate non-literal expressions), so the caller
+// falls back to the function's default strategy.
+func extractStrategyOption(call *ast.Node, lastIndex, argsCount int) string {
+	if lastIndex == 0 {
+		return ""
+	}
+	optionsIndex := lastIndex - 1
+	if argsCount <= optionsIndex {
+		return ""
+	}
+	callExpression := call.AsCallExpression()
+	if callExpression == nil || callExpression.Arguments == nil {
+		return ""
+	}
+	if len(callExpression.Arguments.Nodes) <= optionsIndex {
+		return ""
+	}
+	candidate := callExpression.Arguments.Nodes[optionsIndex]
+	if candidate == nil || candidate.Kind != ast.KindObjectLiteralExpression {
+		return ""
+	}
+	objectLiteral := candidate.AsObjectLiteralExpression()
+	if objectLiteral == nil || objectLiteral.Properties == nil {
+		return ""
+	}
+	for _, property := range objectLiteral.Properties.Nodes {
+		if property == nil || property.Kind != ast.KindPropertyAssignment {
+			continue
+		}
+		propertyAssignment := property.AsPropertyAssignment()
+		if propertyAssignment == nil {
+			continue
+		}
+		name := propertyAssignment.Name()
+		if name == nil || name.Text() != "strategy" {
+			continue
+		}
+		initializer := propertyAssignment.Initializer
+		if initializer == nil {
+			continue
+		}
+		if initializer.Kind == ast.KindStringLiteral || initializer.Kind == ast.KindNoSubstitutionTemplateLiteral {
+			return initializer.Text()
+		}
+	}
+	return ""
 }
 
 // enclosedByInjectionMarker reports whether call sits (transitively) inside the
@@ -378,7 +475,7 @@ func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
 		}
 		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
 		kind, _, matched := marker.DetectAny(resolver.checker, paramType, resolver.marker)
-		if matched && kind == marker.KindInjectRunTypeId {
+		if matched && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs) {
 			return true
 		}
 	}

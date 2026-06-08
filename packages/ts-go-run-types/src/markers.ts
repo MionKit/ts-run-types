@@ -23,6 +23,25 @@ export type InjectRunTypeId<T> = string & {
   readonly __mionInjectRunTypeIdBrand?: T;
 };
 
+/**
+ * Trailing-slot injection marker for the `createX` factories. Like
+ * `InjectRunTypeId<T>` the transformer fills the `id?` parameter at build time,
+ * but `InjectTypeFnArgs` carries a second type argument `Fn` naming the function
+ * family (`'it'`, `'te'`, `'jsonEncoder'`, …). The injected value is a
+ * `[typeId, fnId]` tuple, so the Go backend emits only the demanded function
+ * cache and the runtime resolves the precise factory without recomputing a key.
+ *
+ * The declared type mirrors `InjectRunTypeId`'s `string & {brand}` shape (rather
+ * than a tuple type) so the Go marker scanner resolves the alias + its two type
+ * arguments the same way it does for `InjectRunTypeId` — a tuple-intersection
+ * alias does not reliably preserve `T`/`Fn` on the resolved type. `T`/`Fn` are
+ * phantom; the runtime value is a two-string array injected post-typecheck.
+ */
+export type InjectTypeFnArgs<T, Fn extends string> = string & {
+  readonly __mionInjectTypeFnArgsBrand?: T;
+  readonly __mionInjectTypeFnArgsFn?: Fn;
+};
+
 // NOTE: `any` is intentionally PERMITTED — there is no type-level `any` guard.
 // `getRunTypeId<any>()` resolves a normal id; the runtime fn is a noop validator
 // (accepts everything) and a best-effort serializer that emits a build-time

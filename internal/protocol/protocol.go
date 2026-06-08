@@ -569,6 +569,13 @@ type Site struct {
 	ParamIndex int      `json:"paramIndex,omitempty"`
 	ArgsCount  int      `json:"argsCount,omitempty"`
 	Options    []string `json:"options,omitempty"`
+	// FnId is the precise compile-time function selector for a createX call
+	// site routed through the InjectTypeFnArgs<T, Fn> marker — e.g. "it",
+	// "itNL", "stripMutate". Empty for reflection-only InjectRunTypeId sites
+	// (getRunTypeId / reflectRunTypeId / builders). The transformer injects
+	// `[id, fnId]` as a tuple when this is set; the emitter reads it (via
+	// constants.DemandsForFnId) to render only the demanded function families.
+	FnId string `json:"fnId,omitempty"`
 }
 
 // Replacement is a byte-range rewrite on a source file: replace the

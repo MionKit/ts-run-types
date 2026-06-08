@@ -338,8 +338,10 @@ func TestIsTypeModule_NestedArrayDependencyCall(t *testing.T) {
 // emitter fans out an extra `itNA_<id>` factory whose body omits the
 // leading `if (!Array.isArray(v)) return false;` guard. The plain
 // `it_<id>` factory still emits the guarded body. Mirrors mion's
-// `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType, but driven
-// by Site.Options rather than the legacy RunType.Flags fold.
+// `comp.opts.noIsArrayCheck` branch in array.ts:emitIsType, driven by
+// Site.Options. (`it` is all-emit — the back-compat path keys variants
+// off Site.Options; the FnId-driven demand path is exercised on the
+// migrated `te` family in internal/resolver/demand_scope_test.go.)
 func TestIsTypeModule_ArrayNoIsArrayCheck(t *testing.T) {
 	dump := protocol.Dump{
 		RunTypes: []*protocol.RunType{

@@ -20,9 +20,9 @@ import (
 // and any FMT002 diagnostics.
 func scanNativeDate(t *testing.T, params string) (string, []*protocol.RunType, []diag.Diagnostic) {
 	t.Helper()
-	code := `import {getRunTypeId} from '@mionjs/ts-go-run-types';
+	code := `import {createIsType} from '@mionjs/ts-go-run-types';
 ` + typeFormatBrandDecl + `
-export const _ = getRunTypeId<TypeFormat<Date, 'nativeDate', ` + params + `>>();
+export const _ = createIsType<TypeFormat<Date, 'nativeDate', ` + params + `>>();
 `
 	r := setupInline(t, map[string]string{"a.ts": code})
 	resp := r.Dispatch(protocol.Request{
