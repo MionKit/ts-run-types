@@ -261,6 +261,10 @@ export type AssembleTemplate<P extends readonly TemplatePart[]> = P extends read
 // recursive type and (with the structural cycle-token anchor in typeid.go)
 // value-first converges with the type-first form.
 
+// #region substituteself-extract — Self / SubstituteSelf / Recursive machinery;
+// sliced verbatim between these markers by test/types/substituteSelfHarness.ts to
+// build the recursive-schema budget test. Keep self-contained (only `lib` types).
+
 /** The self-reference placeholder `self()` carries — a unique brand so nothing
  *  structural can collide with it. **/
 declare const SelfBrand: unique symbol;
@@ -279,10 +283,16 @@ type SubstituteSelf<T, P extends [unknown]> = T extends Self
     ? T
     : T extends Date | RegExp
       ? T
-      : T extends Map<infer K, infer V>
-        ? Map<SubstituteSelf<K, P>, SubstituteSelf<V, P>>
-        : T extends Set<infer E>
-          ? Set<SubstituteSelf<E, P>>
+      : // Gate Map/Set behind cheap non-`infer` checks so non-collection nodes
+        // skip the inference machinery (same optimisation as `DataOnly`).
+        T extends Map<any, any>
+        ? T extends Map<infer K, infer V>
+          ? Map<SubstituteSelf<K, P>, SubstituteSelf<V, P>>
+          : never // unreachable — gate guarantees a Map
+        : T extends Set<any>
+          ? T extends Set<infer E>
+            ? Set<SubstituteSelf<E, P>>
+            : never // unreachable — gate guarantees a Set
           : T extends Promise<infer E>
             ? Promise<SubstituteSelf<E, P>>
             : T extends (...args: infer A extends readonly unknown[]) => infer R
@@ -304,3 +314,4 @@ type SubstituteSelf<T, P extends [unknown]> = T extends Self
  *  TUPLES are the one shape TS can't build this way (TS2589) — author those
  *  type-first. **/
 export type Recursive<Body> = SubstituteSelf<Body, [Recursive<Body>]>;
+// #endregion substituteself-extract
