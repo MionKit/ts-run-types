@@ -75,7 +75,8 @@ export const TEMPLATE_LITERAL = {
     description: "mion templateLiteral.spec.ts 'multi-segment URL'. Multiple placeholders + literal segments.",
     validate: () => createValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateDataOnly: () => createValidate<DataOnly<`/api/v${number}/user/${string}/posts/${number}`>>(),
-    validateSchema: () => createValidate(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
+    validateSchema: () =>
+      createValidate(RT.templateLiteral(['/api/v', RT.number(), '/user/', RT.string(), '/posts/', RT.number()])),
     deserializeValidate: () => deserializeValidate<`/api/v${number}/user/${string}/posts/${number}`>(),
     validateReflect: () => {
       const v: `/api/v${number}/user/${string}/posts/${number}` = '/api/v1/user/jane/posts/7';

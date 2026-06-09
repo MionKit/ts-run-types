@@ -111,7 +111,8 @@ export const NUMBER_FORMAT = {
     validateDataOnly: () => createValidate<DataOnly<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     validateSchema: () => createValidate(RT.number({min: 0, max: 100, integer: true, multipleOf: 5})),
     getValidationErrors: () => createGetValidationErrors<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>>(),
     getValidationErrorsSchema: () => createGetValidationErrors(RT.number({min: 0, max: 100, integer: true, multipleOf: 5})),
     mockType: () => createMockType<FormatNumber<{min: 0; max: 100; integer: true; multipleOf: 5}>>(),
     getSamples: () => ({valid: [0, 5, 50, 100], invalid: [-5, 105, 7, 2.5]}),

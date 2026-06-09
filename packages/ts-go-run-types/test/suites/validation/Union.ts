@@ -75,7 +75,8 @@ export const UNION = {
     },
     getValidationErrors: () => createGetValidationErrors<'UNO' | 'DOS' | 'TRES'>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<'UNO' | 'DOS' | 'TRES'>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.literal('UNO'), RT.literal('DOS'), RT.literal('TRES')])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<'UNO' | 'DOS' | 'TRES'>(),
     getValidationErrorsReflect: () => {
       const v: 'UNO' | 'DOS' | 'TRES' = 'UNO';
@@ -140,7 +141,9 @@ export const UNION = {
     getValidationErrors: () =>
       createGetValidationErrors<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>(),
     getValidationErrorsDataOnly: () =>
-      createGetValidationErrors<DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>>(),
+      createGetValidationErrors<
+        DataOnly<'a' | 'b' | number | boolean | null | {a: string} | {a: string; b: number} | {c: bigint}>
+      >(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
         RT.union([
@@ -302,7 +305,8 @@ export const UNION = {
     },
     getValidationErrors: () => createGetValidationErrors<(string | bigint | boolean | Date)[]>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<(string | bigint | boolean | Date)[]>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.array(RT.union([RT.string(), RT.bigint(), RT.boolean(), RT.date()]))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<(string | bigint | boolean | Date)[]>(),
     getValidationErrorsReflect: () => {
       const v: (string | bigint | boolean | Date)[] = [];
@@ -361,7 +365,8 @@ export const UNION = {
       return deserializeValidate(v);
     },
     getValidationErrors: () => createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint}>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint}>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
         RT.union([RT.object({a: RT.string(), aa: RT.boolean()}), RT.object({b: RT.number()}), RT.object({c: RT.bigint()})])
@@ -666,7 +671,8 @@ export const UNION = {
     },
     getValidationErrors: () => createGetValidationErrors<{a: string} & {b: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string} & {b: number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.intersection(RT.object({a: RT.string()}), RT.object({b: RT.number()}))),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string} & {b: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string} & {b: number} = {a: 'x', b: 1};
@@ -712,7 +718,8 @@ export const UNION = {
     description:
       "mion union.spec.ts 'validate an union with index property' — arm carries a named prop AND an index signature; index-typed extras are accepted alongside the named prop.",
     validate: () => createValidate<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
-    validateDataOnly: () => createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
+    validateDataOnly: () =>
+      createValidate<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
     validateSchema: () =>
       createValidate(
         RT.union([
@@ -730,7 +737,8 @@ export const UNION = {
       const v: {a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint} = {b: 123};
       return deserializeValidate(v);
     },
-    getValidationErrors: () => createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
+    getValidationErrors: () =>
+      createGetValidationErrors<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<DataOnly<{a: string; aa: boolean} | {b: number} | {c: bigint; [key: string]: bigint}>>(),
     getValidationErrorsSchema: () =>
@@ -917,7 +925,9 @@ export const UNION = {
       return deserializeValidate(v);
     },
     getValidationErrors: () =>
-      createGetValidationErrors<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>(),
+      createGetValidationErrors<
+        string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}
+      >(),
     getValidationErrorsDataOnly: () =>
       createGetValidationErrors<
         DataOnly<string[] | number[] | boolean[] | {a: string; aa: boolean} | {b: number} | {c: bigint; aa: 'string'}>
@@ -1010,7 +1020,8 @@ export const UNION = {
     },
     getValidationErrors: () => createGetValidationErrors<{a: boolean} | {a: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: boolean} | {a: number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.union([RT.object({a: RT.boolean()}), RT.object({a: RT.number()})])),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: boolean} | {a: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: boolean} | {a: number} = {a: true};

@@ -206,7 +206,8 @@ export const TYPE_MAPPINGS = {
       type MongoForm<T> = {[K in keyof T as K extends 'id' ? '_id' : K]: T[K]};
       return createGetValidationErrors<DataOnly<MongoForm<Source>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.object({_id: RT.number(), name: RT.string(), createdAt: RT.date()})),
     deserializeGetValidationErrors: () => {
       interface Source {
         id: number;

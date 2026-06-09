@@ -29,8 +29,8 @@ const MarkerLine = "// #### REPLACE HERE ####"
 // packages/ts-go-run-types/src/caches/.
 const (
 	SkeletonRunTypes                   = "runTypesCache.ts"
-	SkeletonValidate                     = "validateCache.ts"
-	SkeletonValidationErrors                 = "getValidationErrorsCache.ts"
+	SkeletonValidate                   = "validateCache.ts"
+	SkeletonValidationErrors           = "getValidationErrorsCache.ts"
 	SkeletonPrepareForJson             = "prepareForJsonCache.ts"
 	SkeletonRestoreFromJson            = "restoreFromJsonCache.ts"
 	SkeletonStringifyJson              = "stringifyJsonCache.ts"

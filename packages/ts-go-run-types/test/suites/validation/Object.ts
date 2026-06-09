@@ -885,7 +885,9 @@ export const OBJECT = {
     validate: () => createValidate<{a: string; b: number; [key: string]: string | number}>(),
     validateDataOnly: () => createValidate<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     validateSchema: () =>
-      createValidate(RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))),
+      createValidate(
+        RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
+      ),
     deserializeValidate: () => deserializeValidate<{a: string; b: number; [key: string]: string | number}>(),
     validateReflect: () => {
       const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
@@ -896,12 +898,14 @@ export const OBJECT = {
       return deserializeValidate(v);
     },
     getValidationErrors: () => createGetValidationErrors<{a: string; b: number; [key: string]: string | number}>(),
-    getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
+    getValidationErrorsDataOnly: () =>
+      createGetValidationErrors<DataOnly<{a: string; b: number; [key: string]: string | number}>>(),
     getValidationErrorsSchema: () =>
       createGetValidationErrors(
         RT.intersection(RT.record(RT.union([RT.string(), RT.number()])), RT.object({a: RT.string(), b: RT.number()}))
       ),
-    deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a: string; b: number; [key: string]: string | number}>(),
+    deserializeGetValidationErrors: () =>
+      deserializeGetValidationErrors<{a: string; b: number; [key: string]: string | number}>(),
     getValidationErrorsReflect: () => {
       const v: {a: string; b: number; [key: string]: string | number} = {a: 'x', b: 1};
       return createGetValidationErrors(v);
@@ -1119,7 +1123,9 @@ export const OBJECT = {
       return createGetValidationErrors<DataOnly<Obj2>>();
     },
     getValidationErrorsSchema: () =>
-      createGetValidationErrors(RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})),
+      createGetValidationErrors(
+        RT.object({b: RT.string(), c: RT.intersection(RT.record(RT.string()), RT.object({a: RT.string()}))})
+      ),
     deserializeGetValidationErrors: () => {
       interface Obj1 {
         a: string;
@@ -1379,7 +1385,8 @@ export const OBJECT = {
     },
     getValidationErrors: () => createGetValidationErrors<{a?: string; b?: number}>(),
     getValidationErrorsDataOnly: () => createGetValidationErrors<DataOnly<{a?: string; b?: number}>>(),
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.object({a: RT.optional(RT.string()), b: RT.optional(RT.number())})),
     deserializeGetValidationErrors: () => deserializeGetValidationErrors<{a?: string; b?: number}>(),
     getValidationErrorsReflect: () => {
       const v: {a?: string; b?: number} = {};
@@ -2083,7 +2090,8 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], [RT.string()])))),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, c?: string) => Date;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
@@ -2175,7 +2183,8 @@ export const OBJECT = {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return createGetValidationErrors<DataOnly<Parameters<CallSig>>>();
     },
-    getValidationErrorsSchema: () => createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
+    getValidationErrorsSchema: () =>
+      createGetValidationErrors(RT.parameters(RT.func(RT.tuple([RT.number(), RT.boolean()], RT.date())))),
     deserializeGetValidationErrors: () => {
       type CallSig = (a: number, b: boolean, ...c: Date[]) => Date;
       return deserializeGetValidationErrors<Parameters<CallSig>>();
