@@ -20,6 +20,7 @@ import (
 
 	"github.com/microsoft/typescript-go/shim/checker"
 	"github.com/mionkit/ts-run-types/internal/cache/disk"
+	"github.com/mionkit/ts-run-types/internal/compiled/purefns"
 	"github.com/mionkit/ts-run-types/internal/compiled/runtype"
 	"github.com/mionkit/ts-run-types/internal/marker"
 	"github.com/mionkit/ts-run-types/internal/program"
@@ -94,6 +95,12 @@ type Resolver struct {
 	// (which would duplicate site entries on resolver.sites). Cleared
 	// alongside the cache + sites on Rebind / Clear.
 	scannedFiles map[string]struct{}
+	// pureFnFileCache memoizes per-file pure-fn extraction for the
+	// lifetime of the current Program (files are immutable within one
+	// Program). The OpDump path used to re-extract EVERY program file on
+	// EVERY dump; with the cache only never-seen files pay the AST walk.
+	// Dropped on SetProgram / Reset together with the Program.
+	pureFnFileCache *purefns.FileCache
 	// rtStore is the on-disk RT artifact cache shared by every
 	// renderXxxModule call. nil when CacheDir was empty — the renderer
 	// treats nil as "no cache wired", so test paths that build a
@@ -143,13 +150,14 @@ func New(prog *program.Program, opts Options) (*Resolver, error) {
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		checker:      typeChecker,
-		releaseLease: releaseLease,
-		marker:       marker.WithDefaults(opts.Marker),
-		opts:         opts,
-		pureFnHashes: map[string]string{},
-		scannedFiles: map[string]struct{}{},
-		rtStore:      newRTStore(opts),
+		checker:         typeChecker,
+		releaseLease:    releaseLease,
+		marker:          marker.WithDefaults(opts.Marker),
+		opts:            opts,
+		pureFnHashes:    map[string]string{},
+		scannedFiles:    map[string]struct{}{},
+		pureFnFileCache: purefns.NewFileCache(),
+		rtStore:         newRTStore(opts),
 	}, nil
 }
 
@@ -162,11 +170,12 @@ func NewServer(opts Options) *Resolver {
 			HashLength:        opts.HashLength,
 			LiteralHashLength: opts.LiteralHashLength,
 		}),
-		marker:       marker.WithDefaults(opts.Marker),
-		opts:         opts,
-		pureFnHashes: map[string]string{},
-		scannedFiles: map[string]struct{}{},
-		rtStore:      newRTStore(opts),
+		marker:          marker.WithDefaults(opts.Marker),
+		opts:            opts,
+		pureFnHashes:    map[string]string{},
+		scannedFiles:    map[string]struct{}{},
+		pureFnFileCache: purefns.NewFileCache(),
+		rtStore:         newRTStore(opts),
 	}
 }
 
@@ -192,6 +201,7 @@ func (resolver *Resolver) SetProgram(prog *program.Program) error {
 	resolver.cache.Rebind(typeChecker)
 	resolver.sites = resolver.sites[:0]
 	resolver.scannedFiles = map[string]struct{}{}
+	resolver.pureFnFileCache = purefns.NewFileCache()
 	return nil
 }
 
@@ -218,6 +228,7 @@ func (resolver *Resolver) Reset() {
 	resolver.sites = resolver.sites[:0]
 	resolver.pureFnHashes = map[string]string{}
 	resolver.scannedFiles = map[string]struct{}{}
+	resolver.pureFnFileCache = purefns.NewFileCache()
 }
 
 func (resolver *Resolver) Close() {
