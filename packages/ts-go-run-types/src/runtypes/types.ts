@@ -324,6 +324,18 @@ type _DataOnlyDepth = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8];
  *   - objects → recurse per property, dropping symbol-keyed and `never`-valued
  *     (⊇ method) properties.
  *
+ *  HOST / built-in CLASSES — what is deliberately handled where (see
+ *  `DataOnlyNative` / `DataOnlyStripped` above for the why):
+ *   - KEPT by identity: `Date`, `RegExp`, `Map`, `Set` (+ Temporal via the
+ *     `DataOnlyNativeExtra` augmentation) — the validator checks these directly;
+ *   - STRIPPED to `never`: `ArrayBuffer`, `SharedArrayBuffer`, `DataView` and
+ *     every typed array — non-serialisable in the emitter;
+ *   - LEFT OUT (not enumerated): every OTHER class — `URL`, `URLSearchParams`,
+ *     `Blob`, `File`, `FileList`, `FormData`, and any user class — falls through
+ *     to the object branch and PROJECTS to its data shape, mirroring the
+ *     emitter's structural (`ClassRef{Name}`) validation of a plain class. (So
+ *     this module names no `lib.dom` types.)
+ *
  *  Implementation: NO `infer` — every arm is a bare `extends` test or a
  *  homomorphic `{[K in keyof T]: …}` map (which preserves array/tuple structure
  *  and `readonly`/`?` modifiers for free). `Map`/`Set` are kept verbatim rather
