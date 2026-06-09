@@ -211,28 +211,6 @@ export type TypesFunctionsCache = Record<string, CompiledTypeFn>;
 /** Flat pure-function cache keyed by "<namespace>::<fnName>" — see `pureFnKey`. */
 export type PureFunctionsCache = Record<string, CompiledPureFunction>;
 
-// Web/DOM globals referenced below — declared as opaque interfaces because
-// the package's tsconfig sets `types: []`. At runtime each `instanceof`
-// resolves against the platform's real global.
-interface URL {
-  readonly __webURL?: never;
-}
-interface URLSearchParams {
-  readonly __webURLSearchParams?: never;
-}
-interface Blob {
-  readonly __webBlob?: never;
-}
-interface File {
-  readonly __webFile?: never;
-}
-interface FileList {
-  readonly __webFileList?: never;
-}
-interface FormData {
-  readonly __webFormData?: never;
-}
-
 export type DeserializeClassFn<C extends InstanceType<AnyClass>> = (deserialized: DataOnly<C>) => C;
 
 // ########################################### Classes / helpers #########################################

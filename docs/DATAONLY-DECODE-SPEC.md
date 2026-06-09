@@ -1,6 +1,6 @@
 # Spec: `DataOnly<T>` return types for JSON & binary decoders
 
-**Status:** Proposed — spec only. Full investigation + implementation plan to follow.
+**Status:** Implemented. `createJsonDecoder<T>()` / `createBinaryDecoder<T>()` return `DataOnly<T>`.
 **Scope:** type-level return annotation for the decode APIs. No runtime or emitter change.
 
 ## Problem
@@ -70,24 +70,34 @@ instantiations (~0.2 s — a few % of a real typecheck). Cost is bounded by the 
 of distinct response types, **not** by the number of endpoints or client usages, so
 routing every return value through it scales linearly and reuse is effectively free.
 
-## Open questions (for the implementation phase)
+## Open questions (resolved during implementation)
 
-1. Value-first / schema decoders (`createJsonDecoder(rt)`): derive the same
-   `DataOnly`-projected static type, or leave as-is?
-2. `JsonDecoderFn` shape change ([`createRTFunctions.ts`](../packages/ts-go-run-types/src/createRTFunctions.ts))
-   and `createBinaryDecoder` signature ([`createBinary.ts`](../packages/ts-go-run-types/src/createBinary.ts))
-   — overload ergonomics and any consumers relying on `=> T`.
-3. Test suite: decode round-trip / id-integrity cases that assert `=> T` need
-   updated expectations; reuse the `DataOnly` faithfulness harness
-   ([`test/types/dataonlyHarness.ts`](../packages/ts-go-run-types/test/types/dataonlyHarness.ts)).
-4. This deliberately re-introduces the previously-reverted "decoder `DataOnly`"
-   change — confirm nothing tied to that revert needs re-touching.
-5. Docs: README decode examples + the CLAUDE.md "isType contract" section should
-   note that decode returns the data-only projection.
+1. **Value-first / schema decoders** (`createJsonDecoder(rt)`): projected too. The
+   schema form infers `T = Static<typeof rt>`, then the same overload return
+   projects it — consistent with the type-first form, no extra wiring.
+2. **`JsonDecoderFn` / `createBinaryDecoder` signature**: the projection lives on the
+   **factory overload return** (`JsonDecoderFn<DataOnly<T>>` /
+   `BinaryDecoderFn<DataOnly<T>>`), NOT on the `JsonDecoderFn`/`BinaryDecoderFn`
+   aliases — those stay `=> T` as composable primitives. Baking it into the alias
+   breaks the binary decoder's own body (its `decodeFn` returns `T`, not
+   `DataOnly<T>`) and doing both would double-project to `DataOnly<DataOnly<T>>`. A
+   single localized cast at the binary impl's `return` bridges the runtime value to
+   the projected type.
+3. **Test suite**: only two sites needed updating — `classSerializer.test.ts`, which
+   reconstructs REAL class instances via a registered serializer and then called a
+   projected-away method (`Point.mag()`); those cast the decode result back to the
+   real type to reflect that domain knowledge. Round-trip suites assert runtime
+   values (`.toEqual`) so they were unaffected. New type-level contract test:
+   [`test/types/decodeReturnType.test.ts`](../packages/ts-go-run-types/test/types/decodeReturnType.test.ts).
+4. **Previously-reverted change**: no revert commit found in history; nothing tied to
+   it needed re-touching.
+5. **Docs**: this spec + the CLAUDE.md "isType contract" section note the projection.
+   README has no decode examples, so nothing to amend there.
 
-## Acceptance
+## Acceptance — met
 
-- `createJsonDecoder<Dirty>()` / `createBinaryDecoder<Dirty>()` return the projected
+- ✅ `createJsonDecoder<Dirty>()` / `createBinaryDecoder<Dirty>()` return the projected
   (data-only) type; clean DTOs are unchanged (`DataOnly<T> ≡ T`).
-- No runtime or emitter behaviour change; all existing decode round-trips pass.
-- `DataOnly` faithfulness + per-branch instantiation-budget tests stay green.
+- ✅ No runtime or emitter behaviour change; all existing decode round-trips pass
+  (full marker-package suite: 5899 tests green).
+- ✅ `DataOnly` faithfulness + per-branch instantiation-budget tests stay green.
