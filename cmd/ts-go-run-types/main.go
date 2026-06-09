@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
 
@@ -44,7 +45,11 @@ Options:
     --out-ts   PATH     after stdin is drained, write the runtime cache JS module to PATH
     --hash-length N     short-id length for type hashes (default 6)
     --literal-hash-length N  short-id length for literal-typed hashes (default 5)
-    --single-threaded   force single-checker mode (useful for tests)
+    --single-threaded   force single-checker mode (useful for tests);
+                        also disables the parallel marker scan
+    --no-parallel-scan  disable the parallel marker scan (parallel is the
+                        default: multi-file scanFiles requests analyze
+                        call sites concurrently across the checker pool)
     --inline-sources-stdin   read {"sources":{relpath:content}} from stdin
                              before the request stream; build an inferred
                              Program whose source files come from that map
@@ -77,6 +82,7 @@ func main() {
 		hashLength         int
 		literalHashLength  int
 		singleThreaded     bool
+		noParallelScan     bool
 		inlineSourcesStdin bool
 		inlineServer       bool
 		cacheDir           string
@@ -95,6 +101,8 @@ func main() {
 	flag.IntVar(&hashLength, "hash-length", 0, "short-id length for type hashes (0 = default 6)")
 	flag.IntVar(&literalHashLength, "literal-hash-length", 0, "short-id length for literal hashes (0 = default 5)")
 	flag.BoolVar(&singleThreaded, "single-threaded", false, "single-threaded mode")
+	flag.BoolVar(&noParallelScan, "no-parallel-scan", false,
+		"disable the parallel marker scan (parallel is the default)")
 	flag.BoolVar(&inlineSourcesStdin, "inline-sources-stdin", false,
 		"read {\"sources\":{relpath:content}} from stdin before the request stream")
 	flag.BoolVar(&inlineServer, "inline-server", false,
@@ -170,13 +178,14 @@ func main() {
 	stdoutEnc := json.NewEncoder(stdoutBuf)
 
 	resolverOpts := resolver.Options{
-		HashLength:        hashLength,
-		LiteralHashLength: literalHashLength,
-		Marker:            marker.Options{},
-		Cwd:               absCwd,
-		SingleThreaded:    singleThreaded,
-		CacheDir:          cacheDir,
-		EmitCreateRTFn:    emitCacheFunctions,
+		HashLength:          hashLength,
+		LiteralHashLength:   literalHashLength,
+		Marker:              marker.Options{},
+		Cwd:                 absCwd,
+		SingleThreaded:      singleThreaded,
+		DisableParallelScan: noParallelScan,
+		CacheDir:            cacheDir,
+		EmitCreateRTFn:      emitCacheFunctions,
 	}
 
 	var r *resolver.Resolver
@@ -232,7 +241,7 @@ func main() {
 	case daemon:
 		runDaemon(r, socketPath)
 	default:
-		serveRequests(r, stdinDec, stdoutEnc, stdoutBuf.Flush)
+		serveRequests(r.Dispatch, stdinDec, stdoutEnc, stdoutBuf.Flush)
 	}
 
 	// Optional file outputs after stdin is drained. Both formats share one
@@ -254,15 +263,15 @@ func main() {
 	}
 }
 
-func runOneShot(r *resolver.Resolver, in io.Reader, out io.Writer) {
+func runOneShot(dispatch func(protocol.Request) protocol.Response, in io.Reader, out io.Writer) {
 	outBuf := bufio.NewWriter(out)
-	serveRequests(r, json.NewDecoder(bufio.NewReader(in)), json.NewEncoder(outBuf), outBuf.Flush)
+	serveRequests(dispatch, json.NewDecoder(bufio.NewReader(in)), json.NewEncoder(outBuf), outBuf.Flush)
 }
 
 // serveRequests drains the request stream, dispatching each and encoding
 // the response. flush runs after every response so the buffered writer's
 // bytes reach the client before the next read blocks.
-func serveRequests(r *resolver.Resolver, dec *json.Decoder, enc *json.Encoder, flush func() error) {
+func serveRequests(dispatch func(protocol.Request) protocol.Response, dec *json.Decoder, enc *json.Encoder, flush func() error) {
 	for {
 		var req protocol.Request
 		if err := dec.Decode(&req); err != nil {
@@ -273,7 +282,7 @@ func serveRequests(r *resolver.Resolver, dec *json.Decoder, enc *json.Encoder, f
 			_ = flush()
 			continue
 		}
-		resp := r.Dispatch(req)
+		resp := dispatch(req)
 		if err := enc.Encode(resp); err != nil {
 			fatal("encode: %v", err)
 		}
@@ -293,6 +302,17 @@ func runDaemon(r *resolver.Resolver, socketPath string) {
 
 	fmt.Fprintf(os.Stderr, "ts-go-run-types daemon listening on %s\n", socketPath)
 
+	// One Resolver serves every connection, so dispatches are serialized:
+	// the resolver session state (cache, sites, scan bookkeeping — and the
+	// parallel scan inside a dispatch) assumes one op at a time. Without
+	// this, two connections issuing ops concurrently raced on shared maps.
+	var dispatchMutex sync.Mutex
+	dispatch := func(request protocol.Request) protocol.Response {
+		dispatchMutex.Lock()
+		defer dispatchMutex.Unlock()
+		return r.Dispatch(request)
+	}
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -301,7 +321,7 @@ func runDaemon(r *resolver.Resolver, socketPath string) {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			runOneShot(r, c, c)
+			runOneShot(dispatch, c, c)
 		}(conn)
 	}
 }
