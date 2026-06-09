@@ -62,7 +62,7 @@ type Operation struct {
 }
 
 // registry is the complete operation set: 11 public (one per createX factory)
-// plus 6 internal-only primitives the JSON composites and cross-family edges
+// plus 5 internal-only primitives the JSON composites and cross-family edges
 // reference. Order is not load-bearing (everything is keyed by Name / FnKey).
 var registry = []Operation{
 	// Public — validators (IsTypeOptions axis).
@@ -100,7 +100,7 @@ var registry = []Operation{
 	},
 
 	// Internal primitives — no PUBLIC createX factory, reachable as JSON
-	// composite dependencies (pj/pjs/pjsp/rj/sj/ukuw) or cross-family edges. They
+	// composite dependencies (pj/pjs/rj/sj/ukuw) or cross-family edges. They
 	// carry an FnKey equal to their family tag so the TEST-ONLY deserialize twins
 	// (deserializePrepareForJson / deserializeRestoreFromJson / …) can route an
 	// InjectTypeFnArgs<T, '<tag>'> marker through the SAME fnHash path as the
@@ -109,7 +109,6 @@ var registry = []Operation{
 	// than reconstruct it. Public stays false (no user-facing factory names them).
 	{Name: "prepareForJson", FamilyTag: "pj", Axis: AxisNone, FnKey: "pj"},
 	{Name: "prepareForJsonSafe", FamilyTag: "pjs", Axis: AxisNone, FnKey: "pjs"},
-	{Name: "prepareForJsonSafePreserve", FamilyTag: "pjsp", Axis: AxisNone, FnKey: "pjsp"},
 	{Name: "restoreFromJson", FamilyTag: "rj", Axis: AxisNone, FnKey: "rj"},
 	{Name: "stringifyJson", FamilyTag: "sj", Axis: AxisNone, FnKey: "sj"},
 	{Name: "unknownKeysToUndefinedWire", FamilyTag: "ukuw", Axis: AxisNone, FnKey: "ukuw"},

@@ -189,15 +189,6 @@ func PrepareForJsonSafeModule(writer io.Writer, dump protocol.Dump, opts RenderO
 	return RenderFnModule(writer, dump, settings, PrepareForJsonSafeEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafe, opts)
 }
 
-// PrepareForJsonSafePreserveModule writes the runtime artifact for the
-// clone+preserve variant family — same shape as PrepareForJsonSafe but
-// every cloned object literal spreads `...v` so undeclared keys
-// survive.
-func PrepareForJsonSafePreserveModule(writer io.Writer, dump protocol.Dump, opts RenderOpts) error {
-	settings := constants.CacheModules["prepareForJsonSafePreserve"]
-	return RenderFnModule(writer, dump, settings, PrepareForJsonSafePreserveEmitter{}, innerPrefix(settings), cachetpl.SkeletonPrepareForJsonSafePreserve, opts)
-}
-
 // HasUnknownKeysModule writes the runtime artifact for the
 // hasUnknownKeys cache module — boolean predicate per mion's
 // emitHasUnknownKeys.
@@ -288,7 +279,6 @@ var crossFamilyItSourceFamilies = []familyConfig{
 	{constants.CacheModules["restoreFromJson"], RestoreFromJsonEmitter{}, cachetpl.SkeletonRestoreFromJson},
 	{constants.CacheModules["stringifyJson"], StringifyJsonEmitter{}, cachetpl.SkeletonStringifyJson},
 	{constants.CacheModules["prepareForJsonSafe"], PrepareForJsonSafeEmitter{}, cachetpl.SkeletonPrepareForJsonSafe},
-	{constants.CacheModules["prepareForJsonSafePreserve"], PrepareForJsonSafePreserveEmitter{}, cachetpl.SkeletonPrepareForJsonSafePreserve},
 	{constants.CacheModules["hasUnknownKeys"], HasUnknownKeysEmitter{}, cachetpl.SkeletonHasUnknownKeys},
 	{constants.CacheModules["stripUnknownKeys"], StripUnknownKeysEmitter{}, cachetpl.SkeletonStripUnknownKeys},
 	{constants.CacheModules["unknownKeyErrors"], UnknownKeyErrorsEmitter{}, cachetpl.SkeletonUnknownKeyErrors},

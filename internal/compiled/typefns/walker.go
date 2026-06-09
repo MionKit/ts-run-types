@@ -124,11 +124,6 @@ type Walker struct {
 	RefTable map[string]*protocol.RunType
 	// Emitter supplies the per-fn args, dispatch, and finalize logic.
 	Emitter Emitter
-	// PreserveExtras is set by NewWalker when the emitter is the
-	// clone+preserve variant (PrepareForJsonSafePreserveEmitter) — read
-	// by buildSafeObjectLiteral to spread `...v` into the cloned object
-	// literal so undeclared keys survive the clone.
-	PreserveExtras bool
 	// VariantOptions carries the `IsTypeOptions` set (e.g. {"noLiterals":
 	// true}) for THIS walker only. The renderer fans the same RunType
 	// out across multiple walkers — one plain + one per option-tuple
@@ -284,13 +279,11 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	if rt != nil {
 		rtFnHash = fnName
 	}
-	_, preserveExtras := emitter.(PrepareForJsonSafePreserveEmitter)
 	return &Walker{
 		RootType:           rt,
 		FnName:             fnName,
 		RTFnHash:           rtFnHash,
 		Emitter:            emitter,
-		PreserveExtras:     preserveExtras,
 		Vλl:                args[0].Name,
 		ContextItems:       newOrderedItems(),
 		RTDependencies:     []string{},

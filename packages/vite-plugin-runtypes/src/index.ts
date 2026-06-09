@@ -45,7 +45,7 @@ const MARKER_MODULE = '@mionjs/ts-go-run-types';
 // `/caches/` parent dir to avoid colliding with same-named files
 // outside the marker package.
 const CACHE_FILE_RE =
-  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|prepareForJsonSafePreserveCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|toBinaryCache|fromBinaryCache|formatTransformCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
+  /[/\\]caches[/\\](runTypesCache|isTypeCache|getTypeErrorsCache|prepareForJsonCache|restoreFromJsonCache|stringifyJsonCache|prepareForJsonSafeCache|hasUnknownKeysCache|stripUnknownKeysCache|unknownKeyErrorsCache|unknownKeysToUndefinedCache|unknownKeysToUndefinedWireCache|toBinaryCache|fromBinaryCache|formatTransformCache|pureFnsCache)\.(?:[jt]sx?|c?[mj]s)$/;
 
 const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   runTypesCache: 'runType',
@@ -55,7 +55,6 @@ const CACHE_KIND_BY_FILE: Record<string, CacheKind> = {
   restoreFromJsonCache: 'restoreFromJson',
   stringifyJsonCache: 'stringifyJson',
   prepareForJsonSafeCache: 'prepareForJsonSafe',
-  prepareForJsonSafePreserveCache: 'prepareForJsonSafePreserve',
   hasUnknownKeysCache: 'hasUnknownKeys',
   stripUnknownKeysCache: 'stripUnknownKeys',
   unknownKeyErrorsCache: 'unknownKeyErrors',
@@ -221,7 +220,6 @@ export default function runtypes(options: PluginOptions) {
         if (result.addedRestoreFromJson) kindsToInvalidate.push('restoreFromJson');
         if (result.addedStringifyJson) kindsToInvalidate.push('stringifyJson');
         if (result.addedPrepareForJsonSafe) kindsToInvalidate.push('prepareForJsonSafe');
-        if (result.addedPrepareForJsonSafePreserve) kindsToInvalidate.push('prepareForJsonSafePreserve');
         if (result.addedHasUnknownKeys) kindsToInvalidate.push('hasUnknownKeys');
         if (result.addedStripUnknownKeys) kindsToInvalidate.push('stripUnknownKeys');
         if (result.addedUnknownKeyErrors) kindsToInvalidate.push('unknownKeyErrors');
@@ -257,7 +255,6 @@ function pickCacheSource(
     restoreFromJsonCacheSource?: string;
     stringifyJsonCacheSource?: string;
     prepareForJsonSafeCacheSource?: string;
-    prepareForJsonSafePreserveCacheSource?: string;
     hasUnknownKeysCacheSource?: string;
     stripUnknownKeysCacheSource?: string;
     unknownKeyErrorsCacheSource?: string;
@@ -277,7 +274,6 @@ function pickCacheSource(
   if (kind === 'restoreFromJson') return dump.restoreFromJsonCacheSource;
   if (kind === 'stringifyJson') return dump.stringifyJsonCacheSource;
   if (kind === 'prepareForJsonSafe') return dump.prepareForJsonSafeCacheSource;
-  if (kind === 'prepareForJsonSafePreserve') return dump.prepareForJsonSafePreserveCacheSource;
   if (kind === 'hasUnknownKeys') return dump.hasUnknownKeysCacheSource;
   if (kind === 'stripUnknownKeys') return dump.stripUnknownKeysCacheSource;
   if (kind === 'unknownKeyErrors') return dump.unknownKeyErrorsCacheSource;

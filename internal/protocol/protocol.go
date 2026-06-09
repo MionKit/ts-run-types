@@ -358,7 +358,6 @@ const (
 	CacheKindRestoreFromJson            CacheKind = "restoreFromJson"
 	CacheKindStringifyJson              CacheKind = "stringifyJson"
 	CacheKindPrepareForJsonSafe         CacheKind = "prepareForJsonSafe"
-	CacheKindPrepareForJsonSafePreserve CacheKind = "prepareForJsonSafePreserve"
 	CacheKindHasUnknownKeys             CacheKind = "hasUnknownKeys"
 	CacheKindStripUnknownKeys           CacheKind = "stripUnknownKeys"
 	CacheKindUnknownKeyErrors           CacheKind = "unknownKeyErrors"
@@ -431,9 +430,6 @@ type Response struct {
 	// returns a new value. Pairs with the existing RestoreFromJson decoder
 	// (wire format identical to prepareForJson + JSON.stringify).
 	AddedPrepareForJsonSafe bool `json:"addedPrepareForJsonSafe,omitempty"`
-	// AddedPrepareForJsonSafePreserve — sibling for the clone+preserve
-	// variant. Same Supports surface as PrepareForJsonSafe.
-	AddedPrepareForJsonSafePreserve bool `json:"addedPrepareForJsonSafePreserve,omitempty"`
 	// AddedHasUnknownKeys / AddedStripUnknownKeys / AddedUnknownKeyErrors
 	// / AddedUnknownKeysToUndefined mirror AddedIsType for the
 	// unknown-keys family ported from mion's
@@ -494,9 +490,6 @@ type Response struct {
 	// PrepareForJsonSafeCacheSource carries the rendered body of the
 	// safe-encode family — non-mutating sibling of PrepareForJsonCacheSource.
 	PrepareForJsonSafeCacheSource string `json:"prepareForJsonSafeCacheSource,omitempty"`
-	// PrepareForJsonSafePreserveCacheSource — rendered body of the
-	// clone+preserve variant family (prefix pjsp).
-	PrepareForJsonSafePreserveCacheSource string `json:"prepareForJsonSafePreserveCacheSource,omitempty"`
 	// HasUnknownKeysCacheSource / StripUnknownKeysCacheSource /
 	// UnknownKeyErrorsCacheSource / UnknownKeysToUndefinedCacheSource
 	// are the rendered bodies of the unknown-keys family — the four
@@ -646,9 +639,6 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	if response.AddedPrepareForJsonSafe {
 		out["addedPrepareForJsonSafe"] = true
 	}
-	if response.AddedPrepareForJsonSafePreserve {
-		out["addedPrepareForJsonSafePreserve"] = true
-	}
 	if response.AddedHasUnknownKeys {
 		out["addedHasUnknownKeys"] = true
 	}
@@ -705,9 +695,6 @@ func (response Response) MarshalJSON() ([]byte, error) {
 	}
 	if response.PrepareForJsonSafeCacheSource != "" {
 		out["prepareForJsonSafeCacheSource"] = response.PrepareForJsonSafeCacheSource
-	}
-	if response.PrepareForJsonSafePreserveCacheSource != "" {
-		out["prepareForJsonSafePreserveCacheSource"] = response.PrepareForJsonSafePreserveCacheSource
 	}
 	if response.HasUnknownKeysCacheSource != "" {
 		out["hasUnknownKeysCacheSource"] = response.HasUnknownKeysCacheSource

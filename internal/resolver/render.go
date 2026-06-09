@@ -194,15 +194,6 @@ func renderPrepareForJsonSafeModule(dump protocol.Dump, opts typefns.RenderOpts)
 	})
 }
 
-// renderPrepareForJsonSafePreserveModule emits the clone+preserve
-// variant — same shape as renderPrepareForJsonSafeModule but every
-// cloned object literal spreads `...v` so extras survive.
-func renderPrepareForJsonSafePreserveModule(dump protocol.Dump, opts typefns.RenderOpts) (string, error) {
-	return renderToString("renderPrepareForJsonSafePreserveModule", func(w io.Writer) error {
-		return typefns.PrepareForJsonSafePreserveModule(w, dump, opts)
-	})
-}
-
 // renderHasUnknownKeysModule emits the hasUnknownKeys cache module —
 // boolean predicate per mion's emitHasUnknownKeys (returns true when
 // the value has properties outside the schema). Backed by

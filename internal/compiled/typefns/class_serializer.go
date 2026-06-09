@@ -104,9 +104,9 @@ func wrapPrepareWithClassSerializer(rt *protocol.RunType, ctx *EmitContext, v st
 	return RTCode{Code: branch, Type: CodeS}
 }
 
-// wrapSafeWithClassSerializer wraps the structural prepareForJsonSafe /
-// prepareForJsonSafePreserve body (the non-mutating `pjs` / `pjsp` clone
-// families) of a plain user class in a runtime registry branch. The
+// wrapSafeWithClassSerializer wraps the structural prepareForJsonSafe
+// body (the non-mutating `pjs` clone family) of a plain user class in a
+// runtime registry branch. The
 // structural emit produces a NEW value (CodeE expression or CodeRB
 // self-returning block); the registry branch replaces the cloned value
 // with `cs_<name>.serialize(v)`:

@@ -62,11 +62,6 @@ var CacheModules = CacheModuleGroup{
 		VarPrefix: "g_pjs_",
 		Tag:       "pjs",
 	},
-	"prepareForJsonSafePreserve": {
-		Name:      "prepareForJsonSafePreserveModule",
-		VarPrefix: "g_pjsp_",
-		Tag:       "pjsp",
-	},
 	"hasUnknownKeys": {
 		Name:      "hasUnknownKeysModule",
 		VarPrefix: "g_huk_",
@@ -116,7 +111,7 @@ var CacheModules = CacheModuleGroup{
 
 // JSON composite family tags — one per (jsonEncoder|jsonDecoder, strategy).
 //
-// A composite entry wraps the underlying primitives (pj/pjs/pjsp/sj/uku/rj/ukuw)
+// A composite entry wraps the underlying primitives (pj/pjs/sj/uku/rj/ukuw)
 // with native JSON and is keyed by the strategy's composite fnHash. It does NOT
 // get a CacheModules entry: composites emit no type-walking factory and ride the
 // prepareForJson / restoreFromJson module bodies (already loaded into rtUtils),

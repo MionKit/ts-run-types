@@ -14,7 +14,6 @@ import {initCache as initPrepareForJsonCache} from './caches/prepareForJsonCache
 import {initCache as initRestoreFromJsonCache} from './caches/restoreFromJsonCache.ts';
 import {initCache as initStringifyJsonCache} from './caches/stringifyJsonCache.ts';
 import {initCache as initPrepareForJsonSafeCache} from './caches/prepareForJsonSafeCache.ts';
-import {initCache as initPrepareForJsonSafePreserveCache} from './caches/prepareForJsonSafePreserveCache.ts';
 import {initCache as initFormatTransformCache} from './caches/formatTransformCache.ts';
 import {getRTUtils, isRunTypeSchema} from './runtypes/rtUtils.ts';
 import type {AnyFn, RunType} from './runtypes/types.ts';
@@ -172,7 +171,6 @@ initPrepareForJsonCache(_utils);
 initRestoreFromJsonCache(_utils);
 initStringifyJsonCache(_utils);
 initPrepareForJsonSafeCache(_utils);
-initPrepareForJsonSafePreserveCache(_utils);
 initFormatTransformCache(_utils);
 // Binary cache init lives in `./createBinary.ts` so binary cache modules
 // don't get pulled into bundles that never reference the binary encoder/decoder.
@@ -427,6 +425,5 @@ if (hot) {
   hot.accept('./caches/restoreFromJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/stringifyJsonCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/prepareForJsonSafeCache.ts', (m) => m?.initCache?.(getRTUtils()));
-  hot.accept('./caches/prepareForJsonSafePreserveCache.ts', (m) => m?.initCache?.(getRTUtils()));
   hot.accept('./caches/formatTransformCache.ts', (m) => m?.initCache?.(getRTUtils()));
 }
