@@ -20,7 +20,6 @@ package runtype
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 
@@ -1372,35 +1371,40 @@ func stripUndefined(tsType *checker.Type) *checker.Type {
 }
 
 func parseNumberLiteral(text string) any {
-	var asInt int64
-	if _, err := fmt.Sscanf(text, "%d", &asInt); err == nil {
-		if fmt.Sprintf("%d", asInt) == text {
-			return asInt
-		}
+	if asInt, err := strconv.ParseInt(text, 10, 64); err == nil {
+		return asInt
 	}
-	var asFloat float64
-	if _, err := fmt.Sscanf(text, "%g", &asFloat); err == nil {
+	if asFloat, err := strconv.ParseFloat(text, 64); err == nil {
 		return asFloat
 	}
 	return text
 }
 
-// validPropertyNameRegexp mirrors mion's helper at
-// /home/user/mion/packages/run-types/src/constants.ts:81.
-var validPropertyNameRegexp = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-
 // isSafeName returns true when name can be used with dot-accessor
 // syntax (obj.foo); false when bracket notation is required
-// (obj["weird name"]). Mirrors
-// /home/user/mion/packages/run-types/src/lib/utils.ts:90 — minus mion's
-// `typeof name === 'number'` short-circuit. Mion treats number-typed keys
-// as safe because `obj[5]` is valid, but in our wire model all names are
-// strings; the regex already rejects leading-digit names ("5") and dot
-// access on a numeric-stringified name (`obj.5`) is a JS syntax error
-// anyway. So the regex alone is the right answer here.
+// (obj["weird name"]). Mirrors mion's `^[a-zA-Z_][a-zA-Z0-9_]*$` check
+// (/home/user/mion/packages/run-types/src/lib/utils.ts:90) — minus
+// mion's `typeof name === 'number'` short-circuit. Mion treats
+// number-typed keys as safe because `obj[5]` is valid, but in our wire
+// model all names are strings; leading-digit names ("5") are rejected
+// and dot access on a numeric-stringified name (`obj.5`) is a JS syntax
+// error anyway. Hand-rolled byte loop — this runs once per projected
+// property and the regexp engine was measurable churn.
 func isSafeName(name string) bool {
 	if name == "" {
 		return false
 	}
-	return validPropertyNameRegexp.MatchString(name)
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
+		case c >= '0' && c <= '9':
+			if i == 0 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }

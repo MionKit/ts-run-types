@@ -59,11 +59,17 @@ type orderedItems struct {
 	values map[string]string
 }
 
+// newOrderedItems leaves the map nil — most walkers never register a
+// context item, and nil-map reads (has/get/ordered) are valid Go; set()
+// allocates lazily on first write.
 func newOrderedItems() *orderedItems {
-	return &orderedItems{values: map[string]string{}}
+	return &orderedItems{}
 }
 
 func (o *orderedItems) set(key, value string) {
+	if o.values == nil {
+		o.values = map[string]string{}
+	}
 	if _, exists := o.values[key]; !exists {
 		o.keys = append(o.keys, key)
 	}
@@ -209,6 +215,31 @@ type Walker struct {
 	// leaves of the same kind would surface duplicate diagnostics for
 	// the same call site.
 	diagSeen map[string]bool
+
+	// inlineCtx is reused across every dispatch call: the IsRTInlined
+	// predicate completes synchronously before any child dispatch runs,
+	// so one instance per walker is safe — only RT is re-pointed per node.
+	inlineCtx InlineContext
+	// ctxPool recycles EmitContext instances LIFO across dispatch calls.
+	// A parent's context stays checked out while its children compile,
+	// so a pooled instance can never alias a live frame.
+	ctxPool []*EmitContext
+}
+
+// getEmitContext pops a recycled EmitContext (or allocates one) primed
+// with the current value accessor.
+func (w *Walker) getEmitContext(accessor string) *EmitContext {
+	if n := len(w.ctxPool); n > 0 {
+		ctx := w.ctxPool[n-1]
+		w.ctxPool = w.ctxPool[:n-1]
+		ctx.Vλl = accessor
+		return ctx
+	}
+	return &EmitContext{Vλl: accessor, walker: w}
+}
+
+func (w *Walker) putEmitContext(ctx *EmitContext) {
+	w.ctxPool = append(w.ctxPool, ctx)
 }
 
 // memberLabel returns a short human-readable identifier for a member-
@@ -279,7 +310,7 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 	if rt != nil {
 		rtFnHash = fnName
 	}
-	return &Walker{
+	walker := &Walker{
 		RootType:           rt,
 		FnName:             fnName,
 		RTFnHash:           rtFnHash,
@@ -291,6 +322,8 @@ func NewWalker(rt *protocol.RunType, fnName string, emitter Emitter) *Walker {
 		CrossFamilyDeps:    []string{},
 		localVarCounters:   map[string]int{},
 	}
+	walker.inlineCtx = InlineContext{DebugInline: debugInlineEnv, walker: walker}
+	return walker
 }
 
 // nextLocalVar hands out a fresh local-variable name (e.g. "i0",
@@ -522,12 +555,8 @@ func (w *Walker) resolveRef(rt *protocol.RunType) *protocol.RunType {
 // recorded deps don't have a matching emitted factory, so this
 // over-recording can't cause runtime breakage.
 func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
-	inlineCtx := &InlineContext{
-		RT:          rt,
-		DebugInline: debugInlineEnv,
-		walker:      w,
-	}
-	shouldDepend := !w.Emitter.IsRTInlined(inlineCtx) && len(w.Stack) > 1
+	w.inlineCtx.RT = rt
+	shouldDepend := !w.Emitter.IsRTInlined(&w.inlineCtx) && len(w.Stack) > 1
 	if shouldDepend {
 		// If the child kind isn't supported by this emitter, the
 		// renderer's outer loop won't emit a factory for it. Emitting
@@ -548,8 +577,9 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		// hash). InnerPrefix is empty for hand-constructed walkers
 		// (unit tests), in which case childID stays bare.
 		childID := w.InnerPrefix + rt.ID
-		emitCtx := &EmitContext{Vλl: w.Vλl, walker: w}
+		emitCtx := w.getEmitContext(w.Vλl)
 		callCode := w.Emitter.EmitDependencyCall(rt, childID, emitCtx)
+		w.putEmitContext(emitCtx)
 		// Mirror mion's updateDependencies (rtFnCompiler.ts:222):
 		// record the child hash on the walker (dedup is internal).
 		// Noop-skip is handled inside UpdateDependencies; without
@@ -559,8 +589,10 @@ func (w *Walker) dispatch(rt *protocol.RunType, expectedCType CodeType) RTCode {
 		w.UpdateDependencies(childID, false)
 		return RTCode{Code: callCode, Type: CodeE}
 	}
-	emitCtx := &EmitContext{Vλl: w.Vλl, walker: w}
-	return w.Emitter.Emit(rt, emitCtx, expectedCType)
+	emitCtx := w.getEmitContext(w.Vλl)
+	result := w.Emitter.Emit(rt, emitCtx, expectedCType)
+	w.putEmitContext(emitCtx)
+	return result
 }
 
 // pushStack snapshots the current Vλl onto a new stack frame.
