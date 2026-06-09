@@ -67,7 +67,7 @@ skipUnlessBinary('disk RT cache (end-to-end)', () => {
     // `it.json` and its contents look like a RTEntry.
     const rtFiles: string[] = [];
     for (const typeId of fs.readdirSync(fpDir)) {
-      const itPath = path.join(fpDir, typeId, 'it.json');
+      const itPath = path.join(fpDir, typeId, 'val.json');
       if (fs.existsSync(itPath)) rtFiles.push(itPath);
     }
     expect(rtFiles.length).toBeGreaterThan(0);

@@ -51,7 +51,7 @@ type Operation struct {
 	// InjectTypeFnArgs<T, Fn> marker. Internal-only primitives are false.
 	Public bool
 	// FnKey is the Fn token the InjectTypeFnArgs marker carries for a public
-	// operation (e.g. "it", "jsonEncoder"). Empty for internal primitives.
+	// operation (e.g. "val", "jsonEncoder"). Empty for internal primitives.
 	FnKey string
 	// DefaultStrategy is the strategy applied when an AxisJsonStrategy call omits
 	// the options literal. Empty for non-JSON operations.
@@ -66,8 +66,8 @@ type Operation struct {
 // reference. Order is not load-bearing (everything is keyed by Name / FnKey).
 var registry = []Operation{
 	// Public — validators (ValidateOptions axis).
-	{Name: "validate", FamilyTag: "it", Axis: AxisValidateOptions, Public: true, FnKey: "it"},
-	{Name: "validationErrors", FamilyTag: "te", Axis: AxisValidateOptions, Public: true, FnKey: "te"},
+	{Name: "validate", FamilyTag: "val", Axis: AxisValidateOptions, Public: true, FnKey: "val"},
+	{Name: "validationErrors", FamilyTag: "verr", Axis: AxisValidateOptions, Public: true, FnKey: "verr"},
 
 	// Public — option-less leaf families.
 	{Name: "hasUnknownKeys", FamilyTag: "huk", Axis: AxisNone, Public: true, FnKey: "huk"},
@@ -146,7 +146,7 @@ func ByName(name string) (Operation, bool) {
 }
 
 // ByFnKey returns the public operation a createX call site's InjectTypeFnArgs Fn
-// token names (e.g. "it", "jsonEncoder"). Used by the scanner.
+// token names (e.g. "val", "jsonEncoder"). Used by the scanner.
 func ByFnKey(fnKey string) (Operation, bool) {
 	op, ok := byFnKey[fnKey]
 	return op, ok

@@ -21,8 +21,8 @@ const runtypesDTS = `declare module '@mionjs/ts-go-run-types' {
   export interface ValidateOptions {noLiterals?: boolean; noIsArrayCheck?: boolean}
   export function getRunTypeId<T>(id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
   export function reflectRunTypeId<T>(value: T, id?: InjectRunTypeId<T>): InjectRunTypeId<T>;
-  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'it'>): (v: unknown) => boolean;
-  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'te'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
+  export function createValidate<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'val'>): (v: unknown) => boolean;
+  export function createGetValidationErrors<T>(val?: T, options?: CompTimeFnArgs<ValidateOptions>, id?: InjectTypeFnArgs<T, 'verr'>): (v: unknown, p?: unknown[], e?: unknown[]) => unknown[];
   export function createHasUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'huk'>): (v: unknown) => unknown;
   export function createStripUnknownKeys<T>(val?: T, id?: InjectTypeFnArgs<T, 'suk'>): (v: unknown) => unknown;
   export function createUnknownKeyErrors<T>(val?: T, id?: InjectTypeFnArgs<T, 'uke'>): (v: unknown) => unknown;

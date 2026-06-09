@@ -25,7 +25,7 @@ import {hasBinary, withInlineSources} from './helpers/inline.ts';
 // mion/general.types.ts:145 for the full type).
 interface RTEntry {
   rtFnHash: string;
-  fnID: 'it';
+  fnID: 'val';
   typeName: string;
   args: {vλl: string};
   defaultParamValues: {vλl: unknown};
@@ -42,8 +42,8 @@ describe('vite-plugin-runtypes / validate precompiler', () => {
 
   register('emits a working RTCompiledFn entry for `string`', async () => {
     // `it` (validate) is demand-scoped — a reflection-only getRunTypeId<string>()
-    // would emit ZERO it_ entries. Drive the validate family directly via
-    // createValidate<string>() so the demand path renders the `it_<id>` factory
+    // would emit ZERO val_ entries. Drive the validate family directly via
+    // createValidate<string>() so the demand path renders the `val_<id>` factory
     // this test inspects.
     const sources = {
       'string.ts': `import {createValidate} from '@mionjs/ts-go-run-types';
@@ -93,7 +93,7 @@ createValidate<string>();
 
       // 3. Every RTCompiledFnData field is populated.
       expect(fromCache.rtFnHash).toBe(cacheKey);
-      expect(fromCache.fnID).toBe('it');
+      expect(fromCache.fnID).toBe('val');
       expect(fromCache.typeName).toBe('string');
       expect(fromCache.args).toEqual({vλl: 'v'});
       expect(fromCache.defaultParamValues).toEqual({vλl: undefined});

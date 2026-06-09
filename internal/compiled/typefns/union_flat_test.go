@@ -98,7 +98,7 @@ func TestPrepareForJsonModule_ObjectUnionMergesProps(t *testing.T) {
 		t.Errorf("expected object-branch guard `typeof v === 'object'`; got:\n%s", out)
 	}
 	// No per-object validate dispatch on the union itself.
-	if strings.Contains(out, "g_"+itKey("ob1")) || strings.Contains(out, "g_"+itKey("ob2")) {
+	if strings.Contains(out, "g_"+valKey("ob1")) || strings.Contains(out, "g_"+valKey("ob2")) {
 		t.Errorf("flat encode should bypass per-object validate dispatch; got:\n%s", out)
 	}
 }

@@ -6,7 +6,7 @@
 //   - Directory name = the short hash (runType.ID) so the filesystem path
 //     is identical to the identifier consumers see in emitted JS.
 //   - File basename = the cache-module Tag (constants.CacheModules[…].Tag),
-//     e.g. "it.json" for validate, "te.json" for validationErrors.
+//     e.g. "val.json" for validate, "verr.json" for validationErrors.
 //   - Filename never encodes the version. Version is folded into the typeID
 //     hash itself (see internal/compiled/runtype.Cache.uniqueDict), so
 //     cross-version typeIDs are already distinct paths.
@@ -27,15 +27,15 @@ package disk
 // binary aren't misread.
 //
 // v2 added CrossFamilyRefs so a cache hit can reconstruct the entry's
-// cross-family `it_<member>`-style edges (previously the collection pass
-// in typefns.CrossFamilyItRoots had to bypass the disk cache to observe
+// cross-family `val_<member>`-style edges (previously the collection pass
+// in typefns.CrossFamilyValRoots had to bypass the disk cache to observe
 // them via the walker). v1 files lack the field, so they (correctly)
 // become misses under v2 — a hit returning empty crossFamilyDeps would
 // silently break unions on cached production builds.
 //
 // v3 is the hashed-naming flip: every cached `Line` and `CrossFamilyRef.Prefix`
 // now embeds an opaque fnHash (e.g. `WMk0_<id>`) instead of the readable family
-// tag (`it_<id>`). v2 files bake the old tag-based keys, so a hit would feed the
+// tag (`val_<id>`). v2 files bake the old tag-based keys, so a hit would feed the
 // runtime keys it no longer registers — they must become misses.
 //
 // v4 redefines the `clone` JSON-encoder strategy: its composite body now wraps
@@ -57,15 +57,15 @@ type ChildRef struct {
 
 // CrossFamilyRef captures one cross-family dependency the cached entry's
 // body reaches — a namespaced hash with a FOREIGN family prefix (e.g.
-// `it_<memberHash>` referenced inside a `tb` / `pj` entry to discriminate
+// `val_<memberHash>` referenced inside a `tb` / `pj` entry to discriminate
 // a union member). Stored decomposed so the reader can both revalidate
 // against hash drift (via StructuralID → Hash, exactly like ChildRef) AND
 // reconstruct the namespaced dependency on a cache hit (Prefix + the
 // current hash). The prefix is stored explicitly rather than assumed to be
-// `it_`, so a future cross-family edge into another family round-trips too.
+// `val_`, so a future cross-family edge into another family round-trips too.
 type CrossFamilyRef struct {
 	// Prefix is the namespaced family prefix, everything up to and
-	// including the first `_` (e.g. "it_").
+	// including the first `_` (e.g. "val_").
 	Prefix string `json:"prefix"`
 	// StructuralID is the referenced member's structural id at write time,
 	// used to detect hash drift across builds (same rule as ChildRef).
@@ -90,15 +90,15 @@ type RTEntry struct {
 	// directly requires every ChildRef to still resolve.
 	Line string `json:"line"`
 	// ChildRefs is one entry per RT-dependency hash baked into Line
-	// (the `it_<childHash>` namespaced ids in walker.RTDependencies).
+	// (the `val_<childHash>` namespaced ids in walker.RTDependencies).
 	// Empty for leaf entries with no child RT calls.
 	ChildRefs []ChildRef `json:"childRefs"`
 	// CrossFamilyRefs is one entry per cross-family edge the body reaches
 	// (walker.CrossFamilyDeps — namespaced hashes with a foreign family
-	// prefix, e.g. `it_<member>` inside a `tb` / `pj` entry). Persisted so
+	// prefix, e.g. `val_<member>` inside a `tb` / `pj` entry). Persisted so
 	// a cache hit reconstructs the same crossFamilyDeps the fresh walk
 	// would have produced; without it the demand-collection pass would see
-	// an empty set on a hit and miss the it_<member> roots. Empty for
+	// an empty set on a hit and miss the val_<member> roots. Empty for
 	// entries with no cross-family edges.
 	CrossFamilyRefs []CrossFamilyRef `json:"crossFamilyRefs,omitempty"`
 }

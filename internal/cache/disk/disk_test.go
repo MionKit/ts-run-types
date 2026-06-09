@@ -12,11 +12,11 @@ import (
 // methods must short-circuit without touching the filesystem.
 func TestStore_NilSafe(t *testing.T) {
 	var s *Store
-	entry, ok, err := s.ReadRT("abc123", "it")
+	entry, ok, err := s.ReadRT("abc123", "val")
 	if entry != nil || ok || err != nil {
 		t.Fatalf("nil ReadRT: want (nil,false,nil), got (%v,%v,%v)", entry, ok, err)
 	}
-	if err := s.WriteRT("abc123", "it", RTEntry{}); err != nil {
+	if err := s.WriteRT("abc123", "val", RTEntry{}); err != nil {
 		t.Fatalf("nil WriteRT: want nil, got %v", err)
 	}
 }
@@ -44,17 +44,17 @@ func TestStore_RoundTrip(t *testing.T) {
 	in := RTEntry{
 		Format:       FormatVersion,
 		StructuralID: "5{6,7}",
-		Line:         "init('it_abc123', 'User', '…', false, [], [], function(utl){…});",
+		Line:         "init('val_abc123', 'User', '…', false, [], [], function(utl){…});",
 		ChildRefs: []ChildRef{
 			{StructuralID: "1:atomic", Hash: "xyz"},
 			{StructuralID: "2:atomic", Hash: "qrs"},
 		},
 	}
-	if err := s.WriteRT("abc123", "it", in); err != nil {
+	if err := s.WriteRT("abc123", "val", in); err != nil {
 		t.Fatalf("WriteRT: %v", err)
 	}
 
-	out, ok, err := s.ReadRT("abc123", "it")
+	out, ok, err := s.ReadRT("abc123", "val")
 	if err != nil {
 		t.Fatalf("ReadRT err: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestStore_ReadMiss(t *testing.T) {
 	s := New(root, "fp1")
 
 	t.Run("ENOENT", func(t *testing.T) {
-		entry, ok, err := s.ReadRT("nope", "it")
+		entry, ok, err := s.ReadRT("nope", "val")
 		if entry != nil || ok || err != nil {
 			t.Fatalf("want (nil,false,nil), got (%v,%v,%v)", entry, ok, err)
 		}
@@ -95,10 +95,10 @@ func TestStore_ReadMiss(t *testing.T) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "it.json"), []byte("{not json"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "val.json"), []byte("{not json"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		entry, ok, err := s.ReadRT("bad", "it")
+		entry, ok, err := s.ReadRT("bad", "val")
 		if entry != nil || ok {
 			t.Fatalf("malformed: want (nil,false,_), got (%v,%v)", entry, ok)
 		}
@@ -115,10 +115,10 @@ func TestStore_ReadMiss(t *testing.T) {
 		// Format=99 simulates a future incompatible layout; current
 		// binary must refuse to read it.
 		body, _ := json.Marshal(RTEntry{Format: 99, StructuralID: "x", Line: "y"})
-		if err := os.WriteFile(filepath.Join(dir, "it.json"), body, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "val.json"), body, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		entry, ok, _ := s.ReadRT("old", "it")
+		entry, ok, _ := s.ReadRT("old", "val")
 		if entry != nil || ok {
 			t.Fatalf("stale: want (nil,false), got (%v,%v)", entry, ok)
 		}
@@ -138,14 +138,14 @@ func TestStore_WriteAtomic(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			entry := RTEntry{Format: FormatVersion, StructuralID: "s", Line: "line"}
-			if err := s.WriteRT("typeID", "it", entry); err != nil {
+			if err := s.WriteRT("typeID", "val", entry); err != nil {
 				t.Errorf("WriteRT[%d]: %v", i, err)
 			}
 		}(i)
 	}
 	wg.Wait()
 
-	out, ok, err := s.ReadRT("typeID", "it")
+	out, ok, err := s.ReadRT("typeID", "val")
 	if err != nil {
 		t.Fatalf("ReadRT: %v", err)
 	}

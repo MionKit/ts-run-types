@@ -106,12 +106,12 @@ const stringifyJsonIdentity: StringifyJsonFn = (v) => JSON.stringify(v);
 export const deserializeValidate = deserializeRTFunctionWithOptions<ValidateFn>(
   'deserializeValidate',
   (_value): _value is unknown => true
-) as unknown as <T>(val?: T, options?: ValidateOptions, id?: InjectTypeFnArgs<T, 'it'>) => ValidateFn;
+) as unknown as <T>(val?: T, options?: ValidateOptions, id?: InjectTypeFnArgs<T, 'val'>) => ValidateFn;
 
 export const deserializeGetValidationErrors = deserializeRTFunctionWithOptions<GetValidationErrorsFn>(
   'deserializeGetValidationErrors',
   getValidationErrorsIdentity
-) as unknown as <T>(val?: T, options?: ValidateOptions, id?: InjectTypeFnArgs<T, 'te'>) => GetValidationErrorsFn;
+) as unknown as <T>(val?: T, options?: ValidateOptions, id?: InjectTypeFnArgs<T, 'verr'>) => GetValidationErrorsFn;
 
 export const deserializeHasUnknownKeys = deserializeRTFunction<HasUnknownKeysFn>(
   'deserializeHasUnknownKeys',

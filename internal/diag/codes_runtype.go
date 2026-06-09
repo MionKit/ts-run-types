@@ -3,7 +3,7 @@ package diag
 // RunType RT-compiler codes. Per-family prefixes so users reading their
 // build log can tell which RT family produced a diagnostic without
 // reading the message: SJ010 is unambiguously "stringifyJson dropped a
-// member"; IT010 is "validate dropped a member"; even if both messages are
+// member"; VL010 is "validate dropped a member"; even if both messages are
 // otherwise identical.
 //
 // Numeric suffix convention within each family:
@@ -12,24 +12,24 @@ package diag
 
 // validate family.
 const (
-	CodeISNonSerializableRoot = "IT001"
-	CodeISSymbolRoot          = "IT002"
-	CodeISFunctionPropDropped = "IT010"
-	CodeISMethodDropped       = "IT011"
-	CodeISStaticDropped       = "IT012"
-	CodeISSymbolKeyedDropped  = "IT013"
-	CodeISRootAnyUnknown      = "IT021"
+	CodeVLNonSerializableRoot = "VL001"
+	CodeVLSymbolRoot          = "VL002"
+	CodeVLFunctionPropDropped = "VL010"
+	CodeVLMethodDropped       = "VL011"
+	CodeVLStaticDropped       = "VL012"
+	CodeVLSymbolKeyedDropped  = "VL013"
+	CodeVLRootAnyUnknown      = "VL021"
 )
 
 // validationErrors family.
 const (
-	CodeTENonSerializableRoot = "TE001"
-	CodeTESymbolRoot          = "TE002"
-	CodeTEFunctionPropDropped = "TE010"
-	CodeTEMethodDropped       = "TE011"
-	CodeTEStaticDropped       = "TE012"
-	CodeTESymbolKeyedDropped  = "TE013"
-	CodeTERootAnyUnknown      = "TE020"
+	CodeVENonSerializableRoot = "VE001"
+	CodeVESymbolRoot          = "VE002"
+	CodeVEFunctionPropDropped = "VE010"
+	CodeVEMethodDropped       = "VE011"
+	CodeVEStaticDropped       = "VE012"
+	CodeVESymbolKeyedDropped  = "VE013"
+	CodeVERootAnyUnknown      = "VE020"
 )
 
 // prepareForJson family.
@@ -155,8 +155,8 @@ const (
 func init() {
 	// Root-position errors — render a throwing factory.
 	for _, code := range []string{
-		CodeISNonSerializableRoot, CodeISSymbolRoot,
-		CodeTENonSerializableRoot, CodeTESymbolRoot,
+		CodeVLNonSerializableRoot, CodeVLSymbolRoot,
+		CodeVENonSerializableRoot, CodeVESymbolRoot,
 		CodePJNeverRoot, CodePJNonSerializableRoot, CodePJFunctionRoot, CodePJArrayElement, CodePJSymbolRoot,
 		CodePJSNeverRoot, CodePJSNonSerializableRoot, CodePJSFunctionRoot, CodePJSArrayElement, CodePJSSymbolRoot,
 		CodeRJNeverRoot, CodeRJNonSerializableRoot, CodeRJFunctionRoot, CodeRJArrayElement, CodeRJSymbolRoot,
@@ -169,8 +169,8 @@ func init() {
 
 	// Child-position warnings — the factory still emits, just drops the member.
 	for _, code := range []string{
-		CodeISFunctionPropDropped, CodeISMethodDropped, CodeISStaticDropped, CodeISSymbolKeyedDropped,
-		CodeTEFunctionPropDropped, CodeTEMethodDropped, CodeTEStaticDropped, CodeTESymbolKeyedDropped,
+		CodeVLFunctionPropDropped, CodeVLMethodDropped, CodeVLStaticDropped, CodeVLSymbolKeyedDropped,
+		CodeVEFunctionPropDropped, CodeVEMethodDropped, CodeVEStaticDropped, CodeVESymbolKeyedDropped,
 		CodePJFunctionPropDropped, CodePJMethodDropped, CodePJStaticDropped, CodePJSymbolKeyedDropped,
 		CodePJSFunctionPropDropped, CodePJSMethodDropped, CodePJSStaticDropped, CodePJSSymbolKeyedDropped,
 		CodeRJFunctionPropDropped, CodeRJMethodDropped, CodeRJStaticDropped, CodeRJSymbolKeyedDropped,
@@ -185,8 +185,8 @@ func init() {
 	// Root any/unknown — noop validators that accept every value. Warning
 	// severity (not Info): the user opted into a permissive type, often
 	// without realising the runtime is no longer enforcing the schema.
-	register(Definition{Code: CodeTERootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "validationErrors root any/unknown — identity fallback"})
-	register(Definition{Code: CodeISRootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "validate root any/unknown — identity fallback"})
+	register(Definition{Code: CodeVERootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "validationErrors root any/unknown — identity fallback"})
+	register(Definition{Code: CodeVLRootAnyUnknown, Family: FamilyRunType, Severity: SeverityWarning, Title: "validate root any/unknown — identity fallback"})
 
 	// Format-family — a mockSample that contradicts its own pattern is a
 	// type-definition bug; surface it as an error.

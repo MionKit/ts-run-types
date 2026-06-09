@@ -80,8 +80,8 @@ func TestFnHashVersionSensitive(t *testing.T) {
 
 func TestByFnKey(t *testing.T) {
 	cases := map[string]string{
-		"it":          "validate",
-		"te":          "validationErrors",
+		"val":          "validate",
+		"verr":          "validationErrors",
 		"jsonEncoder": "jsonEncoder",
 		"jsonDecoder": "jsonDecoder",
 		"tb":          "toBinary",

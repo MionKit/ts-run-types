@@ -2,11 +2,11 @@
 
 ## 2 - createValidate and other functions are not parsing compiler options, instead they are generating all families at One
 
-> But here's the key clarification about family: createValidate does not resolve a family at compile time today. The 'it' lives only in its runtime body (createRTFunctionWithOptions('createValidate', 'it', …)); the compiler never reads it — it just injects the id and currently over-emits all families for every interned type. So "the same mechanism as createValidate" means demand all families for the id, not "resolve a precise family."
+> But here's the key clarification about family: createValidate does not resolve a family at compile time today. The 'val' lives only in its runtime body (createRTFunctionWithOptions('createValidate', 'val', …)); the compiler never reads it — it just injects the id and currently over-emits all families for every interned type. So "the same mechanism as createValidate" means demand all families for the id, not "resolve a precise family."
 
 if this is correct we need to ensure the golang backend reads the params and generates only the selected fucntion.
 
-**RESOLVED.** Every `createX<T>()` call site now carries the `InjectTypeFnArgs<T, Fn>` marker (injects a `[typeId, fnId]` tuple); the Go backend renders each function cache demand-driven — only the types its own call sites request, with `it_<member>` seeded across families for union round-trips. A `getRunTypeId<T>()`-only file emits zero function-cache entries. This subsumes the "generalize collectValidateVariants" item below. Full write-up + commit list in **`docs/DEMAND-DRIVEN-FN-CACHES.md`**.
+**RESOLVED.** Every `createX<T>()` call site now carries the `InjectTypeFnArgs<T, Fn>` marker (injects a `[typeId, fnId]` tuple); the Go backend renders each function cache demand-driven — only the types its own call sites request, with `val_<member>` seeded across families for union round-trips. A `getRunTypeId<T>()`-only file emits zero function-cache entries. This subsumes the "generalize collectValidateVariants" item below. Full write-up + commit list in **`docs/DEMAND-DRIVEN-FN-CACHES.md`**.
 
 ## generalize collectValidateVariants
 

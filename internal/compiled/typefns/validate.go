@@ -1428,7 +1428,7 @@ func emitLiteral(rt *protocol.RunType, v string) RTCode {
 // pairs with the canonical literal type id (no swap on the resolver
 // side), so the same `T = 'a'` can serve both:
 //
-//   - plain `it_<id>`     → `v === 'a'`        (literal-exact)
+//   - plain `val_<id>`     → `v === 'a'`        (literal-exact)
 //   - variant `itNL_<id>` → `typeof v === 'string'` (base-kind)
 //
 // Base-kind picked from `rt.Flags` markers (`bigint`/`symbol`)

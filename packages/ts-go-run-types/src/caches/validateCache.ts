@@ -54,7 +54,7 @@ export function initCache(rtUtils) {
     /** @type {ValidateRTFn} */
     const entry = {
       rtFnHash,
-      fnID: 'it',
+      fnID: 'val',
       typeName,
       args: {vλl: 'v'},
       defaultParamValues: {vλl: undefined},

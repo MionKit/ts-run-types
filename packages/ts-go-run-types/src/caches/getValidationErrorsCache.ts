@@ -33,7 +33,7 @@ export function initCache(rtUtils) {
     /** @type {GetValidationErrorsRTFn} */
     const entry = {
       rtFnHash,
-      fnID: 'te',
+      fnID: 'verr',
       typeName,
       args: {vλl: 'v', pλth: 'pth', εrr: 'er'},
       defaultParamValues: {vλl: undefined, pλth: [], εrr: []},

@@ -6,7 +6,7 @@ Status: **DONE** — every function family is demand-scoped (Slices A–D landed
 `claude/dreamy-cori-cT1be`: `106cfc1`, `2f971f8`, `258900d`, `7bb023f`,
 `b0798ef`). A `getRunTypeId<T>()`-only file now emits zero function-cache
 entries; each `createX<T>()` family cache contains only the types its call sites
-request, with `it_<member>` seeded across families for union round-trips.
+request, with `val_<member>` seeded across families for union round-trips.
 `go test ./internal/...` + `pnpm test` (85 files / 5856) green. Remaining polish
 is in "Follow-ups" at the bottom. Execution tracked in the Task list.
 Owner item: `docs/TODOS.md` §2 ("createValidate and other functions are not
@@ -18,31 +18,31 @@ parsing compiler options, instead they are generating all families at once").
 demand-scoped on its own:
 
 - The JSON and binary **union decoders discriminate members at runtime via
-  `it_<member>.fn(value)`** — see `unionMemberValidateCheck` in
+  `val_<member>.fn(value)`** — see `unionMemberValidateCheck` in
   `internal/compiled/typefns/json_prepare.go`. The call is guarded
-  `(it_<member>?.fn(v) ?? true)`, so a **missing** `it_<member>` silently
+  `(val_<member>?.fn(v) ?? true)`, so a **missing** `val_<member>` silently
   evaluates to `true` → the first union member always matches → wrong
   round-trip values (no error, just corrupt data).
-- `validationErrors` (`te`) delegates child checks to `it_` too.
+- `validationErrors` (`te`) delegates child checks to `val_` too.
 
 Consequence: if `it` is demand-scoped to only `createValidate` call sites, a file
 that serializes a union via `createBinaryEncoder` / `createJsonEncoder` (but
-never calls `createValidate` on it) loses the `it_<member>` entries its union
+never calls `createValidate` on it) loses the `val_<member>` entries its union
 decoder needs. Verified empirically: demand-scoping `it`/`te` together turned
 the serialization suite from 468→ green to 22 union/binary round-trip failures.
 
-**Revised rule for `it` (cross-family edge following):** the `it_` references
+**Revised rule for `it` (cross-family edge following):** the `val_` references
 other families emit are already in the code as closure-prologue lookups —
-`registerRTLookup("it_<member>")` (`emitter.go:241`) emits
-`const it_<member> = utl.getRT('it_<member>')`. The fix is to **promote those
+`registerRTLookup("val_<member>")` (`emitter.go:241`) emits
+`const val_<member> = utl.getRT('val_<member>')`. The fix is to **promote those
 cross-family lookups to tracked dependency edges** (a `CrossFamilyDeps` list on
 the walker, kept distinct from same-family `RTDependencies` so the per-family
 dangling cascade does not wrongly drop the referencing entry) and have the
 demand-closure **follow those edges into the `it` family**. Then `it`'s demand
-is exactly the `it_` members actually referenced while rendering the demanded
+is exactly the `val_` members actually referenced while rendering the demanded
 `te`/JSON/binary entries — minimal, not the coarse "it-closure of every
 function-site type." Cross-family edges always use the **default** variant
-(plain `it_`, no options), matching what `registerRTLookup` already emits.
+(plain `val_`, no options), matching what `registerRTLookup` already emits.
 
 This is the same dependency-driven emission we already have for same-family
 `rtDependencies` (the worklist) and `pureFnDependencies` (resolver collect +
@@ -67,7 +67,7 @@ Root cause, two facts in the code:
    `for _, runType := range dump.RunTypes { renderRoot(runType) }` — it emits a
    factory for every interned type the emitter `Supports`. Call sites
    (`dump.Sites`) are consulted **only** by `collectValidateVariants`, and only to
-   add option-variant entries (`itNL_`, `itNA_`) on top of the always-emitted
+   add option-variant entries (`itNL_`, `valNA_`) on top of the always-emitted
    base entries, and only for `validate`/`validationErrors`.
 2. `internal/protocol/protocol.go` `Site` carries `File, Pos, ID, ParamIndex,
    ArgsCount, Options` but **no record of which `createX` function produced it**.
@@ -106,7 +106,7 @@ today read only at runtime (`createRTFunctions.ts`).
   `createX` factory's trailing slot. The transformer injects a tuple
   `["<typeId>", "<fnId>"]` instead of the bare `"<typeId>"` string.
   - `T` → the validated/serialised type (same structural-id hash as today).
-  - `Fn` → the function/base-family key (`'it'`, `'te'`, `'huk'`, …,
+  - `Fn` → the function/base-family key (`'val'`, `'verr'`, `'huk'`, …,
     `'jsonEncoder'`, `'jsonDecoder'`, `'binaryEncoder'`, `'binaryDecoder'`).
   - `fnId` → the **precise** compile-time selector computed by the transformer
     from `Fn` + the relevant `CompTimeArgs` literal: for single-family
@@ -157,7 +157,7 @@ What this template tells us:
 - ✅ The **option** (variant within a family) is already comptime and drives
   emission — **lift it**: generalise `collectValidateVariants` →
   `collectVariants(familyTag)` and drop the `supportsValidateVariants` gate.
-- ❌ The **family** (`'it'`) is hardcoded in the runtime wrapper and
+- ❌ The **family** (`'val'`) is hardcoded in the runtime wrapper and
   over-emitted — the `Fn` type-arg promotes it to comptime (the core fix).
 - ♻️ Step 7 is a **duplication** — the runtime re-derives the variant key from
   the runtime options arg. Injecting the finished `fnId` lets the runtime read
@@ -241,7 +241,7 @@ families ride the back-compat all-emit path so the tree stays correct.
   + registry, scanner `Site.FnId`, `[id, fnId]` tuple injection, generalised
   demand-driven emission, runtime tuple-read for `createValidate`/
   `createGetValidationErrors`. Only `te` (a safe leaf) is demand-scoped; `it` and the
-  rest stay all-emit. `createValidate` already injects `[id,'it']` and works
+  rest stay all-emit. `createValidate` already injects `[id,'val']` and works
   against the all-emit `it` cache, so migrating `it` later is a one-line
   `MigratedFamilies` flip once the prerequisites are met.
 - **Slice B — remaining single-family leaves.** Migrate
@@ -254,7 +254,7 @@ families ride the back-compat all-emit path so the tree stays correct.
   `TestResolver_EncoderOptionsShareTypeID`.
 - **Slice D — scope `it` + cleanup.** Builds on the cross-family-edge capture
   (`docs/CROSS-FAMILY-RT-DEPS.md`): compute the `it` demand as createValidate-site
-  closure ∪ the `it_` edges discovered while rendering the other demanded
+  closure ∪ the `val_` edges discovered while rendering the other demanded
   families (minimal, default variant), then add `it` to `MigratedFamilies`. Then
   drop `Site.Options` + the `buildVariantKey` duplication; full
   zero-over-emission regression for `getRunTypeId`-only files; refresh `docs/` +
@@ -302,8 +302,8 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 - [x] A12 Go overlay (`inline_test.go`) declares `InjectTypeFnArgs` +
   `createValidate`/`createGetValidationErrors`; emitter tests demand via `createValidate`.
 - [x] A13 `go test ./internal/...` green; `pnpm test` green (85 files / 5856).
-- [x] A14 Regression `internal/resolver/demand_scope_test.go`: `te_` scoped to
-  `createGetValidationErrors`; reflection/`createValidate` files emit no `te_`; `it`
+- [x] A14 Regression `internal/resolver/demand_scope_test.go`: `verr_` scoped to
+  `createGetValidationErrors`; reflection/`createValidate` files emit no `verr_`; `it`
   stays all-emit (guarded by `TestDemandScope_ItStaysAllEmit`).
 
 ### Slice B — single-family fan-out (`huk`/`suk`/`uke`/`fmt`, `tb`/`fb`) — `258900d`
@@ -322,13 +322,13 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
 ### Slice D — scope `it` via cross-family edges — `2f971f8` + `b0798ef`
 - [x] D0pre Cross-family RT dependency capture (`renderEntryWithDeps` →
   `crossFamilyDeps`); see `docs/CROSS-FAMILY-RT-DEPS.md`.
-- [x] D0 `CrossFamilyItRoots` renders the 14 non-`it` families (Store-bypassed) to
-  collect `it_<member>` edges → seeds the `it` demand via `RenderOpts.ExtraRoots`;
-  `"it"` added to `MigratedFamilies`. Also fixed a latent map-iteration
+- [x] D0 `CrossFamilyValRoots` renders the 14 non-`it` families (Store-bypassed) to
+  collect `val_<member>` edges → seeds the `it` demand via `RenderOpts.ExtraRoots`;
+  `"val"` added to `MigratedFamilies`. Also fixed a latent map-iteration
   non-determinism (now sorted) and a stale JS overlay (`inline.ts` createValidate
   on the old marker). Union/serialization canary green.
-- [x] D3 `demand_scope_test.go`: reflection-only → no `it_`; `createValidate` →
-  `it_`; `createBinaryEncoder<{a:bigint}|{a:Date}>`-only → `it_<member>` seeded
+- [x] D3 `demand_scope_test.go`: reflection-only → no `val_`; `createValidate` →
+  `val_`; `createBinaryEncoder<{a:bigint}|{a:Date}>`-only → `val_<member>` seeded
   cross-family.
 - [x] D5 `gofmt`/`pnpm run lint` clean; `go test ./internal/...` + `pnpm test` green.
 
@@ -348,4 +348,4 @@ Check items off as they land. Each slice ends green (`go test ./internal/...`
   `docs/ARCHITECTURE.md`, `docs/UNSUPPORTED-KINDS.md`.
 - [x] Disk-cache + cross-family edges (`3eb5658`): `crossFamilyDeps` now persist in
   the RT disk cache (`disk.RTEntry.CrossFamilyRefs`, FormatVersion 1→2, structural-id
-  drift validation); `CrossFamilyItRoots` no longer bypasses the disk cache.
+  drift validation); `CrossFamilyValRoots` no longer bypasses the disk cache.

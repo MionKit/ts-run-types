@@ -8,14 +8,14 @@ Parent: `docs/DEMAND-DRIVEN-FN-CACHES.md` (Slice D prerequisite, item D0pre).
 ## Why
 
 The JSON/binary union decoders discriminate members at runtime via
-`it_<member>.fn(value)`, and `validationErrors` delegates child checks to `it_`. Today
+`val_<member>.fn(value)`, and `validationErrors` delegates child checks to `val_`. Today
 those references are emitted only as **closure-prologue runtime lookups** —
-`registerRTLookup("it_<member>")` (`internal/compiled/typefns/emitter.go:241`)
-emits `const it_<member> = utl.getRT('it_<member>')` and relies on the `it`
+`registerRTLookup("val_<member>")` (`internal/compiled/typefns/emitter.go:241`)
+emits `const val_<member> = utl.getRT('val_<member>')` and relies on the `it`
 family being all-emit. They are **not** tracked as build-time dependency edges,
-so nothing triggers emission of `it_<member>`. That blocks demand-scoping `it`
+so nothing triggers emission of `val_<member>`. That blocks demand-scoping `it`
 (the final step of the parent plan): scoping `it` to only `createValidate` sites
-drops the `it_<member>` entries unions need, silently corrupting round-trips
+drops the `val_<member>` entries unions need, silently corrupting round-trips
 (verified: 22 union/binary failures).
 
 Contrast with what already works:
@@ -56,7 +56,7 @@ change emission/demand behaviour. This is pure capture + plumbing + tests.
    the walker's `CrossFamilyDeps` when it is cross-family. Note `emitDepCall`'s
    same-family calls go through here too, so the prefix check is what filters.
    (`childID` for cross-family is already the plain default form, e.g.
-   `it_<member>` — no variant suffix — which is exactly the default variant we
+   `val_<member>` — no variant suffix — which is exactly the default variant we
    want.)
 
 3. **Thread it out of the renderer.** `renderEntryWithDeps` in `module.go`
@@ -73,7 +73,7 @@ change emission/demand behaviour. This is pure capture + plumbing + tests.
 
 - Render a discriminated union (objectLiteral members with a literal
   discriminator prop) via `PrepareForJsonEmitter` (and `ToBinaryEmitter`); assert
-  the captured `CrossFamilyDeps` contain `it_<memberID>` for each union member,
+  the captured `CrossFamilyDeps` contain `val_<memberID>` for each union member,
   and that those are NOT also in `RTDependencies` (cross-family stays separate).
 - Render a plain object via `ValidateEmitter`; assert its same-family child deps
   still land in `RTDependencies` and `CrossFamilyDeps` is empty (no regression to

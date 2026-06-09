@@ -5,8 +5,8 @@
 //      never changes the id (`getRunTypeId<T>()` returns the same value
 //      regardless of options the caller passes elsewhere for the same T).
 //   2. Each `(family, options-tuple)` pair dispatches to a DISTINCT
-//      cached factory — different variant cache keys (`it_<id>` vs
-//      `itNL_<id>` vs `itNA_<id>` vs `itNLA_<id>`).
+//      cached factory — different variant cache keys (`val_<id>` vs
+//      `itNL_<id>` vs `valNA_<id>` vs `itNLA_<id>`).
 //   3. The variant body actually changes behaviour: the `noLiterals`
 //      variant accepts the base kind beyond the exact literal; the
 //      `noIsArrayCheck` variant skips the leading `Array.isArray` guard.
