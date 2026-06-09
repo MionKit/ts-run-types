@@ -328,10 +328,13 @@ export const TUPLE = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createIsType<TupleCircular>();
     },
-    isTypeDataOnly: () => {
-      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createIsType<DataOnly<TupleCircular>>();
-    },
+    // DataOnly equivalence is `'not-supported'` for this case: writing
+    // `DataOnly<TupleCircular>` as an explicit type argument forces TS to
+    // EAGERLY instantiate the recursive mapped type, which exceeds the
+    // instantiation-depth cap (TS2589). `DataOnly<TupleCircular>` is anyway
+    // structurally identical to `TupleCircular` (every element is serialisable),
+    // so the bare `isType` above already covers the recursive-tuple shape.
+    isTypeDataOnly: 'not-supported',
     // A ROOT-level recursive tuple can't be authored value-first — `Recursive<[…,
     // Self?]>` hits TS2589 (TS can't build a recursive tuple type via the mapping).
     // Covered type-first here; the object→tuple cycle is covered value-first by
@@ -356,10 +359,11 @@ export const TUPLE = {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return createGetTypeErrors<TupleCircular>();
     },
-    getTypeErrorsDataOnly: () => {
-      type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
-      return createGetTypeErrors<DataOnly<TupleCircular>>();
-    },
+    // `'not-supported'` for the same TS2589 reason as `isTypeDataOnly` above:
+    // `DataOnly<TupleCircular>` as an explicit type argument blows the recursive
+    // instantiation-depth cap, and is structurally identical to `TupleCircular`
+    // (covered by the bare `getTypeErrors` above) anyway.
+    getTypeErrorsDataOnly: 'not-supported',
     deserializeGetTypeErrors: () => {
       type TupleCircular = [Date, number, string, null, string[], bigint, TupleCircular?];
       return deserializeGetTypeErrors<TupleCircular>();
