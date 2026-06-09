@@ -1,6 +1,7 @@
 package resolver_test
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/microsoft/typescript-go/shim/tspath"
@@ -72,36 +73,55 @@ const temporalDTS = `declare namespace Temporal {
 // setupInline builds a Resolver over an in-memory overlay of TypeScript
 // sources. Mirrors withInlineSources in helpers/inline.ts so Go tests can
 // keep their snippet right next to the assertions instead of jumping to a
-// fixture file.
+// fixture file. Single-threaded (one pool checker, serial scan) — the
+// shape every pre-parallel test was written against.
 func setupInline(t testing.TB, sources map[string]string) *resolver.Resolver {
 	t.Helper()
+	return setupInlineWith(t, sources, func(programOpts *program.Options, resolverOpts *resolver.Options) {
+		programOpts.SingleThreaded = true
+		resolverOpts.SingleThreaded = true
+	})
+}
+
+// setupInlineWith is setupInline with an options hook: mutate receives the
+// program + resolver options after defaults are filled, letting parallel
+// tests build multi-checker programs (leave SingleThreaded false) or flip
+// the Disable* toggles. Overlay file names are registered in sorted order
+// so the Program's file list — and therefore the pool's round-robin
+// file→checker association — is deterministic across runs (Go map
+// iteration order is not).
+func setupInlineWith(t testing.TB, sources map[string]string, mutate func(*program.Options, *resolver.Options)) *resolver.Resolver {
+	t.Helper()
 	cwd := tspath.NormalizePath(t.TempDir())
-	overlay := make(map[string]string, len(sources)+1)
-	fileNames := make([]string, 0, len(sources)+1)
+	overlay := make(map[string]string, len(sources)+2)
+	relNames := make([]string, 0, len(sources)+2)
 	if _, ok := sources["runtypes.d.ts"]; !ok {
-		abs := tspath.ResolvePath(cwd, "runtypes.d.ts")
-		overlay[abs] = runtypesDTS
-		fileNames = append(fileNames, abs)
+		overlay[tspath.ResolvePath(cwd, "runtypes.d.ts")] = runtypesDTS
+		relNames = append(relNames, "runtypes.d.ts")
 	}
 	if _, ok := sources["temporal.d.ts"]; !ok {
-		abs := tspath.ResolvePath(cwd, "temporal.d.ts")
-		overlay[abs] = temporalDTS
-		fileNames = append(fileNames, abs)
+		overlay[tspath.ResolvePath(cwd, "temporal.d.ts")] = temporalDTS
+		relNames = append(relNames, "temporal.d.ts")
 	}
 	for rel, code := range sources {
-		abs := tspath.ResolvePath(cwd, rel)
-		overlay[abs] = code
-		fileNames = append(fileNames, abs)
+		overlay[tspath.ResolvePath(cwd, rel)] = code
+		relNames = append(relNames, rel)
 	}
-	p, err := program.NewInferred(program.Options{
-		Cwd:            cwd,
-		SingleThreaded: true,
-		Overlay:        overlay,
-	}, fileNames)
+	sort.Strings(relNames)
+	fileNames := make([]string, 0, len(relNames))
+	for _, rel := range relNames {
+		fileNames = append(fileNames, tspath.ResolvePath(cwd, rel))
+	}
+	programOpts := program.Options{Cwd: cwd, Overlay: overlay}
+	resolverOpts := resolver.Options{Cwd: cwd}
+	if mutate != nil {
+		mutate(&programOpts, &resolverOpts)
+	}
+	p, err := program.NewInferred(programOpts, fileNames)
 	if err != nil {
 		t.Fatalf("program.NewInferred: %v", err)
 	}
-	r, err := resolver.New(p, resolver.Options{Cwd: cwd, SingleThreaded: true})
+	r, err := resolver.New(p, resolverOpts)
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
 	}
