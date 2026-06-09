@@ -347,6 +347,7 @@ func (computer *Computer) memberIDs(tsType *checker.Type, asClass bool) []string
 
 func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 	propertyType := computer.typeChecker.GetTypeOfSymbol(symbol)
+	memberName := stableMemberName(symbol.Name)
 	optional := symbol.Flags&ast.SymbolFlagsOptional != 0
 	// Readonly must be part of the structural id — `{a: string}` and
 	// `{readonly a: string}` are different shapes and must not share
@@ -385,7 +386,7 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 			if asClass {
 				kind = protocol.KindMethod
 			}
-			return computer.signatureID(signatures[0], kind, symbol.Name) + optBit(optional) + readonlyBit(readonly)
+			return computer.signatureID(signatures[0], kind, memberName) + optBit(optional) + readonlyBit(readonly)
 		}
 	}
 
@@ -407,7 +408,29 @@ func (computer *Computer) memberID(symbol *ast.Symbol, asClass bool) string {
 		childType = stripUndefined(childType)
 	}
 	child := computer.Compute(childType)
-	return memberID(int(kind), symbol.Name, optional, child) + readonlyBit(readonly)
+	return memberID(int(kind), memberName, optional, child) + readonlyBit(readonly)
+}
+
+// stableMemberName strips the checker-instance symbol id off a late-bound
+// symbol-keyed member name ("\xFE@toPrimitive@5" → "\xFE@toPrimitive") so
+// structural ids never embed which checker (or which session) materialized
+// the member. Replicated from internal/compiled/runtype/serialize.go (the
+// typeid subpackage can't import its parent without an import cycle) —
+// keep them in sync.
+func stableMemberName(name string) string {
+	if len(name) < 2 || name[0] != 0xFE || name[1] != '@' {
+		return name
+	}
+	at := strings.LastIndexByte(name, '@')
+	if at <= 1 || at == len(name)-1 {
+		return name
+	}
+	for i := at + 1; i < len(name); i++ {
+		if name[i] < '0' || name[i] > '9' {
+			return name
+		}
+	}
+	return name[:at]
 }
 
 func readonlyBit(readonly bool) string {
