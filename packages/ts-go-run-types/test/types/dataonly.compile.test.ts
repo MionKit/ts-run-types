@@ -11,9 +11,27 @@
 //      trips the hard TS2589 cap. The numbers are also per-branch data for
 //      tuning an individual arm of the mapping.
 //
-// Budgets are sized with headroom over the observed net (TypeScript is exact-
-// pinned, so the counts are deterministic). If you intentionally change a
-// branch's cost, update its budget here and note why.
+// Each budget IS the branch's current net instantiation count — a one-way
+// RATCHET that may only ever be lowered.
+//
+// ──────────────────── UPDATING A BUDGET — READ THIS ────────────────────
+// Budgets are NOT auto-derived; you update them BY HAND. The test prints
+// `net=… budget=…` for every branch on each run. After ANY change to DataOnly
+// (src/runtypes/types.ts) or to a snippet here, re-run this suite and compare
+// each printed `net` to its budget:
+//
+//   • net WENT DOWN  → you made the branch cheaper. Set its budget to the new
+//                      (lower) net to lock the win in.
+//   • net UNCHANGED  → nothing to do.
+//   • net WENT UP    → a cost regression. Do NOT raise the budget to make the
+//                      test pass — that silently defeats the guard. Fix DataOnly
+//                      so the net returns to (or below) the current budget.
+//
+// A budget may ONLY ever be set LOWER than its current value, never higher. (A
+// genuinely unavoidable increase — e.g. a deliberate new capability in the
+// mapping — is a reviewed exception to call out explicitly in the PR, not the
+// default path.) Counts are deterministic because `typescript` is exact-pinned;
+// a TS version bump is the one event that re-baselines every branch.
 
 import {describe, it, expect} from 'vitest';
 import {measureDataOnly} from './dataonlyHarness.ts';
@@ -23,6 +41,8 @@ import {measureDataOnly} from './dataonlyHarness.ts';
 function check(snippet: string, budget: number): number {
   const r = measureDataOnly(snippet);
   expect(r.errors, `snippet should type-check cleanly:\n${snippet}\n→ ${r.errors.join('\n  ')}`).toEqual([]);
+  // eslint-disable-next-line no-console
+  console.log(`    net=${String(r.netInstantiations).padStart(5)}  budget=${budget}`);
   expect(
     r.netInstantiations,
     `net instantiations (${r.netInstantiations}) exceeded budget (${budget}) — possible DataOnly recursion/cost regression`
@@ -49,7 +69,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _13 = Expect<Equal<DataOnly<object>, object>>;
       type _14 = Expect<Equal<DataOnly<symbol>, never>>;
       `,
-      800
+      551
     );
   });
 
@@ -65,7 +85,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _07 = Expect<Equal<DataOnly<DataView>, DataView>>;
       type _08 = Expect<Equal<DataOnly<URL>, URL>>;
       `,
-      3000
+      2251
     );
   });
 
@@ -78,7 +98,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _04 = Expect<Equal<DataOnly<Temporal.Duration>, Temporal.Duration>>;
       type _05 = Expect<Equal<DataOnly<{at: Temporal.Instant; name: string}>, {at: Temporal.Instant; name: string}>>;
       `,
-      400
+      357
     );
   });
 
@@ -90,7 +110,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _03 = Expect<Equal<DataOnly<new (x: number) => Date>, never>>;
       type _04 = Expect<Equal<DataOnly<abstract new () => Date>, never>>;
       `,
-      250
+      83
     );
   });
 
@@ -102,7 +122,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _03 = Expect<Equal<DataOnly<Promise<{a: string}>>, never>>;
       type _04 = Expect<Equal<DataOnly<{then: (...a: never[]) => unknown}>, never>>;
       `,
-      300
+      84
     );
   });
 
@@ -114,7 +134,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _03 = Expect<Equal<DataOnly<ReadonlyMap<string, number>>, ReadonlyMap<string, number>>>;
       type _04 = Expect<Equal<DataOnly<Map<string, () => void>>, Map<string, () => void>>>;
       `,
-      1100
+      815
     );
   });
 
@@ -127,7 +147,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _04 = Expect<Equal<DataOnly<(() => void)[]>, never[]>>;
       type _05 = Expect<Equal<DataOnly<{a: string; fn: () => void}[]>, {a: string}[]>>;
       `,
-      1000
+      746
     );
   });
 
@@ -142,7 +162,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _06 = Expect<Equal<DataOnly<[]>, []>>;
       type _07 = Expect<Equal<DataOnly<Parameters<(a: string, b: number) => void>>, [a: string, b: number]>>;
       `,
-      3400
+      2642
     );
   });
 
@@ -157,7 +177,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _06 = Expect<Equal<DataOnly<{outer: {inner: string; fn: () => void}}>, {outer: {inner: string}}>>;
       type _07 = Expect<Equal<DataOnly<{p: Promise<string>; a: number}>, {a: number}>>;
       `,
-      1400
+      1043
     );
   });
 
@@ -170,7 +190,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _04 = Expect<Equal<DataOnly<string | number>, string | number>>;
       type _05 = Expect<Equal<DataOnly<{a: string} | {b: number}>, {a: string} | {b: number}>>;
       `,
-      550
+      384
     );
   });
 
@@ -180,7 +200,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _01 = Expect<Equal<DataOnly<{a: string} & {b: number}>, {a: string; b: number}>>;
       type _02 = Expect<Equal<DataOnly<{a: string} & {fn: () => void}>, {a: string}>>;
       `,
-      500
+      346
     );
   });
 
@@ -192,7 +212,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _02 = Expect<Assignable<LinkedList, DataOnly<LinkedList>>>;
       type _03 = Expect<Equal<DataOnly<LinkedList>['value'], number>>;
       `,
-      900
+      639
     );
   });
 
@@ -205,7 +225,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _02 = Expect<Equal<DataOnly<NodeB>['y'], number>>;
       type _03 = Expect<Assignable<DataOnly<NodeA>, NodeA>>;
       `,
-      1200
+      1178
     );
   });
 
@@ -216,7 +236,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _01 = Expect<Equal<keyof DataOnly<Tree>, 'name' | 'children'>>;
       type _02 = Expect<Equal<DataOnly<Tree>['children'], DataOnly<Tree>[]>>;
       `,
-      900
+      871
     );
   });
 
@@ -227,7 +247,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _01 = Expect<Equal<DataOnly<TupleCircular>[0], number>>;
       type _02 = Expect<Assignable<DataOnly<TupleCircular>, readonly unknown[]>>;
       `,
-      1100
+      836
     );
   });
 
@@ -238,7 +258,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _01 = Expect<Assignable<DataOnly<Json>, Json>>;
       type _02 = Expect<Assignable<Json, DataOnly<Json>>>;
       `,
-      2200
+      1558
     );
   });
 
@@ -259,7 +279,7 @@ describe('DataOnly<T> — per-branch correctness + instantiation budget', () => 
       type _03 = Expect<Equal<DataOnly<Deep>['when'], Date>>;
       type _04 = Expect<Equal<DataOnly<Deep>['bag']['index'], Map<string, Deep>>>;
       `,
-      2800
+      2034
     );
   });
 });
