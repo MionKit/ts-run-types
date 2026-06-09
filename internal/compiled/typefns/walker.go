@@ -216,6 +216,13 @@ type Walker struct {
 	// the same call site.
 	diagSeen map[string]bool
 
+	// facts is the per-dispatch memo for the canonical-node subtree
+	// predicates (isJsonCompatible / isExtraProof). Nil disables
+	// memoization (hand-constructed unit-test walkers). Shared across
+	// every family render of one dispatch — the predicates are pure
+	// functions of a canonical node's reachable subgraph, independent of
+	// emitter and parent (the canonical-node rule).
+	facts *FactsTable
 	// inlineCtx is reused across every dispatch call: the IsRTInlined
 	// predicate completes synchronously before any child dispatch runs,
 	// so one instance per walker is safe — only RT is re-pointed per node.
@@ -224,6 +231,50 @@ type Walker struct {
 	// A parent's context stays checked out while its children compile,
 	// so a pooled instance can never alias a live frame.
 	ctxPool []*EmitContext
+}
+
+// factKind enumerates the memoized canonical-node predicates.
+type factKind int
+
+const (
+	factJsonCompat factKind = iota
+	factExtraProof
+	factCount
+)
+
+// FactsTable memoizes the canonical-node subtree predicates — one bool
+// verdict per (fact, node ID). Only COMPLETED top-level walks are stored
+// (an intermediate node's in-walk value can depend on a cycle-back
+// assumption for an ancestor still on the stack); a stored verdict is
+// context-free because the predicate names the node's full reachable
+// set, which is the same no matter which parent asked. Owned by the
+// dispatcher (one per dispatch, threaded via RenderOpts.Facts).
+type FactsTable struct {
+	verdicts [factCount]map[string]bool
+}
+
+// NewFactsTable returns an empty predicate memo.
+func NewFactsTable() *FactsTable {
+	table := &FactsTable{}
+	for i := range table.verdicts {
+		table.verdicts[i] = map[string]bool{}
+	}
+	return table
+}
+
+func (w *Walker) factsLookup(kind factKind, id string) (verdict bool, known bool) {
+	if w == nil || w.facts == nil {
+		return false, false
+	}
+	verdict, known = w.facts.verdicts[kind][id]
+	return verdict, known
+}
+
+func (w *Walker) factsStore(kind factKind, id string, verdict bool) {
+	if w == nil || w.facts == nil {
+		return
+	}
+	w.facts.verdicts[kind][id] = verdict
 }
 
 // getEmitContext pops a recycled EmitContext (or allocates one) primed

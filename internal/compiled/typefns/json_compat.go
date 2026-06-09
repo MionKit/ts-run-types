@@ -38,7 +38,21 @@ import (
 // any non-cycle leaf elsewhere in the graph is non-compatible the
 // outer call returns false on that path anyway.
 func isJsonCompatible(rt *protocol.RunType, ctx *EmitContext) bool {
-	return jsonCompatRecursive(rt, ctx, make(map[string]struct{}))
+	if rt != nil && rt.ID != "" {
+		if verdict, known := ctx.walker.factsLookup(factJsonCompat, rt.ID); known {
+			return verdict
+		}
+	}
+	result := jsonCompatRecursive(rt, ctx, make(map[string]struct{}))
+	// Only COMPLETED top-level walks are stored: an intermediate node's
+	// in-walk value can depend on the cycle-back assumption for an
+	// ancestor still on the stack, so it is not context-free. The
+	// top-level result is — "every leaf reachable from rt is JSON-safe"
+	// names the same reachable set no matter which parent asked.
+	if rt != nil && rt.ID != "" {
+		ctx.walker.factsStore(factJsonCompat, rt.ID, result)
+	}
+	return result
 }
 
 func jsonCompatRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[string]struct{}) bool {
@@ -46,6 +60,11 @@ func jsonCompatRecursive(rt *protocol.RunType, ctx *EmitContext, visited map[str
 		return false
 	}
 	if rt.ID != "" {
+		// A previously completed top-level verdict for this node is
+		// context-free — reuse it at any depth.
+		if verdict, known := ctx.walker.factsLookup(factJsonCompat, rt.ID); known {
+			return verdict
+		}
 		if _, seen := visited[rt.ID]; seen {
 			return true
 		}
