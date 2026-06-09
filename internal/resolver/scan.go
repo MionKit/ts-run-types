@@ -90,8 +90,8 @@ func (resolver *Resolver) scanAllProgramFiles() {
 //
 // The scanner walks CallExpression AST nodes ONLY and assigns typeids
 // ONLY for marker call arguments (cache.AssignID is invoked exclusively
-// from scanCall when marker.DetectAny matches the trailing slot as
-// InjectRunTypeId). Type projection
+// from commitPending, for calls whose analyzeCall pass matched the
+// trailing slot as InjectRunTypeId). Type projection
 // (cache.AssignID → cache.Serialize) is rooted at marker-referenced
 // types and follows children transitively from there — it never
 // reaches into the file's top-level declarations, exported type
@@ -111,6 +111,7 @@ func (resolver *Resolver) scanAllProgramFiles() {
 func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []diag.Diagnostic, error) {
 	var sites []protocol.Site
 	var diagnostics []diag.Diagnostic
+	state := resolver.scanStateFor(resolver.checker)
 	for _, file := range files {
 		sourceFile, err := resolver.sourceFile(file)
 		if err != nil {
@@ -118,34 +119,114 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 		}
 		fileStart := len(sites)
 		forEachCallExpression(sourceFile, func(call *ast.Node) bool {
-			site, diags, ok := resolver.scanCall(file, call)
+			pending, diags, ok := state.analyzeCall(file, call)
 			if len(diags) > 0 {
 				diagnostics = append(diagnostics, diags...)
 			}
 			if ok {
+				site := resolver.commitPending(pending)
 				sites = append(sites, site)
 				resolver.sites = append(resolver.sites, site)
 			}
 			return true
 		})
-		resolver.recordFileIDs(file, sites[fileStart:])
-		if resolver.scannedFiles != nil {
-			resolver.scannedFiles[file] = struct{}{}
-			// File names from the Program's source list use absolute paths.
-			// scanFiles callers (the Vite plugin) pass relative paths. Mark
-			// both forms so scanAllProgramFiles's dedup check matches a
-			// previously scanned per-request file regardless of which form
-			// arrived first.
-			if resolver.Program != nil && resolver.Program.TS != nil {
-				absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
-				resolver.scannedFiles[absolutePath] = struct{}{}
-			}
-		}
+		resolver.markFileScanned(file, sites[fileStart:])
 	}
 	return sites, diagnostics, nil
 }
 
-// scanCall inspects one call expression. The flow is:
+// markFileScanned runs the per-file post-scan bookkeeping: records the
+// reached wire ids in the cache's per-file scope map and marks the file
+// (in both relative and absolute form) as scanned. Shared by the serial
+// loop above and the parallel commit phase.
+func (resolver *Resolver) markFileScanned(file string, fileSites []protocol.Site) {
+	resolver.recordFileIDs(file, fileSites)
+	if resolver.scannedFiles == nil {
+		return
+	}
+	resolver.scannedFiles[file] = struct{}{}
+	// File names from the Program's source list use absolute paths.
+	// scanFiles callers (the Vite plugin) pass relative paths. Mark
+	// both forms so scanAllProgramFiles's dedup check matches a
+	// previously scanned per-request file regardless of which form
+	// arrived first.
+	if resolver.Program != nil && resolver.Program.TS != nil {
+		absolutePath := tspath.ResolvePath(resolver.Program.TS.GetCurrentDirectory(), file)
+		resolver.scannedFiles[absolutePath] = struct{}{}
+	}
+}
+
+// scanState carries the checker-bound context for one scan pass: the
+// checker that resolves this pass's files and that checker's
+// marker-verdict memo. The serial path builds one for the session
+// checker; the parallel path builds one per checker group.
+type scanState struct {
+	resolver    *Resolver
+	scanChecker *checker.Checker
+	verdicts    map[*checker.Type]markerVerdict
+}
+
+// scanStateFor builds the scanState for scanChecker, resolving the
+// per-checker verdict memo once for the whole pass.
+func (resolver *Resolver) scanStateFor(scanChecker *checker.Checker) scanState {
+	return scanState{
+		resolver:    resolver,
+		scanChecker: scanChecker,
+		verdicts:    resolver.verdictsFor(scanChecker),
+	}
+}
+
+// detectMarker is marker.DetectAny memoized by parameter type pointer in
+// the state's per-checker memo — see Resolver.verdictsByChecker.
+func (state scanState) detectMarker(paramType *checker.Type) (marker.Kind, *checker.Type, bool) {
+	if verdict, seen := state.verdicts[paramType]; seen {
+		return verdict.kind, verdict.typeArg, verdict.matched
+	}
+	kind, typeArg, matched := marker.DetectAny(state.scanChecker, paramType, state.resolver.marker)
+	if state.verdicts != nil {
+		state.verdicts[paramType] = markerVerdict{kind: kind, typeArg: typeArg, matched: matched}
+	}
+	return kind, typeArg, matched
+}
+
+// pendingCall is the checker-bound analysis result for one injection
+// call site — a complete Site minus the wire ID, plus the resolved type
+// argument and the checker that materialized it. analyzeCall produces
+// these; commitPending projects the type (the only cache mutation on
+// the scan path) and mints the Site. The split exists so the analysis
+// can run on pool checkers concurrently while projection stays serial.
+type pendingCall struct {
+	file         string
+	pos          int
+	paramIndex   int
+	argsCount    int
+	fnId         string
+	demand       []protocol.SiteDemand
+	typeArgument *checker.Type
+	// owner is the checker that materialized typeArgument. Projection
+	// must run under it — types from different checkers never mix
+	// (upstream contract on Program.GetTypeCheckerForFile).
+	owner *checker.Checker
+}
+
+// commitPending projects the pending call's type argument into the cache
+// and returns the finished Site. Serial-only: the cache is not safe for
+// concurrent use.
+func (resolver *Resolver) commitPending(pending pendingCall) protocol.Site {
+	id := resolver.cache.AssignID(pending.typeArgument)
+	return protocol.Site{
+		File:       pending.file,
+		Pos:        pending.pos,
+		ID:         id,
+		ParamIndex: pending.paramIndex,
+		ArgsCount:  pending.argsCount,
+		FnId:       pending.fnId,
+		Demand:     pending.demand,
+	}
+}
+
+// analyzeCall inspects one call expression — the checker-bound analysis
+// half of the scan. The flow is:
 //
 //  1. Walk every parameter of the resolved signature and detect any
 //     marker brand via `marker.DetectAny`. CompTimeArgs / PureFunction
@@ -154,18 +235,21 @@ func (resolver *Resolver) dispatchScanFiles(files []string) ([]protocol.Site, []
 //     the function name or position.
 //  2. If the trailing parameter carries `InjectRunTypeId<T>`, run the
 //     injection-specific logic (free-type-parameter gate, reflect-form
-//     checks, options extraction, id assignment) and emit a Site.
-//  3. Otherwise return any accumulated diagnostics with no Site.
+//     checks, options extraction) and emit a pendingCall for the commit
+//     phase (which assigns the id and mints the Site).
+//  3. Otherwise return any accumulated diagnostics with no pendingCall.
 //
-// Diagnostics always flow — they're independent of Site emission.
-func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, []diag.Diagnostic, bool) {
-	signature := checker.Checker_getResolvedSignature(resolver.checker, call, nil, 0)
+// Diagnostics always flow — they're independent of Site emission. Every
+// checker read in here goes through state.scanChecker, so the analysis
+// can run on any pool checker; only commitPending touches the cache.
+func (state scanState) analyzeCall(file string, call *ast.Node) (pendingCall, []diag.Diagnostic, bool) {
+	signature := checker.Checker_getResolvedSignature(state.scanChecker, call, nil, 0)
 	if signature == nil {
-		return protocol.Site{}, nil, false
+		return pendingCall{}, nil, false
 	}
 	parameters := checker.Signature_parameters(signature)
 	if len(parameters) == 0 {
-		return protocol.Site{}, nil, false
+		return pendingCall{}, nil, false
 	}
 	lastIndex := len(parameters) - 1
 	callExpression := call.AsCallExpression()
@@ -186,8 +270,8 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		if paramSymbol == nil {
 			continue
 		}
-		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, paramSymbol)
-		kind, typeArg, matched := resolver.detectMarker(paramType)
+		paramType := checker.Checker_getTypeOfSymbol(state.scanChecker, paramSymbol)
+		kind, typeArg, matched := state.detectMarker(paramType)
 		if !matched {
 			continue
 		}
@@ -208,7 +292,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			if paramIndex == lastIndex {
 				injectionTypeArgument = typeArg
 				injectionMatched = true
-				if fnKey, fnOK := marker.FnKeyForInjectTypeFnArgs(resolver.checker, paramType, resolver.marker); fnOK {
+				if fnKey, fnOK := marker.FnKeyForInjectTypeFnArgs(state.scanChecker, paramType, state.resolver.marker); fnOK {
 					injectionFnKey = fnKey
 				}
 			}
@@ -223,7 +307,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			if argumentNode == nil {
 				continue
 			}
-			if diagnostic, ok := resolver.checkCompTimeArgs(file, argumentNode); ok {
+			if diagnostic, ok := state.checkCompTimeArgs(file, argumentNode); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		case marker.KindPureFunction:
@@ -234,11 +318,11 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			if argumentNode == nil {
 				continue
 			}
-			diagnostics = append(diagnostics, resolver.checkPureFunction(file, argumentNode)...)
+			diagnostics = append(diagnostics, state.checkPureFunction(file, argumentNode)...)
 		}
 	}
 	if !injectionMatched {
-		return protocol.Site{}, diagnostics, false
+		return pendingCall{}, diagnostics, false
 	}
 	// NESTED-BUILDER SKIP: a value-first builder call nested inside another
 	// marker call (e.g. `string({...})` inside `object({...})`) is reflected by
@@ -250,15 +334,15 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// plain helpers, vitest's `expect`) are transparent, so the walk continues
 	// past them and a `string()` inside `optional()` inside `object()` still
 	// skips via the `object` ancestor.
-	if resolver.enclosedByInjectionMarker(call) {
-		return protocol.Site{}, diagnostics, false
+	if state.enclosedByInjectionMarker(call) {
+		return pendingCall{}, diagnostics, false
 	}
 	// Guard against a `Temporal.*` type that silently resolved to `any`
 	// because the consumer's tsconfig lib doesn't load the Temporal
 	// namespace — otherwise the emitted validator accepts anything. Emitted
 	// for the injection call regardless of what the type argument resolved
 	// to (it inspects the written syntax, not the resolved type).
-	diagnostics = append(diagnostics, resolver.detectTemporalNotLoaded(file, call)...)
+	diagnostics = append(diagnostics, detectTemporalNotLoaded(state.scanChecker, file, call)...)
 	typeArgument := injectionTypeArgument
 	if marker.IsFreeTypeParameter(typeArgument) {
 		// Call inside a generic wrapper body — `T` is the wrapper's own
@@ -269,7 +353,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// breadcrumb.
 		sourceFile := ast.GetSourceFileOfNode(call)
 		if sourceFile == nil {
-			return protocol.Site{}, diagnostics, false
+			return pendingCall{}, diagnostics, false
 		}
 		startLine, startCol := scanLineCol(sourceFile, call.Pos())
 		endLine, endCol := scanLineCol(sourceFile, call.End())
@@ -277,12 +361,12 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 			diag.CodeMarkerFreeTypeParameter,
 			diag.Site{FilePath: file, StartLine: startLine, StartCol: startCol, EndLine: endLine, EndCol: endCol},
 		))
-		return protocol.Site{}, diagnostics, false
+		return pendingCall{}, diagnostics, false
 	}
 	// Caller has already placed an argument at (or past) the id slot.
 	// Never override an explicit pass-through — leave the call untouched.
 	if argsCount > lastIndex {
-		return protocol.Site{}, diagnostics, false
+		return pendingCall{}, diagnostics, false
 	}
 	// REFLECT-FORM CHECKS: only fire when T was inferred from a value
 	// argument (no explicit type-argument list) AND at least one value
@@ -301,7 +385,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// recommended replacement is the static form using `ReturnType<
 		// typeof fn>`. Emit a build warning to nudge the user toward it.
 		if argZero != nil && argZero.Kind == ast.KindCallExpression {
-			if diagnostic, ok := resolver.markerDiagFunctionCallArg(file, argZero); ok {
+			if diagnostic, ok := state.resolver.markerDiagFunctionCallArg(file, argZero); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
@@ -325,7 +409,7 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 		// from the schema overload's `RunType<T>` param). Overriding it with
 		// `RunType<T>` would validate against RunType's own shape, not `T` — and
 		// break recursive schemas bound to an annotated const.
-		if annotated, ok := resolver.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, resolver.markerModule()) {
+		if annotated, ok := state.declaredTypeFromIdentifier(argZero); ok && !builders.IsRunType(annotated, state.resolver.markerModule()) {
 			typeArgument = annotated
 		}
 	}
@@ -337,32 +421,31 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// only signal the option is redundant. Anchored at the options
 	// literal when present, falling back to the whole call.
 	if options.NoLiterals || options.NoIsArrayCheck {
-		resolvedKind := typeid.KindOf(resolver.checker, typeArgument)
+		resolvedKind := typeid.KindOf(state.scanChecker, typeArgument)
 		if options.NoLiterals && resolvedKind != protocol.KindLiteral {
-			if diagnostic, ok := resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoLiteralsNoop); ok {
+			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoLiteralsNoop); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
 		if options.NoIsArrayCheck && resolvedKind != protocol.KindArray {
-			if diagnostic, ok := resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoArrayNoop); ok {
+			if diagnostic, ok := state.resolver.noopValidateOptionDiag(file, call, lastIndex, argsCount, diag.CodeValidateOptionsNoArrayNoop); ok {
 				diagnostics = append(diagnostics, diagnostic)
 			}
 		}
 	}
-	// Structural id resolution — purely a function of the resolved TS
-	// type. `ValidateOptions` (`noLiterals` / `noIsArrayCheck`) does NOT
-	// fold into the id; instead, the option set folds into the injected
-	// `fnId` variant suffix below (e.g. `itNL`, `valNA`) and the emitter
-	// renders one factory per (typeid, fnId) pair under the canonical
-	// variant cache key (e.g. `itNL_<id>`, `valNA_<id>`). Same invariant
-	// the encoder strategy / decoder strategy already honour. See
-	// createRTFunctions.ts's `createJsonEncoder` dispatch + the
-	// `ValidateVariantSuffix` helper in internal/constants.
-	// Structural id — a pure function of the resolved TS type. RegExp has no
-	// literal type in TS (`/abc/i` widens to `RegExp` even under `as const`), so
-	// `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the same
-	// KindRegexp id — id stays ≡ f(T).
-	id := resolver.cache.AssignID(typeArgument)
+	// Structural id resolution happens in commitPending and is purely a
+	// function of the resolved TS type. `ValidateOptions` (`noLiterals` /
+	// `noIsArrayCheck`) does NOT fold into the id; instead, the option set
+	// folds into the injected `fnId` variant suffix below (e.g. `itNL`,
+	// `valNA`) and the emitter renders one factory per (typeid, fnId) pair
+	// under the canonical variant cache key (e.g. `itNL_<id>`, `valNA_<id>`).
+	// Same invariant the encoder strategy / decoder strategy already honour.
+	// See createRTFunctions.ts's `createJsonEncoder` dispatch + the
+	// `ValidateVariantSuffix` helper in internal/constants. RegExp has no
+	// literal type in TS (`/abc/i` widens to `RegExp` even under `as const`),
+	// so `typeof /abc/i`, `typeof /xyz/`, and `RegExp` all resolve to the
+	// same KindRegexp id — id stays ≡ f(T).
+	//
 	// Compute the precise fnId for InjectTypeFnArgs sites — the function's base
 	// tag refined by the call-site compile-time options (ValidateOptions variant
 	// suffix for it/te, the strategy token for the JSON families). Reflection
@@ -373,17 +456,17 @@ func (resolver *Resolver) scanCall(file string, call *ast.Node) (protocol.Site, 
 	// computed from the operation registry (the forward replacement for
 	// reverse-parsing fnId, which an opaque hash can't support).
 	demand := computeFnDemand(injectionFnKey, options, call, lastIndex, argsCount)
-	// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
-	// the closing-paren offset where the TS-side patcher inserts.
-	pos := call.End() - 1
-	return protocol.Site{
-		File:       file,
-		Pos:        pos,
-		ID:         id,
-		ParamIndex: lastIndex,
-		ArgsCount:  argsCount,
-		FnId:       fnId,
-		Demand:     demand,
+	return pendingCall{
+		file: file,
+		// call.End() is exclusive (one past the closing `)`). Pos at End()-1 is
+		// the closing-paren offset where the TS-side patcher inserts.
+		pos:          call.End() - 1,
+		paramIndex:   lastIndex,
+		argsCount:    argsCount,
+		fnId:         fnId,
+		demand:       demand,
+		typeArgument: typeArgument,
+		owner:        state.scanChecker,
 	}, diagnostics, true
 }
 
@@ -506,12 +589,12 @@ func extractStrategyOption(call *ast.Node, lastIndex, argsCount int) string {
 // resolving each ancestor CallExpression's signature and checking its trailing
 // parameter — non-injection ancestor calls (plain helpers, `optional`, vitest's
 // `expect`) are transparent, so the walk continues past them.
-func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
+func (state scanState) enclosedByInjectionMarker(call *ast.Node) bool {
 	for parent := call.Parent; parent != nil; parent = parent.Parent {
 		if parent.Kind != ast.KindCallExpression {
 			continue
 		}
-		signature := checker.Checker_getResolvedSignature(resolver.checker, parent, nil, 0)
+		signature := checker.Checker_getResolvedSignature(state.scanChecker, parent, nil, 0)
 		if signature == nil {
 			continue
 		}
@@ -523,8 +606,8 @@ func (resolver *Resolver) enclosedByInjectionMarker(call *ast.Node) bool {
 		if lastParam == nil {
 			continue
 		}
-		paramType := checker.Checker_getTypeOfSymbol(resolver.checker, lastParam)
-		kind, _, matched := resolver.detectMarker(paramType)
+		paramType := checker.Checker_getTypeOfSymbol(state.scanChecker, lastParam)
+		kind, _, matched := state.detectMarker(paramType)
 		if matched && (kind == marker.KindInjectRunTypeId || kind == marker.KindInjectTypeFnArgs) {
 			return true
 		}
@@ -645,8 +728,8 @@ func extractValidateOptions(call *ast.Node, lastIndex, argsCount int) validateOp
 // the purity rules against the resolved function node (emits any of
 // PFE9006–PFE9011 on violation). Inline-shape failure short-circuits —
 // there is nothing to walk for purity when the arg isn't a function.
-func (resolver *Resolver) checkPureFunction(file string, argumentNode *ast.Node) []diag.Diagnostic {
-	fnNode, shapeResult := comptimeargs.CheckLiteralFunction(resolver.checker, argumentNode)
+func (state scanState) checkPureFunction(file string, argumentNode *ast.Node) []diag.Diagnostic {
+	fnNode, shapeResult := comptimeargs.CheckLiteralFunction(state.scanChecker, argumentNode)
 	if !shapeResult.Ok {
 		failingNode := shapeResult.FailingNode
 		if failingNode == nil {
@@ -673,8 +756,8 @@ func (resolver *Resolver) checkPureFunction(file string, argumentNode *ast.Node)
 // checkCompTimeArgs validates the argument node passes the CompTimeArgs
 // literal-only rules and returns a CTA0xx diagnostic when it doesn't.
 // Returns (_, false) when validation succeeded.
-func (resolver *Resolver) checkCompTimeArgs(file string, argumentNode *ast.Node) (diag.Diagnostic, bool) {
-	result := comptimeargs.CheckLiteral(resolver.checker, argumentNode, 0, resolver.isBuilderCallPredicate())
+func (state scanState) checkCompTimeArgs(file string, argumentNode *ast.Node) (diag.Diagnostic, bool) {
+	result := comptimeargs.CheckLiteral(state.scanChecker, argumentNode, 0, state.isBuilderCallPredicate())
 	if result.Ok {
 		return diag.Diagnostic{}, false
 	}
@@ -748,10 +831,10 @@ func extractValidateOptionsCandidate(call *ast.Node, lastIndex, argsCount int) *
 // optional()/propMod() carrier) as a valid CompTimeArgs leaf — so a nested
 // `string({…})` or `optional(number())` inside `object({…})` passes without
 // recursing into it (each self-validates on its own scan visit).
-func (resolver *Resolver) isBuilderCallPredicate() func(*ast.Node) bool {
-	module := resolver.markerModule()
+func (state scanState) isBuilderCallPredicate() func(*ast.Node) bool {
+	module := state.resolver.markerModule()
 	return func(node *ast.Node) bool {
-		return builders.IsSchemaLeafCall(resolver.checker, module, node)
+		return builders.IsSchemaLeafCall(state.scanChecker, module, node)
 	}
 }
 
@@ -834,11 +917,11 @@ func scanLineCol(sourceFile *ast.SourceFile, pos int) (int, int) {
 // Annotation ≥ apparent type by construction: TS enforces initializer
 // assignability against the annotation, so honoring the annotation never
 // produces a narrower validator than the apparent-type path.
-func (resolver *Resolver) declaredTypeFromIdentifier(node *ast.Node) (*checker.Type, bool) {
+func (state scanState) declaredTypeFromIdentifier(node *ast.Node) (*checker.Type, bool) {
 	if node == nil || node.Kind != ast.KindIdentifier {
 		return nil, false
 	}
-	symbol := resolver.checker.GetSymbolAtLocation(node)
+	symbol := state.scanChecker.GetSymbolAtLocation(node)
 	if symbol == nil {
 		return nil, false
 	}
@@ -854,7 +937,7 @@ func (resolver *Resolver) declaredTypeFromIdentifier(node *ast.Node) (*checker.T
 		if variableDecl == nil || variableDecl.Type == nil {
 			continue
 		}
-		return checker.Checker_getTypeFromTypeNode(resolver.checker, variableDecl.Type), true
+		return checker.Checker_getTypeFromTypeNode(state.scanChecker, variableDecl.Type), true
 	}
 	return nil, false
 }
