@@ -1,4 +1,4 @@
-import type {IsTypeFn, GetTypeErrorsFn, RunTypeError, MockTypeFn} from '@mionjs/ts-go-run-types';
+import type {GetTypeErrorsFn, RunTypeError, MockTypeFn} from '@mionjs/ts-go-run-types';
 
 /** Thunk that returns the variant's function, OR the `'not-supported'`
  *  sentinel marking the variant as deliberately unsupported on this case
@@ -12,6 +12,19 @@ import type {IsTypeFn, GetTypeErrorsFn, RunTypeError, MockTypeFn} from '@mionjs/
  *    `console.warn`).
  *  - Function → normal variant; assert runs it. **/
 export type Thunk<T> = (() => T) | 'not-supported';
+
+/** Validator-field thunk type. `IsTypeFn<T>` is a type guard
+ *  (`value is DataOnly<T>`) whose asserted type TS checks INVARIANTLY, so a
+ *  field typed `IsTypeFn<any>` accepts every concrete `IsTypeFn<T>` EXCEPT
+ *  `IsTypeFn<never>` — the symbol cases, where `DataOnly<symbol>` is `never`
+ *  and `any` is not assignable to `never`. We therefore widen to the plain
+ *  boolean-returning call shape, the common supertype every `IsTypeFn<T>`
+ *  (including `IsTypeFn<never>`) satisfies — a type guard is assignable to a
+ *  `=> boolean` function. The validator's real typing is still checked at the
+ *  thunk's `createIsType<T>()` call site; the asserts only invoke it for its
+ *  boolean result. **/
+type AnyIsTypeFn = (value: unknown) => boolean;
+type IsTypeThunk = Thunk<AnyIsTypeFn>;
 
 /** One atomic-type case in the shared suite. */
 export interface ValidationCase {
@@ -29,22 +42,22 @@ export interface ValidationCase {
   isTypeNotes?: string | string[];
   /** Plugin-rewritten thunk returning the isType validator — STATIC
    *  form. Caller supplies `T` explicitly via the type argument. */
-  isType?: Thunk<IsTypeFn>;
+  isType?: IsTypeThunk;
   /** Plugin-rewritten thunk returning the isType validator — REFLECT
    *  form. Calls `createIsType(value)` with a runtime value annotated
    *  to type T; the type checker infers T from the annotation, the
    *  value itself is discarded at runtime. Paired with `isType` per
    *  the CLAUDE.md "Marker test coverage rule" to verify both call
    *  shapes produce the same validator end-to-end. **/
-  isTypeReflect?: Thunk<IsTypeFn>;
+  isTypeReflect?: IsTypeThunk;
   /** Plugin-rewritten thunk returning the validator rebuilt from the
    *  serialized `RTCompiledFnData.code` body via
    *  `new Function('utl', code)(rtUtils)` — exercises the
    *  serialize → deserialize round-trip the over-the-wire cache uses.
    *  Same call shape as `isType` (static form). **/
-  deserializeIsType?: Thunk<IsTypeFn>;
+  deserializeIsType?: IsTypeThunk;
   /** Reflect-form companion to `deserializeIsType`. **/
-  deserializeIsTypeReflect?: Thunk<IsTypeFn>;
+  deserializeIsTypeReflect?: IsTypeThunk;
   /** DATA-ONLY form: `() => createIsType<DataOnly<T>>()` — the SAME `T` as
    *  `isType`, wrapped in `DataOnly<…>`. Proves the `DataOnly` type mapping
    *  drops exactly what the AOT validator emitter drops: a `DataOnly<T>` call
@@ -54,7 +67,7 @@ export interface ValidationCase {
    *  literal call site (NOT behind a generic helper) — the plugin resolves the
    *  type argument where it is written. Set `dataOnlyDivergent` for the
    *  root-level non-data kinds whose ids cannot converge. **/
-  isTypeDataOnly?: Thunk<IsTypeFn>;
+  isTypeDataOnly?: IsTypeThunk;
   /** SCHEMA form: `() => createIsType(<value-first builder schema>)`. Builds
    *  the validator from a `define` builder result (a `RunType` value) instead of
    *  reflecting a type — the value-first authoring path. Run against the same
@@ -63,7 +76,7 @@ export interface ValidationCase {
    *  authored value-first (e.g. depends on an `IsTypeOptions` flag the builders
    *  can't carry) — the assert then logs once and the title shows
    *  `(not supported)`. **/
-  isTypeSchema: Thunk<IsTypeFn>;
+  isTypeSchema: IsTypeThunk;
   /** Plugin-rewritten thunk returning the getTypeErrors validator —
    *  STATIC form. Caller supplies `T` explicitly. Same dispatch and
    *  caching as `isType` but the validator returns `RunTypeError[]`

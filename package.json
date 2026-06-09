@@ -35,6 +35,7 @@
     "check-format-pre-commit": "prettier --check",
     "lint": "lerna run lint",
     "lint-pre-committ": "eslint --quiet",
+    "typecheck:test": "lerna run typecheck:test",
     "build": "lerna run build",
     "clean": "nx reset && lerna run clean",
     "fresh-start": "lerna run fresh-start && rimraf node_modules && pnpm install --frozen-lockfile",

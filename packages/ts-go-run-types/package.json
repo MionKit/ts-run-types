@@ -65,6 +65,7 @@
   },
   "scripts": {
     "build": "tsc --build tsconfig.json",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "pretest": "pnpm --filter vite-plugin-runtypes run build",
     "test": "vitest run",
     "dev:test": "vitest watch",
