@@ -153,7 +153,6 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 		response := protocol.Response{
 			Sites:                           sites,
 			Replacements:                    pureFnReplacements,
-			Added:                           added,
 			AddedRunTypes:                   addedRunTypes,
 			AddedValidate:                   addedRunTypes && typefns.AnyValidateSupported(added),
 			AddedValidationErrors:           addedRunTypes && typefns.AnyValidationErrorsSupported(added),
@@ -171,6 +170,13 @@ func (resolver *Resolver) dispatch(request protocol.Request, metrics *protocol.M
 			AddedFormatTransform:            addedRunTypes && typefns.AnyFormatTransformSupported(added),
 			AddedPureFns:                    addedPureFns,
 			Diagnostics:                     combinedDiagnostics,
+		}
+		// The full added-node payload is attached only when the caller
+		// opted into type payloads — the Vite plugin and the bench client
+		// read just the added* booleans, so marshalling every new RunType
+		// graph on every scan was pure wire/encode waste.
+		if request.IncludeRunTypes {
+			response.Added = added
 		}
 		if metrics != nil {
 			metrics.PrepMs = elapsedMs(prepStart)
